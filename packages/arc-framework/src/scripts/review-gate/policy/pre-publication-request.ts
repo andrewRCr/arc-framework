@@ -271,6 +271,8 @@ export type PrePublicationComposition =
     terminusDecision?: PreparedNativeReviewTerminus;
     /** Independently observed current root head for an approved, pending Candidate fix. */
     pendingFixRootHeadSha?: string;
+    /** The delivery member targets this call's selection examined, in plan order. */
+    examinedTargets?: readonly ReviewTarget[];
   }
   | {
     status: "refused";
@@ -286,6 +288,8 @@ export type PrePublicationComposition =
     terminusDecision?: PreparedNativeReviewTerminus;
     /** A delivery plan refused before selecting its member, so its continuation keeps grants no subject yet binds. */
     retainsGrants?: true;
+    /** The delivery member targets this call's selection examined, in plan order, through the refusing one. */
+    examinedTargets?: readonly ReviewTarget[];
     pendingReview?: {
       lane: ReviewLane;
       operationId: string;
@@ -770,6 +774,10 @@ export async function composePrePublicationReviewRequest(
     standard?: z.infer<typeof ReviewResponseSettlementSourceSchema> | null;
   } = {};
   const judgedPasses: Partial<Record<ReviewLane, number>> = {};
+  // A delivery call examines several member targets; a scope judgment confirmed for any of them still binds.
+  const examinedTargets: ReviewTarget[] = [];
+  const withExaminedTargets = (composition: PrePublicationComposition): PrePublicationComposition =>
+    examinedTargets.length === 0 ? composition : { ...composition, examinedTargets: [...examinedTargets] };
   const judgeLane = async (
     lane: ReviewLane,
     policyTarget: ReviewPolicyTarget,
@@ -885,7 +893,7 @@ export async function composePrePublicationReviewRequest(
       [ReviewPolicyTarget, ReviewTarget | null, readonly string[], LaneSubjectLineage?],
     selecting = false,
   ): Promise<PrePublicationComposition> => {
-    const refusal = evidenceCompositionRefusal(error);
+    const refusal = withExaminedTargets(evidenceCompositionRefusal(error));
     if (refusal.status !== "refused" || refusal.scopeMismatch === undefined
       || dependencies.resolveExtraPassJudgment === undefined) return refusal;
     try {
@@ -894,7 +902,7 @@ export async function composePrePublicationReviewRequest(
           selecting ? withoutExtraPassGrants(lanes.data.standard) : lanes.data.standard);
       }
     } catch (judgmentError) {
-      return evidenceCompositionRefusal(judgmentError);
+      return withExaminedTargets(evidenceCompositionRefusal(judgmentError));
     }
     const terminusDecision = await preparePrePublicationTerminusDecision({ candidateId: candidate.candidateId,
       subjectDigest: candidate.subjectDigest, completedPasses: judgedPasses.standard ?? 0,
@@ -920,6 +928,7 @@ export async function composePrePublicationReviewRequest(
     const native = dependencies.resolveExtraPassJudgment !== undefined;
     const selectionJudgment = native ? withoutExtraPassGrants(lanes.data.frontline) : lanes.data.frontline;
     for (const member of deliveryTargets.targets) {
+      examinedTargets.push(member.target);
       const memberPolicyTarget = {
         repository: target.repository,
         pullRequest: null,
@@ -1040,7 +1049,7 @@ export async function composePrePublicationReviewRequest(
       selectedLineage,
     );
   } catch (error) {
-    return evidenceCompositionRefusal(error);
+    return withExaminedTargets(evidenceCompositionRefusal(error));
   }
   const standard = withCeilingOverride("standard", policyTarget, standardRequest);
   const pendingResponse: PrePublicationReviewRequest["pendingResponse"] = {
@@ -1083,7 +1092,7 @@ export async function composePrePublicationReviewRequest(
   const terminusDecision = await preparePrePublicationTerminusDecision({ candidateId: request.data.candidateId,
     subjectDigest: request.data.candidate.subjectDigest, completedPasses: request.data.standard.completedPasses,
     judgment: lanes.data.standard, authority: ownerTerminusAuthority, dependencies });
-  return {
+  return withExaminedTargets({
     status: "composed",
     request: request.data,
     advisories,
@@ -1091,7 +1100,7 @@ export async function composePrePublicationReviewRequest(
     ...(candidate.pendingFixRootHeadSha === undefined
       ? {}
       : { pendingFixRootHeadSha: candidate.pendingFixRootHeadSha }),
-  };
+  });
 }
 
 /** Reapply a durable Owner conclusion only to the exact Candidate subject it accepted. */

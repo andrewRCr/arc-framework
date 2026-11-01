@@ -23,7 +23,8 @@ import { resolveReduceInvocation } from "../scripts/review-gate/runtime/reduce-i
 import { resolveFrontlineRunInvocation } from "../scripts/review-gate/runtime/frontline-invocation.js";
 import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
 import { readReviewLane } from "../scripts/review-gate/runtime/lane-read-composition.js";
-import { buildPrePublicationResumeCommand, readPrePublicationCall, type ReviewPrePublicationJudgment } from "./review-pre-publication-replay.js";
+import { buildPrePublicationResumeCommand, readPrePublicationCall, scopeJudgmentTargetExamined,
+  type ReviewPrePublicationJudgment } from "./review-pre-publication-replay.js";
 import { reviewDiscoverableCommandInputSchema } from "./review-request-schema.js";
 import { confirmReviewCorrectionLeg } from "../scripts/review-gate/policy/review-next-pass.js";
 
@@ -4704,8 +4705,8 @@ export async function handleReviewPrePublication(
       }
       if (composition.scopeMismatch !== undefined) {
         const mismatch = composition.scopeMismatch;
-        if (replayInput?.scopeJudgmentTarget !== undefined
-          && canonicalize(mismatch.target) !== canonicalize(replayInput.scopeJudgmentTarget)) {
+        if (replayInput?.scopeJudgmentTarget !== undefined && !scopeJudgmentTargetExamined(
+          composition.examinedTargets ?? [mismatch.target], replayInput.scopeJudgmentTarget)) {
           emitAdvancedReplayRefusal("The saved scope judgment no longer matches the current exact review target.");
           return;
         }
@@ -4773,8 +4774,8 @@ export async function handleReviewPrePublication(
         : composition.code === "candidate-unexplained-delta" ? composition.code : undefined);
       return;
     }
-    if (replayInput?.scopeJudgmentTarget !== undefined
-      && canonicalize(composition.request.target) !== canonicalize(replayInput.scopeJudgmentTarget)) {
+    if (replayInput?.scopeJudgmentTarget !== undefined && !scopeJudgmentTargetExamined(
+      composition.examinedTargets ?? [composition.request.target], replayInput.scopeJudgmentTarget)) {
       emitAdvancedReplayRefusal("The saved scope judgment no longer matches the current exact review target.");
       return;
     }

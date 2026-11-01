@@ -1,5 +1,5 @@
 /** Select pre-publication replay codecs and preserve only the selected backend's call inputs. */
-import type { CanonicalDigest } from "../lib/kernel/index.js";
+import { canonicalize, type CanonicalDigest } from "../lib/kernel/index.js";
 import type { ReviewTarget } from "../scripts/review-gate/core/gate-contract-v2-schema.js";
 import { PrePublicationLaneJudgmentsSchema, consumeFrontlineCeilingOverride } from "../scripts/review-gate/policy/pre-publication-request.js";
 import { decodePrePublicationReplay, encodePrePublicationReplay, type PrePublicationReplayInput,
@@ -61,6 +61,15 @@ export async function readPrePublicationCall(input: CallInput, access: ReplayAcc
     }
     return { status: "ready", root, schemaVersion, replay, judgment };
   } catch (error) { return { status: "failed", error, stage: "request" }; }
+}
+
+/**
+ * Whether a saved scope judgment still binds this call: its target is one the call examined. A singleton call examines
+ * its one target; a delivery call examines each member its selection passed through.
+ */
+export function scopeJudgmentTargetExamined(examined: readonly (ReviewTarget | null)[], saved: ReviewTarget): boolean {
+  const key = canonicalize(saved);
+  return examined.some(target => target !== null && canonicalize(target) === key);
 }
 
 type ReplayLaneJudgment = NonNullable<ReturnType<typeof PrePublicationLaneJudgmentsSchema.parse>["standard"]>;

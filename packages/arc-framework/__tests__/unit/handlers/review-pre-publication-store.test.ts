@@ -12,6 +12,8 @@ import { createProjectIdentityReader } from "../../../src/lib/store/project-iden
 import { StoreRefusalSchema } from "../../../src/lib/store/refusal.js";
 import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { createReviewTarget } from "../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import type { PreBindingDeliveryReviewTarget } from "../../../src/scripts/review-gate/policy/pre-publication-delivery-targets.js";
+import { deliveryMember, nativeDeliveryCompositionDependencies } from "../../helpers/store/native-delivery-composition.js";
 import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
 import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { projectPublicationBoundary, projectCandidateReviewResumeBoundary, recoverAttestedOwnerTerminusBoundary } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -568,6 +570,90 @@ it.each([false, true])("keeps a native scope refusal's grants in its remedy only
   expect(decodePrePublicationReplayV2(token).lanes).toEqual(retains
     ? { frontline: { ...grants.frontline, scopeMode: "whole-target" }, standard: grants.standard }
     : { frontline: { scopeMode: "whole-target" } });
+});
+
+const DELIVERY_REPOSITORY = "arc-framework/example";
+// The first member's frontline pass is complete, so a plan selects the second; the first is where a scope refuses.
+const first = deliveryMember(DELIVERY_REPOSITORY, "1", "2", "3"), second = deliveryMember(DELIVERY_REPOSITORY, "4", "3", "5");
+
+/** Wire a real native delivery composition over the fixture's store as the command's composition. */
+async function deliveryCommand(h: Awaited<ReturnType<typeof fixture>>, owner: OwnerIdentity,
+  members: () => readonly PreBindingDeliveryReviewTarget[]) {
+  const current = await createPrePublicationCompositionDependencies({ ...h, workItem: owner }).readCandidate("example");
+  if (current.status !== "current") throw new Error(JSON.stringify(current));
+  const dependencies = nativeDeliveryCompositionDependencies({ store: h.store, owner, repository: DELIVERY_REPOSITORY,
+    actor: h.identity, now: "2026-11-01T12:00:00Z", members, candidate: { candidateId: current.candidateId,
+      subjectDigest: current.subjectDigest, headSha: current.headSha } });
+  const compose = async (_root: string, input: { name: string }, judgment: { selfReview?: "settled"; lanes?: unknown }) =>
+    composePrePublicationReviewRequest({ workUnit: input.name,
+      ...(judgment.selfReview === undefined ? {} : { selfReview: judgment.selfReview }),
+      ...(judgment.lanes === undefined ? {} : { lanes: judgment.lanes }) }, dependencies);
+  const decisions = createReviewDecisionPort(h.store, owner);
+  const listDecisions = async () => {
+    const listing = await decisions.list();
+    if (listing.status !== "complete") throw new Error(listing.reason);
+    return listing.records.map(({ value }) => value);
+  };
+  return { compose, listDecisions };
+}
+
+const remedyToken = (output: unknown) => (output as { remedy: { argv: string[] } }).remedy.argv[5] ?? "";
+
+it("follows a delivery plan's scope remedy to readiness when its re-entry selects another member", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const { compose, listDecisions } = await deliveryCommand(h, owner, () => [first, second]);
+  const refused = await h.run(true, { frontline: { scopeMode: "chunked" },
+    standard: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 }, terminus: { mode: "owner-accepted" } } },
+  undefined, { compose });
+  expect(refused, JSON.stringify(refused)).toMatchObject({ error: { code: "scope-judgment-required" },
+    remedy: { argv: ["arc", "review", "pre-publication", "example", "--resume", expect.any(String)] } });
+
+  const ready = await h.run(false, {}, remedyToken(refused), { compose });
+  const decisions = await listDecisions();
+  const terminus = decisions.find(value => value.choice.kind === "terminus");
+  expect(ready, JSON.stringify(ready)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready",
+    terminus: terminus === undefined ? "missing" : reviewDecisionKey(terminus) });
+  expect(decisions.map(value => ({ lane: value.lane, kind: value.choice.kind, headSha: value.subject.headSha })))
+    .toEqual(expect.arrayContaining([{ lane: "standard", kind: "terminus", headSha: null },
+      { lane: "standard", kind: "extra-pass", headSha: second.target.headSha }]));
+  expect(decisions).toHaveLength(2);
+});
+
+it("refuses a delivery scope judgment whose member target moved before its remedy re-entered", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  let members = [first, second];
+  const { compose } = await deliveryCommand(h, owner, () => members);
+  const refused = await h.run(true, { frontline: { scopeMode: "chunked" } }, undefined, { compose });
+  expect(refused, JSON.stringify(refused)).toMatchObject({ error: { code: "scope-judgment-required" } });
+  members = [deliveryMember(DELIVERY_REPOSITORY, "1", "2", "6"), second];
+  expect(await h.run(false, {}, remedyToken(refused), { compose })).toMatchObject({ error: { code: "invalid-input",
+    message: "The saved scope judgment no longer matches the current exact review target." } });
+});
+
+it("asks a fresh scope judgment for a later member's mismatch after an earlier member's confirmed one", async () => {
+  const h = await fixture();
+  await h.seedCandidate();
+  const refusals = [
+    { lane: "frontline" as const, observedScope: "whole-target" as const, selectedScope: "chunked" as const,
+      target: first.target, examinedTargets: [first.target] },
+    { lane: "standard" as const, observedScope: "chunked" as const, selectedScope: "whole-target" as const,
+      target: second.target, examinedTargets: [first.target, second.target] },
+  ];
+  let call = 0;
+  const compose = async () => {
+    const next = refusals[Math.min(call++, refusals.length - 1)];
+    if (next === undefined) throw new Error("no scripted refusal");
+    const { examinedTargets, ...scopeMismatch } = next;
+    return { status: "refused" as const, code: "scope-judgment-required" as const,
+      reason: "review producer scope does not match the selected scope", scopeMismatch, examinedTargets };
+  };
+  const refused = await h.run(true, { frontline: { scopeMode: "chunked" } }, undefined, { compose });
+  expect(decodePrePublicationReplayV2(remedyToken(refused))).toMatchObject({ scopeJudgmentTarget: first.target });
+  const again = await h.run(false, {}, remedyToken(refused), { compose });
+  expect(again, JSON.stringify(again)).toMatchObject({ error: { code: "scope-judgment-required" },
+    scopeMismatch: { lane: "standard", target: second.target } });
+  expect(decodePrePublicationReplayV2(remedyToken(again))).toMatchObject({ scopeJudgmentTarget: second.target,
+    lanes: { frontline: { scopeMode: "whole-target" }, standard: { scopeMode: "chunked" } } });
 });
 
 it("leaves no accepted decision when its native boundary batch refuses and succeeds on retry", async () => {
