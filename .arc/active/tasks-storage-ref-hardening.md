@@ -229,19 +229,11 @@ classification calls the sweep settled.
           endpoints, admit independent state, and resume after exact-object restoration in both layouts. The unpublished
           batch walk uses the helper for missing ancestry and retains pending refs until membership is readable.
 
-    - `[ ]` **3.5.b The merges' side reads**
-        - `groupSides` through `sideMetadata` and `metadataAt`, `indexRecords`, `readableSyncReference`,
-          `mergeRefSets`, `mergeCapturedSyncRef`, `prepareSyncHistoryFastForward`, `captureSyncRecordHistory`, and
-          `versionAt`.
-        - Build `test-first` (one behavior at a time):
-            - a merge base with unparseable metadata holds with the historical remedy, a `local` or `incoming` side with
-              the forward repair
-            - a merge side whose metadata blob is missing holds **Missing**
-            - an undecodable record on the base side holds with the historical remedy
-            - a merged record whose blob is missing holds **Missing**, with no forward-repair remedy
-            - a merge whose graph or endpoint is unavailable holds **Missing**
-            - a label-walk revision whose metadata blob is missing takes **Missing** where its tree holds records, and a
-              record-free one stays record-free, as today
+    - `[x]` **3.5.b The merges' side reads**
+        - Merge metadata retains absence, object loss, and decoding facts. Base metadata and undecodable records take
+          historical repairs; current sides keep forward repairs. Record blobs, graph endpoints, label walks, and paired
+          history refreshes use Missing. Empty label revisions stay record-free; empty retained tips require lost
+          metadata restored before archive refresh. Exact-object restoration admits the held pulls again.
 
     - `[ ]` **3.5.c Lifecycle holds and fetch checks**
         - The lifecycle walks in `sync-corrupt.ts`, `sync-lifecycle-holds.ts`, and `sync-batches.ts`;

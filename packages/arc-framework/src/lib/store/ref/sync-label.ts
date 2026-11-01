@@ -16,7 +16,6 @@ import { refFormatKey } from "./format-key.js";
 import { refRecordVersion } from "./record-version.js";
 import { refOwner } from "./codec.js";
 import { readStoredMergeLabel } from "./side-labels.js";
-import { corruptRef } from "./namespace-health.js";
 import { captureHistoricalNamespaces } from "./historical-namespace.js";
 import { readHistoricalGraph } from "./history-graph.js";
 import { refObjectFault } from "./object-fault.js";
@@ -69,7 +68,7 @@ async function captureSyncRecordHistory(context: RefBackendContext, reference: R
   const home = expandStoredPath(reference, { registry: context.registry, history: ref.startsWith("refs/arc/history/") });
   const paths = await readHistoryPaths(context, reference, home, tip);
   const walked = await readHistoricalGraph(context, ["rev-list", "--full-history", "--parents", "--topo-order", tip,
-    ...base ? [`^${base}`] : [], "--", ...paths.map((path) => `:(literal)${path}`)], () => corruptRef(ref, true));
+    ...base ? [`^${base}`] : [], "--", ...paths.map((path) => `:(literal)${path}`)], () => refObjectFault(ref, "missing").refusal);
   if (walked.status === "refused") throw new RefSyncLabelError(ref, walked.refusal);
   const rows = orderHistoryCommits(parseHistoryRows(walked.result)).reverse();
   const revisions = [...new Set(rows.flatMap((row) => [row.revision, ...row.parents]))];
@@ -77,7 +76,7 @@ async function captureSyncRecordHistory(context: RefBackendContext, reference: R
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries: RefTreeEntry[]) =>
     entries.filter(({ path }) => path === home.metadataPath).map(({ oid }) => oid)))]);
   const namespaces = await captureHistoricalNamespaces(context, home, trees, objects, false);
-  if (namespaces.unavailable.size) throw new RefSyncLabelError(ref, corruptRef(ref, true));
+  if (namespaces.unavailable.size) throw new RefSyncLabelError(ref, refObjectFault(ref, "missing").refusal);
   if ([...namespaces.missing].some(revision => !namespaces.recordFree.has(revision))) {
     throw new RefSyncLabelError(ref, refObjectFault(ref, "missing", { historyRefs: await missingHistoryRefs(context, [ref]) }).refusal);
   }
@@ -90,7 +89,7 @@ async function captureSyncRecordHistory(context: RefBackendContext, reference: R
 
 function versionAt(context: RefBackendContext, reference: RecordReference, ref: string, metadataPath: string,
   entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>, recordFree: boolean): { version: string | null; metadata?: RefMetadata } {
-  if (!entries) throw new RefSyncLabelError(ref, corruptRef(ref, true));
+  if (!entries) throw new RefSyncLabelError(ref, refObjectFault(ref, "missing").refusal);
   const metadataEntry = entries.find(({ path }) => path === metadataPath);
   const read = readRefMetadata(ref, metadataEntry, objects);
   if (read.kind !== "parsed") {

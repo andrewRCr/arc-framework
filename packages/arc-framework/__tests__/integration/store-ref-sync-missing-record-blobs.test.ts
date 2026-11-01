@@ -51,6 +51,9 @@ describe.each(["default", "separate"] as const)("sync record acquisition in %s",
         kind: "namespace-corrupt", ref: home.ref, condition: expect.stringContaining(home.path),
         remedy: expect.objectContaining({ text: expect.stringMatching(/restore|fetch/iu) }),
       }));
+      for (const notice of pulled.pulls.flatMap(outcome => outcome.notices)) {
+        if (notice.kind === "namespace-corrupt" && notice.ref === home.ref) expect(notice.remedy.text).not.toMatch(/forward/iu);
+      }
       expect((await h.b.git(["rev-parse", home.ref])).stdout.trim()).toBe(localTip);
       expect(success(await store.read({ reference: independent })).content).toBe("Independent publication.\n");
       expect(success(await store.read({ reference: second })).content).toBe(damage === "incoming" ? "Local second.\n" : "Original second.\n");
@@ -135,7 +138,11 @@ describe.each(["default", "separate"] as const)("sync record acquisition in %s",
     const pulled = success(await h.b.store.pull());
     expect(pulled.pulls.flatMap(outcome => outcome.notices)).toContainEqual(expect.objectContaining({
       kind: "namespace-corrupt", ref: home.ref, condition: expect.stringContaining(home.path),
+      remedy: { text: expect.stringMatching(/restore|fetch/iu) },
     }));
+    for (const notice of pulled.pulls.flatMap(outcome => outcome.notices)) {
+      if (notice.kind === "namespace-corrupt" && notice.ref === home.ref) expect(notice.remedy.text).not.toMatch(/forward/iu);
+    }
     expect((await h.b.git(["rev-parse", home.ref])).stdout.trim()).toBe(damaged);
     await plantRef(h.b.root, home.ref, rows, { parents: [damaged], gitDir: h.b.gitDir });
     const retried = success(await h.b.store.pull());

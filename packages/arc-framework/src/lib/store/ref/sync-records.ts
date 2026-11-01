@@ -26,6 +26,7 @@ import { fixedStoredPathKind } from "./path-decode.js";
 import { findRefNamespaceCollision } from "./path-admission.js";
 import { projectRefTreeEntry } from "./entry-path.js";
 import type { SyncControlSelections } from "./sync-control-sources.js";
+import { refObjectFault } from "./object-fault.js";
 
 interface IndexedRecord { entry: RefTreeEntry; value: ConflictRecordValue; retained?: boolean }
 
@@ -38,8 +39,11 @@ interface SyncRecordNamespace { family: FamilyId; owner: OwnerIdentity; metadata
 /** Reconcile semantic records while retaining opaque entries outside the registered record set. */
 export async function reconcileSyncRecords(context: RefBackendContext, ref: string, base: SyncTreeSide, local: SyncTreeSide,
   incoming: SyncTreeSide, objects: ReadonlyMap<string, BatchObject | null>, group: CapturedWriteGroup, metadataConflicts: readonly string[][], tipSets: readonly ReadonlyMap<string, string>[], currentSide: "local" | "incoming", controls: SyncControlSelections): Promise<SyncCheckRecord[]> {
-  const [previous, current, remote] = await Promise.all([base, local, incoming].map(side => indexRecords(context, ref, side, objects, tipSets)));
-  if (!previous || !current || !remote) throw new Error("A reconciliation lacks one indexed side");
+  const [previous, current, remote] = await Promise.all([
+    indexRecords(context, ref, base, objects, tipSets, true),
+    indexRecords(context, ref, local, objects, tipSets, false),
+    indexRecords(context, ref, incoming, objects, tipSets, false),
+  ]);
   const conflicts: ConflictRecord[] = [];
   const choices: PlannedRecord[] = [];
   for (const key of new Set([...previous.keys(), ...current.keys(), ...remote.keys()])) {
@@ -174,14 +178,15 @@ function recordInstallation(context: RefBackendContext, ref: string, group: Capt
 }
 
 async function indexRecords(context: RefBackendContext, ref: string, side: SyncTreeSide,
-  objects: ReadonlyMap<string, BatchObject | null>, tipSets: readonly ReadonlyMap<string, string>[]): Promise<Map<string, IndexedRecord>> {
+  objects: ReadonlyMap<string, BatchObject | null>, tipSets: readonly ReadonlyMap<string, string>[], saved: boolean): Promise<Map<string, IndexedRecord>> {
   try { return await indexRecordValues(context, ref, side, objects, tipSets); }
   catch (error) {
     if (!(error instanceof ZodError) && !(error instanceof TypeError && "code" in error
       && error.code === "ERR_ENCODING_INVALID_ENCODED_DATA")) throw error;
-    throw new RefSyncLabelError(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
+    throw new RefSyncLabelError(ref, refObjectFault(ref, "unparseable", { saved,
       condition: `A stored record on ${ref} cannot be decoded: ${error.message}`,
-      remedy: { text: `Repair the malformed record on ${ref} forward in its source state, then retry the pull.` } });
+      ...!saved ? { remedy: { text: `Repair the malformed record on ${ref} forward in its source state, then retry the pull.` } } : {},
+    }).refusal);
   }
 }
 
@@ -218,9 +223,9 @@ function readableSyncReference(context: RefBackendContext, ref: string, namespac
   const decoded = decodeReference(context, owner, family, entry.path, metadata, object?.type === "blob" ? object : undefined);
   const reference = decoded && "owner" in decoded ? decoded : undefined;
   if (object?.type !== "blob" && (reference || fixedStoredPathKind(context.registry, family, entry.path))) {
-    throw new RefSyncLabelError(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
+    throw new RefSyncLabelError(ref, refObjectFault(ref, "missing", { key: `${ref}:${entry.path}`,
       condition: `The stored record at ${ref}:${entry.path} requires blob ${entry.oid}, which is unavailable or has another object type.`,
-      remedy: { text: `Restore or fetch the original blob for ${ref}:${entry.path}, or repair the invalid entry forward in its source state, then retry the pull.` } });
+    }).refusal);
   }
   return reference;
 }
