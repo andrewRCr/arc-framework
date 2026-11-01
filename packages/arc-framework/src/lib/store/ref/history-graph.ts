@@ -19,11 +19,16 @@ export async function readHistoricalGraph(context: RefBackendContext, args: stri
 /** Confirm that a completed graph failure names an object genuinely unavailable to the local object reader. */
 export async function isUnavailableGraphFailure(context: RefBackendContext, error: unknown): Promise<boolean> {
   if (!isGitProcessError(error) || !isCompletedGitFailure(error)) return false;
-  const missing = [...error.stderr.matchAll(/(?:Could not read|Not a valid commit name|bad (?:tree )?object|unable to read(?: tree)?|missing (?:commit|tree|blob)) ['"(]?([0-9a-f]{64}|[0-9a-f]{40})\b/gu)]
-    .flatMap(match => match[1] ? [match[1]] : []);
+  const missing = graphFailureObjectIds(error.stderr);
   if (!missing.length) return false;
   const objects = await readBatchObjects({ ...context, writeEvidence: undefined, batchReader: undefined }, missing);
   return missing.some(oid => objects.get(oid) === null);
+}
+
+/** Extract object identities from stable Git diagnostics; callers independently confirm their local absence. */
+export function graphFailureObjectIds(stderr: string): string[] {
+  return [...stderr.matchAll(/(?:Could not read|Not a valid commit name|bad (?:tree )?object|unable to read(?: tree)?|missing (?:commit|tree|blob)) ['"(]?([0-9a-f]{64}|[0-9a-f]{40})\b/gu)]
+    .flatMap(match => match[1] ? [match[1]] : []);
 }
 
 /** Name the retained item history when one exists and keep restoration valid for other historical namespaces. */

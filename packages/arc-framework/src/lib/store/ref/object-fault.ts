@@ -7,7 +7,7 @@ import { missingRefObjects } from "./missing-objects.js";
 import { unparsedMetadata } from "./metadata.js";
 
 /** Object facts remain independent of the operation reporting them. */
-export type RefObjectFault = "missing" | "unparseable" | "no-metadata" | "misplaced";
+export type RefObjectFault = "missing" | "unparseable" | "no-metadata" | "misplaced" | "local-transport";
 
 /** Captured coordinates and any more specific text already established by the reader. */
 export interface RefFaultOptions {
@@ -23,20 +23,25 @@ export interface RefFaultReport {
 }
 
 /** Apply the fault's refusal class and repair side without changing any public outcome schema. */
-export function refObjectFault(namespace: string, fault: RefObjectFault, options: RefFaultOptions = {}): RefFaultReport {
+export function refObjectFault(namespace: string, fault: "local-transport", options?: RefFaultOptions): Pick<RefFaultReport, "failure" | "condition" | "remedy">;
+export function refObjectFault(namespace: string, fault: Exclude<RefObjectFault, "local-transport">, options?: RefFaultOptions): RefFaultReport;
+export function refObjectFault(namespace: string, fault: RefObjectFault, options: RefFaultOptions = {}): RefFaultReport | Pick<RefFaultReport, "failure" | "condition" | "remedy"> {
   const key = options.key ?? namespace;
   const details = faultDetails(key, fault, options.saved ?? false);
   const condition = options.condition ?? details.condition, remedy = options.remedy ?? details.remedy;
+  const failure = { code: "refused" as const, class: "terminal" as const, message: condition, condition, remedy };
+  if (fault === "local-transport") return { failure, condition, remedy };
   const refusal: RefFaultReport["refusal"] = fault === "missing"
     ? missingRefObjects(namespace, { reference: options.reference, historyRefs: options.historyRefs ?? [], condition, remedy })
     : { code: "namespace-corrupt", class: "terminal", namespace, condition, remedy };
   const diagnostic: ListingDiagnostic = { kind: fault === "misplaced" ? "malformed" : "unreadable", key,
     condition, remedy, ...fault === "misplaced" ? { rule: "placement" as const } : {} };
-  return { refusal, diagnostic, condition, remedy,
-    failure: { code: "refused", class: "terminal", message: condition, condition, remedy } };
+  return { refusal, diagnostic, condition, remedy, failure };
 }
 
 function faultDetails(key: string, fault: RefObjectFault, saved: boolean): { condition: string; remedy: Remedy } {
+  if (fault === "local-transport") return { condition: `The local object required to fetch ${key} is unavailable.`,
+    remedy: { text: "Restore the missing local object in the store repository, or repair the remote's URL if it resolves to the wrong repository, then retry." } };
   if (fault === "missing") {
     const refusal = missingRefObjects(key, { historyRefs: [] });
     return { condition: refusal.condition, remedy: refusal.remedy };

@@ -100,25 +100,11 @@ listing schemas and output unchanged.
   failure condition through one helper, whether it read by `tip:path` or by object ID, with the historical remedy for
   history commits and saved states.
 
-    - `[ ]` **2.3.a The fault rows and their remedies**
-        - State-row checkpoint: `refObjectFault` maps Missing, Unparseable, and No metadata through current point
-          reads, saved metadata reads, and listing diagnostics. Archive placement conditions distinguish non-completed
-          placement, a wrong quarter, and an invalid sequence, with current or historical remedies; local-transport
-          wiring remains open.
-        - **Missing** → recoverable `state-unresolvable` with the restore-or-fetch remedy; **Unparseable** and **No
-          metadata** → terminal `namespace-corrupt` with the forward repair at a current tip and the historical remedy
-          at a history commit or saved state; **Misplaced** → terminal `namespace-corrupt` carrying a placement
-          condition the caller supplies; **Local transport fault** → the per-remote failure `refused` with the restore
-          or remote-URL repair remedy.
-        - Composes `corruptRef`, `recordDiagnostic`, `unreadableRef`, `unavailableRefHistory`,
-          `isUnavailableGraphFailure`, `missingChangeState`, `metadataFailure`, `historicalMetadataFailure`, and
-          `unparsedMetadata`; adds no refusal code, notice kind, failure kind, or schema.
-        - Each row has a default condition and remedy. A builder that already gives the **Missing** row's code, class,
-          and remedy passes its own text and keeps it (§ 1.4).
-        - `corruptRef` keeps its missing-objects arm until 3.9 removes it, so callers move over batch by batch.
-        - Build `test-first` (one behavior at a time): each row's refusal, diagnostic, and default remedy; a builder's
-          own **Missing** text kept; each of **Unparseable** and **No metadata** at a current tip and at a history
-          commit or saved state.
+    - `[x]` **2.3.a The fault rows and their remedies**
+        - `refObjectFault` maps Missing, Unparseable, No metadata, Misplaced, and Local transport fault to their
+          existing reports and remedies. Current and saved read callers exercise the state and placement rows;
+          state and history fetch failures use the transport row only after a completed rowless failure confirms
+          local tip or ancestor loss. Existing Missing text is preserved, and the legacy missing arm remains.
 
     - `[ ]` **2.3.b `historyRefs` names a history ref only for an item with no live ref**
         - The **Missing** row takes whether the clone's current state holds the item's live ref. A caller reads it from
@@ -447,7 +433,8 @@ classification calls the sweep settled.
 
 - _Note:_ `pull.ts` is shared with another unit's change; see `notes-storage-ref-hardening.md` § Coordination with
   `store-operation-git-access`. The helper's Git observations and settled calls are in `notes-storage-ref-hardening.md`
-  § Fault-site inventory › 3.7.
+  § Fault-site inventory › 3.7. The helper and state/history-pull wiring were brought forward in 2.3.a; migration and
+  project-check callers and the remaining native fetch scenarios stay open here.
 
     - One helper, run after a completed Git failure with no porcelain rows, checks every ref (`for-each-ref` with no
       pattern) and every worktree's `HEAD` (`worktree list --porcelain`) through one `cat-file --batch-check`. It skips

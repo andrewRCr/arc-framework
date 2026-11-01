@@ -1,6 +1,7 @@
 /** State acquisition through independently reported remote fetches. */
 
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
+import type { FetchOutcome } from "../../git/fetch.js";
 import type { RemoteFailureReason } from "../../kernel/index.js";
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
 import { isGitProcessError } from "../../git/process-error.js";
@@ -16,6 +17,7 @@ import { refSyncTransportRemedy } from "./sync-remedy.js";
 import { RefSyncDeadlineError, refSyncDeadlineRemedy, refSyncCleanupContext, withRefSyncDeadline } from "./sync-deadline.js";
 import { adoptSourceProjectIdentity } from "./adopt-source-project.js";
 import { fetchRefRemote } from "./fetch.js";
+import { localFetchObjectFailure } from "./fetch-local-loss.js";
 import { releaseEndedRefKeepers } from "./fetch-seen-ended.js";
 import { RefFetchKeeperLockError } from "./fetch-keeper-lock.js";
 import { RefFetchIncompleteError } from "./fetch-completeness.js";
@@ -89,7 +91,7 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
     const { previous, tracking: fetchedTips, keepers } = fetched.observation;
     notices.push(...fetched.notices);
     const followDue = fetchedTips.has(`${prefix}${FORWARDING_REF.slice("refs/arc/".length)}`);
-    if (fetched.status === "unreachable") return failedRemotePull(context, common, fetched.cause, fetched.stderr || "The state fetch failed.", followDue);
+    if (fetched.status === "unreachable") return await failedFetchPull(context, common, fetched, "The state fetch failed.", followDue);
     const forwarded = await readRemoteForwarding(context, common,
       fetchedTips.get(`${prefix}${FORWARDING_REF.slice("refs/arc/".length)}`));
     if (forwarded) return forwarded;
@@ -110,7 +112,7 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
       },
     }, previous) : null;
     if (merged?.status === "restart") return "restart";
-    if (merged?.status === "fetch-failed") return failedRemotePull(context, common, merged.fetched.cause, merged.fetched.stderr || "The history fetch failed.", followDue);
+    if (merged?.status === "fetch-failed") return await failedFetchPull(context, common, merged.fetched, "The history fetch failed.", followDue);
     if (merged) {
       const applied = new Map([...incoming].filter(([ref]) => !isWithheld(ref, incoming, withheld)));
       await releaseEndedRefKeepers(context, remote.name, applied, releasable);
@@ -141,9 +143,9 @@ async function timedOutRemotePull(context: RefBackendContext, common: PullScope,
   const ref = `refs/arc-remotes/${remote}/${FORWARDING_REF.slice("refs/arc/".length)}`;
   const followDue = (await readSyncRefs(observation, ref)).has(ref);
   if (error instanceof RefSyncDeadlineError) {
-    return failedRemotePull(context, common, "timeout", `${error.message} Earlier merges remain applied.`, followDue, refSyncDeadlineRemedy(context.syncDeadline?.operation ?? "pull"));
+    return failedRemotePull(common, transportFailure(context, "timeout", `${error.message} Earlier merges remain applied.`, refSyncDeadlineRemedy(context.syncDeadline?.operation ?? "pull")), followDue);
   }
-  return failedRemotePull(context, common, "timeout", `The pull deadline expired while applying fetched state; earlier merges remain applied. ${error.message}`, followDue);
+  return failedRemotePull(common, transportFailure(context, "timeout", `The pull deadline expired while applying fetched state; earlier merges remain applied. ${error.message}`), followDue);
 }
 
 /** The fetched state refs a merge reads, less each one whose fetch drew a notice. */
@@ -186,11 +188,24 @@ async function readRemoteForwarding(context: RefBackendContext, common: PullScop
     ...(common.notices.length ? { partial: { ...common, status: "noop" as const } } : {}) };
 }
 
-function failedRemotePull(context: RefBackendContext, common: PullScope, cause: RemoteFailureReason, condition: string, followDue = false,
-  remedy = refSyncTransportRemedy(context, context.syncDeadline?.operation ?? "pull")): PullOutcome {
-  return { ...common, notices: uniqueNotices(common.notices), status: "failed", failure: { code: "unreachable", class: "recoverable", cause, condition,
-    remedy: followDue ? { text: `${remedy.text} A forwarding record remains recorded for ${common.remote}; bring in the tracked pointer's change and run arc store migrate.`,
-      argv: ["arc", "store", "migrate"] } : remedy,
+type PullFailure = Extract<PullOutcome, { status: "failed" }>["failure"];
+
+async function failedFetchPull(context: RefBackendContext, common: PullScope, fetched: Extract<FetchOutcome, { status: "unreachable" }>,
+  fallback: string, followDue: boolean): Promise<PullOutcome> {
+  const failure = await localFetchObjectFailure(context, fetched)
+    ?? transportFailure(context, fetched.cause, fetched.stderr || fallback);
+  return failedRemotePull(common, failure, followDue);
+}
+
+function transportFailure(context: RefBackendContext, cause: RemoteFailureReason, condition: string,
+  remedy = refSyncTransportRemedy(context, context.syncDeadline?.operation ?? "pull")): PullFailure {
+  return { code: "unreachable", class: "recoverable", cause, condition, remedy };
+}
+
+function failedRemotePull(common: PullScope, failure: PullFailure, followDue = false): PullOutcome {
+  return { ...common, notices: uniqueNotices(common.notices), status: "failed", failure: { ...failure,
+    remedy: followDue ? { text: `${failure.remedy.text} A forwarding record remains recorded for ${common.remote}; bring in the tracked pointer's change and run arc store migrate.`,
+      argv: ["arc", "store", "migrate"] } : failure.remedy,
   } };
 }
 
