@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "e2e-fixture-cost",
+  "claimId": "421eb37eefd05d1ceacf4dab81bba6db",
+  "createdAt": "2026-11-01T20:24:19.511Z",
+  "updatedAt": "2026-11-01T20:24:19.511Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Measure hosted E2E setup cost and oversized-file scheduling, and fix what the measurement supports",
+  "branch": "chore/e2e-fixture-cost",
+  "origin": "inbox",
+  "originEntry": "Evaluate hosted E2E fixture cost and oversized-file scheduling",
+  "originEntrySourceDigest": "sha256:919cf1a5b68b8847111c88e7a0f9b7ebaf47cda5f2c649186cb8689d884bd3a8",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
