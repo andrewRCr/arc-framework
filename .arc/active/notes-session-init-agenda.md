@@ -345,3 +345,8 @@ Author review covers reader independence, binding completeness, coherence, and s
 the revision tasks target the existing schema and pending shared builder and close on the detecting regression.
 Independent amendment review is omitted at the determinate correction depth. The approved scope changes no field or
 command shape and requires no new planning segment.
+
+Closure: reconstruction run `6f82cb4928534ea1ae66c098eecc53cf` retained 15 passing cases and three delimiter failures.
+After `appendAgendaOption` inserted before `--`, run `9d9e68fc918245bc9eda7083a927bef5` passed all 78 agenda unit
+cases, including those three, and focused TypeScript lint passed. The served `elicit.recompile` description carries
+the same insertion and leading-dash binding rule. Criterion 15's spine obligation remains with Task 3.2.a.

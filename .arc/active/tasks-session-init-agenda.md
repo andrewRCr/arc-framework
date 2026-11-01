@@ -68,21 +68,21 @@ with a typed refusal, and leaves the repository as found.
           pins. The CLI serves the described JSON Schema with closed references to all four residual contracts;
           runtime assertion retains the cross-field refinements omitted from the served shape.
 
-### `[ ]` **1.R Preserve literal elicited arguments — A1**
+### `[x]` **1.R Preserve literal elicited arguments — A1**
 
 - _Goal:_ Amendment A1's elicited signal reaches option parsing before any end-of-options delimiter, preserving both
   a leading-dash answer and a leading-dash positional seed; the served description agrees with the execution rule.
 
-    - `[ ]` **1.R.a Correct the elicitation argument operation**
-        - Update the served `elicit.recompile` description without changing schema fields, and expose one option-value
-          insertion helper from the shared argv builder that inserts before `--` and binds leading-dash values with `=`
+    - `[x]` **1.R.a Correct the elicitation argument operation**
+        - Exposed `appendAgendaOption` from the shared builder, inserting literal values before `--` and binding
+          leading-dash values with `=`. Updated the served choice description without changing its fields.
 
-    - `[ ]` **1.R.b Revalidate literal elicitation**
-        - Re-run the detecting Commander-grammar regression with a leading-dash positional seed; cover a leading-dash
-          elicited answer for both signals and confirm the served description's rule
-        - Record the closing evidence against A1, preserving existing completed outcomes
+    - `[x]` **1.R.b Revalidate literal elicitation**
+        - The detecting Commander-grammar case and leading-dash answers for both signals now preserve the answer and
+          positional seed. The same three cases failed against the append-only operation; the served description
+          states insertion and literal binding. Closing evidence is in `notes-session-init-agenda.md` § A1.
 
-### `[ ]` **1.3 Add the verb with its flags, refusals, and answer carriage — § 2.1, § 2.2, § 4.6**
+### `[x]` **1.3 Add the verb with its flags, refusals, and answer carriage — § 2.1, § 2.2, § 4.6**
 
 - _Goal:_ `arc agenda session-init` takes the session's signals and answers as flags, refuses every invalid combination
   with one typed refusal document naming the offending flags, and builds every recompile argv from what it received.
@@ -99,19 +99,10 @@ with a typed refusal, and leaves the repository as found.
           refuse; exact signal values, final-equals answer parsing, and identical-answer collapse are preserved.
           Native CLI coverage verifies one JSON refusal and corrected input reaching ordinary dispatch.
 
-    - `[ ]` **1.3.c Carry answers into every emitted argv**
-        - One argv builder every later compile uses: `["arc", "agenda", "session-init", "--json"]`, then the signals as
-          the step or choice leaves them, then the received answers plus those reaching that point implies
-        - A key's operand is percent-encoded (`encodeURIComponent`), so a person-typed value carries no `=`, `+`, or
-          space into the key
-        - Build `test-first` (one behavior at a time):
-            - repeated `--answered` and `--done` flags accumulate into `answers`
-            - a built argv reproduces the received signals and answers, one element per argument
-            - setting or clearing a signal in a built argv; clearing `errand` clears `isolate`
-            - the builder can drop `--next` and drop the positional seed
-            - an `elicit` argv omits its signal; its literal answer is inserted before `--`, using `--flag=value`
-              for a leading-dash answer
-            - an operand containing `=`, `+`, or a space round-trips through the key
+    - `[x]` **1.3.c Carry answers into every emitted argv**
+        - Added the shared literal argv builder and percent-encoded question keys. It retains decisions and intent,
+          applies signal changes, clears Errand isolation on decline, and supports dropping next/seed or omitting an
+          elicited signal. Leading-dash values and positional seeds round-trip through the registered grammar.
 
 ### `[ ]` **1.4 Share the session-init probe composition with the verb — § 2.1, § 2.5**
 

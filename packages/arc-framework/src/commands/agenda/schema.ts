@@ -46,7 +46,7 @@ export const OfferChoiceSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("elicit"), label: z.string(), signal: z.enum(["errand", "plan"]),
     carried: z.string().optional().describe("Offer this default when eliciting the signal's value."),
-    recompile: argv.describe("Append the elicited signal and value to these arguments."),
+    recompile: argv.describe("Insert the elicited --signal and literal answer before any -- delimiter, otherwise at the end; bind a leading-dash answer as --signal=answer."),
   }),
 ]);
 

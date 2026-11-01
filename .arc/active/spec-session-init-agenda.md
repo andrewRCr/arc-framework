@@ -1386,4 +1386,4 @@ implementation detail.
 ## Amendments
 
 - **A1** — 2026-11-01 — design: insert literal elicited options before `--`.
-  _Supersedes:_ § 3.2 offer ¶1; § 4.5 ¶1. _Trigger:_ 1.3.c must-stop. _Work:_ 1.R. _Revalidated:_ pending → 1.R.b.
+  _Supersedes:_ § 3.2 offer ¶1; § 4.5 ¶1. _Trigger:_ 1.3.c must-stop. _Work:_ 1.R. _Revalidated:_ 1.R.b.
