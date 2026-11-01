@@ -151,9 +151,9 @@ classification calls the sweep settled.
   containing-tree resolution, shared fault helper, and remaining sites below still complete this task.
   Caller-level slug checks also cover live cohort refs and retained work/cohort history during these migrations.
 
-- _Note:_ 3.1.c's owner-reader checkpoint wires live-owner, lineage-owner, and lookup metadata faults, including
-  current presence for saved recovery routes. Project identity, candidate designation, and archived history bases
-  remain open in that subtask.
+- _Note:_ 3.1.c's owner and project readers preserve object faults and saved recovery routes. Candidate designation
+  retains its fetched commit and remote, with a targeted refetch that restores missing objects before retry. Archived
+  history bases remain open in that subtask.
 
     - `[x]` **3.1.a The shared tip check and record point reads**
         - Shared tip admission and unreadable archive quarters use `refObjectFault`; tip metadata retains its decoded

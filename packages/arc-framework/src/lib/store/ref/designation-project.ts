@@ -5,7 +5,8 @@ import { normalizeGitRejection, isCompletedGitFailure, isGitProcessError } from 
 import { PASSIVE_REMOTE_INTERACTION } from "../../git/remote-ref-reader.js";
 import { updateRefTransaction } from "../../git/ref-transaction.js";
 import type { PullOutcome } from "../sync.js";
-import type { Remedy, StoreResult } from "../refusal.js";
+import type { Remedy, StoreResult, StoreRefusal } from "../refusal.js";
+import { quoteShellArgument } from "../../release/commit-message-retry.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
 import { readRefRepository } from "./repository.js";
@@ -42,7 +43,10 @@ export async function checkRefDesignationProject(context: RefBackendContext, rem
     const forwarding = await readForwardingRecord(context, fetched.moved, remote.name);
     if (forwarding.status === "refused") return { status: "control-refused", refusal: forwarding.refusal };
     const incoming = await projectIdFromTip(context, fetched.registry);
-    if (incoming.status === "refused") return projectReadFailure(incoming.refusal.condition);
+    if (incoming.status === "refused") {
+      if (!fetched.registry) throw new Error("A candidate identity refusal has no registry tip");
+      return candidateProjectFailure(context, remote, fetched.registry, fetched.target, incoming.refusal);
+    }
     const foreign = [incoming.result, forwarding.result?.projectId].find(id => id && id !== local.result);
     if (foreign) return { status: "identity-mismatch", local: local.result, remote: foreign };
     if (forwarding.result) return { status: "control-refused", refusal: { code: "moved", class: "recoverable",
@@ -90,7 +94,7 @@ async function clearProjectCheck(context: RefBackendContext, prefix: string): Pr
 }
 
 async function fetchProjectCheck(context: RefBackendContext, remote: RefRemoteDesignation, designation: RefDesignation,
-  prefix: string, observed: Map<string, string>): Promise<{ status: "ok"; registry?: string; moved?: string } | { status: "failed"; failure: ProjectFailure }> {
+  prefix: string, observed: Map<string, string>): Promise<{ status: "ok"; target: string; registry?: string; moved?: string } | { status: "failed"; failure: ProjectFailure }> {
   const target = remote.repository === "backing" && designation.backing?.url !== remote.url ? remote.url : await refFetchTarget(context, remote, designation);
   const args = refFetchArgs(remote.name, await refFetchNegotiation(context, await context.identity()), target);
   const input = [`+refs/arc/project/registry*:${prefix}registry*`, `+refs/arc/project/moved*:${prefix}moved*`].join("\n") + "\n";
@@ -103,7 +107,7 @@ async function fetchProjectCheck(context: RefBackendContext, remote: RefRemoteDe
     remedy: { text: `Repair ${remote.name} and retry the designation; no role was set.` } } };
   return rejected || fetched.refs.some(({ flag }) => flag === "!")
     ? projectReadFailure(fetched.stderr || "The candidate registry fetch refused a temporary ref update.") : {
-      status: "ok", registry: fetched.refs.find(({ ref, flag, next }) => ref === `${prefix}registry` && flag !== "-" && !/^0+$/u.test(next))?.next,
+      status: "ok", target, registry: fetched.refs.find(({ ref, flag, next }) => ref === `${prefix}registry` && flag !== "-" && !/^0+$/u.test(next))?.next,
       moved: fetched.refs.find(({ ref, flag, next }) => ref === `${prefix}moved` && flag !== "-" && !/^0+$/u.test(next))?.next,
     };
 }
@@ -137,6 +141,17 @@ Promise<ProjectFetch | { status: "failed"; failure: ProjectFailure }> {
   if (retry.rejected || retry.fetched.status !== "refs") return retry;
   const missing = await missingRefFetchObjects(context, retry.fetched);
   return missing.length ? { status: "failed", failure: new RefFetchIncompleteError(missing, []).failure } : retry;
+}
+
+function candidateProjectFailure(context: RefBackendContext, remote: RefRemoteDesignation, commit: string,
+  target: string, refusal: StoreRefusal): { status: "failed"; failure: ProjectFailure } {
+  const condition = `Candidate registry ${commit} from remote ${remote.name}: ${refusal.condition}`;
+  if (refusal.code !== "state-unresolvable") return projectReadFailure(condition, {
+    text: `Repair identity.json on ${remote.name}'s refs/arc/project/registry (${target}) with exactly projectId and a lowercase UUID, then retry the designation; no role was set.`,
+  });
+  const argv = ["git", ...context.repository?.gitDir ? [`--git-dir=${context.repository.gitDir}`] : [],
+    "fetch", "--refetch", "--", target, "refs/arc/project/registry"];
+  return projectReadFailure(condition, { text: `Restore the missing candidate objects in this clone, or run ${argv.map(quoteShellArgument).join(" ")}, then retry the designation; no role was set.`, argv });
 }
 
 function projectReadFailure(condition: string,

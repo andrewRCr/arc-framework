@@ -126,8 +126,8 @@ describe.each(["default", "separate"] as const)("the ref store's one project (%s
     const oid = (await fixtureGit(f)("git", ["rev-parse", "refs/arc/project/registry:identity.json"])).stdout.trim();
     await removeLooseObject(f.root, oid, f.gitDir);
     const write = { action: "put" as const, reference, expected: null, content: f.content(reference), provenance: testProvenance };
-    expect(await f.store.write(write)).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt",
-      namespace: "refs/arc/project/registry", condition: expect.stringContaining(oid), remedy: { text: expect.stringMatching(/restore|fetch/iu) } } });
+    expect(await f.store.write(write)).toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", class: "recoverable",
+      historyRefs: [], condition: expect.stringContaining(oid), remedy: { text: expect.stringMatching(/restore|fetch/iu) } } });
     await f.ports.execInput([...f.gitDir ? [`--git-dir=${f.gitDir}`] : [], "hash-object", "-w", "--stdin"], content, { cwd: f.root });
     const accepted = success(await f.store.write(write));
     expect(accepted.reference.owner).toMatchObject({ uid: projectId });
@@ -164,7 +164,7 @@ describe.each(["default", "separate"] as const)("the ref store's one project (%s
       records: [{ reference: { kind: inbox.reference.kind } }], diagnostics: [{ ...fault, condition: expect.stringContaining(oid) }] });
   });
 
-  it("keys an unavailable registry tree to the registry inside a write's views", async () => {
+  it("reports an unavailable registry tree in point reads and write views, then resumes after restoration", async () => {
     const listings: unknown[] = [];
     const f = await createRefFixture({ "work-item/meta": { check: async ({ before }) => {
       for (const family of ["project-registry", "project-inbox"] as const) listings.push(success(await before.list({ family })));
@@ -173,7 +173,13 @@ describe.each(["default", "separate"] as const)("the ref store's one project (%s
     const inbox = await seed(f, f.reference("project-inbox/inbox"));
     success(await f.store.write({ action: "put", reference: f.reference("project-registry/identity"), expected: null, content: JSON.stringify({ projectId }), provenance: testProvenance }));
     const tree = (await fixtureGit(f)("git", ["rev-parse", "refs/arc/project/registry^{tree}"])).stdout.trim();
+    const scope = f.gitDir ? [`--git-dir=${f.gitDir}`] : [];
+    const bytes = (await f.ports.rawExec([...scope, "cat-file", "tree", tree], { cwd: f.root })).stdout;
     await removeLooseObject(f.root, tree, f.gitDir);
+    const identity = f.reference("project-registry/identity");
+    expect(await f.store.read({ reference: identity })).toMatchObject({ status: "refused", refusal: {
+      code: "state-unresolvable", class: "recoverable", historyRefs: [], remedy: { text: expect.stringMatching(/restore|fetch/iu) },
+    } });
     const meta = f.reference("work-item/meta");
     success(await f.store.write({ action: "put", reference: meta, expected: null, content: f.content(meta), placement: { kind: "active" }, provenance: testProvenance }));
     expect(listings).toMatchObject([
@@ -181,6 +187,9 @@ describe.each(["default", "separate"] as const)("the ref store's one project (%s
       { status: "complete", records: [{ reference: { kind: inbox.reference.kind } }],
         diagnostics: [{ kind: "unreadable", key: "refs/arc/project/registry" }] },
     ]);
+    const restored = await f.ports.rawExec([...scope, "hash-object", "-w", "-t", "tree", "--stdin"], { cwd: f.root, input: bytes });
+    expect(Buffer.from(restored.stdout).toString().trim()).toBe(tree);
+    expect(success(await f.store.read({ reference: identity })).fields).toEqual({ projectId });
   });
 
 });
