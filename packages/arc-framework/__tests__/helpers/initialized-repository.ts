@@ -21,11 +21,8 @@ async function git(cwd: string, args: string[]): Promise<string> {
   return stdout;
 }
 
-/**
- * The initialized repositories most describe blocks start from: `arc init` alone, `arc init` with an empty `init`
- * commit, and the same in arc-in-git mode.
- */
-type InitializedStart = "initialized" | "initialized-and-committed" | "arc-in-git-and-committed";
+/** Init-only default or Claude starts, plus committed default or arc-in-git starts. */
+type InitializedStart = "initialized" | "claude-initialized" | "initialized-and-committed" | "arc-in-git-and-committed";
 
 const initializedTemplates = new Map<InitializedStart, Promise<PreparedRepositoryTemplate>>();
 
@@ -38,9 +35,12 @@ async function buildInitializedStart(start: InitializedStart): Promise<string> {
   const root = await createTempRepo();
   try {
     const pmMode = start === "arc-in-git-and-committed" ? ["--pm-mode", "arc-in-git"] : [];
-    const init = await runArc(["init", "--yes", "--name", "test-project", ...pmMode], root);
+    const tools = start === "claude-initialized" ? ["--tools", "claude"] : [];
+    const init = await runArc(["init", "--yes", "--name", "test-project", ...pmMode, ...tools], root);
     expect(init.exitCode, init.stderr || init.stdout).toBe(0);
-    if (start !== "initialized") await git(root, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    if (start === "initialized-and-committed" || start === "arc-in-git-and-committed") {
+      await git(root, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+    }
     return root;
   } catch (error) {
     await cleanupTempDir(root);
