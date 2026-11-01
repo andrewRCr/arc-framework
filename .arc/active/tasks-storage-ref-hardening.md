@@ -76,29 +76,14 @@ _Exit criterion:_ The metadata read, the containing-tree resolution, and the fau
 § 1.1 rows they produce and for the historical rule, and capture diagnostics carry their fault internally with the
 listing schemas and output unchanged.
 
-### `[ ]` **2.1 The metadata read keeps absent, missing, unparseable, and parsed apart — § 1.2**
+### `[x]` **2.1 The metadata read keeps absent, missing, unparseable, and parsed apart — § 1.2**
 
 - _Goal:_ A metadata read tells an absent entry, a missing object, an unparseable object, and parsed metadata apart, so
   a caller classifies the fault instead of receiving one `null` for all of them.
 
-    - A discriminated read beside `parseRefMetadata` in `lib/store/ref/metadata.ts` takes the tree entry, or its
-      absence, and the batch's object map. Today a dozen callers pass `null` for an absent entry, the value
-      `readBatchObjects` gives a missing object, so the read takes the entry rather than the looked-up object. A
-      `<tip>:<path>` site holds no entry, only the object its query looked up, keyed by the query string
-      (`batch-read.ts`), so the read also takes a looked-up object that is present, which reads as unparseable or parsed
-      (2.2). `parseRefMetadata` stays as the null-returning form for the sites that tolerate both.
-    - An absent entry is the caller's to classify: **No metadata** in a tree holding records, a fresh start or a skip
-      elsewhere.
-    - Metadata with no slug on a work or cohort ref, live or history, is unparseable, as `parseRefMetadata`'s namespace
-      test (`metadata.ts`) treats it today.
-    - Build `test-first` (one behavior at a time):
-        - an absent entry reads as absent
-        - an entry whose object the batch answered `missing` reads as missing
-        - a present blob that is not canonical metadata JSON reads as unparseable
-        - a present tree or commit where a blob is expected reads as unparseable
-        - metadata with no slug reads as unparseable on a live work or cohort ref and on its history ref
-        - valid metadata reads as parsed, equal to `parseRefMetadata`'s result
-        - a present object looked up by `<tip>:<path>` reads as unparseable or parsed, as an entry's object does
+- _Outcome:_ `readRefMetadata` preserves absent entries, missing objects, unparseable objects, and parsed metadata.
+  Public Store tests exercise it through listing decoding and UID point reads brought forward from 3.1; missing
+  listing metadata gets the restore remedy and resumes after restoration. The tolerant parser stays unchanged.
 
 ### `[ ]` **2.2 A `missing` point-read answer is resolved by its containing tree — § 1.3**
 
@@ -190,6 +175,9 @@ classification calls the sweep settled.
 
 - _Note:_ See `notes-storage-ref-hardening.md` § Fault-site inventory › 3.1 and § Classification calls the sweep settled
   for its sites, their rows and sides.
+
+- _Note:_ Task 2.1 brought forward `capturedMetadata` and the UID point read's discriminated-reader wiring. The
+  containing-tree resolution, shared fault helper, and remaining sites below still complete this task.
 
     - `[ ]` **3.1.a The shared tip check and record point reads**
         - `checkRefTip`, which history, changes, pull, and push all run first, classifies a missing tip or tree as

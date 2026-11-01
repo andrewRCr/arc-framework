@@ -6,7 +6,7 @@ import type { StoreRecord } from "../read.js";
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, readRefTrees, type BatchObject } from "./batch-read.js";
-import { canonicalPrimaryKind, parseRefMetadata, type RefMetadata } from "./metadata.js";
+import { canonicalPrimaryKind, readRefMetadata, type RefMetadata } from "./metadata.js";
 import { decodeRecord, refOwner, rootFamily } from "./codec.js";
 import { conflictParentQuery, readOpenConflicts } from "./conflicts-read.js";
 import { checkRefKey } from "./path-admission.js";
@@ -21,8 +21,10 @@ export async function readUidRefRecord(context: RefBackendContext, requested: Re
     const captured = await readBatchObjects(context, [shell.ref, metadataQuery]);
     const tip = captured.get(shell.ref);
     if (tip?.type !== "commit") return null;
-    const metadata = parseRefMetadata(captured.get(metadataQuery), shell.ref);
-    if (!metadata) return unreadableUidTip(context, shell, tip.oid);
+    const objectMetadata = captured.get(metadataQuery);
+    const read = objectMetadata ? readRefMetadata(shell.ref, objectMetadata) : { kind: "missing" } as const;
+    if (read.kind !== "parsed") return unreadableUidTip(context, shell, tip.oid);
+    const metadata = read.metadata;
 
     const reference = canonicalUidReference(context, requested, shell.ref, metadata);
     const home = expandStoredPath(reference, { registry: context.registry });

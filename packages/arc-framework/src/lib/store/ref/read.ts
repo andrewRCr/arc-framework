@@ -14,7 +14,7 @@ import type { FamilyId } from "../catalog.js";
 import { FAMILY_REGISTRY } from "../registry.js";
 import { readBatchObjects, readRefTips, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { decodeRecord, decodeReference, matchesFamilyRef, refOwner, rootFamily, type RefRecordDecodeOptions } from "./codec.js";
-import { canonicalPrimaryKind, parseRefMetadata, unparsedMetadata, type RefMetadata } from "./metadata.js";
+import { canonicalPrimaryKind, parseRefMetadata, readRefMetadata, unparsedMetadata, type RefMetadata } from "./metadata.js";
 import type { RefBackendContext } from "./context.js";
 import { saveCapturedManifest } from "./manifest.js";
 import { recordDiagnostic } from "./content-read.js";
@@ -259,9 +259,11 @@ function decodeCapturedEntry(context: RefBackendContext, family: FamilyId, owner
 function capturedMetadata(home: StoredRecordHome, entries: readonly RefTreeEntry[],
   objects: ReadonlyMap<string, BatchObject | null>, saved: boolean): RefMetadata | DecodedRecords {
   const entry = entries.find((candidate) => candidate.path === home.metadataPath);
-  const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : null, home.ref);
-  if (metadata) return metadata;
-  const foreign = !entry && entries.find((candidate) => /^metadata-[0-9a-f-]+\.json$/u.test(candidate.path)
+  const read = readRefMetadata(home.ref, entry, objects);
+  if (read.kind === "parsed") return read.metadata;
+  if (read.kind === "missing") return unreadableRef(home.ref,
+    `The metadata blob at ${home.metadataPath} on ${home.ref} is unavailable locally.`);
+  const foreign = read.kind === "absent" && entries.find((candidate) => /^metadata-[0-9a-f-]+\.json$/u.test(candidate.path)
     && parseRefMetadata(objects.get(candidate.oid)) !== null);
   if (foreign) return { records: [], diagnostics: entries.filter((candidate) => candidate !== foreign
     && !isManifestPath(home, candidate.path)).map((candidate) => recordDiagnostic(candidate.path, {
@@ -271,9 +273,9 @@ function capturedMetadata(home: StoredRecordHome, entries: readonly RefTreeEntry
     diagnostics: [{ kind: "unreadable", key: home.ref, ...unparsedMetadata(home.ref, saved) }] };
 }
 
-function unreadableRef(ref: string): DecodedRecords {
+function unreadableRef(ref: string, condition = `The tip or a tree of ${ref} is not available locally`): DecodedRecords {
   return { records: [], unreadable: true, diagnostics: [{ kind: "unreadable", key: ref,
-    condition: `The tip or a tree of ${ref} is not available locally`,
+    condition,
     remedy: { text: `Restore the missing objects for ${ref} in the store repository, then retry.` } }] };
 }
 

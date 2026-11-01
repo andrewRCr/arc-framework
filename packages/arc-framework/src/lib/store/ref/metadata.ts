@@ -8,7 +8,7 @@ import { LinksSchema } from "../links.js";
 import type { Remedy } from "../refusal.js";
 import type { KindId } from "../catalog.js";
 import { StoredUidSchema } from "../identity.js";
-import type { BatchObject } from "./batch-read.js";
+import type { BatchObject, RefTreeEntry } from "./batch-read.js";
 
 /** The supported metadata format, including retained primary facts and lineage names. */
 export const RefMetadataSchema = z.strictObject({
@@ -34,6 +34,25 @@ export function parseRefMetadata(object: BatchObject | null | undefined, namespa
     if (namespace && /^refs\/arc\/(?:history\/)?(?:work|cohort)\//u.test(namespace) && !parsed.data.slug) return null;
     return parsed.data;
   } catch { return null; }
+}
+
+/** Acquisition and decoding are separate facts, so callers can select the correct failure policy. */
+export type RefMetadataRead = { kind: "absent" } | { kind: "missing" } | { kind: "unparseable" }
+  | { kind: "parsed"; metadata: RefMetadata };
+
+/** Read a metadata entry through the objects returned by its batch. */
+export function readRefMetadata(namespace: string, entry: RefTreeEntry | undefined,
+  objects: ReadonlyMap<string, BatchObject | null>): RefMetadataRead;
+/** Read a present object already acquired through a path query. */
+export function readRefMetadata(namespace: string, object: BatchObject): RefMetadataRead;
+/** Keep entry absence, object loss, and metadata decoding distinct. */
+export function readRefMetadata(namespace: string, source: RefTreeEntry | BatchObject | undefined,
+  objects?: ReadonlyMap<string, BatchObject | null>): RefMetadataRead {
+  if (source === undefined) return { kind: "absent" };
+  const object = "bytes" in source ? source : objects?.get(source.oid);
+  if (object == null) return { kind: "missing" };
+  const metadata = parseRefMetadata(object, namespace);
+  return metadata === null ? { kind: "unparseable" } : { kind: "parsed", metadata };
 }
 
 /** The kind a work-item primary handle names: the owner's recorded primary role, else the handle's own kind. */

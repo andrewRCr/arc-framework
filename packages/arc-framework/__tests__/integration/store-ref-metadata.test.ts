@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
+import { ListingOutcomeSchema } from "../../src/lib/store/read.js";
 import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { createRefReadFixture } from "../helpers/store/ref-read.js";
-import { plantRef } from "../helpers/store/ref-plant.js";
+import { plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
 import { createRefStore } from "../../src/lib/store/create.js";
 import { createKindRegistry } from "../../src/lib/store/registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
@@ -105,5 +106,37 @@ describe.each(["files", "reftable"] as const)("ref metadata (%s)", (format) => {
     expect(await store.read({ reference: pass })).toMatchObject({ status: "ok", result: { formatVersion: 2 } });
     expect(await store.list({ family: "review" })).toMatchObject({ status: "ok", result: { status: "complete",
       records: [expect.objectContaining({ formatVersion: 2, reference: pass })], diagnostics: [], missed: false } });
+  });
+});
+
+
+describe("ref metadata object recovery", () => {
+  it("lists missing metadata with a restore remedy and resumes after the blob is restored", async () => {
+    const f = await createRefReadFixture();
+    const metadataPath = `metadata-${uid}.json`;
+    const content = canonicalize(metadata);
+    const planted = await plantRef(f.root, ref, [{ path: metadataPath, content },
+      { path: "extra-alpha.md", content: "kept" }]);
+    const secondUid = "22345678-1234-4234-8234-123456789abc";
+    await plantRef(f.root, `refs/arc/work/${secondUid}`, [
+      { path: `metadata-${secondUid}.json`, content: canonicalize({ ...metadata, slug: "beta" }) },
+      { path: "extra-beta.md", content: "healthy" },
+    ]);
+    const blob = planted.blobs.get(metadataPath);
+    if (!blob) throw new Error("Missing fixture metadata");
+    await removeLooseObject(f.root, blob);
+
+    const listing = await f.store.list({ family: "work-item" });
+    expect(listing).toMatchObject({ status: "ok", result: { status: "complete", missed: true,
+      records: [expect.objectContaining({ content: "healthy" })],
+      diagnostics: [{ kind: "unreadable", key: ref, remedy: { text: expect.stringMatching(/Restore.*missing/u) } }] } });
+    if (listing.status !== "ok") throw new Error("Expected a listing");
+    expect(ListingOutcomeSchema.safeParse(listing.result).success).toBe(true);
+
+    expect((await f.execInput(["hash-object", "-w", "--stdin"], content)).trim()).toBe(blob);
+    expect(await f.store.list({ family: "work-item" })).toMatchObject({ status: "ok", result: {
+      status: "complete", records: expect.arrayContaining([expect.objectContaining({ content: "kept" }),
+        expect.objectContaining({ content: "healthy" })]), diagnostics: [], missed: false,
+    } });
   });
 });
