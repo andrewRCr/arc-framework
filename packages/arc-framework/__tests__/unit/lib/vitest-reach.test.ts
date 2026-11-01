@@ -5,7 +5,7 @@ import { load } from "js-yaml";
 import { describe, expect, it } from "vitest";
 import { CheckDeclarationSchema } from "../../../src/lib/checks/declaration.js";
 import { resolveCheckForecast } from "../../../src/lib/checks/forecast.js";
-import { reachSuiteExclusions } from "../../../src/lib/local-vitest-runner.js";
+import { portabilityTakesReachSuites, reachSuiteExclusions } from "../../../src/lib/local-vitest-runner.js";
 import { describeReachSelection } from "../../../src/lib/reach-check.js";
 import {
   globPattern, locateFromOwnPath, ReachDeclarationSchema, ReachError, resolveReachForm, selectionPathsChanged,
@@ -216,10 +216,18 @@ describe("tiers that leave reach suites to their check", () => {
     expect(reachSuiteExclusions("portability", { ARC_PORTABILITY_FORM: "pull-request" }, suites)).toEqual(excluded);
   });
 
-  it("keeps them in scheduled and dispatched portability runs, the full tier, and the store tier", () => {
+  it("keeps them in other portability runs, which take them by reach, the full tier, and the store tier", () => {
     expect(reachSuiteExclusions("portability", {}, suites)).toEqual([]);
     expect(reachSuiteExclusions("full", {}, suites)).toEqual([]);
     expect(reachSuiteExclusions("store", {}, suites)).toEqual([]);
+  });
+
+  it("has a portability run take all of a declaration's suites unless its change reaches none", () => {
+    expect(portabilityTakesReachSuites({ form: "reach", suites: [] })).toBe(false);
+    expect(portabilityTakesReachSuites({ form: "reach", suites: ["packages/arc-framework/__tests__/integration/store-ref-a.test.ts"] }))
+      .toBe(true);
+    expect(portabilityTakesReachSuites({ form: "full", suites: [] })).toBe(true);
+    expect(portabilityTakesReachSuites({ form: "every", suites: [] })).toBe(true);
   });
 });
 
