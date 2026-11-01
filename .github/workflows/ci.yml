@@ -97,13 +97,13 @@ jobs:
       integration_target: ${{ steps.c.outputs.integration_target }}
       tested_tree: ${{ steps.tested.outputs.tree }}
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5
         with:
           fetch-depth: 0
           persist-credentials: false
       # classify-change hashes NUL-delimited tree records with Node. Provision it
       # explicitly because disposable runners do not carry a system Node install.
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
       - id: duplicate
@@ -259,11 +259,11 @@ jobs:
     if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5
       with:
         fetch-depth: 0
         persist-credentials: false
-    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: 'lts/*'
         cache: 'npm'
@@ -288,7 +288,7 @@ jobs:
     - name: Validate check plumbing
       run: node --import tsx scripts/run-ci-checks.mjs validate
     - name: Upload check forecast
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: arc-check-forecast
         path: .arc-check-forecast.json
@@ -305,7 +305,7 @@ jobs:
     - name: Prepare duration input
       run: node --import tsx packages/arc-framework/__tests__/helpers/prepare-duration-input.ts packages/arc-framework/.test-cost-runs/duration-input
     - name: Upload duration input
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: test-duration-input
         path: packages/arc-framework/.test-cost-runs/duration-input/
@@ -321,10 +321,10 @@ jobs:
     if: ${{ !inputs.portability_timing_only && !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && (needs.classify.outputs.weight != 'light' || needs.classify.outputs.integration_target == 'true' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && needs.setup.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5
       with:
         persist-credentials: false
-    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: 'lts/*'
         cache: 'npm'
@@ -340,13 +340,13 @@ jobs:
     - name: Initialize approved dependency tools
       run: npm run setup
     - name: Download check forecast
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-check-forecast
         path: .
     - id: build
       run: node --import tsx scripts/run-ci-checks.mjs run build build
-    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist/
@@ -363,11 +363,11 @@ jobs:
     if: ${{ !inputs.portability_timing_only && !cancelled() && github.event_name != 'schedule' && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' && needs.setup.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5
       with:
         fetch-depth: 0
         persist-credentials: false
-    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: 'lts/*'
         cache: 'npm'
@@ -383,7 +383,7 @@ jobs:
     - name: Initialize approved dependency tools
       run: npm run setup
     - name: Download check forecast
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-check-forecast
         path: .
@@ -441,7 +441,7 @@ jobs:
       if: ${{ needs.classify.outputs.weight == 'light' }}
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck arc-contracts
     - if: ${{ needs.classify.outputs.weight != 'light' && needs.build.result == 'success' }}
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
@@ -488,10 +488,10 @@ jobs:
     steps:
     - name: Start test budget clock
       run: echo "TEST_COST_STARTED_AT_SECONDS=$(date +%s)" >> "$GITHUB_ENV"
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5
       with:
         persist-credentials: false
-    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       id: node
       with:
         node-version: ${{ matrix.node.version }}
@@ -508,12 +508,12 @@ jobs:
     - name: Initialize approved dependency tools
       run: npm run setup
     - name: Download check forecast
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-check-forecast
         path: .
     - name: Download duration input
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: test-duration-input
         path: packages/arc-framework/.test-cost-runs/duration-input/
@@ -528,7 +528,7 @@ jobs:
         ARC_TEST_DURATION_FILE: ${{ github.workspace }}/packages/arc-framework/.test-cost-runs/duration-input/unit.json
     - name: Upload unit test report
       if: ${{ !cancelled() }}
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: unit-test-report-${{ matrix.node.label }}-${{ matrix.shard }}
         path: packages/arc-framework/unit-test-report.json
@@ -536,7 +536,7 @@ jobs:
     # Keep one unit timing stream for balancing and calibrated budgets.
     - name: Upload native durations
       if: ${{ !cancelled() && matrix.node.version == 'lts/*' && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: duration-results-unit-${{ matrix.shard }}
         path: packages/arc-framework/node_modules/.vite/vitest/**/results.json
@@ -564,11 +564,11 @@ jobs:
     steps:
     - name: Start test budget clock
       run: echo "TEST_COST_STARTED_AT_SECONDS=$(date +%s)" >> "$GITHUB_ENV"
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5
       with:
         fetch-depth: 0
         persist-credentials: false
-    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: 'lts/*'
         cache: 'npm'
@@ -583,17 +583,17 @@ jobs:
       run: npm ci
     - name: Initialize approved dependency tools
       run: npm run setup
-    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
     - name: Download check forecast
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-check-forecast
         path: .
     - name: Download duration input
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: test-duration-input
         path: packages/arc-framework/.test-cost-runs/duration-input/
@@ -611,7 +611,7 @@ jobs:
         ARC_E2E_SKIP_BUILD: '1'
     - name: Upload native durations
       if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: duration-results-integration-${{ matrix.shard }}
         path: packages/arc-framework/node_modules/.vite/vitest/**/results.json
@@ -644,11 +644,11 @@ jobs:
     steps:
     - name: Start test budget clock
       run: echo "TEST_COST_STARTED_AT_SECONDS=$(date +%s)" >> "$GITHUB_ENV"
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5
       with:
         fetch-depth: 0
         persist-credentials: false
-    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: 'lts/*'
         cache: 'npm'
@@ -663,17 +663,17 @@ jobs:
       run: npm ci
     - name: Initialize approved dependency tools
       run: npm run setup
-    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
     - name: Download check forecast
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-check-forecast
         path: .
     - name: Download duration input
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: test-duration-input
         path: packages/arc-framework/.test-cost-runs/duration-input/
@@ -692,7 +692,7 @@ jobs:
         ARC_STORE_CHECK: ${{ github.event_name != 'pull_request' && (inputs.store_per_change && 'every' || 'full') || '' }}
     - name: Upload native durations
       if: ${{ !cancelled() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: duration-results-integration-store-${{ matrix.shard }}
         path: packages/arc-framework/node_modules/.vite/vitest/**/results.json
@@ -719,10 +719,10 @@ jobs:
     steps:
     - name: Start test budget clock
       run: echo "TEST_COST_STARTED_AT_SECONDS=$(date +%s)" >> "$GITHUB_ENV"
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5
       with:
         persist-credentials: false
-    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: 'lts/*'
         cache: 'npm'
@@ -737,21 +737,21 @@ jobs:
       run: npm ci
     - name: Initialize approved dependency tools
       run: npm run setup
-    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
     - name: Download check forecast
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-check-forecast
         path: .
     - name: Download duration input
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: test-duration-input
         path: packages/arc-framework/.test-cost-runs/duration-input/
-    - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+    - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
       with:
         python-version: '3.x'
     - id: runtime-preflight
@@ -768,7 +768,7 @@ jobs:
         ARC_E2E_SKIP_BUILD: '1'
     - name: Upload native durations
       if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: duration-results-e2e-${{ matrix.shard }}
         path: packages/arc-framework/node_modules/.vite/vitest/**/results.json
@@ -792,10 +792,10 @@ jobs:
     if: ${{ !cancelled() && needs.store.result == 'success' && (github.event_name == 'push' || ((github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && !inputs.store_per_change && needs.unit.result == 'success' && needs.integration.result == 'success' && needs.e2e.result == 'success')) }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5
       with:
         persist-credentials: false
-    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: 'lts/*'
         cache: 'npm'
@@ -811,13 +811,13 @@ jobs:
     - name: Initialize approved dependency tools
       run: npm run setup
     - name: Download writer durations
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         pattern: duration-results-*
         path: duration-results
     - name: Download handed duration input
       if: ${{ github.event_name == 'push' }}
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: test-duration-input
         path: duration-base
@@ -846,10 +846,10 @@ jobs:
     if: ${{ !cancelled() && needs.setup.result == 'success' && needs.build.result == 'success' && ((github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light') || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5
       with:
         persist-credentials: false
-    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: 'lts/*'
         cache: 'npm'
@@ -864,12 +864,12 @@ jobs:
       run: npm ci
     - name: Initialize approved dependency tools
       run: npm run setup
-    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
     - name: Download check forecast
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-check-forecast
         path: .
@@ -886,7 +886,7 @@ jobs:
         ARC_PORTABILITY_FORM: ${{ github.event_name == 'pull_request' && 'pull-request' || '' }}
     - name: Upload portability measurements
       if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' }}
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: portability-results-${{ runner.os }}
         path: |
@@ -918,10 +918,10 @@ jobs:
         exclude: ${{ fromJSON((inputs.portability_timing_only || inputs.portability_files) && '[{"shard":2},{"shard":3},{"shard":4},{"shard":5},{"shard":6}]' || '[]') }}
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5
       with:
         persist-credentials: false
-    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: 'lts/*'
         cache: 'npm'
@@ -929,7 +929,7 @@ jobs:
     - name: Initialize approved dependency tools
       run: npm run setup
     - name: Download check forecast
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-check-forecast
         path: .
@@ -941,7 +941,7 @@ jobs:
         ARC_E2E_SKIP_BUILD: ''
     - name: Download duration input
       if: ${{ !inputs.portability_timing_only && !inputs.portability_files }}
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: test-duration-input
         path: packages/arc-framework/.test-cost-runs/duration-input/
@@ -972,7 +972,7 @@ jobs:
         ARC_STORE_PROFILE: '1'
     - name: Upload portability measurements
       if: ${{ !cancelled() }}
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
       with:
         name: portability-results-${{ runner.os }}-${{ matrix.shard }}
         path: |
@@ -1008,11 +1008,11 @@ jobs:
       # https://www.kernel.org/pub/software/scm/git/sha256sums.asc
       GIT_FLOOR_SHA256: '5818bd7d80b061bbbdfec8a433d609dc8818a05991f731ffc4a561e2ca18c653'
     steps:
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5
       with:
         fetch-depth: 0
         persist-credentials: false
-    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: 24
         cache: 'npm'
@@ -1063,12 +1063,12 @@ jobs:
         test "$(git --version)" = "git version $GIT_FLOOR_VERSION"
         git --exec-path
         printf 'Git under test: %s\n' "$(git --version)" >> "$GITHUB_STEP_SUMMARY"
-    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
     - name: Download check forecast
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-check-forecast
         path: .
@@ -1104,11 +1104,11 @@ jobs:
       # https://www.kernel.org/pub/software/scm/git/sha256sums.asc
       GIT_FLOOR_SHA256: '5818bd7d80b061bbbdfec8a433d609dc8818a05991f731ffc4a561e2ca18c653'
     steps:
-    - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5
       with:
         fetch-depth: 0
         persist-credentials: false
-    - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: 24
         cache: 'npm'
@@ -1159,12 +1159,12 @@ jobs:
         test "$(git --version)" = "git version $GIT_FLOOR_VERSION"
         git --exec-path
         printf 'Git under test: %s\n' "$(git --version)" >> "$GITHUB_STEP_SUMMARY"
-    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+    - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-framework-dist
         path: packages/arc-framework/dist
     - name: Download check forecast
-      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
       with:
         name: arc-check-forecast
         path: .
