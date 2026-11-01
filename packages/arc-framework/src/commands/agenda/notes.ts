@@ -2,7 +2,7 @@
 
 import type { AgendaCompileInput } from "./compile-input.js";
 import type { AgendaStep } from "./schema.js";
-import { createSyncExec, createSyncOffer } from "./sync-steps.js";
+import { createSyncExec, createSyncOffer, syncPending } from "./sync-steps.js";
 
 const LOAD_PROMPT = "Notes: local notes are current but disk lags the latest note. Load?";
 
@@ -11,6 +11,7 @@ export function compileNotesSync(input: AgendaCompileInput): AgendaStep[] {
   const slot = input.envelope.user;
   const notes = slot.ok && slot.value !== null && "state" in slot.value ? slot.value : null;
   if (notes?.recommendedAction === "pull" || notes?.recommendedAction === "prompt") {
+    if (!syncPending(input, "notes:pull")) return [];
     const spec = { id: "notes:pull", text: notes.recommendedPromptText, label: "Pull notes",
       actions: [{ text: "arc user pull", argv: ["arc", "user", "pull"] }] };
     return [notes.recommendedAction === "pull" ? createSyncExec(input, spec) : createSyncOffer(input, spec)];
@@ -22,7 +23,7 @@ function compileNotesLoad(input: AgendaCompileInput, loadNeeded: boolean): Agend
   const retired = input.envelope.retiredSubdirs;
   const retiredTrigger = retired?.ok
     && (retired.value.recommendedAction === "pull" || retired.value.recommendedAction === "prompt");
-  if (!loadNeeded && !retiredTrigger) return [];
+  if ((!loadNeeded && !retiredTrigger) || !syncPending(input, "notes:load")) return [];
   const config = input.envelope.config;
   const policy = config.ok ? config.value.settings["session.init_load.notes"] : "prompt";
   if (policy === "manual") return [];

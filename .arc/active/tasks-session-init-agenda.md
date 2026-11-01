@@ -176,28 +176,15 @@ _Mode:_ `slice` through Phase 3 — closes on a plain resume driven end to end b
           literal branch-derived argv; dirty prompts add the reset-specific warning. Declined or notes-only rows
           render only the shared head, without duplicating a pending offer.
 
-### `[ ]` **2.2 Carry answers across recompiles — § 4.5, § 4.6**
+### `[x]` **2.2 Carry answers across recompiles — § 4.5, § 4.6**
 
 - _Goal:_ Every emitted recompile argv carries the answers and done ids its position implies, and the compiler, given
   them, never asks an answered question, runs a done `exec`, or follows a recorded method fragment again, reporting
   each in an `answered` note and each still-recommended sync in a `sync-unsettled` note.
 
-- _Approach:_ The unsynced determination lives here, and Task 2.5 reads it: a channel is unsynced when its policy is
-  `manual`, its offer was declined or emitted earlier in the same agenda, the row's prefix skips it, or its sync is
-  unsettled.
-
-- Build `test-first` (one behavior at a time):
-    - an `ask: "now"` offer's `actions` choice records each key it accepts as `accept` and the rest as `decline`
-    - every `ask: "now"` offer earlier in the same agenda records `decline` in later argv
-    - a `signal` or `elicit` choice records nothing, except a bare signal's decline, which records its key as `decline`
-    - an `ask: "orientation"` offer records nothing, and its choices' argv drop `--next`
-    - an `exec` records its id done; a method `fragment` earlier in the agenda records `fragment:<name>`
-    - a fully answered offer is omitted; a partly answered one is emitted for its remaining keys
-    - an `exec` whose id is done or answered is omitted
-    - an accepted or run sync whose slot still recommends it, a failed one continued past or a combined accept's unrun
-      pull included, becomes a `sync-unsettled` note, and the agenda compiles on as if it were declined
-    - the `answered` note names each offer answered earlier and each method fragment omitted as followed
-    - each unsynced case marks its channel unsynced, and a channel synced this session is not
+- _Outcome:_ Added an ordered progress fold for all recompile choices, retaining literal operands while recording
+  earlier declines and followed methods. Prefix channels prune recorded decisions before combining or constructing
+  steps; shared sync state reports unsettled accepts/runs and supplies per-action unsynced facts to orientation.
 
 ### `[ ]` **2.3 Compile a resume's reads and session-notes fields — § 4.3, § 4.9, § 5.1, § 5.6**
 

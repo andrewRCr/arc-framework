@@ -4,7 +4,7 @@ import { quoteShellArgument } from "../../lib/release/commit-message-retry.js";
 import { composeSupersessionHead } from "../../lib/session-init/recommended-action.js";
 import type { AgendaCompileInput, SyncChannels } from "./compile-input.js";
 import type { AgendaStep } from "./schema.js";
-import { createSyncOffer } from "./sync-steps.js";
+import { createSyncOffer, syncPending } from "./sync-steps.js";
 
 const RESET_ID = "superseded:reset";
 
@@ -26,7 +26,7 @@ export function renderSuperseded(input: AgendaCompileInput, channels: SyncChanne
 }
 
 function resetPending(input: AgendaCompileInput, channels: SyncChannels): boolean {
-  return channels === "all" && input.answers.answered[RESET_ID] === undefined && !input.answers.done.includes(RESET_ID);
+  return channels === "all" && syncPending(input, RESET_ID);
 }
 
 function supersededFacts(input: AgendaCompileInput): { branch: string; prompt: string } | null {

@@ -2,7 +2,7 @@
 
 import type { AgendaCompileInput, SyncChannels } from "./compile-input.js";
 import { quoteShellArgument } from "../../lib/release/commit-message-retry.js";
-import { createSyncExec, createSyncOffer } from "./sync-steps.js";
+import { createSyncExec, createSyncOffer, syncPending } from "./sync-steps.js";
 import { compileSupersededSync } from "./superseded.js";
 import { combineSyncOffers } from "./combine.js";
 import { compileNotesSync } from "./notes.js";
@@ -28,7 +28,7 @@ export function compileSyncPrefix(input: AgendaCompileInput, channels: SyncChann
 
 function compileBaseSync(input: AgendaCompileInput): AgendaStep | null {
   const slot = input.envelope.baseBranchSync;
-  if (!slot.ok) return null;
+  if (!slot.ok || !syncPending(input, "base-sync:pull")) return null;
   const { recommendedAction, recommendedPromptText, base } = slot.value;
   if (recommendedAction !== "pull" && recommendedAction !== "prompt") return null;
   const spec = { id: "base-sync:pull", text: recommendedPromptText, label: "Sync base branch",
@@ -39,7 +39,7 @@ function compileBaseSync(input: AgendaCompileInput): AgendaStep | null {
 
 function compileUserReferences(input: AgendaCompileInput): AgendaStep | null {
   const slot = input.envelope.userReferenceReconcile;
-  if (!slot?.ok || slot.value.recommendedAction !== "apply" || slot.value.recommendedCommand === null) return null;
+  if (!syncPending(input, "user-references:apply") || !slot?.ok || slot.value.recommendedAction !== "apply" || slot.value.recommendedCommand === null) return null;
   const argv = [...slot.value.recommendedCommand];
   const published = slot.value.actions?.find(action => action.argv?.length === argv.length
     && action.argv.every((part, index) => part === argv[index]));
@@ -51,7 +51,7 @@ function compileUserReferences(input: AgendaCompileInput): AgendaStep | null {
 
 function compileWorktreeAndNotes(input: AgendaCompileInput, notes: AgendaStep[]): AgendaStep[] {
   const slot = input.envelope.worktree;
-  if (!slot.ok || slot.value.recommendedAction !== "prompt") return notes;
+  if (!syncPending(input, "worktree:pull") || !slot.ok || slot.value.recommendedAction !== "prompt") return notes;
   const worktree = createSyncOffer(input, { id: "worktree:pull", text: slot.value.recommendedPromptText,
     label: "Pull worktree", actions: [{ text: "git pull --ff-only", argv: ["git", "pull", "--ff-only"] }] });
   const note = notes[0];

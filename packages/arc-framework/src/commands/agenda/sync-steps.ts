@@ -30,3 +30,8 @@ export function createSyncExec(
   return { type: "exec", id: spec.id, actions: spec.actions,
     then: { kind: "recompile", argv: buildAgendaArgv(input.signals, input.answers, { done: [spec.id] }) } };
 }
+
+/** A sync question or command may run only before its first recorded decision. */
+export function syncPending(input: AgendaCompileInput, id: string): boolean {
+  return input.answers.answered[id] === undefined && !input.answers.done.includes(id);
+}

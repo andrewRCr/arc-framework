@@ -30,7 +30,7 @@ export function buildAgendaArgv(
     if (value === true) argv.push(`--${name}`);
     else appendAgendaOption(argv, `--${name}`, value);
   }
-  appendDecisions(argv, answers, changes);
+  appendAgendaDecisions(argv, answers, changes);
   if (next.seed?.startsWith("-")) argv.push("--", next.seed);
   return argv;
 }
@@ -58,7 +58,8 @@ function changedSignals(signals: AgendaSignals, changes: AgendaArgvChanges): Age
   return SessionInitAgendaSchema.shape.signals.parse(next);
 }
 
-function appendDecisions(argv: string[], answers: AgendaAnswers, changes: AgendaArgvChanges): void {
+/** Insert accumulated decisions before any literal-operand delimiter. */
+export function appendAgendaDecisions(argv: string[], answers: AgendaAnswers, changes: AgendaArgvChanges): void {
   const answered = new Map(Object.entries(answers.answered));
   for (const [key, answer] of Object.entries(changes.answered ?? {})) {
     const previous = answered.get(key);
