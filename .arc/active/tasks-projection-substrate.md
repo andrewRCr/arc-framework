@@ -488,20 +488,17 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
       ignored file as expendable and overwrites it without a word.
     - Record the deletion in the completion note.
 
-### `[ ]` **4.4 Removal behind the lock** — validate exit criterion at segment scope
+### `[x]` **4.4 Removal behind the lock** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base, the lock live and the slots passing.
 
-    - Merge base into the branch (append-only); run `npm ci` first if the merge changed `package-lock.json`.
-    - In a disposable repository set up with this checkout's built CLI (`arc init`), its `origin` a local bare
-      repository, spawn a throwaway work unit and claim another with `arc start --here`: confirm the spawned checkout's
-      lock and reason, a plain `git worktree remove`'s refusal naming the exits, `git worktree move -f -f` keeping the
-      lock, and no lock on the `--here` checkout; then abandon both with `arc abandon` and, once the spawned one's
-      abandonment has landed on that repository's base, remove its checkout with `arc teardown`. A work unit started in
-      this repository would push its branch here, and under `branch.protection: full` teardown removes an unshipped work
-      unit's checkout only once its abandonment lands on `origin/main` (`lib/work-unit/verbs/teardown.ts`).
-    - In this repository, spawn an Errand: confirm the same lock, refusal, and move, and its removal through
-      `arc errand abandon`. Confirm 4.1.c's relock cases pass on the merged base, and request `arc check segment`.
+- _Outcome:_ On the base merged at `72ebb30cc2`, in a disposable repository set up with this checkout's build, the
+  spawned work unit's checkout carried `PROJECTION_LOCK_REASON`, a plain `git worktree remove` refused it printing the
+  exits, and `git worktree move -f -f` kept the lock; one claimed with `arc start --here` in a linked checkout carried
+  none. Both were abandoned, and once the spawned one's abandonment landed, `arc teardown` removed its checkout and
+  branch. In this repository an isolated Errand showed the same lock, refusal, and move, and `arc errand abandon`
+  removed it. 4.1.c's relock cases pass on the merged base. The disposable install's first commit passed its link check
+  only once given the ten package files its install recipe ships nowhere.
 
 ## **Phase 5:** Verification
 
