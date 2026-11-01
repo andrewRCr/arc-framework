@@ -8,8 +8,9 @@ import { rootFamily } from "./path-decode.js";
 import { readHistoricalGraph, unavailableRefHistory } from "./history-graph.js";
 import { readLineageOwners } from "./lineage-resolution.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
-import { historicalMetadataFailure, parseRefMetadata } from "./metadata.js";
+import { parseRefMetadata } from "./metadata.js";
 import { captureHistoricalNamespaces } from "./historical-namespace.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** An ended origin has no live tree; its lineage names the retained history that callers must fetch. */
 export async function retiredHistoryHome(context: RefBackendContext, reference: RecordReference,
@@ -39,6 +40,11 @@ export async function retiredHistoryHome(context: RefBackendContext, reference: 
     const owner = OwnerIdentitySchema.parse({ ...reference.owner, name: metadata.slug });
     return { status: "ok", result: expandStoredPath({ ...reference, owner }, { registry: context.registry, history: true }) };
   }
+  return retiredHomeFallback(context, reference, home, tip, tips);
+}
+
+async function retiredHomeFallback(context: RefBackendContext, reference: RecordReference, home: StoredRecordHome,
+  tip: string, tips: ReadonlyMap<string, string>): Promise<StoreResult<never>> {
   // Auxiliary metadata history cannot prove that records existed. Inspect every reachable namespace before absence.
   const complete = await readHistoricalGraph(context, ["rev-list", tip], () => unavailableRefHistory(context, reference, home.ref, tips));
   if (complete.status === "refused") return complete;
@@ -48,10 +54,12 @@ export async function retiredHistoryHome(context: RefBackendContext, reference: 
   const metadataObjects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap(entries =>
     entries.filter(({ path }) => path === home.metadataPath).map(({ oid }) => oid)))]);
   const namespaces = await captureHistoricalNamespaces(context, home, trees, metadataObjects, true);
-  if (namespaces.unavailable.size) return { status: "refused", refusal: await unavailableRefHistory(context, reference, home.ref, tips) };
+  if (namespaces.unavailable.size || namespaces.missing.size) return { status: "refused", refusal: await unavailableRefHistory(context, reference, home.ref, tips) };
   if (!namespaces.corrupt.size && [...trees.values()].every(entries => holdsNoRecord(home, entries.map(({ path }) => path)))) return { status: "refused", refusal: {
     code: "not-found", class: "recoverable", reference, condition: "The ended origin's retained history contains no records.",
     remedy: { text: "Inspect its lineage for the terminal transition; pre-import records remain in code history." },
   } };
-  return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: home.ref, ...historicalMetadataFailure(home.ref) } };
+  const corrupt = [...namespaces.corrupt][0];
+  return { status: "refused", refusal: refObjectFault(home.ref,
+    corrupt && !trees.get(corrupt)?.some(({ path }) => path === home.metadataPath) ? "no-metadata" : "unparseable").refusal };
 }

@@ -10,7 +10,7 @@ import type { RefBackendContext } from "./context.js";
 import { readHistoryPaths } from "./history-paths.js";
 import { orderHistoryCommits, parseHistoryRows } from "./history-order.js";
 import { readRefTrees, readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-read.js";
-import { canonicalPrimaryKind, historicalMetadataFailure, parseRefMetadata, type RefMetadata } from "./metadata.js";
+import { canonicalPrimaryKind, historicalMetadataFailure, readRefMetadata, type RefMetadata } from "./metadata.js";
 import type { StoreRefusal } from "../refusal.js";
 import { refFormatKey } from "./format-key.js";
 import { refRecordVersion } from "./record-version.js";
@@ -19,6 +19,8 @@ import { readStoredMergeLabel } from "./side-labels.js";
 import { corruptRef } from "./namespace-health.js";
 import { captureHistoricalNamespaces } from "./historical-namespace.js";
 import { readHistoricalGraph } from "./history-graph.js";
+import { refObjectFault } from "./object-fault.js";
+import { missingHistoryRefs } from "./missing-history.js";
 
 /** An unreadable historical label refuses its ref without masking other reconciliation failures. */
 export class RefSyncLabelError extends Error {
@@ -76,7 +78,9 @@ async function captureSyncRecordHistory(context: RefBackendContext, reference: R
     entries.filter(({ path }) => path === home.metadataPath).map(({ oid }) => oid)))]);
   const namespaces = await captureHistoricalNamespaces(context, home, trees, objects, false);
   if (namespaces.unavailable.size) throw new RefSyncLabelError(ref, corruptRef(ref, true));
-  if (namespaces.corrupt.size) throw new RefSyncLabelError(ref);
+  if ([...namespaces.missing].some(revision => !namespaces.recordFree.has(revision))) {
+    throw new RefSyncLabelError(ref, refObjectFault(ref, "missing", { historyRefs: await missingHistoryRefs(context, [ref]) }).refusal);
+  }
   const states = new Map(revisions.map((revision) => [revision, {
     ...versionAt(context, reference, ref, home.metadataPath, trees.get(revision), objects, namespaces.recordFree.has(revision)),
     entries: trees.get(revision) ?? [],
@@ -88,11 +92,12 @@ function versionAt(context: RefBackendContext, reference: RecordReference, ref: 
   entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>, recordFree: boolean): { version: string | null; metadata?: RefMetadata } {
   if (!entries) throw new RefSyncLabelError(ref, corruptRef(ref, true));
   const metadataEntry = entries.find(({ path }) => path === metadataPath);
-  const metadata = parseRefMetadata(metadataEntry ? objects.get(metadataEntry.oid) : null, ref);
-  if (!metadata) {
+  const read = readRefMetadata(ref, metadataEntry, objects);
+  if (read.kind !== "parsed") {
     if (recordFree) return { version: null };
-    throw new RefSyncLabelError(ref);
+    throw new RefSyncLabelError(ref, refObjectFault(ref, read.kind === "absent" ? "no-metadata" : read.kind, { saved: true }).refusal);
   }
+  const metadata = read.metadata;
   const family = context.registry[reference.kind].family;
   const owner = reference.owner.type === "project" || family === "lineage" ? reference.owner : refOwner(ref, family, metadata);
   const kind = canonicalPrimaryKind(reference.kind, metadata);

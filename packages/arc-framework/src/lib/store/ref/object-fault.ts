@@ -24,6 +24,7 @@ export interface RefFaultReport {
 
 /** Apply the fault's refusal class and repair side without changing any public outcome schema. */
 export function refObjectFault(namespace: string, fault: "local-transport", options?: RefFaultOptions): Pick<RefFaultReport, "failure" | "condition" | "remedy">;
+export function refObjectFault(namespace: string, fault: "missing", options?: RefFaultOptions): RefFaultReport & { refusal: Extract<StoreRefusal, { code: "state-unresolvable" }> };
 export function refObjectFault(namespace: string, fault: Exclude<RefObjectFault, "local-transport">, options?: RefFaultOptions): RefFaultReport;
 export function refObjectFault(namespace: string, fault: RefObjectFault, options: RefFaultOptions = {}): RefFaultReport | Pick<RefFaultReport, "failure" | "condition" | "remedy"> {
   const key = options.key ?? namespace;

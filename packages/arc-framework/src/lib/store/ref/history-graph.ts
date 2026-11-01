@@ -5,6 +5,7 @@ import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { readBatchObjects } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
 import { missingHistoryRefs } from "./missing-history.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** Translate only completed traversal failures that name an object independently confirmed unavailable locally. */
 export async function readHistoricalGraph(context: RefBackendContext, args: string[],
@@ -37,8 +38,9 @@ export function graphFailureObjectIds(stderr: string): string[] {
 export async function unavailableRefHistory(context: RefBackendContext, reference: RecordReference, ref: string,
   current?: ReadonlyMap<string, string>): Promise<StoreRefusal> {
   const historyRefs = await missingHistoryRefs(context, [ref], current);
-  return { code: "state-unresolvable", class: "recoverable", reference, historyRefs,
+  return refObjectFault(ref, "missing", { reference, historyRefs,
     condition: `An ancestor required to read ${ref} is unavailable locally.`,
     remedy: { text: historyRefs.length ? "Pull the named retained history or restore the missing history objects in the store repository, then retry."
-      : "Restore or fetch the missing history objects in the store repository, then retry." } };
+      : "Restore or fetch the missing history objects in the store repository, then retry." },
+  }).refusal;
 }

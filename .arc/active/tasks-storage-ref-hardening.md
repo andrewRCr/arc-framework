@@ -209,28 +209,14 @@ classification calls the sweep settled.
 - _Note:_ Caller-level slug validation for retained work/cohort history closes with this migration, carried from
   3.1. Live-cohort lookup coverage is in 3.1.c.
 
-    - `[ ]` **3.4.a The builders and history**
-        - `unavailableRefHistory`, `unavailableHistory`, and `missingChangeState` become the helper's **Missing** row,
-          reading the clone's current tips; `missingChangeState`'s coordinate gaps keep their semantics.
-        - `captureHistoricalNamespaces` takes 2.1's read and reports a present entry whose blob is missing in a new
-          `missing` set, a record-free revision in `recordFree` as well. History, the change window, and the pull label
-          walk refuse **Missing** on a `missing` revision whose tree holds records, where today's `corrupt` arm refuses,
-          and keep treating a record-free one as record-free: their answer there is no record, which needs no metadata
-          (`historicalState`, `versionAt`). `retiredHistoryHome`'s fallback refuses any `missing` revision, since its
-          revision scan skipped a missing blob that may hold the slug. `readHistorySnapshots`, `historicalState`,
-          `stateMetadata`, `readRefHistoryDetails`, and `indexHistoryBatches` classify the rest.
-        - Build `test-first` (one behavior at a time):
-            - a history read of a live item whose nested tree is missing refuses **Missing** with empty `historyRefs`;
-              for an ended item it names the history ref
-            - a history revision whose metadata blob is missing refuses **Missing** where its tree holds records, and
-              reads as record-free where it holds none
-            - unparseable metadata at a history revision refuses with the historical remedy
-            - `retiredHistoryHome` refuses a missing blob **Missing**, a record-free revision's included; its
-              unparseable refusal takes the forward repair, since it fires only when no revision, the tip included,
-              yields a slug
-            - `retiredHistoryHome`'s revision scan skips a revision whose metadata blob is missing and resolves the home
-              from an older revision's slug
-            - a changes coordinate gap keeps today's refusal and `historyRefs`
+- _Note:_ Task 3.4.a brought forward change-window capture and namespace fault classification, plus asynchronous
+  record-event wiring for historical states. The remaining end, restriction, and lifecycle reads close with 3.4.b.
+
+    - `[x]` **3.4.a The builders and history**
+        - Historical capture retains missing metadata independently of record-free evidence. History, change windows,
+          and conflict labels use that fact and the helper; missing-object routes follow current tips while coordinate
+          gaps keep their routes. Retired-home fallback requires lost blobs restored and offers forward metadata repair;
+          its scan still uses an older slug. Retained work/cohort histories reject invalid owner metadata before decoding.
 
     - `[ ]` **3.4.b Changes**
         - `captureChangeWindow`, `checkWindowTips`, `changeNamespaceFacts`, the end and record reads in

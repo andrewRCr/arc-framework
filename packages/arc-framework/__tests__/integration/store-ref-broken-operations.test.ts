@@ -22,11 +22,12 @@ describe.each(["default", "separate"] as const)("operations around a damaged ite
     const damaged = success(await f.store.version());
     for (const result of [await f.store.read({ reference: record.reference }), await f.store.history({ reference: record.reference }),
       await f.store.write(update(f, record))]) {
-      expect(result).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: ref,
+      expect(result).toMatchObject({ status: "refused", refusal: {
+        ...(damage === "metadata" ? { code: "namespace-corrupt", namespace: ref } : { code: "state-unresolvable", historyRefs: [] }),
         remedy: { text: expect.stringMatching(damage === "metadata" ? /forward.*metadata/iu : /restore|fetch/iu) } } });
     }
     expect(await f.store.changes({ from, to: damaged, references: [record.reference] })).toMatchObject({ status: "refused", refusal:
-      damage === "tip" ? { code: "state-unresolvable", remedy: { text: expect.stringMatching(/restore|fetch/iu) } }
+      damage !== "metadata" ? { code: "state-unresolvable", historyRefs: [], remedy: { text: expect.stringMatching(/restore|fetch/iu) } }
         : { code: "namespace-corrupt", namespace: ref } });
     success(await f.store.write(update(f, other)));
     expect(success(await f.store.read({ reference: other.reference })).content).toBe(f.content(other.reference, "changed"));

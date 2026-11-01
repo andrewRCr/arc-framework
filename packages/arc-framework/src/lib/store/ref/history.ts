@@ -78,7 +78,7 @@ export async function readRefHistoryDetails(context: RefBackendContext, referenc
   if (graph.status === "refused") return graph;
   const rows = parseHistoryRows(graph.result);
   const revisions = [...new Set(rows.flatMap((row) => [row.revision, ...row.parents]))];
-  const snapshots = await readHistorySnapshots(context, reference, home, revisions, paths, evidence, ended, tip);
+  const snapshots = await readHistorySnapshots(context, reference, home, revisions, paths, evidence, ended, tip, current);
   if (snapshots.status === "refused") return snapshots;
   return { status: "ok", result: historyDetails(rows, snapshots.result) };
 }

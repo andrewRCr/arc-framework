@@ -71,7 +71,7 @@ async function collectChangeEvents(context: RefBackendContext, input: ChangesInp
     const references = changeWindowReferences(context, captured.result, projectOwner);
     if (references.status === "refused") return references;
     const selected = input.references ? references.result.filter((reference) => input.references?.some((requested) => matchesChangeRestriction(requested, reference))) : references.result;
-    const changes = changeWindowEvents(context, captured.result, selected, window.placements);
+    const changes = await changeWindowEvents(context, captured.result, selected, window.placements);
     if (changes.status === "refused") return changes;
     events.push(...changes.result);
   }
