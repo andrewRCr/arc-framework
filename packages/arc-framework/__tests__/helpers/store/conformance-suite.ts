@@ -2,7 +2,7 @@
 
 import { describe, it } from "vitest";
 import { FAMILY_IDS, KIND_REGISTRY, type KindId } from "../../../src/lib/store/index.js";
-import type { ConformanceRegistration, ConformanceRun, FixtureDeclarations, SuiteItem } from "./fixture-contract.js";
+import type { ConformanceRegistration, ConformanceRun, FixtureDeclarations, ItemRange, SuiteItem } from "./fixture-contract.js";
 import { refusalRecoveryTable } from "./recovery.js";
 import {
   caseSkip, createAssertionCoverage, emptyItemExclusions, unservedFamilyExclusions, validateUsedAssertionExclusions,
@@ -81,6 +81,20 @@ export function collectConformanceCoverage(registration: ConformanceRegistration
   return coverage;
 }
 
+/** List the cases one file of a registration runs, without registering any test.
+ * @param registration - Static declarations; no fixture is opened.
+ * @param run - The file's declared run; absent, every case.
+ * @returns Each selected case as `<item>: <case ID>`, in registration order.
+ */
+export function collectRunCases(registration: ConformanceRegistration, run?: ConformanceRun): string[] {
+  const selection = runSelection(registration, run), selected: string[] = [];
+  for (const item of SUITE_ITEMS) registerItem({ item, registration, selects: (at, id) => {
+    if (selection.selects(at, id)) selected.push(`${at}: ${id}`);
+    return false;
+  } });
+  return selected;
+}
+
 /** Refuse declared exclusions and per-change cases that name no case of the whole registration.
  * @param registration - Declared exclusions and runs.
  * @param coverage - The whole registration's inventory.
@@ -97,9 +111,18 @@ function runSelection(registration: ConformanceRegistration, run: ConformanceRun
     const subset = registration.runs?.subset ?? declarationError("the run selects a per-change subset the registration does not declare");
     return { selects: (item, id) => subset[item]?.includes(id) ?? false, runsItem: (item) => (subset[item]?.length ?? 0) > 0, reportsUnserved: false };
   }
-  const range = registration.runs?.ranges?.[run.range] ?? declarationError(`the run selects undeclared item range ${run.range}`);
-  const runsItem = (item: SuiteItem) => item >= range[0] && item <= range[1];
-  return { selects: (item) => runsItem(item), runsItem, reportsUnserved: range[0] === 1 };
+  const declared = registration.runs?.ranges?.[run.range] ?? declarationError(`the run selects undeclared item range ${run.range}`);
+  const { items: [first, last], part } = readItemRange(declared);
+  const runsItem = (item: SuiteItem) => item >= first && item <= last;
+  if (part === undefined) return { selects: (item) => runsItem(item), runsItem, reportsUnserved: first === 1 };
+  // Every file registers the same cases in the same order, so counting the range's cases assigns each to one part.
+  const [index, of] = part;
+  let position = 0;
+  return { selects: (item) => runsItem(item) && position++ % of === index - 1, runsItem, reportsUnserved: first === 1 && index === 1 };
+}
+
+function readItemRange(range: ItemRange): { items: readonly [SuiteItem, SuiteItem]; part?: readonly [number, number] } {
+  return "items" in range ? range : { items: range };
 }
 
 function validateDeclaredSubset(registration: ConformanceRegistration, coverage: AssertionCoverage): void {
@@ -132,10 +155,25 @@ export function validateConformanceRegistration(registration: ConformanceRegistr
 function validateItemRanges(registration: ConformanceRegistration): void {
   const ranges = Object.entries(registration.runs?.ranges ?? {});
   if (ranges.length === 0) return;
-  const covered = ranges.flatMap(([key, [first, last]]) => {
+  const parts = new Map<string, { of: number; indexes: number[] }>();
+  const covered = ranges.flatMap(([key, range]) => {
+    const { items: [first, last], part } = readItemRange(range);
     if (!SUITE_ITEMS.includes(first) || !SUITE_ITEMS.includes(last) || first > last) declarationError(`item range ${key} is not a range of suite items`);
-    return SUITE_ITEMS.filter((item) => item >= first && item <= last);
+    const items = SUITE_ITEMS.filter((item) => item >= first && item <= last);
+    if (part === undefined) return items;
+    const [index, of] = part;
+    if (!Number.isInteger(of) || of < 2 || !Number.isInteger(index) || index < 1 || index > of) {
+      declarationError(`item range ${key} names part ${index} of ${of}`);
+    }
+    const span = `${first}–${last}`, group = parts.get(span);
+    if (group === undefined) { parts.set(span, { of, indexes: [index] }); return items; }
+    if (group.of !== of) declarationError(`the parts of items ${span} disagree on how many parts there are`);
+    group.indexes.push(index);
+    return [];
   });
+  for (const [span, { of, indexes }] of parts) {
+    if (new Set(indexes).size !== indexes.length || indexes.length !== of) declarationError(`the parts of items ${span} must number 1 to ${of} exactly once`);
+  }
   if (covered.length !== SUITE_ITEMS.length || new Set(covered).size !== SUITE_ITEMS.length) {
     declarationError("the item ranges must cover every suite item exactly once");
   }

@@ -13,6 +13,9 @@ import {
 } from "../../../src/lib/vitest-reach.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "../../../../..");
+/** The separate layout's whole-run conformance files: its three item ranges, each split into parts. */
+const SEPARATE_CONFORMANCE_PARTS = ["reads-1", "reads-2", "reads-3", "reads-4", "records-1", "records-2", "records-3",
+  "records-4", "sync-1", "sync-2", "sync-3"];
 
 /** A repository held in memory: every file and its text. */
 function memoryFiles(files: Record<string, string>): ReachFiles {
@@ -189,7 +192,7 @@ describe("the store check's declaration", () => {
     const directory = "packages/arc-framework/__tests__/integration";
     const files = (await readdir(resolve(repositoryRoot, directory))).map(name => `${directory}/${name}`);
     expect(files.filter(file => reach.fullOnly.some(glob => globPattern(glob).test(file))).sort()).toEqual(
-      ["reads", "records", "sync"].map(range => `${directory}/store-ref-separate-conformance-${range}.test.ts`));
+      SEPARATE_CONFORMANCE_PARTS.map(part => `${directory}/store-ref-separate-conformance-${part}.test.ts`).sort());
   });
 
   it("forecasts six CI shards, each handing its shard to the runner, while a local run stays one", async () => {

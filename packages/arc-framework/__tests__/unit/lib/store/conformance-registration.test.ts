@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { FAMILY_IDS } from "../../../../src/lib/store/index.js";
 import type { ConformanceRegistration, FixtureDeclarations } from "../../../helpers/store/fixture-contract.js";
 import {
-  collectConformanceCoverage, registerStoreConformanceSuite, validateConformanceInventory, validateConformanceRegistration,
+  collectConformanceCoverage, collectRunCases, registerStoreConformanceSuite, validateConformanceInventory,
+  validateConformanceRegistration,
 } from "../../../helpers/store/conformance-suite.js";
 import { inRepoDeclarations } from "../../../helpers/store/in-repo-declarations.js";
 import { unservedFamilyExclusions } from "../../../helpers/store/suite-tools.js";
@@ -147,6 +148,34 @@ describe("conformance runs", () => {
   ])("refuses item ranges with %s", (_name, ranges) => {
     const probe = { ...registration(), runs: { ranges } } as unknown as ConformanceRegistration;
     expect(() => validateConformanceRegistration(probe)).toThrow(/Invalid conformance registration:.*(item range|every suite item exactly once)/);
+  });
+
+  it.each([
+    ["a missing part", { first: [1, 6], a: { items: [7, 17], part: [1, 3] }, b: { items: [7, 17], part: [2, 3] } }],
+    ["a repeated part", { first: [1, 6], a: { items: [7, 17], part: [1, 2] }, b: { items: [7, 17], part: [1, 2] } }],
+    ["parts that disagree on their count", { first: [1, 6], a: { items: [7, 17], part: [1, 2] }, b: { items: [7, 17], part: [2, 3] } }],
+    ["a part past its count", { first: [1, 6], a: { items: [7, 17], part: [1, 2] }, b: { items: [7, 17], part: [3, 2] } }],
+    ["a range of one part", { first: [1, 6], a: { items: [7, 17], part: [1, 1] } }],
+    ["a range declared both whole and in parts",
+      { first: [1, 6], rest: [7, 17], a: { items: [7, 17], part: [1, 2] }, b: { items: [7, 17], part: [2, 2] } }],
+  ])("refuses range parts with %s", (_name, ranges) => {
+    const probe = { ...registration(), runs: { ranges } } as unknown as ConformanceRegistration;
+    expect(() => validateConformanceRegistration(probe)).toThrow(/Invalid conformance registration:.*(part|every suite item exactly once)/);
+  });
+
+  it("gives each case of a range to exactly one of its parts, with part sizes within one case", () => {
+    const whole = { ...registration(), runs: { ranges: { first: [1, 6], rest: [7, 17] } } } as unknown as ConformanceRegistration;
+    const split = { ...registration(), runs: { ranges: { first: [1, 6], "rest-1": { items: [7, 17], part: [1, 3] },
+      "rest-2": { items: [7, 17], part: [2, 3] }, "rest-3": { items: [7, 17], part: [3, 3] } } } } as unknown as ConformanceRegistration;
+    expect(() => validateConformanceRegistration(split)).not.toThrow();
+    const cases = collectRunCases(whole, { range: "rest" });
+    const parts = ["rest-1", "rest-2", "rest-3"].map((range) => collectRunCases(split, { range }));
+    expect(cases.length).toBeGreaterThan(30);
+    expect(new Set(cases).size).toBe(cases.length);
+    expect(parts.flat().sort()).toEqual([...cases].sort());
+    const sizes = parts.map((part) => part.length);
+    expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThanOrEqual(1);
+    expect(collectRunCases(split, { range: "first" })).toEqual(collectRunCases(whole, { range: "first" }));
   });
 
   it("checks exclusions and the per-change subset against every case of the registration, whatever a file runs", () => {
