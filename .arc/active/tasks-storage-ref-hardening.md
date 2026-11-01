@@ -145,6 +145,8 @@ classification calls the sweep settled.
   restore remedy, and one that meets unparseable or absent metadata keeps its terminal refusal with its side's remedy.
 
     - `[x]` **3.1.a The shared tip check and record point reads**
+        - _Note:_ The full-suite recheck exposed older terminal assertions for unavailable archive trees and cached
+          sibling directories. They now assert Missing's recoverable restore route and retain restoration retries.
         - Shared tip admission and unreadable archive quarters use `refObjectFault`; tip metadata retains its decoded
           fault and current/saved repair side. History reuses its current capture when deriving history routes.
           Existing point, claim, and conflict Missing builders share the mapper while retaining their own text;
@@ -156,6 +158,8 @@ classification calls the sweep settled.
           strict schemas and missing-record restoration remain covered without exposing the capture tag.
 
     - `[x]` **3.1.c Owner and project lookups**
+        - _Note:_ The full-suite recheck exposed an older terminal lookup assertion for a missing root tree. It now
+          asserts Missing while the readable metadata-absence case retains its terminal refusal.
         - Owner, lineage, lookup, and project identity readers preserve Missing and current/saved metadata remedies.
           Candidate failures name their fetched commit and remote; targeted refetch restores missing objects before
           designation retry. Archive resolution names non-commit retained histories and unavailable quarter trees as
@@ -300,6 +304,8 @@ classification calls the sweep settled.
           the actual damaged ref and current tips; the snapshot wrapper preserves that route.
         - _Note:_ The fault-site recheck found `unavailableSnapshot` still constructed its Missing listing refusal
           directly. It now uses the shared helper as § 1.4 requires, retaining the same version, history, and remedy.
+        - _Note:_ The full-suite recheck exposed an archived-metadata test expecting an item's history route from
+          the saved wrapper. It now keeps the archive producer's empty route, as the damaged object is the archive's.
         - Saved reads preserve producer history routes and add only an absent snapshot version; captured conflict
           evidence retains its Missing cause without relabeling structural faults. Follow cleanup preserves Missing
           refusals and the move record. Public-store and unit cases cover the reader table's retries, refusal

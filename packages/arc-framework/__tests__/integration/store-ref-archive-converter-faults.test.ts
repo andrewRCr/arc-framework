@@ -18,13 +18,11 @@ it.each((["default", "separate"] as const).flatMap(layout =>
   success(await f.store.write({ ...update(f, primary), placement: { kind: "completed", quarter } }));
   const record = success(await f.store.read({ reference: primary.reference }));
   const { before, restore } = await removeArchivedMetadata(f, record);
-  if (record.reference.owner.type !== "work-item" || !record.reference.owner.uid) throw new Error("Expected a stored work-item UID");
-  const history = `refs/arc/history/work/${record.reference.owner.uid}`;
   const write = update(f, record);
   const invoke = () => mode === "write" ? f.store.write(write)
     : f.store.read({ reference: record.reference, ...mode === "saved-read" ? { asOf: before } : {} });
   expect(await invoke()).toMatchObject({ status: "refused", refusal: {
-    code: "state-unresolvable", class: "recoverable", historyRefs: mode === "saved-read" ? [history] : [],
+    code: "state-unresolvable", class: "recoverable", historyRefs: [],
     remedy: { text: expect.stringMatching(/restore|fetch/iu) },
   } });
   expect(await f.settle()).toBe(before);
