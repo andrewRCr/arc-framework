@@ -255,19 +255,10 @@ classification calls the sweep settled.
           history ref. Faultless origin disagreements keep their condition and restore remedy. Lineage-log failures
           hold only after confirmed object loss; unrelated, canceled, and present-object errors propagate.
 
-    - `[ ]` **3.6.b The inverse's metadata**
-        - `inverseMetadata` reads through § 1.2 (§ 9); `withdrawRecordMetadata` takes the side `entryDocument`,
-          `sameWithdrawRecord`, and `selectedWithdrawFormat` pass; `retainSelectedFormats` and `repairWithdrawnLineage`
-          take their side from the metadata entry's object ID. `preserveInverseConflicts` throws the fault instead of a
-          raw error, though no input reaches it: a conflict exists only once `entryDocument` parsed the current
-          metadata, and the inverse never replaces that entry, so it has no failing-first case.
-        - Build `test-first` (one behavior at a time):
-            - non-JSON metadata on a withdrawal journal ref holds the ref instead of rejecting the pull
-            - unparseable `before`, `after`, or ancestor metadata holds with the historical remedy; unparseable current
-              or published metadata with the forward repair
-            - at `retainSelectedFormats`, a restored `before` metadata entry that does not parse holds with the
-              historical remedy, in a fixture where neither the current tip nor the journal's `after` has a metadata
-              entry; the current tip's holds with the forward repair
+    - `[x]` **3.6.b The inverse's metadata**
+        - Structural and record metadata reads preserve their faults and snapshot sides. Composed metadata follows
+          its entry's object ID; format retention validates restored original metadata even with no surviving format
+          rows. Conflict preservation and lineage repair use the same fault-preserving reads.
 
     - `[ ]` **3.6.c Ends and lineage**
         - `readItemEndCandidates` returns its faulted commits under `"all"`; `currentEndCandidates`, `terminalOwner`,

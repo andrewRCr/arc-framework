@@ -8,10 +8,11 @@ import { expandStoredPath } from "../stored-path.js";
 import { refFormatKey } from "./format-key.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-read.js";
-import { parseRefMetadata, type RefMetadata } from "./metadata.js";
+import type { RefMetadata } from "./metadata.js";
 import { writeRefBlob } from "./tree-write.js";
 import type { WithdrawJournalStep } from "./sync-withdraw-journal.js";
 import { mergeLineageAliases } from "./lineage-aliases.js";
+import { withdrawComposedMetadata, withdrawSnapshotMetadata } from "./sync-withdraw-records.js";
 
 /** Reconcile auxiliary lineage metadata for the lineage records the withdrawn batch wrote. */
 export async function repairWithdrawnLineage(context: RefBackendContext, step: WithdrawJournalStep,
@@ -22,8 +23,8 @@ export async function repairWithdrawnLineage(context: RefBackendContext, step: W
   const path = "metadata-registry.json", entry = entries.get(path), original = current.get(path);
   if (!entry) return;
   const blobs = await readBatchObjects(context, [entry.oid, ...original ? [original.oid] : []]);
-  const metadata = parseRefMetadata(blobs.get(entry.oid)), prior = original ? parseRefMetadata(blobs.get(original.oid)) : null;
-  if (!metadata) throw new Error("An inverse registry has no usable metadata");
+  const metadata = withdrawComposedMetadata(step.ref, entry, blobs, step.before.get(path), original);
+  const prior = original ? withdrawSnapshotMetadata(step.ref, original, blobs, false) : null;
   const aliases = mergeLineageAliases(metadata.lineageFormerSlugs, prior?.lineageFormerSlugs);
   if (aliases) metadata.lineageFormerSlugs = aliases;
   // Other items' names stay as written: a rename changes only the name, never the record it names.

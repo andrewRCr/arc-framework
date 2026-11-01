@@ -14,6 +14,7 @@ import { refFormatKey } from "./format-key.js";
 import { withdrawRecordDefinition, withdrawRecordMetadata, type WithdrawRecordDefinition, type WithdrawRecordFormat } from "./sync-withdraw-records.js";
 import { RefSyncLabelError } from "./sync-label.js";
 import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
 import { writeRefBlob } from "./tree-write.js";
 import { completeSyncPlacements } from "./sync-placement.js";
 import { readSyncRefs } from "./sync-graph.js";
@@ -99,9 +100,9 @@ function entryDocument(ref: string, definition: EntryDefinition, path: string, e
   objects: ReadonlyMap<string, BatchObject | null>, source: EntrySource): EntryDocument | undefined {
   const entry = entries.get(path);
   if (!entry) return undefined;
-  const { metadata, formatVersion } = withdrawRecordMetadata(ref, definition, entries, objects);
+  const { metadata, formatVersion } = withdrawRecordMetadata(ref, definition, entries, objects, source !== "current" && source !== "published");
   const object = objects.get(entry.oid);
-  if (object?.type !== "blob") throw new RefSyncLabelError(ref, corruptRef(ref, true));
+  if (object?.type !== "blob") throw new RefSyncLabelError(ref, refObjectFault(ref, "missing", { key: `${ref}:${path}` }).refusal);
   const content = decodeEntryBytes(ref, entry, object.bytes, source);
   return { entry, content, metadata, formatVersion,
     invalidIds: entryIdProblem(content, definition.grammar) !== undefined };
