@@ -3,7 +3,7 @@
   "slug": "readme-installed-layout",
   "claimId": "4223283a9496f6044d1fd7f1b0a2332d",
   "createdAt": "2026-11-01T02:04:00.317Z",
-  "updatedAt": "2026-11-01T02:04:00.317Z",
+  "updatedAt": "2026-11-01T02:37:11.743Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Align the documented directory tree with the installed recipe and refresh the README pristine hash.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Bring the shipped README directory tree into line with the installed layout",
   "originEntrySourceDigest": "sha256:7a4ce935b55fdfcde5fcad5b3b813b31071de86941699b6c3267172ee1e4df0a",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/readme-installed-layout",
+    "headSha": "add829f5bc97ec9571dd8d1e4a353d4edf696df9"
+  }
 }
