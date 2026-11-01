@@ -39,11 +39,22 @@ describe("ref store point-query absence", () => {
     expect(await store.read({ reference })).toMatchObject({ status: "ok", result: { reference, content: "kept" } });
   });
 
-  it("refuses a present malformed metadata object without enumerating its tree", async () => {
+  it("refuses present malformed metadata after establishing that its tree holds records", async () => {
     const { store, reference, calls } = fixture({ metadata: "not JSON" });
     expect(await store.read({ reference })).toMatchObject({ status: "refused", refusal: {
       code: "namespace-corrupt", class: "terminal", remedy: { text: expect.stringContaining("forward") },
     } });
-    expect(calls.some(args => args[0] === "diff-tree")).toBe(false);
+    expect(calls.filter(args => args[0] === "diff-tree")).toHaveLength(1);
+  });
+
+  it.each([
+    ["unparseable JSON", { metadata: "not JSON" }],
+    ["a tree object", { type: "tree" as const }],
+  ] as const)("keeps a record-free tree containing %s as not-found", async (_label, options) => {
+    const { store, reference, calls } = fixture({ ...options, record: false });
+    expect(await store.read({ reference })).toMatchObject({ status: "refused", refusal: {
+      code: "not-found", class: "recoverable", reference,
+    } });
+    expect(calls.filter(args => args[0] === "diff-tree")).toHaveLength(1);
   });
 });

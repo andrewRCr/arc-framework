@@ -81,7 +81,12 @@ async function readPointMetadata(context: RefBackendContext, reference: RecordRe
   if (resolvedMetadata.kind === "absent") return holdsNoRecord(home, resolvedMetadata.entries.map(({ path }) => path))
     ? missing(reference) : { status: "refused", refusal: refObjectFault(home.ref, "no-metadata").refusal };
   const read = readRefMetadata(home.ref, resolvedMetadata.object);
-  if (read.kind !== "parsed") return { status: "refused", refusal: refObjectFault(home.ref, "unparseable").refusal };
+  if (read.kind !== "parsed") {
+    const entries = (await readRefTrees(context, new Map([[home.ref, tip]]))).get(home.ref);
+    if (!entries) return { status: "refused", refusal: refObjectFault(home.ref, "missing", { reference }).refusal };
+    if (holdsNoRecord(home, entries.map(({ path }) => path))) return missing(reference);
+    return { status: "refused", refusal: refObjectFault(home.ref, "unparseable").refusal };
+  }
   return { status: "ok", result: read.metadata };
 }
 

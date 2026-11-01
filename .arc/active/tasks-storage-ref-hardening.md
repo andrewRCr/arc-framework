@@ -93,6 +93,8 @@ listing schemas and output unchanged.
 - _Outcome:_ `resolveRefPointObject` resolves missing path answers from one containing-tree read and retains that
   evidence for caller policy. Live point reads and `refRecordAbsence` use it; object loss is recoverable, real path
   absence keeps its own rule, and UID reads pin failed ref-name answers before classifying or retrying them.
+  Failed metadata decoding checks tree membership before refusing, so metadata-only trees still hold no records,
+  while missing metadata objects remain recoverable faults and successful metadata reads retain their fast path.
 
 ### `[x]` **2.3 One fault helper maps a fault to its refusal, diagnostic, and remedy — § 1.1, § 1.4, § 1.6**
 
@@ -518,6 +520,10 @@ classification calls the sweep settled.
 - _Goal:_ Phase 3's exit criterion holds: the re-run search finds every fault site on the helper or among the
   inventory's tolerated, unchanged, and invariant sites, and Phase 3's cases pass in the store suites and the unit
   tests.
+
+- _Note:_ Approved feedback carry: the four root/tip-damage cases in `store-ref-broken-operations.test.ts` retain
+  their combined point/history/write assertions until the shared-tip, write, and change migrations update the whole
+  Missing surface. They remain known failing feedback and must pass before this segment closes.
 
     - Run the search, `npx arc check run test:store`, and `npx arc check segment`, and record what each found.
     - A site outside the inventory fails the criterion; its classification and fix land in a revision parent of their

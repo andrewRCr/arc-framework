@@ -4,7 +4,7 @@ import { expandStoredPath, holdsNoRecord, type StoredRecordHome } from "../store
 import type { StoreRecord } from "../read.js";
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
-import { readBatchObjects, type BatchObject } from "./batch-read.js";
+import { readBatchObjects, readRefTrees, type BatchObject } from "./batch-read.js";
 import { canonicalPrimaryKind, readRefMetadata, type RefMetadata } from "./metadata.js";
 import { decodeRecord, refOwner, rootFamily } from "./codec.js";
 import { conflictParentQuery, readOpenConflicts } from "./conflicts-read.js";
@@ -66,7 +66,7 @@ function canonicalUidReference(context: RefBackendContext, requested: RecordRefe
   return RecordReferenceSchema.parse({ ...requested, kind, owner: refOwner(ref, context.registry[requested.kind].family, metadata) });
 }
 
-/** Pin failed ref-name queries before classifying them; a record-free tree without metadata establishes absence. */
+/** Pin failed ref-name queries and preserve absence when unparseable auxiliary metadata is the tree's only content. */
 async function unreadableUidTip(context: RefBackendContext, reference: RecordReference, shell: StoredRecordHome,
   tip: string, first: BatchObject | null | undefined): Promise<StoreResult<StoreRecord> | "retry"> {
   const query = `${tip}:${shell.metadataPath}`;
@@ -74,6 +74,8 @@ async function unreadableUidTip(context: RefBackendContext, reference: RecordRef
   if (pinned?.oid !== first?.oid) return "retry";
   const resolved = await resolveRefPointObject(context, { ref: shell.ref, tip, path: shell.metadataPath }, pinned);
   if (resolved.kind === "missing") return { status: "refused", refusal: refObjectFault(shell.ref, "missing", { reference }).refusal };
-  if (resolved.kind === "absent" && holdsNoRecord(shell, resolved.entries.map(({ path }) => path))) return absentRefRecord(reference);
+  const entries = resolved.kind === "absent" ? resolved.entries : (await readRefTrees(context, new Map([[shell.ref, tip]]))).get(shell.ref);
+  if (!entries) return { status: "refused", refusal: refObjectFault(shell.ref, "missing", { reference }).refusal };
+  if (holdsNoRecord(shell, entries.map(({ path }) => path))) return absentRefRecord(reference);
   return { status: "refused", refusal: refObjectFault(shell.ref, resolved.kind === "absent" ? "no-metadata" : "unparseable").refusal };
 }
