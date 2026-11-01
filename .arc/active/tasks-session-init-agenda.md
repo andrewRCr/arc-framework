@@ -45,49 +45,26 @@ with a typed refusal, and leaves the repository as found.
 - _Outcome:_ Both instruments are recorded before any shipped text or implementation changes: itemized baseline
   27,283 workflow tokens and 51,801 total, real-session baseline ≈30.3k workflow tokens and ≈61k Orient tokens.
 
-### `[ ]` **1.2 Register the agenda contract — § 3, § 2.3**
+### `[x]` **1.2 Register the agenda contract — § 3, § 2.3**
 
 - _Goal:_ `arc schema get session-init-agenda` serves the agenda's shape — every step type, choice kind, `then`, nudge
   marker, and orientation shape — and a runtime assertion rejects any agenda that breaks the contract's
   cardinalities.
 
-- _Approach:_ A new module set beside the probe composer (`commands/agenda/`), split by concern so each file stays
-  inside the size gate: verb and precedence, steps and schema, sync compilation, surfaces, and the cutover module.
+    - `[x]` **1.2.a Define the agenda schema**
+        - Added strict, described agenda envelope, step, and choice schemas in `commands/agenda/schema.ts`, reusing
+          shared paths, read modes, cursor, action, and residual-slot authorities. Read validation couples cursor
+          presence to strategic partial mode and requires non-negative integer groups; executable argv is mandatory.
 
-- _Note:_ Cross-field rules are refinements, which the served JSON Schema omits, so their tests target the runtime
-  schema or the assertion.
+    - `[x]` **1.2.b Assert the cardinalities the shape cannot carry**
+        - Added `assertSessionInitAgenda` using the shared envelope assertion boundary and runtime refinements for
+          step order, terminal boundaries, read-group ordering, immediate-offer declines, and auto-proceed limits.
+          The served shape retains the non-empty steps constraint while runtime validation closes cross-field rules.
 
-    - `[ ]` **1.2.a Define the agenda schema**
-        - Strict Zod objects for § 3.1 and § 3.2, with `.describe()` text on fields an agent reads
-        - `read` reuses `LoadSetPathSchema` and `ReadModeSchema` (`lib/load-set/types.ts`) and `TaskListCursorSchema`
-          (`lib/task-list/cursor.ts`); `ExecutableAction` extends `SessionActionSchema` (`lib/session-init/actions.ts`)
-          with `argv` required; `residual` references the registered `config-session-init`, `release-routing`,
-          `domain-rules-session-init`, and `inbox-state` schemas
-        - Build `test-first` (one behavior at a time):
-            - each step type and choice kind parses its shape and refuses an unknown field
-            - `cursor` is present exactly when `readMode.kind` is `partial-strategic`
-            - `group` is a non-negative integer
-
-    - `[ ]` **1.2.b Assert the cardinalities the shape cannot carry**
-        - An `assertSessionInitAgenda` beside the schema, called before emission as `assertSessionInitProbeResult`
-          is for the envelope
-        - Build `test-first` (one behavior at a time):
-            - at least one step; at most one `gate`, and it is last
-            - an `exec` is always the last step
-            - groups never decrease in step order
-            - an `ask: "now"` offer has at least two choices and exactly one decline, a `bare` choice or a `signal`
-              choice whose `value` is `null`
-            - the last step is a `gate`, an `exec`, a workflow `fragment`, or an `ask: "now"` offer every choice of
-              which recompiles or hands off
-            - `autoProceed` is false unless the gate's `kind` is `proceed`
-
-    - `[ ]` **1.2.c Register the schema id**
-        - `session-init-agenda` in `SESSION_ENVELOPE_SCHEMA_IDS` and the module's schema list
-          (`lib/session-envelope/registry.ts`), reaching `createProductionSchemaRegistry()` through
-          `registerSessionEnvelopeSchemas`
-        - Add the id to `PRODUCTION_SCHEMA_IDS` (`__tests__/helpers/production-schema-ids.ts`) and to the family id
-          list `__tests__/unit/session-envelope/registry.test.ts` pins
-        - `arc schema get session-init-agenda` prints the JSON Schema with the `.describe()` text
+    - `[x]` **1.2.c Register the schema id**
+        - Registered `session-init-agenda` at version 1 in the session-envelope and production catalogs and their
+          pins. The CLI serves the described JSON Schema with closed references to all four residual contracts;
+          runtime assertion retains the cross-field refinements omitted from the served shape.
 
 ### `[ ]` **1.3 Add the verb with its flags, refusals, and answer carriage — § 2.1, § 2.2, § 4.6**
 
