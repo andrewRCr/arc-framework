@@ -15,6 +15,7 @@ import { writeRefBlob } from "./tree-write.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import type { StoreResult } from "../refusal.js";
 import { corruptRef } from "./namespace-health.js";
+import { refDiagnosticRefusal, refObjectFault } from "./object-fault.js";
 import { checkSyncRefTip } from "./sync-tip.js";
 import { readLifecycleFolders } from "./sync-lifecycle.js";
 import { planCompletedRoleReplacements, type CompletedRoleReplacement } from "./write-completed-role.js";
@@ -78,12 +79,13 @@ export async function readSyncHistoryQuarters(context: RefBackendContext, ref: s
   const trees = await readRefTrees(context, quarters);
   // A quarter whose tree or one of this item's folders cannot be read may hold a folder the merge must rebuild.
   const unreadable = [...quarters.keys()].find((quarter) => !trees.has(quarter));
-  if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true) };
+  if (unreadable) return { status: "refused", refusal: refObjectFault(unreadable, "missing", {
+    condition: corruptRef(unreadable, true).condition,
+  }).refusal };
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
   const family = ref.includes("/cohort/") ? "cohort" : "work-item", live = ref.replace("refs/arc/history/", "refs/arc/");
   const broken = firstOwnedArchiveDiagnostic(trees, [OwnerIdentitySchema.parse({ type: family, name: "unresolved", uid: live.split("/").at(-1) })], objects);
-  if (broken) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: broken.ref,
-    condition: broken.diagnostic.condition, remedy: broken.diagnostic.remedy } };
+  if (broken) return { status: "refused", refusal: refDiagnosticRefusal(broken.ref, broken.diagnostic) };
   const own = [...trees].map(([quarter, entries]) => ({ ref: quarter, entries,
     folders: archivedFolders(family, quarter, entries, objects).folders.filter((folder) => folder.liveRef === live) })).filter(({ folders }) => folders.length);
   const first = own[0]?.folders[0];

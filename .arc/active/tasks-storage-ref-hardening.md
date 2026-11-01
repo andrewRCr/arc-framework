@@ -161,19 +161,11 @@ classification calls the sweep settled.
           designation retry. Archive resolution names non-commit retained histories and unavailable quarter trees as
           Missing; the earlier write-group and archive-view tree guards preserve that classification end to end.
 
-### `[ ]` **3.2 Archived folders: placement faults, record keys, and their converters — § 1.5, § 1.6, § 1.9**
+### `[x]` **3.2 Archived folders: placement faults, record keys, and their converters — § 1.5, § 1.6, § 1.9**
 
 - _Goal:_ A misplaced archive folder reports a placement fault with a remedy that names its placement, an archived
   record diagnostic names its archive and full path, and every site that turns an archive diagnostic into a refusal or
   notice takes the diagnostic's fault row.
-
-- _Note:_ See `notes-storage-ref-hardening.md` § Fault-site inventory › 3.2 and § Classification calls the sweep settled
-  for its sites, their rows and sides.
-
-- _Note:_ Task 2.4 brought forward the archive metadata decoder and the archive lookup/record converters needed to
-  exercise capture faults through public Store calls. Full-path keys and the remaining converters below still close this
-  task. Task 3.1.c also brings forward the unavailable-quarter diagnostic needed to preserve Missing through owner
-  lookup.
 
     - `[x]` **3.2.a The decoder and its keys**
         - Placement diagnostics retain their fault row and current/saved remedies; sequence validation stays distinct
@@ -181,20 +173,11 @@ classification calls the sweep settled.
           qualify both key and remedy with the archive ref and full stored path after decoding, preserving the
           folder-relative matching used by point reads.
 
-    - `[ ]` **3.2.b The converters**
-        - Each converter the inventory lists takes the diagnostic's fault row through the helper, and a diagnostic with
-          no § 1.1 fault keeps its own text and terminal refusal. `mergeArchiveTree` decodes its base with `saved` set.
-        - `completeSyncPlacements` reports the owned faulty folder's diagnostic when no folder supplies a side's
-          placement, and `mergeGroupTree`, `readSyncRecordPlacement`, and `conflictValue` take its row; with no owned
-          fault each keeps today's refusal.
-        - Build `test-first` (one behavior at a time), one case per converter over a shared planted archive:
-            - a missing folder metadata blob refuses **Missing** on an archived read and a write, and a pull holds its
-              ref with the restore remedy
-            - a misplaced folder refuses or holds with its placement condition and remedy
-            - the archive merge's base takes the saved remedy, its `local` and `incoming` sides the current one
-            - a pull merge of an item whose folder is misplaced holds the item ref with the placement row, not an
-              unparseable-metadata condition
-            - a `key-mismatch` keeps its condition and remedy
+    - `[x]` **3.2.b The converters**
+        - Archive refusals and notices retain their captured fault row through `refDiagnosticRefusal`; structural
+          diagnostics retain their text and terminal refusal. Archive merge bases take saved remedies. Placement
+          completion preserves owned current and ancestor faults only when no valid folder supplies placement, and
+          its merge, retained-record, and withdrawal callers preserve those diagnostics through repair and retry.
 
 ### `[ ]` **3.3 Writes and their views — § 1.4, § 1.9**
 

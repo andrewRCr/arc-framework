@@ -29,7 +29,7 @@ import { readUidRefRecord } from "./read-uid.js";
 import { absentRefRecord as missing, refRecordAbsence } from "./record-absence.js";
 import type { RefViewState } from "./view-state.js";
 import { resolveRefPointObject } from "./point-object.js";
-import { refObjectFault } from "./object-fault.js";
+import { refObjectFault, refDiagnosticRefusal } from "./object-fault.js";
 import { publicRefDiagnostic, type CapturedRefDiagnostic } from "./capture-diagnostic.js";
 
 /** Read a record, resolving name-only owners through one captured namespace. */
@@ -334,8 +334,7 @@ async function readArchivedRecord(context: RefBackendContext, reference: RecordR
   const state = archiveStateFromCapture(tips, new Map([...selected.keys()].map(ref => [ref, trees.get(ref) ?? []])), objects);
   const ended = selectEndedOwners(state, captureArchivedFolders(state, family, [reference.owner]));
   const diagnostic = ended.diagnostics[0];
-  if (diagnostic) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: diagnostic.key.split(":")[0] ?? diagnostic.key,
-    condition: diagnostic.condition, remedy: diagnostic.remedy } };
+  if (diagnostic) return { status: "refused", refusal: refDiagnosticRefusal(diagnostic.key.split(":")[0] ?? diagnostic.key, diagnostic) };
   const folder = ended.folders.find(({ owner }) => sameOwner(owner, reference.owner));
   if (!folder) return missing(reference);
   return readArchivedFolder(context, folder, reference, objects);

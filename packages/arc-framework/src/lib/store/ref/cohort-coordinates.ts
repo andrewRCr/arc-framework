@@ -14,6 +14,7 @@ import { captureArchivedFolders, selectEndedOwners } from "./ended-owners.js";
 import type { RefTreeEntry } from "./batch-read.js";
 import { readRefContent, recordDiagnostic } from "./content-read.js";
 import { corruptRef } from "./namespace-health.js";
+import { refDiagnosticRefusal } from "./object-fault.js";
 
 /** Gather parents through the registered parser, independently of unfinished closeout placement. */
 export async function preparedCohortParents(context: RefBackendContext, tips: ReadonlyMap<string, string>,
@@ -61,8 +62,7 @@ export function cohortClosePlacement(context: RefBackendContext, reference: Reco
 function collectArchivedParents(context: RefBackendContext, state: RefViewState, parents: Set<string>): StoreResult<null> {
   const { folders, diagnostics } = selectEndedOwners(state, captureArchivedFolders(state, "cohort"));
   const first = diagnostics[0];
-  if (first) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: first.key.split(":")[0] ?? first.key,
-    condition: first.condition, remedy: first.remedy } };
+  if (first) return { status: "refused", refusal: refDiagnosticRefusal(first.key.split(":")[0] ?? first.key, first) };
   for (const folder of folders) {
     const reference = RecordReferenceSchema.parse({ owner: folder.owner, kind: "cohort/document" });
     const result = collectParent(context, state, reference, folder.entries, parents, folder.ref);

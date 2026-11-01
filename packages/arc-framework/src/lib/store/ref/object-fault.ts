@@ -39,6 +39,14 @@ export function refObjectFault(namespace: string, fault: RefObjectFault, options
   return { refusal, diagnostic, condition, remedy, failure };
 }
 
+/** Convert a captured diagnostic by its object fact while retaining structural diagnostics verbatim. */
+export function refDiagnosticRefusal(namespace: string, diagnostic: CapturedRefDiagnostic): RefFaultReport["refusal"] {
+  return diagnostic.fault ? refObjectFault(namespace, diagnostic.fault, {
+    condition: diagnostic.condition, remedy: diagnostic.remedy,
+  }).refusal : { code: "namespace-corrupt", class: "terminal", namespace,
+    condition: diagnostic.condition, remedy: diagnostic.remedy };
+}
+
 function faultDetails(key: string, fault: RefObjectFault, saved: boolean): { condition: string; remedy: Remedy } {
   if (fault === "local-transport") return { condition: `The local object required to fetch ${key} is unavailable.`,
     remedy: { text: "Restore the missing local object in the store repository, or repair the remote's URL if it resolves to the wrong repository, then retry." } };

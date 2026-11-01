@@ -2,11 +2,14 @@
 
 import type { RefBackendContext } from "./context.js";
 import type { SyncTreeSide } from "./sync-tree.js";
-import { archivedFolders } from "./archive-read.js";
-import { readBatchObjects, readRefTrees } from "./batch-read.js";
+import { archivedFolders, archiveOwnerTrees } from "./archive-read.js";
+import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { readHistoricalGraph } from "./history-graph.js";
 import { corruptRef } from "./namespace-health.js";
 import { RefSyncLabelError } from "./sync-label.js";
+import { refDiagnosticRefusal, refObjectFault } from "./object-fault.js";
+import { OwnerIdentitySchema } from "../identity.js";
+import type { CapturedRefDiagnostic } from "./capture-diagnostic.js";
 
 /** Fill caller-owned merge snapshots without changing their version-bearing stored metadata. */
 export async function completeSyncPlacements(context: RefBackendContext, ref: string, sides: readonly SyncTreeSide[],
@@ -24,7 +27,9 @@ export async function completeSyncPlacements(context: RefBackendContext, ref: st
   const trees = await readRefTrees(context, new Map(captured.map(({ label, tip }) => [label, tip])));
   // A quarter whose tree cannot be read may hold the folder itself, so no earlier state of it supplies the placement.
   const unreadable = captured.find(({ label }) => !trees.has(label));
-  if (unreadable) throw new RefSyncLabelError(ref, corruptRef(unreadable.ref, true));
+  if (unreadable) throw new RefSyncLabelError(ref, refObjectFault(unreadable.ref, "missing", {
+    condition: corruptRef(unreadable.ref, true).condition,
+  }).refusal);
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
   const family = ref.includes("/cohort/") ? "cohort" : "work-item";
   const live = ref.replace("refs/arc/history/", "refs/arc/");
@@ -35,9 +40,23 @@ export async function completeSyncPlacements(context: RefBackendContext, ref: st
       && candidate.metadata.primary?.role === side.metadata.primary?.role
       && candidate.placement.kind === "completed" && placement?.kind === "completed" && candidate.placement.quarter === placement.quarter);
     side.placement = folder?.placement ?? await historicalPlacement(context, live, side, captured);
-    if (!side.placement) return false;
+    if (!side.placement) {
+      requireReadableOwnedFolders(live, side, captured, trees, objects);
+      return false;
+    }
   }
   return true;
+}
+
+function requireReadableOwnedFolders(live: string, side: SyncTreeSide, captured: readonly { label: string; ref: string }[],
+  trees: ReadonlyMap<string, readonly RefTreeEntry[]>, objects: ReadonlyMap<string, BatchObject | null>): void {
+  const placement = side.metadata.primary?.placement ?? side.metadata.placement;
+  if (placement?.kind !== "completed") return;
+  for (const { label, ref: quarter } of captured) {
+    if (quarter !== `refs/arc/archive/${placement.quarter}`) continue;
+    const fault = ownedPlacementFault(live, quarter, trees.get(label) ?? [], objects);
+    if (fault) throw new RefSyncLabelError(live, refDiagnosticRefusal(quarter, fault));
+  }
 }
 
 async function historicalPlacement(context: RefBackendContext, live: string, side: SyncTreeSide,
@@ -47,18 +66,31 @@ async function historicalPlacement(context: RefBackendContext, live: string, sid
   const quarter = `refs/arc/archive/${placement.quarter}`;
   const tips = [...new Set(captured.filter(({ ref }) => ref === quarter).map(({ tip }) => tip))];
   if (!tips.length) return undefined;
-  const walked = await readHistoricalGraph(context, ["rev-list", ...tips], () => corruptRef(quarter, true));
+  const walked = await readHistoricalGraph(context, ["rev-list", ...tips], () => refObjectFault(quarter, "missing", {
+    condition: corruptRef(quarter, true).condition,
+  }).refusal);
   if (walked.status === "refused") throw new RefSyncLabelError(live, walked.refusal);
   const commits = walked.result.split(/\r?\n/u).filter(Boolean);
   if (!commits.length) return undefined;
   const trees = await readRefTrees(context, new Map(commits.map((commit) => [commit, commit])));
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
   const family = live.includes("/cohort/") ? "cohort" : "work-item";
-  for (const entries of trees.values()) {
+  let fault: CapturedRefDiagnostic | undefined;
+  for (const [commit, entries] of trees) {
     const folder = archivedFolders(family, quarter, entries, objects).folders
       .find((folder) => folder.liveRef === live && folder.metadata.endBatch === side.metadata.endBatch
         && folder.metadata.primary?.role === side.metadata.primary?.role);
     if (folder) return folder.placement;
+    fault ??= ownedPlacementFault(live, quarter, entries, objects, !tips.includes(commit));
   }
+  if (fault) throw new RefSyncLabelError(live, refDiagnosticRefusal(quarter, fault));
   return undefined;
+}
+
+function ownedPlacementFault(live: string, quarter: string, entries: readonly RefTreeEntry[],
+  objects: ReadonlyMap<string, BatchObject | null>, saved = false): CapturedRefDiagnostic | undefined {
+  const family = live.includes("/cohort/") ? "cohort" : "work-item";
+  const owner = OwnerIdentitySchema.parse({ type: family, name: "unresolved", uid: live.split("/").at(-1) });
+  const owned = archiveOwnerTrees(new Map([[quarter, entries]]), [owner]).get(quarter) ?? [];
+  return archivedFolders(family, quarter, owned, objects, saved).diagnostics.find(diagnostic => diagnostic.fault);
 }

@@ -13,6 +13,7 @@ import { readLineageOwners } from "./lineage-resolution.js";
 import { rootFamily } from "./codec.js";
 import { parseStoreCommitProvenance } from "../commit-provenance.js";
 import { changeCommitMessage } from "./changes-graph.js";
+import { refDiagnosticRefusal } from "./object-fault.js";
 
 /** Endpoint folders, every owner whose end evidence changed inside the interval, and each origin whose lineage it wrote. */
 export interface ChangeEnds {
@@ -125,8 +126,7 @@ function endFolders(ref: string, entries: readonly RefTreeEntry[], objects: Read
   const state = { refs: new Map([[ref, { entries }]]), objects, saved: true };
   const parsed = (["work-item", "cohort"] as const).map(family => captureArchivedFolders(state, family, owners));
   const first = parsed.flatMap(({ diagnostics }) => diagnostics)[0];
-  if (first) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: ref,
-    condition: first.condition, remedy: first.remedy } };
+  if (first) return { status: "refused", refusal: refDiagnosticRefusal(ref, first) };
   return { status: "ok", result: parsed.flatMap(({ folders }) => folders) };
 }
 

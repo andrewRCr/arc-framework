@@ -25,7 +25,7 @@ import { checkRefKey } from "./path-admission.js";
 import { rootFamily } from "./path-decode.js";
 import { readCapturedRefHistory } from "./history.js";
 import { captureArchivedFolders, selectEndedOwners } from "./ended-owners.js";
-import { refObjectFault } from "./object-fault.js";
+import { refObjectFault, refDiagnosticRefusal } from "./object-fault.js";
 
 /** Build lazy views which never recapture a live ref during a check. */
 export function createRefWriteViews(context: RefBackendContext, tips: ReadonlyMap<string, string>,
@@ -251,8 +251,7 @@ function archivedViewRead(context: RefBackendContext, state: RefViewState, refer
   }).refusal };
   const ended = selectEndedOwners(state, captureArchivedFolders(state, context.registry[reference.kind].family, [reference.owner]));
   const diagnostic = ended.diagnostics[0];
-  if (diagnostic) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
-    namespace: diagnostic.key.split(":")[0] ?? diagnostic.key, condition: diagnostic.condition, remedy: diagnostic.remedy } };
+  if (diagnostic) return { status: "refused", refusal: refDiagnosticRefusal(diagnostic.key.split(":")[0] ?? diagnostic.key, diagnostic) };
   const folder = ended.folders.find(({ owner }) => sameOwner(owner, reference.owner));
   return folder ? readArchivedFolder(context, folder, reference, state.objects, state.saved) : missing(reference, state.saved);
 }

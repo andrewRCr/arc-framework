@@ -362,6 +362,15 @@ holds on an object fault, grouped by the Phase 3 task that moves it. Paths are u
 
 ### 3.7 A missing local object after a fetch
 
+- Native execution observation: removing an archive metadata blob before the next transfer can fail thin-pack
+  unpacking with `fatal: unresolved deltas left after unpacking` and `fatal: unpack-objects failed`, without naming an
+  object ID. `parseFetchPorcelain` and `failedRemotePull` then report a failed, unreachable pull with no notices. The
+  completed-failure detector specified below cannot confirm that blob loss through its commit-only walk. This is a
+  counterexample to § 1.6's descriptive statement that a missing tree or blob never fails fetch; the detector's bounded
+  algorithm remains unchanged. Evidence: `task-3.2.b-history-preflight-outcome.log` under
+  `~/dev/arc-evidence/storage-ref-hardening/implementation/`, run `b010798b059a46309afcf4d4ba61b869`. Archive converter
+  regressions remove the real object after a successful native fetch and assert transport success before checking the
+  held ref, so this earlier failure cannot masquerade as converter coverage.
 - One helper, run only after a fetch ends in a completed Git failure with no porcelain rows, checks every ref and
   every worktree's `HEAD` with `cat-file --batch-check`, skipping a `HEAD` listed as the null object ID, a worktree
   on an unborn branch. A missing tip object is a **Local transport fault** naming its ref, `refused` with the restore

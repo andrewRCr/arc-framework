@@ -7,7 +7,7 @@ import { HistoryRefSchema, type StoreResult, type StoreRefusal } from "../refusa
 import { archivedFolders, archiveOwnerTrees, isArchiveRef, type ArchivedFolder } from "./archive-read.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
-import { refObjectFault } from "./object-fault.js";
+import { refObjectFault, refDiagnosticRefusal } from "./object-fault.js";
 import { missingHistoryRefs } from "./missing-history.js";
 import { readHistoryBatchIndex } from "./history-batches.js";
 import type { ResolvedBatch } from "./write-resolution.js";
@@ -31,8 +31,7 @@ export async function resolveArchivedReferences(context: RefBackendContext, refe
     condition: `The tip or a tree of ${unreadable} is unavailable locally.`,
   }).refusal };
   const diagnostic = decoded.flatMap(({ diagnostics }) => diagnostics)[0];
-  if (diagnostic) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
-    namespace: diagnostic.key.split(":")[0] ?? diagnostic.key, condition: diagnostic.condition, remedy: diagnostic.remedy } };
+  if (diagnostic) return { status: "refused", refusal: refDiagnosticRefusal(diagnostic.key.split(":")[0] ?? diagnostic.key, diagnostic) };
   for (const reference of requested) {
     const own = folders.filter(({ owner }) => sameOwner(owner, reference.owner));
     if (!own.length) continue;
