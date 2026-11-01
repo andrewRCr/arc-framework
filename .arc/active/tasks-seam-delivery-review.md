@@ -1496,12 +1496,15 @@ prerequisites have landed, and every earlier task is independent of the remainin
   `vitest-native-writers.test.ts`'s duration key, an intermittent already captured. After the first base merge, two
   merge gates failed `store-ref-designation-states.test.ts`'s first-pull cases at their 10 s subprocess limit; reruns
   and both later gates passed. The cause is suspected load, and this change's measured ~13% per-case addition is not
-  located; the cases' headroom is captured.
+  located; the cases' headroom is captured. After the pre-publication author check's fixes, the merge gate at
+  `56b36cca5` passed 19 checks with 4 CI-only checks not selected, and hosted run `41256876364` at that head, with the
+  portability pair and no diagnostic input, passed every job on its first attempt.
 
 - _Success criteria:_ 39 criteria, all met, 11 with deviations. Author review ran four passes over the change, each
   round's findings dispositioned and approved before fixing — 31, 18, 18, and a focused pass's 10 — then a fix check
   whose three findings were fixed. The independent companion's pass found 6 major and 2 minor, all fixed, and one
-  rejected; its fix check was clean.
+  rejected; its fix check was clean. A focused author check over the base merges and the commits after that fix
+  check found 7: four fixed, three rejected, with A31 recording the one admitted assertion change.
 
 ---
 
