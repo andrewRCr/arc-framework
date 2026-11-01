@@ -57,7 +57,7 @@ domain-specific guidance, project-specific procedures, or extended standards:
 | --------------------- | --------------------------- | --------------------- | ---------------------------------------------- |
 | Project strategies    | Domain-specific guidance    | `strategies/project/` | `strategy-authentication.md` for auth patterns |
 | Project workflows     | Project-specific procedures | `workflows/project/`  | Custom deploy workflow, release checklist      |
-| Domain-specific rules | Extended project standards  | `constitution/`       | `DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`   |
+| Domain-specific rules | Extended project standards  | `system/rules/`       | `DEV-RULES.FRONTEND.md`, `DEV-RULES.AUTH.md`   |
 
 These are project-owned files — teams create them, ARC doesn't ship them. `DEV-RULES.ARC.md` and
 `DEV-RULES.PROJECT.md` are loaded during session initialization; project strategies, workflows, and domain-specific
