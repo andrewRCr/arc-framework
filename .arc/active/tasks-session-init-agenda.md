@@ -104,27 +104,15 @@ with a typed refusal, and leaves the repository as found.
           applies signal changes, clears Errand isolation on decline, and supports dropping next/seed or omitting an
           elicited signal. Leading-dash values and positional seeds round-trip through the registered grammar.
 
-### `[ ]` **1.4 Share the session-init probe composition with the verb — § 2.1, § 2.5**
+### `[x]` **1.4 Share the session-init probe composition with the verb — § 2.1, § 2.5**
 
 - _Goal:_ The verb and `arc status --session-init` read the same slot values from one composition, and the status
   envelope and its compaction-seed write are unchanged.
 
-- _Context:_ `handleSessionInitStatus` (`handlers/status.ts`) builds the whole probe set inline and calls
-  `runSessionInitStatus`. The file is near the 1,000-line gate and records suppressions the probe construction depends
-  on: `max-lines-per-function` for the handler, `arc/store-raw-state` for two imports used only inside the probes, and
-  `arc/surface-names` for one path literal. Moving the construction to a new file would raise all four there.
-
-    - Keep the composer in `handlers/status.ts`: the body becomes an exported
-      `composeSessionInitStatus(context, {writeCompactionSeed}) → {result, seedInputs | null}`, and
-      `handleSessionInitStatus` becomes a wrapper under 100 lines that writes the seed from `seedInputs`
-    - The seed flag is an input because it changes the `dirty` probe; `seedInputs` carries the derived locus state the
-      write needs from inside the composition
-    - Export the opener of the `SessionStatusContext` `handleStatus` builds; Tasks 2.3 and 4.4 reuse it. Commands
-      already import from handlers (`commands/status/types.ts`)
-    - The suppression counts stay as recorded and the file stays under 1,000 lines: this preserves the recorded debt
-      in a renamed function rather than reducing it
-    - The existing status unit, integration, and E2E tests pass unchanged; add a test that the agenda handler receives
-      the composed result
+- _Outcome:_ Exported `composeSessionInitStatus` in place and reused the already-exported context opener. Status
+  retains seed writing, assertion, and rendering in its wrapper; the agenda acquires the same composed slots without
+  seed writing. The native adapter now reports its derived entering row. Existing status and seed cases pass unchanged;
+  the file and recorded suppression counts remain within their existing bounds.
 
 ### `[ ]` **1.5 Compile the precedence order and the stop rows — § 2.2, § 2.3, § 2.4, § 4.4**
 

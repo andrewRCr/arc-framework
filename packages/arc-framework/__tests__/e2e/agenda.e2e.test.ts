@@ -28,6 +28,6 @@ describe("agenda command input", () => {
     const repaired = await runArcNoTty(["agenda", "session-init", "--json"], repository);
     expect(repaired.exitCode).toBe(1);
     expect(repaired.stderr).toBe("");
-    expect(JSON.parse(repaired.stdout)).toMatchObject({ code: "row-not-compiled" });
+    expect(JSON.parse(repaired.stdout)).toMatchObject({ code: "row-not-compiled", row: "free-primary" });
   });
 });
