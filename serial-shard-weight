@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "serial-shard-weight",
+  "claimId": "5caf1c838a37d26e8e63325518622ed4",
+  "createdAt": "2026-11-01T03:24:08.766Z",
+  "updatedAt": "2026-11-01T03:24:08.766Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Weigh the serial timing and burst suites in shard balancing",
+  "branch": "chore/serial-shard-weight",
+  "origin": "inbox",
+  "originEntry": "Give the serial timing and burst suites a shard weight so their shard takes little other work",
+  "originEntrySourceDigest": "sha256:8a42a0e445cc2f6d1645fa05c88361b55704a80d7bd065c8cb6c6e6506de1f2b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
