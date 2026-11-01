@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { CALL_LIMIT } from "./call-limit.js";
 import { makeNativeBuildFixture } from "./native-build-fixture.js";
 
 const execute = promisify(execFile);
@@ -70,7 +71,7 @@ export async function runVitestControllerFixture(
       : join(packageRoot, "src/scripts/run-local-test-tier.ts");
     const { stdout, stderr } = await execute(process.execPath,
       ["--import", "tsx", script, ...args],
-      { cwd: packageRoot, env, timeout: 30_000, maxBuffer: 16 * 1024 * 1024 });
+      { cwd: packageRoot, env, timeout: CALL_LIMIT, maxBuffer: 16 * 1024 * 1024 });
     return { code: 0, stdout, stderr };
   } catch (error) {
     const result = error as { code?: number; stdout?: string; stderr?: string };

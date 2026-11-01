@@ -44,8 +44,9 @@ export async function restartOnVanishedStore<T>(context: RefBackendContext, oper
     const bound = await readRefRepository(context);
     let result: T;
     try { result = await operation(bound); }
-    catch (error) { if (await storeDirectoryVanished(bound, error)) continue; throw error; }
+    catch (error) { if (await storeDirectoryVanished(bound, error)) { await context.operationScope?.refresh(); continue; } throw error; }
     if (!await storeDirectoryVanished(bound)) return result;
+    await context.operationScope?.refresh();
   }
 }
 

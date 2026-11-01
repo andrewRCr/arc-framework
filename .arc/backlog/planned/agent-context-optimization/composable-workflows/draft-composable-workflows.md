@@ -452,6 +452,29 @@
 
 - _Captured during:_ `review-coverage-cadence` draft-design, 2026-10-16.
 
+### `[ ]` **Record in `composable-workflows`' draft that the agenda compiler's session-init application moved to `session-init-agenda`**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ D3 (its first consumer, the `session-init` Step 3 rewire), § Worked example, § Scope Estimate, and
+  `cohort-agent-context-optimization.md` § Sequencing.
+
+- _Observation:_ the Owner moved the session-init overhaul into Gate B (`RELEASE-GATES.md`, 2026-10-30) and carved it
+  as its own work unit, `session-init-agenda`, started 2026-10-31 with `arc start --new` and now in draft-design. It
+  applies D3 to session-init with `loadset-composition`'s always-loaded trims, plus whatever minimum of D2's fragment
+  resolver session-init's arms need; the general substrate (D1 and D2) stays here and follows the deadline. This draft
+  still claims D3's first consumer and the session-init rewire as its own deliverable, and the cohort document names
+  D3 as what the siblings consume, so two drafts hold one design.
+
+- _Approach:_ record that D3's session-init application, its first consumer and the worked example's fixtures belong
+  to `session-init-agenda`; keep D3's general compiler contract here, or move it too, by what that unit's spec
+  settles; amend § Scope Estimate and the cohort's § Sequencing to match. Of the inbound items on session-init (the
+  read-group budget, the growth evidence, `analysis-load-set-scoping`, the envelope-schema reference, the
+  release-wrapper fragment, the `render` and `offer` co-design, fixtures against the storage contract), move those the
+  new unit takes. Read `session-init-agenda`'s specification for what it took.
+
+- _Captured during:_ PM sequencing of the session-init start, 2026-10-31.
+
 ---
 
 ## Problem / Motivation

@@ -21,6 +21,17 @@ it("names a sharded check whose literal matrix differs from its forecast", () =>
     .toThrow("unit");
 });
 
+it("accepts a sharded check placed whole in a job without a shard matrix", () => {
+  const check = CheckDeclarationSchema.parse({ checks: { portable: {
+    command: ["npm", "test", "--"], shards: { count: 2, argument: "--shard={index}/{count}" },
+  } } }).checks.portable!;
+  const forecast = { id: "portable", kind: "enforcement" as const, outcome: "would run" as const,
+    ...resolveCheckForecast(check, resolve("repository"), [], process.platform) };
+  expect(() => validateCheckPlumbing([forecast], { portable: [{ job: "linux", step: "test" }, { job: "native", step: "test" }] },
+    { jobs: { linux: { steps: [{ id: "test" }] },
+      native: { steps: [{ id: "test" }], strategy: { matrix: { shard: [1, 2] } } } } })).not.toThrow();
+});
+
 it("names a mapped job and step missing from the workflow", () => {
   expect(() => validateCheckPlumbing([{ id: "lint", kind: "enforcement", outcome: "would run" }],
     { lint: [{ job: "lint", step: "missing-step" }] },

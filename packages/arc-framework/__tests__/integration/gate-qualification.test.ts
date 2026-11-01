@@ -217,18 +217,21 @@ it("records native context refused by the fixture provider's required mode witho
 
 interface StalledPreparation { planId: string; source: { root: string; manifest: string }; pid: number; birth: string }
 
-async function stopStalledProvider(preparation: StalledPreparation | undefined): Promise<void> {
+async function stopStalledProvider(preparation: StalledPreparation | undefined, io = {
+  readStat: (pid: number) => readFile(`/proc/${pid}/stat`, "utf8"),
+  killGroup: (pid: number) => process.kill(-pid, "SIGKILL"),
+}): Promise<void> {
     if (preparation !== undefined) {
       try {
-        const fields = (await readFile(`/proc/${preparation.pid}/stat`, "utf8")).split(")").at(-1)!.trim().split(/\s+/u);
-        if (fields[19] === preparation.birth && Number(fields[2]) === preparation.pid) process.kill(-preparation.pid, "SIGKILL");
+        const fields = (await io.readStat(preparation.pid)).split(")").at(-1)!.trim().split(/\s+/u);
+        if (fields[19] === preparation.birth && Number(fields[2]) === preparation.pid) io.killGroup(preparation.pid);
       } catch (cause) { if (!["ENOENT", "ESRCH"].includes((cause as NodeJS.ErrnoException).code ?? "")) throw cause; }
       const stoppedBy = performance.now() + 5_000;
       for (;;) {
         try {
-          const fields = (await readFile(`/proc/${preparation.pid}/stat`, "utf8")).split(")").at(-1)!.trim().split(/\s+/u);
+          const fields = (await io.readStat(preparation.pid)).split(")").at(-1)!.trim().split(/\s+/u);
           if (fields[19] !== preparation.birth || ["Z", "X"].includes(fields[0]!)) break;
-        } catch (cause) { if ((cause as NodeJS.ErrnoException).code === "ENOENT") break; throw cause; }
+        } catch (cause) { if (["ENOENT", "ESRCH"].includes((cause as NodeJS.ErrnoException).code ?? "")) break; throw cause; }
         if (performance.now() >= stoppedBy) throw new Error("Owned fixture adapter did not stop; retain capture for inspection");
         await new Promise(resolve => setTimeout(resolve, 20));
       }
@@ -236,6 +239,33 @@ async function stopStalledProvider(preparation: StalledPreparation | undefined):
       await rm(join(preparation.source.root, ".."), { recursive: true, force: true });
     }
 }
+
+it("removes captured inputs when a provider vanishes between cleanup polls", async () => {
+  const scratch = await mkdtemp(join(tmpdir(), "arc-stalled-cleanup-"));
+  const source = { root: join(scratch, "source"), manifest: join(scratch, "source", "manifest.json") };
+  await mkdir(source.root);
+  await writeFile(source.manifest, "retained input");
+  const preparation: StalledPreparation = { planId: "stalled", source, pid: 12345, birth: "777" };
+  const fields = Array<string>(20).fill("0");
+  fields[0] = "S";
+  fields[2] = String(preparation.pid);
+  fields[19] = preparation.birth;
+  const runningStat = `${preparation.pid} (provider) ${fields.join(" ")}`;
+  let reads = 0;
+  try {
+    await stopStalledProvider(preparation, {
+      readStat: async () => {
+        // The ownership read and first poll see the same process; the next poll loses it.
+        if (reads++ >= 2) throw Object.assign(new Error("no such process, read"), { code: "ESRCH" });
+        return runningStat;
+      },
+      killGroup: () => true,
+    });
+    await expect(readFile(source.manifest, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
 
 it.runIf(process.platform === "linux")("retains genuine preparing handles before a controller deadline without inventing closure", async () => {
   const f = await fixture();

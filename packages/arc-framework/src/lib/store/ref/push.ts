@@ -80,6 +80,7 @@ async function publishRefStore(context: RefBackendContext, carry?: RefCarryPubli
         message: `The push deadline expired while running Git; retry to reconcile any writes the receiver accepted. ${error.message}` }));
     }
     if (result !== "retry") return result;
+    await context.operationScope?.refresh();
     loop.retryCount++;
     loop.waitedMs += await waitForPushRetry(context, loop.retryCount, loop.lastPushMs);
   }

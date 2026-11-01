@@ -89,6 +89,32 @@ it("runs only the mapped check's given shard and appends workflow reporting argu
   expect(await output(setup.root)).toEqual([["selected", "--shard=2/2", "--reporter=json"]]);
 });
 
+it.each(["test", "default"])("refuses a shard for an unsharded check at %s and runs after removing the selector", async step => {
+  const setup = await fixture();
+  const forecast = { ...setup.forecast, checks: setup.forecast.checks.filter(check => check.id === "other") };
+  const options = { ...setup, forecast, plumbing: { other: [{ job: "unit", step }] }, step };
+  await expect(runCiCheckStep({ ...options, shard: 2 })).rejects.toThrow(
+    /other has no shards; remove --shard.*declare shards.*regenerate the forecast/iu);
+  expect(await output(setup.root)).toEqual([]);
+  expect(await runCiCheckStep(options)).toBe(0);
+  expect(await output(setup.root)).toEqual([["other"]]);
+});
+
+it("runs the selected share after declaring shards and regenerating an unsharded forecast", async () => {
+  const setup = await fixture();
+  const options = { ...setup, shard: 2, plumbing: { other: [{ job: "unit", step: "test" }] },
+    forecast: { ...setup.forecast, checks: setup.forecast.checks.filter(check => check.id === "other") } };
+  await expect(runCiCheckStep(options)).rejects.toThrow(/other has no shards/iu);
+  expect(await output(setup.root)).toEqual([]);
+  const declaration = CheckDeclarationSchema.parse({ checks: { other: { ...setup.declaration.checks.other!,
+    shards: { count: 2, argument: "--shard={index}/{count}" },
+  } } });
+  const forecast = { ...setup.forecast, checks: [{ id: "other",
+    ...resolveCheckForecast(declaration.checks.other!, setup.root, [], process.platform) }] };
+  expect(await runCiCheckStep({ ...options, declaration, forecast })).toBe(0);
+  expect(await output(setup.root)).toEqual([["other", "--shard=2/2"]]);
+});
+
 it("runs every unmapped entry at the default step", async () => {
   const setup = await fixture();
   expect(await runCiCheckStep({ ...setup, job: "lint", step: "default" })).toBe(0);

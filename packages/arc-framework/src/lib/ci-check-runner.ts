@@ -74,6 +74,9 @@ export async function runCiCheckStep(options: CiCheckStep): Promise<number> {
     if (!selected) continue;
     validateEnvironmentDeclaration(options.declaration, check);
     const shard = options.shard;
+    if (shard !== undefined && check.shards === undefined) {
+      throw new Error(`CI check ${check.id} has no shards; remove --shard from this step, or declare shards and ${REGENERATE_FORECAST}`);
+    }
     const batches = shard === undefined || check.shards === undefined ? check.batches
       : check.shards.find(entry => entry.index === shard)?.batches;
     if (batches === undefined) throw new Error(`Missing shard for ${check.id}: ${shard}`);

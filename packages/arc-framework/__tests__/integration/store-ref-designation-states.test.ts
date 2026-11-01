@@ -14,6 +14,7 @@ import { quoteShellArgument } from "../../src/lib/release/commit-message-retry.j
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { refCarryFixture, carriedBranch, carriedDocument } from "../helpers/store/ref-carry.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { CALL_LIMIT } from "../helpers/call-limit.js";
 
 const execFileAsync = promisify(execFile);
 const firstPull = fileURLToPath(new URL("../fixtures/store/ref-first-pull.ts", import.meta.url));
@@ -33,8 +34,8 @@ async function publishRegistry(h: Awaited<ReturnType<typeof refSyncFixture>>): P
 async function runFirstPull(root: string, terminal: boolean) {
   const argv = [process.execPath, "--import", "tsx", firstPull, root];
   const { stdout, stderr } = terminal
-    ? await execFileAsync("script", ["-q", "-e", "-c", argv.map(quoteShellArgument).join(" "), "/dev/null"], { timeout: 10_000 })
-    : await execFileAsync(process.execPath, argv.slice(1), { timeout: 10_000 });
+    ? await execFileAsync("script", ["-q", "-e", "-c", argv.map(quoteShellArgument).join(" "), "/dev/null"], { timeout: CALL_LIMIT })
+    : await execFileAsync(process.execPath, argv.slice(1), { timeout: CALL_LIMIT });
   expect(stderr).toBe("");
   const payload = stdout.replace(/\r/gu, "").split("\n").find((line) => line.startsWith("{"));
   return processResult.parse(JSON.parse(payload ?? "null"));
@@ -72,7 +73,7 @@ describe.each([false, true])("first pull with terminal %s", (terminal) => {
         expect(result.pulls).toEqual([]);
         expect((await h.b.exec("git", ["config", "--list"])).stdout).not.toContain("arc-state");
       }
-    }, 15_000,
+    }, 2 * CALL_LIMIT,
   );
 });
 

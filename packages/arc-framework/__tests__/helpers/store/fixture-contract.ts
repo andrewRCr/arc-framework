@@ -79,9 +79,15 @@ export interface ConformanceRegistration {
 export interface ConformanceRuns {
   /** Case IDs, by item, that a per-change run selects. */
   subset?: Partial<Record<SuiteItem, readonly string[]>>;
-  /** Each split file's first and last item; together the ranges cover every item once. */
-  ranges?: Readonly<Record<string, readonly [SuiteItem, SuiteItem]>>;
+  /** Each split file's item range or part of one; together they cover every case once. */
+  ranges?: Readonly<Record<string, ItemRange>>;
 }
+
+/** One split file's cases: every case of an item range, given as its first and last item, or one part of a range. */
+export type ItemRange = readonly [SuiteItem, SuiteItem] | ItemRangePart;
+
+/** Part `index` of `of`: every `of`-th case of the range's items in registration order, starting at case `index`. */
+export interface ItemRangePart { readonly items: readonly [SuiteItem, SuiteItem]; readonly part: readonly [number, number] }
 
 /** The cases one file runs: every case, one declared item range, or the declared per-change subset. */
 export type ConformanceRun = { range: string } | "subset";

@@ -1,7 +1,7 @@
 import { configDefaults, defineConfig } from "vitest/config";
 import { HeavyFirstSequencer } from "./__tests__/helpers/heavy-first-sequencer.js";
 import { realpathSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
@@ -37,15 +37,21 @@ const integrationTempRoot = selectIntegrationTempRoot("/dev/shm");
 // long-lived workstation can carry `arc.identity` globally even when a fixture
 // intentionally omits the local key, while hosted runners usually cannot expose
 // that leak. Keep every project on the same hermetic system/global baseline;
-// fixtures install the local values they exercise explicitly.
+// fixtures install the local values they exercise explicitly. The baseline turns
+// off automatic maintenance, whose background repacks race fixtures that inspect
+// object files.
 process.env.GIT_CONFIG_NOSYSTEM = "1";
-process.env.GIT_CONFIG_GLOBAL = process.platform === "win32" ? "NUL" : "/dev/null";
+process.env.GIT_CONFIG_GLOBAL = join(packageRoot, "__tests__", "fixtures", "git", "global.gitconfig");
 
 // Local quality gates share developer machines with parallel sessions and native child tools.
 // Use half available parallelism with an eight-worker ceiling and one-worker floor. CI
 // uses native sizing unless its workflow supplies an explicit capacity override.
 // An empty CI override retains native sizing.
 const maxWorkers = resolveVitestMaxWorkers(process.env);
+
+// Vitest workers honor this project setting although ProjectConfig excludes it.
+// Preserve empty groups without allowing unmatched root selections.
+const emptySuiteRuntimeOptions = { passWithNoTests: true } as const;
 
 // Single multi-project config so one `vitest run` executes every tier and prints
 // one combined summary. Per-tier runs use `--project <name>` (see package.json).
@@ -61,7 +67,7 @@ const integrationTest = {
   ...(integrationTempRoot === undefined ? {} : { env: { TMPDIR: integrationTempRoot } }),
   globalSetup: ["__tests__/integration/global-setup.ts"],
   testTimeout: 30_000,
-  passWithNoTests: true,
+  ...emptySuiteRuntimeOptions,
 };
 
 export default defineConfig({
@@ -80,7 +86,7 @@ export default defineConfig({
           // Module-mocking files are quarantined to the `unit-mocks` tier, so the
           // main unit tier can drop per-file isolation for its module-import win.
           isolate: false,
-          passWithNoTests: true,
+          ...emptySuiteRuntimeOptions,
         },
       },
       {
@@ -91,7 +97,7 @@ export default defineConfig({
           setupFiles: ["__tests__/helpers/unit-setup.ts"],
           include: [...ISOLATED_UNIT_MOCK_FILES],
           isolate: true,
-          passWithNoTests: true,
+          ...emptySuiteRuntimeOptions,
         },
       },
       {
@@ -130,7 +136,7 @@ export default defineConfig({
           globalSetup: ["__tests__/e2e/global-setup.ts"],
           testTimeout: 30_000,
           hookTimeout: 60_000,
-          passWithNoTests: true,
+          ...emptySuiteRuntimeOptions,
         },
       },
     ],

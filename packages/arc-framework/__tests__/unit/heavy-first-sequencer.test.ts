@@ -3,6 +3,7 @@ import { expect, it } from "vitest";
 import { basename, join } from "node:path";
 import type { TestSpecification, Vitest } from "vitest/node";
 import { assignDurationShards, sortDurationFiles, readResultsDurations, HeavyFirstSequencer } from "../helpers/heavy-first-sequencer.js";
+import { PROJECT_DURATION_ESTIMATES } from "../helpers/heavy-first-durations.js";
 
 const identify = (entry: { project: string; file: string }) => entry;
 it("orders equal weights by project and path independently of discovery order", () => {
@@ -82,4 +83,17 @@ it("reads complete project/path cache keys and uses estimates for an empty hande
   const files = [{ project: "unit", file: "a" }, { project: "integration", file: "b" }];
   expect(assignDurationShards(files, 2, { recorded: readResultsDurations(""), estimates: { unit: 2, integration: 8 } }, identify))
     .toEqual([[files[1]], [files[0]]]);
+});
+
+it("gives the burst suite a shard of its own and keeps the timing suite off it at the portability set's recorded load", () => {
+  // Recorded Linux durations, in seconds, summing to the portability set's load across six shards.
+  const parallel = [190, 150, 120, 100, 90, 80, 60, 50, 40, 30, 14].map((seconds, index) =>
+    ({ project: "integration", file: `parallel-${index}.test.ts`, seconds }));
+  const files = [...parallel, { project: "integration-timing", file: "timing.test.ts" },
+    { project: "integration-bursts", file: "bursts.test.ts" }];
+  const recorded = new Map<string, unknown>(parallel.map((file) => [`integration:${file.file}`, file.seconds * 1000]));
+  const shards = assignDurationShards(files, 6, { recorded, estimates: PROJECT_DURATION_ESTIMATES }, identify);
+  const bursts = shards.find((shard) => shard.some((file) => file.project === "integration-bursts"));
+  expect(bursts?.map((file) => file.project)).toEqual(["integration-bursts"]);
+  expect(shards.find((shard) => shard.some((file) => file.project === "integration-timing"))).not.toBe(bursts);
 });
