@@ -47,7 +47,8 @@ export async function migrationTransportTarget(context: RefBackendContext, endpo
   catch (error) { return migrationTransportRefusal(error); }
 }
 
-function migrationTransportRefusal(error: unknown): never {
+/** Wrap only local endpoint-resolution errors as retained migration continuations. */
+export function migrationTransportRefusal(error: unknown): never {
   if (!(error instanceof EffectiveTransportError)) throw error;
   throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable", condition: error.message,
     remedy: { text: "Restore the recorded endpoint in the repository's URL configuration, then retry arc store migrate; retain its pending record.",

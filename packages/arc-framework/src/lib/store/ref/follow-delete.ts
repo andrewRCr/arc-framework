@@ -12,6 +12,7 @@ import { prepareRemoteReCopy, remoteCopyChanges, atomicMigrationPush, migrationP
   copyPushLanded, remoteCopyReport, retainRemoteCopiedState } from "./migrate-remote-copy.js";
 import { beginCopyJournal, confirmCopyJournal, copyJournalKey, recoverCopyReport, releaseCopyJournal } from "./migrate-copy-journal.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
+import { migrationTransportRefusal } from "./migrate-remote-target.js";
 import { appendCopiedFollowRefs, appendFollowReadRefs } from "./follow-report.js";
 import { updateRefTransaction } from "../../git/ref-transaction.js";
 import { captureComparisonWitness, withComparisonWitness, type ComparisonWitness } from "./comparison-witness.js";
@@ -76,7 +77,8 @@ async function recopyFollowRound(code: RefBackendContext, recorded: RecordedFoll
 }
 
 async function captureDestinationWitness(code: RefBackendContext, recorded: RecordedFollow): Promise<ComparisonWitness | null> {
-  return captureComparisonWitness(code, recorded.record.destination, `refs/arc-remotes/${recorded.record.destination.name}/project/moved`);
+  return captureComparisonWitness(code, recorded.record.destination, `refs/arc-remotes/${recorded.record.destination.name}/project/moved`)
+    .catch(migrationTransportRefusal);
 }
 
 async function retainLaterFollow(code: RefBackendContext, recorded: RecordedFollow, destination: ReadonlyMap<string, string>,

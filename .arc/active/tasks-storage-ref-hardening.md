@@ -387,22 +387,11 @@ transport failure is a per-remote outcome.
           Consumer cases cover rename, conflict, status, session orientation, and each errand runtime, including
           partial designation results. Evidence: `task-4.2.b-*` in the implementation evidence directory.
 
-### `[ ]` **4.3 Transport failures become per-remote outcomes or typed refusals — § 4**
+### `[x]` **4.3 Transport failures become per-remote outcomes or typed refusals — § 4**
 
 - _Goal:_ No transport-target or effective-transport failure escapes `pull`, `push`, push admission, or follow as a
   raw exception: each becomes a per-remote failed outcome with failure `refused` and the remote-URL repair remedy, or
   a typed refusal where no per-remote outcome exists, and the outcomes and notices already gathered survive.
-
-- _Note:_ `pull.ts` and `push.ts` are shared with another unit's change; see `notes-storage-ref-hardening.md`
-  § Coordination with `store-operation-git-access`.
-
-    - `refFetchTarget` and `refPushTarget` (`fetch-target.ts`) and `readComparisonSource` (`comparison-witness.ts`)
-      throw `EffectiveTransportError` for a remote with no effective URL, where they throw a plain `Error` today, so a
-      call site tells a transport failure from a Git process failure.
-    - Typing happens at the call sites. The lookups beneath them — `repositoryConfig`, `configOutput`,
-      `readRemoteTransports`, `readNamedTransport`, `resolveLiteral`, `refFetchNeedsCompleteness` — keep throwing, so a
-      caching wrapper over them caches no failure value.
-    - A per-remote failure takes 2.3.a's **Local transport fault** row.
 
     - `[x]` **4.3.a Pull and push**
         - _Note:_ Lint feedback moved per-remote pull failure handling into its own helper to keep `pullRemote`
@@ -414,12 +403,10 @@ transport failure is a per-remote outcome.
           admission resolution. Missing-effective-URL guards throw `EffectiveTransportError`, leaving the underlying
           lookups throwing. Evidence: `task-4.3.a-*` in the implementation evidence directory.
 
-    - `[ ]` **4.3.b Follow**
-        - Follow's resume (`follow.ts`), its cleanup (`follow-delete.ts`), and `judgeRefFollow`
-          (`follow-candidates.ts`) wrap a transport failure from `captureComparisonWitness` as `migrationTransportRefusal`
-          does, so resume and cleanup return `move-unfinished` and `judgeRefFollow` its typed refusal.
-        - Build `test-first` (one behavior at a time): follow's resume and cleanup over an unresolvable transport each
-          return `move-unfinished` with the move record kept; `judgeRefFollow` returns its refusal.
+    - `[x]` **4.3.b Follow**
+        - Resume, cleanup, and candidate judgment convert comparison-witness URL failures through the existing
+          migration refusal mapper. Resume and cleanup retain the exact move record and remote state, and all three
+          paths continue after URL repair. Existing cleanup object and capacity refusals retain their own remedies.
 
 ### `[ ]` **4.4 Exercise the caller-observable group through public calls** — validate exit criterion at segment scope
 

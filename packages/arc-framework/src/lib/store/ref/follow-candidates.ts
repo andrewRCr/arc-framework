@@ -4,7 +4,7 @@ import type { Remedy } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefFollowDue } from "./follow-due.js";
 import { migrationCodeContext, type MoveRemote } from "./migrate-record.js";
-import { captureLiteralMoveRemote, captureMoveRemote, migrationTransportTarget } from "./migrate-remote-target.js";
+import { captureLiteralMoveRemote, captureMoveRemote, migrationTransportTarget, migrationTransportRefusal } from "./migrate-remote-target.js";
 import { clearMigrationRefs, fetchMigrationRemote } from "./migrate-remote-fetch.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { FORWARDING_REF, readForwardingRecord, type ForwardingRecord } from "./forwarding-record.js";
@@ -35,7 +35,7 @@ export async function judgeRefFollow(context: RefBackendContext, due: RefFollowD
   let readingSource = false;
   try {
     const source = await captureMoveRemote(context, code, due.remote);
-    const witness = await captureComparisonWitness(context, source);
+    const witness = await captureComparisonWitness(context, source).catch(migrationTransportRefusal);
     readingSource = true;
     const refs = await readMigrationRemote(source.name, followReadRemedy(source.name, due.remote.name),
       () => fetchMigrationRemote(code, source, false, { prefix: "refs/arc/tmp/follow/source/", controls: ["moved"] }));
