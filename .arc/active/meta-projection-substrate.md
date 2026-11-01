@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Write the exclude entries as one path list derived from the shared projected roots
+- **Last Completed:** Task 3.R — Keep an emptied aside copy for the next command's sweep (A1)
+- **Next Task:** Task 5.1 — Complete verification (line ~526)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 via process-task-loop
+- **Next Action:** Begin Task 5.1 — load and follow `verify-work-unit.md`; hosted CI runs at the verified head
 
 - **PR URL:** [none]
 - **Completed:** [none]
