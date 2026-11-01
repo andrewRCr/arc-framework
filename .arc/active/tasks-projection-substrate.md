@@ -397,17 +397,12 @@ command's sweep takes over the copies a stopped command left.
 - _Goal:_ An aside copy empty at its writer's second check waits in the aside folder for the next command's sweep, so a
   save that truncated the file before its move and writes late is settled there rather than lost (A1).
 
-    - `[ ]` **3.R.a The second check leaves an empty copy**
+    - `[x]` **3.R.a The second check leaves an empty copy**
 
-        - `runSecondCheck` keeps a copy that is an empty regular file, neither sending it to the take-in port nor
-          deleting it, as `kept` whose `answer` is `empty`; the sweep's settlement of a copy is unchanged.
-        - Build `test-first` (one behavior at a time):
-            - an empty Markdown copy older than the settle window is kept at the second check, its record intact, and
-              the next sweep takes in a save written into it since
-            - one still empty at the next sweep is deleted as a deleted file
-            - an empty copy of a file other than Markdown is neither sent nor deleted at the second check
-            - a removal's empty copy keeps the removed file's entry until the sweep settles the copy
-            - a copy that is not a file, and one holding what its swap moved, are still deleted at the second check
+        - `runSecondCheck` (`lib/store/projection/second-check.ts`) keeps a copy that is an empty regular file as `kept`
+          whose `answer` is `empty`, before `settleAsideCopy` reads it, so it is neither sent nor deleted; the sweep's
+          step is unchanged. Covered in `integration/store/projection/second-check.test.ts`, Markdown and not, and
+          `removal.test.ts`, where the next sweep links a removal's copy back holding the late write.
 
     - `[ ]` **3.R.b Count a save emptied past the settle window as lost**
 

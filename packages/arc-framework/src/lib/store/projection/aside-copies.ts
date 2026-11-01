@@ -117,8 +117,8 @@ export type CopySettlement =
   | { readonly kind: "deleted"; readonly entry: RecordEntry }
   /** It holds an edit, but its path has moved on: kept and reported with its path, never sent. */
   | { readonly kind: "moved-on"; readonly entry: RecordEntry; readonly path: string; readonly copy: string }
-  /** Kept for a later check: still being written, or its take-in did not land. */
-  | { readonly kind: "kept"; readonly entry: RecordEntry; readonly answer: TakeInHeld | "unsettled" }
+  /** Kept for a later check: still being written, its take-in did not land, or empty at its writer's second check. */
+  | { readonly kind: "kept"; readonly entry: RecordEntry; readonly answer: TakeInHeld | "unsettled" | "empty" }
   /** No longer in the aside folder: its record dropped. */
   | { readonly kind: "dropped"; readonly entry: RecordEntry }
   /**

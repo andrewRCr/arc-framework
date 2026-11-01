@@ -13,6 +13,7 @@ import { sweepAsideFolder } from "../../../../src/lib/store/projection/sweep.js"
 import { readStat } from "../../../../src/lib/store/projection/change-detection.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import type { ProjectionIndex, RecordEntry } from "../../../../src/lib/store/projection/index-schema.js";
+import { SETTLE_WINDOW_NS, SYSTEM_READ_GATE, wallClockNs, type ReadGateDependencies } from "../../../../src/lib/store/projection/read-gate.js";
 import { runSecondCheck } from "../../../../src/lib/store/projection/second-check.js";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import type { SwapBatchResult } from "../../../../src/lib/store/projection/swap.js";
@@ -35,9 +36,9 @@ async function prepared(options: PrepareRemovalOptions = {}) {
   const removal = await prepareRemoval(options);
   directories.push(removal.seeded.checkout);
   /** The command's second check over the copies a batch made, under the take-in given. */
-  const secondCheck = (batch: SwapBatchResult, takeIn: TakeInPort) => runSecondCheck({
+  const secondCheck = (batch: SwapBatchResult, takeIn: TakeInPort, gate?: ReadGateDependencies) => runSecondCheck({
     location: removal.seeded.location, checkout: removal.seeded.checkout, index: batch.index, copies: batch.copies,
-    removals: batch.removals, format: "sha1", takeIn, writer: SWAP_WRITER,
+    removals: batch.removals, format: "sha1", takeIn, writer: SWAP_WRITER, gate,
   });
   return { ...removal, secondCheck };
 }
@@ -184,6 +185,29 @@ describe("removing a file", () => {
     const removal = await prepared({ withheld: true, guarded: { takeIn: () => unreached } });
     expect(removal.guarded).toEqual({ kind: "unreplaced", cause: "withheld", entry: removal.laid });
     expect(await readFile(removal.file, "utf8")).toContain("Body.");
+  });
+
+  it("keeps the entry of a file whose removal moved it aside emptied by a save, and the next sweep returns the save", async () => {
+    const removal = await prepared();
+    let handle: Awaited<ReturnType<typeof open>> | undefined;
+    const batch = await removal.remove({
+      hooks: { afterRecheck: async () => { handle = await open(removal.file, "r+"); await handle.truncate(0); } },
+    });
+    const [made] = batch.copies;
+    if (made === undefined || handle === undefined) throw new Error("expected the removal's aside copy and the save's handle");
+    // The save stalls past the settle window, as a host stall on Windows left one.
+    const aged = { ...SYSTEM_READ_GATE, now: () => wallClockNs() + 2n * SETTLE_WINDOW_NS };
+    const checked = await removal.secondCheck(batch, landingCopies(removal.fixture.store), aged);
+    expect(checked.settled.map((each) => each.settlement)).toMatchObject([{ kind: "kept", answer: "empty" }]);
+    expect(await entryOnDisk(removal.seeded.location, removal.path)).toMatchObject({ pending: true, copies: [{ name: made.copy }] });
+    await handle.write(renderStampedFile({ content: "# Cohort: one\n\nWritten after a stall.\n", stamp: removal.laid.base.blob }), 0);
+    await handle.close();
+    // The copy's path is absent and has not moved on, so the sweep links it back, a pending file holding the save.
+    await ignoreProjectedRoots(removal.seeded.checkout);
+    const swept = await sweepAfter(removal, unreached);
+    expect(swept.swept.map((each) => each.outcome.kind)).toEqual(["linked-back"]);
+    expect(await readFile(removal.file, "utf8")).toContain("Written after a stall.");
+    expect(await entryOnDisk(removal.seeded.location, removal.path)).toMatchObject({ pending: true, copies: [] });
   });
 
   it("links back the copy a removal stopped after its move left, the entry still pending, at the next sweep", async () => {

@@ -1,5 +1,5 @@
 /** The second check over swapped files: each aside copy checked again at the command's end, and settled. */
-import { link, open, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { link, open, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -9,7 +9,8 @@ import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { settleAsideCopy } from "../../../../src/lib/store/projection/aside-copies.js";
 import { readStat } from "../../../../src/lib/store/projection/change-detection.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
-import type { RecordEntry } from "../../../../src/lib/store/projection/index-schema.js";
+import type { AsideCopyRecord, RecordEntry } from "../../../../src/lib/store/projection/index-schema.js";
+import { SETTLE_WINDOW_NS, SYSTEM_READ_GATE, wallClockNs } from "../../../../src/lib/store/projection/read-gate.js";
 import { runSecondCheck, type SecondCheckInput } from "../../../../src/lib/store/projection/second-check.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import type { SwapHooks } from "../../../../src/lib/store/projection/swap.js";
@@ -216,6 +217,92 @@ describe("a copy whose take-in clashes", () => {
   });
 });
 
+/** A read gate whose clock runs past the settle window, so an empty copy reads as old as a stalled save leaves it. */
+const aged = { ...SYSTEM_READ_GATE, now: () => wallClockNs() + 2n * SETTLE_WINDOW_NS };
+
+/**
+ * A file swapped while a save holds it truncated, as an editor that empties a file before writing it does, and a second
+ * check over the copies the swap made, its clock past the settle window.
+ */
+async function truncatedBeforeMove(options: PrepareSwapOptions = {}) {
+  const prepared = await prepareSwap(options);
+  directories.push(prepared.seeded.checkout);
+  let handle: Awaited<ReturnType<typeof open>> | undefined;
+  const result = await prepared.swap({
+    hooks: { afterRecheck: async () => { handle = await open(prepared.file, "r+"); await handle.truncate(0); } },
+  });
+  const [made] = result.copies;
+  if (made === undefined || handle === undefined) throw new Error("expected the swap's aside copy and the save's handle");
+  const saving = handle;
+  /** Write the save's text through its handle, after the truncation, as the editor's write does. */
+  const finishSave = async (text: string): Promise<void> => { await saving.write(text, 0); await saving.close(); };
+  const secondCheck = (takeIn: TakeInPort) => runSecondCheck({
+    location: prepared.seeded.location, checkout: prepared.seeded.checkout, index: result.index, copies: result.copies,
+    format: "sha1", takeIn, writer: SWAP_WRITER, gate: aged,
+  });
+  /** The next command's step over the copy, as its sweep runs it, its clock past the settle window too. */
+  const sweepStep = async (takeIn: TakeInPort) => settleAsideCopy({
+    checkout: prepared.seeded.checkout, path: prepared.path, entry: await onDisk(prepared.seeded.location, prepared.path),
+    copy: await recorded(prepared.seeded.location, prepared.path, made.copy), format: "sha1", takeIn, writer: SWAP_WRITER, gate: aged,
+  });
+  return { ...prepared, made, saving, finishSave, secondCheck, sweepStep };
+}
+
+describe("a copy left empty by a save that truncates before writing", () => {
+  it("is kept by the second check past the settle window, and the next sweep takes in the save written since", async () => {
+    const swapped = await truncatedBeforeMove();
+    const checked = await swapped.secondCheck(landingCopies(swapped.fixture.store));
+    expect(checked.settled.map((each) => each.settlement)).toMatchObject([{ kind: "kept", answer: "empty" }]);
+    expect((await onDisk(swapped.seeded.location, swapped.path)).copies.map((record) => record.name)).toEqual([swapped.made.copy]);
+    await swapped.finishSave(renderStampedFile({ content: "# Cohort: one\n\nWritten after a stall.\n", stamp: swapped.laid.base.blob }));
+    expect(await swapped.sweepStep(landingCopies(swapped.fixture.store))).toMatchObject({ kind: "deleted", entry: { copies: [] } });
+    const stored = await swapped.fixture.store.read({ reference: swapped.reference });
+    expect(stored.status === "ok" && stored.result.content).toBe("# Cohort: one\n\nWritten after a stall.\n");
+  });
+
+  it("still empty at the next sweep, is deleted there as a deleted file, the record untouched", async () => {
+    const swapped = await truncatedBeforeMove();
+    await swapped.secondCheck(landingCopies(swapped.fixture.store));
+    await swapped.saving.close();
+    expect(await readStat(join(swapped.seeded.checkout, swapped.made.copy))).not.toBeNull();
+    expect(await swapped.sweepStep(landingCopies(swapped.fixture.store))).toMatchObject({ kind: "deleted", entry: { copies: [] } });
+    expect(await readStat(join(swapped.seeded.checkout, swapped.made.copy))).toBeNull();
+    const stored = await swapped.fixture.store.read({ reference: swapped.reference });
+    expect(stored.status === "ok" && stored.result.content).toBe("# Cohort: one\n\nBody, refreshed.\n");
+  });
+
+  it("leaves the second check deleting a copy holding what its swap moved, and one that is not a file", async () => {
+    const plain = await prepareSwap();
+    directories.push(plain.seeded.checkout);
+    const unsaved = await plain.swap();
+    const linked = await prepareSwap();
+    directories.push(linked.seeded.checkout);
+    const relinked = await linked.swap();
+    const [copy] = relinked.copies;
+    if (copy === undefined) throw new Error("expected the swap's aside copy");
+    await rm(join(linked.seeded.checkout, copy.copy));
+    await symlink(linked.file, join(linked.seeded.checkout, copy.copy));
+    for (const [swapped, result] of [[plain, unsaved], [linked, relinked]] as const) {
+      const checked = await runSecondCheck({
+        location: swapped.seeded.location, checkout: swapped.seeded.checkout, index: result.index, copies: result.copies,
+        format: "sha1", takeIn: landingCopies(swapped.fixture.store), writer: SWAP_WRITER, gate: aged,
+      });
+      expect(checked.settled.map((each) => each.settlement)).toMatchObject([{ kind: "deleted", entry: { copies: [] } }]);
+      for (const { copy: name } of result.copies) expect(await readStat(join(swapped.seeded.checkout, name))).toBeNull();
+    }
+  });
+
+  it("of a file other than Markdown, is neither sent nor deleted by the second check", async () => {
+    const swapped = await truncatedBeforeMove({ path: ".arc/user/andrew/scratch/two.txt", contents: ["plain: text\n", "plain: refreshed\n"] });
+    const checked = await swapped.secondCheck(landingCopies(swapped.fixture.store));
+    await swapped.saving.close();
+    expect(checked.settled.map((each) => each.settlement)).toMatchObject([{ kind: "kept", answer: "empty" }]);
+    expect(await readStat(join(swapped.seeded.checkout, swapped.made.copy))).not.toBeNull();
+    const stored = await swapped.fixture.store.read({ reference: swapped.reference });
+    expect(stored.status === "ok" && stored.result.content).toBe("plain: refreshed\n");
+  });
+});
+
 describe("a save through a handle held across the move", () => {
   it("landing after the first check and after a later save to the path is kept, reported, the later save standing", async () => {
     const swapped = await swappedWithHandle();
@@ -244,4 +331,11 @@ async function onDisk(location: Parameters<typeof readProjectionIndex>[0], path:
   const entry = read.index.entries[path];
   if (entry?.kind !== "record") throw new Error(`expected a record entry at ${path}`);
   return entry;
+}
+
+/** The record the index on disk holds for one aside copy of a path. */
+async function recorded(location: Parameters<typeof readProjectionIndex>[0], path: string, copy: string): Promise<AsideCopyRecord> {
+  const found = (await onDisk(location, path)).copies.find((record) => record.name === copy);
+  if (found === undefined) throw new Error(`expected the index to record ${copy}`);
+  return found;
 }
