@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "first-pull-call-limit",
+  "claimId": "3cb450926f30d2f75e28672a02585a8d",
+  "createdAt": "2026-11-01T01:32:03.355Z",
+  "updatedAt": "2026-11-01T01:32:03.355Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Give first-pull designation subprocesses the shared call budget and their cases setup headroom.",
+  "branch": "chore/first-pull-call-limit",
+  "origin": "inbox",
+  "originEntry": "Give the first-pull designation cases headroom over their 10 s subprocess limit",
+  "originEntrySourceDigest": "sha256:0415ed869ba2dc31022f21a0ca6f435cbde55a37bc53fde8405ee787f74ee357",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
