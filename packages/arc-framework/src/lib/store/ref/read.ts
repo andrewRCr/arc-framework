@@ -31,6 +31,7 @@ import type { RefViewState } from "./view-state.js";
 import { resolveRefPointObject } from "./point-object.js";
 import { refObjectFault, refDiagnosticRefusal } from "./object-fault.js";
 import { publicRefDiagnostic, type CapturedRefDiagnostic } from "./capture-diagnostic.js";
+import { listingRefMatches } from "./listing-scope.js";
 
 /** Read a record, resolving name-only owners through one captured namespace. */
 export async function readRefRecord(context: RefBackendContext, input: ReadInput): Promise<StoreResult<StoreRecord>> {
@@ -172,8 +173,7 @@ async function listBoundRecords(context: RefBackendContext, input: ListInput): P
   input = resolved.result;
   const asOf = await saveCapturedManifest(context, captured);
   if (identity === undefined) return { status: "ok", result: { status: "absent", asOf } };
-  const tips = new Map([...captured].filter(([ref]) => matchesFamilyRef(ref, input.family) && !otherIdentityRef(ref, identity, input.owner)
-    || ["work-item", "cohort"].includes(rootFamily(input.family)) && isArchiveRef(ref)));
+  const tips = selectLiveListingTips(captured, input, identity);
   if (tips.size === 0) return { status: "ok", result: { status: "absent", asOf } };
   const trees = await readRefTrees(context, tips);
   const projectFamily = input.family === "project-inbox" || input.family === "project-registry";
@@ -196,11 +196,23 @@ async function listBoundRecords(context: RefBackendContext, input: ListInput): P
   if (groups.length > 0 && groups.every((group) => group.unreadable)) return { status: "ok", result: { status: "unreadable",
     condition: diagnostics.map((diagnostic) => diagnostic.condition).join("; "),
     remedy: { text: diagnostics.map((diagnostic) => diagnostic.remedy.text).join(" ") } } };
-  return { status: "ok", result: readableRefListing(input, records, diagnostics, asOf) };
+  return { status: "ok", result: liveListingOutcome(input, records, diagnostics, asOf) };
+}
+
+function liveListingOutcome(input: ListInput, records: StoreRecord[], diagnostics: ListingDiagnostic[], asOf: StateVersion): ListingOutcome {
+  const listing = readableRefListing(input, records, diagnostics, asOf);
+  return listing.status === "complete" && listing.records.length === 0 && listing.diagnostics.length === 0
+    ? { status: "absent", asOf } : listing;
+}
+
+function selectLiveListingTips(captured: ReadonlyMap<string, string>, input: ListInput, identity: string | null): Map<string, string> {
+  const archives = ["work-item", "cohort"].includes(rootFamily(input.family));
+  return new Map([...captured].filter(([ref]) => (matchesFamilyRef(ref, input.family) && !otherIdentityRef(ref, identity, input.owner)
+    || archives && isArchiveRef(ref)) && listingRefMatches(ref, input, captured)));
 }
 
 function decodeArchivedListing(context: RefBackendContext, input: ListInput, state: RefViewState): DecodedRecords {
-  const ended = selectEndedOwners(state, captureArchivedFolders(state, input.family));
+  const ended = selectEndedOwners(state, captureArchivedFolders(state, input.family, input.owner ? [input.owner] : undefined));
   const decoded = ended.folders.map(folder => {
     const group = decodeCapturedRef(context, input, folder.liveRef, folder.entries, state.objects, folder.metadata, undefined, folder.placement);
     return { records: group.records, diagnostics: group.diagnostics.map(diagnostic => archivedRecordDiagnostic(folder.ref, folder.root, diagnostic)) };
@@ -209,7 +221,7 @@ function decodeArchivedListing(context: RefBackendContext, input: ListInput, sta
     ...[...state.refs].filter(([ref]) => isArchiveRef(ref)).every(([, group]) => !group.entries) ? { unreadable: true as const } : {} };
 }
 
-/** Preserve kind-scoped absence and lifecycle filtering in current, saved, and checked listings. */
+/** Assemble kind-scoped absence and lifecycle filtering for captured listings. */
 export function readableRefListing(input: ListInput, records: StoreRecord[], diagnostics: ListingDiagnostic[], asOf?: StateVersion): ListingOutcome {
   const anchor = asOf === undefined ? {} : { asOf };
   if (input.kind !== undefined && records.length === 0 && diagnostics.length === 0) return { status: "absent", ...anchor };

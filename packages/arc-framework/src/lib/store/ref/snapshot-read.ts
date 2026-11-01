@@ -14,6 +14,7 @@ import { refListingRefusal } from "./read.js";
 import { isArchiveRef } from "./archive-read.js";
 import { missingHistoryRefs } from "./missing-history.js";
 import { refObjectFault } from "./object-fault.js";
+import { listingRefMatches } from "./listing-scope.js";
 
 /** Resolve saved bytes from their manifest, consulting today's tips only to route an object-loss remedy. */
 export async function readSnapshotRecord(context: RefBackendContext, input: ReadInput): Promise<StoreResult<StoreRecord>> {
@@ -76,21 +77,14 @@ async function unavailableSnapshot(context: RefBackendContext, version: StateVer
 
 function selectSnapshotTips(manifest: ReadonlyMap<string, string>, input: ListInput, identity: string | null): Map<string, string> {
   const root = rootFamily(input.family);
-  const liveOwner = manifestHasLiveOwner(manifest, input);
   return new Map([...manifest].filter(([ref]) => {
     if (ref.startsWith("refs/arc/user/")) {
       if (ref.split("/")[3] !== identity || input.owner && input.owner.name !== identity) return false;
     }
     if (input.family === "lineage" && input.owner?.type === "work-item" && !input.owner.uid && matchesFamilyRef(ref, "work-item")) return true;
     if (ref === "refs/arc/project/registry" && ["project-inbox", "project-registry"].includes(root)) return true;
-    if (["work-item", "cohort"].includes(root) && isArchiveRef(ref)) return !liveOwner;
+    if (["work-item", "cohort"].includes(root) && isArchiveRef(ref)) return listingRefMatches(ref, input, manifest);
     if (!matchesFamilyRef(ref, input.family)) return false;
-    return !input.owner || !("uid" in input.owner) || !input.owner.uid || !["work-item", "cohort"].includes(root) || ref.endsWith(`/${input.owner.uid}`);
+    return listingRefMatches(ref, input, manifest);
   }));
-}
-
-function manifestHasLiveOwner(manifest: ReadonlyMap<string, string>, input: ListInput): boolean {
-  const owner = input.owner;
-  if (!owner || !("uid" in owner) || !owner.uid || !["work-item", "cohort"].includes(owner.type)) return false;
-  return manifest.has(`refs/arc/${owner.type === "work-item" ? "work" : "cohort"}/${owner.uid}`);
 }

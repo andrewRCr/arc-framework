@@ -28,6 +28,7 @@ import { captureArchivedFolders, selectEndedOwners } from "./ended-owners.js";
 import { refObjectFault, refDiagnosticRefusal, type RefFaultOptions } from "./object-fault.js";
 import type { RefCaptureFault } from "./capture-diagnostic.js";
 import { missingHistoryRefs } from "./missing-history.js";
+import { listingRefMatches } from "./listing-scope.js";
 
 /** Build lazy views which never recapture a live ref during a check. */
 export function createRefWriteViews(context: RefBackendContext, tips: ReadonlyMap<string, string>,
@@ -111,7 +112,8 @@ async function listView(context: RefBackendContext, state: RefViewState, input: 
   const resolved = await resolveViewListInput(context, state, input);
   if (resolved.status === "refused") return resolved;
   input = resolved.result;
-  const refs = [...state.refs].filter(([ref]) => matchesFamilyRef(ref, input.family) && !otherIdentityRef(ref, identity, input.owner));
+  const refs = [...state.refs].filter(([ref]) => matchesFamilyRef(ref, input.family) && !otherIdentityRef(ref, identity, input.owner)
+    && listingRefMatches(ref, input, state.refs));
   const archived = archivedViewRecords(context, state, input);
   if (refs.length === 0 && !archived.records.length && !archived.diagnostics.length) return { status: "ok", result: { status: "absent" } };
   const project = input.family === "project-registry" || input.family === "project-inbox" ? projectListingBinding(viewRegistry(state), state.objects, state.saved) : undefined;

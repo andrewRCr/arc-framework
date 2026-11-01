@@ -342,32 +342,22 @@ call succeeds once the object is restored; a history retry pulls only for an ite
 listing ignores another owner's unreadable ref; a designation question shows in each consumer and stops the retries; a
 transport failure is a per-remote outcome.
 
-### `[ ]` **4.1 Live listings take the owner scope and the absence rule — § 2**
+### `[x]` **4.1 Live listings take the owner scope and the absence rule — § 2**
 
 - _Goal:_ A live listing narrows records and diagnostics to its owner as an as-of listing does and returns `absent`
   when it finds no records and no diagnostics, so one unreadable unrelated ref no longer blocks every lifecycle write
   through `acquireLifecycleRecords`.
 
-    - `listBoundRecords` (`lib/store/ref/read.ts`) selects tips by `input.owner` as `selectSnapshotTips`
-      (`snapshot-read.ts`) does: the owner's own ref in its family, and archive refs only when the owner holds no live
-      ref. `decodeCapturedRef`, which point reads and the fetch check share, is unchanged.
-    - Archived diagnostics narrow by `archiveOwnerTrees`' rule (`archive-read.ts`): the owner's folders and any folder
-      no valid UID attributes, since it could be the owner's. A diagnostic no owner can be read from stays, so an
-      incomplete listing never reads as complete.
-    - The absence rule matches the in-repo tracked and personal listings (`in-repo/list.ts`, `in-repo/personal.ts`),
-      whether or not the listing names a kind, on the live path alone; `readableRefListing` keeps its kind-scoped rule
-      for as-of and write-check listings.
-    - The write-check views (`write-views.ts`) and as-of archived diagnostics (`archive-view.ts`) take the same owner
-      scope.
-    - Build `test-first` (one behavior at a time):
-        - an owner-scoped live listing omits another owner's unreadable ref and its archived diagnostics
-        - an owner-scoped live listing keeps an archived diagnostic no valid UID attributes
-        - an owner-only live listing that finds nothing returns `absent`, with and without a kind
-        - a family-wide live listing that finds nothing returns `absent`
-        - a lifecycle write through `acquireLifecycleRecords` proceeds beside another owner's unreadable ref
-        - a write-check view ignores another owner's diagnostic
-        - an as-of listing keeps its kind-scoped absence rule, and its archived diagnostics narrow to the owner's
-          folders and unattributed ones
+- _Note:_ Lint feedback separated live tip selection and result assembly from `listBoundRecords` to keep it within
+  its complexity limit; the write-check fixture's captured owner is constant. Empty live results are classified
+  after location filtering, matching § 2's in-repo absence rule while saved and check views retain their own rule.
+  Broader feedback also found metadata-only and repaired empty review-listing assertions still expecting live
+  `complete`; those expectations now require `absent`, preserving the saved and diagnostic-bearing cases.
+
+- _Outcome:_ Shared captured-ref owner selection now scopes current, saved, and prepared listings before decoding;
+  archived folders retain unknown ownership and root diagnostics. Live result assembly classifies empty filtered
+  results as `absent`; saved and check views retain kind-scoped absence. Native consumer cases exercise lifecycle
+  writes and write checks beside damaged unrelated refs. Evidence: `task-4.1-*` in the implementation evidence directory.
 
 ### `[ ]` **4.2 Every pull consumer renders a designation question — § 3**
 
