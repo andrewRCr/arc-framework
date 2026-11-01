@@ -2,6 +2,7 @@
 import { z } from "zod";
 import type { Store } from "../store/contract.js";
 import { PullResultSchema, pullResultNotices, type PullResult, type StoreSyncPort } from "../store/operational-sync.js";
+import { consumePull, pullDesignation } from "../store/pull-consumption.js";
 import { SessionActionsSchema } from "./actions.js";
 
 /** Complete off-branch user slot; it contains no notes fields. */
@@ -15,7 +16,9 @@ export type StoreSessionInitUserValue = PullResult & { summary: string; actions?
 export function describeStorePull(result: PullResult): StoreSessionInitUserValue {
   const actions = pullActions(result);
   const notices = [...pullResultNotices(result), ...(result.advisories ?? [])];
-  const summary = [...new Set([pullSummary(result), ...partialFailureSummaries(result),
+  const consumed = consumePull(result);
+  const summary = pullDesignation(result) ? [...consumed.kind === "stop" ? [consumed.reason] : [], ...consumed.notices].join(" ")
+    : [...new Set([pullSummary(result), ...partialFailureSummaries(result),
     ...notices.map(notice => `${notice.condition} ${notice.remedy.text}`)])].join(" ");
   return { ...result, summary, ...(actions.length ? { actions } : {}) };
 }

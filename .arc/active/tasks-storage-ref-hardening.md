@@ -368,20 +368,17 @@ transport failure is a per-remote outcome.
   `unit/handlers/status/store-locus-pull.test.ts`, `unit/errand/store-runtime.test.ts`,
   `unit/errand/promote-store-runtime.test.ts`) or in a `store-ref-*` suite.
 
-    - `[ ]` **4.2.a The helper and the retry paths**
-        - `consumePull` (`lib/store/pull-consumption.ts`) renders whatever designation question `pullDesignation`
-          finds, top-level or partial, as a notice for every consumer, and names the question it rendered so a
-          consumer that shows it its own way drops that notice.
-        - `pullHistoryForRetry` reads `states` as well as `pulls`; on a designation question it writes the question
-          and its remedy as a notice and returns false, so its caller returns the refusal it holds.
-          `readStateHistory` (`lib/handoff/state-history.ts`) keeps stopping on it, its stop carrying the question in
-          place of the notice.
-        - `join` (`handlers/join.ts`) keeps its designation prompt in place of the notice.
-        - Build `test-first` (one behavior at a time): `consumePull` renders a top-level question, and a partial one
-          beside a failed read source; `pullHistoryForRetry` returns false with the notice; `readStateHistory` stops
-          with the question's remedy, shown once; `join` prompts without also logging the question.
+    - `[x]` **4.2.a The helper and the retry paths**
+        - _Note:_ Test type-check feedback required the designation fixture's choices to retain the native role union.
+        - `consumePull` renders and identifies one designation notice, including a separately supplied command,
+          without changing proceed policy. History retry uses the selected-store projection and stops on the
+          question; saved history puts it in the refusal and join keeps its own presentation, suppressing the notice.
+          Evidence: `task-4.2.a-*` in the implementation evidence directory.
 
     - `[ ]` **4.2.b The consumers move onto the helper**
+        - _Note:_ Pulled `store-user-pull.ts`'s designation summary onto the helper during 4.2.a after join feedback
+          exposed duplicate aggregate and partial-state remedies; § 3 already requires one rendered question.
+          Related status feedback then exposed its duplicate command append, removed here as the helper supplies it.
         - Through `pullSelectedStore` (`operational-sync-bindings.ts`) with `pullDesignation`: `runStoreRename`
           (`rename-store.ts`) and `conflictHistory` (`conflict-command.ts`) through `pullHistoryForRetry`;
           `store-user-pull.ts`; and `pullStoreStatus` (`handlers/status/store-locus.ts`).

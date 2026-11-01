@@ -9,7 +9,7 @@ interface Issue { condition: string; remedy: Remedy }
 type ReportedState = Exclude<SyncState, { status: "no-remote" }>;
 
 /** Pull through the exact selected store, forwarding only the history names the caller supplied. */
-export async function pullSelectedStore(store: Store, refs?: readonly string[]): Promise<PullResult> {
+export async function pullSelectedStore(store: Pick<Store, "pull">, refs?: readonly string[]): Promise<PullResult> {
   const pulled = await store.pull(refs === undefined ? undefined : { history: refs.map(ref => HistoryRefSchema.parse(ref)) });
   if (pulled.status === "refused") return { status: pulled.refusal.code === "unreachable" ? "unreachable" : "incomplete",
     condition: pulled.refusal.condition, remedy: pulled.refusal.remedy };
