@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "task-loop-fix-forward",
+  "claimId": "c44ddb216bf6f1417f679a5846b0abb5",
+  "createdAt": "2026-11-01T14:53:44.219Z",
+  "updatedAt": "2026-11-01T14:53:44.219Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Let a task-loop check failure a planned task already fixes be fixed and rerun without a stop",
+  "branch": "chore/task-loop-fix-forward",
+  "origin": "inbox",
+  "originEntry": "Let a task-loop check failure that a planned task already fixes be fixed and rerun without a stop",
+  "originEntrySourceDigest": "sha256:ee88c3c7494c55b5b5a5fa787870dc9ba98e080673493a1b2d13452ffb38c21d",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
