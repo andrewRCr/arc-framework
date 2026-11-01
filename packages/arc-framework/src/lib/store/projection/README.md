@@ -155,7 +155,8 @@ with its path.
 `aside-moves.ts` makes a swap's two moves, the rename into the aside folder and the link onto the path, inside the
 bounded retry, since a reader holding the file without sharing delete access refuses them for a moment on Windows. A
 link refused because something is at the path reads as a save that recreated it. The swap, a copy's put-back, and the
-second check take the operations and retry sleep a test injects.
+second check take the operations and retry sleep a test injects, and the swap, the second check, and the sweep take the
+read gate it injects for every copy they check.
 
 `swap.ts` replaces a batch of files between two index writes. The first, with the reference after it, records each
 file's new base, the staged file's stat — which the path shares once it is linked — pending, the record of the aside

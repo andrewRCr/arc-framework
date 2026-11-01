@@ -16,6 +16,7 @@ import { commitProjectionIndex } from "./index-file.js";
 import type { AsideCopyRecord, ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
 import { PROJECTION_ASIDE_ROOT } from "./paths.js";
+import type { ReadGateDependencies } from "./read-gate.js";
 import { deleteAsideCopy } from "./stampless.js";
 import type { TakeInPort } from "./take-in-port.js";
 
@@ -33,6 +34,8 @@ export interface SweepInput extends SwapMoves {
   readonly guard: ProjectionIgnoreGuardInput;
   /** Whether a process ID is in use, the system's unless a test injects its own. */
   readonly isProcessAlive?: (pid: number) => boolean;
+  /** The read gate every copy check runs on, the system's unless a test injects its own. */
+  readonly gate?: ReadGateDependencies;
 }
 
 /** What became of one copy the sweep took over. */
@@ -243,8 +246,8 @@ async function sweepCopy(input: SweepInput, path: string, entry: RecordEntry, re
     return { kind: "linked-back", entry: { ...entry, pending: true, copies: entry.copies.filter((each) => each.name !== record.name) } };
   }
   // Every other copy, and one whose path reappeared before its link, is settled as any aside copy is.
-  const { format, takeIn, writer, fs, retrySleep } = input;
-  return settleAsideCopy({ checkout, path, entry, copy: record, format, takeIn, writer, fs, retrySleep });
+  const { format, takeIn, writer, fs, retrySleep, gate } = input;
+  return settleAsideCopy({ checkout, path, entry, copy: record, format, takeIn, writer, fs, retrySleep, gate });
 }
 
 /** How the sweep reads the writer a copy's or staged file's name records. */

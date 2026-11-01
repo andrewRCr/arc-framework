@@ -12,6 +12,7 @@ import { readStat } from "./change-detection.js";
 import { commitProjectionIndex } from "./index-file.js";
 import type { AsideCopyRecord, FileStat, ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
+import type { ReadGateDependencies } from "./read-gate.js";
 import type { GuardResult } from "./replace-guard.js";
 import type { StagedFile } from "./staging.js";
 import type { TakeInPort } from "./take-in-port.js";
@@ -48,6 +49,8 @@ export interface SwapBatchInput extends SwapMoves {
   readonly writer: AsideWriterInput;
   readonly format: ObjectFormat;
   readonly takeIn: TakeInPort;
+  /** The read gate every copy check runs on, the system's unless a test injects its own. */
+  readonly gate?: ReadGateDependencies;
   readonly hooks?: SwapHooks;
 }
 
@@ -187,7 +190,7 @@ async function swapOne(input: SwapBatchInput, swap: PlannedSwap): Promise<SwapDo
   if (linked.done) return linked;
   const settling = {
     checkout, path: swap.path, entry: linked.entry, copy: swap.copy, format: input.format, takeIn: input.takeIn,
-    writer: input.writer, fs: input.fs, retrySleep: input.retrySleep,
+    writer: input.writer, fs: input.fs, retrySleep: input.retrySleep, gate: input.gate,
   };
   const checked = await checkAsideCopy(settling);
   // An edit refused or clashed at the first check goes back to its path, where the person can see it.

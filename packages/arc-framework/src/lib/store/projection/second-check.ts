@@ -10,6 +10,7 @@ import type { ObjectFormat } from "./blob-id.js";
 import { commitProjectionIndex } from "./index-file.js";
 import type { ProjectionIndex } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
+import type { ReadGateDependencies } from "./read-gate.js";
 import { dropRemovedEntries } from "./swap.js";
 import type { TakeInPort } from "./take-in-port.js";
 
@@ -25,6 +26,8 @@ export interface SecondCheckInput extends SwapMoves {
   readonly format: ObjectFormat;
   readonly takeIn: TakeInPort;
   readonly writer: AsideWriterInput;
+  /** The read gate every copy check runs on, the system's unless a test injects its own. */
+  readonly gate?: ReadGateDependencies;
 }
 
 /** What the second check left: the index it wrote, and what became of each copy. */
@@ -48,7 +51,7 @@ export async function runSecondCheck(input: SecondCheckInput): Promise<SecondChe
     // Only a copy the index still records is checked: one whose record a later step of the command cleared is settled.
     if (entry?.kind !== "record" || record === undefined) continue;
     const settlement = await settleAsideCopy({
-      checkout, path, entry, copy: record, format, takeIn, writer, fs: input.fs, retrySleep: input.retrySleep,
+      checkout, path, entry, copy: record, format, takeIn, writer, fs: input.fs, retrySleep: input.retrySleep, gate: input.gate,
     });
     index = { ...index, entries: { ...index.entries, [path]: settlement.entry } };
     settled.push({ path, copy, settlement });
