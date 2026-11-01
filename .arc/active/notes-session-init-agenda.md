@@ -92,9 +92,24 @@ fields (`teardown.text` and `argv`, `remedy.text`, typed reasons) already exist.
   ahead/behind, and entering row `free-primary`, selecting Orient.
 - Evidence: `~/dev/arc-evidence/session-init-agenda/baseline/` contains `metadata.json`, the raw probe, `items.json`
   with frozen measurement inputs, and reusable `measure-items.py`. Harness: Claude Code `2.1.316`.
-- Measurements remain pending. Automatic approval review rejected the first external Claude invocation before it
-  launched, requesting specific approval to send the document and session-status payload to Claude. No token baseline
-  or real-session context report has been recorded.
+- The itemized instrument uses one stdin item per `claude -p --output-format json --tools "" --no-session-persistence`
+  call. It sums `input_tokens`, `cache_creation_input_tokens`, and `cache_read_input_tokens`, then subtracts the empty
+  run's 6,564 tokens. Raw outputs and `summary.json` live in the evidence directory's `itemized/` subdirectory.
+
+| Installed item                                 | Net input tokens |
+| ---------------------------------------------- | ---------------: |
+| `session-init.md`                              |           27,283 |
+| `AGENT-BRIEF.ARC`                              |            3,546 |
+| `AGENT-BRIEF.PROJECT`                          |              779 |
+| `DEV-RULES.ARC`                                |           11,798 |
+| `DEV-RULES.PROJECT`                            |            1,817 |
+| `STRATEGY-INDEX`                               |            1,973 |
+| `QUICK-REFERENCE` § Environment & Path Context |              488 |
+| `arc-session` skill                            |            1,058 |
+| Session-init probe envelope                    |            3,059 |
+| **Total**                                      |       **51,801** |
+
+The real-session context-report baseline remains pending.
 
 ## The always-loaded cut audit
 

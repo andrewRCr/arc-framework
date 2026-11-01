@@ -33,15 +33,11 @@ with a typed refusal, and leaves the repository as found.
           `main` with entering row `free-primary` (Orient). Metadata and the probe are retained under
           `~/dev/arc-evidence/session-init-agenda/baseline/`; see `notes-session-init-agenda.md` § Baseline install.
 
-    - `[ ]` **1.1.b Run the itemized headless instrument**
-        - One `claude -p --output-format json --tools "" --no-session-persistence` run per item in the specification's
-          Baseline table, the item fed on stdin so each run is one turn — `session-init.md`, both briefs, both
-          `DEV-RULES`, `STRATEGY-INDEX`, `QUICK-REFERENCE` § Environment & Path Context, the
-          `arc status --session-init --json` envelope, and the `arc-session` skill text — plus an empty run with the
-          same flags
-        - Each item's figure is `input_tokens` plus `cache_creation_input_tokens` plus `cache_read_input_tokens`, less
-          the empty run's; confirm the field names at the first run
-        - The script takes its item list as input, so Task 5.4 runs it unchanged over the result's items
+    - `[x]` **1.1.b Run the itemized headless instrument**
+        - Retained one-turn Claude Code JSON outputs for all nine installed items and the empty comparator, using
+          the prescribed flags. Verified the three input-usage fields: empty input totals 6,564 tokens, net workflow
+          input 27,283, and net itemized total 51,801. `measure-items.py` accepts an item manifest for unchanged reuse;
+          raw results, frozen inputs, and the summary live under `~/dev/arc-evidence/session-init-agenda/baseline/`.
 
     - `[ ]` **1.1.c Read the real-session instrument and record the baseline**
         - Two real sessions in the kit sandbox, each less an empty session on the same harness: one entering Orient,
