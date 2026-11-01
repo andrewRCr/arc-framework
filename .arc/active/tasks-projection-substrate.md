@@ -392,7 +392,7 @@ command's sweep takes over the copies a stopped command left.
   timeline. Run 41274229274 at `730e04d2a3`, the pair dispatched, passed on Windows and macOS: none lost or emptied past
   the window, every placed outcome reached, and the second check's rescue reached by truncate-then-write on both.
 
-### `[ ]` **3.R Keep an emptied aside copy for the next command's sweep — § 5.2, § 17**
+### `[x]` **3.R Keep an emptied aside copy for the next command's sweep — § 5.2, § 17**
 
 - _Goal:_ An aside copy empty at its writer's second check waits in the aside folder for the next command's sweep, so a
   save that truncated the file before its move and writes late is settled there rather than lost (A1).
@@ -404,11 +404,13 @@ command's sweep takes over the copies a stopped command left.
           step is unchanged. Covered in `integration/store/projection/second-check.test.ts`, Markdown and not, and
           `removal.test.ts`, where the next sweep links a removal's copy back holding the late write.
 
-    - `[ ]` **3.R.b Count a save emptied past the settle window as lost**
+    - `[x]` **3.R.b Count a save emptied past the settle window as lost**
 
-        - Retire the save-loss harness's "emptied past the settle window" outcome, so such a save, unless taken in or
-          kept, fails the run with its timeline; run the harness on Linux and in a dispatched run of the portability
-          pair, and record both.
+        - The harness's "emptied past the settle window" outcome is retired, so a save left empty that long, unless
+          taken in or kept, fails the run with its timeline, and a placed save that truncates before the move and
+          stalls past the window across the second check is taken in at the next sweep. It passed on Linux, and run
+          41308156361 at `4729a849c4`, the pair dispatched, passed on Windows and macOS: none lost, and the stalled save
+          reached on both.
 
 ## **Phase 4:** The worktree lock
 
