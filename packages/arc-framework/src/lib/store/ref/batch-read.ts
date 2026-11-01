@@ -1,5 +1,6 @@
 /** Byte-framed Git acquisition for state refs and their objects. */
 
+import { directoryExists } from "./designation.js";
 import { logicalReadRef, physicalReadRef } from "./read-source-namespace.js";
 import type { RefBackendContext } from "./context.js";
 import { isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
@@ -61,15 +62,7 @@ export async function readBatchObjects(context: RefBackendContext, queries: read
   }
   const retained = await readRetainedObjects(context, queries);
   if (retained) return retained;
-  try {
-    const physical = context.readSource ? queries.map((query) => physicalReadRef(context, query)) : queries;
-    const { stdout } = await context.rawExec(["cat-file", "--batch"], {
-      cwd: context.checkoutRoot, objectAccess: "local-only", input: encoder.encode(`${physical.join("\n")}\n`),
-      batchReader: context.batchReader,
-    });
-    const objects = parseBatch(stdout, physical);
-    retainObjects(context, objects);
-    return context.readSource ? new Map(queries.map((query, index) => [query, objects.get(physical[index] ?? query) ?? null])) : objects;
+  try { return await readStoredObjects(context, queries);
   } catch (error) {
     if (!isGitProcessError(error) || error.kind !== "output-limit" || queries.length === 1) throw error;
     const middle = Math.ceil(queries.length / 2);
@@ -77,6 +70,26 @@ export async function readBatchObjects(context: RefBackendContext, queries: read
     const right = await readBatchObjects(context, queries.slice(middle));
     return new Map([...left, ...right]);
   }
+}
+
+async function readStoredObjects(context: RefBackendContext, queries: readonly string[]): Promise<Map<string, BatchObject | null>> {
+  const physical = context.readSource ? queries.map((query) => physicalReadRef(context, query)) : queries;
+  const { stdout } = await context.rawExec(["cat-file", "--batch"], {
+    cwd: context.checkoutRoot, objectAccess: "local-only", input: encoder.encode(`${physical.join("\n")}\n`),
+    batchReader: context.batchReader,
+  });
+  const objects = parseBatch(stdout, physical);
+  if (await missingFromDepartedStore(context, objects)) {
+    return await readBatchObjects({ ...context, batchReader: undefined }, queries);
+  }
+  retainObjects(context, objects);
+  return context.readSource ? new Map(queries.map((query, index) => [query, objects.get(physical[index] ?? query) ?? null])) : objects;
+}
+
+async function missingFromDepartedStore(context: RefBackendContext, objects: ReadonlyMap<string, BatchObject | null>): Promise<boolean> {
+  const gitDir = context.repository?.gitDir;
+  return !!context.batchReader && !!gitDir && [...objects.values()].some((object) => object === null)
+    && !await directoryExists(context, gitDir);
 }
 
 function retainObjects(context: RefBackendContext, objects: ReadonlyMap<string, BatchObject | null>): void {
