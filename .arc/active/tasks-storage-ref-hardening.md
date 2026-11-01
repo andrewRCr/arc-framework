@@ -441,36 +441,21 @@ annotated commit.
   body-less capture in the inbox, queue the same identity, and remove the mark in both layouts; existing body-bearing
   captures retain their queue and inbound behavior.
 
-### `[ ]` **5.2 Personal links are followed where notes saved through them, and reported — § 11.2**
+### `[x]` **5.2 Personal links are followed where notes saved through them, and reported — § 11.2**
 
 - _Goal:_ The import follows a link only where the notes snapshot holds a path through it, so the disk and notes copies
   compare as for any file; it skips every other link, and reports each link it follows or skips with a notice that
   does not block.
 
-    - `walk` (`import/personal-disk.ts`) records each link it meets, with its path, rather than skipping it silently,
-      and `readImportPersonalDisk`'s loop over each checkout's `.arc/user/` records a linked identity directory the same
-      way, where it skips any entry that is not a directory today. The walk runs before any person's snapshot is read,
-      so `appendPerson` (`import/personal.ts`), which holds the snapshot, follows a recorded link the snapshot holds a
-      path through, reading its target as `readUserDir` (`lib/io-context.ts`) does when notes save;
-      `comparePersonalFile` then compares as for a regular file.
-    - Resolving a link needs `realpath`, which the default port already returns (`createDefaultStorePorts`, typed
-      through `RefRepositoryFileAccess`) and `StoreFileAccess` lacks. The type of `importSource.ports.fs`
-      (`lib/store/ports.ts`) gains it, so `StoreFileAccess` and the fakes typed by it stay as they are. A followed
-      directory keeps `readUserDir`'s visited set of real paths, so a link cycle is walked once.
-    - One carrier holds the import's notices that do not block: `importTrackedState` (`entry.ts`) creates it beside
-      `transients`, before `readImportSource`, passes it through that call to `appendImportPersonal`, and joins it to
-      the report after the blocking check, as it joins the transient and skipped-capture notices. 5.3 uses it too.
-    - Build `test-first` (one behavior at a time):
-        - a linked file the notes snapshot holds imports and compares
-        - a file under a linked directory the snapshot holds imports and compares
-        - a linked tree notes never saved, such as another checkout's `node_modules`, is skipped with a notice
-        - a link whose target cannot be read is skipped with a notice
-        - a link cycle under a followed directory is walked once
-        - a linked identity directory under `.arc/user/` whose person's snapshot holds paths imports and compares; one
-          whose person has no snapshot is skipped with a notice
-        - no link notice blocks the import
-    - Directory links use the junction fixtures the existing symlink tests use; a file-link case skips where the
-      platform cannot create a file link.
+- _Note:_ A new skip case initially used listing absence for a point read; it now asserts the point-read contract's
+  `not-found` refusal. Lint feedback also separated identity-directory acquisition from enumeration and kept link
+  detection on `lstat`, since the directory-entry port deliberately exposes only file and directory predicates.
+  Test type-check feedback required parsing the cycle listing's owner through its public identity schema.
+
+- _Outcome:_ Enumeration retains logical link paths and physical roots until the selected notes snapshot authorizes
+  following them. File, directory, and identity links compare normally; unreadable and unsaved targets and repeated
+  real directories are skipped with informational notices. The shared notice carrier joins the report after the
+  blocking check, and only the import-source filesystem type gains `realpath`.
 
 ### `[ ]` **5.3 Unreadable annotated commits sort last with a notice — § 11.2**
 

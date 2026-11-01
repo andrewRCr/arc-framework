@@ -8,10 +8,15 @@ import { IDENTITY_STATUS_FILENAME } from "../../../user-surfaces.js";
 import { isAllowedFile, MAX_FILE_SIZE } from "../../../git/user-sync.js";
 import { legacyRootSessionNotesName } from "./personal-layout.js";
 
+type ImportFileAccess = NonNullable<RefBackendContext["importSource"]>["ports"]["fs"];
+
 /** One materialization, retaining the original manifest path and physical origin. */
 export interface ImportPersonalFile { person: Slug; path: string; physicalPath: string; content: string; size: number }
+/** A link is retained until the selected notes snapshot determines whether to follow it. */
+export interface ImportPersonalLink { person: Slug; path: string; physicalPath: string; root: string }
 /** All identities and their materializations, including identities with notes alone. */
-export interface ImportPersonalDisk { people: Set<Slug>; files: ImportPersonalFile[] }
+export interface ImportPersonalDisk { people: Set<Slug>; files: ImportPersonalFile[]; links: ImportPersonalLink[];
+  visited: Map<string, Set<string>> }
 
 /** Exclude machine-local folders and the identity's generated status cache on both sides. */
 export function importPersonalExcluded(path: string): boolean {
@@ -34,7 +39,7 @@ export async function readImportPersonalDisk(context: RefBackendContext): Promis
     { ...options, cwd: source.ports.checkoutRoot, objectAccess: "local-only" });
   const roster = await scanRegisteredWorktrees(exec, path => source.ports.fs.lstat(path));
   if (!roster.ok) throw new Error(`Cannot enumerate personal materializations: ${roster.message}`);
-  const result: ImportPersonalDisk = { people: new Set(), files: [] };
+  const result: ImportPersonalDisk = { people: new Set(), files: [], links: [], visited: new Map() };
   const refs = await exec("git", ["for-each-ref", "--format=%(refname)", "refs/notes/arc/user/"]);
   for (const ref of refs.stdout.trim().split("\n")) {
     const person = SlugSchema.safeParse(ref.slice("refs/notes/arc/user/".length));
@@ -43,14 +48,23 @@ export async function readImportPersonalDisk(context: RefBackendContext): Promis
   for (const checkout of roster.worktrees.filter(checkout => checkout.folderPresent)) {
     const root = join(checkout.path, ".arc", "user");
     for (const entry of await directories(source.ports.fs, root)) {
-      if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
-      const person = SlugSchema.safeParse(entry.name);
-      if (!person.success) throw new Error(`Personal identity directory ${join(root, entry.name)} has an invalid slug name ${JSON.stringify(entry.name)}. Rename it to a valid identity slug before retrying.`);
-      result.people.add(person.data);
-      await walk(source.ports.fs, result.files, person.data, join(root, person.data), "");
+      if (entry.isFile() || entry.name.startsWith(".")) continue;
+      await readIdentityDirectory(source.ports.fs, result, join(root, entry.name), entry.name);
     }
   }
   return result;
+}
+
+async function readIdentityDirectory(fs: ImportFileAccess, result: ImportPersonalDisk, physicalPath: string, name: string): Promise<void> {
+  const stat = await readPersonalPath(physicalPath, () => fs.lstat(physicalPath));
+  if (!stat.isDirectory() && !stat.isSymbolicLink()) return;
+  const person = SlugSchema.safeParse(name);
+  if (!person.success) throw new Error(`Personal identity directory ${physicalPath} has an invalid slug name ${JSON.stringify(name)}. Rename it to a valid identity slug before retrying.`);
+  result.people.add(person.data);
+  if (stat.isSymbolicLink()) {
+    result.links.push({ person: person.data, path: "", physicalPath, root: physicalPath }); return;
+  }
+  await walk(fs, result, person.data, physicalPath, "");
 }
 
 async function directories(fs: StoreFileAccess, path: string) {
@@ -61,14 +75,20 @@ async function directories(fs: StoreFileAccess, path: string) {
   }
 }
 
-async function walk(fs: StoreFileAccess, files: ImportPersonalFile[], person: Slug, root: string, prefix: string): Promise<void> {
+async function walk(fs: ImportFileAccess, result: ImportPersonalDisk,
+  person: Slug, root: string, prefix: string): Promise<void> {
+  const visited = result.visited.get(root) ?? new Set<string>();
+  result.visited.set(root, visited);
+  const real = await readPersonalPath(join(root, prefix), () => fs.realpath(join(root, prefix)));
+  if (visited.has(real)) return;
+  visited.add(real);
   for (const entry of await directories(fs, join(root, prefix))) {
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (importPersonalExcluded(path)) continue;
     const physicalPath = join(root, path), stat = await readPersonalPath(physicalPath, () => fs.lstat(physicalPath));
-    if (stat.isSymbolicLink()) continue;
-    if (stat.isDirectory()) await walk(fs, files, person, root, path);
-    else if (stat.isFile()) files.push({ person, path, physicalPath, size: stat.size,
+    if (stat.isSymbolicLink()) { result.links.push({ person, path, physicalPath, root }); continue; }
+    if (stat.isDirectory()) await walk(fs, result, person, root, path);
+    else if (stat.isFile()) result.files.push({ person, path, physicalPath, size: stat.size,
       content: await readPersonalPath(physicalPath, () => fs.readFile(physicalPath)) });
   }
 }

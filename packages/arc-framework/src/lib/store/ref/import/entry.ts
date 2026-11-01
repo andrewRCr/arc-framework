@@ -29,14 +29,15 @@ export async function importTrackedState(context: RefBackendContext, store: Stor
   await context.migrateStep?.("import.build");
   const codeHead = (await context.exec("git", ["rev-parse", "HEAD"], { cwd: context.checkoutRoot })).stdout.trim();
   const transients = { tips: new Map<string, string>(), notices: [] as MigrateReport["notices"] };
+  const informational: MigrateReport["notices"] = [];
   const proposedId = existingId ?? randomUUID();
-  const source = await mapImportReview(context, await readImportSource(context, report, codeHead, transients), report, proposedId);
+  const source = await mapImportReview(context, await readImportSource(context, report, codeHead, transients, informational), report, proposedId);
   const records = prepareImportRecords(context, source.records, report);
   const candidates = prepareImportCandidateSources(context, source.candidates, report);
   const skipped: MigrateReport["notices"] = [];
   await prepareImportCodeLinks(context, records, report, skipped);
   const blocked = report.refused.length > 0 || report.notices.length > 0;
-  report.notices.push(...transients.notices, ...skipped);
+  report.notices.push(...transients.notices, ...skipped, ...informational);
   if (existingId === null) report.notices.push({ condition: "The landing would mint the repository identity ID." });
   if (blocked) return input.trial ? { status: "ok", result: report } : importRefused(report);
   const projectId = input.trial ? proposedId : await resolveRepositoryIdentity(publisher, () => proposedId);
