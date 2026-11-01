@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/session-init-agenda` | `Heavy`   | `P1`         |
 
 - **Cohort:** `agent-context-optimization`
-- **Depends On:** `seam-locus`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `spec-session-init-agenda.md`
