@@ -39,7 +39,9 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
       .toMatchObject({ status: "ok", result: { reference: { kind: "work-item/meta", owner } } });
     const beta = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "beta" }, kind: "review/evidence", key: "good" });
     expect(await createRefStore(f.ports).read({ reference: beta }))
-      .toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: `refs/arc/work/${damagedUid}` } });
+      .toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", historyRefs: [],
+        condition: expect.stringContaining(`refs/arc/work/${damagedUid}`), remedy: { text: expect.stringMatching(/restore|fetch/iu) },
+      } });
   });
 
   it("keeps readable records beside each malformed, missing, newer, and mismatched entry", async () => {

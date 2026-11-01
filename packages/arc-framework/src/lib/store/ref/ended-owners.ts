@@ -5,6 +5,7 @@ import type { CapturedRefDiagnostic } from "./capture-diagnostic.js";
 import { archiveOwnerTrees, archivedFolders, isArchiveRef, latestArchivedFolders, type ArchivedFolder } from "./archive-read.js";
 import type { BatchObject, RefTreeEntry } from "./batch-read.js";
 import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
 import { rootFamily } from "./path-decode.js";
 import type { RefViewState } from "./view-state.js";
 
@@ -59,6 +60,9 @@ export function selectEndedOwners(state: RefViewState, captured: CapturedArchive
 }
 
 function archiveDiagnostic(ref: string, missing: boolean, saved = false): CapturedRefDiagnostic {
-  const { condition, remedy } = corruptRef(ref, missing, saved);
+  if (missing) return refObjectFault(ref, "missing", {
+    condition: `The tip or a tree of ${ref} is unavailable locally.`,
+  }).diagnostic;
+  const { condition, remedy } = corruptRef(ref, false, saved);
   return { kind: "unreadable", key: ref, condition, remedy };
 }

@@ -151,6 +151,10 @@ classification calls the sweep settled.
   containing-tree resolution, shared fault helper, and remaining sites below still complete this task.
   Caller-level slug checks also cover live cohort refs and retained work/cohort history during these migrations.
 
+- _Note:_ 3.1.c's owner-reader checkpoint wires live-owner, lineage-owner, and lookup metadata faults, including
+  current presence for saved recovery routes. Project identity, candidate designation, and archived history bases
+  remain open in that subtask.
+
     - `[x]` **3.1.a The shared tip check and record point reads**
         - Shared tip admission and unreadable archive quarters use `refObjectFault`; tip metadata retains its decoded
           fault and current/saved repair side. History reuses its current capture when deriving history routes.
@@ -191,8 +195,9 @@ classification calls the sweep settled.
   for its sites, their rows and sides.
 
 - _Note:_ Task 2.4 brought forward the archive metadata decoder and the archive lookup/record converters needed to
-  exercise capture faults through public Store calls. Full-path keys and the remaining converters below still close
-  this task.
+  exercise capture faults through public Store calls. Full-path keys and the remaining converters below still close this
+  task. Task 3.1.c also brings forward the unavailable-quarter diagnostic needed to preserve Missing through owner
+  lookup.
 
     - `[ ]` **3.2.a The decoder and its keys**
         - `decodeArchiveFolderControls` reports § 1.5's three `folderPlacement` conditions as `malformed` diagnostics
@@ -276,6 +281,9 @@ classification calls the sweep settled.
 
 - _Note:_ See `notes-storage-ref-hardening.md` § Fault-site inventory › 3.4 and § Classification calls the sweep settled
   for its sites, their rows and sides.
+
+- _Note:_ Caller-level slug validation for retained work/cohort history closes with this migration, carried from
+  3.1. Live-cohort lookup coverage is in 3.1.c.
 
     - `[ ]` **3.4.a The builders and history**
         - `unavailableRefHistory`, `unavailableHistory`, and `missingChangeState` become the helper's **Missing** row,

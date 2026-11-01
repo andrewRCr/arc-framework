@@ -1,6 +1,5 @@
 /** Native metadata capture and a disposable tip-keyed lookup cache. */
 
-import { corruptRef } from "./namespace-health.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefLookupTree } from "./lookup.js";
@@ -13,9 +12,10 @@ import { viewRefFamily } from "./view-state.js";
 import { matchesFamilyRef } from "./codec.js";
 import { readBatchObjects, readRefTips, readRefTrees } from "./batch-read.js";
 import type { BatchObject, RefTreeEntry } from "./batch-read.js";
-import { parseRefMetadata } from "./metadata.js";
+import { readRefMetadata } from "./metadata.js";
 import { revalidateLookupAcquisition, type RefLookupAcquisition } from "./lookup-acquisition.js";
 import { refObjectFault } from "./object-fault.js";
+import { missingHistoryRefs } from "./missing-history.js";
 
 /** Readable scan evidence plus the namespaces omitted from it. */
 export interface RefLookupCapture { trees: ReadonlyMap<string, RefLookupTree>; unreadable: ReadonlyMap<string, StoreRefusal>; acquisition?: RefLookupAcquisition }
@@ -39,7 +39,7 @@ export async function readCapturedLookupTrees(context: RefBackendContext, all: R
     if (!revalidate || !acquisition) return { status: "ok", result: prior.capture };
     const fresh = await revalidateLookupAcquisition(context, acquisition);
     if (fresh.unchanged) return { status: "ok", result: prior.capture };
-    return { status: "ok", result: decodeLookupCapture(context, tips, fresh.entries, fresh.objects, acquisition, saved) };
+    return { status: "ok", result: await decodeLookupCapture(context, tips, fresh.entries, fresh.objects, acquisition, saved) };
   }
   const captured = await captureLookupTrees(context, tips, saved);
   const acquisition = captured.status === "ok" ? captured.result.acquisition : undefined;
@@ -55,26 +55,42 @@ async function captureLookupTrees(context: RefBackendContext, tips: ReadonlyMap<
   const queries = [...new Set([...captured.values()].flatMap((entries) => entries.filter(({ path }) =>
     /(?:^|\/)metadata-[^/]+\.json$/u.test(path) || payloads.some((pattern) => pattern.test(path))).map(({ oid }) => oid)))];
   const objects = await readBatchObjects(context, queries);
-  return { status: "ok", result: decodeLookupCapture(context, tips, captured, objects, { tips, entries: captured, directories, objects: queries, values: objects }, saved) };
+  return { status: "ok", result: await decodeLookupCapture(context, tips, captured, objects, { tips, entries: captured, directories, objects: queries, values: objects }, saved) };
 }
 
-function decodeLookupCapture(context: RefBackendContext, tips: ReadonlyMap<string, string>, captured: ReadonlyMap<string, RefTreeEntry[]>,
-  objects: ReadonlyMap<string, BatchObject | null>, acquisition: RefLookupAcquisition, saved: boolean): RefLookupCapture {
+async function decodeLookupCapture(context: RefBackendContext, tips: ReadonlyMap<string, string>, captured: ReadonlyMap<string, RefTreeEntry[]>,
+  objects: ReadonlyMap<string, BatchObject | null>, acquisition: RefLookupAcquisition, saved: boolean): Promise<RefLookupCapture> {
   const trees = new Map<string, RefLookupTree>();
   const unreadable = new Map<string, StoreRefusal>();
   for (const [ref] of tips) {
-    const entries = captured.get(ref);
-    if (!entries) { unreadable.set(ref, corruptRef(ref, true, saved)); continue; }
-    if (isArchiveRef(ref)) continue;
-    const home = lookupRecordHome(context, ref);
-    if (holdsNoRecord(home, entries.map(({ path }) => path))) continue;
-    const entry = entries.find(({ path }) => path === home.metadataPath);
-    const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : null, ref);
-    if (!metadata) { unreadable.set(ref, corruptRef(ref, false, saved)); continue; }
-    trees.set(ref, { entries, metadata, objects });
+    const decoded = await decodeLookupRef(context, { ref, entries: captured.get(ref), objects, saved, current: saved ? undefined : tips });
+    if (!decoded) continue;
+    if ("code" in decoded) unreadable.set(ref, decoded); else trees.set(ref, decoded);
   }
   appendArchivedLookupTrees(trees, archiveStateFromCapture(tips, captured, objects, saved), unreadable);
   return { trees, unreadable, acquisition };
+}
+
+interface LookupRefRead {
+  ref: string; entries?: readonly RefTreeEntry[]; objects: ReadonlyMap<string, BatchObject | null>;
+  saved: boolean; current?: ReadonlyMap<string, string>;
+}
+
+async function decodeLookupRef(context: RefBackendContext, { ref, entries, objects, saved, current }: LookupRefRead):
+Promise<RefLookupTree | StoreRefusal | undefined> {
+  if (!entries) return refObjectFault(ref, "missing", {
+    condition: `The tip or a tree of ${ref} is unavailable locally.`,
+    historyRefs: await missingHistoryRefs(context, [ref], current),
+  }).refusal;
+  if (isArchiveRef(ref)) return;
+  const home = lookupRecordHome(context, ref);
+  if (holdsNoRecord(home, entries.map(({ path }) => path))) return;
+  const entry = entries.find(({ path }) => path === home.metadataPath);
+  const read = readRefMetadata(ref, entry, objects);
+  if (read.kind !== "parsed") return refObjectFault(ref, read.kind === "absent" ? "no-metadata" : read.kind, {
+    saved, historyRefs: read.kind === "missing" ? await missingHistoryRefs(context, [ref], current) : undefined,
+  }).refusal;
+  return { entries, metadata: read.metadata, objects };
 }
 
 function lookupRecordHome(context: RefBackendContext, ref: string): StoredRecordHome {

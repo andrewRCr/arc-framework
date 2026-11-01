@@ -28,6 +28,8 @@ export function refObjectReadFixture(options: {
   missingTree?: boolean;
   missingRecord?: boolean;
   record?: boolean;
+  recordPath?: string;
+  recordContent?: string;
   transientMetadataAbsence?: boolean;
   archive?: { root: string; quarter: string };
   live?: boolean;
@@ -55,13 +57,19 @@ export function refObjectReadFixture(options: {
   const type = options.type ?? "blob";
   const metadata = type === "tree" ? empty : type === "commit" ? commit(empty.oid)
     : object("blob", options.metadata ?? JSON.stringify(metadataValue));
-  const record = object("blob", "kept");
-  const entries: Entry[] = [
-    ...options.metadata === null ? [] : [{ name: options.metadataName ?? metadataPath,
-      mode: type === "tree" ? "40000" : type === "commit" ? "160000" : "100644", oid: metadata.oid }],
-    ...options.record === false ? [] : [{ name: "extra-alpha.md", mode: "100644", oid: record.oid }],
-  ];
-  const content = tree(entries);
+  const record = object("blob", options.recordContent ?? "kept");
+  const recordPath = options.recordPath ?? "extra-alpha.md", recordParts = recordPath.split("/");
+  let recordEntry: Entry = { name: recordParts.pop()!, mode: "100644", oid: record.oid };
+  const recordPaths = [{ ...recordEntry, name: recordPath }];
+  while (recordParts.length) {
+    const name = recordParts.pop()!;
+    recordEntry = { name, mode: "40000", oid: tree([recordEntry]).oid };
+    recordPaths.unshift({ ...recordEntry, name: [...recordParts, name].join("/") });
+  }
+  const metadataEntries: Entry[] = options.metadata === null ? [] : [{ name: options.metadataName ?? metadataPath,
+    mode: type === "tree" ? "40000" : type === "commit" ? "160000" : "100644", oid: metadata.oid }];
+  const entries = [...metadataEntries, ...options.record === false ? [] : recordPaths];
+  const content = tree([...metadataEntries, ...options.record === false ? [] : [recordEntry]]);
   const directory = options.archive ? { name: options.archive.root.replace(/\/$/u, ""), mode: "40000", oid: content.oid } : undefined;
   const root = directory ? tree([directory]) : content;
   const parent = options.graph === "missing-parent" ? commit(root.oid) : undefined;
@@ -125,7 +133,8 @@ export function refObjectReadFixture(options: {
     backingRepository: unexpected, actor: unexpected, lock: unexpected,
     clock: () => new Date(0), sleep: { wait: unexpected, bound: unexpected }, random: () => 0.5,
   };
-  return { store: createRefStore(ports), calls, namespace, version: StateVersionSchema.parse(manifest.oid), reference: RecordReferenceSchema.parse({
+  return { store: createRefStore(ports), calls, namespace, emptyVersion: StateVersionSchema.parse(empty.oid),
+    version: StateVersionSchema.parse(manifest.oid), reference: RecordReferenceSchema.parse({
     owner: { type: "work-item", name: "alpha", uid: metadataUid }, kind: "work-item/companion", key: "extra",
   }) };
 }
