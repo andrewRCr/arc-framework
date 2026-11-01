@@ -84,8 +84,12 @@ across turns). Dispatch on `recovery.value.recommendedAction` and render `recomm
   clean, reversible switch with no uncommitted work at risk.
 - `prompt` — ask once with the pre-composed text. On acceptance, a `pending` result invokes its exact
   `refreshRemedy.argv` and re-runs Step 1; `resolved`, `surface`, and `main-fallback` retain their candidate,
-  operator-choice, and `main` recovery actions respectively.
+  operator-choice, and `main` recovery actions respectively. A `removable` candidate, a shipped worktree removed
+  before recovering, is removed by its `arc teardown <name>` entry in `recovery.value.actions`: pass that entry's
+  structured `argv` directly, then re-run Step 1.
 - `surface` — render the pre-composed manual-recovery guidance and do not act.
+
+Render `recovery.value.missingFolders`, when present, as Step 5's missing-folder reports, offer-only.
 
 Do not compare `remoteEvidence`, pending counts, candidate counts, or dirt in workflow prose. The CLI owns those
 combinations; pending evidence offers only its explicit refresh or manual recovery.
@@ -888,9 +892,9 @@ tracked source documents the work.
 - `sweep.value.worktrees` non-empty (primary worktree only): branched shipped-WU worktrees and stamped detached
   husks linger. Branch on `kind`; never infer a label from optional fields.
     - `branched`: label with `branch`. `removable` offers the report's `teardown` when present, using `teardown.text`
-      and its structured `teardown.argv`; otherwise offer `git worktree remove {worktreePath}`. Map `blocked.reason`
-      as `uncommitted`, `user-surfaces`, or `unmerged`; `external` is externally managed. Keep every action
-      interlock-gated and offer-only; never use `--force`.
+      and its structured `teardown.argv`; otherwise the `arc teardown <name>` entry in its `actions`. Map
+      `blocked.reason` as `uncommitted`, `user-surfaces`, or `unmerged`; `external` is externally managed. Keep every
+      action interlock-gated and offer-only; never use `--force`.
     - `detached`: label with `workUnit` and `worktreePath`. For `removable`, offer the report's `teardown.text`
       and structured `teardown.argv`; otherwise surface the decision without a removal offer.
     - `husk`: label a non-null `completedWorkUnit` as work unit `{name}`; otherwise label a `work-unit` subject as
@@ -900,11 +904,13 @@ tracked source documents the work.
       The reserved errand subject has no shipped cleanup driver and stays manual. Map `blocked.reason` as dirty
       (`uncommitted`) or moved `HEAD` (`head-moved`); `pre-store-husk` requires a manual decision with no teardown
       command. An `outside` decision carries untrusted terminal evidence and requires manual cleanup.
-  Removal runs from the current primary worktree.
+  Removal runs from the current primary worktree. A husk left to manual cleanup is removed by hand: `arc user save`
+  in the husk, then from the primary `git worktree unlock {worktreePath}` where it is locked, and
+  `git worktree remove {worktreePath}`.
 
   ```text
   **Stale worktrees:** {N} shipped worktree(s) or stamped husk(s) linger:
-  - `{branch}` — clean & merged → clean up? `{teardown.text}` when present, else `git worktree remove {worktreePath}`
+  - `{branch}` — clean & merged → clean up? `{teardown.text}` when present, else its `actions` entry's `text`
   - `work unit {workUnit}` at `{worktreePath}` — ended & detached, clean & merged → clean up? `{teardown.text}`
   - `{branch}` — {uncommitted | user surfaces not reconciled | unmerged}; surfaced, not removed
   - `{branch}` — externally-managed (no ARC marker); remove manually if desired
@@ -918,6 +924,16 @@ tracked source documents the work.
   - `work unit {subject.name}` — `pre-store-husk`; cleanup requires a manual decision, with no teardown command
   - `errand husk {subject.slug}` — no shipped cleanup driver; surfaced for manual-only cleanup
   - `{husk label}` — untrusted terminal evidence; surfaced for manual-only cleanup
+  ```
+
+- `sweep.value.missingFolders` non-empty (primary worktree only): registrations whose folder is gone linger. Offer
+  each entry's `actions`: one with `argv` is a typed `arc teardown <name>`, passed directly; one without is text the
+  person runs once its precondition holds — the folder still missing, and `git worktree unlock` first where it
+  names one. Never run either automatically.
+
+  ```text
+  **Missing worktree folders:** {N} registration(s) whose folder is gone linger:
+  - `{worktreePath}` (`{branch}`, or detached) → clean up? `{actions[].text}`
   ```
 
 - `orphanBranchSweep.value.orphans` non-empty (primary worktree only): type-prefixed local branches whose

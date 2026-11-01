@@ -454,7 +454,7 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
           to the detail. A refusal before the unlock, the persist slot's included, leaves the lock as it was. Covered in
           `integration/worktree-projection-lock.test.ts`.
 
-### `[ ]` **4.2 Rewrite the removals printed or documented — § 12.6**
+### `[x]` **4.2 Rewrite the removals printed or documented — § 12.6**
 
 - _Goal:_ With the lock live, every removal the agent is told to run or a person is told to type names an exit verb or
   the unlock-then-remove sequence, never a plain `git worktree remove` that the lock refuses.
@@ -468,20 +468,16 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
           registration takes `git worktree unlock <path>` before `git worktree remove <path>` as text; another tool's
           lock keeps its remedy. Covered in `integration/missing-folder-lock-remedies.test.ts`.
 
-    - `[ ]` **4.2.b The workflow and strategy text**
+    - `[x]` **4.2.b The workflow and strategy text**
 
-        - `session-init.md` (`session-init.template.md` in the package, with the installed copy): the stale-worktree
-          offer becomes the `arc teardown <name>` command line `seam-locus` adds to the sweep's report; branch-gone
-          recovery's shipped-worktree prompt runs the `arc teardown <name>` it adds to the candidate; the
-          `missingFolders` reports show with their remedies; a husk no verb covers is removed by hand after
-          `arc user save` and `git worktree unlock`.
-        - `strategy-concurrent-work.md` (package and project copies): removal and recovery name the exit verbs, the
-          lock, unlocking then removing a missing folder's registration by its path, and that forcing past the lock
-          skips the persist step.
-        - Edited in the package source and synced to `.arc/`, in the shipped-content register.
-        - _Note:_ `session-init-agenda` moves session-init's orientation surfaces, the cleanup-residue lists among them,
-          into CLI-composed text. Where it has landed first, the stale-worktree offer and the missing-folder remedies
-          live in its composer: re-read both at execution and make the change wherever the text then lives.
+        - `session-init.md` (`session-init.template.md` and the installed copy; `session-init-agenda` had not landed,
+          so the text stays in the workflow): a removable branched worktree without `teardown` offers the
+          `arc teardown <name>` in its `actions`; branch-gone recovery's removable candidate runs its teardown action
+          from `argv`, then re-runs Step 1; the sweep's and recovery's `missingFolders` render with their remedies,
+          offer-only; and a husk left to manual cleanup is removed after `arc user save` and `git worktree unlock`.
+        - `strategy-concurrent-work.md` (both copies): removal names the exit verbs and the lock, and that forcing past
+          it skips the persist; a deleted folder's registration is cleared by its path, unlocked first; and the
+          refused-removal entry names the lock. Edited in the package source and synced to `.arc/`.
 
 ### `[ ]` **4.3 Clear the primary's personal `.ignore` — § 11.5**
 
