@@ -7,11 +7,11 @@ import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import type { BatchInput, BatchResult, WriteResult, RecordObservation } from "../write.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
-import { metadataFailure, parseRefMetadata, type RefMetadata } from "./metadata.js";
+import { readRefMetadata, type RefMetadata } from "./metadata.js";
 import { refRecordVersion } from "./record-version.js";
 import { writeRefBlob } from "./tree-write.js";
 import type { RefBackendContext } from "./context.js";
-import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
+import type { ResolvedBatch, ResolvedMutation, RefWriteTarget } from "./write-resolution.js";
 import { refWriteTargets, mutationHome } from "./write-resolution.js";
 import { expandStoredPath, holdsNoRecord } from "../stored-path.js";
 import type { RecordReference } from "../identity.js";
@@ -258,26 +258,29 @@ async function readWriteGroups(context: RefBackendContext, resolved: ResolvedBat
       historyRefs: await missingHistoryRefs(context, [home.ref], resolved.tips),
       condition: `The tip or a tree of ${home.ref} is unavailable locally.`,
     }).refusal };
-    const priorMetadata = tip ? objects.get(metadataOids.get(home.ref) ?? "") ?? null : undefined;
-    const metadata = capturedGroupMetadata(resolved, home.ref, reference, priorMetadata)
-      ?? (holdsNoRecord(home, (trees.get(home.ref) ?? []).map(({ path }) => path))
-        ? capturedGroupMetadata(resolved, home.ref, reference, undefined) : null);
-    if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
-      namespace: home.ref, ...metadataFailure(home.ref) } };
+    const metadata = await capturedGroupMetadata(context, resolved, { reference, home }, trees.get(home.ref) ?? [], objects);
+    if (metadata.status === "refused") return metadata;
     const entries = new Map((trees.get(home.ref) ?? []).map((entry) => [entry.path, entry]));
-    groups.set(home.ref, { metadata, entries, original: new Map(entries) });
+    groups.set(home.ref, { metadata: metadata.result, entries, original: new Map(entries) });
   }
   return { status: "ok", result: groups };
 }
 
 /**
- * Parse a captured ref's metadata, or start a new ref's. An ended owner's version names its latest folder's quarter,
+ * Read a captured ref's metadata, or start a readable record-free ref's. An ended owner's version names its latest folder's quarter,
  * so admission and results agree with what reads return.
  */
-function capturedGroupMetadata(resolved: ResolvedBatch, ref: string, reference: RecordReference, object: BatchObject | null | undefined): RefMetadata | null {
-  // A missing ref starts metadata afresh. A readable existing value keeps auxiliary identity and history facts.
-  const metadata = object !== undefined ? parseRefMetadata(object, ref)
-    : { formatVersion: 1 as const, formats: {}, ...(/^refs\/arc\/(?:work|cohort)\//u.test(ref) ? { slug: reference.owner.name } : {}) };
-  const latest = latestFolderPlacement(resolved.archived ?? [], ref);
-  return metadata && latest ? withCompletedPlacement(metadata, latest) : metadata;
+async function capturedGroupMetadata(context: RefBackendContext, resolved: ResolvedBatch, { reference, home }: RefWriteTarget,
+  entries: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>): Promise<StoreResult<RefMetadata>> {
+  const entry = entries.find(({ path }) => path === home.metadataPath);
+  const read = readRefMetadata(home.ref, entry, objects);
+  if (read.kind !== "parsed" && (read.kind === "missing" || !holdsNoRecord(home, entries.map(({ path }) => path)))) {
+    return { status: "refused", refusal: refObjectFault(home.ref, read.kind === "absent" ? "no-metadata" : read.kind, {
+      historyRefs: read.kind === "missing" ? await missingHistoryRefs(context, [home.ref], resolved.tips) : undefined,
+    }).refusal };
+  }
+  const metadata = read.kind === "parsed" ? read.metadata
+    : { formatVersion: 1 as const, formats: {}, ...(/^refs\/arc\/(?:work|cohort)\//u.test(home.ref) ? { slug: reference.owner.name } : {}) };
+  const latest = latestFolderPlacement(resolved.archived ?? [], home.ref);
+  return { status: "ok", result: latest ? withCompletedPlacement(metadata, latest) : metadata };
 }

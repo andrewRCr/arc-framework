@@ -8,6 +8,7 @@ import type { RefBackendContext } from "./context.js";
 import { readRefTrees } from "./batch-read.js";
 import type { RefWriteGroup } from "./write-commits.js";
 import type { ResolvedBatch, RefWriteTarget } from "./write-resolution.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** A lineage write also observes and locks its origin, even when it removed its primary earlier. */
 export function retirementTargets(context: Pick<RefBackendContext, "registry">, batch: ResolvedBatch): RefWriteTarget[] {
@@ -32,8 +33,9 @@ export async function planRefRetirements(context: RefBackendContext, batch: Reso
   const registryRef = "refs/arc/project/registry", registryTip = batch.tips.get(registryRef);
   const registry = groups.get(registryRef)?.entries;
   const captured = !registry && registryTip ? await readRefTrees(context, new Map([[registryRef, registryTip]])) : undefined;
-  if (!registry && registryTip && !captured?.has(registryRef)) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: registryRef,
-    condition: "The lineage registry tree is unavailable.", remedy: { text: `Restore or fetch the missing objects for ${registryRef}, then retry retirement.` } } };
+  if (!registry && registryTip && !captured?.has(registryRef)) return { status: "refused", refusal: refObjectFault(registryRef, "missing", {
+    condition: "The lineage registry tree is unavailable.", remedy: { text: `Restore or fetch the missing objects for ${registryRef}, then retry retirement.` },
+  }).refusal };
   const lineagePaths = new Set(registry ? registry.keys() : captured?.get(registryRef)?.map(({ path }) => path));
   const plans: RefRetirementPlan[] = [];
   for (const [ref, group] of groups) {

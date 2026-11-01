@@ -5,6 +5,7 @@ import { createRefStore, RecordReferenceSchema, type StoreRecord } from "../../s
 import { createRefFixture } from "../helpers/store/ref-fixture.js";
 import { seed, success, testProvenance, update } from "../helpers/store/suite-tools.js";
 import { removeLooseObject } from "../helpers/store/ref-plant.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 
 function liveRef(record: StoreRecord): string {
   if (!("uid" in record.reference.owner) || !record.reference.owner.uid) throw new Error("Expected stored owner UID");
@@ -78,10 +79,39 @@ it("names unavailable retained history and succeeds after restoring the original
   await f.ports.exec("git", ["update-ref", history, ancestor]);
   await removeLooseObject(f.root, ancestor, f.gitDir);
   const mutation = { ...update(f, current, current.content), placement: { kind: "completed" as const, quarter: ArchiveQuarterSchema.parse("2026-q4") } };
-  expect(await f.store.write(mutation)).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: history,
+  expect(await f.store.write(mutation)).toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", historyRefs: [],
+    condition: expect.stringContaining(history),
     remedy: { text: expect.stringMatching(/restore|fetch/iu) } } });
   expect(success(await f.store.read({ reference: current.reference }))).toEqual(current);
   const restored = await f.ports.execInput(["hash-object", "-t", "commit", "-w", "--stdin"], new TextDecoder().decode(object));
   expect(restored.trim()).toBe(ancestor);
   expect(await f.store.write(mutation)).toMatchObject({ status: "ok" });
+});
+
+it("keeps an unrelated completed ancestry failure terminal and retries after the executor recovers", async () => {
+  const f = await createRefFixture();
+  const first = await seed(f, f.reference("work-item/meta"));
+  const live = liveRef(first), history = live.replace("refs/arc/", "refs/arc/history/");
+  const ancestor = (await f.ports.exec("git", ["rev-parse", live])).stdout.trim();
+  success(await f.store.write(update(f, first)));
+  const current = success(await f.store.read({ reference: first.reference }));
+  const tip = (await f.ports.exec("git", ["rev-parse", live])).stdout.trim();
+  await f.ports.exec("git", ["update-ref", history, ancestor]);
+  const before = await f.settle();
+  let blocked = true;
+  const store = createRefStore({ ...f.ports, exec: async (command, args, options) => {
+    if (blocked && args.includes("merge-base") && args.includes("--is-ancestor") && args.includes(ancestor) && args.includes(tip)) {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "fatal: permission check failed" });
+    }
+    return f.ports.exec(command, args, options);
+  } });
+  const mutation = { ...update(f, current, current.content), placement: { kind: "completed" as const, quarter: ArchiveQuarterSchema.parse("2026-q4") } };
+  expect(await store.write(mutation)).toMatchObject({ status: "refused", refusal: {
+    code: "namespace-corrupt", class: "terminal", namespace: history, condition: expect.stringContaining("permission check failed"),
+    remedy: { text: `Restore or fetch the missing objects for ${history} in the store repository, then retry.` },
+  } });
+  expect(await f.settle()).toBe(before);
+  blocked = false;
+  success(await store.write(mutation));
+  expect(success(await f.store.read({ reference: current.reference })).placement?.kind).toBe("completed");
 });

@@ -192,29 +192,11 @@ classification calls the sweep settled.
   guard to close archived read, history, write, and observation recovery together. Metadata and remaining tree sites
   below still complete this task.
 
-    - `[ ]` **3.3.a The write path**
-        - `readWriteGroups` with `capturedGroupMetadata`, `staleMutation`, `checkRecord`, the archive quarter reads,
-          `planRefRetirements`, and `checkRefHistoryDestinations`, whose other Git failures keep today's condition and
-          remedy, built in place rather than through `corruptRef`.
-        - A present metadata entry whose blob is missing refuses **Missing** in a record-free tree too; an absent entry
-          or unparseable metadata there still starts fresh metadata, as today.
-        - `copyArchiveEntries` reads its own metadata through 2.1 and classifies a fault through the helper ahead of
-          `archiveOutputControlRefusal`. That blob was staged by the same batch, so no public input reaches the fault
-          arm and it has no failing-first case.
-        - Build `test-first` (one behavior at a time):
-            - a write whose target tree is missing refuses **Missing**, naming the history ref only for a target with
-              no live ref
-            - a write whose metadata blob is missing refuses **Missing**, in a tree holding records and in a record-free
-              one; unparseable metadata keeps the forward repair in a tree holding records and starts fresh in a
-              record-free one
-            - once that blob is restored, the same write succeeds
-            - a write to a record-free ref with no metadata entry still starts fresh metadata
-            - a create-only put whose prior record blob is missing refuses **Missing**, not `version-conflict`
-            - an archive write whose quarter tree is missing refuses **Missing**; an owner mismatch keeps
-              `record-malformed`
-            - a retirement whose registry tree is missing refuses **Missing**
-            - a history-destination check that Git fails on a missing object refuses **Missing**; any other Git failure
-              stays terminal, naming Git's message
+    - `[x]` **3.3.a The write path**
+        - Write metadata keeps absence, loss, and decoding distinct, including record-free refs. Immutable prior reads
+          and checked records preserve Missing and current history routes. Quarter/registry guards and staged archive
+          metadata use the helper before control admission. History destinations confirm object loss and keep other
+          completed Git failures terminal with their original message and remedy.
 
     - `[ ]` **3.3.b The views**
         - `viewRefMetadata` takes § 1.2's read for its callers in `write-views.ts` and `cohort-coordinates.ts`;

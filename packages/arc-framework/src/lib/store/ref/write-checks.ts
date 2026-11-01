@@ -11,6 +11,8 @@ import type { RefWriteGroup } from "./write-commits.js";
 import { readBatchObjects, type BatchObject } from "./batch-read.js";
 import { createRefWriteViews } from "./write-views.js";
 import { checkRefObservations } from "./write-observations.js";
+import { refObjectFault } from "./object-fault.js";
+import { missingHistoryRefs } from "./missing-history.js";
 
 /** Check every caller mutation in order, retaining the original and final bytes. */
 export async function checkRefWrites(context: RefBackendContext, writes: readonly PreparedRefMutation[],
@@ -28,9 +30,9 @@ export async function checkRefWrites(context: RefBackendContext, writes: readonl
   for (const { reference, ref, priorPath, nextPath } of units) {
     const group = groups.get(ref);
     if (!group) throw new Error("A checked mutation has no captured ref group");
-    const priorSide = checkRecord(context, reference, entryOid(group.original, priorPath), objects);
+    const priorSide = await checkRecord(context, { reference, ref, oid: entryOid(group.original, priorPath) }, objects, tips);
     if (priorSide.status === "refused") return priorSide.refusal;
-    const nextSide = checkRecord(context, reference, entryOid(group.entries, nextPath), objects);
+    const nextSide = await checkRecord(context, { reference, ref, oid: entryOid(group.entries, nextPath) }, objects, tips);
     if (nextSide.status === "refused") return nextSide.refusal;
     const prior = priorSide.result, next = nextSide.result;
     const check = context.registry[reference.kind].check;
@@ -42,13 +44,15 @@ export async function checkRefWrites(context: RefBackendContext, writes: readonl
   return composeWriteCheckRefusal(results);
 }
 
-function checkRecord(context: RefBackendContext, reference: RecordReference, oid: string | undefined,
-  objects: ReadonlyMap<string, BatchObject | null>): StoreResult<{ content: string; fields?: unknown } | undefined> {
+async function checkRecord(context: RefBackendContext, { reference, ref, oid }: { reference: RecordReference; ref: string; oid: string | undefined },
+  objects: ReadonlyMap<string, BatchObject | null>, tips: ReadonlyMap<string, string>): Promise<StoreResult<{ content: string; fields?: unknown } | undefined>> {
   if (oid === undefined) return { status: "ok", result: undefined };
   const object = objects.get(oid);
-  if (object?.type !== "blob") return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", reference, historyRefs: [],
+  if (object?.type !== "blob") return { status: "refused", refusal: refObjectFault(ref, "missing", {
+    reference, historyRefs: await missingHistoryRefs(context, [ref], tips),
     condition: `The captured record blob ${oid} is unavailable.`,
-    remedy: { text: "Restore or fetch the missing record objects, then retry the write." } } };
+    remedy: { text: "Restore or fetch the missing record objects, then retry the write." },
+  }).refusal };
   let content: string;
   try { content = new TextDecoder("utf-8", { fatal: true,
     ignoreBOM: context.registry[reference.kind].projection !== "never" }).decode(object.bytes); }
