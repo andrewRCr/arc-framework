@@ -298,7 +298,7 @@ beforeAll(async () => {
     const root = await createTempRepo("arc-candidate-lineage-template-");
     const initialized = await runArc(["init", "--yes", "--name", "example"], root);
     expect(initialized.exitCode, initialized.stderr || initialized.stdout).toBe(0);
-    await git(root, ["add", ".arc", ".gitignore"]);
+    await git(root, ["add", ".arc", ".gitignore", ".ignore"]);
     await git(root, ["commit", "-m", "install ARC"]);
     return root;
   });

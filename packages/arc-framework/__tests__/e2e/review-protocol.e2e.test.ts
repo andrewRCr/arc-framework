@@ -110,7 +110,7 @@ async function fixture(): Promise<string> {
   roots.push(root);
   const initialized = await runArc(["init", "--yes", "--name", "review-protocol"], root);
   expect(initialized.exitCode, initialized.stderr || initialized.stdout).toBe(0);
-  await git(root, ["add", ".arc", ".gitignore"]);
+  await git(root, ["add", ".arc", ".gitignore", ".ignore"]);
   await git(root, ["commit", "-m", "install ARC"]);
   await git(root, ["switch", "-c", "feat/review-protocol"]);
   await mkdir(join(root, ".arc", "active"), { recursive: true });
