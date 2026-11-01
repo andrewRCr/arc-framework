@@ -127,9 +127,22 @@ criterion; independent review has its own report-level verdict:
 A verdict never replaces the entry's `state`, which stays `[x]` / `[~]` / `[ ]` as above. A criterion superseded by
 the amendment is `[~]` citing the log row's id and carries no verdict.
 
-Locate a member's deltas through the log: each `## Amendments` row's `_Work:_` names the corrective parent whose
-closing subtask carries that delta. Never locate one positionally, and never by scanning a member's revision
-parents — either would be a second authority over the same fact.
+Locate a member's deltas through the `## Amendments` log. With corrective work, `_Work:_` names the parent whose closing
+subtask carries the delta. For `_Work:_ none`, `_Revalidated:_` names the covering verifier; `pending → X.Z` names `X.Z`
+while the detour is open.
+
+When the caller is that covering verifier and the row is pending, run the bounded delta walk over the amendment's
+changed criteria and span, and record its delta in the caller's verification evidence under the row id before composing
+the effective report. Preserve the base report and inherited criterion digests; this is not a fresh member walk.
+Close the row only after the verifier passes. Member completion stays unresolved while any effective criterion remains
+`[ ]`.
+
+For `_Work:_ none`, consume only the delta keyed by the amendment row's id in the named verifier's verification evidence.
+A missing or ambiguous delta leaves the affected member unresolved `[ ]`; never substitute another amendment's evidence.
+Other callers consume the recorded delta through the same locator.
+
+Never locate a delta positionally or by scanning revision parents — either would be a second authority over the same
+fact.
 
 ### Verification subject
 

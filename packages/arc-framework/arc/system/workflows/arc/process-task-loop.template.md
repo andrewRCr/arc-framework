@@ -6,6 +6,7 @@ arc:
     - issue-triage
     - review-chunking
     - testing-standards
+    - validate-criteria
     - verification-review
 ---
 
@@ -193,10 +194,15 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      for terminal verification. If the report contains an unresolved `[ ]`, dispatch to item 4's unresolved branch;
      otherwise dispatch to its resolved completion branch.
 
-     **A closing task that already carries a preserved boundary report does not re-walk.** It closes on the effective
-     report — that preserved report plus the deltas recorded since, composed per [validate-criteria's amendment
-     deltas][criteria-deltas] — with a completion note citing the subtask that recorded the delta, and dispatches to
-     item 4's resolved completion branch. The key is a fact on the task being executed, never list-wide state.
+     **A closing task that already carries a preserved boundary report does not re-walk.** For a `_Work:_ none`
+     amendment awaiting this verifier, run [validate-criteria's amendment-delta procedure][criteria-deltas] over the
+     changed criteria and amendment span; record the bounded delta in this verifier's own evidence, keyed by the
+     amendment row id.
+
+     Compose the effective report from the preserved report and its deltas. If any criterion remains `[ ]`, dispatch to
+     item 4's unresolved branch; otherwise close with a completion note citing the delta subtask, or the verifier and
+     amendment id for a work-free delta, and dispatch to the resolved branch. The key selecting this branch is the
+     preserved report on the task being executed, never list-wide state.
 
      Before a fresh member criteria walk or its first independent reviewer, invoke `arc review changeset resolve -`
      over the bounded member diff, including local edits, using `validate-criteria` § Verification subject for its
@@ -263,9 +269,10 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      completion branch.
 
      Every answer — `Fix now`, `amend`, and `defer` alike — enters [`amend-design`][amend-design]; its
-     [entry gate][amend-design-gate] decides what the chosen answer changes. None of them lands work inside the
-     verifier's own increment: the correction takes a revision parent of its own, and this task closes later on
-     the effective report.
+     [entry gate][amend-design-gate] decides what the chosen answer changes. Corrective work takes a revision parent of
+     its own; it never lands inside the verifier's increment. An amendment with `_Work:_ none` needs no corrective
+     parent: the covering verifier records its bounded delta as verification evidence through the preserved-report path
+     above. This task closes only on a resolved effective report.
 
      **Resolved completion branch:** Finalize the task completion and report it through the ordinary task interlock.
 
