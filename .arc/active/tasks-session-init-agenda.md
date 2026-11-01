@@ -71,38 +71,17 @@ with a typed refusal, and leaves the repository as found.
 - _Goal:_ `arc agenda session-init` takes the session's signals and answers as flags, refuses every invalid combination
   with one typed refusal document naming the offending flags, and builds every recompile argv from what it received.
 
-    - `[ ]` **1.3.a Register the verb**
-        - `agenda` with a `ceremony` operand in `cli.ts`; the handler lives beside the compiler, not in
-          `handlers/status.ts`, and loads lazily, so its module joins `expectedImplementationModules`
-          (`__tests__/unit/cli-loading-boundary.test.ts`)
-        - Under "Inspect work and context:" in `HELP_GROUPS` (`lib/cli-help-content.ts`), with a summary in
-          `COMMAND_SUMMARIES` (`lib/cli-help-summaries.ts`); root help lines stay within 80 characters
-        - A command-input registration in `command-input-registrations.ts` whose schema has a field per operand and
-          option, `ceremony` included, mapped through `schemaFields`, with `--json` declared machine-mode
-        - The verb runs the probe's fetches, which can prompt for credentials, so it declares an interaction-context
-          site as status does (`handlers/status/input.ts`) and runs under `withInteractionContext`, which passes
-          `interaction.subprocess` to `createGitExec`. Status keeps its own declaration; the `declaredSemanticSites`
-          pin in `repository-inventory.test.ts` and `NO_INPUT_MATRIX`
-          (`__tests__/fixtures/command-input/no-input-matrix.ts`) each gain the verb's entry. That entry moves
-          `no-input-invocations.test.ts`'s invocation-count pins, and `command-input-no-input.e2e.test.ts` runs it, so it
-          carries `args` and an `expected` outcome that hold in its fixture
-        - Repeatable `--answered` and `--done` follow `task close --commit`'s precedent
+    - `[x]` **1.3.a Register the verb**
+        - Registered the lazy `agenda <ceremony> [seed]` adapter, all signal options, and repeatable answer/done
+          options. Added strict command-owned input, machine-output and interaction-context declarations, help
+          grouping, implementation inventory, and no-input fixture/count pins. The built command terminates through
+          the provisional uncompiled-row refusal, and its root help stays within 80 columns.
 
-    - `[ ]` **1.3.b Parse signals and refuse invalid combinations**
-        - Validation lives in the input schema or the handler, not Commander's `.conflicts()`, so every refusal is one
-          `--json` document `{code, flags, row, remedy}` on stdout with exit 1; Task 1.5.b's `row-not-compiled` uses
-          the same document
-        - Build `test-first` (one behavior at a time):
-            - a ceremony other than `session-init` refuses, naming the accepted value
-            - two of `--errand`, `--housekeep`, `--plan`, `--context` refuse together, naming both
-            - `--errand --next` with a slug or description refuses
-            - `--isolate` without `--errand` refuses
-            - `--answered` splits at its last `=`; one with no `=` or an answer other than `accept` or `decline`
-              refuses
-            - a `--done` value not of the form `<surface>:<action>`, with an optional operand segment, refuses
-            - the same key answered twice with different answers refuses; the same answer twice is one answer
-            - bare `--plan` and `--errand` parse as `true`; a value parses as one string
-            - `signals` echoes exactly what was passed
+    - `[x]` **1.3.b Parse signals and refuse invalid combinations**
+        - Added pure signal and decision acquisition with typed `{code, flags, row, remedy}` refusals before probing.
+          Conflicting intents, named errand-next, orphan isolation, malformed decisions, and contradictory answers
+          refuse; exact signal values, final-equals answer parsing, and identical-answer collapse are preserved.
+          Native CLI coverage verifies one JSON refusal and corrected input reaching ordinary dispatch.
 
     - `[ ]` **1.3.c Carry answers into every emitted argv**
         - One argv builder every later compile uses: `["arc", "agenda", "session-init", "--json"]`, then the signals as
