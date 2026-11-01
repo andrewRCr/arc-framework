@@ -215,14 +215,11 @@ classification calls the sweep settled.
           unrelated Git failures and coordinate gaps. Saved-end metadata keeps historical remedies; named and lineage
           restrictions preserve Missing through exact-object restoration and retry.
 
-### `[ ]` **3.5 Pull merges, tip checks, fetch checks, and push exclusion — § 1.7, § 1.9**
+### `[x]` **3.5 Pull merges, tip checks, fetch checks, and push exclusion — § 1.7, § 1.9**
 
 - _Goal:_ A pull holds a ref that has a missing object with the restore remedy, a push excludes it with a `refused`
   failure carrying that remedy, and a merge base's unparseable metadata takes the historical remedy while its tips take
   the forward repair.
-
-- _Note:_ See `notes-storage-ref-hardening.md` § Fault-site inventory › 3.5 and § Classification calls the sweep settled
-  for its sites, their rows and sides.
 
     - `[x]` **3.5.a Tip checks and push exclusion**
         - Sync tip holds preserve Missing and current-tip forward repairs. Public pulls and pushes retain damaged
@@ -235,15 +232,11 @@ classification calls the sweep settled.
           history refreshes use Missing. Empty label revisions stay record-free; empty retained tips require lost
           metadata restored before archive refresh. Exact-object restoration admits the held pulls again.
 
-    - `[ ]` **3.5.c Lifecycle holds and fetch checks**
-        - The lifecycle walks in `sync-corrupt.ts`, `sync-lifecycle-holds.ts`, and `sync-batches.ts`;
-          `incomingLineageHolds`; `observeTerminalEndedTwice` and `observeOwnerEnds`; and `unavailableFetchGraphNotice`
-          with its callers.
-        - Build `test-first` (one behavior at a time):
-            - a lifecycle walk that meets a missing commit holds **Missing**
-            - `observeTerminalEndedTwice` holds **Missing** for a present lineage record whose blob is missing, and
-              skips an owner with no record
-            - a fetch check whose graph lacks an object raises its notice with the **Missing** row
+    - `[x]` **3.5.c Lifecycle holds and fetch checks**
+        - Lifecycle and fetch graph holds use Missing reports and keep their captured holds and specific conditions.
+          Terminal lineage reads distinguish absent entries from lost blobs by checking the tree after a missing point
+          answer; present non-blobs remain Missing. Retained-end object loss uses the same report; repair admits the
+          original pull or push.
 
 ### `[ ]` **3.6 The withdrawal — § 1.3, § 1.9, § 9**
 

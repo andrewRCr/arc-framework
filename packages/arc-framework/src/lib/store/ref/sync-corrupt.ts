@@ -8,7 +8,6 @@ import { readUnpublishedRefBatches, expandRefBatchExclusion, type UnpublishedRef
 import { syncRefIsAncestor } from "./sync-graph.js";
 import { readBatchObjects, readRefTrees, type RefTreeEntry, type BatchObject } from "./batch-read.js";
 import { refPrototype } from "./read.js";
-import { corruptRef } from "./namespace-health.js";
 import { readLineageOwners } from "./lineage-resolution.js";
 import { holdLifecycleRef, lifecycleRefHeld } from "./sync-lifecycle-holds.js";
 import { isUnavailableGraphFailure } from "./history-graph.js";
@@ -157,8 +156,8 @@ async function hasCompetingHistory(context: RefBackendContext, held: ReadonlyMap
     if (compared === "unavailable") {
       holdLifecycleRef(blocked, ref);
       const live = ref.replace("refs/arc/history/", "refs/arc/");
-      notices.push({ kind: "namespace-corrupt", ref: live, condition: `Lifecycle history for ${live} is unavailable locally.`,
-        remedy: corruptRef(ref, true).remedy });
+      const { condition, remedy } = refObjectFault(ref, "missing", { condition: `Lifecycle history for ${live} is unavailable locally.` });
+      notices.push({ kind: "namespace-corrupt", ref: live, condition, remedy });
     }
   }
   return false;
