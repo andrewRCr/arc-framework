@@ -214,9 +214,11 @@ The grammar is closed and defined here only. A row runs two lines at most, in th
 - `_Supersedes:_` — a section-and-paragraph locus, or `none`.
 - `_Trigger:_` — a site token, `segment` | `member` | `terminal` | `must-stop` | `review` | `door`, preceded by
   the detecting task id where one exists, or by the finding id at `review`.
-- `_Work:_` — the corrective parent's id, or `review-fix` when the correction is a review-fix increment.
+- `_Work:_` — the corrective parent's id, `review-fix` when the correction is a review-fix increment, or `none`
+  when the amendment only removes or relaxes obligations and needs no corrective work.
 - `_Revalidated:_` — the closing check: a task id, `verify-work-unit`, `review-fix`, or `pending → X.Z` while the
-  detour is open.
+  detour is open. For `_Work:_ none` at any entry site, use `pending → X.Z` until the next covering verifier
+  passes, then record that verifier's id.
 
 ### Where the change lands in the record
 
@@ -347,6 +349,7 @@ coincide at the member site and diverge elsewhere.
 
 | Site                   | `_Revalidated:_`                            | What the re-record contains                                 |
 | ---------------------- | ------------------------------------------- | ----------------------------------------------------------- |
+| `_Work:_ none`         | `pending → X.Z`, the next covering verifier | no corrective parent; closes on that verifier's evidence    |
 | member verifier        | the delta subtask's id                      | a delta against the member's boundary report                |
 | segment verifier       | the re-run verifier's own id                | the scenario's outcome — the verifier's ordinary completion |
 | terminal verification  | the verification rerun                      | none — the walk reruns against the current subject          |
