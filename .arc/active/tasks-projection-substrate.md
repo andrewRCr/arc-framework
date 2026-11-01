@@ -479,14 +479,13 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
           it skips the persist; a deleted folder's registration is cleared by its path, unlocked first; and the
           refused-removal entry names the lock. Edited in the package source and synced to `.arc/`.
 
-### `[ ]` **4.3 Clear the primary's personal `.ignore` — § 11.5**
+### `[x]` **4.3 Clear the primary's personal `.ignore` — § 11.5**
 
 - _Goal:_ The primary's untracked `.ignore`, holding one personal Marksman line, is gone before the tracked one lands
   there, so the line is dropped on purpose rather than overwritten unseen.
 
-    - Delete the primary's untracked `.ignore`, its line not carried over. Git would not refuse the pull: it treats an
-      ignored file as expendable and overwrites it without a word.
-    - Record the deletion in the completion note.
+- _Outcome:_ The primary's untracked `.ignore` is deleted, its comment and its one line, `packages/arc-framework/arc/`,
+  not carried over; Git had reported it ignored, on `main` at `a0c89b59c9`.
 
 ### `[x]` **4.4 Removal behind the lock** — validate exit criterion at segment scope
 
