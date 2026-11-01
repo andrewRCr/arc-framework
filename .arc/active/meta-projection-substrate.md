@@ -11,13 +11,14 @@
 - **Design:** `spec-projection-substrate.md`
 - **Task List:** `tasks-projection-substrate.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:83564838a59030eba181b95579265e4cc82ae4a0b0b9ef2562ee53cc819557ff`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 3.R — Keep an emptied aside copy for the next command's sweep (A1)
-- **Next Task:** Task 5.1 — Complete verification (line ~526)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 5.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.1 — load and follow `verify-work-unit.md`; hosted CI runs at the verified head
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

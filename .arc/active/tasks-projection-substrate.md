@@ -523,60 +523,65 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Increment and forced merge gates passed; normal hosted CI 41356724453 passed at e81826e07d,
+  including Linux integration/E2E and the Windows/macOS portability pair.
+- _Success criteria:_ 15 met; none superseded. The four chunks and shared contracts passed criteria review, with no
+  findings in fix-check round 3. The engine remains dark; worktree locks and managed ignore content are live.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` On Linux and in a dispatched run of the portability pair, the save-loss harness loses no save timed into a
+- `[x]` On Linux and in a dispatched run of the portability pair, the save-loss harness loses no save timed into a
   replacement, a rebuild, or a file removal — saved in place or by renaming a new file over it — a copy whose path moved
   on kept and reported; an absent file is rebuilt by the link alone and yields to a save that recreated it; and the next
   command's sweep takes over the copies a stopped command left, but for the residuals the spec's § 17 names.
 
-- `[ ]` Before the flip, every checkout ARC spawns for a work unit or an Errand carries `PROJECTION_LOCK_REASON`, or
+- `[x]` Before the flip, every checkout ARC spawns for a work unit or an Errand carries `PROJECTION_LOCK_REASON`, or
   keeps a lock another tool set first, reported; under `PROJECTION_LOCK_REASON` a plain `git worktree remove` refuses
   it naming the exits, the removal function removes it or, failing after its unlock, locks it again, and a move keeps
   it; and an `arc start --here` checkout carries none.
 
-- `[ ]` The guard refuses a projected root no rule ignores and an `.arc/user/*/` rule outside `.gitignore`, and passes
+- `[x]` The guard refuses a projected root no rule ignores and an `.arc/user/*/` rule outside `.gitignore`, and passes
   once the line is restored; and `arc init` (with `--reconfigure`), `join`, and `update` write the managed `.ignore`
   block, which re-includes the four roots and keeps a repository's own lines.
 
-- `[ ]` A same-size save inside one modification-time tick reads as changed, and still does after a later index write
+- `[x]` A same-size save inside one modification-time tick reads as changed, and still does after a later index write
   smudges its entry, a file truncated to empty included; and a changed file identity sends a file to the hash.
 
-- `[ ]` Base-stamp recovery takes the exact version a file's content equals, else the closest candidate, else an empty
+- `[x]` Base-stamp recovery takes the exact version a file's content equals, else the closest candidate, else an empty
   base, reading `history` at most once per record between the write-backs the command lands to it; and a save carrying
   the stamp the last persisted write-back read takes the content that write-back took in as its base.
 
-- `[ ]` Taken with the 200 ms bound fan-out and the end use, a sibling's projection lock held past it is skipped and one
+- `[x]` Taken with the 200 ms bound fan-out and the end use, a sibling's projection lock held past it is skipped and one
   released within it is taken; and no acquire, renewal, or release recreates a removed worktree's Git directory.
 
-- `[ ]` Session-init's stale-worktree offer and branch-gone recovery name `arc teardown <name>`; a registration whose
+- `[x]` Session-init's stale-worktree offer and branch-gone recovery name `arc teardown <name>`; a registration whose
   folder is missing under the projection's lock takes its typed `arc teardown <name>` where the sweep offers it, and
   otherwise the remedy that runs `git worktree unlock` before the removal; and `strategy-concurrent-work.md` names the
   exit verbs and the lock.
 
-- `[ ]` Before the flip, the worktree lock, the managed `.ignore` block, and this repository's `.gitignore` without its
+- `[x]` Before the flip, the worktree lock, the managed `.ignore` block, and this repository's `.gitignore` without its
   `.ignore` line are live.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
-- `[ ]` An aside copy empty at its writer's second check is neither sent nor deleted there, and the next command's sweep
+- `[x]` An aside copy empty at its writer's second check is neither sent nor deleted there, and the next command's sweep
   settles it as any copy it takes over; and on Linux and in a dispatched run of the portability pair, the save-loss
   harness loses no save, one that left the file empty past the settle window included.
 
-- `[ ]` A same-size save after a clean hash, after a swap link, or after an ignore snapshot remains detectable when
+- `[x]` A same-size save after a clean hash, after a swap link, or after an ignore snapshot remains detectable when
   later index/reference writes land.
 
-- `[ ]` After a passing ignore guard, changing or unsetting core.excludesFile forces a new effective-rules verdict
+- `[x]` After a passing ignore guard, changing or unsetting core.excludesFile forces a new effective-rules verdict
   before any write into affected projected roots.
 
-- `[ ]` A cached ignore pass records the effective excludes source used by its Git guard; an unset and a valueless
+- `[x]` A cached ignore pass records the effective excludes source used by its Git guard; an unset and a valueless
   core.excludesFile cannot share a passing cache entry.
 
-- `[ ]` Changing any core.excludesFile occurrence invalidates a cached ignore pass; Git-invalid earlier values
+- `[x]` Changing any core.excludesFile occurrence invalidates a cached ignore pass; Git-invalid earlier values
   refuse writes and a repaired configuration permits retry.

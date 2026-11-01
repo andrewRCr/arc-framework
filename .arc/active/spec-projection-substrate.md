@@ -1443,7 +1443,7 @@ this design open.
 ## Amendments
 
 - **A1** — 2026-11-01 — design: an aside copy empty at its writer's second check waits for the next command's sweep.
-  _Supersedes:_ § 5.2 ¶6, § 17 item 1. _Trigger:_ 3.5 must-stop. _Work:_ 3.R. _Revalidated:_ pending → 5.1.
+  _Supersedes:_ § 5.2 ¶6, § 17 item 1. _Trigger:_ 3.5 must-stop. _Work:_ 3.R. _Revalidated:_ 5.1.
 
 - **A2** — 2026-11-01 — design: protect observed stats when publishing a new index reference.
   _Supersedes:_ § 3.3 “Smudging”. _Trigger:_ F2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
