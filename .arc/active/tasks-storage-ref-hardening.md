@@ -157,15 +157,10 @@ classification calls the sweep settled.
           Existing point, claim, and conflict Missing builders share the mapper while retaining their own text;
           native nested-tree restoration resumes both point reads and history.
 
-    - `[ ]` **3.1.b Listings**
-        - The listing decoders in `read.ts` and `archive-view.ts` take § 1.2's read; `recordDiagnostic` gives a current
-          listing's unavailable record blob the restore remedy.
-        - Build `test-first` (one behavior at a time):
-            - a live listing lists a missing metadata blob as `unreadable` with the restore remedy
-            - a live listing lists unparseable metadata as `unreadable` with the forward repair, a saved listing with
-              the historical remedy
-            - a current listing lists a missing record blob with the restore remedy
-            - the listing's output shape is unchanged
+    - `[x]` **3.1.b Listings**
+        - The listing decoders and record diagnostics already use the discriminated reader and fault mapper brought
+          forward in Phase 2. Added public current/saved listing assertions for live and archive metadata remedies;
+          strict schemas and missing-record restoration remain covered without exposing the capture tag.
 
     - `[ ]` **3.1.c Owner and project lookups**
         - `readLineageOwners`, `readLiveRefOwners`, `decodeLookupCapture`, the project-identity reads with their

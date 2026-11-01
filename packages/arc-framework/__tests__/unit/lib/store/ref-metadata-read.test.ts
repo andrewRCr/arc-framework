@@ -61,4 +61,19 @@ describe("ref store metadata facts", () => {
       code: "namespace-corrupt", class: "terminal", namespace: ref, remedy: { text: expect.stringContaining("forward") },
     } });
   });
+
+  it("keeps malformed listing metadata tied to current or saved repair routes", async () => {
+    const { store, version } = fixture({ metadata: "not JSON" });
+    for (const [input, remedy] of [
+      [{ family: "work-item" as const }, /forward/u],
+      [{ family: "work-item" as const, asOf: version }, /ancestor/u],
+    ] as const) {
+      const result = await store.list(input);
+      expect(result).toMatchObject({ status: "ok", result: { status: "unreadable",
+        remedy: { text: expect.stringMatching(remedy) },
+      } });
+      if (result.status !== "ok") throw new Error("Expected listing");
+      expect(ListingOutcomeSchema.safeParse(result.result).success).toBe(true);
+    }
+  });
 });

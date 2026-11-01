@@ -31,7 +31,10 @@ describe("capture fault conversion through public archive reads", () => {
     } });
     for (const input of [{ family: "work-item" as const }, { family: "work-item" as const, asOf: version }]) {
       const listing = success(await store.list(input));
-      expect(listing).toMatchObject({ status: "complete", missed: true, diagnostics: [{ kind: "unreadable" }] });
+      const listingRemedy = code === "namespace-corrupt" && "asOf" in input ? /ancestor/u : remedy;
+      expect(listing).toMatchObject({ status: "complete", missed: true, diagnostics: [{ kind: "unreadable",
+        remedy: { text: expect.stringMatching(listingRemedy) },
+      }] });
       expect(ListingOutcomeSchema.safeParse(listing).success).toBe(true);
       if (listing.status === "complete") expect(listing.diagnostics[0]).not.toHaveProperty("fault");
     }
