@@ -313,6 +313,7 @@ command's sweep takes over the copies a stopped command left.
 - _Goal:_ Every replacement re-checks its file by the racy rule, takes an edit in first, and replaces by moving the old
   file aside and linking the new one in, so a save timed into the replacement lands in the aside copy rather than being
   lost, and every way the swap can end leaves the index telling the truth.
+    - _Amended in:_ 3.R (A1)
 
 - **Additional Context:** `notes-projection-substrate.md` § Spike 1, § Spike 1b, § Spike 7
 
@@ -379,6 +380,7 @@ command's sweep takes over the copies a stopped command left.
 
 - _Goal:_ Saves timed into the engine's own replacement, rebuild, and removal lose none on Linux and in a dispatched
   run of the portability pair, with evidence that every targeted interval was reached — what closes this layer.
+    - _Amended in:_ 3.R (A1)
 
 - **Additional Context:** `notes-projection-substrate.md` § Spike 1, § Spike 1b, § Spike 3
 
@@ -389,6 +391,29 @@ command's sweep takes over the copies a stopped command left.
   § 4's 50 ms bound counts as "emptied past the settle window", reported apart from a loss, which fails the run with its
   timeline. Run 41274229274 at `730e04d2a3`, the pair dispatched, passed on Windows and macOS: none lost or emptied past
   the window, every placed outcome reached, and the second check's rescue reached by truncate-then-write on both.
+
+### `[ ]` **3.R Keep an emptied aside copy for the next command's sweep — § 5.2, § 17**
+
+- _Goal:_ An aside copy empty at its writer's second check waits in the aside folder for the next command's sweep, so a
+  save that truncated the file before its move and writes late is settled there rather than lost (A1).
+
+    - `[ ]` **3.R.a The second check leaves an empty copy**
+
+        - `runSecondCheck` keeps a copy that is an empty regular file, neither sending it to the take-in port nor
+          deleting it, as `kept` whose `answer` is `empty`; the sweep's settlement of a copy is unchanged.
+        - Build `test-first` (one behavior at a time):
+            - an empty Markdown copy older than the settle window is kept at the second check, its record intact, and
+              the next sweep takes in a save written into it since
+            - one still empty at the next sweep is deleted as a deleted file
+            - an empty copy of a file other than Markdown is neither sent nor deleted at the second check
+            - a removal's empty copy keeps the removed file's entry until the sweep settles the copy
+            - a copy that is not a file, and one holding what its swap moved, are still deleted at the second check
+
+    - `[ ]` **3.R.b Count a save emptied past the settle window as lost**
+
+        - Retire the save-loss harness's "emptied past the settle window" outcome, so such a save, unless taken in or
+          kept, fails the run with its timeline; run the harness on Linux and in a dispatched run of the portability
+          pair, and record both.
 
 ## **Phase 4:** The worktree lock
 
@@ -542,3 +567,7 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
 - `[ ]` Ready for integration
+
+- `[ ]` An aside copy empty at its writer's second check is neither sent nor deleted there, and the next command's sweep
+  settles it as any copy it takes over; and on Linux and in a dispatched run of the portability pair, the save-loss
+  harness loses no save, one that left the file empty past the settle window included.

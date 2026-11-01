@@ -732,11 +732,15 @@ minted record's values, so the blob it was moving is the blob write-back read (�
 
 **The second check.** A command keeps its aside copies until it ends, then takes each worktree's projection lock again
 and checks each copy again before deleting it, since a save that opened the file microseconds before the move can write
-after the first check. A copy is deleted only once its check finds no edit or the edit it took in has landed whole; one
-whose edit write-back defers or leaves pending stays in the aside folder, and the next command's sweep sends it again
-while its path has not moved on. A removal's or release's takeover has no next sweep, so there such a copy, or one that
-never settles, refuses the step with a retry (`spec-projection-worktrees.md` § 12.2, § 12.3). Only the writer checks and
-deletes its copies while it runs, except that a removal or release of the checkout takes over a copy once it has settled
+after the first check. A copy is deleted only once its check finds no edit or the edit it took in has landed whole, and
+never while it is an empty file (A1): a save that truncates the file before writing it can leave the copy empty past
+§ 4's 50 ms, so the check would read it as a deleted file and delete it before the save's write lands. An empty copy
+stays in the aside folder, neither sent nor deleted, and the next command's sweep settles it as any copy it takes over
+(§ 5.4), by which time the save has written or the copy reads as § 4 reads an empty file. One whose edit write-back
+defers or leaves pending stays in the aside folder, and the next command's sweep sends it again while its path has not
+moved on. A removal's or release's takeover has no next sweep, so there such a copy, or one that never settles, refuses
+the step with a retry (`spec-projection-worktrees.md` § 12.2, § 12.3). Only the writer checks and deletes its copies
+while it runs, except that a removal or release of the checkout takes over a copy once it has settled
 (`spec-projection-worktrees.md` § 12.2). The sweep takes a copy over only once its writer has exited, so no sweep cuts
 short the delay the second check relies on.
 
@@ -1142,13 +1146,16 @@ Five change D13's or D17's own wording:
 
 ### 17. Residuals the design accepts
 
-1. **A write through a held handle.** A write through a handle opened before a replacement and landing after the
-   command's second check, or after a persist or release step took the aside copy over, goes to a deleted aside copy and
-   is lost (§ 5.2). Reasoned, not measured: no tested editor or agent holds a file open across saves.
+1. **A write through a held handle.** A write through a handle opened before a replacement goes to a deleted aside copy
+   and is lost (§ 5.2) where it lands after the command's second check deleted a copy that was not empty, after a later
+   sweep deleted one left empty, or after a persist or release step took the copy over. An empty copy waits for the
+   next command's sweep (A1), so a save that truncates the file first is lost only where its write lands after that
+   sweep. Reasoned, not measured: no tested editor or agent holds a file open across saves.
 2. **An exact revert during a replacement.** A save to a file other than Markdown that exactly restores the version a
    replacement replaces, made while the index still records that version — during the replacement, after a stop or a
-   rebuild's yield until the next command, or while the batch's aside copy waits for another process scope (item 7) —
-   reads as old content and is refreshed (§ 3.7): content alone cannot tell it from what the stop left.
+   rebuild's yield until the next command, while an aside copy left empty waits for that command's sweep (A1), or while
+   the batch's aside copy waits for another process scope (item 7) — reads as old content and is refreshed (§ 3.7):
+   content alone cannot tell it from what the stop left.
 3. **A forced removal.** A removal forced past the lock with `git worktree remove -f -f`, which D17 allows and Git's
    refusal suggests, skips the persist step and loses what item 4 names.
 4. **An anchored checkout removed by another tool.** A checkout claimed with `arc start --here` is not locked, so
@@ -1396,6 +1403,10 @@ _These considerations cover the design the three members build together; § 1.1 
 8. **Live before the flip.** The worktree lock, ARC's managed `.ignore` block, and this repository's `.gitignore`
    without its `.ignore` line are live before the flip (§ 1.4, § 11.5).
 9. **The quality gates pass** at every gate the project declares.
+10. **An emptied copy waits for the sweep.** An aside copy empty at its writer's second check is neither sent nor
+    deleted there, and the next command's sweep settles it as any copy it takes over; on Linux and in the portability
+    lane, the save-loss harness loses no save, one that left the file empty past the settle window included (§ 5.2,
+    § 17) (A1).
 
 ## Open Questions
 
@@ -1404,6 +1415,7 @@ this design open.
 
 ## Amendments
 
-None.
+- **A1** — 2026-11-01 — design: an aside copy empty at its writer's second check waits for the next command's sweep.
+  _Supersedes:_ § 5.2 ¶6, § 17 item 1. _Trigger:_ 3.5 must-stop. _Work:_ 3.R. _Revalidated:_ pending → 5.1.
 
 ---

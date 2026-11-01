@@ -7,6 +7,7 @@
 - [Spike 1b — moving the file aside](#spike-1b--moving-the-file-aside)
 - [Spike 3 — how editors and agent tools write](#spike-3--how-editors-and-agent-tools-write)
 - [Spike 7 — aside copies against a stale buffer's record](#spike-7--aside-copies-against-a-stale-buffers-record)
+- [A1 — an emptied aside copy waits for the next sweep](#a1--an-emptied-aside-copy-waits-for-the-next-sweep)
 
 ## Spike evidence
 
@@ -404,3 +405,33 @@ times as many copies. As § 5.2 first stated it, an absent path never moved on, 
 the person could delete the file, and then lost saves in both; with the mark beside each copy and the removal check
 reading the copies in the persist step's order, it loses nothing in either bound and agrees with the persist step.
 Option 1 amended was not run with the file deleted.
+
+## A1 — an emptied aside copy waits for the next sweep
+
+**The evidence.** The save-loss harness's first full run on desktop Windows lost one truncate-then-write save in 1,000,
+before the harness recorded timelines. Its mechanism was then reproduced deterministically: a save that truncates the
+file, its move into the aside folder, and its write landing after the command's second check, the copy's empty window
+past § 4's 50 ms. The second check reads such a copy as a deleted file (`gateRead`, `read-gate.ts`), so
+`settleAsideCopy` deletes it and the write goes to an unlinked file. The one loss fits that mechanism but was never
+traced, so its cause stays suspected. Eight later local Windows runs and three hosted runs of the portability pair lost
+none. The harness counted such a save as "emptied past the settle window", apart from a loss.
+
+**What it changes.** The writer's second check keeps any copy that is an empty regular file, neither sending nor
+deleting it, and the next command's sweep settles it as it settles any copy: a save written into it since is taken in,
+or kept where its path has moved on, and a Markdown copy still empty is deleted as a deleted file. This covers files
+other than Markdown too. Today an old empty one reaches the take-in port as an edit emptying the file, which loses a
+late write and takes in an edit no one made. The swap's first check deletes nothing and is unchanged. A removal's or
+release's takeover (`spec-projection-worktrees.md` § 12.2, § 12.3) is not the command that made the copy, and residual 1
+still names it.
+
+**The cost.** An empty copy lingers in the aside folder until the next command, and for a file other than Markdown the
+entry's in-progress record stays until then, widening residual 2's window by the same span. The harness can now count a
+save emptied past the window as lost: it waits for each save to finish before the next command's sweep, so the
+"emptied past the settle window" outcome retires.
+
+**Superseded text.** § 5.2, The second check: "A copy is deleted only once its check finds no edit or the edit it took
+in has landed whole; one whose edit write-back defers or leaves pending stays in the aside folder, and the next
+command's sweep sends it again while its path has not moved on." § 17 item 1: "A write through a handle opened before a
+replacement and landing after the command's second check, or after a persist or release step took the aside copy over,
+goes to a deleted aside copy and is lost (§ 5.2). Reasoned, not measured: no tested editor or agent holds a file open
+across saves."
