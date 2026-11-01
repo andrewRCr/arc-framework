@@ -1,4 +1,5 @@
 /** Clone-wide remote roles read in the primary repository's configuration context. */
+import { rememberRefLookup } from "./operation-scope.js";
 import { join } from "node:path";
 import { readGitDirectories } from "../../git/directories.js";
 import type { RefBackendContext } from "./context.js";
@@ -60,13 +61,15 @@ export async function directoryExists(context: Pick<RefBackendContext, "fs">, pa
 }
 
 async function repositoryConfig(context: RefBackendContext, gitDir: string): Promise<Map<string, string>> {
-  const { stdout } = await context.rawExec([`--git-dir=${gitDir}`, "config", "--null", "--list", "--includes"], { cwd: context.checkoutRoot });
-  const values = new Map<string, string>();
-  for (const row of new TextDecoder().decode(stdout).split("\0").filter(Boolean)) {
-    const boundary = row.indexOf("\n");
-    values.set(boundary < 0 ? row : row.slice(0, boundary), boundary < 0 ? "true" : row.slice(boundary + 1));
-  }
-  return values;
+  return rememberRefLookup(context, repositoryConfig, [gitDir], async () => {
+    const { stdout } = await context.rawExec([`--git-dir=${gitDir}`, "config", "--null", "--list", "--includes"], { cwd: context.checkoutRoot });
+    const values = new Map<string, string>();
+    for (const row of new TextDecoder().decode(stdout).split("\0").filter(Boolean)) {
+      const boundary = row.indexOf("\n");
+      values.set(boundary < 0 ? row : row.slice(0, boundary), boundary < 0 ? "true" : row.slice(boundary + 1));
+    }
+    return values;
+  }, gitDir);
 }
 
 function configRemotes(config: ReadonlyMap<string, string>, repository: RefRemoteDesignation["repository"]): RefRemoteDesignation[] {

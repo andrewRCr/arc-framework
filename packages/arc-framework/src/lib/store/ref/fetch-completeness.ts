@@ -1,5 +1,6 @@
 /** Verify state object closure without allowing promised-object reads to fetch. */
 
+import { rememberRefLookup } from "./operation-scope.js";
 import type { FetchOutcome } from "../../git/fetch.js";
 import type { StoreRefusal } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
@@ -18,11 +19,13 @@ export class RefFetchIncompleteError extends Error {
 
 /** Read this physical repository's filter and promisor configuration, including other remotes. */
 export async function refFetchNeedsCompleteness(context: RefBackendContext): Promise<boolean> {
-  const { stdout } = await context.exec("git", ["config", "--null", "--list"], { cwd: context.checkoutRoot });
-  return stdout.split("\0").some((row) => {
-    const at = row.indexOf("\n"), key = (at < 0 ? row : row.slice(0, at)).toLowerCase(), value = at < 0 ? "true" : row.slice(at + 1);
-    return (key === "extensions.partialclone" || /^remote\..+\.partialclonefilter$/u.test(key)) && value.length > 0
-      || /^remote\..+\.promisor$/u.test(key) && /^(true|yes|on|1)$/iu.test(value);
+  return rememberRefLookup(context, refFetchNeedsCompleteness, [], async () => {
+    const { stdout } = await context.exec("git", ["config", "--null", "--list"], { cwd: context.checkoutRoot });
+    return stdout.split("\0").some((row) => {
+      const at = row.indexOf("\n"), key = (at < 0 ? row : row.slice(0, at)).toLowerCase(), value = at < 0 ? "true" : row.slice(at + 1);
+      return (key === "extensions.partialclone" || /^remote\..+\.partialclonefilter$/u.test(key)) && value.length > 0
+        || /^remote\..+\.promisor$/u.test(key) && /^(true|yes|on|1)$/iu.test(value);
+    });
   });
 }
 

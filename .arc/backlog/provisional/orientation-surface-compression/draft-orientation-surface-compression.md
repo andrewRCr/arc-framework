@@ -41,6 +41,26 @@
   Settle the dependency test that separates load-bearing definitions from merely explanatory ones, and decide
   whether a workflow-region reason pass is needed to validate the observed distribution.
 
+### `[ ]` **Take only the design tier of always-loaded compression; the cheap tier lands with the session-init agenda**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ its scope — compression inside `AGENT-BRIEF.ARC`, `AGENT-BRIEF.PROJECT`, `STRATEGY-INDEX`, and
+  `QUICK-REFERENCE` § Environment & Path Context.
+
+- _Observation:_ `session-init-agenda` takes the low-design tier of a 2026-10-31 cut audit over the always-loaded set
+  (Owner): verified-stale text (`AGENT-BRIEF.ARC`'s PRD → tasks pipeline line, the release-push "no target argument"
+  claim, the one-level backlog-nesting line), verbatim duplicates, template fill-time comments, and footers. The
+  design tier stays here. Its sharpest finding: `adversarial-review`, `planning-review`, and `verification-review` hand
+  both briefs to fresh reviewers as their fixed orientation, so brief passages that only duplicate `DEV-RULES.ARC` for
+  the session agent (Key Documents, Directory Structure, Session lifecycle, Review authority) still serve reviewers.
+  `STRATEGY-INDEX`'s Maintenance rule and description suffixes are also design-tier.
+
+- _Approach:_ at planning, start from the audit table in `draft-session-init-agenda.md` (or its spec) and what that
+  unit actually landed, and treat the reviewers' fixed orientation as a second consumer of the briefs.
+
+- _Captured during:_ `session-init-agenda` draft-design, 2026-10-31.
+
 ---
 
 ## Problem

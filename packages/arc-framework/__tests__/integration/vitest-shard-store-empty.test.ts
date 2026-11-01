@@ -7,6 +7,7 @@ import { expect, it } from "vitest";
 import { makeNativeReachFixture } from "../helpers/native-reach-fixture.js";
 import { readNativeShardObservations } from "../helpers/native-shard-evidence.js";
 import { qualifyNativeShardMembership, type NativeMembershipRun } from "../helpers/native-shard-qualification.js";
+import { CALL_LIMIT } from "../helpers/call-limit.js";
 
 it("qualifies one closed empty Reach share without accepting ordinary empty runs or native close failures", async () => {
   const fixture = await makeNativeReachFixture(["a"]);
@@ -22,7 +23,7 @@ it("qualifies one closed empty Reach share without accepting ordinary empty runs
     ...(shard === undefined ? [] : [`--shard=${shard}`])], { cwd: fixture.packageRoot,
     // These small native controllers run beneath the outer check's pool admission.
     env: { CI: "1", FORCE_COLOR: undefined, ARC_E2E_SKIP_BUILD: undefined, ARC_TEST_DURATION_FILE: durationFile },
-    reject: false, timeout: 30_000 });
+    reject: false, timeout: CALL_LIMIT });
   try {
     await writeFile(durationFile, content);
     for (const shard of [undefined, "1/4", "2/4", "3/4", "4/4"]) {
@@ -72,4 +73,4 @@ it("qualifies one closed empty Reach share without accepting ordinary empty runs
     expect(() => qualifyNativeShardMembership(baseline!, shards.map(run => run === emptyRun ? failedRun : run), 4))
       .toThrow("Native command failed or has incomplete run observations.");
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 120_000);
+}, 7 * CALL_LIMIT);

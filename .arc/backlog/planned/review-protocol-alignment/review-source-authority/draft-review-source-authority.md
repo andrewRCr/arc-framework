@@ -559,6 +559,29 @@
 
 - _Captured during:_ `storage-ref-backend` pre-publication review, pass 8 and its fix checks, 2026-10-29.
 
+### `[ ]` **Let a successor disposition set correct a host reply its predecessor already settled**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ "Let an Owner revise an approved disposition after its fix commits move the head" — its host-side
+  sibling: the record-side supersession succeeds, but the predecessor's posted reply and resolved thread cannot be
+  corrected through settlement.
+
+- _Observation:_ in `store-operation-git-access`'s hosted review of PR #1213 (2026-10-31), a cohort-note finding was
+  approved as a rejection, its before-fix settlement posted the reject reply, and CodeRabbit then resolved the thread.
+  The Owner reversed the decision, and a two-call supersession (`supersedes` naming the predecessor set) made it a
+  fix. The successor's after-fix settlement for that thread, carrying the correction reply, returned
+  `ambiguous / stop` with no host change: `settleHostedFinding` (`scripts/review-gate/hosted/settle.ts`) treats a
+  resolved thread with no reply matching the request body as ambiguous and never posts onto it, and nothing in the
+  successor's plan records that the thread was already settled under another disposition. On Owner direction the
+  correction was posted by hand with `gh`, and the unchanged settle request then returned `already-settled / complete`.
+
+- _Approach:_ carry the predecessor's settlement into the successor's plan: for each finding whose disposition changed
+  after its before-fix settlement ran, a correction phase that may reply on the resolved thread, bound to the
+  predecessor's reply, so a supersession needs no hand-posted reply.
+
+- _Captured during:_ `store-operation-git-access` integration, hosted review response round, 2026-10-31.
+
 ---
 
 ## Operator Selection Override

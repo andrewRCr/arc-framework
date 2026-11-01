@@ -15,7 +15,7 @@
     "README.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "592340c889e9d99a60e8aaf128d4a8640b395362c38c4a5f688734057e3a2ba1"
+      "pristine_hash": "6a17e9e0f8ac4fe2b614117ec277211387065f43ce5e96d067ff970cfbdb27af"
     },
     "reference/QUICK-REFERENCE.md": {
       "classification": "Configurable",
@@ -35,7 +35,7 @@
     "system/rules/DEV-RULES.ARC.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "5ca97fbc045f226368a377a34a87efb457f9ab1a6c3972adb11482d981fe6a98"
+      "pristine_hash": "d026ac1f3d624d4a261114ad157f7cb0fc0077180a51ef116ca56e9caf3bd391"
     },
     "system/rules/DEV-RULES.PROJECT.md": {
       "classification": "Configurable",
@@ -135,7 +135,7 @@
     "reference/strategies/arc/strategy-configurability-architecture.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "3ece93af9c0d0beb7dc5590023f6e97152a6b84e629764606c5409eb0d125646"
+      "pristine_hash": "06404900b4359a77f5a50e7a91ecc6ee080607f8e6c2f57aa9e49322d417292e"
     },
     "reference/strategies/arc/strategy-file-classification.md": {
       "classification": "Framework",
@@ -410,7 +410,7 @@
     "system/methods/validate-criteria.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "a88f127af10be97b35304343aa722371f5a32bc864b20f0e2d3c0783dcaf0a97"
+      "pristine_hash": "5fa6a60fdea8d43019d516e6c8f144b9d55641fe210b3c32106e75bbbd853a32"
     },
     "system/methods/README.md": {
       "classification": "Framework",
@@ -515,7 +515,7 @@
     "system/workflows/arc/process-task-loop.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "890ce6af7eeb57c537ca7c928919d4c2a04728a3808e0590bdae23d194aa32c9"
+      "pristine_hash": "10aa14d9fd3ee530674fc22073bfab8ba1b3b8b298ed1533f7b219addc8b08f2"
     },
     "system/workflows/arc/draft-design.md": {
       "classification": "Framework",
@@ -590,7 +590,7 @@
     "system/workflows/arc/supplemental/amend-design.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "ce1004c857c22d8e30e8ef4d704e426a13c993fe50804d84c03db43f9379415e"
+      "pristine_hash": "af37684ef7144a28e8758b1f065a550c8c5bfcc12cd3252f3e8420943abca7f5"
     },
     "system/workflows/arc/supplemental/verify-arc-integrity.md": {
       "classification": "Framework",

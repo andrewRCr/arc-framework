@@ -144,7 +144,8 @@ strategy's complete suite at the merge gate: for the store suites the gate rests
 makes on every push to `main`, so a miss shows on `main` after merge rather than before it. A run given no base or
 changing the selection's data file, runner, or check entry runs every suite in full. `ARC_STORE_CHECK=full` asks for a
 full run, the separate layout's whole conformance suite among it, and `ARC_STORE_CHECK=every` for every suite in its
-per-change form; the integration tier, the lane, and a pull request's portability run leave the store suites out.
+per-change form; the integration tier, the lane, and a pull request's portability run leave the store suites out, and
+a dispatched one leaves them all out when its change reaches none of them.
 
 ## Testing Requirements
 

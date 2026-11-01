@@ -99,8 +99,8 @@ it("retains each native portability boundary on the portability tier", () => {
     "store-ref-directory.test.ts", "store-ref-write-batching.test.ts", "store-ref-reader-lifetime.test.ts",
     "store-ref-archive-acquisition.test.ts",
     "store-ref-named-acquisition.test.ts", "store-ref-publication.test.ts",
-    "git-batch-reader.test.ts", "store-ref-separate-conformance-records.test.ts",
-    "store-ref-separate-conformance-reads.test.ts", "store-ref-separate-conformance-sync.test.ts",
+    "git-batch-reader.test.ts", "store-ref-separate-conformance-records-",
+    "store-ref-separate-conformance-reads-", "store-ref-separate-conformance-sync-",
     "store-ref-timing.test.ts", "store-ref-timing-isolation.test.ts",
   ]));
 });

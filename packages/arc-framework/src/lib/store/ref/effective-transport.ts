@@ -1,4 +1,5 @@
 /** Resolve recorded effective endpoints without applying Git's URL rewrites a second time. */
+import { rememberRefLookup } from "./operation-scope.js";
 import { isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
 import type { RefBackendContext } from "./context.js";
 
@@ -13,18 +14,22 @@ export class EffectiveTransportError extends Error {
 
 /** Read every publication destination, retaining Git's configured fetch spelling separately at the caller. */
 export async function readRemoteTransports(context: RefBackendContext, name: string): Promise<{ fetchUrl: string; pushUrls: string[] }> {
-  await validateNamedTransport(context, name);
-  const options = { cwd: context.checkoutRoot, objectAccess: "local-only" as const, preserveOutput: true };
-  const fetchUrl = lines((await context.exec("git", ["remote", "get-url", name], options)).stdout)[0] ?? "";
-  const pushUrls = lines((await context.exec("git", ["remote", "get-url", "--push", "--all", name], options)).stdout);
-  return { fetchUrl, pushUrls };
+  return rememberRefLookup(context, readRemoteTransports, [name], async () => {
+    await validateNamedTransport(context, name);
+    const options = { cwd: context.checkoutRoot, objectAccess: "local-only" as const, preserveOutput: true };
+    const fetchUrl = lines((await context.exec("git", ["remote", "get-url", name], options)).stdout)[0] ?? "";
+    const pushUrls = lines((await context.exec("git", ["remote", "get-url", "--push", "--all", name], options)).stdout);
+    return { fetchUrl, pushUrls };
+  });
 }
 
 /** Read the selected named transport without trimming URL bytes or validating an unrelated read-only push setting. */
 export async function readNamedTransport(context: RefBackendContext, name: string, operation: TransportOperation): Promise<string[]> {
-  await validateNamedTransport(context, name, operation);
-  return lines((await context.exec("git", ["remote", "get-url", ...operation === "push" ? ["--push", "--all"] : [], name],
-    { cwd: context.checkoutRoot, objectAccess: "local-only", preserveOutput: true })).stdout);
+  return rememberRefLookup(context, readNamedTransport, [name, operation], async () => {
+    await validateNamedTransport(context, name, operation);
+    return lines((await context.exec("git", ["remote", "get-url", ...operation === "push" ? ["--push", "--all"] : [], name],
+      { cwd: context.checkoutRoot, objectAccess: "local-only", preserveOutput: true })).stdout);
+  });
 }
 
 /** Ask Git what a literal operand resolves to, without contacting any receiver or suppressing its configuration. */
@@ -46,7 +51,7 @@ export async function effectiveTransportCandidates(context: RefBackendContext, e
 
 /** Select one proven literal spelling before contact; a later hook or authentication refusal never tries another. */
 export async function selectLiteralTransport(context: RefBackendContext, endpoint: string, operation: TransportOperation): Promise<string> {
-  const names = lines((await context.exec("git", ["remote"], { cwd: context.checkoutRoot, objectAccess: "local-only" })).stdout);
+  const names = await readRemoteNames(context);
   for (const raw of await effectiveTransportCandidates(context, endpoint, operation)) {
     // A transport operand equal to a named remote has that remote's authority and settings, not literal URL semantics.
     if (names.includes(raw)) continue;
@@ -57,17 +62,19 @@ export async function selectLiteralTransport(context: RefBackendContext, endpoin
 }
 
 async function resolveLiteral(context: RefBackendContext, raw: string, operation: TransportOperation): Promise<string[]> {
-  requireSingleLine(raw, operation);
-  for (const { base, value, pushOnly } of await urlRewrites(context)) {
-    if (raw.startsWith(value) && (!pushOnly || operation === "push")) requireSingleLine(base, operation);
-  }
-  const options = { cwd: context.checkoutRoot, objectAccess: "local-only" as const, preserveOutput: true };
-  if (operation === "fetch") return lines((await context.exec("git", ["ls-remote", "--get-url", "--", raw], options)).stdout);
-  // show -n resolves the actual literal operand without querying its receiver, changing configuration, or
-  // inventing a named remote that could alter conditional includes. It applies pushInsteadOf as push does.
-  const output = (await context.exec("git", ["remote", "show", "-n", "--", raw], { ...options, diagnosticLocale: "stable", preserveOutput: true })).stdout;
-  const prefix = "  Push  URL: ";
-  return output.split(/\r?\n/u).filter(row => row.startsWith(prefix)).map(row => row.slice(prefix.length));
+  return rememberRefLookup(context, resolveLiteral, [raw, operation], async () => {
+    requireSingleLine(raw, operation);
+    for (const { base, value, pushOnly } of await urlRewrites(context)) {
+      if (raw.startsWith(value) && (!pushOnly || operation === "push")) requireSingleLine(base, operation);
+    }
+    const options = { cwd: context.checkoutRoot, objectAccess: "local-only" as const, preserveOutput: true };
+    if (operation === "fetch") return lines((await context.exec("git", ["ls-remote", "--get-url", "--", raw], options)).stdout);
+    // show -n resolves the actual literal operand without querying its receiver, changing configuration, or
+    // inventing a named remote that could alter conditional includes. It applies pushInsteadOf as push does.
+    const output = (await context.exec("git", ["remote", "show", "-n", "--", raw], { ...options, diagnosticLocale: "stable", preserveOutput: true })).stdout;
+    const prefix = "  Push  URL: ";
+    return output.split(/\r?\n/u).filter(row => row.startsWith(prefix)).map(row => row.slice(prefix.length));
+  });
 }
 
 function requireSingleLine(value: string, operation: TransportOperation): void {
@@ -94,8 +101,15 @@ async function urlRewrites(context: RefBackendContext): Promise<{ base: string; 
 }
 
 async function configOutput(context: RefBackendContext, args: string[]): Promise<string> {
-  try { return (await context.exec("git", ["config", ...args], { cwd: context.checkoutRoot, objectAccess: "local-only", preserveOutput: true })).stdout; }
-  catch (error) { if (isGitProcessError(error) && isCompletedGitFailure(error) && error.exitCode === 1) return ""; throw error; }
+  return rememberRefLookup(context, configOutput, [args], async () => {
+    try { return (await context.exec("git", ["config", ...args], { cwd: context.checkoutRoot, objectAccess: "local-only", preserveOutput: true })).stdout; }
+    catch (error) { if (isGitProcessError(error) && isCompletedGitFailure(error) && error.exitCode === 1) return ""; throw error; }
+  });
 }
 
 function lines(value: string): string[] { return value.split(/\r?\n/u).filter(Boolean); }
+
+async function readRemoteNames(context: RefBackendContext): Promise<string[]> {
+  return rememberRefLookup(context, readRemoteNames, [], async () =>
+    lines((await context.exec("git", ["remote"], { cwd: context.checkoutRoot, objectAccess: "local-only" })).stdout));
+}

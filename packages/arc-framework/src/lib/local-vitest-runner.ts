@@ -4,6 +4,7 @@ import { parseCLI, type TestSpecification } from "vitest/node";
 
 import type { GitExec } from "./git/exec.js";
 import type { LocalHeavyTestTier } from "./local-test-admission.js";
+import type { ReachDeclaration, ReachSelection } from "./vitest-reach.js";
 import { discoverVitestSelection, EmptyVitestSelectionError } from "./vitest-discovery.js";
 import { executeVitestSelection } from "./vitest-execution.js";
 import { readFile } from "node:fs/promises";
@@ -101,13 +102,17 @@ function unitChangeGuard(tier: LocalHeavyTestTier, related: string | string[] | 
  * suites that run by reach in their own check.
  * @param packageRoot - Package root holding the reach declarations
  * @param tier - Logical test tier
- * @param env - Environment naming the portability run's form
+ * @param env - Environment naming the portability run's form, its checked base and tree, and its ask
+ * @param git - Git boundary a portability run reads its change through
  * @returns Native Vitest selectors and run-mode flags
  */
 export async function localVitestTierRunArguments(packageRoot: string, tier: LocalHeavyTestTier,
-  env: Readonly<Record<string, string | undefined>>): Promise<string[]> {
+  env: Readonly<Record<string, string | undefined>>, git?: GitExec): Promise<string[]> {
+  const declarations = await readReachDeclarations(packageRoot, tier, env);
+  const exclusions = reachSuiteExclusions(tier, env, declarations.flatMap(packageSuites));
   return [...localVitestTierArguments(tier),
-    ...reachSuiteExclusions(tier, env, await readReachSuites(packageRoot, tier, env))];
+    ...(exclusions.length > 0 || tier !== "portability" ? exclusions
+      : await unreachedPortabilityExclusions(packageRoot, declarations, env, git))];
 }
 
 /**
@@ -125,20 +130,72 @@ export function reachSuiteExclusions(tier: LocalHeavyTestTier, env: Readonly<Rec
   return excluded ? suites.flatMap((suite) => ["--exclude", suite]) : [];
 }
 
-async function readReachSuites(packageRoot: string, tier: LocalHeavyTestTier,
-  env: Readonly<Record<string, string | undefined>>): Promise<string[]> {
-  if (reachSuiteExclusions(tier, env, ["any"]).length === 0) return [];
+/**
+ * Whether a portability run other than a pull request's takes a declaration's suites. It takes all of them when it runs
+ * in full or every suite is asked for, and otherwise when its change reaches any of them; it takes none when the change
+ * reaches none.
+ * @param selection - The declaration's reach selection for the run
+ * @returns Whether the run keeps the declaration's suites
+ */
+export function portabilityTakesReachSuites(selection: Pick<ReachSelection, "form" | "suites">): boolean {
+  return selection.form !== "reach" || selection.suites.length > 0;
+}
+
+/**
+ * Exclude each declaration's suites from a portability run other than a pull request's when its change reaches none
+ * of them, reporting each selection it computes. A run with no base, or one asking for a full or every-suite run,
+ * takes them all without reading the change.
+ * @param packageRoot - Package root holding the reach declarations
+ * @param declarations - The reach declarations and their package-relative paths
+ * @param env - Environment carrying the checked base and tree and the declaration's ask
+ * @param git - Git boundary the change is read through; the process's own when absent
+ * @returns Native exclusion arguments
+ */
+export async function unreachedPortabilityExclusions(packageRoot: string,
+  declarations: readonly LocatedReachDeclaration[], env: Readonly<Record<string, string | undefined>>,
+  git?: GitExec): Promise<string[]> {
+  const { resolveReachForm } = await import("./vitest-reach.js");
+  const { describeReachSelection, selectReachCheck } = await import("./reach-check.js");
+  const exclusions: string[] = [];
+  for (const located of declarations) {
+    const { declaration, path } = located;
+    if (resolveReachForm(env[declaration.ask], { hasBase: Boolean(env.ARC_CHECK_BASE), selectionChanged: false })
+      !== "reach") continue;
+    const gitBoundary = git ?? (await import("./io-context.js")).gitExec;
+    const checkoutRoot = resolve(packageRoot, ...declaration.package.split("/").map(() => ".."));
+    // A run that takes the suites takes all of them, so reaching one that runs only in a full run counts too.
+    const selection = await selectReachCheck({ ...declaration, fullOnly: [] }, { checkoutRoot,
+      declarationPath: `${declaration.package}/${path}`, env: { ...env }, git: gitBoundary });
+    const takes = portabilityTakesReachSuites(selection);
+    process.stdout.write(`${describeReachSelection(declaration, selection)[0]}; this run ${takes
+      ? "takes all of them" : "leaves them out"}\n`);
+    if (!takes) exclusions.push(...packageSuites(located).flatMap((suite) => ["--exclude", suite]));
+  }
+  return exclusions;
+}
+
+/** A reach declaration and its package-relative path. */
+export interface LocatedReachDeclaration { readonly path: string; readonly declaration: ReachDeclaration }
+
+async function readReachDeclarations(packageRoot: string, tier: LocalHeavyTestTier,
+  env: Readonly<Record<string, string | undefined>>): Promise<LocatedReachDeclaration[]> {
+  const leaves = reachSuiteExclusions(tier, env, ["any"]).length > 0;
+  if (!leaves && tier !== "portability") return [];
   const { ReachDeclarationSchema } = await import("./vitest-reach.js");
-  const suites: string[] = [];
+  const declarations: LocatedReachDeclaration[] = [];
   for (const path of REACH_DECLARATIONS) {
     const declaration = ReachDeclarationSchema.parse(JSON.parse(await readFile(resolve(packageRoot, path), "utf8")));
-    const prefix = `${declaration.package}/`;
-    for (const suite of declaration.suites) {
-      if (!suite.startsWith(prefix)) throw new Error(`Reach suite ${suite} lies outside its package ${declaration.package}`);
-      suites.push(suite.slice(prefix.length));
-    }
+    declarations.push({ path, declaration });
   }
-  return suites;
+  return declarations;
+}
+
+function packageSuites({ declaration }: LocatedReachDeclaration): string[] {
+  const prefix = `${declaration.package}/`;
+  return declaration.suites.map((suite) => {
+    if (!suite.startsWith(prefix)) throw new Error(`Reach suite ${suite} lies outside its package ${declaration.package}`);
+    return suite.slice(prefix.length);
+  });
 }
 
 /**
@@ -208,6 +265,7 @@ export function selectLocalE2eSpecifications(
 /** Filename filters the portability tier runs on each supported platform. */
 const PORTABILITY_SUITES = [
   "unit/paths.test.ts",
+  "unit/git/linked-worktree.test.ts",
   "check-runner-home.e2e.test.ts",
   "fs.test.ts",
   "build-context.test.ts",
@@ -238,9 +296,9 @@ const PORTABILITY_SUITES = [
   "store-ref-named-acquisition.test.ts",
   "store-ref-publication.test.ts",
   "git-batch-reader.test.ts",
-  "store-ref-separate-conformance-records.test.ts",
-  "store-ref-separate-conformance-reads.test.ts",
-  "store-ref-separate-conformance-sync.test.ts",
+  "store-ref-separate-conformance-records-",
+  "store-ref-separate-conformance-reads-",
+  "store-ref-separate-conformance-sync-",
   "store-ref-timing.test.ts",
   "store-ref-timing-isolation.test.ts",
   "checks/runner/",

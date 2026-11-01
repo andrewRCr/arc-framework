@@ -1,8 +1,9 @@
 /** How the store check reads its change: base and tree, deletions, its own check entry, and the ask. */
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { beforeAll, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { readReachDeclaration, selectReachCheck } from "../../src/lib/reach-check.js";
+import { unreachedPortabilityExclusions } from "../../src/lib/local-vitest-runner.js";
 import type { ReachDeclaration } from "../../src/lib/vitest-reach.js";
 import { scriptGitExec } from "../helpers/git-exec-fake.js";
 
@@ -73,4 +74,34 @@ it.each(["full", "every"])("takes the asked %s form over a change reaching nothi
 it("refuses an ask it does not know", async () => {
   await expect(select(["docs/notes.md"], { env: { ARC_CHECK_BASE: "base", ARC_STORE_CHECK: "most" } }).run())
     .rejects.toThrow(/unknown ask "most"/u);
+});
+
+describe("a dispatched portability run's store suites", () => {
+  const exclusions = (changed: readonly string[], env: NodeJS.ProcessEnv) => {
+    const git = scriptGitExec([{ match: { prefix: ["diff", "--name-only"] },
+      responses: [{ stdout: changed.map(path => `${path}\0`).join(""), stderr: "" }] }]);
+    vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    return unreachedPortabilityExclusions(packageRoot,
+      [{ path: "__tests__/reach/store-suites.json", declaration }], env, git.exec);
+  };
+  const based = { ARC_CHECK_BASE: "base", ARC_CHECK_TREE: "tree" };
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it("leaves them all out when the change reaches none", async () => {
+    expect(await exclusions(["docs/notes.md"], based)).toEqual(["--exclude", "__tests__/integration/store-ref-*.test.ts"]);
+  });
+
+  it("takes them all when the change reaches one", async () => {
+    expect(await exclusions(["packages/arc-framework/src/lib/store/ref/sync-graph.ts"], based)).toEqual([]);
+  });
+
+  it("takes them all when the change reaches only a suite that runs only in a full run", async () => {
+    expect(await exclusions(
+      ["packages/arc-framework/__tests__/integration/store-ref-separate-conformance-sync-1.test.ts"], based)).toEqual([]);
+  });
+
+  it("takes them all when asked for the full run, or given no base", async () => {
+    expect(await exclusions(["docs/notes.md"], { ...based, ARC_STORE_CHECK: "full" })).toEqual([]);
+    expect(await exclusions([], {})).toEqual([]);
+  });
 });

@@ -60,8 +60,11 @@ async function pullRefStoreOnce(context: RefBackendContext, input: PullInput,
     const observed = retained.get(remote.name) ?? { notices: [], changed: false };
     retained.set(remote.name, observed);
     const outcome = await pullRemote(context, input, designation, remote, families, onMerged, onApplied, observed);
-    if (outcome === "restart") return pullRefStoreOnce({ ...(context.repository?.source ?? context), syncDeadline: context.syncDeadline },
-      input, onMerged, onApplied, retained);
+    if (outcome === "restart") {
+      await context.operationScope?.refresh();
+      return pullRefStoreOnce({ ...(context.repository?.source ?? context), syncDeadline: context.syncDeadline },
+        input, onMerged, onApplied, retained);
+    }
     if ("refusal" in outcome) return outcome;
     if ("state" in outcome) {
       states.push(outcome.state);
