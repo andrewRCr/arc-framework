@@ -206,7 +206,7 @@ export async function acquireAdvisoryLock(
   const leaseDurationMs = options.leaseDurationMs;
   const processScope = options.processScope;
   const processInstance = options.processInstance;
-  const maxWaitMs = options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS;
+  const maxWaitMs = requireWaitBudget(lockPath, options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS);
   const breakLockTtlMs = options.breakLockTtlMs ?? DEFAULT_BREAK_LOCK_TTL_MS;
   const breakLockPath = `${lockPath}${BREAK_LOCK_SUFFIX}`;
 
@@ -215,13 +215,10 @@ export async function acquireAdvisoryLock(
   let backoff = BACKOFF_INITIAL_MS;
 
   for (;;) {
-    // One deadline guards every contention path — break, back-off, and the
-    // re-race after a freed/broken lock alike — so an unclearable lockfile times
-    // out instead of spinning. The first iteration is always within the wait.
+    // A final create at the deadline observes releases during the last bounded sleep. If it fails, no further
+    // read, break or retry can extend the deadline, including the re-race after a freed or broken lock.
     const observedAt = now();
-    if (observedAt >= deadline) {
-      throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
-    }
+    const finalAttempt = observedAt >= deadline;
 
     try {
       const acquiredAt = now();
@@ -244,6 +241,7 @@ export async function acquireAdvisoryLock(
       if (!isEexistError(err)) throw err;
     }
 
+    if (finalAttempt) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
     const holder = await readHolderSettled(readFile, sleep, lockPath);
     if (holder === "absent") {
       // Freed between our failed create and the read — retry the create at once.
@@ -281,9 +279,15 @@ export async function acquireAdvisoryLock(
       options.onWait?.({ holder, waitedMs: Math.max(0, observedAt - waitStartedAt) });
     }
 
-    await sleep(backoff);
+    await sleep(Math.min(backoff, Math.max(0, deadline - now())));
     backoff = Math.min(backoff * 2, BACKOFF_CAP_MS);
   }
+}
+
+/** An exhausted caller deadline cannot authorize even an uncontended acquisition. */
+function requireWaitBudget(lockPath: string, maxWaitMs: number): number {
+  if (maxWaitMs <= 0) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
+  return maxWaitMs;
 }
 
 /** Optional acquisition and release primitives for an advisory critical section. */

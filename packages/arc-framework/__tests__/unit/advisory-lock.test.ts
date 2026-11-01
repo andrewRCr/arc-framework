@@ -96,6 +96,30 @@ function buildMemoryLockFs(initial: Record<string, string>): {
 }
 
 describe("acquireAdvisoryLock", () => {
+  it("refuses an already-spent zero wait without creating a lock, and takes one with a fresh budget", async () => {
+    await expect(acquireAdvisoryLock(lockPath, { maxWaitMs: 0, now: () => 10 }))
+      .rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
+    expect(await exists(lockPath)).toBe(false);
+    const handle = await acquireAdvisoryLock(lockPath, { maxWaitMs: 10, now: () => 10, pid: 42 });
+    expect((await readHolder(lockPath)).pid).toBe(handle.pid);
+    await releaseAdvisoryLock(handle);
+  });
+  it.each([180, 200])("acquires a lock released at %i ms within its 200 ms wait", async (releasedAt) => {
+    let clock = 0;
+    let bytes = JSON.stringify({ pid: 1, acquiredAt: 0 });
+    const handle = await acquireAdvisoryLock("/lock", {
+      pid: 2, maxWaitMs: 200, now: () => clock, isProcessAlive: () => true,
+      exclusiveCreate: async (_path, content) => {
+        if (clock < releasedAt) throw Object.assign(new Error("held"), { code: "EEXIST" });
+        bytes = content;
+      },
+      readFile: async () => bytes,
+      sleep: async (ms) => { clock += ms; },
+    });
+    expect(handle.pid).toBe(2);
+    expect(JSON.parse(bytes)).toMatchObject({ pid: 2, token: handle.token });
+    expect(clock).toBeLessThanOrEqual(200);
+  });
   let dir: string;
   let lockPath: string;
 
