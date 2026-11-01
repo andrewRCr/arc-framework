@@ -95,9 +95,9 @@ describe("the sweep", () => {
     const swept = await h.sweep(unreached, overrides);
     if (mode === "recorded") {
       expect(swept.swept).toMatchObject([{ outcome: { kind: "not-a-file", path: h.path, copy,
-        remedy: { text: expect.stringContaining(copy) } } }]);
+        remedy: { text: expect.stringContaining(copyPath) } } }]);
     } else {
-      expect(swept.left).toMatchObject([{ path: h.path, copy, reason: "not-a-file", remedy: { text: expect.stringContaining(copy) } }]);
+      expect(swept.left).toMatchObject([{ path: h.path, copy, reason: "not-a-file", remedy: { text: expect.stringContaining(copyPath) } }]);
     }
     expect(await readFile(join(copyPath, "saved.txt"), "utf8")).toBe("preserved contents");
     await rename(copyPath, join(h.checkout, "saved-directory"));
