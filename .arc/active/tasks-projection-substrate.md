@@ -362,42 +362,18 @@ command's sweep takes over the copies a stopped command left.
   the skip's baseline; the order was this task's to set, so it took no amendment. Covered in
   `integration/store/projection/sweep.test.ts` and `ignore-check.test.ts`.
 
-### `[ ]` **3.4 Rebuild an absent file and remove a file — § 5.5, § 5.6**
+### `[x]` **3.4 Rebuild an absent file and remove a file — § 5.5, § 5.6**
 
 - _Goal:_ An absent file is rebuilt by the link alone, yielding to a save that recreated it, and a file whose record
   left this projection is removed only after its edit is taken in, a refused edit going back to its path.
 
-    - Rebuilding is the swap's link alone, which makes no aside copy; its in-progress record names the version it
-      replaces and no copy (2.8). Removing is the swap without the link: the same re-check, an edit taken in against the
-      record the file was projected from, then the file moved aside and its copy checked and deleted. The batch's first
-      index write keeps the removed file's entry, marked pending, and, once the file is gone, deleting the last aside
-      copy of its path drops the entry, so a copy that goes back to its path (3.2.c) is still taken in against that
-      record, and a copy a sweep links back after a stop is a pending file whose record has left this projection, which
-      the next refresh removes (`projection-worktrees`); with no usable index it is withheld and reported
-      (`projection-worktrees`). A refused edit, to a record now archived for one, goes back to its path by link,
-      reported, its entry marked pending; an edit that clashes in the checkout stays at its path, or goes back to it,
-      holding its clash's markers (`projection-write-back`), pending, the removal check refusing over it
-      (`projection-worktrees`); a take-in that defers leaves the file at its path, pending; and each later command's
-      refresh retries the removal of a pending file whose record has left this projection (`projection-worktrees`). A
-      withheld file (`projection-worktrees`) is never removed. Where the projection now lays another record at the
-      removed file's path (3.2.b), deleting the last aside copy of that path, the file gone, leaves the entry pending as
-      a deleted file rather than dropping it (2.2.a), so the next refresh lays the arrival there by the link alone,
-      recording no replaced version (2.8); while the file or any copy remains, the entry stays the leaving record's and
-      the arrival waits.
-    - Build `test-first` (one behavior at a time):
-        - an absent file is rebuilt, and an editor's save that recreated it first wins
-        - a removed file's edit is taken in before the file goes
-        - an edit refused at removal is linked back to its path, reported, and marked pending
-        - a take-in that defers at removal leaves the file at its path, pending
-        - a take-in answering `clashed` at removal leaves the file at its path, pending
-        - a removal at a path the projection now lays another record at takes in the leaving file's edit against its own
-          record, and deleting its aside copy leaves the path pending for the arrival
-        - a refused copy of the leaving file goes back to its path, holds the arrival back while it stands, and is taken
-          in against the leaving record
-        - an edit refused at a re-laid path is linked back to it, and the arrival waits while it stands
-        - deleting the last aside copy of a removed file's path, the file gone, drops the file's entry
-        - a removal's aside copy left by a stopped command is linked back by the next sweep, its entry still pending
-        - a withheld file is left at its path
+- _Outcome:_ A removal is a `swapBatch` file whose guard staged nothing (`staged: null`): the swap (`swap.ts`) moves
+  it aside and checks its copy, links nothing, and keeps its entry absent and pending. `dropRemovedEntries` drops the
+  entry once the file and the last copy of its path are gone, at the batch's second write and at the second check,
+  except at a path the projection now lays another record at. The sweep never drops one, so a copy it links back waits,
+  pending, for the refresh. The replace guard leaves a withheld file as it is before anything reads it, for a
+  replacement as for a removal, since nothing writes over or sends one. The rebuild landed with 3.2. Covered in
+  `integration/store/projection/removal.test.ts` and `replace-guard.test.ts`.
 
 ### `[ ]` **3.5 Hold saves timed into a replacement in a save-loss harness — § 5.2, § 13**
 

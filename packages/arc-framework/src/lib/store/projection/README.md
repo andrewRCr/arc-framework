@@ -130,12 +130,14 @@ a stampless file, its entry's version or the base its copy's name carries. It an
 memory until the batch writes it. `taken-in` means the edit landed whole and carries what the take-in read, and
 `refused` and `unparseable` carry the mark the file takes.
 
-`replace-guard.ts` re-checks a file by the racy rule before it is replaced, against its entry or, for a file write-back
-just sent or drew a clash into, against what write-back read. A file that matches is replaced, its stat re-recorded
-where only the hash matched. A changed one goes to the take-in: one with no edit is replaced, its stat recorded as its
-baseline; one taken in is re-checked against what the take-in read once the record's current version is restaged, for
-at most three passes; and any other answer leaves it in place and pending, marked refused where its edit was. A refused
-read of the current version leaves it pending too, retryable. Each replacement names the blob id its swap moves aside.
+`replace-guard.ts` re-checks a file by the racy rule before it is replaced or removed, against its entry or, for a file
+write-back just sent or drew a clash into, against what write-back read. A withheld file is left as it is, its entry
+unchanged, before anything reads it, since nothing writes over or sends one. A file that matches is replaced, its stat
+re-recorded where only the hash matched. A changed one goes to the take-in: one with no edit is replaced, its stat
+recorded as its baseline; one taken in is re-checked against what the take-in read once the record's current version is
+restaged, or at once for a removal, which stages nothing, for at most three passes; and any other answer leaves it in
+place and pending, marked refused where its edit was. A refused read of the current version leaves it pending too,
+retryable. Each replacement names the blob id its swap moves aside.
 
 `aside-copies.ts` holds the rules every reader of an aside copy applies. A copy's path has moved on once it holds
 anything but what the swap linked, or once a write-back of it has been sent since the swap, there or not, and
@@ -165,14 +167,19 @@ recreated the path yields to it, the replaced version still recorded; a move sti
 file in place, its entry restored; and a link failing otherwise links the copy back, unless it is a symbolic link, which
 leaves the path absent. The second write clears the pending mark of each file whose path still holds the staged file's
 identity, and a rebuild's in-progress record, but keeps a mark a file carried into a read-back's batch. A stop between
-the writes leaves a file pending that write-back reads no edit in. The batch returns the copies it made that its index
-still records, for the second check. Hooks after the re-check, the move, and the first check, and before a rebuild's
-link, place a save in each interval for tests.
+the writes leaves a file pending that write-back reads no edit in. A file the guard staged nothing for is removed: moved
+aside and its copy checked like any other, nothing linked, its entry kept its record's, recorded absent and pending.
+The entry is dropped once the file is gone and no aside copy of its path remains, at the second write or the second
+check, so a copy that goes back to the path is still taken in against that record; where the projection now lays
+another record at the path, the entry stays, pending, as a deleted file's. The batch returns the copies it made that its
+index still records, and the paths it removed from, for the second check. Hooks after the re-check, the move, and the
+first check, and before a rebuild's link, place a save in each interval for tests.
 
 `second-check.ts` checks each aside copy a command's batches made once more at the command's end, under the projection
 lock again, since a save through a handle opened before the move can write after the first check. Each copy the index
-still records is settled as `aside-copies.ts` states, and the index is written. A copy kept there, and the replacement
-a swap back there moves aside, wait for the next command's sweep.
+still records is settled as `aside-copies.ts` states, a removed file's entry is dropped once the file and the last copy
+of its path are gone, and the index is written. A copy kept there, and the replacement a swap back there moves aside,
+wait for the next command's sweep.
 
 `sweep.ts` sweeps the aside folder at every command's start, under the projection lock and before write-back reads a
 file, after the ignore check. A refusal of the aside folder, as a failed call refuses every root, leaves it writing

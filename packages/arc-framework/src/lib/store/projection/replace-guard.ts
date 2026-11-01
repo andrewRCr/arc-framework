@@ -1,6 +1,6 @@
 /**
- * The replace guard: before a file is replaced, it is re-checked by the racy rule, and an edit found there is taken in
- * first, then the record's current version restaged, for at most three passes.
+ * The replace guard: before a file is replaced or removed, it is re-checked by the racy rule, and an edit found there is
+ * taken in first, then, for a replacement, the record's current version restaged, for at most three passes.
  */
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -23,8 +23,8 @@ export interface ReplaceGuardInput {
   /** The file's repository-relative path. */
   readonly path: string;
   readonly entry: RecordEntry;
-  /** The record's version staged for the path. */
-  readonly staged: StagedFile;
+  /** The record's version staged for the path, null for a removal, which stages nothing. */
+  readonly staged: StagedFile | null;
   /** What write-back read of a file it just sent or drew a clash into, re-checked in place of the entry. */
   readonly baseline?: { readonly stat: FileStat; readonly blob: string };
   readonly reference: bigint | null;
@@ -36,21 +36,33 @@ export interface ReplaceGuardInput {
 
 /** What the guard decided. */
 export type GuardResult =
-  /** Replace the file with `staged`; `moving` is the blob id the swap moves aside, as its copy's record names it. */
-  | { readonly kind: "replace"; readonly entry: RecordEntry; readonly staged: StagedFile; readonly moving: string }
+  /**
+   * Replace the file with `staged`, or, null, remove it; `moving` is the blob id the swap moves aside, as its copy's
+   * record names it.
+   */
+  | { readonly kind: "replace"; readonly entry: RecordEntry; readonly staged: StagedFile | null; readonly moving: string }
   /** Leave the file in place, its entry marked pending, and refused where the take-in refused its edit. */
   | { readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: TakeInHeld | "unsettled" }
+  /** Leave a withheld file as it is, its entry unchanged: nothing writes over it or sends it until the person deletes it. */
+  | { readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: "withheld" }
   /** The store refused the refresh's read: retryable, the file left in place and pending. */
   | {
     readonly kind: "unreplaced"; readonly entry: RecordEntry; readonly cause: "refresh-refused"; readonly refusal: StoreRefusal;
   };
 
 /**
- * Guard one file's replacement.
+ * Guard one file's replacement or removal.
  * @param input - The file, what it is checked against, and how to take an edit in and restage.
  * @returns Whether to replace it, and the entry to record.
  */
 export async function guardReplacement(input: ReplaceGuardInput): Promise<GuardResult> {
+  // Nothing writes over a withheld file or sends it until the person deletes it.
+  if (input.entry.withheld) return { kind: "unreplaced", entry: input.entry, cause: "withheld" };
+  return recheck(input);
+}
+
+/** Re-check the file, taking in an edit found there and restaging, for at most three passes. */
+async function recheck(input: ReplaceGuardInput): Promise<GuardResult> {
   let { entry, staged } = input;
   let baseline: { readonly stat: FileStat | null; readonly blob: string } = input.baseline
     ?? { stat: entry.stat, blob: entry.written };
@@ -72,6 +84,8 @@ export async function guardReplacement(input: ReplaceGuardInput): Promise<GuardR
     if (pass === GUARD_PASSES) return { kind: "unreplaced", entry: { ...result.entry, pending: true }, cause: "unsettled" };
     ({ entry } = result);
     baseline = result.read;
+    // A removal stages nothing, so its next pass re-checks what the take-in read.
+    if (staged === null) continue;
     const restaged = await restage(input, entry, staged);
     if (restaged.status === "refused") {
       // A refused refresh is retryable: the file stays as it is, pending for the next command.

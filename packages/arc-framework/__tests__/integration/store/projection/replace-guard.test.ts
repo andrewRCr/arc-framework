@@ -11,7 +11,7 @@ import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { readReference, readStat } from "../../../../src/lib/store/projection/change-detection.js";
 import { guardReplacement, type ReplaceGuardInput } from "../../../../src/lib/store/projection/replace-guard.js";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
-import { stageRecordFile } from "../../../../src/lib/store/projection/staging.js";
+import { stageRecordFile, type StagedFile } from "../../../../src/lib/store/projection/staging.js";
 import type { TakeInPort, TakeInRequest } from "../../../../src/lib/store/projection/take-in-port.js";
 import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 
@@ -33,7 +33,7 @@ async function projected(content = "# Cohort: one\n\nBody.\n", path = PATH) {
   const entry = seeded.index.entries[path];
   if (entry?.kind !== "record") throw new Error("expected the file's record entry");
   const file = join(seeded.checkout, path);
-  const stage = async (): Promise<ReplaceGuardInput["staged"]> => {
+  const stage = async (): Promise<StagedFile> => {
     const read = await fixture.store.read({ reference });
     if (read.status !== "ok") throw new Error("the fixture read was refused");
     return stageRecordFile({ checkout: seeded.checkout, path, record: read.result, replacing: entry.base.blob, writer: WRITER, format: "sha1" });
@@ -77,7 +77,7 @@ describe("the replace guard", () => {
     if (current.status !== "ok") throw new Error("the fixture read was refused");
     expect(current.result.content).toBe("# Cohort: one\n\nBody, edited.\n");
     expect(result).toMatchObject({ kind: "replace", staged: { base: { version: current.result.version } } });
-    if (result.kind !== "replace") throw new Error("expected a replacement");
+    if (result.kind !== "replace" || result.staged === null) throw new Error("expected a replacement");
     expect(await readFile(join(seeded.checkout, result.staged.location), "utf8")).toBe(renderStampedFile({
       content: current.result.content, stamp: gitBlobId(current.result.content, "sha1"),
     }));
@@ -139,6 +139,16 @@ describe("the replace guard", () => {
     expect(await readFile(file, "utf8")).toBe(held);
   });
 
+  it("leaves a withheld file as it is, never written over or its edit sent, its entry as it was", async () => {
+    const { guard, save, file, entry } = await projected();
+    await save("# Cohort: one\n\nBody, withheld.\n");
+    const held = await readFile(file, "utf8");
+    const withheld = { ...entry, withheld: true };
+    const unreached: TakeInPort = async () => { throw new Error("the take-in was reached"); };
+    expect(await guard(unreached, { entry: withheld })).toEqual({ kind: "unreplaced", cause: "withheld", entry: withheld });
+    expect(await readFile(file, "utf8")).toBe(held);
+  });
+
   it("replaces a file the take-in finds no edit in, an emptied one among them, its stat re-recorded as its baseline", async () => {
     const { guard, file, entry } = await projected();
     await writeFile(file, "");
@@ -184,7 +194,7 @@ describe("the replace guard", () => {
     const { fixture, entry, guard, save, seeded } = await projected();
     await save("# Cohort: one\n\nBody, edited.\n");
     const result = await guard(landing(fixture.store, () => entry.base.version), { entry: { ...entry, protected: true } });
-    if (result.kind !== "replace") throw new Error("expected a replacement");
+    if (result.kind !== "replace" || result.staged === null) throw new Error("expected a replacement");
     expect((await fsStat(join(seeded.checkout, result.staged.location))).mode & 0o777).toBe(0o444);
   });
 });

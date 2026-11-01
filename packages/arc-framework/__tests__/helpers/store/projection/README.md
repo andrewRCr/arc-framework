@@ -13,4 +13,6 @@ through unchanged, and each operation's calls are counted, so a test can show no
 `prepareSwap` readies one projected file's swap over a seeded projection: the record's next version stored and staged,
 the replace guard's decision to replace it, and a batch that swaps it, taking the take-in, hooks, and file-system
 operations a test passes. `deferring` is a take-in that defers every edit, and `landingCopies` one that lands a copy's
-edit in the store whole, as a bound write-back would.
+edit in the store whole, as a bound write-back would. `prepareRemoval` readies one projected file's removal the same way:
+the guard's re-check with nothing staged, over an entry withheld where a test asks, and a batch that removes the file,
+its path one the projection now lays another record at where a test asks.

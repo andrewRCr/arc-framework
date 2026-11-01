@@ -1,6 +1,7 @@
 /**
- * A projected file ready to swap: its record's next version stored and staged, and the replace guard's decision to
- * replace it, with a batch that swaps it, over a seeded projection in a new temporary repository.
+ * A projected file ready to swap — its record's next version stored and staged, and the replace guard's decision to
+ * replace it — or to remove, the guard re-checking it with nothing staged, each with a batch over a seeded projection in
+ * a new temporary repository.
  */
 import { chmod, readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -88,4 +89,54 @@ export function landingCopies(store: ReturnType<typeof createReferenceFixture>["
     if (stat === null) throw new Error("nothing to take in");
     return { answer: "taken-in", entry: request.entry, read: { stat, blob: gitBlobId(text, "sha1") } };
   };
+}
+
+/** What a prepared removal holds the file to. */
+export interface PrepareRemovalOptions {
+  readonly path?: string;
+  /** The record's content as laid. */
+  readonly content?: string;
+  /** Whether the projection now lays another record at the path. */
+  readonly relaid?: boolean;
+  /** Whether the file's entry is withheld, as a rebuild with no usable index leaves one. */
+  readonly withheld?: boolean;
+  /** Something done to the file before the guard re-checks it, and the take-in the guard calls, over the fixture's store. */
+  readonly guarded?: {
+    readonly before?: (file: string) => Promise<void>;
+    readonly takeIn?: (store: ReturnType<typeof createReferenceFixture>["store"]) => TakeInPort;
+  };
+}
+
+/**
+ * Prepare one file's removal: the guard's re-check with nothing staged, and a batch that removes the file where it
+ * decided to; the caller removes the checkout the result names.
+ * @param options - The file, its content, and what happens before the guard.
+ * @returns The store, the seeded projection, the file's entry as laid, the guard's decision, and a batch.
+ */
+export async function prepareRemoval(options: PrepareRemovalOptions = {}) {
+  const path = options.path ?? SWAP_PATH;
+  const fixture = createReferenceFixture();
+  const reference = fixture.reference("cohort/document", "one");
+  const content = options.content ?? "# Cohort: one\n\nBody.\n";
+  const put = await fixture.store.write({ action: "put", reference, content, expected: null, provenance: PROVENANCE });
+  if (put.status !== "ok") throw new Error("the fixture write was refused");
+  const seeded = await seedProjection({ store: fixture.store, files: [{ reference, path }] });
+  const seededEntry = seeded.index.entries[path];
+  if (seededEntry?.kind !== "record") throw new Error("expected the file's record entry");
+  const laid = { ...seededEntry, withheld: options.withheld ?? false };
+  const index = { ...seeded.index, entries: { ...seeded.index.entries, [path]: laid } };
+  const file = join(seeded.checkout, path);
+  await options.guarded?.before?.(file);
+  const guarded = await guardReplacement({
+    checkout: seeded.checkout, path, entry: laid, staged: null, reference: await readReference(seeded.checkout), format: "sha1",
+    store: fixture.store, writer: SWAP_WRITER, takeIn: options.guarded?.takeIn?.(fixture.store) ?? deferring,
+  });
+  const remove = (overrides: Partial<SwapBatchInput> = {}) => {
+    if (guarded.kind !== "replace") throw new Error(`expected the guard to remove the file, found ${guarded.cause}`);
+    return swapBatch({
+      location: seeded.location, checkout: seeded.checkout, index, readBack: false, writer: SWAP_WRITER, format: "sha1",
+      files: [{ path, replace: guarded, relaid: options.relaid ?? false }], takeIn: deferring, ...overrides,
+    });
+  };
+  return { fixture, reference, seeded, laid, file, path, guarded, remove };
 }

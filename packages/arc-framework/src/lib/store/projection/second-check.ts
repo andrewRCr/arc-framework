@@ -10,6 +10,7 @@ import type { ObjectFormat } from "./blob-id.js";
 import { commitProjectionIndex } from "./index-file.js";
 import type { ProjectionIndex } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
+import { dropRemovedEntries } from "./swap.js";
 import type { TakeInPort } from "./take-in-port.js";
 
 /** What the second check settles, run under the worktree's projection lock; its moves are the system's unless a test injects its own. */
@@ -19,6 +20,8 @@ export interface SecondCheckInput extends SwapMoves {
   readonly index: ProjectionIndex;
   /** The aside copies the command's batches made, by path. */
   readonly copies: readonly { readonly path: string; readonly copy: string }[];
+  /** The paths the command's batches removed a file from whose entry goes once the file and its last copy are gone. */
+  readonly removals?: readonly string[];
   readonly format: ObjectFormat;
   readonly takeIn: TakeInPort;
   readonly writer: AsideWriterInput;
@@ -50,6 +53,8 @@ export async function runSecondCheck(input: SecondCheckInput): Promise<SecondChe
     index = { ...index, entries: { ...index.entries, [path]: settlement.entry } };
     settled.push({ path, copy, settlement });
   }
+  // A removal completes once its file and the last aside copy of its path are gone.
+  index = await dropRemovedEntries(index, checkout, input.removals ?? []);
   const recorded = { entries: new Set<string>(), ignoreFiles: false };
   return { index: await commitProjectionIndex({ location: input.location, checkout, index, recorded }), settled };
 }
