@@ -292,8 +292,14 @@ If quality gates fail after task completion:
 - **The gate never ran** — a wrong invocation is not a gate failure. Correct it and re-run; there is nothing to decide.
 - **Deterministic same-concern** — locally owned, mechanical, inside the approved change (e.g. trailing blank,
   auto-fixable lint): fix and re-run immediately; report the correction.
+- **Planned fix** — the cause is known, the failing work is uncommitted, and a planned task inside the approved scope
+  already specifies the fix: bring that fix forward, note the move on that task, re-run, and continue; name it in the
+  next report.
 - **Otherwise** — report details and suspected causes; ask fix-now vs defer. Do not proceed until resolved or
   approved.
+
+Fixing and re-running keeps the check in force, so where recorded state already settles the fix it is yours to make;
+deferring, carrying, or bypassing a failure is never yours to decide.
 
 **A green rerun after an intermittent failure shows only that the failure is intermittent.** A fix names the
 mechanism it removes and shows the change reaches it, such as a reproduction that fails reliably without the change
