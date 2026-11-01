@@ -10,9 +10,7 @@ import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import { lineDistance, type HistoryMemo } from "./base-recovery.js";
 import { readStat } from "./change-detection.js";
 import type { RecordEntry } from "./index-schema.js";
-
-/** How old an empty file's modification time must be before it is read, past the longest empty window seen mid-save. */
-export const EMPTY_FILE_SETTLE_NS = 50_000_000n;
+import { SETTLE_WINDOW_NS, wallClockNs } from "./read-gate.js";
 
 /** What reading a file other than Markdown found. */
 export type StamplessRead =
@@ -49,8 +47,8 @@ export interface StamplessReadInput {
 export async function readStamplessFile(input: StamplessReadInput): Promise<StoreResult<StamplessRead>> {
   const { entry } = input;
   // No stamp marks an empty file as projected, and an in-place save passes through one, so a young one waits.
-  const now = input.now ?? ((): bigint => BigInt(Date.now()) * 1_000_000n);
-  if (input.text === "" && now() - input.mtimeNs < EMPTY_FILE_SETTLE_NS) return read({ kind: "wait" });
+  const now = input.now ?? wallClockNs;
+  if (input.text === "" && now() - input.mtimeNs < SETTLE_WINDOW_NS) return read({ kind: "wait" });
   const blob = storedBlobId(input.text, { format: input.format, markdown: false });
   if (blob === entry.written) return read({ kind: "unedited" });
   const { inProgress } = entry;

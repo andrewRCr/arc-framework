@@ -91,6 +91,14 @@ read refuses `state-unresolvable`, the file takes neither and stays pending, rep
 of an aside copy deletes through `deleteAsideCopy`, which clears the copy's record, and the in-progress record where it
 names that copy and the file holds what the batch linked there, by the file identity the entry records.
 
+`read-gate.ts` gates every read of a projected file on its stats alone, so write-back never reads one mid-save. An empty
+file younger than 50 ms waits for the next command, since an editor that truncates before writing leaves it empty
+mid-save. An empty Markdown file older than that is a deleted file and no edit, since every projected one carries its
+stamp, and so is anything at the path that is not a file: read by `lstat`, never followed, and reported with the remedy
+of replacing it with a regular file. Any other file modified within the last 50 ms is read only once two stats 15 ms
+apart agree on its size and modification time, up to three tries, else it waits for the next command. The clock, stat,
+and sleep are injected, the system's unless a caller passes its own.
+
 `stamp.ts` renders, parses, and strips a Markdown file's base stamp, `<!-- arc-base: <blob id> -->`, on its first line
 or the line after its YAML frontmatter, and the notice lines directly after it, each one comment opening
 `<!-- arc-notice:`. Only lines of that form in that block strip, so a person's own comment stays content, and a file

@@ -297,26 +297,16 @@ and by renaming a new file over the path — lose none, a copy whose path moved 
 rebuilt by the link alone and yields to a save that recreated it, a removal takes an edit in first, and the next
 command's sweep takes over the copies a stopped command left.
 
-### `[ ]` **3.1 Read an edit only once it has settled — § 4, § 3.7**
+### `[x]` **3.1 Read an edit only once it has settled — § 4, § 3.7**
 
 - _Goal:_ Write-back never reads a file mid-save: an empty file is never read as an edit while a save may still be
   writing it, and a file modified within the last 50 ms is read only once two stats 15 ms apart agree, else at the
   next command.
 
-    - The read gate takes an injected clock, stat, and sleep. Up to three tries of the settle check; only a command
-      closely following a save pays the wait.
-    - An empty file younger than 50 ms, Markdown or not (2.8), is deferred and marked pending. An empty projected
-      Markdown file at least 50 ms old is a deleted file — every projected one carries its stamp — so it is no edit:
-      never sent to stamp recovery (2.6), not pending, and replaced by the swap (3.2) when a refresh next writes it
-      or `arc sync` rebuilds deleted files (`projection-worktrees`).
-    - A symbolic link at a path the index lists (2.4.a) is a deleted file too, never followed or read, reported with the
-      remedy of replacing it with a regular file, and replaced as an emptied file is.
-    - Build `test-first` (one behavior at a time):
-        - an empty stamped Markdown file 10 ms old is deferred and never recovered
-        - an empty stamped Markdown file 50 ms old reads as no edit, and the next replacement overwrites it
-        - a symbolic link at a projected path reads as no edit and is reported, its target never read
-        - a file modified 10 ms ago is read once two stats agree
-        - a file still changing across three tries is left pending for the next command
+- _Outcome:_ `gateRead` (`lib/store/projection/read-gate.ts`) judges a file by `lstat` alone over an injected clock,
+  stat, and sleep, the system's by default. A file not regular — a folder as well as a link, since reading one fails or
+  blocks — reads as a deleted file with the remedy naming its path. The emptied file's replacement lands with the swap
+  (3.2). `stampless.ts` takes the gate's window and clock. Covered in `unit/store/projection/read-gate.test.ts`.
 
 ### `[ ]` **3.2 Replace a file by the swap behind the replace guard — § 5.1, § 5.2, § 5.3**
 
