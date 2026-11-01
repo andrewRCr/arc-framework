@@ -165,14 +165,15 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
 
      Stop when the specified scope is complete, or earlier if a stop condition is met:
 
-     - **Must stop:** quality gate failure that can't be auto-fixed, blocking dependency on
-       another task or external input, unanticipated design decision that needs user input,
+     - **Must stop:** quality gate failure with neither an auto-fix nor an in-scope fix, blocking dependency
+       on another task or external input, unanticipated design decision that needs user input,
        or scope significantly exceeding expectations for the task
-     - **Continue with note:** auto-fixable lint issues (fix and note), task taking longer
-       than expected but progressing, minor deviation from plan that doesn't change outcomes
+     - **Continue with note:** auto-fixable lint issues (fix and note), an in-scope fix (make it, note it on the
+       task it serves, and re-run), task taking longer than expected but progressing, minor deviation from plan
+       that doesn't change outcomes
 
-     Stop conditions are not suspended by deferred review — a non-auto-fixable gate failure
-     ends the deferred scope early and surfaces the issue to the user.
+     Stop conditions are not suspended by deferred review — a gate failure with neither an auto-fix nor an
+     in-scope fix ends the deferred scope early and surfaces the issue to the user.
 
      An unanticipated design decision enters [`amend-design`][amend-design] at that stop rather than being settled
      inside the increment; its [entry gate][amend-design-gate] returns that the design holds where only the
@@ -321,10 +322,11 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
          continue to the next task UNLESS explicitly stated otherwise. Address any stated concerns
          before moving on.
 
-     If any checklist item is unchecked, complete it before reporting. For quality gate failures: fix obvious
-     issues (lint, type errors) and re-run. Diagnose a non-obvious failure before posing it, then end the completion
-     report with `Quality gates failed: <details>. <cause>. Fix now or defer? (fix / defer)`. If diagnosis reaches
-     no cause, say so and ask for direction.
+     If any checklist item is unchecked, complete it before reporting. For quality gate failures: fix obvious issues
+     (lint, type errors), make an in-scope fix ([DEV-RULES.ARC][dev-rules-arc] § Quality gate failure), and re-run.
+     Diagnose any other failure before posing it, then end the completion report with
+     `Quality gates failed: <details>. <cause>. Fix now or defer? (fix / defer)`. If diagnosis reaches no cause, say
+     so and ask for direction.
 
 > [!IMPORTANT]
 > `task-interlock`: Stop after reporting task completion. Surface verification status and await
