@@ -1,4 +1,5 @@
 /** Change detection by Git's racy rule: a stat match is clean only when older than the index's reference. */
+import type { BigIntStats } from "node:fs";
 import { lstat, mkdir, readFile as fsReadFile, stat as fsStat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
@@ -116,9 +117,9 @@ export async function checkChange(
  * @returns Its stat, or null where nothing is there, a dangling link included.
  */
 export async function readStat(path: string, followLinks = false): Promise<FileStat | null> {
-  let stat;
+  let stat: BigIntStats;
   try {
-    stat = await (followLinks ? fsStat : lstat)(path, { bigint: true });
+    stat = followLinks ? await fsStat(path, { bigint: true }) : await lstat(path, { bigint: true });
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "ENOENT" || code === "ENOTDIR" || code === "ELOOP") return null;
