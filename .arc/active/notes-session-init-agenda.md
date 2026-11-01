@@ -81,6 +81,21 @@ fields (`teardown.text` and `argv`, `remedy.text`, typed reasons) already exist.
   is a brief's figure, not re-measured on a fresh install, and the agenda output's size is unmeasured until built.
 - **Build estimate:** about a week; the forecast change set of 7–8k lines suggests that is tight.
 
+### Baseline install
+
+- Source head: `eaf54487d4efd718ae3cab6576e37d03deeb14f9`; base: `279aa8ebf9dfdd9d3dbc9ea8819c36b385ff3a07`.
+  The source's `packages/` tree is identical to the base. The full build, pack, global-prefix install, and init passed.
+- Kit run: `2026-11-01T145902`, under the primary checkout's `cinexplorer-migration/kit/runs/`. The first commit
+  reproduced 28 broken links. The prescribed fill copied 10 missing targets; its second commit attempt passed with
+  hooks enabled and pushed to the sandbox's local bare origin.
+- Project: `~/dev/sandbox/2026-11-01T145902/agenda-baseline/`. A fresh session-init probe reports clean `main`, zero
+  ahead/behind, and entering row `free-primary`, selecting Orient.
+- Evidence: `~/dev/arc-evidence/session-init-agenda/baseline/` contains `metadata.json`, the raw probe, `items.json`
+  with frozen measurement inputs, and reusable `measure-items.py`. Harness: Claude Code `2.1.316`.
+- Measurements remain pending. Automatic approval review rejected the first external Claude invocation before it
+  launched, requesting specific approval to send the document and session-status payload to Claude. No token baseline
+  or real-session context report has been recorded.
+
 ## The always-loaded cut audit
 
 Two read-only passes over the shipped copies on 2026-10-31, spot-checked at source:

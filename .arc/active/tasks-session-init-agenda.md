@@ -26,17 +26,12 @@ with a typed refusal, and leaves the repository as found.
 
 - **Additional Context:** `notes-session-init-agenda.md` § Sizing and measurement
 
-    - `[ ]` **1.1.a Build the baseline kit install**
-        - The kit lives in the primary checkout's identity directory, absent from this worktree:
-          `/home/andrew/dev/repos/github.com/andrewRCr/arc-framework/.arc/user/andrew/cinexplorer-migration/kit/`
-        - Confirm `rehearse-install.sh --help` accepts `--source`, then run it with `--source <this checkout>` while
-          `packages/` is unchanged from the base; record the base SHA. Check `memcap_policy` first, since it builds and
-          packs the package
-        - The install's first commit fails on the broken links the recipe leaves, and the script continues past it
-          with the primary dirty. Run the kit's `fill-link-targets.sh <sandbox> <run-dir>`, where `<sandbox>` is the
-          run's `~/dev/scratch/arc-install-kit/<stamp>/` holding `paths.env` and `commit-msg.txt`, not the project under
-          `~/dev/sandbox/<stamp>/`; it commits and pushes the install. Record that the fill ran
-        - Confirm a session in the sandbox derives `free-primary` and enters Orient
+    - `[x]` **1.1.a Build the baseline kit install**
+        - Built and packed source `eaf54487d4` with `packages/` unchanged from base `279aa8ebf9`; host memory policy
+          allowed the build. Kit run `2026-11-01T145902` used the verified `--source` option. Link fill copied 10
+          targets; the install committed with hooks enabled, pushed to its local bare origin, and probed clean on
+          `main` with entering row `free-primary` (Orient). Metadata and the probe are retained under
+          `~/dev/arc-evidence/session-init-agenda/baseline/`; see `notes-session-init-agenda.md` § Baseline install.
 
     - `[ ]` **1.1.b Run the itemized headless instrument**
         - One `claude -p --output-format json --tools "" --no-session-persistence` run per item in the specification's
