@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "dispatch-store-reach",
+  "claimId": "4d59e0b44527a548138dca9610dd6f8c",
+  "createdAt": "2026-11-01T04:05:42.143Z",
+  "updatedAt": "2026-11-01T04:05:42.143Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Select the store suites by reach in a dispatched Windows/macOS portability run",
+  "branch": "chore/dispatch-store-reach",
+  "origin": "inbox",
+  "originEntry": "Select the store suites by reach in a dispatched Windows/macOS portability run",
+  "originEntrySourceDigest": "sha256:d50bc1c0895885a71cb021562fdf64b59167eb1a45a409c01e91085765e9f43a",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
