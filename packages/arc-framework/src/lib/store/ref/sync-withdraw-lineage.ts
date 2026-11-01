@@ -1,4 +1,4 @@
-/** Retain published lineage while removing only a withdrawn lineage's merge conflict. */
+/** Read and preserve lineage authority while withdrawing one lifecycle contribution. */
 
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { WholeRecordConflictSchema, type WholeRecordConflict } from "../conflict.js";
@@ -10,9 +10,22 @@ import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import type { RefMetadata } from "./metadata.js";
 import { writeRefBlob } from "./tree-write.js";
-import type { WithdrawJournalStep } from "./sync-withdraw-journal.js";
+import { UnavailableWithdrawJournal, type WithdrawJournalStep } from "./sync-withdraw-journal.js";
 import { mergeLineageAliases } from "./lineage-aliases.js";
 import { withdrawComposedMetadata, withdrawSnapshotMetadata } from "./sync-withdraw-records.js";
+
+/** Decode required current lineage with a repair route for the observed object fault. */
+export function requireWithdrawLineage(ref: string, path: string, object: BatchObject | null | undefined,
+  condition: string): LineageRecord {
+  const key = `${ref}:${path}`;
+  if (object?.type !== "blob") throw new UnavailableWithdrawJournal(ref, `A required lineage object at ${key} is unavailable.`, "missing", { key });
+  let lineage: LineageRecord | null;
+  try { lineage = parseLineageRecord(new TextDecoder("utf-8", { fatal: true }).decode(object.bytes)); }
+  catch { lineage = null; }
+  if (!lineage) throw new UnavailableWithdrawJournal(ref, condition, "unparseable", { key,
+    remedy: { text: `Repair the malformed lineage record at ${key} in a new commit, then retry the withdrawal.` } });
+  return lineage;
+}
 
 /** Reconcile auxiliary lineage metadata for the lineage records the withdrawn batch wrote. */
 export async function repairWithdrawnLineage(context: RefBackendContext, step: WithdrawJournalStep,

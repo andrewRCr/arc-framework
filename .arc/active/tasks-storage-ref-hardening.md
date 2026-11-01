@@ -238,14 +238,11 @@ classification calls the sweep settled.
           answer; present non-blobs remain Missing. Retained-end object loss uses the same report; repair admits the
           original pull or push.
 
-### `[ ]` **3.6 The withdrawal — § 1.3, § 1.9, § 9**
+### `[x]` **3.6 The withdrawal — § 1.3, § 1.9, § 9**
 
 - _Goal:_ A withdrawal that meets a faulty object holds its ref with the notice its fault prescribes, never rejecting
   the pull or push with an untyped exception, and each side's unparseable metadata takes the remedy its snapshot can
   take.
-
-- _Note:_ See `notes-storage-ref-hardening.md` § Fault-site inventory › 3.6 and § Classification calls the sweep settled
-  for its sites, their rows and sides.
 
 - _Note:_ Task 3.6.a brought forward `decodeConflict`'s fault and repair side from 3.6.c when the preserved-conflict
   regression exposed its legacy restore remedy. The remaining preserved-lineage readers stay in Task 3.6.c.
@@ -260,16 +257,10 @@ classification calls the sweep settled.
           its entry's object ID; format retention validates restored original metadata even with no surviving format
           rows. Conflict preservation and lineage repair use the same fault-preserving reads.
 
-    - `[ ]` **3.6.c Ends and lineage**
-        - `readItemEndCandidates` returns its faulted commits under `"all"`; `currentEndCandidates`, `terminalOwner`,
-          `siblingFolders`, `laterSiblingEnds`, the preserved-lineage reads, and `entryLabel` classify.
-        - Build `test-first` (one behavior at a time):
-            - a folder end whose metadata blob is missing holds **Missing**, before the published-folder exemption
-            - undecodable end metadata holds **Unparseable** with the historical remedy, an end at the ref's tip
-              included
-            - a fault at another batch is no end, as today
-            - a `"retirement"` reader sees no change
-            - a misplaced sibling folder holds with its placement remedy
+    - `[x]` **3.6.c Ends and lineage**
+        - End evidence retains faults by batch and takes the historical remedy even at the tip, before the published
+          folder exemption. Other batches and retirement readers keep their policy. Current lineage and archive
+          diagnostics retain their faults and repair routes; decoded origin mismatches keep their restore remedy.
 
 ### `[ ]` **3.7 A missing local object after a failed fetch is a local transport fault — § 1.6**
 

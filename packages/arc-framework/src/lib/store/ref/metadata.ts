@@ -41,12 +41,12 @@ export type RefMetadataRead = { kind: "absent" } | { kind: "missing" } | { kind:
   | { kind: "parsed"; metadata: RefMetadata };
 
 /** Read a metadata entry through the objects returned by its batch. */
-export function readRefMetadata(namespace: string, entry: RefTreeEntry | undefined,
+export function readRefMetadata(namespace: string | undefined, entry: RefTreeEntry | undefined,
   objects: ReadonlyMap<string, BatchObject | null>): RefMetadataRead;
 /** Read a present object already acquired through a path query. */
-export function readRefMetadata(namespace: string, object: BatchObject): RefMetadataRead;
+export function readRefMetadata(namespace: string | undefined, object: BatchObject): RefMetadataRead;
 /** Keep entry absence, object loss, and metadata decoding distinct. */
-export function readRefMetadata(namespace: string, source: RefTreeEntry | BatchObject | undefined,
+export function readRefMetadata(namespace: string | undefined, source: RefTreeEntry | BatchObject | undefined,
   objects?: ReadonlyMap<string, BatchObject | null>): RefMetadataRead {
   if (source === undefined) return { kind: "absent" };
   const object = "bytes" in source ? source : objects?.get(source.oid);

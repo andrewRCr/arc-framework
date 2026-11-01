@@ -13,7 +13,6 @@ import { refRecordVersion } from "./record-version.js";
 import { refFormatKey } from "./format-key.js";
 import { withdrawRecordDefinition, withdrawRecordMetadata, type WithdrawRecordDefinition, type WithdrawRecordFormat } from "./sync-withdraw-records.js";
 import { RefSyncLabelError } from "./sync-label.js";
-import { corruptRef } from "./namespace-health.js";
 import { refObjectFault } from "./object-fault.js";
 import { writeRefBlob } from "./tree-write.js";
 import { completeSyncPlacements } from "./sync-placement.js";
@@ -127,7 +126,7 @@ function documentVersion(definition: EntryDefinition, document: EntryDocument) {
 }
 
 async function entryLabel(context: RefBackendContext, ref: string, tip: string, path: string): Promise<SideLabel> {
-  const walked = await readHistoricalGraph(context, ["log", "-1", "--format=%H", tip, "--", `:(literal)${path}`], () => corruptRef(ref, true));
+  const walked = await readHistoricalGraph(context, ["log", "-1", "--format=%H", tip, "--", `:(literal)${path}`], () => refObjectFault(ref, "missing").refusal);
   if (walked.status === "refused") throw new RefSyncLabelError(ref, walked.refusal);
   return readStoredMergeLabel(context, walked.result.trim() || tip);
 }

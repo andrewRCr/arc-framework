@@ -268,7 +268,10 @@ describe.each(["default", "separate"] as const)("whole withdrawal entry inverse 
       if (!unavailable) await expect(observing.pull()).rejects.toBe(failure);
       else {
         const notices = success(await observing.pull()).pulls.flatMap(({ notices }) => notices);
-        expect(notices).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref: home.ref, remedy: { text: expect.stringMatching(/restore|fetch/iu) } }));
+        const reportedRef = damage === "label walk" ? live.replace("refs/arc/", "refs/arc/history/") : home.ref;
+        expect(notices).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref: reportedRef,
+          ...damage === "label walk" ? { condition: `Objects required to read ${home.ref} are unavailable locally.` } : {},
+          remedy: { text: expect.stringMatching(/restore|fetch/iu) } }));
         expect(notices).not.toContainEqual(expect.objectContaining({ kind: "end-withdrawn" }));
       }
       expect(damaged).toBe(true);

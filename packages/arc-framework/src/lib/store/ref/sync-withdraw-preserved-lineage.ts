@@ -1,17 +1,17 @@
 /** Reconcile protected sibling registry coordinates after every ordinary batch inverse has completed. */
 import { RecordReferenceSchema, type OwnerIdentity } from "../identity.js";
 import { WholeRecordConflictSchema, type WholeRecordConflict } from "../conflict.js";
-import { parseLineageRecord } from "../kinds/lineage/index.js";
+import { requireWithdrawLineage } from "./sync-withdraw-lineage.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-read.js";
-import { parseRefMetadata, type RefMetadata } from "./metadata.js";
+import { readRefMetadata, type RefMetadata } from "./metadata.js";
 import { refFormatKey } from "./format-key.js";
 import { mergeLineageAliases } from "./lineage-aliases.js";
 import { writeRefBlob } from "./tree-write.js";
 import { UnavailableWithdrawJournal } from "./sync-withdraw-journal.js";
 import type { RefCaptureFault } from "./capture-diagnostic.js";
-import type { RefFaultOptions } from "./object-fault.js";
+import { refObjectFault, type RefFaultOptions } from "./object-fault.js";
 
 const registry = "refs/arc/project/registry", metadataPath = "metadata-registry.json";
 
@@ -23,7 +23,8 @@ export async function preserveSiblingLineage(context: RefBackendContext, owners:
   const current = new Map(currentTree.map(entry => [entry.path, entry]));
   const objects = await readBatchObjects(context, [...new Set([...current.values(), ...prepared.values()]
     .filter(entry => entry.path === metadataPath || entry.path.startsWith("lineage/")).map(entry => entry.oid))]);
-  const beforeMetadata = registryMetadata(current, objects), metadata = registryMetadata(prepared, objects);
+  const beforeMetadata = registryMetadata(current, objects, false),
+    metadata = registryMetadata(prepared, objects, prepared.get(metadataPath)?.oid !== current.get(metadataPath)?.oid);
   for (const owner of protectedOwners) preserveOwnerLineage(owner, current, prepared, objects, beforeMetadata, metadata);
   const aliases = mergeLineageAliases(metadata.lineageFormerSlugs, beforeMetadata.lineageFormerSlugs);
   if (aliases) metadata.lineageFormerSlugs = aliases;
@@ -37,8 +38,9 @@ function preserveOwnerLineage(owner: OwnerIdentity, current: ReadonlyMap<string,
   if (!("uid" in owner) || !owner.uid) return;
   const path = `lineage/${owner.uid}.json`, entry = current.get(path);
   if (entry) {
-    const object = objects.get(entry.oid), lineage = object?.type === "blob" ? parseLineageRecord(new TextDecoder().decode(object.bytes)) : null;
-    if (lineage?.origin.uid !== owner.uid) throw unavailable("The protected sibling's current lineage cannot be decoded.");
+    const condition = "The protected sibling's current lineage cannot be decoded.";
+    const lineage = requireWithdrawLineage(registry, path, objects.get(entry.oid), condition);
+    if (lineage.origin.uid !== owner.uid) throw unavailable(condition);
   }
   copyEntry(current, prepared, path);
   copyFormat(before, metadata, refFormatKey(RecordReferenceSchema.parse({ owner, kind: "lineage/transition" })));
@@ -47,12 +49,13 @@ function preserveOwnerLineage(owner: OwnerIdentity, current: ReadonlyMap<string,
   else if (metadata.lineage) Reflect.deleteProperty(metadata.lineage, owner.uid);
 }
 
-function registryMetadata(entries: ReadonlyMap<string, RefTreeEntry>, objects: ReadonlyMap<string, BatchObject | null>): RefMetadata {
+function registryMetadata(entries: ReadonlyMap<string, RefTreeEntry>, objects: ReadonlyMap<string, BatchObject | null>, saved: boolean): RefMetadata {
   const entry = entries.get(metadataPath);
   if (!entry && entries.size === 0) return { formatVersion: 1, formats: {} };
-  const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : null);
-  if (!metadata) throw unavailable("Registry metadata required to preserve later sibling ends cannot be decoded.");
-  return metadata;
+  const read = readRefMetadata(registry, entry, objects);
+  if (read.kind === "parsed") return read.metadata;
+  const fault = read.kind === "absent" ? "no-metadata" : read.kind;
+  throw unavailable(refObjectFault(registry, fault, { saved }).condition, fault, { saved });
 }
 
 function preserveConflicts(current: ReadonlyMap<string, RefTreeEntry>, prepared: Map<string, RefTreeEntry>,
