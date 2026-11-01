@@ -172,6 +172,8 @@ classification calls the sweep settled.
   notice takes the diagnostic's fault row.
 
     - `[x]` **3.2.a The decoder and its keys**
+        - _Note:_ The full-suite recheck exposed saved record remedy assertions expecting folder-relative archive
+          keys. They now assert the archive ref and full stored path required by § 1.6.
         - Placement diagnostics retain their fault row and current/saved remedies; sequence validation stays distinct
           from owner-coordinate mismatches, including a cohort's missing closeout letter. Archived record diagnostics
           qualify both key and remedy with the archive ref and full stored path after decoding, preserving the
