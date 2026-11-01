@@ -40,7 +40,9 @@ it("executes the selected portability suite", () => appendFileSync(${JSON.string
 `);
     }
     const result = await execa("npm", ["run", "-s", "test:portability"], {
-      cwd: fixture.root, env: { CI: "1", ARC_E2E_SKIP_BUILD: "1" }, reject: false, timeout: 30_000,
+      // An enclosing check's base names a commit the fixture lacks; a run given none takes every store suite.
+      cwd: fixture.root, env: { CI: "1", ARC_E2E_SKIP_BUILD: "1", ARC_CHECK_BASE: undefined, ARC_CHECK_TREE: undefined },
+      reject: false, timeout: 30_000,
     });
     expect(result.exitCode, result.stderr).toBe(0);
     const selected = (await readFile(fixture.events, "utf8")).split("\n")

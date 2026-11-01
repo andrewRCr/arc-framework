@@ -502,10 +502,13 @@ checks:
       count: 4
       argument: --shard={index}/{count}
   # The hosted Windows/macOS job divides the tier among shards balanced by the integration durations; the Linux job
-  # runs it whole.
+  # runs it whole. Outside a pull request, a change that reaches none of the store suites leaves them all out; any other
+  # run takes them all.
   test:portability:
     environment_inputs:
       ARC_TEST_DURATION_FILE: file
+      ARC_STORE_CHECK: value
+      ARC_STORE_BURSTS: value
     command:
       - npm
       - run
@@ -513,6 +516,9 @@ checks:
       - test:portability
       - --
     gate: merge
+    mode: files
+    pass_paths: false
+    widen: false
     ci_only: true
     inputs:
       - '**'
