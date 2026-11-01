@@ -35,7 +35,7 @@
     "system/rules/DEV-RULES.ARC.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "e9c286ca2531cb36815adf1bfe6a0b4777bde411f161ccf1d3dc4243378abf7d"
+      "pristine_hash": "d026ac1f3d624d4a261114ad157f7cb0fc0077180a51ef116ca56e9caf3bd391"
     },
     "system/rules/DEV-RULES.PROJECT.md": {
       "classification": "Configurable",
@@ -515,7 +515,7 @@
     "system/workflows/arc/process-task-loop.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "2ca2e490a5b721545b2f6885df75d719300d2dc7e56d3dbeed79403dc3a2cf34"
+      "pristine_hash": "10aa14d9fd3ee530674fc22073bfab8ba1b3b8b298ed1533f7b219addc8b08f2"
     },
     "system/workflows/arc/draft-design.md": {
       "classification": "Framework",
