@@ -1498,7 +1498,9 @@ reference:
   them go `frontlineCeilingHeadSha`, which today keeps a frontline override off a moved frontline head, and the
   scrubbers `consumeOwnerAcceptedTerminus` and `consumeFrontlineCeilingOverride`
   (`rg/policy/pre-publication-request.ts`): the frontline override decision's reach, the frontline head it was decided
-  on, binds it, and a terminus binds only where its reach carries it (§ 5.6).
+  on, binds it, and a terminus binds only where its reach carries it (§ 5.6). A frontline scope refusal raised while a
+  delivery plan is still selecting its member keeps the call's ceiling-override and additional-pass grants in its
+  resume, and the re-entry that selects a member records them as decisions there (A32).
 - **The frontline resolve form's `request` and `authorizationRequest`** keep their call inputs, the `policyJudgment`
   they relay among them, so `arc review frontline resolve` reads a ceiling override from its request as today
   (`resolveFrontlineSelection`, `frontlineConditionalAdmission`, `rg/policy/frontline-command.ts`). The judgment the
@@ -2752,5 +2754,8 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 
 - **A31** — 2026-10-31 — design: the Candidate mutation owner carries its marker's UID. _Supersedes:_ § 3.1 ¶3,
   Criterion 2. _Trigger:_ F2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A32** — 2026-11-01 — design: a delivery plan's scope refusal keeps the grants it cannot yet record.
+  _Supersedes:_ § 9.3 (the `--resume` token). _Trigger:_ FC1-F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

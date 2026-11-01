@@ -12,10 +12,12 @@ import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
 import { bindDeliveryWorkItem } from "../../../src/handlers/delivery-review-fix-entry.js";
+import { ReviewOwnerSelectionError } from "../../../src/lib/store/kinds/review/errors.js";
+import { nativeRefusalText } from "../../../src/lib/store/native-refusal.js";
 import type { ReviewInvocationContext } from "../../../src/scripts/review-gate/runtime/invocation.js";
 
 async function fixture(state: "Active" | "Shipped", binding: string | null = "tasks-example.md", storedTasks = true,
-  liveNamesake = false, checkoutBranch: string | null = "feat/example") {
+  liveNamesake = false, checkoutBranch: string | null = "feat/example", identity = { configured: true }) {
   const h = createReviewHarness();
   const projectId = "123e4567-e89b-42d3-a456-426614174099";
   await h.seedProject(projectId);
@@ -29,6 +31,9 @@ async function fixture(state: "Active" | "Shipped", binding: string | null = "ta
     `# Task List: example\n\n## **Phase 1:** Build\n\n### \`[${state === "Shipped" ? "x" : " "}]\` **1.1 Build**\n`);
   if (storedTasks) await seedTasks();
   const checkout = await createReviewCheckout(h, { script: [
+    { match: ["config", "--null", "--get", "arc.identity"], responses: [() => identity.configured
+      ? { stdout: "test-user\0" } : { failure: { exitCode: 1 } }] },
+    { match: ["config", "--get", "user.name"], responses: [{ failure: { exitCode: 1 } }] },
     { match: ["diff", "--cached", "--name-only", "-z", "--"], responses: [{ stdout: "" }] },
     { match: ["rev-parse", "--verify", "--quiet", "origin/main"], responses: [{ stdout: "b".repeat(40) }] },
     { match: ["cherry", "b".repeat(40), "a".repeat(40)], responses: [{ stdout: `+ ${"a".repeat(40)}\n` }] },
@@ -65,6 +70,21 @@ it.each(["fix/example-correction", null])(
     await bindDeliveryWorkItem(h.cwd, h.exec, invocation, "example");
     expect(invocation.workItem).toEqual(h.primary.reference.owner);
   });
+
+it("refuses an unbound delivery's owner typed without arc.identity, naming how to set it, and binds once set", async () => {
+  const identity = { configured: false };
+  const h = await fixture("Shipped", "tasks-example.md", true, true, "fix/example-correction", identity);
+  const invocation: ReviewInvocationContext = { store: h.store, projectId: h.projectId };
+  const refusal = await bindDeliveryWorkItem(h.cwd, h.exec, invocation, "example").then(() => null, (error: unknown) => error);
+  expect(refusal).toBeInstanceOf(ReviewOwnerSelectionError);
+  expect(refusal).toMatchObject({ code: "invalid-input",
+    remedy: { argv: ["git", "config", "--local", "arc.identity", "<identity>"] } });
+  expect(nativeRefusalText(refusal)).toMatch(/arc\.identity/u);
+  expect(invocation.workItem).toBeUndefined();
+  identity.configured = true;
+  await bindDeliveryWorkItem(h.cwd, h.exec, invocation, "example");
+  expect(invocation.workItem).toEqual(h.primary.reference.owner);
+});
 
 it("refuses a missing metadata task binding without writes and continues after repair", async () => {
   const h = await fixture("Active", null);

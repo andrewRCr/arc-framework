@@ -11,6 +11,7 @@ import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-ga
 import { createProjectIdentityReader } from "../../../src/lib/store/project-identity.js";
 import { StoreRefusalSchema } from "../../../src/lib/store/refusal.js";
 import { createReviewHarness } from "../../helpers/store/review-harness.js";
+import { createReviewTarget } from "../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
 import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { projectPublicationBoundary, projectCandidateReviewResumeBoundary, recoverAttestedOwnerTerminusBoundary } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -549,6 +550,24 @@ it("records a native scope refusal's carried terminus before its call-input cont
   expect(replay).not.toHaveProperty("lanes.standard.terminus");
   expect(await h.run(false, {}, token)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready",
     terminus: terminusDecision.key });
+});
+
+it.each([false, true])("keeps a native scope refusal's grants in its remedy only when it retains them (%s)", async retains => {
+  const h = await fixture();
+  await h.seedCandidate();
+  const target = createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "delivery-member",
+    repositoryId: projectId, baseRef: "main", diffBaseSha: "b".repeat(40), diffBaseTree: "c".repeat(40),
+    headSha: "d".repeat(40), headTree: "e".repeat(40) });
+  const grants = { frontline: { ceilingOverride: { exhaustedPassCount: 1, nextPass: 2 } },
+    standard: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } } };
+  const refused = await h.run(true, { frontline: { ...grants.frontline, scopeMode: "chunked" }, standard: grants.standard },
+    undefined, { compose: async () => ({ status: "refused", code: "scope-judgment-required",
+      reason: "review producer scope does not match the selected scope", scopeMismatch: { lane: "frontline",
+        observedScope: "whole-target", selectedScope: "chunked", target }, ...(retains ? { retainsGrants: true } : {}) }) });
+  const token = (refused as { remedy: { argv: string[] } }).remedy.argv[5] ?? "";
+  expect(decodePrePublicationReplayV2(token).lanes).toEqual(retains
+    ? { frontline: { ...grants.frontline, scopeMode: "whole-target" }, standard: grants.standard }
+    : { frontline: { scopeMode: "whole-target" } });
 });
 
 it("leaves no accepted decision when its native boundary batch refuses and succeeds on retry", async () => {

@@ -32,6 +32,19 @@ it.each(choices)("emits only native call inputs while repository replay retains 
     readText: async () => "", boundarySchemaVersion: () => 2 })).toMatchObject({ status: "failed", stage: "request" });
 });
 
+it("keeps a native call's grants, never its terminus, when its scope refusal retains them", () => {
+  const grants = { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 }, additionalPassAuthorization: {
+    headSha: "a".repeat(40), precedingProducerId: "producer-1", completedPasses: 2, nextPass: 3 } };
+  const lanes = { frontline: { ...frontline, ceilingOverride: { exhaustedPassCount: 1, nextPass: 2 } },
+    standard: { ...standard, ...grants, terminus: { mode: "owner-accepted" } } };
+  const command = buildPrePublicationResumeCommand({ workUnit: "example", candidateId, candidateSubjectDigest,
+    judgment: { selfReview: "settled", changeSet: undefined, lanes, frontlineCeilingHeadSha: undefined },
+    replaySelfReview: "settled", replayLanes: lanes, currentFrontlineHeadSha: "b".repeat(40),
+    frontlineCeilingOverrideApplied: false, schemaVersion: 2, retainGrants: true });
+  expect(decodePrePublicationReplayV2(replayTokenFromAction(command, "example"))).toEqual({ candidateId,
+    candidateSubjectDigest, selfReview: "settled", lanes: { frontline: lanes.frontline, standard: { ...standard, ...grants } } });
+});
+
 it("reports backend-selection failure through the execution error boundary", async () => {
   const error = new Error("Restore the selected review store and retry.");
   expect(await readPrePublicationCall({}, { resolveRoot: () => "/native", readText: async () => "",

@@ -63,33 +63,46 @@ export async function readPrePublicationCall(input: CallInput, access: ReplayAcc
   } catch (error) { return { status: "failed", error, stage: "request" }; }
 }
 
-function nativeReplayLanes(input: unknown): PrePublicationReplayInputV2["lanes"] {
+type ReplayLaneJudgment = NonNullable<ReturnType<typeof PrePublicationLaneJudgmentsSchema.parse>["standard"]>;
+
+/** Keep one lane's call inputs, and its grants only when no subject has recorded them. */
+function nativeReplayLane(judgment: ReplayLaneJudgment, retainGrants: boolean) {
+  const { ceilingOverride, additionalPassAuthorization } = retainGrants ? judgment : {};
+  return { ...(judgment.scopeMode === undefined ? {} : { scopeMode: judgment.scopeMode }),
+    ...(judgment.invocation === undefined ? {} : { invocation: judgment.invocation }),
+    ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
+    ...(additionalPassAuthorization === undefined ? {} : { additionalPassAuthorization }) };
+}
+
+function nativeReplayLanes(input: unknown, retainGrants: boolean): PrePublicationReplayInputV2["lanes"] {
   if (input === undefined) return undefined;
   const supplied = PrePublicationLaneJudgmentsSchema.parse(input);
   const lanes: NonNullable<PrePublicationReplayInputV2["lanes"]> = {};
   for (const lane of ["frontline", "standard"] as const) {
     const judgment = supplied[lane];
     if (judgment === undefined) continue;
-    const call = { ...(judgment.scopeMode === undefined ? {} : { scopeMode: judgment.scopeMode }),
-      ...(judgment.invocation === undefined ? {} : { invocation: judgment.invocation }) };
+    const call = nativeReplayLane(judgment, retainGrants);
     if (Object.keys(call).length > 0) lanes[lane] = call;
   }
   return Object.keys(lanes).length === 0 ? undefined : lanes;
 }
 
-/** Emit an exact continuation, retaining decisions only in the repository replay contract. */
+/**
+ * Emit an exact continuation, retaining decisions only in the repository replay contract. A native continuation keeps
+ * the call's ceiling-override and additional-pass grants only when `retainGrants` says no subject has recorded them.
+ */
 export function buildPrePublicationResumeCommand(input: {
   workUnit: string; candidateId: CanonicalDigest; candidateSubjectDigest: CanonicalDigest;
   judgment: ReviewPrePublicationJudgment; replaySelfReview: "settled" | undefined; replayLanes: unknown;
   scopeJudgmentTarget?: ReviewTarget; currentFrontlineHeadSha: string; frontlineCeilingOverrideApplied: boolean;
-  schemaVersion: 1 | 2;
+  schemaVersion: 1 | 2; retainGrants?: boolean;
 }): string {
   const common = { candidateId: input.candidateId, candidateSubjectDigest: input.candidateSubjectDigest,
     ...(input.replaySelfReview === undefined ? {} : { selfReview: input.replaySelfReview }),
     ...(input.judgment.changeSet === undefined ? {} : { changeSet: input.judgment.changeSet }),
     ...(input.scopeJudgmentTarget === undefined ? {} : { scopeJudgmentTarget: input.scopeJudgmentTarget }) };
   if (input.schemaVersion === 2) {
-    const lanes = nativeReplayLanes(input.replayLanes);
+    const lanes = nativeReplayLanes(input.replayLanes, input.retainGrants === true);
     return `arc review pre-publication ${input.workUnit} --resume ${encodePrePublicationReplay({ ...common,
       ...(lanes === undefined ? {} : { lanes }) }, 2)}`;
   }

@@ -26,14 +26,21 @@ it("round-trips caller inputs with an opaque stored boundary version", () => {
 });
 
 it.each([
-  { standard: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } } },
-  { standard: { additionalPassAuthorization: { headSha: "c".repeat(40), precedingProducerId: "producer-2", completedPasses: 2, nextPass: 3 } } },
   { standard: { terminus: { mode: "owner-accepted" } } },
 ])("refuses a stored replay containing a review choice: %j", (lanes) => {
   const original = { lanes };
   expect(decodePrePublicationReplay(Buffer.from(JSON.stringify(original)).toString("base64url"))).toEqual(original);
   expect(() => encodePrePublicationReplayV2(original)).toThrow();
   expect(() => decodePrePublicationReplayV2(Buffer.from(JSON.stringify(original)).toString("base64url"))).toThrow();
+});
+
+it.each([
+  { standard: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } } },
+  { standard: { additionalPassAuthorization: { headSha: "c".repeat(40), precedingProducerId: "producer-2", completedPasses: 2, nextPass: 3 } } },
+  { frontline: { ceilingOverride: { exhaustedPassCount: 1, nextPass: 2 } } },
+])("round-trips a grant a stored replay keeps until a member subject records it: %j", (lanes) => {
+  const original = { lanes };
+  expect(decodePrePublicationReplayV2(encodePrePublicationReplayV2(original))).toEqual(original);
 });
 
 it.each([`sha256:${"a".repeat(64)}`, "backend:boundary/7"])("accepts the published ordering recovery's stored version %s", version => {

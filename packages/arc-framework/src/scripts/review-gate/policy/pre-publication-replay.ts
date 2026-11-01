@@ -49,7 +49,9 @@ export function replayTokenFromAction(command: string, workUnit: string): string
   return z.string().regex(/^[A-Za-z0-9_-]+$/u).parse(argv[5]);
 }
 
-const ReplayCallLaneSchema = ReviewLaneJudgmentSchema.unwrap().pick({ scopeMode: true, invocation: true });
+// Grants appear only where a delivery plan's scope refusal kept the ones no member subject has yet recorded.
+const ReplayCallLaneSchema = ReviewLaneJudgmentSchema.unwrap().pick({ scopeMode: true, invocation: true,
+  ceilingOverride: true, additionalPassAuthorization: true });
 const ReplayCallLanesSchema = PrePublicationLaneJudgmentsSchema.pipe(z.strictObject({
   frontline: ReplayCallLaneSchema.optional(), standard: ReplayCallLaneSchema.optional(),
 }));

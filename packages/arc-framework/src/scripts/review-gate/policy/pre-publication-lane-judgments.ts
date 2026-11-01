@@ -1,6 +1,7 @@
 /** Compose stored pass judgments and the existing per-call lane invocation before pure policy runs. */
 import { requireNativeReviewDecisionReferences } from "./review-grant-references.js";
 import { omitSpentReviewCeilingOverride } from "./review-ceiling-override.js";
+import type { CanonicalDigest } from "../../../lib/kernel/index.js";
 import type { NativeOwnerAcceptedReviewTerminus } from "./review-terminus.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
@@ -23,8 +24,7 @@ export async function composePrePublicationLaneJudgment(input: {
   const currentLineage = lineage ?? { kind: "candidate" as const, candidateId: candidate.candidateId };
   const subject = { lineage: currentLineage, headSha: policyTarget.headSha,
     subjectDigest: currentLineage.kind === "candidate" ? candidate.subjectDigest : exactTarget?.targetId ?? null };
-  const terminus = lane !== "standard" || dependencies.resolveNativeTerminus === undefined ? undefined
-    : await dependencies.resolveNativeTerminus({ subject });
+  const terminus = lane === "standard" ? await resolveLaneTerminus(candidate, subject, dependencies) : undefined;
   const judgment = dependencies.resolveExtraPassJudgment === undefined ? input.judgment
     : await dependencies.resolveExtraPassJudgment({ repositoryId: exactTarget?.repositoryId,
       subject,
@@ -37,6 +37,22 @@ export async function composePrePublicationLaneJudgment(input: {
       ? { invocation: judgment?.invocation, frontlinePhaseClosed: true as const }
       : { invocation: closed ? { mode: "skip" as const } : judgment?.invocation }),
     extraPassAuthority: dependencies.resolveExtraPassJudgment === undefined ? {} : bindLaneExtraPassJudgment(judgment, policyTarget, lane) };
+}
+
+/**
+ * Read the standard lane's recorded terminus. A delivery member's lane also reads the singleton terminus recorded on
+ * its current Candidate, which a fresh judgment applies to the selected member and a continuation no longer carries.
+ */
+async function resolveLaneTerminus(
+  candidate: Extract<CandidateRead, { status: "current" }>,
+  subject: { lineage: LaneSubjectLineage; headSha: string; subjectDigest: CanonicalDigest | null },
+  dependencies: PrePublicationCompositionDependencies,
+): Promise<NativeOwnerAcceptedReviewTerminus | undefined> {
+  if (dependencies.resolveNativeTerminus === undefined) return undefined;
+  const own = await dependencies.resolveNativeTerminus({ subject });
+  if (own !== undefined || subject.lineage.kind === "candidate") return own;
+  return dependencies.resolveNativeTerminus({ subject: { lineage: { kind: "candidate", candidateId: candidate.candidateId },
+    headSha: subject.headSha, subjectDigest: candidate.subjectDigest } });
 }
 
 /** Keep a judgment's routing choices without the extra-pass grants the Owner bound to one subject. */

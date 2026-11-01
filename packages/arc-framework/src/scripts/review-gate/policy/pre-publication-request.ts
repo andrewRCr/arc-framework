@@ -284,6 +284,8 @@ export type PrePublicationComposition =
     };
     /** The carried Owner terminus a native scope refusal records before its call-input continuation. */
     terminusDecision?: PreparedNativeReviewTerminus;
+    /** A delivery plan refused before selecting its member, so its continuation keeps grants no subject yet binds. */
+    retainsGrants?: true;
     pendingReview?: {
       lane: ReviewLane;
       operationId: string;
@@ -875,22 +877,30 @@ export async function composePrePublicationReviewRequest(
   };
   // A frontline scope refusal ends composition before the standard lane is judged, and a native continuation
   // carries only call inputs, so the refusal first records the standard judgments and terminus this call carried.
+  // While a delivery plan still selects its member, no subject exists yet for the call's grants: the pass count is
+  // judged without them, and the continuation keeps them for the member its re-entry selects.
   const refuseFrontline = async (
     error: unknown,
-    ...standardSubject: [ReviewPolicyTarget, ReviewTarget | null, readonly string[], LaneSubjectLineage?]
+    [standardTarget, standardExactTarget, standardHeads, standardLineage]:
+      [ReviewPolicyTarget, ReviewTarget | null, readonly string[], LaneSubjectLineage?],
+    selecting = false,
   ): Promise<PrePublicationComposition> => {
     const refusal = evidenceCompositionRefusal(error);
     if (refusal.status !== "refused" || refusal.scopeMismatch === undefined
       || dependencies.resolveExtraPassJudgment === undefined) return refusal;
     try {
-      if (judgedPasses.standard === undefined) await judgeLane("standard", ...standardSubject);
+      if (judgedPasses.standard === undefined) {
+        await judgeLane("standard", standardTarget, standardExactTarget, standardHeads, standardLineage,
+          selecting ? withoutExtraPassGrants(lanes.data.standard) : lanes.data.standard);
+      }
     } catch (judgmentError) {
       return evidenceCompositionRefusal(judgmentError);
     }
     const terminusDecision = await preparePrePublicationTerminusDecision({ candidateId: candidate.candidateId,
       subjectDigest: candidate.subjectDigest, completedPasses: judgedPasses.standard ?? 0,
       judgment: lanes.data.standard, authority: ownerTerminusAuthority, dependencies });
-    return terminusDecision === undefined ? refusal : { ...refusal, terminusDecision };
+    return { ...refusal, ...(terminusDecision === undefined ? {} : { terminusDecision }),
+      ...(selecting ? { retainsGrants: true as const } : {}) };
   };
   let exactTarget: ReviewTarget | null;
   let policyTarget: ReviewPolicyTarget;
@@ -931,12 +941,12 @@ export async function composePrePublicationReviewRequest(
           selectionJudgment,
         );
       } catch (error) {
-        return refuseFrontline(error, memberPolicyTarget, member.target, [member.target.headSha], {
+        return refuseFrontline(error, [memberPolicyTarget, member.target, [member.target.headSha], {
           kind: "delivery-member",
           planId: member.vehicle.planId,
           deliverableId: member.vehicle.deliverableId,
           workUnitId: member.vehicle.workUnitId,
-        });
+        }], native);
       }
       selected = {
         exactTarget: member.target,
@@ -966,8 +976,8 @@ export async function composePrePublicationReviewRequest(
         selected.frontline = await composeLane("frontline", selected.policyTarget, selected.exactTarget,
           [selected.exactTarget.headSha], selected.lineage);
       } catch (error) {
-        return refuseFrontline(error, selected.policyTarget, selected.exactTarget, [selected.exactTarget.headSha],
-          selected.lineage);
+        return refuseFrontline(error, [selected.policyTarget, selected.exactTarget, [selected.exactTarget.headSha],
+          selected.lineage]);
       }
       advisories.length = recorded;
     }
@@ -1005,7 +1015,7 @@ export async function composePrePublicationReviewRequest(
         await composeLane("frontline", policyTarget, exactTarget, policyLineage, selectedLineage),
       );
     } catch (error) {
-      return refuseFrontline(error, policyTarget, exactTarget, policyLineage, selectedLineage);
+      return refuseFrontline(error, [policyTarget, exactTarget, policyLineage, selectedLineage]);
     }
   } else {
     exactTarget = immutable.status === "resolved" ? immutable.target : null;
@@ -1016,7 +1026,7 @@ export async function composePrePublicationReviewRequest(
     try {
       singletonFrontline = await composeLane("frontline", policyTarget, exactTarget, policyLineage, selectedLineage);
     } catch (error) {
-      return refuseFrontline(error, policyTarget, exactTarget, policyLineage, selectedLineage);
+      return refuseFrontline(error, [policyTarget, exactTarget, policyLineage, selectedLineage]);
     }
     frontline = withCeilingOverride("frontline", policyTarget, singletonFrontline);
   }

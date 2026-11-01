@@ -1,8 +1,10 @@
 /** Authenticated review-fix lifecycle selection and capability-selected delivery entry reads. */
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import { UserFacingError } from "../lib/errors.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { raiseNativeResolutionRefusal, resolveActiveWu } from "../lib/release/wu-resolution.js";
+import { ReviewOwnerSelectionError } from "../lib/store/kinds/review/errors.js";
 import { readCompletedDeliveryLocus, readDeliveryReviewFixTaskInput, readMarkedDeliveryWorkItem } from "../lib/store/delivery-review-fix-input.js";
 import { inspectRepositoryDeliveryEntry, readInspectionTaskList } from "../lib/delivery/repository-entry.js";
 import type { DeliveryEntryInspectionResult } from "../lib/delivery/entry-inspection.js";
@@ -38,6 +40,20 @@ async function resolveLocus(cwd: string, exec: GitExec, invocation: ReviewInvoca
   return { ...completed, branch, baseBranch: settings["branch.base"] };
 }
 
+/** Resolve the checkout's owner for binding, refusing typed when no identity can name it. */
+async function resolveBindingOwner(cwd: string, exec: GitExec, invocation: ReviewInvocationContext):
+  Promise<CandidateMutationOwner> {
+  try {
+    return await resolveCandidateMutationOwner({ ...invocation, cwd, exec });
+  } catch (error) {
+    if (!(error instanceof UserFacingError) || error.code !== "IDENTITY_MISSING") throw error;
+    throw new ReviewOwnerSelectionError("invalid-input",
+      "No ARC identity is configured, so the checkout's owning work unit cannot be resolved.",
+      { text: "Set git config --local arc.identity <identity>, then retry this operation.",
+        argv: ["git", "config", "--local", "arc.identity", "<identity>"] });
+  }
+}
+
 /**
  * Bind a delivery command's work unit before any native record access: the owning checkout's own generation, else the
  * one the checkout's marker names, else a completed one by the checkout's branch, otherwise the named live one. The
@@ -46,7 +62,7 @@ async function resolveLocus(cwd: string, exec: GitExec, invocation: ReviewInvoca
 export async function bindDeliveryWorkItem(cwd: string, exec: GitExec, invocation: ReviewInvocationContext,
   workUnitId: string, checkoutOwner?: CandidateMutationOwner): Promise<void> {
   if (!invocation.store.capabilities.stateOffBranch || invocation.workItem !== undefined) return;
-  const owner = checkoutOwner ?? await resolveCandidateMutationOwner({ ...invocation, cwd, exec });
+  const owner = checkoutOwner ?? await resolveBindingOwner(cwd, exec, invocation);
   const workItem = owner.status === "owned" && owner.workUnit === workUnitId
     ? await resolveOwnedCandidateGeneration(invocation.store, owner, invocation.projectId)
     : await readMarkedDeliveryWorkItem(invocation.store, cwd, workUnitId)

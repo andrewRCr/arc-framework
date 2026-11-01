@@ -4729,6 +4729,7 @@ export async function handleReviewPrePublication(
               scopeJudgmentTarget: mismatch.target,
               currentFrontlineHeadSha: beforeCompose.headSha,
               frontlineCeilingOverrideApplied: false,
+              retainGrants: composition.retainsGrants === true,
             })
           : null;
         const message = `The ${mismatch.lane} producer used ${mismatch.observedScope} scope, but `
