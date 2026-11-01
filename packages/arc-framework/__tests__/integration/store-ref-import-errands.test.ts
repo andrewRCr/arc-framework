@@ -4,6 +4,7 @@ import { chmod, mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createRefStore, RecordReferenceSchema, runStoreRemote } from "../../src/lib/store/index.js";
 import { inboxEntrySourceDigest } from "../../src/lib/user-sync/inbox-writer.js";
+import { removeLooseObject } from "../helpers/store/ref-plant.js";
 import { importFixture, saveImportPersonal } from "../helpers/store/import-fixture.js";
 import { keptPrefix, ordinaryErrand as ordinary, seedTransients as seed, transientCommon as common, transientSourceRef as sourceRef,
   type TransientIdentityRecord } from "../helpers/store/import-transients.js";
@@ -172,26 +173,58 @@ it.each((["code", "backing", "none"] as const).flatMap(publisher =>
   expect((await h.remote("git", ["for-each-ref", "--format=%(objectname)", sourceRef])).stdout.trim()).toBe(publisher === "none" ? tip : "");
 }, 60_000);
 
-it.each(["default", "separate"] as const)("throws for malformed %s retained publication evidence and resumes after restoration", async layout => {
+it.each((["default", "separate"] as const).flatMap(layout => (["missing blob", "wrong type", "malformed JSON", "invalid schema", "invalid UTF-8"] as const).map(damage => ({ layout, damage }))))(
+  "reports $damage in the $layout retained publication journal and resumes after restoration", async ({ layout, damage }) => {
   const h = await importFixture(layout);
   if (layout === "separate") await designateBacking(h);
-  const tip = await seed(h, [ordinary]);
+  const base = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
+  const groom: TransientIdentityRecord = { ...common, kind: "groom", slug: "groom-alpha", anchorStub: "alpha", members: ["alpha"],
+    openedBaseHead: base, protection: "partial", branch: null, state: "open", changeRequest: null };
+  const tip = await seed(h, [ordinary, groom]);
   await h.git("git", ["push", "origin", `${sourceRef}:${sourceRef}`]);
-  const required = "refs/arc/tmp/migrate/import-required", wrong = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
-  let saved = "";
+  const required = "refs/arc/tmp/migrate/import-required";
+  const scope = layout === "separate" ? [`--git-dir=${join(h.root, ".git/arc/store")}`] : [];
+  const landedRefs = async () => (await h.git("git", [...scope, "for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/work/", "refs/arc/user/andrew/claims"])).stdout;
+  let saved = "", damaged = "", landed = "";
+  let bytes: Uint8Array = new Uint8Array();
   h.ports.migrateStep = async step => {
-    if (step === "import.transient.remote-delete") {
-      saved = (await h.git("git", ["rev-parse", required])).stdout.trim();
-      await h.git("git", ["update-ref", required, wrong, saved]);
+    if (step !== "import.transient.remote-delete") return;
+    saved = (await h.git("git", ["rev-parse", required])).stdout.trim();
+    bytes = (await h.ports.rawExec(["cat-file", "blob", saved])).stdout;
+    landed = await landedRefs();
+    if (damage === "missing blob") {
+      damaged = saved; await removeLooseObject(h.root, saved);
+    } else {
+      if (damage === "wrong type") damaged = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
+      else {
+        let invalid: Uint8Array = Buffer.from(damage === "malformed JSON" ? "{ malformed journal\n" : '{"refs/arc/user/andrew/claims":42}');
+        if (damage === "invalid UTF-8") {
+          invalid = Uint8Array.from(bytes);
+          const person = Buffer.from(bytes).indexOf("/andrew/");
+          if (person < 0) throw new Error("The produced publication journal has no imported identity");
+          invalid[person + 1] = 0xff;
+        }
+        damaged = Buffer.from((await h.ports.rawExec(["hash-object", "-w", "--stdin"], { input: invalid })).stdout).toString().trim();
+      }
+      await h.git("git", ["update-ref", required, damaged, saved]);
     }
   };
-  await expect(h.migrate()).rejects.toThrow("publication requirements are unavailable");
-  expect((await h.git("git", ["rev-parse", required])).stdout.trim()).toBe(wrong);
+  const observed = await h.migrate().then(result => ({ result }), (error: unknown) => ({ error }));
+  expect(observed).toMatchObject({ result: { status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
+    condition: expect.stringContaining(`publication requirements are ${damage === "missing blob" || damage === "wrong type" ? "unavailable" : "unparseable"}`),
+    remedy: { text: expect.stringContaining(`Restore ${required} from this import's retained journal`), argv: ["arc", "store", "migrate", "--import"] },
+  } } });
+  expect(saved).not.toBe(""); expect(landed).not.toBe("");
+  expect((await h.git("git", ["rev-parse", required])).stdout.trim()).toBe(damaged);
   expect((await h.git("git", ["for-each-ref", "--format=%(objectname)", keptPrefix])).stdout.trim()).toBe(tip);
   expect((await h.remote("git", ["rev-parse", sourceRef])).stdout.trim()).toBe(tip);
-  await h.git("git", ["update-ref", required, saved, wrong]);
+  expect(await landedRefs()).toBe(landed);
+  const restored = await h.ports.rawExec(["hash-object", "-w", "--stdin"], { input: bytes });
+  expect(Buffer.from(restored.stdout).toString().trim()).toBe(saved);
+  await h.git("git", ["update-ref", required, saved, damaged]);
   h.ports.migrateStep = async () => {};
   expect(await h.migrate()).toMatchObject({ status: "ok" });
+  expect(await landedRefs()).toBe(landed);
   expect((await h.git("git", ["for-each-ref", "--format=%(refname)", keptPrefix, required])).stdout).toBe("");
   expect((await h.remote("git", ["for-each-ref", "--format=%(refname)", sourceRef])).stdout).toBe("");
 }, 60_000);

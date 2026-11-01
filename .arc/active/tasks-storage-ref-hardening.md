@@ -274,21 +274,14 @@ classification calls the sweep settled.
   temporary refs. Native tip, ancestor, rewind, and combined-failure cases resume after exact object restoration;
   remote-only and unnamed loss stay unreachable, and canceled fetches skip the check.
 
-### `[ ]` **3.8 The import's publication journal reports its faults — § 1.4**
+### `[x]` **3.8 The import's publication journal reports its faults — § 1.4**
 
 - _Goal:_ Source retirement reports a missing or unparseable publication journal as its own condition and remedy, not
   an untyped exception.
 
-- _Note:_ `import/transient-publication.ts` is shared with another unit's change; see `notes-storage-ref-hardening.md`
-  § Coordination with `store-operation-git-access`. Its sites are in `notes-storage-ref-hardening.md` § Fault-site
-  inventory › 3.8.
-
-    - `unpublishedImportClaims` returns its `{condition, remedy}` pair for a missing blob tip and for one that does not
-      parse, as it does for an absent ref.
-    - Record this fix's SHA under `notes-storage-ref-hardening.md` § Import review fixes for held-out observation H1,
-      so 5.10's fix check includes it.
-    - Build `test-first` (one behavior at a time): a missing journal blob, and one that does not parse, each reach the
-      import's report as a cleanup refusal with the restore remedy.
+- _Outcome:_ Missing and wrong-type journal objects and malformed JSON, schema, or UTF-8 return the import's
+  recoverable cleanup refusal with its retained-journal restore route. Origin's transient refs and source keepers
+  remain protected; exact journal restoration resumes cleanup without rebuilding the landed work or claims.
 
 ### `[ ]` **3.9 The readers whose behavior changes, and `corruptRef` without a missing arm — § 1.4, § 1.8**
 

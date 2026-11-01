@@ -26,11 +26,13 @@ export async function keepImportPublication(context: RefBackendContext, refs: Re
 export async function unpublishedImportClaims(context: RefBackendContext, identities: ReadonlySet<string>): Promise<{ condition: string; remedy: string } | undefined> {
   if (!identities.size) return;
   const tip = (await readSyncRefs(context, IMPORT_PUBLICATION_REF)).get(IMPORT_PUBLICATION_REF);
-  if (!tip) return { condition: "The import's retained publication requirements are unavailable; source retirement is not authorized.",
-    remedy: `Restore ${IMPORT_PUBLICATION_REF} from this import's retained journal, then rerun arc store migrate --import. Preserve the kept source tips until it finishes.` };
+  if (!tip) return publicationJournalFault("unavailable");
   const object = (await readBatchObjects(context, [tip])).get(tip);
-  if (object?.type !== "blob") throw new Error("The import's publication requirements are unavailable; preserve its source keepers.");
-  const required = Object.fromEntries(Object.entries(RequirementsSchema.parse(JSON.parse(new TextDecoder().decode(object.bytes))))
+  if (object?.type !== "blob") return publicationJournalFault("unavailable");
+  let journal: z.infer<typeof RequirementsSchema>;
+  try { journal = RequirementsSchema.parse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(object.bytes))); }
+  catch { return publicationJournalFault("unparseable"); }
+  const required = Object.fromEntries(Object.entries(journal)
     .filter(([ref]) => identities.has(ref.split("/")[3] ?? "")));
   if (!Object.keys(required).length) return;
   context.operationScope?.refreshConfiguration();
@@ -49,4 +51,9 @@ export async function unpublishedImportClaims(context: RefBackendContext, identi
         remedy: `Publish the imported store with arc.identity set to ${person}, then rerun arc store migrate --import. Preserve the kept source tips until it finishes.` };
     }
   } finally { await clearMigrationRefs(physical, prefix); }
+}
+
+function publicationJournalFault(condition: "unavailable" | "unparseable"): { condition: string; remedy: string } {
+  return { condition: `The import's retained publication requirements are ${condition}; source retirement is not authorized.`,
+    remedy: `Restore ${IMPORT_PUBLICATION_REF} from this import's retained journal, then rerun arc store migrate --import. Preserve the kept source tips until it finishes.` };
 }
