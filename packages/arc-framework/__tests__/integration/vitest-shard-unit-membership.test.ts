@@ -6,6 +6,7 @@ import { makeNativeShardFixture } from "../helpers/native-shard-fixture.js";
 import { captureNativeShardFixture, runCapturedNativeShards } from "../helpers/native-shard-capture.js";
 import { qualifyNativeShardMembership } from "../helpers/native-shard-qualification.js";
 import { removeGitBackedDir } from "../helpers/temp-repo.js";
+import { CALL_LIMIT } from "../helpers/call-limit.js";
 
 it.each(["unset", "empty", "available", "empty-file"] as const)(
   "qualifies native unit projects with captured %s durations and changed/filtered membership", async state => {
@@ -37,5 +38,5 @@ it.each(["unset", "empty", "available", "empty-file"] as const)(
         }
       } finally { await captured.dispose(); }
     } finally { await removeGitBackedDir(fixture.root); }
-  }, 90_000,
+  }, 4 * CALL_LIMIT,
 );

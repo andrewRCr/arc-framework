@@ -100,3 +100,63 @@ describe("native Git batch reader failures", () => {
     } finally { await scope.close(); }
   });
 });
+
+/** A batch process with observable exit and optionally paused exchanges. */
+function answeringReader(exitCode = 0, pause?: Promise<void>) {
+  let exited = false;
+  const process = Object.assign(new EventEmitter(), {
+    stdout: new PassThrough(), stderr: new PassThrough(), kill: () => true,
+    stdin: new Writable({
+      write(chunk: Buffer, _encoding, done) {
+        void (pause ?? Promise.resolve()).then(() => { process.stdout.write(`${chunk.toString().trim()} missing\n`); done(); });
+      },
+      final(done) {
+        setImmediate(() => { exited = true; process.stdout.end(); process.stderr.end(); process.emit("close", exitCode, null); done(); });
+      },
+    }),
+  });
+  return { process, exited: () => exited };
+}
+
+const invocation = { args: ["cat-file", "--batch"], cwd: "/repository", env: {}, maxBuffer: 1024, input: Buffer.from("HEAD\n") };
+
+describe("batch reader refresh", () => {
+  it("awaits reader exit, answers through a new reader, and keeps final close final", async () => {
+    const first = answeringReader(); child.current = first.process;
+    const scope = new GitBatchReadScope();
+    expect((await scope.run(invocation)).stdout.toString()).toBe("HEAD missing\n");
+    await scope.reset();
+    expect(first.exited()).toBe(true);
+    const second = answeringReader(); child.current = second.process;
+    expect((await scope.run(invocation)).stdout.toString()).toBe("HEAD missing\n");
+    await scope.close();
+    expect(second.exited()).toBe(true);
+    await expect(scope.run(invocation)).rejects.toThrow("closed");
+  });
+
+  it("drains exchanges queued before a refresh", async () => {
+    let release!: () => void;
+    const paused = new Promise<void>((resolve) => { release = resolve; });
+    const first = answeringReader(0, paused); child.current = first.process;
+    const scope = new GitBatchReadScope();
+    const reading = scope.run(invocation);
+    const closing = scope.reset();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(first.process.stdin.writableEnded).toBe(false);
+    expect(first.exited()).toBe(false);
+    release();
+    expect((await reading).stdout.toString()).toBe("HEAD missing\n");
+    await closing;
+    expect(first.exited()).toBe(true);
+    await scope.close();
+  });
+
+  it("propagates a reader's failed exit from a refresh", async () => {
+    const first = answeringReader(128); child.current = first.process;
+    const scope = new GitBatchReadScope();
+    await scope.run(invocation);
+    await expect(scope.reset()).rejects.toMatchObject({ kind: "nonzero-exit", exitCode: 128 });
+    expect(first.exited()).toBe(true);
+    await scope.close();
+  });
+});

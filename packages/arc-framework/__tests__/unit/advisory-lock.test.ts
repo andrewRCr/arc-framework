@@ -24,6 +24,7 @@ import {
   AdvisoryLockTimeoutError,
   type AdvisoryLockOptions,
 } from "../../src/lib/advisory-lock.js";
+import { atomicCreateFile } from "../../src/lib/fs.js";
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -399,9 +400,17 @@ describe("acquireAdvisoryLock", () => {
     await writeFile(lockPath, JSON.stringify({ pid: 9999, acquiredAt: 0 }), "utf-8");
     const isProcessAlive = (pid: number) => pid !== 9999;
 
+    // The wait clock starts once a contender holds the lock, so slow file creation
+    // before then cannot spend the loser's wait; only waiting on the live winner does.
+    let heldSince: number | undefined;
     const shared: AdvisoryLockOptions = {
       isProcessAlive,
       maxWaitMs: 150,
+      now: () => (heldSince === undefined ? 0 : performance.now() - heldSince),
+      exclusiveCreate: async (path, content) => {
+        await atomicCreateFile(path, content);
+        if (path === lockPath) heldSince ??= performance.now();
+      },
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     };
 

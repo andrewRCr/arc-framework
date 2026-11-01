@@ -47,7 +47,7 @@ function olderGitPorts(rejecting: "exec" | "rawExec"): RefStorePorts {
 }
 
 describe("ref store Git floor on a local-only call", () => {
-  const floor = /Git 2\.43\.0 is below the required Git 2\.47/u;
+  const floor = /Git 2\.43\.0 is below the required Git 2\.53/u;
 
   it("names the version found when the byte executor's first listing is refused", async () => {
     await expect(createRefStore(olderGitPorts("rawExec")).version()).rejects.toThrow(floor);

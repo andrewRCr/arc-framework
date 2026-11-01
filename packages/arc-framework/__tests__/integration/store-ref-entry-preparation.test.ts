@@ -68,24 +68,33 @@ describe("ref entry preparation", () => {
     success(await fixture.store.write({ action: "put", reference, expected: null, content: header + "short", provenance: testProvenance }));
   });
 
-  it.each(["duplicate ID", "missing removal trigger"] as const)("refuses %s atomically and admits the corrected batch", async (defect) => {
+  it("refuses duplicate IDs atomically and admits the corrected batch", async () => {
     const fixture = await createRefFixture();
-    const duplicate = defect === "duplicate ID";
-    const reference = fixture.reference(duplicate ? "personal/inbox" : "personal/working-memory");
+    const reference = fixture.reference("personal/inbox");
     const counter = fixture.reference("project-registry/counter");
-    const broken = duplicate ? "## Errand\n\n### **First**\n- _Id:_ `1234abcd`\n\n### **Second**\n- _Id:_ `1234abcd`\n"
-      : "## Memories\n\n**Memory:**\nbody\n";
-    const fixed = duplicate ? broken.replace("### **Second**\n- _Id:_ `1234abcd`", "### **Second**")
-      : broken.replace("**Memory:**", "**Memory:**\n_Remove when:_ settled");
+    const broken = "## Errand\n\n### **First**\n- _Id:_ `1234abcd`\n\n### **Second**\n- _Id:_ `1234abcd`\n";
+    const fixed = broken.replace("### **Second**\n- _Id:_ `1234abcd`", "### **Second**");
     const batch = (content: string) => ({ writes: [
       { action: "put" as const, reference: counter, expected: null, content: "{}" },
       { action: "put" as const, reference, expected: null, content },
     ], provenance: testProvenance });
     expect(await fixture.store.batch(batch(broken))).toMatchObject({ status: "refused", refusal: { code: "record-malformed",
-      reference, condition: expect.stringContaining(duplicate ? "1234abcd" : "Memory") } });
+      reference, condition: expect.stringContaining("1234abcd") } });
     expect((await makeGitExec(fixture.root)("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
     success(await fixture.store.batch(batch(fixed)));
     expect(success(await fixture.store.read({ reference })).content).toContain("_Id:_");
     expect(success(await fixture.store.read({ reference: counter })).content).toBe("{}");
+  });
+
+  it.each(["write", "batch"] as const)("preserves unanchored bold-colon body text without stamping entries through %s", async (operation) => {
+    const fixture = await createRefFixture();
+    const reference = fixture.reference("personal/working-memory");
+    const content = "## Memories\n\n**Memory:**\nbody\n";
+    const mutation = { action: "put" as const, reference, expected: null, content };
+    if (operation === "write") success(await fixture.store.write({ ...mutation, provenance: testProvenance }));
+    else success(await fixture.store.batch({ writes: [mutation], provenance: testProvenance }));
+    expect(success(await fixture.store.read({ reference })).content).toBe(content);
+    expect(splitEntryList(content, { shape: "field-header", sections: ["Memories"] }).parts.filter((part) => part.kind === "entry"))
+      .toHaveLength(0);
   });
 });

@@ -23,13 +23,13 @@ function matchingFailure(version: string) {
 }
 
 describe("unclassified ref transaction failures", () => {
-  it("explains the Git 2.47 floor on an older Git when every ref still matches", async () => {
+  it("explains the Git 2.53 floor on an older Git when every ref still matches", async () => {
     const { run } = matchingFailure("2.45.0");
-    await expect(run()).rejects.toThrow(/Git 2\.45\.0.*Git 2\.47/u);
+    await expect(run()).rejects.toThrow(/Git 2\.45\.0.*Git 2\.53/u);
   });
 
   it("preserves the original Git failure on a supported Git when every ref still matches", async () => {
-    const { original, run } = matchingFailure("2.47.0");
+    const { original, run } = matchingFailure("2.53.0");
     await expect(run()).rejects.toBe(original);
   });
 });

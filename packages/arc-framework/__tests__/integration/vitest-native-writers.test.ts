@@ -6,6 +6,7 @@ import {
   makeNativeWriterFixture, nativeWriterEvents, startNativeWriter, waitForNativeWriter,
 } from "../helpers/native-writer-fixture.js";
 import { mergeDurationArtifacts } from "../helpers/duration-artifacts.js";
+import { CALL_LIMIT } from "../helpers/call-limit.js";
 
 it.each([false, true])("holds shared-checkout writers through native closing (failure=%s)", async closingFailure => {
   const fixture = await makeNativeWriterFixture();
@@ -60,7 +61,7 @@ it.each([false, true])("holds shared-checkout writers through native closing (fa
     await Promise.allSettled([first.child, ...(second === undefined ? [] : [second.child])]);
     await rm(fixture.root, { recursive: true, force: true });
   }
-}, 60_000);
+}, 3 * CALL_LIMIT);
 
 it("finishes a separate-copy writer during another copy's closing and merges native durations", async () => {
   const fixtures = [await makeNativeWriterFixture(), await makeNativeWriterFixture()];
@@ -142,4 +143,4 @@ it("finishes a separate-copy writer during another copy's closing and merges nat
     await Promise.allSettled([first.child, ...(second === undefined ? [] : [second.child])]);
     await Promise.all(fixtures.map(async (fixture) => await rm(fixture.root, { recursive: true, force: true })));
   }
-}, 60_000);
+}, 3 * CALL_LIMIT);
