@@ -18,7 +18,7 @@ async function workflow() {
 it("uses only the adopted literal matrices and admits scheduled writer runs", async () => {
   const value = await workflow();
   expect(Object.keys(value.on.workflow_dispatch.inputs))
-    .toEqual(["run_portability_pair", "portability_timing_only", "portability_files", "store_per_change", "run_git_floor"]);
+    .toEqual(["run_portability_pair", "portability_store_full", "portability_timing_only", "portability_files", "store_per_change", "run_git_floor"]);
   for (const [tier, indices] of [["unit", [1,2]], ["integration", [1,2,3,4]], ["store", [1,2,3,4,5,6]],
     ["e2e", [1,2,3,4]]] as const) {
     const adopted = value.jobs[tier];
