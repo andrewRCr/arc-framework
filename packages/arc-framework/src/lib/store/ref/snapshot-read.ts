@@ -13,6 +13,7 @@ import { matchesFamilyRef, rootFamily } from "./codec.js";
 import { refListingRefusal } from "./read.js";
 import { isArchiveRef } from "./archive-read.js";
 import { missingHistoryRefs } from "./missing-history.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** Resolve saved bytes from their manifest, consulting today's tips only to route an object-loss remedy. */
 export async function readSnapshotRecord(context: RefBackendContext, input: ReadInput): Promise<StoreResult<StoreRecord>> {
@@ -64,11 +65,13 @@ async function readSavedView(view: StoreView, version: StateVersion, request: Re
 
 async function unavailableSnapshot(context: RefBackendContext, version: StateVersion, unavailable: readonly string[]): Promise<StoreResult<never>> {
   const historyRefs = await missingHistoryRefs(context, unavailable);
-  return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", stateVersion: version,
+  const { refusal } = refObjectFault(unavailable.join(", "), "missing", {
     historyRefs,
     condition: `Saved state tips or their root trees are unavailable: ${unavailable.join(", ")}`,
     remedy: { text: historyRefs.length ? "Pull the named history refs or restore the missing state objects, then retry this saved-state read."
-      : "Restore or fetch the missing state objects in the store repository, then retry this saved-state read." } } };
+      : "Restore or fetch the missing state objects in the store repository, then retry this saved-state read." },
+  });
+  return { status: "refused", refusal: { ...refusal, stateVersion: version } };
 }
 
 function selectSnapshotTips(manifest: ReadonlyMap<string, string>, input: ListInput, identity: string | null): Map<string, string> {

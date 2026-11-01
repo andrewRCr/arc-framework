@@ -298,6 +298,8 @@ classification calls the sweep settled.
         - _Note:_ Producer-side Missing history routing is included here after snapshot-wrapper preservation exposed
           empty routes from captured views. Section 1.6 requires the rule for every Missing refusal: producers use
           the actual damaged ref and current tips; the snapshot wrapper preserves that route.
+        - _Note:_ The fault-site recheck found `unavailableSnapshot` still constructed its Missing listing refusal
+          directly. It now uses the shared helper as § 1.4 requires, retaining the same version, history, and remedy.
         - Saved reads preserve producer history routes and add only an absent snapshot version; captured conflict
           evidence retains its Missing cause without relabeling structural faults. Follow cleanup preserves Missing
           refusals and the move record. Public-store and unit cases cover the reader table's retries, refusal
