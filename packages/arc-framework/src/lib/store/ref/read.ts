@@ -27,8 +27,10 @@ import { resolveLineageReadReference } from "./lineage-resolution.js";
 import { resolveRefName, resolveRefListInput, resolveRefReadName } from "./reference-resolution.js";
 import type { RefLookupCapture } from "./lookup-trees.js";
 import { readUidRefRecord } from "./read-uid.js";
-import { refRecordAbsence } from "./record-absence.js";
+import { absentRefRecord as missing, refRecordAbsence } from "./record-absence.js";
 import type { RefViewState } from "./view-state.js";
+import { resolveRefPointObject } from "./point-object.js";
+import { missingRefObjects } from "./missing-objects.js";
 
 /** Read a record, resolving name-only owners through one captured namespace. */
 export async function readRefRecord(context: RefBackendContext, input: ReadInput): Promise<StoreResult<StoreRecord>> {
@@ -62,18 +64,25 @@ async function readBoundRecord(context: RefBackendContext, requested: RecordRefe
   reference = admitted.result;
   if (!tip) return missing(reference);
   const object = objects.get(recordQuery);
-  const metadata = parseRefMetadata(objects.get(metadataQuery), home.ref);
-  if (!metadata) {
-    const entries = (await readRefTrees(context, new Map([[home.ref, tip]]))).get(home.ref);
-    // A tree holding no record reads as holding none, as a listing reads it.
-    if (entries && holdsNoRecord(home, entries.map(({ path }) => path))) return missing(reference);
-    return { status: "refused", refusal: corruptRef(home.ref, !entries) };
-  }
+  const acquired = await readPointMetadata(context, reference, home, tip, objects.get(metadataQuery));
+  if (acquired.status === "refused") return acquired;
+  const metadata = acquired.result;
   if (object?.type !== "blob") return refRecordAbsence(context, reference, home, tip);
   const owner = resolveCapturedOwner(context, reference, home, metadata, object);
   if (owner.status === "refused") return owner;
   reference = RecordReferenceSchema.parse({ ...reference, owner: owner.result });
   return readBoundContent(context, reference, home, { object, metadata, conflicts: objects.get(conflictsQuery), parent: objects.get(parentQuery) });
+}
+
+async function readPointMetadata(context: RefBackendContext, reference: RecordReference,
+  home: StoredRecordHome, tip: string, object: BatchObject | null | undefined): Promise<StoreResult<RefMetadata>> {
+  const resolvedMetadata = await resolveRefPointObject(context, { ref: home.ref, tip, path: home.metadataPath }, object);
+  if (resolvedMetadata.kind === "missing") return { status: "refused", refusal: missingRefObjects(home.ref, { reference, historyRefs: [] }) };
+  if (resolvedMetadata.kind === "absent") return holdsNoRecord(home, resolvedMetadata.entries.map(({ path }) => path))
+    ? missing(reference) : { status: "refused", refusal: corruptRef(home.ref) };
+  const read = readRefMetadata(home.ref, resolvedMetadata.object);
+  if (read.kind !== "parsed") return { status: "refused", refusal: corruptRef(home.ref) };
+  return { status: "ok", result: read.metadata };
 }
 
 async function readBoundContent(context: RefBackendContext, reference: RecordReference, home: StoredRecordHome,
@@ -294,12 +303,6 @@ export function refPrototype(context: RefBackendContext, ref: string, family: Fa
     : root === "work-item" || root === "cohort" ? { type: root, name: "unresolved", uid: ref.split("/").at(-1) }
       : { type: "project", name: "project" });
   return RecordReferenceSchema.parse({ owner, kind: kind.id, ...(kind.key === null ? {} : { key: "unresolved" }) });
-}
-
-function missing(reference: RecordReference, condition = "The record is not present in local state",
-  remedy = "Pull state or create the record, then retry."): StoreResult<never> {
-  return { status: "refused", refusal: { code: "not-found", class: "recoverable", reference,
-    condition, remedy: { text: remedy } } };
 }
 
 function projectReadReference(reference: RecordReference, tips: ReadonlyMap<string, string>,

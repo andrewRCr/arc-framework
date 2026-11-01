@@ -85,23 +85,14 @@ listing schemas and output unchanged.
   Public Store tests exercise it through listing decoding and UID point reads brought forward from 3.1; missing
   listing metadata gets the restore remedy and resumes after restoration. The tolerant parser stays unchanged.
 
-### `[ ]` **2.2 A `missing` point-read answer is resolved by its containing tree — § 1.3**
+### `[x]` **2.2 A `missing` point-read answer is resolved by its containing tree — § 1.3**
 
 - _Goal:_ A site that refuses or reports on a `missing` `<tip>:<path>` answer tells an absent entry from an entry
   whose object is absent, with one tree read only after the `missing` answer.
 
-    - Generalize `refRecordAbsence`'s tree read (`lib/store/ref/record-absence.ts`) into a resolution the § 1.3 sites
-      share; a present answer costs no extra read.
-    - The `<tip>:<path>` metadata sites that refuse or report (`read.ts`, `read-uid.ts`, `lineage-resolution.ts`,
-      `live-owners.ts`, `sync-withdraw-sibling-ends.ts`) hold a looked-up answer, not a tree entry. A present answer
-      goes to 2.1's read in its looked-up form; a `missing` answer goes to this resolution, whose present entry is
-      **Missing** and whose absent entry takes the site's own rule. `retiredHistoryHome`'s revision scan
-      (`retired-history.ts`) tolerates a `missing` answer and keeps skipping that revision (spec § 1.3).
-    - Build `test-first` (one behavior at a time):
-        - an entry present in its tree whose object is absent resolves to **Missing**
-        - an entry absent from its tree resolves to absent, for the caller's own rule
-        - a containing tree that is itself absent resolves to **Missing**
-        - a present first answer issues no tree read
+- _Outcome:_ `resolveRefPointObject` resolves missing path answers from one containing-tree read and retains that
+  evidence for caller policy. Live point reads and `refRecordAbsence` use it; object loss is recoverable, real path
+  absence keeps its own rule, and UID reads pin failed ref-name answers before classifying or retrying them.
 
 ### `[ ]` **2.3 One fault helper maps a fault to its refusal, diagnostic, and remedy — § 1.1, § 1.4, § 1.6**
 

@@ -21,6 +21,10 @@ export function refObjectReadFixture(options: {
   type?: ObjectType;
   metadataName?: string;
   missingMetadata?: boolean;
+  missingTree?: boolean;
+  missingRecord?: boolean;
+  record?: boolean;
+  transientMetadataAbsence?: boolean;
 } = {}) {
   const objects = new Map<string, GitObject>();
   function object(type: ObjectType, content: string | Uint8Array): GitObject {
@@ -44,14 +48,17 @@ export function refObjectReadFixture(options: {
   const entries: Entry[] = [
     ...options.metadata === null ? [] : [{ name: options.metadataName ?? metadataPath,
       mode: type === "tree" ? "40000" : type === "commit" ? "160000" : "100644", oid: metadata.oid }],
-    { name: "extra-alpha.md", mode: "100644", oid: record.oid },
+    ...options.record === false ? [] : [{ name: "extra-alpha.md", mode: "100644", oid: record.oid }],
   ];
   const root = tree(entries), tip = commit(root.oid);
   const work = tree([{ name: metadataUid, mode: "160000", oid: tip.oid }]);
   const manifest = tree([{ name: "work", mode: "40000", oid: work.oid }]);
   if (options.missingMetadata) objects.delete(metadata.oid);
+  if (options.missingTree) objects.delete(root.oid);
+  if (options.missingRecord) objects.delete(record.oid);
 
   const calls: string[][] = [];
+  let transientMetadataAbsence = options.transientMetadataAbsence;
   const unexpected = async (): Promise<never> => { throw new Error("Unexpected fixture I/O"); };
   const missing = (path: string) => Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
   const ports: RefStorePorts = {
@@ -63,10 +70,14 @@ export function refObjectReadFixture(options: {
       else if (args[0] === "cat-file" && args[1] === "--batch") {
         const queries = Buffer.from(controls?.input ?? "").toString().trimEnd().split("\n");
         stdout = Buffer.concat(queries.map(query => {
+          if (transientMetadataAbsence && query === `${metadataRef}:${metadataPath}`) {
+            transientMetadataAbsence = false;
+            return Buffer.from(`${query} missing\n`);
+          }
           let oid = query === metadataRef ? tip.oid : query;
           if (query === `${tip.oid}^{tree}`) oid = root.oid;
           const prefix = [metadataRef, tip.oid].find(revision => query.startsWith(`${revision}:`));
-          if (prefix) oid = entries.find(entry => entry.name === query.slice(prefix.length + 1))?.oid ?? "";
+          if (prefix) oid = objects.has(root.oid) ? entries.find(entry => entry.name === query.slice(prefix.length + 1))?.oid ?? "" : "";
           const value = objects.get(oid);
           return value ? Buffer.concat([Buffer.from(`${value.oid} ${value.type} ${value.bytes.length}\n`), value.bytes, Buffer.from("\n")])
             : Buffer.from(`${query} missing\n`);

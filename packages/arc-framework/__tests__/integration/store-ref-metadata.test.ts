@@ -132,8 +132,13 @@ describe("ref metadata object recovery", () => {
       diagnostics: [{ kind: "unreadable", key: ref, remedy: { text: expect.stringMatching(/Restore.*missing/u) } }] } });
     if (listing.status !== "ok") throw new Error("Expected a listing");
     expect(ListingOutcomeSchema.safeParse(listing.result).success).toBe(true);
+    expect(await f.store.read({ reference })).toMatchObject({ status: "refused", refusal: {
+      code: "state-unresolvable", class: "recoverable", historyRefs: [],
+      remedy: { text: expect.stringMatching(/Restore.*missing/u) },
+    } });
 
     expect((await f.execInput(["hash-object", "-w", "--stdin"], content)).trim()).toBe(blob);
+    expect(await f.store.read({ reference })).toMatchObject({ status: "ok", result: { content: "kept" } });
     expect(await f.store.list({ family: "work-item" })).toMatchObject({ status: "ok", result: {
       status: "complete", records: expect.arrayContaining([expect.objectContaining({ content: "kept" }),
         expect.objectContaining({ content: "healthy" })]), diagnostics: [], missed: false,
