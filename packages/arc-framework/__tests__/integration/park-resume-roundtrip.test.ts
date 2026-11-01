@@ -305,6 +305,43 @@ describe("park@Active → resume round-trip — against real worktrees", () => {
     expect(await readWorktreeLock(io.exec, placed)).toBeUndefined();
   });
 
+  it.each(["remove", "stage", "remove-and-lock"])("protects a retained spawn when pointer cleanup fails at %s", async (failure) => {
+    await parkAndShip(h);
+    const resumeWt = resolveWorktreeLocation({
+      template: h.locationTemplate, repo: basename(h.repo), name: SLUG, branch: BRANCH,
+    });
+    h.spawned.push(resumeWt);
+    const executor = executorFor(h);
+    if (failure === "remove-and-lock") {
+      const exec = h.io.exec;
+      executor.exec = async (command, args, opts) => {
+        if (args[0] === "worktree" && args[1] === "lock") throw new Error("lock permission denied");
+        return exec(command, args, opts);
+      };
+    }
+    executor.stageMeta = async () => {
+      if (failure === "stage" && !await pathExists(join(h.repo, POINTER_REL))) throw new Error("stage permission denied");
+    };
+    const fs = parkResumeFs(h.io);
+    const result = await runResume({ executor, fs: {
+      ...fs, rm: async (path) => {
+        if (failure !== "stage") throw new Error("remove permission denied");
+        return fs.rm(path);
+      },
+    } }, {
+      name: SLUG, locationTemplate: h.locationTemplate, repo: basename(h.repo), spawningIdentity: IDENTITY,
+    });
+
+    expect(await pathExists(join(resumeWt, ACTIVE_REL))).toBe(true);
+    expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("partially applied"), worktreePath: resumeWt });
+    if (failure === "remove-and-lock") {
+      expect(result).toMatchObject({ spawnLock: { kind: "failed", detail: expect.stringContaining("lock permission denied") } });
+    } else {
+      expect(await readWorktreeLock(makeGitExec(h.repo), resumeWt)).toBe(PROJECTION_LOCK_REASON);
+      expect(result).toMatchObject({ spawnLock: { kind: "locked" } });
+    }
+  });
+
   it("round-trip (--here): resume defers the checkout; commit then checkout re-attaches with no orphan", async () => {
     await parkAndShip(h);
 

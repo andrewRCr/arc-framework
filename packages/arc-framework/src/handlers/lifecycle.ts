@@ -1172,12 +1172,12 @@ export async function handleResume(
     repo: basename(primaryWorktreePath),
     spawningIdentity: base.identity,
   });
+  warnSpawnLock(result.worktreePath, result.spawnLock);
   if (result.status === "rejected") {
     refuse(result.reason);
     return;
   }
   reportOutcome("Resumed", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
-  warnSpawnLock(result.worktreePath, result.spawnLock);
 }
 
 function formatMaterializeCandidates(candidates: readonly MaterializableWorkUnit[]): string {

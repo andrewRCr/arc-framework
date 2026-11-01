@@ -224,7 +224,7 @@ export type ParkResult =
 
 /** The outcome of a `resume` attempt — a rejection, or the re-attached meta path. */
 export type ResumeResult =
-  | { status: "rejected"; reason: string }
+  | { status: "rejected"; reason: string; worktreePath?: string; spawnLock?: SpawnLock }
   | {
       status: "resumed";
       outcome: TransitionOutcome;
@@ -660,6 +660,16 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
   const outcome = await executeTransition(transition.executor, { verb: "resume", slug: name, inputs });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
 
+  const worktreePath = transition.spawnedPath();
+  const exec = ctx.executor.exec;
+  const spawnLock = worktreePath === undefined ? undefined : exec === undefined
+    ? { kind: "failed" as const, detail: "resume ran without a Git executor" }
+    : await lockSpawnedCheckout(exec, worktreePath);
+  const spawned = {
+    ...(worktreePath === undefined ? {} : { worktreePath }),
+    ...(spawnLock === undefined ? {} : { spawnLock }),
+  };
+
   // Remove the tracked-branch pointer-record and prune the emptied parked dir.
   // Spawn re-attaches in a separate worktree (cwd stays on the tracked branch), so
   // the artifacts are already back; in place the checkout is deferred (below), so
@@ -675,6 +685,7 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
     return {
       status: "rejected",
       reason: `resume partially applied: branch re-attached, but the pointer-record removal failed — ${detail}`,
+      ...spawned,
     };
   }
   const parkedAbs = join(ctx.executor.cwd, parkedSubdir);
@@ -698,17 +709,11 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
   const completedOutcome = advisories.length === outcome.advisories.length
     ? outcome
     : { ...outcome, advisories };
-  const worktreePath = transition.spawnedPath();
-  const exec = ctx.executor.exec;
-  const spawnLock = worktreePath === undefined ? undefined : exec === undefined
-    ? { kind: "failed" as const, detail: "resume ran without a Git executor" }
-    : await lockSpawnedCheckout(exec, worktreePath);
 
   return {
     status: "resumed",
     outcome: completedOutcome,
-    ...(worktreePath === undefined ? {} : { worktreePath }),
-    ...(spawnLock === undefined ? {} : { spawnLock }),
+    ...spawned,
     metaPath: resolveArcPath({
       kind: "work-unit-artifact",
       placement: { kind: "active", scope: { kind: "project" } },

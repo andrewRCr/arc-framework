@@ -904,6 +904,7 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
     (r) => r.status !== "rejected",
     "Resume failed.",
   );
+  warnSpawnLock(result.worktreePath, result.spawnLock);
   if (result.status === "rejected") {
     p.log.error(result.reason);
     process.exitCode = 1;
@@ -912,7 +913,6 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
 
   p.note([`Work unit: ${wuName}`, `Meta:      ${result.metaPath}`].join("\n"), "Resumed");
   reportAdvisories(result.outcome);
-  warnSpawnLock(result.worktreePath, result.spawnLock);
   p.outro("Done.");
 }
 
