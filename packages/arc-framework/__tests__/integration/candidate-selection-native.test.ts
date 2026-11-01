@@ -16,7 +16,7 @@ import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import type { Store } from "../../src/lib/store/index.js";
 import { lackingEndedHistory } from "../helpers/store/ended-history.js";
 
-async function selection(archived = false) {
+async function selection(archived = false, options: { liveNamesake?: boolean; bound?: boolean } = {}) {
   const h = await createReviewRepositoryHarness();
   onTestFinished(h.cleanup);
   const { cwd, exec } = h.native;
@@ -39,6 +39,8 @@ async function selection(archived = false) {
     : { branch: null }, archived ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" }, {
     branches: [{ repository: projectId, ref: branch, linkedAs: "adopted", excluded: [] }],
   });
+  if (options.liveNamesake === true) await h.reference.seedMeta("example", { branch: null }, { kind: "active" }, {
+    branches: [{ repository: projectId, ref: "feat/example-next", linkedAs: "created", excluded: [] }] });
   const record = { schemaVersion: 1 as const, semanticsVersion: "candidate-attestation/v1" as const,
     subject: collected.target.subject, attestation: createCandidateAttestation({ workUnit: "example", subject: collected.target.subject,
       baseRevision: collected.target.revision, attestedBy: "test-user", attestedAt: "2026-10-20T12:00:00Z",
@@ -66,7 +68,8 @@ async function selection(archived = false) {
     const exits: number[] = [];
     await handleCandidateApplicabilityResolve("example", "-", undefined, { readText: async () => JSON.stringify(request),
       write: text => { output += text; }, setExitCode: code => exits.push(code) },
-    { cwd, exec, store, projectId: h.reference.projectId, workItem: primary.reference.owner });
+    { cwd, exec, store, projectId: h.reference.projectId,
+      ...(options.bound === false ? {} : { workItem: primary.reference.owner }) });
     expect(exits, output).toEqual([]);
     expect(JSON.parse(output)).toMatchObject({ state: expect.stringMatching(/^(resolved|exact-replay)$/), nextAction: "continue" });
   };
@@ -91,3 +94,12 @@ it("records a selection on an archived work unit after pulling the history this 
   expect(selected.record === null ? [] : candidateReviewApplicabilitySelections(selected.record))
     .toMatchObject([{ choice: "covered", selectedBy: "test-user" }]);
 }, 30_000);
+
+it("records an unbound selection on the archived generation its checkout's marker names, beside a live namesake",
+  async () => {
+    const { h, cwd, primary, invoke } = await selection(true, { liveNamesake: true, bound: false });
+    await invoke();
+    const selected = await readCandidateRecordVersioned(cwd, "example", { store: h.reference.store, owner: primary.reference.owner });
+    expect(selected.record === null ? [] : candidateReviewApplicabilitySelections(selected.record))
+      .toMatchObject([{ choice: "covered", selectedBy: "test-user" }]);
+  }, 30_000);

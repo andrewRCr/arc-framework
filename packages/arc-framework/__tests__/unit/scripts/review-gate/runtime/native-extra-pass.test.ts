@@ -30,11 +30,11 @@ it("records one ceiling decision and carries its pass across later heads of the 
   expect(records).toMatchObject({ status: "complete", records: [{ value: { subject: h.input.subject,
     lane: "standard", choice: { kind: "extra-pass", passCount: 2, precondition: { kind: "ceiling" } },
     decidedBy: "test-user", basis: null } }] });
-  expect(first.ceilingDecisionKey).toMatch(/^sha256:/u);
+  expect(first.judgment?.ceilingOverride?.decisionKey).toMatch(/^sha256:/u);
   const before = await h.store.version();
   const carried = await resolveNativeExtraPassJudgment({ ...h.input, subject: { ...h.input.subject, headSha: "b".repeat(40) } });
-  expect(carried).toMatchObject({ ceilingDecisionKey: first.ceilingDecisionKey,
-    judgment: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } } });
+  expect(carried).toMatchObject({ judgment: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3,
+    decisionKey: first.judgment?.ceilingOverride?.decisionKey } } });
   expect(await h.store.version()).toEqual(before);
   expect(await resolveNativeExtraPassJudgment({ ...h.input, subject: { ...h.input.subject,
     lineage: { kind: "candidate", candidateId: canonicalDigest({ successor: 1 }) } } })).toEqual({});
@@ -48,7 +48,7 @@ it("records an additional pass at its exact head and reads it as spent after tha
   expect(await h.input.facts.decisions.list()).toMatchObject({ status: "complete", records: [{ value: {
     choice: { kind: "extra-pass", passCount: 2, precondition: { kind: "additional", precedingProducerId: "producer-1" } },
     decidedBy: "test-user", basis: null } }] });
-  expect(first.additionalDecisionKey).toMatch(/^sha256:/u);
+  expect(first.judgment?.additionalPassAuthorization?.decisionKey).toMatch(/^sha256:/u);
   const before = await h.store.version();
   expect(await resolveNativeExtraPassJudgment({ ...h.input, judgment, now: "2026-10-20T13:00:00Z" })).toEqual(first);
   expect(await resolveNativeExtraPassJudgment(h.input)).toEqual(first);
@@ -62,7 +62,7 @@ it("resolves the later ceiling decision within the same Candidate's reach", asyn
   const first = await resolveNativeExtraPassJudgment({ ...h.input, judgment });
   const second = await resolveNativeExtraPassJudgment({ ...h.input, judgment, now: "2026-10-20T13:00:00Z",
     subject: { ...h.input.subject, headSha: "b".repeat(40) } });
-  expect(second.ceilingDecisionKey).not.toBe(first.ceilingDecisionKey);
+  expect(second.judgment?.ceilingOverride?.decisionKey).not.toBe(first.judgment?.ceilingOverride?.decisionKey);
   const before = await h.store.version();
   expect(await resolveNativeExtraPassJudgment(h.input)).toEqual(second);
   expect(await h.store.version()).toEqual(before);
@@ -72,10 +72,11 @@ it("leaves a withdrawn ceiling decision outside the resolved judgment", async ()
   const h = await fixture();
   const first = await resolveNativeExtraPassJudgment({ ...h.input,
     judgment: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } } });
-  const grant = await h.input.facts.decisions.read(first.ceilingDecisionKey ?? "missing");
-  if (grant === null || first.ceilingDecisionKey === undefined) throw new Error("Expected the stored grant");
+  const key = first.judgment?.ceilingOverride?.decisionKey;
+  const grant = key === undefined ? null : await h.input.facts.decisions.read(key);
+  if (grant === null || key === undefined) throw new Error("Expected the stored grant");
   await h.input.facts.decisions.create({ ...grant.value, decidedAt: "2026-10-20T13:00:00Z",
-    choice: { kind: "withdrawal", decisionKey: first.ceilingDecisionKey } });
+    choice: { kind: "withdrawal", decisionKey: key } });
   const before = await h.store.version();
   expect(await resolveNativeExtraPassJudgment(h.input)).toEqual({});
   expect(await h.store.version()).toEqual(before);
@@ -93,7 +94,7 @@ it.each(["frontline", "errand", "delivery-member"] as const)("keeps a %s ceiling
   const input = { ...h.input, lane: kind === "frontline" ? "frontline" as const : "standard" as const,
     subject: { lineage, headSha, subjectDigest: kind === "frontline" ? h.input.subject.subjectDigest : target.targetId } };
   const first = await resolveNativeExtraPassJudgment({ ...input, judgment: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } } });
-  expect(first.ceilingDecisionKey).toMatch(/^sha256:/u);
+  expect(first.judgment?.ceilingOverride?.decisionKey).toMatch(/^sha256:/u);
   expect(await resolveNativeExtraPassJudgment(input)).toEqual(first);
   expect(await resolveNativeExtraPassJudgment({ ...input, subject: { ...input.subject,
     lineage: lineage.kind === "head-bound" ? { ...lineage, headSha: "b".repeat(40) } : lineage,
@@ -142,9 +143,8 @@ it.each(["ceiling", "additional"] as const)("limits stored full %s authority to 
 it.each(["ceiling", "additional"] as const)("relays a recorded %s grant by its exact key without replacing its author", async kind => {
   const h = await fixture();
   const first = await resolveNativeExtraPassJudgment({ ...h.input, ...fullGrant(kind, h.input.policyTarget) });
-  const key = kind === "ceiling" ? first.ceilingDecisionKey : first.additionalDecisionKey;
   const field = kind === "ceiling" ? "ceilingOverride" : "additionalPassAuthorization";
-  expect(first.judgment?.[field]).toHaveProperty("decisionKey", key);
+  expect(first.judgment?.[field]?.decisionKey).toMatch(/^sha256:/u);
   const before = await h.store.version();
   expect(await resolveNativeExtraPassJudgment({ ...h.input, actor: undefined, judgment: first.judgment })).toEqual(first);
   expect(await resolveNativeExtraPassJudgment({ ...h.input, actor: "another-user", judgment: first.judgment })).toEqual(first);
@@ -184,7 +184,7 @@ it.each(["kind", "lane", "candidate", "repository", "pr", "withdrawal", "superse
     let input = { ...h.input, actor: undefined, judgment: { ceilingOverride: ceiling } };
     if (invalid === "kind") {
       const other = await resolveNativeExtraPassJudgment({ ...h.input, ...fullGrant("additional", h.input.policyTarget) });
-      input.judgment.ceilingOverride = { ...ceiling, decisionKey: other.additionalDecisionKey };
+      input.judgment.ceilingOverride = { ...ceiling, decisionKey: other.judgment?.additionalPassAuthorization?.decisionKey };
     } else if (invalid === "lane") input = { ...input, lane: "frontline" as typeof input.lane };
     else if (invalid === "candidate") input = { ...input, subject: { ...input.subject,
       lineage: { kind: "candidate", candidateId: canonicalDigest({ other: true }) } } };
@@ -258,7 +258,7 @@ it.each(["ceiling", "additional"] as const)("keeps an older %s grant superseded 
   const judgment = kind === "ceiling" ? { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } }
     : { additionalPassAuthorization: { headSha: h.input.subject.headSha, completedPasses: 2, nextPass: 3, precedingProducerId: "producer-1" } };
   const first = await resolveNativeExtraPassJudgment({ ...h.input, judgment });
-  const firstKey = kind === "ceiling" ? first.ceilingDecisionKey : first.additionalDecisionKey;
+  const firstKey = kind === "ceiling" ? first.judgment?.ceilingOverride?.decisionKey : first.judgment?.additionalPassAuthorization?.decisionKey;
   if (firstKey === undefined) throw new Error("expected original grant");
   const original = await h.input.facts.decisions.read(firstKey);
   if (original === null) throw new Error("expected recorded grant");
@@ -272,5 +272,5 @@ it.each(["ceiling", "additional"] as const)("keeps an older %s grant superseded 
     .rejects.toThrow(/superseded|withdrawn/i);
   const repaired = await h.input.facts.decisions.create({ ...latest.value, decidedBy: "current-owner", decidedAt: "2026-10-20T14:00:00Z" });
   expect(await resolveNativeExtraPassJudgment(h.input)).toMatchObject({
-    [kind === "ceiling" ? "ceilingDecisionKey" : "additionalDecisionKey"]: reviewDecisionKey(repaired.value) });
+    judgment: { [field]: { decisionKey: reviewDecisionKey(repaired.value) } } });
 });

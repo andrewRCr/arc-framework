@@ -110,7 +110,8 @@ it.each(["Active", "Shipped"] as const)("resolves the production %s Candidate ow
     const subject = boundWorkUnitSubject(meta);
     await checkout.occupy("feat/example", subject);
     const result = await resolveCandidateMutationOwner(checkout);
-    expect(result).toEqual(state === "Shipped" ? { status: "owned", workUnit: "example", branch: "feat/example", uid: subject.uid }
+    expect(result).toEqual(state === "Shipped" ? { status: "owned", workUnit: "example", branch: "feat/example", uid: subject.uid,
+      completed: true }
       : { status: "owned", workUnit: "example", uid: subject.uid });
     if (state === "Shipped") expect(await resolveCompletedCandidateWorkUnits(checkout.cwd, checkout.store)).toEqual(["example"]);
   } finally { await checkout.cleanup(); }

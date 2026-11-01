@@ -4,6 +4,12 @@ import { hostedOutcome, frontlineOutcome, localOutcome } from "../../../../../..
 import { describe, expect, it } from "vitest";
 import { ReviewOutcomeSchema } from "../../../../../../../src/lib/store/kinds/review/outcome/schema.js";
 
+/** The messages of every rule a candidate outcome breaks, so a case shows its own rule refused it. */
+function refusalMessages(input: unknown): string[] {
+  const result = ReviewOutcomeSchema.safeParse(input);
+  return result.success ? [] : result.error.issues.map(({ message }) => message);
+}
+
 
 
 
@@ -16,21 +22,21 @@ describe("immutable review outcome", () => {
 
 describe("hosted outcome binding", () => {
   it.each([
-    ["another admission pass", (value: ReturnType<typeof hostedOutcome>) => { value.logicalPass = 2; }],
-    ["another source", (value: ReturnType<typeof hostedOutcome>) => { Object.assign(value.source, { sourceId: "delegated-agent" }); }],
-    ["another owner", (value: ReturnType<typeof hostedOutcome>) => { value.lineage = { kind: "candidate", candidateId: `sha256:${"a".repeat(64)}` }; }],
-    ["another attempt", (value: ReturnType<typeof hostedOutcome>) => { value.attemptId = "another-attempt"; }],
-    ["another generation", (value: ReturnType<typeof hostedOutcome>) => { value.retryGeneration = 1; }],
-    ["no sealed result", (value: ReturnType<typeof hostedOutcome>) => { delete value.hosted.sealedResult; }],
+    ["another admission pass", (value: ReturnType<typeof hostedOutcome>) => { value.logicalPass = 2; }, "hosted lane attempt does not match its durable admission"],
+    ["another source", (value: ReturnType<typeof hostedOutcome>) => { Object.assign(value.source, { sourceId: "delegated-agent" }); }, "hosted attempt source must be a hosted provider"],
+    ["another owner", (value: ReturnType<typeof hostedOutcome>) => { value.lineage = { kind: "candidate", candidateId: `sha256:${"a".repeat(64)}` }; }, "hosted attempt must remain inside its lane owner"],
+    ["another attempt", (value: ReturnType<typeof hostedOutcome>) => { value.attemptId = "another-attempt"; }, "acknowledged hosted attempt identity must derive from its handle"],
+    ["another generation", (value: ReturnType<typeof hostedOutcome>) => { value.retryGeneration = 1; }, "hosted attempts must use generation zero"],
+    ["no sealed result", (value: ReturnType<typeof hostedOutcome>) => { delete value.hosted.sealedResult; }, "hosted terminal authority must exactly match one sealed producer result"],
     ["a changed sealed digest", (value: ReturnType<typeof hostedOutcome>) => {
       if (value.hosted.sealedResult !== undefined) value.hosted.sealedResult.hostedResultId = `sha256:${"0".repeat(64)}`;
-    }],
-    ["a spurious request failure", (value: ReturnType<typeof hostedOutcome>) => { value.hosted.requestFailureReason = "failed"; }],
-    ["weakened effective coverage", (value: ReturnType<typeof hostedOutcome>) => { value.effectiveCoverage = "incremental"; }],
-  ])("refuses %s", (_label, mutate) => {
+    }, "hosted result identity does not match its canonical producer content"],
+    ["a spurious request failure", (value: ReturnType<typeof hostedOutcome>) => { value.hosted.requestFailureReason = "failed"; }, "hosted terminal request failure must retain exactly one reason"],
+    ["weakened effective coverage", (value: ReturnType<typeof hostedOutcome>) => { value.effectiveCoverage = "incremental"; }, "hosted outcome must match its complete source binding"],
+  ])("refuses %s", (_label, mutate, rule) => {
     const value = hostedOutcome();
     mutate(value);
-    expect(ReviewOutcomeSchema.safeParse(value).success).toBe(false);
+    expect(refusalMessages(value)).toContain(rule);
   });
 });
 
@@ -63,24 +69,24 @@ it("parses JSON and computes stable single-segment outcome keys", () => {
 });
 
 it.each([
-  ["two bindings", () => ({ ...localOutcome(), frontline: frontlineOutcome().frontline })],
-  ["no binding", () => { const value = localOutcome(); return { ...value, local: undefined }; }],
-  ["frontline lane without frontline admission", () => ({ ...localOutcome(), lane: "frontline" })],
-  ["findings on a local clean result", () => ({ ...localOutcome(), findings: [{ findingId: "f-1", severity: "major", locus: "src/a.ts:1", evidenceUrlOrId: "finding:f-1", sourceOrdinal: 1 }] })],
-  ["findings on a frontline clean result", () => ({ ...frontlineOutcome(), findings: [{ findingId: "f-1", severity: "major", locus: "src/a.ts:1", evidenceUrlOrId: "finding:f-1", sourceOrdinal: 1 }] })],
-  ["a local outcome at another lineage head", () => ({ ...localOutcome(), lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: "claim-1", headSha: "a".repeat(40) } })],
-  ["a frontline outcome at another lineage head", () => ({ ...frontlineOutcome(), lineage: { ...frontlineOutcome().lineage, headSha: "a".repeat(40) } })],
-])("refuses %s", (_label, create) => {
-  expect(ReviewOutcomeSchema.safeParse(create()).success).toBe(false);
+  ["two bindings", () => ({ ...localOutcome(), frontline: frontlineOutcome().frontline }), "outcome requires exactly one source binding"],
+  ["no binding", () => { const value = localOutcome(); return { ...value, local: undefined }; }, "outcome requires exactly one source binding"],
+  ["frontline lane without frontline admission", () => ({ ...localOutcome(), lane: "frontline" }), "frontline lane requires its admitted frontline producer"],
+  ["findings on a local clean result", () => ({ ...localOutcome(), findings: [{ findingId: "f-1", severity: "major", locus: "src/a.ts:1", evidenceUrlOrId: "finding:f-1", sourceOrdinal: 1 }] }), "only findings outcomes carry a nonempty finding set"],
+  ["findings on a frontline clean result", () => ({ ...frontlineOutcome(), findings: [{ findingId: "f-1", severity: "major", locus: "src/a.ts:1", evidenceUrlOrId: "finding:f-1", sourceOrdinal: 1 }] }), "only findings outcomes carry a nonempty finding set"],
+  ["a local outcome at another lineage head", () => ({ ...localOutcome(), lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: "claim-1", headSha: "a".repeat(40) } }), "outcome target must remain at its head-bound lineage head"],
+  ["a frontline outcome at another lineage head", () => ({ ...frontlineOutcome(), lineage: { ...frontlineOutcome().lineage, headSha: "a".repeat(40) } }), "outcome target must remain at its head-bound lineage head"],
+])("refuses %s", (_label, create, rule) => {
+  expect(refusalMessages(create())).toContain(rule);
 });
 
 it.each([
-  ["a frontline verdict carrying a failure reason", () => ({ ...frontlineOutcome(), frontline: { ...frontlineOutcome().frontline, reason: { class: "execution-timeout" } } })],
-  ["a frontline failure without its reason", () => ({ ...frontlineOutcome(), outcome: "timed-out", effectiveCoverage: null })],
-  ["a launched frontline verdict without executable identity", () => ({ ...frontlineOutcome(), frontline: { ...frontlineOutcome().frontline, executableIdentity: null } })],
-  ["a local attempt identity containing a path separator", () => { const value = localOutcome(); return { ...value, attemptId: "local/attempt", local: { ...value.local, operationId: "local/attempt" } }; }],
-])("refuses %s", (_label, create) => {
-  expect(ReviewOutcomeSchema.safeParse(create()).success).toBe(false);
+  ["a frontline verdict carrying a failure reason", () => ({ ...frontlineOutcome(), frontline: { ...frontlineOutcome().frontline, reason: { class: "execution-timeout" } } }), "frontline reason must match its recorded lane outcome"],
+  ["a frontline failure without its reason", () => ({ ...frontlineOutcome(), outcome: "timed-out", effectiveCoverage: null }), "frontline reason must match its recorded lane outcome"],
+  ["a launched frontline verdict without executable identity", () => ({ ...frontlineOutcome(), frontline: { ...frontlineOutcome().frontline, executableIdentity: null } }), "frontline executable identity must match whether its producer launched"],
+  ["a local attempt identity containing a path separator", () => { const value = localOutcome(); return { ...value, attemptId: "local/attempt", local: { ...value.local, operationId: "local/attempt" } }; }, "non-hosted outcome identity must be one path segment"],
+])("refuses %s", (_label, create, rule) => {
+  expect(refusalMessages(create())).toContain(rule);
 });
 
 it("reports multiple bindings explicitly", () => {

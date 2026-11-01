@@ -148,7 +148,8 @@ it.each([{ accepted: false, keepPr: false }, { accepted: false, keepPr: true },
     policyTarget: { repository: "owner/repository", pullRequest: null, headSha: collected.target.revision },
     lane: "standard" as const, completedPasses: 0, actor: "test-user", now: "2026-10-20T12:01:00Z" };
   expect(await resolveNativeExtraPassJudgment({ ...grant,
-    judgment: { ceilingOverride: { exhaustedPassCount: 0, nextPass: 1 } } })).toHaveProperty("ceilingDecisionKey");
+    judgment: { ceilingOverride: { exhaustedPassCount: 0, nextPass: 1 } } }))
+    .toMatchObject({ judgment: { ceilingOverride: { decisionKey: expect.stringMatching(/^sha256:/u) } } });
   const beforeRoot = await decisions.list();
   await writeFile(join(cwd, "example.ts"), "export const value = 2;\n");
   await git("commit", "-am", "Adjust example");

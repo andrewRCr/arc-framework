@@ -25,7 +25,8 @@ it.each(["foreign-project", "foreign-owner", "repository"] as const)("refuses a 
     repositoryId: invalid === "foreign-project" ? "another-project" : result.repositoryId,
     workItem: invalid === "foreign-owner" ? OwnerIdentitySchema.parse({ ...workItem, uid: "24bc6336-193b-4d7a-9380-1b4ca79a714b" }) : workItem,
     operationId: producer.laneOperationId, durableRef: result.producerId }), hostedResultId: result.resultDigest };
-  expect(() => validateApprovedDispositionRecordForResult({ ...original, source }, result)).toThrow();
+  expect(() => validateApprovedDispositionRecordForResult({ ...original, source }, result))
+    .toThrow(invalid === "repository" ? "review source reference kind mismatch" : "review source reference owner mismatch");
   const corrected = invalid === "repository" ? original : { ...original, source: { ...source,
     attemptRef: bindReviewSourceReference({ kind: "hosted", repositoryId: result.repositoryId, workItem,
       operationId: producer.laneOperationId, durableRef: result.producerId }) } };

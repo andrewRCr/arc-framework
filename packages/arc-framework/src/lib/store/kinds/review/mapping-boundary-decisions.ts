@@ -1,6 +1,6 @@
 /** Portable choices retained by a legacy integration boundary and its replay. */
-import { OwnerIdentitySchema } from "../../identity.js";
-import { parseIntegrationBoundaryLocus, type IntegrationBoundaryLocus } from "../../../../scripts/review-gate/policy/integration-boundary-locus.js";
+import type { OwnerIdentity } from "../../identity.js";
+import type { IntegrationBoundaryLocus } from "../../../../scripts/review-gate/policy/integration-boundary-locus.js";
 import { mappingTerminusPassCount } from "./mapping-terminus-count.js";
 import type { ReviewMappingInput } from "./mapping-types.js";
 import type { MappedReviewOutcome } from "./mapping-source-listing.js";
@@ -12,12 +12,10 @@ import type { OwnerAcceptedReviewTerminus } from "../../../../scripts/review-gat
 import type { DeliveryReviewMemberVehicle } from "../../../delivery/review-vehicle.js";
 import type { ReviewDecision } from "./decision/schema.js";
 
-/** Preserve decisions under the live boundary's imported work-item identity. */
+/** Preserve a live boundary's decisions, parsed by its caller, under the boundary's imported work item. */
 export function mapReviewBoundaryDecisions(source: Extract<ReviewMappingSource, { kind: "boundary" }>,
+  boundary: IntegrationBoundaryLocus, owner: OwnerIdentity,
   context: { input: ReviewMappingInput; outcomes: readonly MappedReviewOutcome[]; records: ReviewMappingResult["records"] }): ReviewMappingResult["records"] {
-  if (!source.workItem.live) return [];
-  const boundary = parseIntegrationBoundaryLocus(JSON.parse(source.content));
-  const owner = OwnerIdentitySchema.parse({ type: "work-item", name: source.workItem.slug, uid: source.workItem.uid });
   const decisions: ReviewDecision[] = mapReviewReplayDecisions(boundary, () =>
     mappingTerminusPassCount(source, boundary, context.input, context.outcomes, context.records));
   const termini = mappingBoundaryTermini(boundary);

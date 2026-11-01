@@ -36,6 +36,6 @@ export function mapReviewRecords(input: ReviewMappingInput): ReviewMappingResult
   }
   return { records: coalesceReviewDecisionRecords(records),
     listing: sources.map((source) => sourceListings.get(source.source)
-      ?? reviewMappingJoinedSourceListing(source, indexed, outcomes)),
+      ?? reviewMappingJoinedSourceListing(source, indexed, outcomes, sourceListings)),
   };
 }

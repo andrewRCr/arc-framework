@@ -16,63 +16,75 @@ function change(input: unknown, path: string, replacement: unknown): unknown {
   return copy;
 }
 
+/** The messages of every rule a candidate outcome breaks, so a case shows its own rule refused it. */
+function refusalMessages(input: unknown): string[] {
+  const result = ReviewOutcomeSchema.safeParse(input);
+  return result.success ? [] : result.error.issues.map(({ message }) => message);
+}
+
 const digest = `sha256:${"0".repeat(64)}`;
 const sha = "0".repeat(40);
+// Rules several mutations break, each named once.
+const localProducer = "local outcome must match its admitted producer and coverage";
+const receiptIdentities = "review receipt identities do not match its request, target, and requirement";
+const localAdmission = "local request and attestation must match the outcome admission";
+const hostedAttempt = "hosted lane attempt does not match its durable admission";
+const frontlineAdmission = "frontline outcome must match its complete admission and coverage";
 
 describe("local receipt and admission", () => {
   it.each([
-    ["local source", "source.sourceId", "coderabbit-cli"],
-    ["local operation", "local.operationId", "another-operation"],
-    ["complete effective coverage", "local.effectiveCoverage", "incremental"],
-    ["coverage admission", "local.requestedCoverage", "incremental"],
-    ["verdict receipt", "local.receipt", undefined],
-    ["receipt request", "local.receipt.requestId", digest],
-    ["receipt target", "local.receipt.targetId", digest],
-    ["receipt requirement", "local.receipt.requirementId", digest],
-    ["receipt result", "local.receipt.result", "failed"],
-    ["request evaluator", "local.request.evaluatorIdentity", "another-evaluator"],
-    ["request pass", "logicalPass", 2],
-    ["request generation", "retryGeneration", 1],
-    ["attestation evaluator", "local.attestation.evaluatorIdentity", "another-evaluator"],
-    ["requirement policy", "local.policyVersion", digest],
-    ["delivery vehicle target", "local.vehicle.kind", "delivery-member"],
-  ])("refuses mismatched %s", (_label, path, replacement) => {
-    expect(ReviewOutcomeSchema.safeParse(change(localOutcome(), String(path), replacement)).success).toBe(false);
+    ["local source", "source.sourceId", "coderabbit-cli", localProducer],
+    ["local operation", "local.operationId", "another-operation", localProducer],
+    ["complete effective coverage", "local.effectiveCoverage", "incremental", "effective coverage must not weaken requested complete coverage"],
+    ["coverage admission", "local.requestedCoverage", "incremental", "local lane progress has invalid coverage admission"],
+    ["verdict receipt", "local.receipt", undefined, "local verdict requires its recorded receipt"],
+    ["receipt request", "local.receipt.requestId", digest, receiptIdentities],
+    ["receipt target", "local.receipt.targetId", digest, receiptIdentities],
+    ["receipt requirement", "local.receipt.requirementId", digest, receiptIdentities],
+    ["receipt result", "local.receipt.result", "failed", "local receipt result and findings must match the outcome"],
+    ["request evaluator", "local.request.evaluatorIdentity", "another-evaluator", "review request ID does not match its preimage"],
+    ["request pass", "logicalPass", 2, localAdmission],
+    ["request generation", "retryGeneration", 1, localAdmission],
+    ["attestation evaluator", "local.attestation.evaluatorIdentity", "another-evaluator", localAdmission],
+    ["requirement policy", "local.policyVersion", digest, localAdmission],
+    ["delivery vehicle target", "local.vehicle.kind", "delivery-member", "local delivery-member progress must retain a delivery-member target"],
+  ])("refuses mismatched %s", (_label, path, replacement, rule) => {
+    expect(refusalMessages(change(localOutcome(), String(path), replacement))).toContain(rule);
   });
 });
 
 describe("hosted admission and sealing", () => {
   it.each([
-    ["host target", "hosted.target.repository", "another/repository"],
-    ["coverage", "hosted.requestedCoverage", "incremental"],
-    ["review target", "hosted.reviewTarget.targetId", digest],
-    ["review requirement", "hosted.requirement.requirementId", digest],
-    ["actor", "hosted.actorIdentity", "another-actor"],
-    ["repository", "hosted.admission.repositoryId", "another-repository"],
-    ["target head", "hosted.target.headSha", sha],
-    ["delivery vehicle", "hosted.vehicle", { kind: "delivery-member", planId: "123e4567-e89b-12d3-a456-426614174000", workUnitId: "work-1", deliverableId: digest, head: sha }],
-    ["handle generation", "hosted.handle.admission.logicalPass", 2],
-    ["missing handle", "hosted.handle", undefined],
-    ["sealed verdict", "hosted.sealedResult.outcome", "findings"],
-    ["unproved coverage", "hosted.effectiveCoverage", "incremental"],
-  ])("refuses mismatched %s", (_label, path, replacement) => {
-    expect(ReviewOutcomeSchema.safeParse(change(hostedOutcome(), String(path), replacement)).success).toBe(false);
+    ["host target", "hosted.target.repository", "another/repository", hostedAttempt],
+    ["coverage", "hosted.requestedCoverage", "incremental", "hosted outcome must match its complete source binding"],
+    ["review target", "hosted.reviewTarget.targetId", digest, "review target ID does not match its preimage"],
+    ["review requirement", "hosted.requirement.requirementId", digest, "review requirement ID does not match its preimage"],
+    ["actor", "hosted.actorIdentity", "another-actor", hostedAttempt],
+    ["repository", "hosted.admission.repositoryId", "another-repository", "hosted admission target does not match its lane owner or change request"],
+    ["target head", "hosted.target.headSha", sha, "hosted and review targets must identify the same head"],
+    ["delivery vehicle", "hosted.vehicle", { kind: "delivery-member", planId: "123e4567-e89b-12d3-a456-426614174000", workUnitId: "work-1", deliverableId: digest, head: sha }, "hosted delivery-member targets require one exact delivery vehicle"],
+    ["handle generation", "hosted.handle.admission.logicalPass", 2, "hosted admission identity does not match its canonical binding"],
+    ["missing handle", "hosted.handle", undefined, "hosted sealed result requires its acknowledged execution binding"],
+    ["sealed verdict", "hosted.sealedResult.outcome", "findings", "hosted sealed result findings must exactly match its original outcome"],
+    ["unproved coverage", "hosted.effectiveCoverage", "incremental", "hosted effective coverage must derive from its acknowledged carrier result"],
+  ])("refuses mismatched %s", (_label, path, replacement, rule) => {
+    expect(refusalMessages(change(hostedOutcome(), String(path), replacement))).toContain(rule);
   });
 });
 
 describe("portable frontline admission", () => {
   it.each([
-    ["executable", "frontline.admission.frontlineReview.source.executable", "/machine/reviewer"],
-    ["argv", "frontline.admission.frontlineReview.source.argv", ["--plain"]],
-    ["attempt", "attemptId", digest],
-    ["pass", "logicalPass", 2],
-    ["generation", "retryGeneration", 1],
-    ["source", "source.sourceId", "another-source"],
-    ["owner", "lineage.vehicleIdentity", "another-owner"],
-    ["coverage", "effectiveCoverage", null],
-    ["ceiling", "frontline.admission.maxPasses", 3],
-  ])("refuses mismatched %s", (_label, path, replacement) => {
-    expect(ReviewOutcomeSchema.safeParse(change(frontlineOutcome(), String(path), replacement)).success).toBe(false);
+    ["executable", "frontline.admission.frontlineReview.source.executable", "/machine/reviewer", 'Unrecognized key: "executable"'],
+    ["argv", "frontline.admission.frontlineReview.source.argv", ["--plain"], 'Unrecognized key: "argv"'],
+    ["attempt", "attemptId", digest, frontlineAdmission],
+    ["pass", "logicalPass", 2, frontlineAdmission],
+    ["generation", "retryGeneration", 1, frontlineAdmission],
+    ["source", "source.sourceId", "another-source", frontlineAdmission],
+    ["owner", "lineage.vehicleIdentity", "another-owner", frontlineAdmission],
+    ["coverage", "effectiveCoverage", null, frontlineAdmission],
+    ["ceiling", "frontline.admission.maxPasses", 3, "frontline admission must respect its admitted pass ceiling"],
+  ])("refuses mismatched %s", (_label, path, replacement, rule) => {
+    expect(refusalMessages(change(frontlineOutcome(), String(path), replacement))).toContain(rule);
   });
 });
 

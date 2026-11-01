@@ -199,3 +199,28 @@ it("refuses natively a bound work item's Candidate naming another work unit, nam
     remedy: { text: "Name work unit `other`, or run the command from `example`'s checkout." } });
   await expect(readCandidateRecord("/unavailable", "example", { store: h.store, owner })).resolves.toEqual(record);
 });
+
+it("refuses a Candidate put under a selected work item another work unit names, and prepares the named one's", async () => {
+  const h = createLifecycleHarness();
+  const other = (await h.seedMeta("other")).reference.owner, { owner } = (await h.seedMeta("example")).reference;
+  const record = candidateFixture();
+  expect(() => prepareCandidateRecordPut("example", record, null, other)).toThrow(expect.objectContaining({
+    code: "invalid-input", condition: "The selected work item `other` cannot hold work unit `example`'s review record." }));
+  await expect(writeCandidateRecord("/unavailable", "example", record, null, { store: h.store, owner: other }))
+    .rejects.toMatchObject({ code: "invalid-input" });
+  expect(prepareCandidateRecordPut("example", record, null, owner).reference).toEqual(recordReferences["review/candidate"](owner));
+});
+
+it("writes a Candidate selected under a work item's earlier name to the work unit its UID now holds", async () => {
+  const h = createLifecycleHarness();
+  const { owner } = (await h.seedMeta("example")).reference;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected a native work item");
+  const earlier = OwnerIdentitySchema.parse({ type: "work-item", name: "former", uid: owner.uid });
+  const stranger = OwnerIdentitySchema.parse({ type: "work-item", name: "former", uid: "123e4567-e89b-42d3-a456-426614174777" });
+  const record = candidateFixture();
+  await expect(writeCandidateRecord("/unavailable", "example", record, null, { store: h.store, owner: stranger }))
+    .rejects.toMatchObject({ code: "invalid-input",
+      condition: "The selected work item `former` cannot hold work unit `example`'s review record." });
+  await writeCandidateRecord("/unavailable", "example", record, null, { store: h.store, owner: earlier });
+  await expect(readCandidateRecord("/unavailable", "example", { store: h.store, owner })).resolves.toEqual(record);
+});

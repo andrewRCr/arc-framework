@@ -10,6 +10,7 @@ import type { StoreRecord } from "../../read.js";
 import type { StoreResult } from "../../refusal.js";
 import { recordConflictRefusal } from "../../conflict-diagnostics.js";
 import { StoreRefusalError } from "../../refusal-error.js";
+import { readWorkUnit } from "../../lifecycle-write.js";
 import { ReviewOwnerSelectionError } from "./errors.js";
 
 /** An explicit filesystem port retains direct adapter semantics. */
@@ -48,6 +49,50 @@ export function selectReviewRecordOwner(store: Store, name: string, owner: Owner
       { text: `Run the command from ${name}'s checkout, or continue it from the reference its producer emitted.` });
   }
   return owner;
+}
+
+/** The repair for a native invocation that holds no exact work item: rerun where one is selected. */
+const SELECT_WORK_ITEM = { text: "Run the command from the work unit's checkout, or continue it from the reference its producer emitted." };
+
+/**
+ * Require a native invocation's exact work item before `subject` uses it, since a slug alone can name a live namesake
+ * of an ended item.
+ */
+export function requireReviewWorkItem(owner: OwnerIdentity | undefined, subject: string): OwnerIdentity {
+  if (owner !== undefined) return owner;
+  throw new ReviewOwnerSelectionError("invalid-input", `${subject} needs the invocation's exact work item.`, SELECT_WORK_ITEM);
+}
+
+/** Refuse a selected owner for another work unit's review record, which would land under a work item it does not name. */
+export function requireReviewRecordOwnerName(owner: OwnerIdentity | undefined, name: string): void {
+  if (owner === undefined || owner.name === name) return;
+  throw reviewRecordOwnerRefusal(owner, name);
+}
+
+/**
+ * The selected work item's identity as work unit `name`: the selection when it carries that name, natively its current
+ * identity when its UID now holds that name after a rename, and otherwise null.
+ */
+export async function currentNamedWorkItem(store: Pick<Store, "capabilities" | "lookup" | "read">, selected: OwnerIdentity,
+  name: string): Promise<OwnerIdentity | null> {
+  if (selected.name === name) return selected;
+  if (!store.capabilities.stateOffBranch) return null;
+  const current = await readWorkUnit(store, name, selected);
+  return current.status === "ok" && current.result.reference.owner.name === name ? current.result.reference.owner : null;
+}
+
+/** Select the owner a write of work unit `name`'s review record lands under, refusing a work item that is not it. */
+export async function requireReviewRecordOwner(store: Pick<Store, "capabilities" | "lookup" | "read">, owner: OwnerIdentity,
+  name: string): Promise<OwnerIdentity> {
+  const current = await currentNamedWorkItem(store, owner, name);
+  if (current === null) throw reviewRecordOwnerRefusal(owner, name);
+  return current;
+}
+
+function reviewRecordOwnerRefusal(owner: OwnerIdentity, name: string): ReviewOwnerSelectionError {
+  return new ReviewOwnerSelectionError("invalid-input",
+    `The selected work item \`${owner.name}\` cannot hold work unit \`${name}\`'s review record.`,
+    { text: `Name work unit \`${owner.name}\`, or run the command from \`${name}\`'s checkout.` });
 }
 
 /**

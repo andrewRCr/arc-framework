@@ -130,7 +130,7 @@ it("recovers a stored pending fix after execution pruning and keeps its source o
     provenance: { verb: "remove", lifecycleAction: "remove" } }));
   const replacement = await h.reference.seedMeta(name, { owner: "andrew" });
   const forged = bindReviewSourceReference({ ...source, workItem: replacement.reference.owner, repositoryId: projectId });
-  await expect(resolveReviewSourceInvocation(invocation, forged, "attested-local")).rejects.toThrow();
+  await expect(resolveReviewSourceInvocation(invocation, forged, "attested-local")).rejects.toThrow("operation reference names another work item");
   const restored = await resolveReviewSourceInvocation(h.native, approved.source.receiptRef, "attested-local");
   expect(await createRepositoryReviewResultReader(publisher, restored.invocation).readResult(prepared.payload.operationId)).toEqual(result);
   // Reinstall the original primary by exact UID; the replacement slug cannot become its authority.

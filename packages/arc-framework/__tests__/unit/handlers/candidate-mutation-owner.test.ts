@@ -59,6 +59,27 @@ it("resolves the generation its checkout's marker binds by UID while a live work
   expect(await resolveCandidateMutationGeneration(h.store, "example", "owned", named)).toEqual(live);
 });
 
+it("refuses a completed checkout neither its marker nor its branch selects once the slug names a live work unit",
+  async () => {
+    const { h, archived, live } = await reusedSlug();
+    const checkout = { completed: true as const, branch: "fix/unlinked", projectId: async () => "project" };
+    await expect(resolveCandidateMutationGeneration(h.store, "example", "owned", named, undefined, checkout))
+      .rejects.toMatchObject({ code: "invalid-input", remedy: { text: expect.stringContaining("Check out the branch") } });
+    expect(live).not.toEqual(archived);
+    if (archived.type !== "work-item" || archived.uid === undefined) throw new Error("Expected a minted work-unit UID");
+    expect(await resolveCandidateMutationGeneration(h.store, "example", "owned", named, undefined,
+      { ...checkout, uid: archived.uid })).toEqual(archived);
+  });
+
+it("resolves a completed checkout without selectors to its own generation while no live work unit reuses its slug",
+  async () => {
+    const h = createLifecycleHarness();
+    const archived = await h.seedMeta("example", { branch: null, state: "Shipped", currentWorkflow: null },
+      { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+    expect(await resolveCandidateMutationGeneration(h.store, "example", "owned", named, undefined, { completed: true }))
+      .toEqual(archived.reference.owner);
+  });
+
 it("keeps an owner the invocation already selected", async () => {
   const { h, archived } = await reusedSlug();
   expect(await resolveCandidateMutationGeneration(h.store, "example", "owned", named, archived)).toEqual(archived);

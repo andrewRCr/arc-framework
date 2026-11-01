@@ -1,6 +1,6 @@
 /** Production composition for exact-target review status. */
 import { readStoredDeliveryReviewMemberTermini } from "./runtime/native-member-terminus.js";
-import { ProjectIdentityError } from "../../lib/store/project-identity.js";
+import { rethrowNativeRefusal } from "../../lib/store/native-refusal.js";
 
 
 import type { ReviewStatusRoute } from "./status-route.js";
@@ -734,7 +734,7 @@ export async function readRoutedObligation(
       readDischarge,
     });
   } catch (error) {
-    if (error instanceof ProjectIdentityError) throw error;
+    rethrowNativeRefusal(error);
     return {
       state: "blocked",
       detail: error instanceof Error ? error.message : String(error),
@@ -869,7 +869,7 @@ export function createReviewStatusPort(
           ...(subject.status === "resolved" ? { workUnitId: subject.workUnitId } : {}),
         };
       } catch (error) {
-        if (error instanceof ProjectIdentityError) throw error;
+        rethrowNativeRefusal(error);
         return {
           actualHeadSha: target.headSha,
           requiredChecks: "unavailable",

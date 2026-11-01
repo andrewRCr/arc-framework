@@ -1,7 +1,7 @@
 /** Positive Errand identity and exact-head lane progress for review status. */
 
 import { matchingOrdinaryErrand, readStoredStatusErrandSelection, type ErrandStatusSelection } from "./status-errand-selection.js";
-import { ProjectIdentityError } from "../../lib/store/project-identity.js";
+import { rethrowNativeRefusal } from "../../lib/store/native-refusal.js";
 import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationOptions } from "./runtime/invocation.js";
 import { createReviewCompositionContext } from "./runtime/composition-context.js";
 import { currentErrandDiffBase } from "./runtime/errand-review-target.js";
@@ -898,7 +898,7 @@ export async function readErrandRoutedObligation(options: ReviewInvocationInput 
         detail,
       };
   } catch (error) {
-    if (error instanceof ProjectIdentityError) throw error;
+    rethrowNativeRefusal(error);
     return blocked(error instanceof Error ? error.message : String(error));
   }
 }

@@ -12,6 +12,7 @@ import { recordKey } from "../../../helpers/store/model.js";
 import { createReviewDecisionPort } from "../../../../src/lib/store/kinds/review/decision/access.js";
 import { reviewDecisionKey } from "../../../../src/lib/store/kinds/review/decision/key.js";
 import type { ReviewCeilingOverride, ReviewAdditionalPassAuthorization } from "../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import type { Store } from "../../../../src/lib/store/contract.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const head = "a".repeat(40), branch = "chore/repair";
@@ -39,8 +40,9 @@ async function fixture(project = true, owner = "test-user") {
   onTestFinished(checkout.cleanup);
   const rawExec = scriptRawGitExec([]).exec;
   return { ...checkout, record, primary, moveHead: (value: string) => { branchHead = value; },
-    run: (grant: { ceilingOverride?: ReviewCeilingOverride; additionalPassAuthorization?: ReviewAdditionalPassAuthorization } = {}) => readErrandRoutedObligation({
-    ...checkout, projectId: createProjectIdentityReader(checkout.store), rawExec,
+    run: (grant: { ceilingOverride?: ReviewCeilingOverride; additionalPassAuthorization?: ReviewAdditionalPassAuthorization } = {},
+      store: Store = checkout.store) => readErrandRoutedObligation({
+    ...checkout, store, projectId: createProjectIdentityReader(store), rawExec,
     target: { repository: "owner/repository", headRef: branch, headSha: head }, pullRequest: 42,
     currentBaseOid: base, changeRequestCandidate: { baseRefName: "main", url: "https://github.com/owner/repository/pull/42" }, ...grant,
   }) };
@@ -116,4 +118,17 @@ it("selects this identity's Errand past another owner's malformed record, refusi
     detail: expect.stringContaining("incomplete") });
   saved.content = original;
   expect(await readStoredStatusErrandSelection(h.store, "someone-else", target)).toEqual({ kind: "none" });
+});
+
+it("raises a native outcome-listing refusal from the Errand's lane read, and reads the lane after repair", async () => {
+  const h = await fixture();
+  let unreadable = true;
+  const store = Object.create(h.store) as Store;
+  store.list = async input => unreadable && input.kind === "review/outcome" ? { status: "ok", result: { status: "unreadable",
+    condition: "The review outcome index cannot be read.", remedy: { text: "Restore the review outcome index, then retry." } } }
+    : h.store.list(input);
+  await expect(h.run({}, store)).rejects.toMatchObject({ name: "StoreRefusalError", offBranch: true,
+    message: expect.stringContaining("The review outcome index cannot be read.") });
+  unreadable = false;
+  expect(await h.run({}, store)).toMatchObject({ state: "review-required" });
 });

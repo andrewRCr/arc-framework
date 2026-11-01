@@ -86,7 +86,7 @@ import {
   resolveCandidateMutationOwner,
   resolveCompletedCandidateOwners,
 } from "../../../handlers/candidate-mutation-owner.js";
-import { readRespondCandidate, selectRespondCandidateWorkUnits } from "./respond-candidate-selection.js";
+import { ownsBoundCandidate, readRespondCandidate, selectRespondCandidateWorkUnits } from "./respond-candidate-selection.js";
 import { resolveConfiguredLanePolicy } from "../policy/lane-policy-config.js";
 import { resolveEvidenceBoundReviewPolicyContinuation } from
   "../policy/review-policy-evidence.js";
@@ -569,7 +569,7 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
   const candidateMutationOwner = () => resolveCandidateMutationOwner(input);
   const requireCandidateMutationOwner = async (workUnit: string): Promise<void> => {
     const owner = await candidateMutationOwner();
-    if (owner.status === "owned" && owner.workUnit === workUnit) return;
+    if (await ownsBoundCandidate(input, owner, workUnit)) return;
     if (owner.status === "unowned" && (await completedOwners()).some(({ name }) => name === workUnit)) return;
     throw new Error("Candidate mutation is not owned by the entering checkout.");
   };
@@ -577,10 +577,7 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
     privateDeliveryTargets };
   return {
     ...(prepare.operationStore.stateOffBranch === true ? { stateOffBranch: true as const,
-      readExtraPassDecision: async key => {
-        if (family.mode !== "stored") throw new Error("Restore the selected native review decisions, then retry the response.");
-        return (await family.ports.decisions.read(key))?.value ?? null;
-      },
+      ...(family.mode === "stored" ? { extraPassFacts: { decisions: family.ports.decisions, readProjectId: input.projectId } } : {}),
     } : {}),
     parseSourceReference: async (value, kind) => {
       const owner = await selectedSourceOwner(input);
@@ -702,8 +699,7 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
       }
     },
     resolveCandidateFixAuthoring: async ({ workUnit, expectedHead }) => {
-      const owner = await candidateMutationOwner();
-      if (owner.status !== "owned" || owner.workUnit !== workUnit) return null;
+      if (!await ownsBoundCandidate(input, await candidateMutationOwner(), workUnit)) return null;
       let ref: string;
       try {
         ref = (await input.exec("git", ["symbolic-ref", "--quiet", "HEAD"], {

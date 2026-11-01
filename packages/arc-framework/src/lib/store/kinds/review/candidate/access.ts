@@ -7,7 +7,7 @@ import { readCandidateRecordVersioned as readFileCandidateRecordVersioned,
   writeCandidateRecord as writeFileCandidateRecord,
   type CandidateRecordStoreFs } from "../../../../work-unit/candidate-record-store.js";
 import { CandidateManagedRecordV1Schema, parseCandidateManagedRecord, serializeCandidateManagedRecord } from "../../../../work-unit/candidate-attestation.js";
-import { decodeStoredReviewRecord, isInRepoKeyMismatch, readReviewRecord, resolveReviewRecordAccess, selectReviewRecordOwner, storedWorkUnitMismatch, unwrapReviewRecordResult,
+import { decodeStoredReviewRecord, isInRepoKeyMismatch, readReviewRecord, requireReviewRecordOwner, requireReviewRecordOwnerName, resolveReviewRecordAccess, selectReviewRecordOwner, storedWorkUnitMismatch, unwrapReviewRecordResult,
   type ReviewRecordAccessOptions } from "../access-shared.js";
 import { CandidateRecordVersionConflictError } from "../errors.js";
 import { resolveCandidateRecordRelativePath } from "../paths.js";
@@ -68,6 +68,7 @@ export async function readCandidateRecordVersion(cwd: string, name: string,
 export function prepareCandidateRecordPut(name: string, record: CandidateManagedRecordV1,
   expectedVersion: string | null, selectedOwner?: OwnerIdentity): Extract<Mutation, { action: "put" }> {
   const workUnit = SlugSchema.parse(name);
+  requireReviewRecordOwnerName(selectedOwner, workUnit);
   const owner = selectedOwner ?? OwnerIdentitySchema.parse({ type: "work-item", name: workUnit });
   return { action: "put", reference: recordReferences["review/candidate"](owner),
     expected: expectedVersion === null ? null : RecordVersionSchema.parse(expectedVersion),
@@ -79,7 +80,8 @@ export async function writeCandidateRecord(cwd: string, name: string, record: Ca
   expectedVersion: string | null, options?: CandidateRecordStoreFs | CandidateRecordAccessOptions): Promise<string | null> {
   const access = resolveReviewRecordAccess(cwd, options);
   if ("fs" in access) return writeFileCandidateRecord(cwd, name, record, expectedVersion, access.fs);
-  const owner = selectReviewRecordOwner(access.store, SlugSchema.parse(name), access.owner);
+  const owner = await requireReviewRecordOwner(access.store, selectReviewRecordOwner(access.store, SlugSchema.parse(name), access.owner),
+    name);
   const result = await access.store.write({ ...prepareCandidateRecordPut(name, record, expectedVersion, owner),
     provenance: { verb: "write-candidate-record", lifecycleAction: "edit" } });
   if (result.status === "refused" && result.refusal.code === "version-conflict") throw new CandidateRecordVersionConflictError();

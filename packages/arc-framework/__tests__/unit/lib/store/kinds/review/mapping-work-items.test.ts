@@ -53,13 +53,12 @@ it.each(factLineages)("leaves an absent work item's fact behind for $kind", (lin
   expect(resolve(lineage)).toEqual({ outcome: "left-behind", reason: "No live work item owns this review fact." });
 });
 
-it.each(factLineages)("leaves a pending fact on ended work behind for $kind", (lineage) => {
+it.each(factLineages)("leaves a fact behind for $kind when its known work item has ended", (lineage) => {
   const input = candidateInput();
   input.workItems = [{ ...workItem, live: false }, { kind: "errand", slug: "ended", claimId: "claim-ended",
     uid: "123e4567-e89b-42d3-a456-426614174004", live: false }];
-  const pending = { outcome: "pending" as const, lineage };
   const resolve = createReviewMappingWorkItemResolver(input);
-  expect(resolve(pending.lineage)).toEqual({ outcome: "left-behind", reason: "No live work item owns this review fact." });
+  expect(resolve(lineage)).toEqual({ outcome: "left-behind", reason: "No live work item owns this review fact." });
 });
 
 it("does not infer Candidate ownership through an unresolved supersession chain", () => {

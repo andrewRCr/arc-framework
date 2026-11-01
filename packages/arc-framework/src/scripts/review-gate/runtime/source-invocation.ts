@@ -4,13 +4,13 @@ import { bindReviewSourceReference, parseReviewSourceReference, parseReviewSourc
   type ReviewSourceReferenceCoordinates } from "../core/review-source-reference.js";
 import { resolveReviewInvocation, type ReviewInvocationContext, type ReviewInvocationInput } from "./invocation.js";
 import { resolveReviewOperationInvocation, ReviewContinuationReferenceError } from "./continuation-invocation.js";
+import { requireReviewWorkItem } from "../../../lib/store/kinds/review/access-shared.js";
 
 /** The project and work item a native invocation's source references must name; none for the in-repo arm. */
 export async function selectedSourceOwner(input: ReviewInvocationContext): Promise<ReviewSourceReferenceOwner | undefined> {
   if (!input.store.capabilities.stateOffBranch) return undefined;
   const repositoryId = await input.projectId();
-  if (input.workItem === undefined) throw new Error("Resolve the native source owner before accessing its reference.");
-  return { repositoryId, workItem: input.workItem };
+  return { repositoryId, workItem: requireReviewWorkItem(input.workItem, "A native source reference") };
 }
 
 /** The commands that emit a review source of this kind, for a remedy that resubmits the reference they emitted. */

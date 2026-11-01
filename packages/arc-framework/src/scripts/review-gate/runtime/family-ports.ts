@@ -9,6 +9,7 @@ import type { ApprovedDispositionRecordIndex, ApprovedDispositionRecordStore, Re
 import { createReviewOutcomePort } from "../../../lib/store/kinds/review/outcome/access.js";
 import { createReviewEvidencePort } from "../../../lib/store/kinds/review/evidence/access.js";
 import { createReviewDecisionPort } from "../../../lib/store/kinds/review/decision/access.js";
+import { requireReviewWorkItem } from "../../../lib/store/kinds/review/access-shared.js";
 
 /** Compatibility adapters already opened by the invocation. */
 export interface RepositoryReviewFamilyPorts {
@@ -30,11 +31,11 @@ export function bindReviewFamilyPorts<T extends RepositoryReviewFamilyPorts>(inp
   store?: Store; owner?: OwnerIdentity; publisher: GitCommonStatePublisher; projectId?: () => Promise<string>; repository: T;
 }): { mode: "in-repo"; ports: T } | { mode: "stored"; ports: StoredReviewFamilyPorts } {
   if (input.store?.capabilities.stateOffBranch !== true) return { mode: "in-repo", ports: input.repository };
-  if (input.owner === undefined) throw new Error("Resolve the invocation's work item before binding stored review ports.");
-  const evidence = createReviewEvidencePort(input.store, input.owner);
-  const outcomes = createReviewOutcomePort(input.store, input.owner);
-  const decisions = createReviewDecisionPort(input.store, input.owner);
-  const inFlight = new NativeReviewInFlightStateStore({ publisher: input.publisher, workItem: input.owner,
+  const owner = requireReviewWorkItem(input.owner, "Binding stored review ports");
+  const evidence = createReviewEvidencePort(input.store, owner);
+  const outcomes = createReviewOutcomePort(input.store, owner);
+  const decisions = createReviewDecisionPort(input.store, owner);
+  const inFlight = new NativeReviewInFlightStateStore({ publisher: input.publisher, workItem: owner,
     outcomes, evidence, decisions, projectId: input.projectId ?? createProjectIdentityReader(input.store) });
   return { mode: "stored", ports: { inFlight, outcomes, evidence, decisions, dispositions: evidence } };
 }

@@ -53,7 +53,6 @@ const RAW_STATE_MODULES = [
   "lib/store/kinds/review/adversarial-pass/registration.ts",
   "lib/store/kinds/review/candidate/registration.ts",
   "lib/store/kinds/review/integration-boundary/registration.ts",
-
   "lib/store/kinds/entry-registration.ts",
   "lib/store/kinds/meta/registration.ts",
   "lib/store/kinds/errand-record/registration.ts",

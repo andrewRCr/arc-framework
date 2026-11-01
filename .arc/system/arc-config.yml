@@ -344,6 +344,7 @@ archive.cadence: manual
 # --- Design export ---
 
 # Export the stored specification into the code repository for pull-request review.
+# Applies only where operational state is kept off the branch, which in-repo state already tracks.
 #   specs - Write and stage the spec at attestation and after a review fix. (default)
 #   none  - Keep design documents exclusively in operational storage.
 storage.track_design_docs: specs

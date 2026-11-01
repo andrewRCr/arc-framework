@@ -72,25 +72,3 @@ export function requestedExtraPasses(input: NativeExtraPassInput): RequestedExtr
   const parsed = { ...input, judgment: input.judgment === undefined ? undefined : ReviewLaneJudgmentSchema.parse(input.judgment) };
   return [ceilingRequest(parsed), additionalRequest(parsed)].filter((value): value is RequestedExtraPass => value !== undefined);
 }
-
-/** Require each supplied ordinary reference to name a recorded extra-pass decision carrying its grant's values. */
-export async function requireRecordedExtraPassReferences(grants: {
-  readonly ceilingOverride?: { readonly exhaustedPassCount: number; readonly decisionKey?: CanonicalDigest };
-  readonly additionalPassAuthorization?: { readonly completedPasses: number; readonly precedingProducerId: string;
-    readonly decisionKey?: CanonicalDigest };
-}, read: (key: CanonicalDigest) => Promise<ReviewDecision | null>): Promise<void> {
-  const ceiling = grants.ceilingOverride, additional = grants.additionalPassAuthorization;
-  const supplied = [
-    ...(ceiling?.decisionKey === undefined ? [] : [{ key: ceiling.decisionKey, kind: "ceiling", passCount: ceiling.exhaustedPassCount }]),
-    ...(additional?.decisionKey === undefined ? [] : [{ key: additional.decisionKey, kind: "additional",
-      passCount: additional.completedPasses, precedingProducerId: additional.precedingProducerId }]),
-  ];
-  for (const reference of supplied) {
-    const choice = (await read(reference.key))?.choice;
-    if (choice === undefined) refuseExtraPass("The extra-pass decision reference names no recorded decision.");
-    if (choice.kind !== "extra-pass" || choice.precondition.kind !== reference.kind || choice.passCount !== reference.passCount
-      || (choice.precondition.kind === "additional" && choice.precondition.precedingProducerId !== reference.precedingProducerId)) {
-      refuseExtraPass("The extra-pass decision reference does not match the supplied grant values.");
-    }
-  }
-}

@@ -1,5 +1,5 @@
 /** Native pending execution persists separately from legacy operation snapshots. */
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { createReviewHarness } from "../../../../../helpers/store/review-harness.js";
@@ -212,4 +212,28 @@ it("raises an unreadable project ID reading the execution snapshot whole, and re
   unreadable = false;
   expect(await snapshot()).toEqual({ status: "complete", records: [{ version: 1,
     state: { ...h.lane, workItem: h.primary.reference.owner } }] });
+});
+
+it.each([
+  ["unparseable", () => "{"],
+  ["schema-invalid", () => JSON.stringify({ schemaVersion: 1 })],
+  ["foreign work item", (record: { state: { workItem: { uid: string } } }) => JSON.stringify({ ...record,
+    state: { ...record.state, workItem: { ...record.state.workItem, uid: "123e4567-e89b-42d3-a456-426614174777" } } })],
+  ["foreign project", (record: { state: { repositoryId: string } }) => JSON.stringify({ ...record,
+    state: { ...record.state, repositoryId: "123e4567-e89b-42d3-a456-426614174888" } })],
+] as const)("refuses a %s native execution record as malformed, naming it, and continues once it is repaired", async (_case, damage) => {
+  const h = await fixture();
+  await h.operations.publishOperation(h.lane, 0);
+  const directory = join(h.commonDir, "arc/review-gate/in-flight");
+  const [name] = await readdir(directory);
+  if (name === undefined) throw new Error("Expected the published execution record");
+  const path = join(directory, name), original = await readFile(path, "utf8");
+  await writeFile(path, damage(JSON.parse(original)));
+  const refusal = { name: "LocalOperationStateStoreError", code: "malformed-operation-state",
+    message: expect.stringMatching(new RegExp(`^Native execution record '${name}' is malformed: .+\\. Repair or remove it, then retry\\.$`, "su")) };
+  await expect(h.operations.readOperation(h.lane.operationId)).rejects.toMatchObject(refusal);
+  await expect(h.operations.publishOperation(h.lane, 1)).rejects.toMatchObject(refusal);
+  await writeFile(path, original);
+  expect(await h.operations.readOperation(h.lane.operationId)).toMatchObject({ version: 1, state: { operationId: h.lane.operationId } });
+  expect(await h.operations.publishOperation(h.lane, 1)).toEqual({ version: 1 });
 });

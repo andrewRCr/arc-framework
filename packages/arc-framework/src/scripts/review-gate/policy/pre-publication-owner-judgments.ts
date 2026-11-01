@@ -1,13 +1,12 @@
 /** Bind Owner authorization and native extra-pass judgments to the selected pre-publication invocation. */
 import { isOffBranchStoreRefusal } from "../../../lib/store/refusal-error.js";
-import { SlugSchema } from "../../../lib/kernel/index.js";
+import { SlugSchema, type CanonicalDigest } from "../../../lib/kernel/index.js";
 import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
 import type { ReviewInFlightPort } from "../core/ports.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import type { ReviewInvocationInput } from "../runtime/invocation.js";
 import { resolveNativeInvocationExtraPassJudgment } from "../runtime/native-extra-pass.js";
 import { prepareNativeReviewTerminus, type PreparedNativeReviewTerminus } from "../runtime/native-terminus-write.js";
-import type { PrePublicationReviewRequest } from "./pre-publication-procedure.js";
 import { resolveNativeReviewTerminus } from "../runtime/native-terminus.js";
 import type { ReviewLaneJudgment, ReviewPolicyBoundRequest } from "./review-policy-driver.js";
 import type { NativeOwnerAcceptedReviewTerminus } from "./review-terminus.js";
@@ -71,13 +70,13 @@ export function projectPrePublicationTerminus(input: {
 
 /** Prepare native persistence only for the fresh judgment whose existing Owner check authorized it. */
 export async function preparePrePublicationTerminusDecision(input: {
-  request: PrePublicationReviewRequest; judgment?: ReviewLaneJudgment; authority: OwnerTerminusAuthorityRead | null;
-  dependencies: PrePublicationCompositionDependencies;
+  candidateId: CanonicalDigest; subjectDigest: CanonicalDigest; completedPasses: number; judgment?: ReviewLaneJudgment;
+  authority: OwnerTerminusAuthorityRead | null; dependencies: PrePublicationCompositionDependencies;
 }): Promise<PreparedNativeReviewTerminus | undefined> {
   if (input.judgment?.terminus === undefined || input.authority?.status !== "authorized"
     || input.dependencies.prepareNativeTerminusDecision === undefined) return undefined;
   return input.dependencies.prepareNativeTerminusDecision({ subject: {
-    lineage: { kind: "candidate", candidateId: input.request.candidateId }, headSha: null,
-    subjectDigest: input.request.candidate.subjectDigest }, acceptedBy: input.authority.ownerIdentity,
-    completedPasses: input.request.standard.completedPasses });
+    lineage: { kind: "candidate", candidateId: input.candidateId }, headSha: null,
+    subjectDigest: input.subjectDigest }, acceptedBy: input.authority.ownerIdentity,
+    completedPasses: input.completedPasses });
 }

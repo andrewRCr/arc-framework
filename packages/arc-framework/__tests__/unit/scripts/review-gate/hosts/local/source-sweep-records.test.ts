@@ -9,6 +9,7 @@ import { LocalForwardReviewReceiptStore } from "../../../../../../src/scripts/re
 import { createReviewReceipt } from "../../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createReviewOutcomePort } from "../../../../../../src/lib/store/kinds/review/outcome/access.js";
 import { nativeReviewInFlightRecordName } from "../../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
+import { LocalOperationStateStoreError } from "../../../../../../src/scripts/review-gate/hosts/local/operation-state-store.js";
 import { RepositoryLocalReviewSourceStore } from "../../../../../../src/scripts/review-gate/hosts/local/source-store.js";
 import { attestLocalReviewCommand } from "../../../../../../src/scripts/review-gate/runtime/local-attest-command.js";
 import { prepareLocalReview } from "../../../../../../src/scripts/review-gate/runtime/local-prepare.js";
@@ -149,10 +150,16 @@ it("refuses a pin with two retained owners and reads it again after the duplicat
   expect(sibling.state.operationId).toBe(h.state.operationId);
   const input = { publisher: h.publisher, store: h.store, projectId: h.projectId, operationIds: [h.state.operationId] };
   const inventory = await createNativeLocalSourceSweepRecords(input);
-  await expect(inventory.readOperation(h.state.operationId)).rejects.toThrow(/multiple retained owners.*retry source cleanup/);
-  const owner = sibling.other.reference.owner;
-  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected duplicate owner's UID");
-  const uid = owner.uid;
+  const owner = sibling.other.reference.owner, primary = h.primary.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined || primary.type !== "work-item" || primary.uid === undefined) {
+    throw new Error("Expected both owners' UIDs");
+  }
+  const uid = owner.uid, primaryUid = primary.uid;
+  const refused = await inventory.readOperation(h.state.operationId).then(() => null, (error: unknown) => error);
+  expect(refused).toBeInstanceOf(LocalOperationStateStoreError);
+  expect(refused).toMatchObject({ code: "malformed-operation-state",
+    message: expect.stringMatching(/attest or cancel one of them from its owner's checkout, then retry source cleanup\.$/u) });
+  expect([primaryUid, uid].filter(id => (refused as Error).message.includes(id))).toEqual([primaryUid, uid]);
   await h.publisher.update({ root: "review-gate", namespace: "in-flight" },
     nativeReviewInFlightRecordName(uid, sibling.state.operationId), () => ({ kind: "delete", result: undefined }));
   expect(await (await createNativeLocalSourceSweepRecords(input)).readOperation(h.state.operationId))

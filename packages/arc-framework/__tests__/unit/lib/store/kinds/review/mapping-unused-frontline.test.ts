@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { createFrontlineMappingFixture } from "../../../../../fixtures/review-mapping.js";
+import { createFrontlineMappingFixture, mappingOperation } from "../../../../../fixtures/review-mapping.js";
 import { mapReviewRecords } from "../../../../../../src/lib/store/kinds/review/mapping.js";
 
 async function historicalFrontlineInput() {
@@ -33,4 +33,21 @@ it("excludes a foreign historical frontline payload before decoding its findings
 it("requires the complete native payload schema when a live attempt joins the frontline result", async () => {
   const { input } = await historicalFrontlineInput();
   expect(() => mapReviewRecords(input)).toThrow(/sourceOrdinal/u);
+});
+
+it("leaves a frontline outcome behind for its lane's not-live owner, not as a retired attempt", async () => {
+  const { input } = await createFrontlineMappingFixture();
+  input.workItems = input.workItems.map(row => ({ ...row, live: false }));
+  expect(mapReviewRecords(input).listing).toEqual(expect.arrayContaining([{ source: "arc/review-gate/outcomes/frontline-outcome.json",
+    outcome: "left-behind", records: [], reason: "No live work item owns this review fact." }]));
+});
+
+it("lists a frontline outcome whose lane attempt is pending as in flight with that lane", async () => {
+  const { fixture, input } = await createFrontlineMappingFixture();
+  const lane = mappingOperation({ ...fixture.lane, completedPasses: 0, attempts: fixture.lane.attempts.map(attempt => ({ ...attempt,
+    outcome: "pending", terminalProducer: false,
+    ...(attempt.frontline === undefined ? {} : { frontline: { ...attempt.frontline, effectiveCoverage: null } }) })) });
+  input.gate = input.gate.map(entry => entry.path === lane.path ? lane : entry);
+  expect(mapReviewRecords(input).listing).toEqual(expect.arrayContaining([{ source: "arc/review-gate/outcomes/frontline-outcome.json",
+    outcome: "in-flight", records: [], reason: `Its frontline attempt is pending in ${lane.path}.` }]));
 });

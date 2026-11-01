@@ -35,6 +35,16 @@ it("reads nothing natively when the bound work item is neither the checkout's no
   expect(await selectRespondCandidateWorkUnits(input, { status: "owned", workUnit: "gamma" }, completed)).toEqual(["gamma"]);
 });
 
+it("reads natively only the generation the owning checkout's marker binds, not a namesake sharing its slug", async () => {
+  const h = createLifecycleHarness();
+  const ended = (await h.seedMeta("beta", shipped, archive)).reference.owner;
+  const live = (await h.seedMeta("beta")).reference.owner;
+  if (ended.type !== "work-item" || ended.uid === undefined) throw new Error("Expected a minted work-unit UID");
+  const owner = { status: "owned" as const, workUnit: "beta", completed: true as const, uid: ended.uid };
+  expect(await selectRespondCandidateWorkUnits({ store: h.store, workItem: live }, owner, completed)).toEqual([]);
+  expect(await selectRespondCandidateWorkUnits({ store: h.store, workItem: ended }, owner, completed)).toEqual(["beta"]);
+});
+
 it("keeps every completed work unit in-repo", async () => {
   const store = createStore(createDefaultStorePorts({ checkoutRoot: "/unavailable" }));
   expect(await selectRespondCandidateWorkUnits({ store }, { status: "unowned" }, completed)).toEqual(["alpha", "beta"]);

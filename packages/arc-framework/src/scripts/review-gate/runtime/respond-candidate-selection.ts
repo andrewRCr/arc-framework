@@ -4,19 +4,35 @@ import type { Store } from "../../../lib/store/contract.js";
 import { sameOwner, type OwnerIdentity } from "../../../lib/store/identity.js";
 import type { CandidateMutationOwner } from "../../../lib/work-unit/candidate-mutation-owner.js";
 import type { CandidateManagedRecordV1 } from "../../../lib/work-unit/candidate-attestation.js";
-import { resolveCandidateMutationOwner, resolveCompletedCandidateOwners } from "../../../handlers/candidate-mutation-owner.js";
+import { resolveCandidateMutationOwner, resolveCompletedCandidateOwners, resolveOwnedCandidateGeneration }
+  from "../../../handlers/candidate-mutation-owner.js";
 import type { ReviewResult } from "../core/review-result.js";
 import type { ReviewInvocationInput } from "./invocation.js";
 
+type RespondOwnerInput = { store?: Store; workItem?: OwnerIdentity; projectId?: () => Promise<string> };
+
+/**
+ * Whether the checkout owns this work unit's Candidate. Natively the bound work item must be the checkout's own
+ * generation, never a namesake sharing its slug.
+ */
+export async function ownsBoundCandidate(input: RespondOwnerInput, owner: CandidateMutationOwner, workUnit: string):
+  Promise<boolean> {
+  if (owner.status !== "owned" || owner.workUnit !== workUnit) return false;
+  if (input.store?.capabilities.stateOffBranch !== true || input.workItem === undefined) return true;
+  if (input.workItem.name !== workUnit) return false;
+  const generation = await resolveOwnedCandidateGeneration(input.store, owner, input.projectId);
+  return generation !== undefined && sameOwner(generation, input.workItem);
+}
+
 /**
  * Select the checkout's work unit, or from a free primary each completed one. Natively a response reads only its bound
- * work item, and only where the checkout may continue it: from a free primary, only a completed generation itself, never
- * a live namesake reusing its slug.
+ * work item, and only where the checkout may continue it: its own generation, or from a free primary only a completed
+ * generation itself, never a live namesake reusing its slug.
  */
-export async function selectRespondCandidateWorkUnits(input: { store?: Store; workItem?: OwnerIdentity },
+export async function selectRespondCandidateWorkUnits(input: RespondOwnerInput,
   owner: CandidateMutationOwner, completedOwners: () => Promise<readonly OwnerIdentity[]>): Promise<readonly string[]> {
   const bound = input.store?.capabilities.stateOffBranch === true ? input.workItem : undefined;
-  if (owner.status === "owned") return bound === undefined || bound.name === owner.workUnit ? [owner.workUnit] : [];
+  if (owner.status === "owned") return await ownsBoundCandidate(input, owner, owner.workUnit) ? [owner.workUnit] : [];
   if (owner.status !== "unowned") return [];
   const completed = await completedOwners();
   if (bound === undefined) return completed.map(({ name }) => name);

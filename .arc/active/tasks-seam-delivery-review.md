@@ -728,8 +728,8 @@ through rename and slug reuse; mismatched references refuse and succeed after co
 - _Goal:_ Default native review binds the family's ports to the exact work item its invocation resolves, without
   requiring a caller-supplied `workItem`, adding no family refusal or owner-selection policy (A11).
 
-- _Amended in:_ 4.R2 (A13)
-- _Amended in:_ 4.R4 (A15)
+    - _Amended in:_ 4.R2 (A13)
+    - _Amended in:_ 4.R4 (A15)
 
     - `[x]` **4.4.R.a Bind the selected primary before family access**
 
@@ -847,7 +847,7 @@ through rename and slug reuse; mismatched references refuse and succeed after co
   command source reference whose durable part is the outcome key, so a local review's result reads back as today with
   no published schema changed.
 
-- _Amended in:_ 4.R2 (A13)
+    - _Amended in:_ 4.R2 (A13)
 
 - _Outcome:_ Default attest, resume, reduction, and result composition read local outcomes and approved evidence on
   the reference-bound UID. The result matches the repository reader with portable source coordinates and unchanged
@@ -1147,7 +1147,7 @@ this phase puts publication's claim and reopen's boundary write in their transit
   boundary names the terminus it carries by key, carrying or dropping it where today's writers carry or drop the
   terminus.
 
-- _Amended in:_ 6.R (A18)
+    - _Amended in:_ 6.R (A18)
 
     - `[x]` **6.2.R Retain ordinary grant policy bindings and relay keys**
 
@@ -1524,7 +1524,9 @@ prerequisites have landed, and every earlier task is independent of the remainin
     - **Deviation:** A29 admits two changes beyond the listed cases: the reduction command's test drops its
       `appendDispositionRecord` no-write spy, the port now a disposition reader the type keeps from writing, and the
       review gate's closed canonical-caller inventory lists the modules this change adds. A31 admits a third: the
-      Candidate mutation owner's projection test asserts the UID its checkout's marker binds.
+      Candidate mutation owner's projection test asserts the UID its checkout's marker binds. A19 admits a fourth:
+      `review-policy-convergence.test.ts`'s elective-pass case now asserts that ordinary authority binds the complete
+      successor (6.R2).
 
 - `[x]` No production module outside `lib/store/` imports the Candidate or boundary store.
 
@@ -1607,7 +1609,12 @@ prerequisites have landed, and every earlier task is independent of the remainin
 
 - `[x]` All quality gates pass (tests, linting, type checking).
     - **Deviation:** 20 native refusal sites this change makes rethrow typed refusals carry no test, since no native
-      fixture reaches them before the flip; their tests are captured as an Errand for a native delivery fixture.
+      fixture reaches them before the flip: `handlers/delivery-execution.ts`'s 12 catches across authoring rebind,
+      rematerialize, review-fix continue, acknowledge, closeout, and review-fix plan; `handlers/review.ts`'s indexed
+      Errand claim during replay, admitted hosted reservation resume, and completed-owner terminus; and the coverage
+      catch in `hosted-reservation-discharge.ts`, `respond-composition.ts`'s pinned correction member,
+      `repository-entry.ts`'s two terminal-delta catches, and `pre-publication-composition.ts`'s review-fix authority
+      catch. Their tests are captured as an Errand for a native delivery fixture.
       `test:store`'s first-pull designation cases failed intermittently in two merge gates, and the hosted run passed
       on its third attempt after two Windows intermittents outside this change's reach.
 

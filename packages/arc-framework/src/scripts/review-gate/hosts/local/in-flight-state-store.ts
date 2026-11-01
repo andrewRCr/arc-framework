@@ -30,6 +30,12 @@ export function nativeReviewInFlightRecordName(uid: string, operationId: string)
   return `${recordPrefix(uid)}${nativeReviewInFlightOperationPart(operationId)}`;
 }
 
+/** A damaged or foreign native execution record, refused as the repository arm refuses a malformed operation record. */
+export function malformedNativeInFlightRecord(name: string, issue: string): LocalOperationStateStoreError {
+  return new LocalOperationStateStoreError("malformed-operation-state",
+    `Native execution record '${name}' is malformed: ${issue}. Repair or remove it, then retry.`);
+}
+
 /** Bind machine-local execution state to one exact operational owner. */
 export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
   readonly stateOffBranch = true;
@@ -51,13 +57,19 @@ export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
     return nativeReviewInFlightRecordName(this.uid, operationId);
   }
 
-  private async parse(raw: string): Promise<ReviewInFlightRecord> {
-    const record = ReviewInFlightRecordSchema.parse(JSON.parse(raw));
+  private async parse(raw: string, name: string): Promise<ReviewInFlightRecord> {
+    const projectId = await this.input.projectId();
+    let record: ReviewInFlightRecord;
+    try {
+      record = ReviewInFlightRecordSchema.parse(JSON.parse(raw));
+    } catch (error) {
+      throw malformedNativeInFlightRecord(name, error instanceof Error ? error.message : String(error));
+    }
     if (record.operationId !== record.state.operationId) throw new LocalOperationStateStoreError("operation-id-mismatch");
     if (record.state.workItem.type !== "work-item" || record.state.workItem.uid !== this.uid) {
-      throw new LocalOperationStateStoreError("work-item-mismatch");
+      throw malformedNativeInFlightRecord(name, "it names another work item");
     }
-    if (record.state.repositoryId !== await this.input.projectId()) throw new LocalOperationStateStoreError("project-identity-mismatch");
+    if (record.state.repositoryId !== projectId) throw malformedNativeInFlightRecord(name, "it names another project");
     return record;
   }
 
@@ -82,8 +94,8 @@ export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
   }
 
   private async readRetainedRecord(operationId: string): Promise<ReviewInFlightRecord | null> {
-    const raw = await this.input.publisher.read(location, this.recordName(operationId));
-    const record = raw === null ? null : await this.parse(raw);
+    const name = this.recordName(operationId), raw = await this.input.publisher.read(location, name);
+    const record = raw === null ? null : await this.parse(raw, name);
     if (record !== null && record.operationId !== operationId) throw new LocalOperationStateStoreError("operation-id-mismatch");
     return record;
   }
@@ -107,7 +119,7 @@ export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
       for (const entry of await this.input.publisher.snapshot(location)) {
         if (!entry.name.startsWith(this.prefix)) continue;
         if (entry.kind !== "file") return { status: "incomplete", reason: "unexpected-in-flight-entry" };
-        const record = await this.parse(entry.content);
+        const record = await this.parse(entry.content, entry.name);
         if (entry.name !== this.recordName(record.operationId)) return { status: "incomplete", reason: "operation-record-name-mismatch" };
         records.set(record.operationId, { version: record.version, state: composeReviewInFlightState(record.state) });
       }
@@ -136,8 +148,9 @@ export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
     assertReviewPassStillOpen(pending, outcomes);
     const working = projectReviewInFlightState({ ...pending, workItem: this.input.workItem });
     if (working.repositoryId !== await this.input.projectId()) throw new LocalOperationStateStoreError("project-identity-mismatch");
-    return this.input.publisher.update(location, this.recordName(state.operationId), async raw => {
-      const current = raw === null ? null : await this.parse(raw);
+    const name = this.recordName(state.operationId);
+    return this.input.publisher.update(location, name, async raw => {
+      const current = raw === null ? null : await this.parse(raw, name);
       if (current !== null && canonicalize(current.state) === canonicalize(working)) return { kind: "keep", result: { version: current.version } };
       if ((current?.version ?? 0) !== expectedVersion) throw new LocalOperationStateStoreError("version-conflict");
       const record = ReviewInFlightRecordSchema.parse({ schemaVersion: 1, semanticsVersion: "review-in-flight/v1",

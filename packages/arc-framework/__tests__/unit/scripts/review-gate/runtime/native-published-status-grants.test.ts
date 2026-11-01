@@ -42,7 +42,7 @@ it("uses discharge coverage for automatic singleton grants and preserves explici
   const before = await h.store.version();
   expect(await composeNativePublishedStatusGrants({ ...input, requestedCoverage: "incremental" })).toBeUndefined();
   const complete = await composeNativePublishedStatusGrants({ ...input, requestedCoverage: "complete" });
-  expect(complete?.ceilingOverride?.decisionKey).toBe(stored.ceilingDecisionKey);
+  expect(complete?.ceilingOverride?.decisionKey).toBe(stored.judgment?.ceilingOverride?.decisionKey);
   expect(await composeNativePublishedStatusGrants({ ...input, requestedCoverage: "incremental", judgment: complete })).toEqual(complete);
   expect(await h.store.version()).toEqual(before);
 });

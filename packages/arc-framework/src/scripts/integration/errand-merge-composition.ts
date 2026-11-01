@@ -210,6 +210,8 @@ export function createErrandMergeDependencies(input: {
     store,
     workUnit: slug,
     hostedRunner: runner,
+    // An Errand records no landing link, so its merged read needs no exact merge identity.
+    confirmMergeIdentity: false,
     ...(input.changeRequestPort === undefined ? {} : { changeRequestPort: input.changeRequestPort }),
   });
   const rawExec = createRawGitExec(input.cwd);

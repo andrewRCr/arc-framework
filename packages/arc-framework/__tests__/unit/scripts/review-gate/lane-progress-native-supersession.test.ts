@@ -3,7 +3,7 @@ import { expect, it, onTestFinished } from "vitest";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../../helpers/store/review-checkout.js";
 import { candidateFixture } from "../../../helpers/store/tracked-write-fixture.js";
-import { localOutcome } from "../../../fixtures/review-outcome.js";
+import { hostedOutcome, localOutcome } from "../../../fixtures/review-outcome.js";
 import { createHostedHandleFixture } from "../../../fixtures/hosted-review.js";
 import { createCandidateAttestation } from "../../../../src/lib/work-unit/candidate-attestation.js";
 import { writeCandidateRecord } from "../../../../src/lib/store/kinds/review/candidate/access.js";
@@ -56,6 +56,43 @@ it("keeps a late unsettled predecessor result without inheriting its findings or
   if (stillCurrent.state?.kind !== "lane-progress") throw new Error("Expected the predecessor's own lane");
   expect(livePredecessorReviewAttempt(stillCurrent.state)).toMatchObject({ attemptId: late.attemptId, outcome: "findings" });
 });
+
+it.each(["partial chunk", "ambiguous-delivery hosted"] as const)(
+  "inherits no pass from a replaced Candidate's %s outcome and admits its successor", async kind => {
+    const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
+    await h.seedProject(projectId);
+    const primary = await h.seedMeta("example"), original = candidateFixture();
+    const candidate = await h.seedCandidate(primary.reference.owner, original);
+    const checkout = await createReviewCheckout(h);
+    onTestFinished(checkout.cleanup);
+    const { family } = createReviewCompositionContext({ ...checkout, workItem: primary.reference.owner });
+    const outcomes = createReviewOutcomePort(h.store, primary.reference.owner);
+    const target = createHostedHandleFixture({ repositoryId: projectId }).admission.reviewTarget;
+    const lineage = { kind: "candidate" as const, candidateId: original.attestation.candidateId };
+    const clean = ReviewOutcomeSchema.parse(localOutcome({ target, lineage }));
+    await outcomes.create(clean);
+    const unfinished = kind === "partial chunk" ? (() => {
+      const raw = localOutcome({ target, lineage, logicalPass: 2, scopeMode: "chunked" });
+      return { ...raw, outcome: "partial", effectiveCoverage: null, endedAt: "2026-10-20T12:01:00Z",
+        local: { ...raw.local, effectiveCoverage: null, receipt: undefined } };
+    })() : (() => {
+      const raw = hostedOutcome({ repositoryId: projectId, lineage, logicalPass: 2 });
+      return { ...raw, outcome: "ambiguous-delivery", effectiveCoverage: null, endedAt: "2026-10-20T12:01:00Z",
+        hosted: { ...raw.hosted, effectiveCoverage: null, sealedResult: undefined } };
+    })();
+    await outcomes.create(ReviewOutcomeSchema.parse(unfinished));
+    const current = { ...original, attestation: createCandidateAttestation({ ...original.attestation,
+      subject: original.subject, baseRevision: "e".repeat(40), attestedAt: "2026-10-20T12:02:00Z",
+      supersedes: original.attestation.candidateId }) };
+    await writeCandidateRecord(checkout.cwd, "example", current, candidate.version, { store: h.store, owner: primary.reference.owner });
+    const ancestors = await readRepositoryCandidateSupersessionChain({ ...checkout, workUnit: "example", record: current,
+      workItem: primary.reference.owner });
+    const result = await readCandidateInheritedLaneProgress(family.ports.inFlight, { lane: "standard", repositoryId: projectId,
+      headSha: target.headSha, ancestors });
+    expect(result).toMatchObject({ inheritedCompletedPasses: 1, inheritedCompletePasses: 1 });
+    expect(result.ancestorOwners.flatMap(({ owner }) => owner?.attempts ?? []).map(attempt => attempt.attemptId))
+      .toEqual([clean.attemptId]);
+  });
 
 it("settles a current Candidate's deferred findings before inheriting its pass after replacement", async () => {
   const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";

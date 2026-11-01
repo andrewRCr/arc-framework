@@ -8,7 +8,7 @@ import { withReviewReport } from "../../fixtures/review-report-input.js";
 import { HostedAwaitCommandResultSchema } from "../../../src/scripts/review-gate/hosted/await.js";
 import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, it, onTestFinished, vi } from "vitest";
+import { beforeEach, expect, it, onTestFinished, vi } from "vitest";
 import { handleReviewHostedRequest, handleReviewHostedAwait, handleReviewRespond, handleReviewHostedSettle, handleReviewResolve } from "../../../src/handlers/review.js";
 import { createCandidateAttestation, createCandidateSubjectSnapshot } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
@@ -37,13 +37,26 @@ import { bindReviewSourceReference, parseReviewSourceReference } from "../../../
 import { bindNativeReviewOperationReference, parseNativeReviewOperationReference } from "../../../src/scripts/review-gate/core/review-operation-reference.js";
 
 import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
-import { runDerivedLocusStateProbe } from "../../../src/handlers/derived-locus-state-probe.js";
 import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
 
 // The locus probe runs as itself unless a case makes one call meet a store refusal from another checkout's records.
-vi.mock("../../../src/handlers/derived-locus-state-probe.js", async importOriginal => {
-  const original = await importOriginal<typeof import("../../../src/handlers/derived-locus-state-probe.js")>();
-  return { ...original, runDerivedLocusStateProbe: vi.fn(original.runDerivedLocusStateProbe) };
+const mocks = vi.hoisted(() => ({
+  runDerivedLocusStateProbe: vi.fn<typeof import("../../../src/handlers/derived-locus-state-probe.js").runDerivedLocusStateProbe>(),
+}));
+vi.mock("../../../src/handlers/derived-locus-state-probe.js", async importOriginal => ({
+  ...await importOriginal<typeof import("../../../src/handlers/derived-locus-state-probe.js")>(),
+  runDerivedLocusStateProbe: mocks.runDerivedLocusStateProbe }));
+
+/** Restore the shipped locus probe before each case. */
+async function resetMockDefaults(): Promise<void> {
+  const actual = await vi.importActual<typeof import("../../../src/handlers/derived-locus-state-probe.js")>(
+    "../../../src/handlers/derived-locus-state-probe.js");
+  mocks.runDerivedLocusStateProbe.mockImplementation(actual.runDerivedLocusStateProbe);
+}
+
+beforeEach(async () => {
+  vi.resetAllMocks();
+  await resetMockDefaults();
 });
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -661,7 +674,7 @@ it("raises a native refusal establishing an Errand's standard vehicle whole, and
       return JSON.parse(output) as unknown;
     };
     const refusal = nativeListingRefusal();
-    vi.mocked(runDerivedLocusStateProbe).mockRejectedValueOnce(refusal);
+    mocks.runDerivedLocusStateProbe.mockRejectedValueOnce(refusal);
     const refused = await resolve();
     expect(refused, JSON.stringify(refused)).toMatchObject({ mode: "review-resolve", error: { code: "store-refused" },
       refusal: refusal.refusal, remedy: { text: expect.stringContaining(refusal.refusal.remedy.text) } });

@@ -10,6 +10,8 @@ import { ListingDiagnosticSchema } from "../../../../../../src/lib/store/read.js
 import type { Store } from "../../../../../../src/lib/store/contract.js";
 import { StoreRefusalSchema } from "../../../../../../src/lib/store/refusal.js";
 import { describeRecordConflicts } from "../../../../../../src/lib/store/conflict-diagnostics.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../../../../src/lib/store/identity.js";
+import { ReviewOwnerSelectionError } from "../../../../../../src/lib/store/kinds/review/errors.js";
 
 async function fixture(state: "open" | "awaiting-merge" = "open") {
   const harness = createReviewHarness();
@@ -149,5 +151,23 @@ it.each(["refused", "unreadable"] as const)("raises a %s Errand inventory behind
   inventoryFails = false;
   expect(await readLiveErrandClaimId(input, h.claimId)).toBeNull();
   claimMissing = false;
+  expect(await readLiveErrandClaimId(input, h.claimId)).toBe(h.claimId);
+});
+
+it("raises a branch link naming absent work-unit metadata from the live claim match, and matches the claim after repair", async () => {
+  const h = await fixture();
+  onTestFinished(h.cleanup);
+  let dangling = true;
+  const store = Object.create(h.store) as Store;
+  const absent = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "repair",
+    uid: "123e4567-e89b-42d3-a456-426614174000" }));
+  store.lookup = async input => dangling && input.kind === "ref" && input.ref === h.branch
+    ? { status: "ok", result: { reference: absent } } : h.store.lookup(input);
+  const input = { ...h, store };
+  const refused = readLiveErrandClaimId(input, h.claimId);
+  await expect(refused).rejects.toBeInstanceOf(ReviewOwnerSelectionError);
+  await expect(refused).rejects.toMatchObject({ code: "corrupt-state",
+    condition: expect.stringMatching(/linked work-unit metadata is missing/u) });
+  dangling = false;
   expect(await readLiveErrandClaimId(input, h.claimId)).toBe(h.claimId);
 });

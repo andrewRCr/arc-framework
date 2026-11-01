@@ -3,12 +3,13 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { raiseNativeResolutionRefusal, resolveActiveWu } from "../lib/release/wu-resolution.js";
-import { readCompletedDeliveryLocus, readDeliveryReviewFixTaskInput } from "../lib/store/delivery-review-fix-input.js";
+import { readCompletedDeliveryLocus, readDeliveryReviewFixTaskInput, readMarkedDeliveryWorkItem } from "../lib/store/delivery-review-fix-input.js";
 import { inspectRepositoryDeliveryEntry, readInspectionTaskList } from "../lib/delivery/repository-entry.js";
 import type { DeliveryEntryInspectionResult } from "../lib/delivery/entry-inspection.js";
 import type { ReviewInvocationContext } from "../scripts/review-gate/runtime/invocation.js";
 import { resolveNamedReviewWorkUnitInvocation } from "../scripts/review-gate/runtime/review-work-unit.js";
-import { resolveCandidateMutationOwner, resolveCompletedCandidateOwners } from "./candidate-mutation-owner.js";
+import type { CandidateMutationOwner } from "../lib/work-unit/candidate-mutation-owner.js";
+import { resolveCandidateMutationOwner, resolveCompletedCandidateOwners, resolveOwnedCandidateGeneration } from "./candidate-mutation-owner.js";
 
 interface ReviewFixWorkUnitLocus { name: string; path: string; branch: string | null; baseBranch: string }
 
@@ -30,24 +31,28 @@ async function resolveLocus(cwd: string, exec: GitExec, invocation: ReviewInvoca
   if (invocation.store.capabilities.stateOffBranch
     && !(await resolveCompletedCandidateOwners(cwd, invocation.store)).some(({ name }) => name === owner.workUnit)) return null;
   const branch = await readCheckoutBranch(cwd, exec);
-  const completed = await readCompletedDeliveryLocus(invocation.store, cwd, owner.workUnit,
-    { owner: invocation.workItem, branch, projectId: invocation.projectId });
+  const completed = await readCompletedDeliveryLocus(invocation.store, cwd, owner.workUnit, { owner: invocation.workItem
+    ?? await resolveOwnedCandidateGeneration(invocation.store, owner, invocation.projectId), branch, projectId: invocation.projectId });
   if (completed === null) return null;
   if (invocation.workItem === undefined && completed.workItem !== undefined) invocation.workItem = completed.workItem;
   return { ...completed, branch, baseBranch: settings["branch.base"] };
 }
 
 /**
- * Bind a delivery command's work unit before any native record access: a completed one by the checkout's branch
- * generation, otherwise the named live one. The repository arm and an already bound invocation are left as they are.
+ * Bind a delivery command's work unit before any native record access: the owning checkout's own generation, else the
+ * one the checkout's marker names, else a completed one by the checkout's branch, otherwise the named live one. The
+ * repository arm and an already bound invocation are left as they are.
  */
 export async function bindDeliveryWorkItem(cwd: string, exec: GitExec, invocation: ReviewInvocationContext,
-  workUnitId: string): Promise<void> {
+  workUnitId: string, checkoutOwner?: CandidateMutationOwner): Promise<void> {
   if (!invocation.store.capabilities.stateOffBranch || invocation.workItem !== undefined) return;
-  const completed = await readCompletedDeliveryLocus(invocation.store, cwd, workUnitId,
-    { branch: await readCheckoutBranch(cwd, exec), projectId: invocation.projectId });
-  const workItem = completed?.workItem
-    ?? (await resolveNamedReviewWorkUnitInvocation({ ...invocation, cwd, exec }, workUnitId)).workItem;
+  const owner = checkoutOwner ?? await resolveCandidateMutationOwner({ ...invocation, cwd, exec });
+  const workItem = owner.status === "owned" && owner.workUnit === workUnitId
+    ? await resolveOwnedCandidateGeneration(invocation.store, owner, invocation.projectId)
+    : await readMarkedDeliveryWorkItem(invocation.store, cwd, workUnitId)
+      ?? (await readCompletedDeliveryLocus(invocation.store, cwd, workUnitId,
+        { branch: await readCheckoutBranch(cwd, exec), projectId: invocation.projectId }))?.workItem
+      ?? (await resolveNamedReviewWorkUnitInvocation({ ...invocation, cwd, exec }, workUnitId)).workItem;
   if (workItem !== undefined) invocation.workItem = workItem;
 }
 

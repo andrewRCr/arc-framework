@@ -2,7 +2,6 @@
 import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 import { readConfiguredIdentity } from "../../../lib/git/identity.js";
 import type { ReviewInvocationInput } from "./invocation.js";
-import type { CanonicalDigest } from "../../../lib/kernel/index.js";
 import { ReviewDecisionSchema, type ReviewDecision } from "../../../lib/store/kinds/review/decision/schema.js";
 import { reviewDecisionKey } from "../../../lib/store/kinds/review/decision/key.js";
 import { liveExtraPasses, withdrawnExtraPassKeys } from "./native-extra-pass-reach.js";
@@ -26,16 +25,11 @@ export interface NativeExtraPassInput {
 }
 export interface NativeExtraPassResolution {
   judgment?: ReviewLaneJudgment;
-  ceilingDecisionKey?: CanonicalDigest;
-  additionalDecisionKey?: CanonicalDigest;
 }
 
 /** Resolve a lane's stored extra-pass authority before applying pure review policy. */
 export async function resolveNativeExtraPassJudgment(input: NativeExtraPassInput): Promise<NativeExtraPassResolution> {
-  if (await input.facts.readProjectId() !== input.repositoryId) throw new Error("Restore the selected review project's identity, then retry its extra-pass judgment.");
-  const listing = await input.facts.decisions.list();
-  if (listing.status !== "complete") throw reviewFactListingError(listing);
-  const decisions = listing.records.map(({ value }) => value);
+  const decisions = await readExtraPassDecisions(input);
   const requests = requestedExtraPasses(input);
   await validateExtraPassReferences(input, decisions, requests);
   for (const request of requests) {
@@ -55,10 +49,19 @@ export async function resolveNativeExtraPassJudgment(input: NativeExtraPassInput
       headSha: additional.subject.headSha, precedingProducerId: additional.choice.precondition.precedingProducerId,
       completedPasses: additional.choice.passCount, nextPass: additional.choice.passCount + 1, decisionKey: reviewDecisionKey(additional),
     } }) };
-  return { ...(Object.keys(judgment).length === 0 ? {} : { judgment }),
-    ...(ceiling?.choice.kind === "extra-pass" && ceiling.choice.passCount === input.completedPasses
-      ? { ceilingDecisionKey: reviewDecisionKey(ceiling) } : {}),
-    ...(additional === undefined ? {} : { additionalDecisionKey: reviewDecisionKey(additional) }) };
+  return Object.keys(judgment).length === 0 ? {} : { judgment };
+}
+
+/** Require each supplied ordinary decision reference to name the live grant of its kind within this invocation's reach. */
+export async function validateNativeExtraPassReferences(input: NativeExtraPassInput): Promise<void> {
+  await validateExtraPassReferences(input, await readExtraPassDecisions(input), requestedExtraPasses(input));
+}
+
+async function readExtraPassDecisions(input: NativeExtraPassInput): Promise<ReviewDecision[]> {
+  if (await input.facts.readProjectId() !== input.repositoryId) throw new Error("Restore the selected review project's identity, then retry its extra-pass judgment.");
+  const listing = await input.facts.decisions.list();
+  if (listing.status !== "complete") throw reviewFactListingError(listing);
+  return listing.records.map(({ value }) => value);
 }
 
 async function validateExtraPassReferences(input: NativeExtraPassInput, decisions: readonly ReviewDecision[], requests: readonly RequestedExtraPass[]): Promise<void> {

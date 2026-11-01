@@ -45,6 +45,9 @@ it.each(["foreign-project", "foreign-owner", "unbound", "repository"] as const)(
   const reference = bindReviewSourceReference({ ...source,
     repositoryId: invalid === "foreign-project" ? "another-project" : repositoryId,
     workItem: invalid === "foreign-owner" ? other.reference.owner : primary.reference.owner });
-  await expect(parseReviewSourceReferenceForInvocation(supplied, reference, source.kind)).rejects.toThrow();
+  await expect(parseReviewSourceReferenceForInvocation(supplied, reference, source.kind)).rejects.toThrow({
+    "foreign-project": "review source reference owner mismatch", "foreign-owner": "review source reference owner mismatch",
+    unbound: "A native source reference needs the invocation's exact work item.",
+    repository: "review source reference kind mismatch" }[invalid]);
   expect(await parseReviewSourceReferenceForInvocation(invocation, bindReviewSourceReference(source), source.kind)).toEqual(source);
 });

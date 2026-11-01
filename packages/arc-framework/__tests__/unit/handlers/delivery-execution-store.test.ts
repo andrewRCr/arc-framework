@@ -11,9 +11,11 @@ import { createReviewHarness } from "../../helpers/store/review-harness.js";
 import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
+import { bindDeliveryWorkItem } from "../../../src/handlers/delivery-review-fix-entry.js";
+import type { ReviewInvocationContext } from "../../../src/scripts/review-gate/runtime/invocation.js";
 
 async function fixture(state: "Active" | "Shipped", binding: string | null = "tasks-example.md", storedTasks = true,
-  liveNamesake = false) {
+  liveNamesake = false, checkoutBranch: string | null = "feat/example") {
   const h = createReviewHarness();
   const projectId = "123e4567-e89b-42d3-a456-426614174099";
   await h.seedProject(projectId);
@@ -30,10 +32,11 @@ async function fixture(state: "Active" | "Shipped", binding: string | null = "ta
     { match: ["diff", "--cached", "--name-only", "-z", "--"], responses: [{ stdout: "" }] },
     { match: ["rev-parse", "--verify", "--quiet", "origin/main"], responses: [{ stdout: "b".repeat(40) }] },
     { match: ["cherry", "b".repeat(40), "a".repeat(40)], responses: [{ stdout: `+ ${"a".repeat(40)}\n` }] },
-    { match: ["symbolic-ref", "--quiet", "--short", "HEAD"], responses: [{ stdout: "feat/example" }] },
+    { match: ["symbolic-ref", "--quiet", "--short", "HEAD"], responses: [checkoutBranch === null
+      ? { failure: { exitCode: 1 } } : { stdout: checkoutBranch }] },
   ] });
   onTestFinished(checkout.cleanup);
-  await checkout.occupy("feat/example", boundWorkUnitSubject(primary));
+  await checkout.occupy(checkoutBranch, boundWorkUnitSubject(primary));
   return { ...checkout, primary, seedTasks, run: async (store: Store = checkout.store) => {
     let output = "";
     await handleDeliveryExecution("review-fix-continue", { input: "-" }, undefined, {
@@ -54,6 +57,14 @@ it("continues a Shipped work unit from its own checkout while a live work unit r
   const result = await h.run();
   expect(result, JSON.stringify(result)).toMatchObject({ status: "idle", nextAction: "continue-work-unit" });
 });
+
+it.each(["fix/example-correction", null])(
+  "binds delivery to the generation its checkout's marker names on branch %s, beside a live namesake", async branch => {
+    const h = await fixture("Shipped", "tasks-example.md", true, true, branch);
+    const invocation: ReviewInvocationContext = { store: h.store, projectId: h.projectId };
+    await bindDeliveryWorkItem(h.cwd, h.exec, invocation, "example");
+    expect(invocation.workItem).toEqual(h.primary.reference.owner);
+  });
 
 it("refuses a missing metadata task binding without writes and continues after repair", async () => {
   const h = await fixture("Active", null);

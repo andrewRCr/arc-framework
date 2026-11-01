@@ -4,6 +4,7 @@ import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocat
 import { readCandidateRecord } from "./kinds/review/candidate/access.js";
 import type { CandidateManagedRecordV1 } from "./kinds/review/candidate/schema.js";
 import { unwrapReviewRecordResult } from "./kinds/review/access-shared.js";
+import { ReviewOwnerSelectionError } from "./kinds/review/errors.js";
 import { readWorkUnit } from "./lifecycle-write.js";
 import type { OwnerIdentity } from "./identity.js";
 import { selectWorkBranchLink, workBranchName } from "./lifecycle-branch.js";
@@ -32,7 +33,10 @@ export function createActiveReviewAccess(input: ReviewInvocationInput): ActiveRe
     let branch = candidate.branch;
     if (candidate.state === "Integrating") {
       const linked = selectWorkBranchLink(primary, { repository: await invocation.projectId() });
-      if (linked.kind !== "linked") throw new Error(linked.kind === "ambiguous" ? linked.reason : "The work unit has no work-branch link.");
+      if (linked.kind !== "linked") {
+        throw new ReviewOwnerSelectionError("corrupt-state", linked.kind === "ambiguous" ? linked.reason
+          : "The work unit has no work-branch link.", { text: "Repair the work unit's branch links, then retry." });
+      }
       branch = workBranchName(linked.link.ref);
     }
     return { candidate: { ...candidate, branch, candidateId: record?.attestation.candidateId ?? null }, record, owner: selected };

@@ -13,6 +13,7 @@ import { ReviewOwnerSelectionError } from "../lib/store/kinds/review/errors.js";
 import { readCandidateRecord } from "../lib/store/kinds/review/candidate/access.js";
 import { readReviewWorkUnitByRef } from "../lib/store/review-work-unit.js";
 import type { Store } from "../lib/store/contract.js";
+import type { StoreRecord } from "../lib/store/read.js";
 import type { GitExec } from "../lib/git/exec.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
@@ -136,27 +137,59 @@ export async function resolveCandidateMutationGeneration(store: Store, workUnit:
     : resolveCompletedGeneration(store, workUnit, candidate, bound);
 }
 
-interface OwnedCheckout { branch?: string; uid?: string; projectId?: () => Promise<string> }
+/** What an owning checkout carries to select its own generation of a slug a live namesake may share. */
+export type OwnedCandidateCheckout = Pick<Extract<CandidateMutationOwner, { status: "owned" }>, "completed" | "branch" | "uid">;
+interface OwnedCheckout extends OwnedCandidateCheckout { projectId?: () => Promise<string> }
+
+/**
+ * Resolve the exact generation an owning checkout's native Candidate and review records belong to, by the same
+ * precedence a Candidate mutation uses, independent of any owner the invocation bound.
+ *
+ * @param store - The invocation's store; in-repo records are keyed by slug and resolve no owner
+ * @param owner - The checkout's owned Candidate mutation owner
+ * @param projectId - The project identity the branch lookup binds
+ * @returns The checkout's own generation
+ */
+export async function resolveOwnedCandidateGeneration(store: Store,
+  owner: Extract<CandidateMutationOwner, { status: "owned" }>, projectId?: () => Promise<string>):
+  Promise<OwnerIdentity | undefined> {
+  if (!store.capabilities.stateOffBranch) return undefined;
+  return resolveOwnedGeneration(store, owner.workUnit, undefined, { ...ownedCheckout(owner), projectId });
+}
+
+/** The selectors an owned checkout carries, without its slug or status. */
+export function ownedCheckout(owner: Extract<CandidateMutationOwner, { status: "owned" }>): OwnedCandidateCheckout {
+  return { ...(owner.completed === undefined ? {} : { completed: owner.completed }),
+    ...(owner.branch === undefined ? {} : { branch: owner.branch }), ...(owner.uid === undefined ? {} : { uid: owner.uid }) };
+}
 
 // The entering checkout's own generation: a bound owner, the one its marker's UID names, the completed generation its
-// branch links, or the live one.
+// branch links, or else the slug's. A completed checkout whose slug now selects a live namesake refuses rather than
+// bind that namesake.
 async function resolveOwnedGeneration(store: Store, workUnit: string, bound?: OwnerIdentity,
   checkout?: OwnedCheckout): Promise<OwnerIdentity> {
   if (bound !== undefined && bound.name === workUnit) return bound;
   if (checkout?.uid !== undefined) {
-    return readOwnedRecord(store, workUnit, OwnerIdentitySchema.parse({ type: "work-item", name: workUnit, uid: checkout.uid }));
+    return (await readOwnedRecord(store, workUnit,
+      OwnerIdentitySchema.parse({ type: "work-item", name: workUnit, uid: checkout.uid }))).reference.owner;
   }
   if (checkout?.branch !== undefined) {
     const linked = await readReviewWorkUnitByRef({ store, projectId: checkout.projectId }, checkout.branch);
     if (linked?.name === workUnit) return linked.record.reference.owner;
   }
-  return readOwnedRecord(store, workUnit);
+  const record = await readOwnedRecord(store, workUnit);
+  if (checkout?.completed === true && record.placement?.kind !== "completed") {
+    throw new ReviewOwnerSelectionError("invalid-input",
+      `\`${workUnit}\` names a live work unit, and neither this checkout's marker nor its branch selects its completed one.`,
+      { text: `Check out the branch the completed \`${workUnit}\` work unit links, then retry.` });
+  }
+  return record.reference.owner;
 }
 
-async function readOwnedRecord(store: Store, workUnit: string, owner?: OwnerIdentity): Promise<OwnerIdentity> {
+async function readOwnedRecord(store: Store, workUnit: string, owner?: OwnerIdentity): Promise<StoreRecord> {
   const read = await readWorkUnit(store, workUnit, owner);
   if (read.status === "refused") throw new StoreRefusalError(read.refusal, true);
-  return read.result.reference.owner;
+  return read.result;
 }
 
 // From a free primary, the completed generation of the slug that holds the mutated Candidate.

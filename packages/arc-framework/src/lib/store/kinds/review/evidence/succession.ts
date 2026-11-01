@@ -5,8 +5,16 @@ import { brokenRule } from "../../rule-support.js";
 import type { ReviewEvidence } from "./schema.js";
 import type { EvidenceHistory } from "./history.js";
 
-/** Check both lineage edges, their stable response context, and creation in the same batch. */
+/** Check both lineage edges, their stable response context, one first approval per result, and creation in the same batch. */
 export function checkEvidenceSuccession(value: ReviewEvidence, prior: ReviewEvidence | undefined,
+  before: EvidenceHistory, after: EvidenceHistory): readonly BrokenRule[] {
+  const root = value.predecessorDispositionSetId === null && hasSecondRoot(value, after)
+    ? [brokenRule("review.evidence.root", "Another first approval already holds this review result's approved-response lineage.",
+      "Approve this response as the successor of the result's current approval, in one batch with it.")] : [];
+  return [...root, ...checkEvidenceEdges(value, prior, before, after)];
+}
+
+function checkEvidenceEdges(value: ReviewEvidence, prior: ReviewEvidence | undefined,
   before: EvidenceHistory, after: EvidenceHistory): readonly BrokenRule[] {
   const parent = value.predecessorDispositionSetId === null ? undefined : after.get(value.predecessorDispositionSetId);
   const successor = value.successorDispositionSetId === null ? undefined : after.get(value.successorDispositionSetId);
@@ -19,6 +27,13 @@ export function checkEvidenceSuccession(value: ReviewEvidence, prior: ReviewEvid
   if (value.successorDispositionSetId !== null && prior?.successorDispositionSetId !== value.successorDispositionSetId
     && (before.has(value.successorDispositionSetId) || prior !== undefined && successor?.performance !== undefined)) return refuse();
   return hasCycle(value, after) ? refuse() : [];
+}
+
+/** Whether another first approval answers the same producer's result, which would leave two lineages for it. */
+function hasSecondRoot(value: ReviewEvidence, after: EvidenceHistory): boolean {
+  const id = value.dispositionSet.dispositionSetId;
+  return [...after.values()].some(other => other.predecessorDispositionSetId === null && other.dispositionSet.dispositionSetId !== id
+    && other.result.outcomeKey === value.result.outcomeKey && other.dispositionSet.producerId === value.dispositionSet.producerId);
 }
 
 function sameResponseContext(left: ReviewEvidence, right: ReviewEvidence): boolean {

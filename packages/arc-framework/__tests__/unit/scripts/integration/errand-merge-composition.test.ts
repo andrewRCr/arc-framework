@@ -268,4 +268,20 @@ describe("Errand merge dependencies over the native store", () => {
     expect(compose).not.toThrow();
     expect(compose()).toMatchObject({ readCurrentIdentity: expect.any(Function), mergePinned: expect.any(Function) });
   });
+
+  it("reads an already-merged Errand change request without a host round trip for a merge identity it never records", async () => {
+    const { store } = createReviewHarness();
+    const target = { repository: "owner/repo", pullRequest: 42, baseRef: "main", headRef: "chore/repair", headSha: "c".repeat(40) };
+    const calls: string[][] = [];
+    const dependencies = createErrandMergeDependencies({ cwd: "/unavailable", exec: scriptGitExec([]).exec,
+      identity: "test-user", slug: "example-errand", store,
+      hostedRunner: { run: async args => { calls.push([...args]); throw new Error("host unavailable"); } },
+      changeRequestPort: { resolveRepository: async () => target.repository,
+        readHeadRef: async () => ({ local: target.headSha, remote: target.headSha }),
+        listByHead: async () => [{ number: 42, url: "https://example.test/owner/repo/pull/42", state: "MERGED",
+          baseRefName: "main", headRefName: target.headRef, headRefOid: target.headSha }],
+        searchByHeadSha: async () => [] } });
+    await expect(dependencies.readMerged(target)).resolves.toEqual({ merged: true, providerMergeId: null });
+    expect(calls).toEqual([]);
+  });
 });

@@ -147,6 +147,14 @@ Amended 2026-10-20 — A17 admits the native resolved-terminus output arm in § 
 Goal 8's schema exceptions and Criterion 2's pinned-schema test exceptions; caller inputs and in-repo emissions
 remain unchanged.
 
+Amended 2026-10-27 — A18 admits the two ordinary extra-pass continuation corrections in § 5.5 in both storage
+arms before the flip, extending Goal 8 and Criterion 2's exceptions and the pass-policy and pre-flip behavior
+exclusions above. Pass counts, source eligibility, grant reach, record shapes, and all other admission rules stay fixed.
+
+Amended 2026-10-28 — A19 also permits a verified clean incremental fix check to bind ordinary authority for the
+required complete final successor (§ 5.5), in both storage arms. The incremental result remains insufficient final
+coverage; every other admission rule excluded above remains fixed.
+
 Amended 2026-10-30 — A23 admits the review error code `store-refused` in § 3.5 before the flip, extending Goal 8's
 schema exceptions and Criterion 2's pinned-schema test exceptions; in-repo refusals and emissions remain unchanged.
 
@@ -342,14 +350,6 @@ review registration (`createInRepoContext`, `lib/store/in-repo/context.ts`). A p
 parser: it runs no write check, and its read codec already decodes the Candidate and boundary through a deferred import
 that returns their keys (`decodeTrackedContent`, `lib/store/in-repo/read-codec.ts`). Neither parser therefore joins the
 in-repo backend's static import closure, whose deferred modules a test pins (`in-repo-boundary.test.ts`).
-
-Amended 2026-10-27 — A18 admits the two ordinary extra-pass continuation corrections in § 5.5 in both storage
-arms before the flip, extending Goal 8 and Criterion 2's exceptions and the pass-policy and pre-flip behavior
-exclusions above. Pass counts, source eligibility, grant reach, record shapes, and all other admission rules stay fixed.
-
-Amended 2026-10-28 — A19 also permits a verified clean incremental fix check to bind ordinary authority for the
-required complete final successor (§ 5.5), in both storage arms. The incremental result remains insufficient final
-coverage; every other admission rule excluded above remains fixed.
 
 ### 3. Before the flip
 
@@ -2745,8 +2745,7 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
   § 9.2. _Trigger:_ pass-4 review. _Work:_ review-fix. _Revalidated:_ pending → 8.1.
 
 - **A29** — 2026-10-31 — design: a port narrowed to reads drops its no-write spy; closed inventories list new modules.
-  _Supersedes:_ § 3.1 ¶3, Criterion 2. _Trigger:_ 8.1 terminal. _Work:_ verify-work-unit. _Revalidated:_
-  verify-work-unit.
+  _Supersedes:_ § 3.1 ¶3, Criterion 2. _Trigger:_ 8.1 terminal. _Work:_ 8.1. _Revalidated:_ verify-work-unit.
 
 - **A30** — 2026-10-31 — task: prove native reference re-entry across a same-UID rename. _Supersedes:_ none.
   _Trigger:_ 8.1 terminal. _Work:_ 4.R6. _Revalidated:_ pending → 8.1.

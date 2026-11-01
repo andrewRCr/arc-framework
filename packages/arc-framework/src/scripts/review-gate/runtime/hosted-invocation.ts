@@ -13,6 +13,7 @@ import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { resolveNamedReviewWorkUnitInvocation } from "./review-work-unit.js";
 import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationOptions } from "./invocation.js";
 import { resolveReviewOperationInvocation, ReviewContinuationReferenceError } from "./continuation-invocation.js";
+import { requireReviewWorkItem } from "../../../lib/store/kinds/review/access-shared.js";
 
 /** Use the indexed request owner for replay, otherwise retain the existing fresh vehicle selection. */
 export async function resolveHostedRequestInvocation(options: ReviewInvocationInput,
@@ -65,9 +66,9 @@ export async function retainHostedRequestReference(options: ReviewInvocationInpu
   const input = { ...options, ...resolveReviewInvocation(options) };
   const result = HostedRequestResultSchema.parse(resultInput);
   if (!input.store.capabilities.stateOffBranch || result.state !== "requested") return result;
-  if (input.workItem === undefined) throw new Error("Resolve the native hosted owner before publishing its reference.");
+  const workItem = requireReviewWorkItem(input.workItem, "A native hosted reference");
   const operationRef = bindNativeReviewOperationReference({ repositoryId: await input.projectId(),
-    workItem: input.workItem, operationId: result.handle.admission.admissionId });
+    workItem, operationId: result.handle.admission.admissionId });
   return { ...result, operationRef, action: hostedAwaitAction(result.handle, operationRef) };
 }
 
@@ -77,13 +78,13 @@ export async function retainHostedAwaitReference(options: ReviewInvocationInput,
   const input = { ...options, ...resolveReviewInvocation(options) };
   const result = HostedAwaitCommandResultSchema.parse(resultInput);
   if (!input.store.capabilities.stateOffBranch) return result;
-  if (input.workItem === undefined) throw new Error("Resolve the native hosted owner before publishing its reference.");
+  const workItem = requireReviewWorkItem(input.workItem, "A native hosted reference");
   const operationRef = bindNativeReviewOperationReference({ repositoryId: await input.projectId(),
-    workItem: input.workItem, operationId: result.handle.admission.admissionId });
+    workItem, operationId: result.handle.admission.admissionId });
   const source = "responseSourceRef" in result && result.responseSourceRef !== undefined
     ? parseReviewSourceReference(result.responseSourceRef, "hosted", true) : undefined;
   const responseSourceRef = source === undefined ? undefined
-    : bindReviewSourceReference({ ...source, repositoryId: await input.projectId(), workItem: input.workItem });
+    : bindReviewSourceReference({ ...source, repositoryId: await input.projectId(), workItem });
   return HostedAwaitCommandResultSchema.parse({ ...result, operationRef,
     ...(responseSourceRef === undefined ? {} : { responseSourceRef }),
     ...("action" in result ? { action: hostedAwaitAction(result.handle, operationRef) } : {}) });

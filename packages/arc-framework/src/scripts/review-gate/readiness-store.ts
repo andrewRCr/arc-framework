@@ -22,8 +22,11 @@ export async function evaluateStoredWorkUnitReadiness(request: WorkUnitRequest, 
   if (selected.status === "refused") return [fact(selected.refusal.code === "not-found" ? "missing-artifact"
     : selected.refusal.code === "record-malformed" ? "malformed-artifact" : "unreadable-artifact",
   `work-item/meta:${request.vehicle.slug}`, `${selected.refusal.condition} ${selected.refusal.remedy.text}`)];
-  const record = selected.result, path = workUnitMetaPath(record), fields = readLifecycleMetaFields(record);
-  if (fields.status === "refused") return [fact("malformed-artifact", path, `${fields.refusal.condition} ${fields.refusal.remedy.text}`)];
+  // A planned meta's projected path reads its fields, so unreadable fields are reported under the record itself.
+  const record = selected.result, fields = readLifecycleMetaFields(record);
+  if (fields.status === "refused") return [fact("malformed-artifact", `work-item/meta:${request.vehicle.slug}`,
+    `${fields.refusal.condition} ${fields.refusal.remedy.text}`)];
+  const path = workUnitMetaPath(record);
   if (record.conflicts.length > 0) {
     return [fact("malformed-artifact", path, `The stored work-unit metadata has unresolved conflicts.${describeRecordConflicts(record.conflicts)}`)];
   }

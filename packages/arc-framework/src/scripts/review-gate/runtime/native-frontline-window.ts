@@ -9,6 +9,7 @@ import type { ReviewInvocationInput } from "./invocation.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { ConfirmResponseHeadContinuation } from "../core/response-head-continuation.js";
 import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
+import { requireReviewWorkItem } from "../../../lib/store/kinds/review/access-shared.js";
 
 /** Bind the native skip writer only when this invocation selected native facts. */
 export function createNativeFrontlineSkipRecorder(invocation: ReviewInvocationInput, facts?: NativeReviewFactPorts):
@@ -35,8 +36,7 @@ export async function recordNativeFrontlineSkip(input: {
   if (decidedBy === null) throw new Error("Set git config --local arc.identity <identity>, then retry the frontline skip.");
   let subjectDigest = input.targetDigest;
   if (input.lineage.kind === "candidate") {
-    const owner = input.invocation.workItem;
-    if (owner === undefined) throw new Error("Resolve the Candidate's work item before recording its frontline skip.");
+    const owner = requireReviewWorkItem(input.invocation.workItem, "A native frontline skip");
     const candidate = await readCandidateRecord(input.invocation.cwd, owner.name, {
       ...input.invocation, owner,
     });

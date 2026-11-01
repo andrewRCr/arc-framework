@@ -115,6 +115,7 @@ describe("raw state helper ratchet", () => {
   });
   it.each([
     ["handlers/outside.ts", 'import { PRODUCTION_REGISTRATIONS } from "../lib/store/kinds/registrations.js";', "lib/store/kinds/registrations.ts"],
+    ["handlers/outside.ts", 'import { IN_REPO_REGISTRATIONS } from "../lib/store/kinds/in-repo-registrations.js";', "lib/store/kinds/in-repo-registrations.ts"],
     ["handlers/outside.ts", 'import { META_REGISTRATION } from "../lib/store/kinds/meta/registration.js";', "lib/store/kinds/meta/registration.ts"],
     ["handlers/outside.ts", 'import { locateMetaCoreTable } from "../lib/store/kinds/meta/line-reading.js";', "lib/store/kinds/meta/line-reading.ts"],
     ["handlers/outside.ts", 'import { parseMetaFile } from "../lib/active/meta-reader.js";', "lib/active/meta-reader.ts"],

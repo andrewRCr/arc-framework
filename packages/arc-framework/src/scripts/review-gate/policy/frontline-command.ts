@@ -396,7 +396,7 @@ async function resolveFrontlineCommandWithinLock(
     return FrontlineCommandResultEnvelopeSchema.parse({
       ...base,
       diagnostics: [...diagnostics, {
-        code: dependencies.operationStore.nativeFacts === undefined ? "frontline-phase-closed" : "frontline-window-closed",
+        code: dependencies.operationStore.stateOffBranch === true ? "frontline-window-closed" : "frontline-phase-closed",
         message: "The opening frontline phase is already closed for this review subject.",
       }],
       state: "skipped",

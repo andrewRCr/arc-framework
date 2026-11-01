@@ -25,7 +25,7 @@ export function mapReviewBoundarySource(source: Extract<ReviewMappingSource, { k
   const boundary = parseIntegrationBoundaryLocus(JSON.parse(source.content));
   const workItem = OwnerIdentitySchema.parse({ type: "work-item", name: source.workItem.slug, uid: source.workItem.uid });
   const owner = { repositoryId: context.input.projectId, workItem };
-  const records = mapReviewBoundaryDecisions(source, context);
+  const records = mapReviewBoundaryDecisions(source, boundary, workItem, context);
   const termini = mappingBoundaryTermini(boundary);
   const value: Record<string, unknown> = { ...boundary, schemaVersion: 2,
     terminus: termini.candidate === null ? null : reviewDecisionKey(termini.candidate),

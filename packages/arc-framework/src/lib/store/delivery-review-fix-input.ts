@@ -5,7 +5,8 @@ import { parseMetaFile } from "../active/meta-reader.js";
 import { resolveTaskListPath } from "../../commands/active/status.js";
 import { resolve } from "node:path";
 import { readStoredDeliveryEntryInput } from "./delivery-entry-input.js";
-import type { OwnerIdentity } from "./identity.js";
+import { OwnerIdentitySchema, type OwnerIdentity } from "./identity.js";
+import { decodeWorktreeMarkerOwnership, readWorktreeMarker } from "../git/worktree-marker.js";
 import { readWorkUnit, workUnitMetaPath } from "./lifecycle-write.js";
 import { unwrapReviewRecordResult } from "./kinds/review/access-shared.js";
 import { readReviewWorkUnitByRef } from "./review-work-unit.js";
@@ -28,6 +29,20 @@ async function readSelectedPrimary(store: Store, name: string, selection: Comple
     if (linked !== null) return linked.name === name ? linked.record : null;
   }
   return unwrapReviewRecordResult(store, await readWorkUnit(store, name));
+}
+
+/**
+ * The exact work item a checkout's current marker binds for this slug, which neither the checkout's branch nor the slug
+ * may override; absent when the marker names another subject or no UID.
+ */
+export async function readMarkedDeliveryWorkItem(store: Store, cwd: string, name: string): Promise<OwnerIdentity | undefined> {
+  const marker = await readWorktreeMarker(cwd);
+  if (marker.kind !== "present" || marker.marker.husk !== undefined) return undefined;
+  const ownership = decodeWorktreeMarkerOwnership(marker.marker);
+  if (ownership.kind !== "current" || ownership.subject.kind !== "work-unit" || ownership.subject.name !== name
+    || ownership.subject.uid === undefined) return undefined;
+  const owner = OwnerIdentitySchema.parse({ type: "work-item", name, uid: ownership.subject.uid });
+  return unwrapReviewRecordResult(store, await readWorkUnit(store, name, owner)).reference.owner;
 }
 
 /** Confirm a completed owner and report its metadata coordinate without reading a projected native file. */

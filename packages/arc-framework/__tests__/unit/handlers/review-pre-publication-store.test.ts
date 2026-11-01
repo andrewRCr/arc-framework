@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { handleReviewPrePublication } from "../../../src/handlers/review.js";
 import { CandidateManagedRecordV1Schema, createCandidateAttestation, createCandidateSubjectSnapshot, createCandidateReviewResponseEvidence } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { PrePublicationReplayInputSchema, replayTokenFromAction, decodePrePublicationReplayV2, encodePrePublicationReplayV2 } from "../../../src/scripts/review-gate/policy/pre-publication-replay.js";
-import { canonicalDigest, SlugSchema } from "../../../src/lib/kernel/index.js";
+import { canonicalDigest, SlugSchema, type CanonicalDigest } from "../../../src/lib/kernel/index.js";
+import type { OwnerIdentity } from "../../../src/lib/store/identity.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { createProjectIdentityReader } from "../../../src/lib/store/project-identity.js";
 import { StoreRefusalSchema } from "../../../src/lib/store/refusal.js";
@@ -25,8 +26,13 @@ import { resolveReviewPolicy } from "../../../src/scripts/review-gate/policy/rev
 import { readAdvancedPrePublicationReentry } from "../../../src/handlers/review-pre-publication-progress.js";
 
 import { createReviewDecisionPort } from "../../../src/lib/store/kinds/review/decision/access.js";
+import { createReviewOutcomePort } from "../../../src/lib/store/kinds/review/outcome/access.js";
+import { ReviewOutcomeSchema } from "../../../src/lib/store/kinds/review/outcome/schema.js";
+import { localOutcome } from "../../fixtures/review-outcome.js";
+import { createHostedHandleFixture } from "../../fixtures/hosted-review.js";
 import { reviewDecisionKey } from "../../../src/lib/store/kinds/review/decision/key.js";
 import { mapReviewReplayDecisions } from "../../../src/lib/store/kinds/review/mapping-replay-decisions.js";
+import { prepareNativeReviewTerminus } from "../../../src/scripts/review-gate/runtime/native-terminus-write.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 async function fixture(project = true) {
@@ -283,6 +289,70 @@ it("refuses native readiness when the Candidate became current during compositio
     .toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", readinessBinding: expect.stringMatching(/^sha256:/u) });
 });
 
+const readyLanes = { frontline: { invocation: { mode: "skip" } }, standard: { terminus: { mode: "owner-accepted" } } };
+
+/** Store a concluded standard-lane pass over the Candidate, which publication readiness binds, as a concurrent writer would. */
+async function recordStandardOutcome(owner: OwnerIdentity, h: Awaited<ReturnType<typeof fixture>>, candidateId: CanonicalDigest) {
+  const target = createHostedHandleFixture({ repositoryId: projectId }).admission.reviewTarget;
+  await createReviewOutcomePort(h.store, owner).create(ReviewOutcomeSchema.parse(localOutcome({ target,
+    lineage: { kind: "candidate", candidateId } })));
+}
+
+async function liveReadinessBinding(h: Awaited<ReturnType<typeof fixture>>, owner: OwnerIdentity, candidateId: CanonicalDigest) {
+  const { family } = createReviewCompositionContext({ ...h, workItem: owner });
+  const binding = await readReviewReadinessBinding({ store: h.store, workItem: owner, inFlight: family.ports.inFlight,
+    repositoryId: projectId, candidateId, headSha: "a".repeat(40) });
+  if (binding.status !== "complete") throw new Error(binding.condition);
+  return binding.digest;
+}
+
+it("refuses native readiness when review progress moves before its locked write, then records the moved binding on retry", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const before = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  if (before.boundary === null) throw new Error("expected the Candidate boundary");
+  const candidateId = before.boundary.candidateId, stale = await liveReadinessBinding(h, owner, candidateId);
+  let moved = false;
+  const refusal = await h.run(true, readyLanes, undefined, { withStandardLaneLock: async (_root, _candidate, _head, action) => {
+    // Another pass concludes after composition read the binding and before this write takes the lane lock.
+    if (!moved) { moved = true; await recordStandardOutcome(owner, h, candidateId); }
+    return action();
+  } });
+  expect(refusal).toMatchObject({ error: { code: "invalid-input",
+    message: "Standard review progress changed while publication readiness was being composed." } });
+  expect(await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).toEqual(before);
+  const listing = await createReviewDecisionPort(h.store, owner).list();
+  if (listing.status !== "complete") throw new Error(listing.reason);
+  // Composition's frontline skip stands; the refused write records neither the terminus nor readiness.
+  expect(listing.records.map(({ value }) => value.choice.kind)).toEqual(["lane-skip"]);
+  const current = await liveReadinessBinding(h, owner, candidateId);
+  expect(current).not.toBe(stale);
+  expect(await h.run(true, readyLanes)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", readinessBinding: current });
+  expect((await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).boundary)
+    .toMatchObject({ locus: "candidate-publish-ready", readinessBinding: current });
+});
+
+it("recomposes native re-entry over review progress that moved after readiness, writing nothing, then records the moved binding", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  expect(await h.run(true, readyLanes)).toMatchObject({ locus: "candidate-publish-ready" });
+  const ready = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  if (ready.boundary?.schemaVersion !== 2 || ready.boundary.locus !== "candidate-publish-ready") throw new Error("expected native readiness");
+  const boundary = ready.boundary;
+  await recordStandardOutcome(owner, h, boundary.candidateId);
+  const input = { ...h, workItem: owner }, context = createReviewCompositionContext(input);
+  const dependencies = createPrePublicationCompositionDependencies(input), before = await h.store.version();
+  expect(await readAdvancedPrePublicationReentry({ root: h.cwd, workUnit: "example", currentHead: "a".repeat(40),
+    boundary, replay: null, orderingRecoveryPresent: false, plainReentry: true }, {
+    readCandidate: (_root, workUnit) => dependencies.readCandidate(workUnit),
+    readStandardLaneOwnerVersion: async () => { throw new Error("repository progress read"); },
+    readReadinessBinding: (_root, candidateId, headSha) => readReviewReadinessBinding({ store: h.store, workItem: owner,
+      inFlight: context.family.ports.inFlight, repositoryId: projectId, candidateId, headSha }),
+  })).toEqual({ status: "compose" });
+  expect(await h.store.version()).toEqual(before);
+  const current = await liveReadinessBinding(h, owner, boundary.candidateId);
+  expect(current).not.toBe(boundary.readinessBinding);
+  expect(await h.run(true, readyLanes)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready", readinessBinding: current });
+});
+
 it("retains native advanced authority by Candidate and subject without a checkout-head binding", async () => {
   const h = await fixture(), owner = await h.seedCandidate();
   await h.run(true, { frontline: { invocation: { mode: "skip" } }, standard: { terminus: { mode: "owner-accepted" } } });
@@ -453,6 +523,32 @@ it("records a native singleton terminus before self-review and reuses it when th
   const after = await decisions.list();
   if (after.status !== "complete") throw new Error(after.reason);
   expect(after.records.filter(({ value }) => value.choice.kind === "terminus")).toEqual(termini);
+});
+
+it("records a native scope refusal's carried terminus before its call-input continuation reaches readiness", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const probe = await composePrePublicationReviewRequest({ workUnit: "example", selfReview: "settled",
+    lanes: { frontline: { invocation: { mode: "skip" } } } }, createPrePublicationCompositionDependencies({ ...h, workItem: owner }));
+  if (probe.status !== "composed" || probe.request.target === null) throw new Error(JSON.stringify(probe));
+  const decisions = createReviewDecisionPort(h.store, owner);
+  const terminusDecision = await prepareNativeReviewTerminus({ facts: { decisions }, subject: { lineage: { kind: "candidate",
+    candidateId: probe.request.candidateId }, headSha: null, subjectDigest: probe.request.candidate.subjectDigest },
+  acceptedBy: "test-user", completedPasses: 0, now: "2026-10-31T12:00:00Z" });
+  const scopeMismatch = { lane: "frontline" as const, observedScope: "whole-target" as const,
+    selectedScope: "chunked" as const, target: probe.request.target };
+  const refused = await h.run(true, { frontline: { scopeMode: "chunked", invocation: { mode: "skip" } },
+    standard: { terminus: { mode: "owner-accepted" } } }, undefined, { compose: async () => ({ status: "refused",
+    code: "scope-judgment-required", reason: "review producer scope does not match the selected scope", scopeMismatch,
+    terminusDecision }) });
+  expect(refused).toMatchObject({ error: { code: "scope-judgment-required" },
+    remedy: { argv: ["arc", "review", "pre-publication", "example", "--resume", expect.any(String)] } });
+  expect(await decisions.read(terminusDecision.key)).toMatchObject({ value: { choice: { kind: "terminus" } } });
+  const token = (refused as { remedy: { argv: string[] } }).remedy.argv[5] ?? "";
+  const replay = decodePrePublicationReplayV2(token);
+  expect(replay).toMatchObject({ lanes: { frontline: { scopeMode: "whole-target", invocation: { mode: "skip" } } } });
+  expect(replay).not.toHaveProperty("lanes.standard.terminus");
+  expect(await h.run(false, {}, token)).toMatchObject({ schemaVersion: 2, locus: "candidate-publish-ready",
+    terminus: terminusDecision.key });
 });
 
 it("leaves no accepted decision when its native boundary batch refuses and succeeds on retry", async () => {

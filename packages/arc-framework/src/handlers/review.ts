@@ -1,5 +1,5 @@
 /** Machine-readable review workflow handlers. */
-import { persistPrePublicationOutcome, type PrePublicationPersistenceAccess } from "./review-pre-publication-persistence.js";
+import { persistPrePublicationOutcome, persistPrePublicationTerminusDecision, type PrePublicationPersistenceAccess } from "./review-pre-publication-persistence.js";
 import { readReviewReadinessBinding } from "../scripts/review-gate/runtime/readiness-binding.js";
 import { readPrePublicationProgress, bindPrePublicationProgress, readAdvancedPrePublicationReentry,
   type PrePublicationProgress } from "./review-pre-publication-progress.js";
@@ -23,7 +23,7 @@ import { resolveReduceInvocation } from "../scripts/review-gate/runtime/reduce-i
 import { resolveFrontlineRunInvocation } from "../scripts/review-gate/runtime/frontline-invocation.js";
 import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
 import { readReviewLane } from "../scripts/review-gate/runtime/lane-read-composition.js";
-import { buildPrePublicationResumeCommand, readPrePublicationCall } from "./review-pre-publication-replay.js";
+import { buildPrePublicationResumeCommand, readPrePublicationCall, type ReviewPrePublicationJudgment } from "./review-pre-publication-replay.js";
 import { reviewDiscoverableCommandInputSchema } from "./review-request-schema.js";
 import { confirmReviewCorrectionLeg } from "../scripts/review-gate/policy/review-next-pass.js";
 
@@ -4221,16 +4221,6 @@ export interface ReviewPrePublicationOptions {
   resume?: string;
 }
 
-/** The caller's parsed judgment inputs, each absent unless its option named a source. */
-export interface ReviewPrePublicationJudgment {
-  selfReview: "settled" | undefined;
-  changeSet: unknown;
-  lanes: unknown;
-  frontlineCeilingHeadSha: string | undefined;
-}
-
-
-
 export interface ReviewPrePublicationHandlerDependencies extends PrePublicationPersistenceAccess {
   resolveRoot(cwd: string): string | null;
   readText(source: string): Promise<string>;
@@ -4718,6 +4708,9 @@ export async function handleReviewPrePublication(
           && canonicalize(mismatch.target) !== canonicalize(replayInput.scopeJudgmentTarget)) {
           emitAdvancedReplayRefusal("The saved scope judgment no longer matches the current exact review target.");
           return;
+        }
+        if (composition.terminusDecision?.put !== undefined) {
+          await persistPrePublicationTerminusDecision(dependencies, root, composition.terminusDecision.put);
         }
         const lanes = PrePublicationLaneJudgmentsSchema.parse(judgment.lanes ?? {});
         const requiredLanes = {

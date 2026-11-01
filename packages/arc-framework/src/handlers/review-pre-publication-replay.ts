@@ -4,7 +4,14 @@ import type { ReviewTarget } from "../scripts/review-gate/core/gate-contract-v2-
 import { PrePublicationLaneJudgmentsSchema, consumeFrontlineCeilingOverride } from "../scripts/review-gate/policy/pre-publication-request.js";
 import { decodePrePublicationReplay, encodePrePublicationReplay, type PrePublicationReplayInput,
   type PrePublicationReplayInputV2 } from "../scripts/review-gate/policy/pre-publication-replay.js";
-import type { ReviewPrePublicationHandlerDependencies, ReviewPrePublicationJudgment } from "./review.js";
+
+/** The caller's parsed judgment inputs, each absent unless its option named a source. */
+export interface ReviewPrePublicationJudgment {
+  selfReview: "settled" | undefined;
+  changeSet: unknown;
+  lanes: unknown;
+  frontlineCeilingHeadSha: string | undefined;
+}
 
 interface CallInput {
   resume?: string;
@@ -12,7 +19,13 @@ interface CallInput {
   changeSet?: string;
   lanes?: string;
 }
-type ReplayAccess = Pick<ReviewPrePublicationHandlerDependencies, "resolveRoot" | "readText" | "boundarySchemaVersion">;
+
+/** The handler dependencies reading a call needs: its root, its caller-supplied sources, and the selected backend. */
+interface ReplayAccess {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  boundarySchemaVersion?(root: string): 1 | 2;
+}
 
 function replayJudgment(replay: PrePublicationReplayInput): ReviewPrePublicationJudgment {
   return { selfReview: replay.selfReview, changeSet: replay.changeSet, lanes: replay.lanes,

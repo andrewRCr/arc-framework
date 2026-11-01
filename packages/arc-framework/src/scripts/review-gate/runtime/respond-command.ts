@@ -13,8 +13,7 @@ import { type ProvisionalStandardPassFacts } from "./provisional-pass-assessment
 import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { canonicalize, type CanonicalDigest } from "../../../lib/kernel/index.js";
-import type { ReviewDecision } from "../../../lib/store/kinds/review/decision/schema.js";
-import { requireRecordedExtraPassReferences } from "./native-extra-pass-input.js";
+import { validateNativeExtraPassReferences, type NativeExtraPassInput } from "./native-extra-pass.js";
 import {
   CandidateManagedRecordV1Schema,
   CandidateVerificationApplicabilitySchema,
@@ -307,7 +306,7 @@ export interface RespondCommandDependencies {
   /** Present when the invocation's store keeps review state off the branch. */
   stateOffBranch?: true;
   /** Off the branch, read the recorded decision a supplied extra-pass reference names. */
-  readExtraPassDecision?: (key: CanonicalDigest) => Promise<ReviewDecision | null>;
+  extraPassFacts?: NativeExtraPassInput["facts"];
   /** Decode source coordinates under the invocation's selected storage arm and owner. */
   parseSourceReference?: (reference: string, kind: BoundReviewSourceReference["kind"])
     => BoundReviewSourceReference | Promise<BoundReviewSourceReference>;
@@ -1690,7 +1689,8 @@ export async function respondToReviewCommand(
   requestInput: unknown,
   dependencies: RespondCommandDependencies,
 ): Promise<z.infer<typeof RespondEnvelopeSchema>> {
-  const request = await withoutResponseDecisionReferences(RespondRequestSchema.parse(requestInput), dependencies);
+  const request = RespondRequestSchema.parse(requestInput);
+  if ("policyRequest" in request) requireNativeReviewDecisionReferences(dependencies.stateOffBranch === true, request.policyRequest);
   let source: ResolvedResponseSource;
   try {
     source = request.source.kind === "attested-local"
@@ -1709,6 +1709,7 @@ export async function respondToReviewCommand(
       error instanceof Error ? error.message : "review response source cannot be validated",
     );
   }
+  const unreferenced = await withoutResponseDecisionReferences(request, source, dependencies);
   return dependencies.withOperationLock(
     laneContinuationOperationId({
       lane: source.result.kind === "frontline" ? "frontline" : "standard",
@@ -1716,22 +1717,30 @@ export async function respondToReviewCommand(
       headSha: source.target.headSha,
       lineage: source.result.admission.lineage,
     }),
-    () => respondToResolvedReviewCommand(request, source, dependencies),
+    () => respondToResolvedReviewCommand(unreferenced, source, dependencies),
   );
 }
 
 /**
- * Refuse a native decision reference in the repository arm. Off the branch, require it to name the recorded decision its
- * grant states, then drop it, since a stored response keeps none.
+ * Off the branch, require each supplied decision reference to name the live grant of its kind within the response's
+ * reach — its lane, producer lineage and head, completed count, and policy target — then drop it, since a stored
+ * response keeps none. The repository arm has already refused any reference.
  */
-async function withoutResponseDecisionReferences(request: z.infer<typeof RespondRequestSchema>,
+async function withoutResponseDecisionReferences(request: z.infer<typeof RespondRequestSchema>, source: ResolvedResponseSource,
   dependencies: RespondCommandDependencies): Promise<z.infer<typeof RespondRequestSchema>> {
   if (!("policyRequest" in request)) return request;
-  requireNativeReviewDecisionReferences(dependencies.stateOffBranch === true, request.policyRequest);
-  await requireRecordedExtraPassReferences(request.policyRequest, dependencies.readExtraPassDecision ?? (() => {
-    throw new Error("Restore the selected native review decisions, then retry the response.");
-  }));
-  return { ...request, policyRequest: withoutReviewDecisionReferences(request.policyRequest) };
+  const policy = request.policyRequest;
+  const ceiling = policy.ceilingOverride?.decisionKey === undefined ? undefined : policy.ceilingOverride;
+  const additional = policy.additionalPassAuthorization?.decisionKey === undefined ? undefined : policy.additionalPassAuthorization;
+  if (ceiling !== undefined || additional !== undefined) {
+    if (dependencies.extraPassFacts === undefined) throw new Error("Restore the selected native review decisions, then retry the response.");
+    await validateNativeExtraPassReferences({ facts: dependencies.extraPassFacts, repositoryId: source.repositoryId,
+      subject: { lineage: source.result.admission.lineage, headSha: source.target.headSha, subjectDigest: null },
+      lane: policy.lane, completedPasses: policy.completedPasses, policyTarget: policy.target,
+      ...(ceiling === undefined ? {} : { ceilingOverride: ceiling }),
+      ...(additional === undefined ? {} : { additionalPassAuthorization: additional }) });
+  }
+  return { ...request, policyRequest: withoutReviewDecisionReferences(policy) };
 }
 
 async function withdrawConditionalResponseAuthority(

@@ -3,6 +3,7 @@ import { sameOwner } from "../../../lib/store/identity.js";
 import { ZodError } from "zod";
 import { bindNativeReviewOperationReference, parseNativeReviewOperationReference } from "../core/review-operation-reference.js";
 import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
+import { requireReviewWorkItem } from "../../../lib/store/kinds/review/access-shared.js";
 
 /** A command reference is invalid; by default, retry with the reference emitted by its matching producer. */
 export class ReviewContinuationReferenceError extends Error {
@@ -82,8 +83,7 @@ export async function retainReviewOperationReference<T>(options: ReviewInvocatio
   if (!input.store.capabilities.stateOffBranch || payload === null || typeof payload !== "object") return result;
   const operationId = payloadOperationId(payload);
   if (operationId === undefined) return result;
-  if (input.workItem === undefined) throw new Error("Resolve the native operation owner before publishing its reference.");
-  const operationRef = bindNativeReviewOperationReference({ repositoryId: await input.projectId(),
-    workItem: input.workItem, operationId });
+  const workItem = requireReviewWorkItem(input.workItem, "A native operation reference");
+  const operationRef = bindNativeReviewOperationReference({ repositoryId: await input.projectId(), workItem, operationId });
   return { ...result, payload: { ...payload, operationRef } };
 }

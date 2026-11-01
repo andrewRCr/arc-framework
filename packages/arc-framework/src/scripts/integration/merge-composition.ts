@@ -137,6 +137,8 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
   lifecycleStorage?: IntegrationLifecycleStoragePort;
   changeRequestPort?: ChangeRequestResolutionPort;
   hostedRunner?: HostedProcessRunner;
+  /** Whether a native merge confirms the merge commit its landing link records; false for a merge that records none. */
+  confirmMergeIdentity?: boolean;
 }): IntegrationMergeDependencies {
   const input = { ...options, ...resolveReviewInvocation(options) };
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
@@ -339,7 +341,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
       if (resolved.state !== "merged-at-head"
         || resolved.targetRef.repository !== target.repository
         || resolved.candidate.number !== target.pullRequest) return { merged: false, providerMergeId: null };
-      if (!input.store.capabilities.stateOffBranch) return { merged: true, providerMergeId: null };
+      if (!input.store.capabilities.stateOffBranch || input.confirmMergeIdentity === false) return { merged: true, providerMergeId: null };
       const confirmed = await confirmPinned(target);
       if (confirmed.state === "merged") return { merged: true, providerMergeId: confirmed.providerMergeId };
       // The landing-link fact reports why no merge commit was confirmed, not that the host reported none.

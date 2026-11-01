@@ -21,9 +21,31 @@ function workingStateReason(source: ReviewMappingSource, indexed: ReviewMappingS
   return "Working state read only for legacy review joins.";
 }
 
+/**
+ * The listing a frontline outcome with no mapped outcome takes from the lane holding its attempt: that lane's
+ * in-flight or not-live reason, or the retired reason when no indexed lane attempt carries its admission.
+ */
+function unjoinedFrontlineListing(source: string, operationId: string, indexed: ReviewMappingSources,
+  listings: ReadonlyMap<string, ReviewMappingResult["listing"][number]>): ReviewMappingResult["listing"][number] {
+  for (const [laneSource, state] of indexed.operations) {
+    if (state.kind !== "lane-progress"
+      || !state.attempts.some(attempt => attempt.frontline?.admission.operationId === operationId)) continue;
+    const lane = listings.get(laneSource);
+    if (lane?.outcome === "in-flight") {
+      return reviewMappingListingEntry({ source, records: [], leftBehind: [], inFlight: `Its frontline attempt is pending in ${laneSource}.` });
+    }
+    if (lane?.outcome === "left-behind" && lane.reason !== undefined) {
+      return reviewMappingListingEntry({ source, records: [], leftBehind: [lane.reason] });
+    }
+  }
+  return reviewMappingListingEntry({ source, records: [],
+    leftBehind: ["No current attempt joins this frontline outcome; its attempt was retired."] });
+}
+
 /** Account for an evidence file after all lane outcomes have been collected. */
 export function reviewMappingJoinedSourceListing(source: ReviewMappingSource, indexed: ReviewMappingSources,
-  outcomes: readonly MappedReviewOutcome[]): ReviewMappingResult["listing"][number] {
+  outcomes: readonly MappedReviewOutcome[],
+  listings: ReadonlyMap<string, ReviewMappingResult["listing"][number]>): ReviewMappingResult["listing"][number] {
   const records: RecordReference[] = [];
   const leftBehind: string[] = [];
   const ledger = indexed.receipts.find((item) => item.source === source.source);
@@ -36,8 +58,8 @@ export function reviewMappingJoinedSourceListing(source: ReviewMappingSource, in
     }
   } else if (frontline !== undefined) {
     const joined = outcomes.find(({ outcome }) => outcome.frontline?.admission.operationId === frontline.operationId);
-    if (joined === undefined) leftBehind.push("No current attempt joins this frontline outcome; its attempt was retired.");
-    else records.push(joined.reference);
+    if (joined === undefined) return unjoinedFrontlineListing(source.source, frontline.operationId, indexed, listings);
+    records.push(joined.reference);
   }
   if (records.length === 0 && leftBehind.length === 0) leftBehind.push(workingStateReason(source, indexed));
   return reviewMappingListingEntry({ source: source.source, records, leftBehind });

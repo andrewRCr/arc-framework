@@ -3792,7 +3792,7 @@ async function executeDeliveryCommand(
       if (owner.status !== "owned" || owner.workUnit !== workUnitId) {
         return { status: "refused", reason: "candidate-mutation-unowned" };
       }
-      await bindDeliveryWorkItem(cwd, exec, invocation, workUnitId);
+      await bindDeliveryWorkItem(cwd, exec, invocation, workUnitId, owner);
       const verifiedAt = new Date().toISOString();
       const dispositionStore = (await review()).family.ports.dispositions;
       const dispositionRecords = await dispositionStore.listDispositionRecords();

@@ -14,19 +14,19 @@ export async function createReviewCheckout<T extends ReturnType<typeof createLif
   await mkdir(join(cwd, ".arc", "system"), { recursive: true });
   await mkdir(commonDir);
   await writeFile(join(cwd, ".arc", "system", "arc-config.yml"), "branch.base: main\narchive.cadence: with-integration\n");
-  let branch = "main";
+  let branch: string | null = "main";
   const identity = options.identity ?? "test-user";
   const scripted = scriptGitExec([...(options.script ?? []),
     { match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: commonDir }] },
     { match: ["worktree", "list", "--porcelain", "-z"], responses: [() => ({
-      stdout: `worktree ${cwd}\0HEAD ${"a".repeat(40)}\0branch refs/heads/${branch}\0\0`,
+      stdout: `worktree ${cwd}\0HEAD ${"a".repeat(40)}\0${branch === null ? "detached" : `branch refs/heads/${branch}`}\0\0`,
     })] },
     { match: ["status", "--porcelain=v1", "--untracked-files=normal"], responses: [{ stdout: "" }] },
-    { match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [() => ({ stdout: branch })] },
+    { match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [() => ({ stdout: branch ?? "HEAD" })] },
     { match: ["config", "--null", "--get", "arc.identity"], responses: [{ stdout: `${identity}\0` }] },
   ]);
   return { ...harness, cwd, commonDir, ...scripted, identity,
-    occupy: async (nextBranch: string, createdFor: Extract<WorktreeSubject, { kind: "work-unit" }> | TransientWorktreeSubject) => {
+    occupy: async (nextBranch: string | null, createdFor: Extract<WorktreeSubject, { kind: "work-unit" }> | TransientWorktreeSubject) => {
       branch = nextBranch;
       const base = { spawnedByArc: false, spawningIdentity: identity, createdAt: "2026-10-19T12:00:00.000Z" };
       if (createdFor.kind === "work-unit") await writeWorktreeMarker(cwd, { ...base, createdFor });

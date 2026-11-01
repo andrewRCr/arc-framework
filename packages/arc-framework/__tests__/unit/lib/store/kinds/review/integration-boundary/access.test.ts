@@ -1,7 +1,7 @@
 /** Boundary access retains the filesystem contract while selecting explicit stores. */
 import { expect, it } from "vitest";
 import { canonicalize, digestBytes } from "../../../../../../../src/lib/kernel/canonical/canonical-json.js";
-import { readSubmissionBoundary, readSubmissionBoundaryVersioned, writeSubmissionBoundary } from
+import { prepareSubmissionBoundaryPut, readSubmissionBoundary, readSubmissionBoundaryVersioned, writeSubmissionBoundary } from
   "../../../../../../../src/lib/store/kinds/review/integration-boundary/access.js";
 import { parseIntegrationBoundaryLocus } from
   "../../../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -141,5 +141,31 @@ it("refuses natively a bound work item's boundary naming another work unit, nami
   await h.seed(recordReferences["review/integration-boundary"](owner), JSON.stringify(value));
   await expect(readSubmissionBoundaryVersioned("/unavailable", "example", { store: h.store, owner: other })).rejects.toMatchObject({
     code: "invalid-input", condition: "The bound work item's submission boundary belongs to work unit `other`, not `example`." });
+  expect((await readSubmissionBoundaryVersioned("/unavailable", "example", { store: h.store, owner })).boundary).toEqual(value);
+});
+
+it("refuses a boundary put under a selected work item another work unit names, and prepares the named one's", async () => {
+  const h = createLifecycleHarness();
+  const other = (await h.seedMeta("other")).reference.owner, { owner } = (await h.seedMeta("example")).reference;
+  const value = IntegrationBoundaryLocusV2Schema.parse(boundaryV2Fixture());
+  expect(() => prepareSubmissionBoundaryPut(value, null, other)).toThrow(expect.objectContaining({
+    code: "invalid-input", condition: "The selected work item `other` cannot hold work unit `example`'s review record." }));
+  await expect(writeSubmissionBoundary("/unavailable", value, null, { store: h.store, owner: other }))
+    .rejects.toMatchObject({ code: "invalid-input" });
+  expect(prepareSubmissionBoundaryPut(value, null, owner).reference)
+    .toEqual(recordReferences["review/integration-boundary"](owner));
+});
+
+it("writes a boundary selected under a work item's earlier name to the work unit its UID now holds", async () => {
+  const h = createLifecycleHarness();
+  const { owner } = (await h.seedMeta("example")).reference;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected a native work item");
+  const earlier = OwnerIdentitySchema.parse({ type: "work-item", name: "former", uid: owner.uid });
+  const stranger = OwnerIdentitySchema.parse({ type: "work-item", name: "former", uid: "123e4567-e89b-42d3-a456-426614174777" });
+  const value = IntegrationBoundaryLocusV2Schema.parse(boundaryV2Fixture());
+  await expect(writeSubmissionBoundary("/unavailable", value, null, { store: h.store, owner: stranger }))
+    .rejects.toMatchObject({ code: "invalid-input",
+      condition: "The selected work item `former` cannot hold work unit `example`'s review record." });
+  await writeSubmissionBoundary("/unavailable", value, null, { store: h.store, owner: earlier });
   expect((await readSubmissionBoundaryVersioned("/unavailable", "example", { store: h.store, owner })).boundary).toEqual(value);
 });

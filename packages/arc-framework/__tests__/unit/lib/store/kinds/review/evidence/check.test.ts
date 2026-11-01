@@ -248,4 +248,14 @@ describe("evidence write admission", () => {
     expect(await check(successor, outcome, { prior, before: [evidenceRecord(parent)], after: [evidenceRecord(parent)] }))
       .toEqual(expect.arrayContaining([expect.objectContaining({ rule: "review.evidence.advance" })]));
   });
+  it("refuses a second first approval for one result, and admits the lone first approval it would join", async () => {
+    const { value, outcome } = performedEvidenceFixture();
+    const other = { ...reviewEvidenceFixture(outcome, "defer"), binding: value.binding };
+    expect(other.dispositionSet.producerId).toBe(value.dispositionSet.producerId);
+    expect(await check(value, outcome, { before: [evidenceRecord(other)], after: [evidenceRecord(other)] })).toEqual([
+      expect.objectContaining({ rule: "review.evidence.root",
+        remedy: { text: "Approve this response as the successor of the result's current approval, in one batch with it." } }),
+    ]);
+    expect(await check(value, outcome)).toEqual([]);
+  });
 });

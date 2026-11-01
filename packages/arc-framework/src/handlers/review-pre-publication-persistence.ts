@@ -22,17 +22,22 @@ interface PersistenceInput {
 }
 type PersistenceResult = "written" | "lane-moved" | SubmissionBoundaryVersionConflictError;
 
+/** Record an accepted native terminus decision alone, outside any boundary write. */
+export async function persistPrePublicationTerminusDecision(
+  access: Pick<PrePublicationPersistenceAccess, "persistTerminusDecision">, root: string, decision: ReviewFactPut,
+): Promise<void> {
+  if (access.persistTerminusDecision === undefined) {
+    throw new Error("Restore native terminus persistence on the selected backend before retrying pre-publication review.");
+  }
+  await access.persistTerminusDecision(root, decision);
+}
+
 /** Persist a settled boundary, or its accepted native decision alone while review remains unfinished. */
 export async function persistPrePublicationOutcome(access: PrePublicationPersistenceAccess,
   input: PersistenceInput): Promise<PersistenceResult> {
   const { envelope, root, decision } = input;
   if (envelope.locus !== "candidate-publish-ready" && envelope.locus !== "candidate-convergence-verification-pending") {
-    if (decision !== undefined) {
-      if (access.persistTerminusDecision === undefined) {
-        throw new Error("Restore native terminus persistence on the selected backend before retrying pre-publication review.");
-      }
-      await access.persistTerminusDecision(root, decision);
-    }
+    if (decision !== undefined) await persistPrePublicationTerminusDecision(access, root, decision);
     return "written";
   }
   const persist = () => persistBoundaryOutcome(access, input);

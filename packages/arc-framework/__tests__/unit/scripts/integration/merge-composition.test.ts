@@ -425,6 +425,16 @@ describe("integration merge composition", () => {
         .resolves.toEqual({ merged: true, providerMergeId: null });
     });
 
+    it("reads a native merge without confirming its identity when the caller records no landing link", async () => {
+      const harness = createReviewHarness();
+      const calls: string[][] = [];
+      const dependencies = createIntegrationMergeDependencies({ cwd: "/candidate", exec: vi.fn() as unknown as GitExec,
+        workUnit: "example", changeRequestPort: merged, store: harness.store, confirmMergeIdentity: false,
+        hostedRunner: { run: async args => { calls.push([...args]); return await unavailable(); } } });
+      await expect(dependencies.readMerged(target)).resolves.toEqual({ merged: true, providerMergeId: null });
+      expect(calls).toEqual([]);
+    });
+
     it("fills the native merge identity from exact confirmation", async () => {
       await expect((await dependencies(confirmation(target.headSha), true)).readMerged(target))
         .resolves.toEqual({ merged: true, providerMergeId: oid("d") });

@@ -206,6 +206,22 @@ it("names a stored cohort's conflict records in its readiness fact, and is ready
   expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
 });
 
+it("reports a planned work unit's unreadable metadata fields as their fact before deriving its projected path", async () => {
+  const h = await fixture();
+  const read = h.store.read.bind(h.store);
+  let faulty = true;
+  h.store.read = async input => {
+    const result = await read(input);
+    if (!faulty || input.reference.kind !== "work-item/meta" || result.status !== "ok") return result;
+    return { status: "ok", result: { ...result.result, fields: {}, placement: { kind: "backlog", commitment: "planned" } } };
+  };
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid", payload: {
+    facts: [{ code: "malformed-artifact", path: "work-item/meta:example",
+      message: "Metadata fields for `example` could not be read. Repair the work unit's metadata fields, then retry." }] } });
+  faulty = false;
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+});
+
 it.each([["unreadable fields", "fields"], ["unresolved conflicts", "conflicts"]] as const)(
   "refuses stored work-unit metadata with %s, naming the repair, and is ready once repaired", async (_label, fault) => {
     const h = await fixture({ state: "Shipped" });
