@@ -1,8 +1,8 @@
 # Metadata: session-init-agenda
 
-| **State**  | **Owner** | **Branch**                 | **Class** | **Priority** |
-| ---------- | --------- | -------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/session-init-agenda` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                 | **Class** | **Priority** |
+| --------- | --------- | -------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/session-init-agenda` | `Heavy`   | `P1`         |
 
 - **Cohort:** `agent-context-optimization`
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-session-init-agenda.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Record the done-signal baseline
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1.a — build the baseline kit install
 
 - **PR URL:** [none]
 - **Completed:** [none]
