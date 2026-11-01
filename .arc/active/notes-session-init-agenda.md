@@ -11,6 +11,9 @@
 - Inbound items
 - Strategy fit
 - Coordination pointers
+- Test pins
+- Shipping a file
+- Carried context
 
 ## Today's workflow, step by step
 
@@ -62,8 +65,18 @@ fields (`teardown.text` and `argv`, `remedy.text`, typed reasons) already exist.
   always-loaded is ~10.5k on its own.
 - **The done-signal's percentages** restate absolute targets: ~5k of ~18k tokens for part 1 and ~22k of ~37k for
   part 2. A metered read put `session-init.md` about 60% above its bytes ÷ 4 figure.
-- **Instruments.** Itemized runs use `claude -p --output-format json`; confirm the input-token usage field at first
-  use. The rehearsal kit is `cinexplorer-migration/kit/`.
+- **Instruments.** Itemized runs use `claude -p --output-format json --tools "" --no-session-persistence` with the item
+  on stdin, so each run is one turn: an item read through a tool spans several turns and counts the base context again
+  on each, which inflates every figure by a constant and distorts the ratio. A run's figure sums `input_tokens`,
+  `cache_creation_input_tokens`, and `cache_read_input_tokens`. The harness context report is readable only after the
+  first response, so each real-session figure states whether that response counts. Part 1's real session reads
+  only the files it compares; Part 2's is the whole load entering Orient.
+- **The rehearsal kit** is `cinexplorer-migration/kit/` in the primary checkout's identity directory, absent from
+  linked worktrees. Every recorded run (2026-10-22 to 10-23) failed the install's first commit on 28 broken links the
+  recipe leaves; the script continues with the primary dirty, which derives `unresolved-checkout` rather than Orient.
+  The kit's `fill-link-targets.sh <sandbox> <run-dir>` fills them by copying package files in, which departs from an
+  install exactly as a new project gets it, so both the baseline and the result record whether it ran. The kit README
+  documents `--source-ref`, which fails on `main` from a linked worktree's clone; `--source` takes the checkout.
 - **Assumptions.** Arm usage skews toward a plain resume; no session-arm telemetry exists. The fresh envelope's ~12 KB
   is a brief's figure, not re-measured on a fresh install, and the agenda output's size is unmeasured until built.
 - **Build estimate:** about a week; the forecast change set of 7–8k lines suggests that is tight.
@@ -190,3 +203,75 @@ Captured on 2026-10-31; each concern lives in its own home:
 - An Errand held until the flip: rename this cohort to `instruction-discipline` with `arc rename`.
 
 New prose says "work unit"; the visible rename to "design unit" (`naming-conventions`) sweeps after the cutover.
+
+## Test pins
+
+Where each pin runs decides when it must move. `framework-sync`, `review-gate-workflows`, and `pr-lifecycle` run at the
+commit gate (`ARC_CONTRACT_SUITES`), so their pins move in the same commit as the text they pin, and the two copies of
+every Framework file stay equal on every commit. The integration-tier pins run in CI and move in the task that changes
+their text. `lint:arc:section-refs` refuses `§` anywhere in `src` and `__tests__`, so a replacement test or a
+`.describe()` string names behavior, not a section.
+
+| Pin                                                  | What it pins                                    | Disposition                              |
+| ---------------------------------------------------- | ----------------------------------------------- | ---------------------------------------- |
+| `review-gate-workflows` `:671-685` (commit gate)     | Session Type override limits, two workflows     | session-init half retires at 3.2.b       |
+| `locus-methodology-contracts` `:67-76`               | frame authority                                 | Task 1.5 compiler test, at 3.2.b         |
+| `locus-methodology-contracts` `:151-154`             | cleanup surfaces                                | Task 2.6 compiler test, at 3.2.b         |
+| `locus-methodology-contracts` `:77`                  | the Errand materialize argv                     | retires at 3.2.b; Task 4.5.a replaces it |
+| `locus-methodology-contracts` `:82-83`               | groom and housekeep dispatch                    | retires at 3.2.b; Task 4.3 replaces it   |
+| `locus-methodology-contracts` `:214-229`             | `--errand`, `--housekeep`, `--plan` entry text  | retires at 3.2.b; Task 4.2 replaces it   |
+| `locus-methodology-contracts` `:230-251`             | `--errand --next` outcomes, in init and skill   | retires at 3.2.b; Task 4.2.a replaces it |
+| `locus-methodology-contracts` `:252-270`             | materialize exactness                           | retires at 3.2.b; Task 4.5.a replaces it |
+| `locus-methodology-contracts` `:159`                 | the `inboxState` routable-count note            | reads the served schema, Task 5.1.b      |
+| `locus-methodology-contracts` `:155-161`, `:291`     | the removed file's absence                      | retire, Task 5.1.b                       |
+| `session-init-reconcile-workflow`                    | the reconcile surfaces' wording                 | Task 2.4 compiler test, at 3.2.b         |
+| `session-init-delivery-position-workflow`, init text | the delivery-position line                      | Task 2.4 compiler test, at 3.2.b         |
+| `session-init-delivery-position-workflow`, `:59-67`  | `probe-envelope.md`'s copies and passivity text | retire, Task 5.1.b                       |
+
+`review-gate-workflows`' override test reads both workflows and names session-init's `.template.md` path, which the
+rename removes; its session-init half gives way to Task 2.3.b's override tests, and its `session-handoff` half stays.
+The Phase 4 pins retire in Phase 3 because their rules compile only in Phase 4, and until then the verb refuses those
+rows. These need no change, though a path search finds them: `session-authority-docs` reads only `session-handoff`;
+`verify-integrity` and `change-facts` name the rendered path `session-init.md`, which the rename keeps; `validate-links`
+names `session-init.template.md` only in a comment; `skills.test.ts` checks the skill through fake IO, never the shipped
+`SKILL.md`; and `e2e/session-init.e2e.test.ts` prepares a repository, not the workflow file. `framework-sync`'s source
+loader falls back to the plain path on its own. No test pins `session-recover.md` Step 3.
+
+## Shipping a file
+
+Adding, renaming, or removing a shipped file — the three methods, the spine's dropped `.template.md` suffix,
+`assess-parallel-fit.md` and `in-flight-scope-check.md`, the two removals — touches one set of records in the same
+commit, because `framework-sync.test.ts` pins them to the recipe at the commit gate:
+
+- the `init-recipe.json` `include_files` entry;
+- `CONFIGURABLE_FILES` (`lib/classification.ts`) for a method;
+- `.arc/system/.internal/manifest.json`, the self-hosting manifest's membership and classification;
+- `strategy-package-project-sync.md`'s Framework, Configurable, and installed-file counts, its Configurable list, and,
+  for the spine, the `arc:if` template table, the template-counterpart list, and its count;
+- for a method, a row in `strategy-session-operations.md` § Method Classification by Trigger, and a declaration in a
+  workflow's or method's `arc.methods`, which `lint:arc:triggers` requires for every method in the directory.
+
+Check each destination against `init-recipe.json` in both directions before relying on its ship status.
+
+`integration/init.test.ts` holds two fixed lists of `system/methods/` files: "installs every registered per-file method"
+checks the installed files, and "registers all per-file methods in the manifest" checks their Configurable
+classification. Neither enumerates the directory, so a new method missing from them never fails the test; each method's
+shipping task adds it to both, so a fresh `arc init` is shown to carry it. A shipped workflow such as
+`in-flight-scope-check.md` belongs in neither; `framework-sync`'s recipe-membership check pins it. A shipped method also
+carries `override-active: false` and `[No override configured]`, which the package-neutrality check requires.
+
+## Carried context
+
+- **The flip's field reader.** On a store whose state lives off the branch, the load set omits SESSION-NOTES
+  (`resolveLoadSetManifest`), so until the flip rewrites the reader every resume there would get the "no handoff
+  baseline" note. `parseMetaRecord` already reads `commitAtHandoff` and `sessionType` from the meta, which is where the
+  flip moves them (§ 4.9); rewriting the compiler's reader is the cutover's job, like the rest of § 7.
+- **`--start` from a work-unit checkout.** `inFlightComposition` is composed only with no active work unit and a
+  resolved roster, so `--start` from a work-unit checkout carries no `concurrent-workload` note, and
+  `assess-start-readiness`'s Tier 2 has no composition to read there. Today's focused-recon arm reads the same slot and
+  has the same gap.
+- **A store pull's no-op.** `describeStorePull` folds notices into the summary even on `noop`, so a no-op is defined by
+  status and an empty notice set, and `no-remote` counts as one: nothing was pulled and nothing failed.
+- **Freshness compared with today.** Today's check compares the meta's last commit with HEAD; the compiler reports
+  whether the meta changed since the handoff (§ 6.3). The handoff writes the hash abbreviated
+  (`session-handoff.template.md`), so the compiler resolves it before comparing.

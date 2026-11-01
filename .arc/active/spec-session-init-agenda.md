@@ -491,10 +491,12 @@ reads them after any pull, so nothing the agent reads later can contradict a com
   `sessionType` is itself `planning` or `execution`; `prepublication` and `integration` stay state-determined. A
   conflicting or invalid value becomes a warning `note` and is ignored.
 - **Freshness.** On a work-unit resume, and on `--start` from a work-unit checkout, where the note joins the readiness
-  renders (§ 5.4): a `Commit at Handoff` equal to HEAD emits nothing. One that differs makes the compiler read the
-  commits since it and whether the meta changed in that range, and emit one `note` (surface `freshness-gap`) carrying
-  both. An absent hash — a first session, a crash, a clone without notes — emits the same note saying there is no
-  handoff baseline. The freshness `git log` reads leave the spine.
+  renders (§ 5.4): the recorded hash is abbreviated, so the compiler resolves it first, and one that resolves to HEAD
+  emits nothing. One that differs makes the compiler read the commits since it and whether the meta changed in that
+  range, and emit one `note` (surface `freshness-gap`) carrying both. An absent hash — a first session, a crash, a
+  clone without notes — emits the same note saying there is no handoff baseline, and a hash that no longer resolves,
+  after a rebase or a force-push, emits it saying the baseline is unreachable; neither is an error. The freshness
+  `git log` reads leave the spine.
 
 After the flip both fields come from the meta's session-context section; that is a reader change in the compiler.
 
@@ -572,9 +574,10 @@ the reads.
 | Store user slot (after the flip)           | the store's pull already ran in the probe (§ 2.4); its `summary` is a `note` (surface        |
 |                                            | `store-sync`) unless the pull was a no-op, and its `actions` render as text                  |
 
-When another pair of sync offers would both be emitted — worktree and a notes load, say — the compiler likewise emits
-one combined offer whose `id` joins their keys, whose text joins each channel's text, and whose choices are each
-channel alone, all together, and decline.
+The worktree pull is the only offer that combines, and only with a notes pull or a notes load, as today's combined
+prompt does. When the worktree pull and a notes load would both be offered, the compiler likewise emits one combined
+offer whose `id` joins their keys, whose text joins each channel's text, and whose choices are each channel alone, both
+together, and decline. The superseded reset and the base-branch sync are never combined.
 
 **The superseded reset.** The supersession analyzer proves the local commits patch-equal to a prefix of
 `origin/<branch>` for the local branch name (`worktree.value.branch`); the reset targets that same ref. The offer's text
@@ -704,7 +707,9 @@ without an offer.
   checked out. Every other `free-primary`, `unmanaged-checkout`, or `retired` row is Orient.
 - **`discover-next-work`'s arguments** are `pmMode` (`config.value.settings["pm.mode"]`), `protection`
   (`branch.protection`), and `seed` when a positional seed is present; a seed naming a backlog work unit pre-focuses it
-  with a confirm-only init offer.
+  with a confirm-only init offer. With the `config` slot failed, Orient emits no `discover-next-work` fragment, since
+  neither argument is known and `protection` decides where the method starts work; the degraded `config` line says
+  why, and a positional seed becomes an `unconsumed-signal` note.
 
 #### 5.5 Checkout renders
 
@@ -749,7 +754,9 @@ On Orient the compiler emits these as `ask: "orientation"` offers at their surfa
   off: the spawning `arc materialize <name>`, or on the store path a `--here` exit whose `checkout` is another holder's.
   Every other choice recompiles: `arc materialize <name> --here` and `arc start --new --here` in the session's own
   checkout, and `arc locus release` wherever it runs, since it only frees that checkout. Before the flip the offer adds
-  one in-place choice per candidate (§ 7.2). `refreshRemedy`, when present, is its own choice and recompiles.
+  one in-place choice per candidate (§ 7.2). `refreshRemedy`, when present, is its own choice and recompiles; it is
+  offered even with no candidates, as today, and the slot's copy of the same refresh in its `actions` is not offered
+  a second time.
 - **Materializable Errands** (`errandState.value.materializable.candidates`): one offer with a choice per candidate
   running `arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json` and handing off.
   The verb's own refusal on head drift or a change-request mismatch stops as any failed action does.
@@ -809,7 +816,9 @@ channel (§ 5.1).
 | `branch-gone`                 | `worktree` `branch-gone` on the held path               | render (§ 5.3) with today's `**Branch gone:**` line    | § 5.3                                             |
 | `local-ahead`                 | `worktree` `local-ahead`                                | render today's `**Local-ahead:**` line                 | none                                              |
 | `worktree-behind`             | `worktree` `remote-ahead`, unsynced                     | render: behind by `behind`, pull when ready            | none; no pull                                     |
-| `worktree-remote-unavailable` | `worktree` `remote-unavailable`                         | render: remote unreachable, sync state unknown         | none                                              |
+| `worktree-remote-unavailable` | `worktree` `remote-unavailable`                         | render by `remoteEvidence`: `unreachable` names        | none                                              |
+|                               |                                                         | `failureReason`; `pending-fetch` says origin advanced  |                                                   |
+|                               |                                                         | to a commit not yet present locally                    |                                                   |
 | `base-drift`                  | `baseDistance` `surface`                                | render `recommendedPromptText` verbatim                | none; advisory                                    |
 | `stale-base`                  | `baseBranchSync` `surface`; or behind, unsynced, and    | render `recommendedPromptText` verbatim on `surface`,  | `refreshRemedy` → text, advisory                  |
 |                               | checked out in no worktree (`checkout.kind`             | else the behind-only text                              |                                                   |
@@ -870,10 +879,12 @@ channel (§ 5.1).
 | `in-flight-work-units`        | `workUnitState.value.inFlight.workUnits` non-empty      | render today's list; `stale` entries only when         | `actions` → text; `mergeabilityGuidance`          |
 |                               |                                                         | `workUnitState.value.nudge.shouldNudge`, with the      | verbatim; never merge, switch, or archive         |
 |                               |                                                         | nudge marker                                           |                                                   |
-| `materializable-work-units`   | `materializableWorkUnits.value.candidates`, Orient      | offer (§ 5.8) and render the list                      | § 5.8                                             |
+| `materializable-work-units`   | `materializableWorkUnits.value.candidates`              | offer (§ 5.8) and render the list                      | § 5.8                                             |
+|                               | non-empty or `refreshRemedy` present, Orient            |                                                        |                                                   |
 | `materializable-errands`      | `errandState.value.materializable.candidates`, Orient   | offer (§ 5.8) and render the list                      | § 5.8                                             |
 | `housekeep`                   | `inboxState.value.housekeepNeeded`, Orient, primary     | offer (§ 5.8), text today's `**Housekeep:**` line      | soft offer                                        |
-| `concurrent-workload`         | `inFlightComposition` with `heavy ≥ 1` or `novel ≥ 1`   | note today's line, omitting a zero class               | none; never reorders or gates                     |
+| `concurrent-workload`         | `inFlightComposition` with `heavy ≥ 1` or `novel ≥ 1`,  | note today's line, omitting a zero class               | none; never reorders or gates                     |
+|                               | Orient or `--start`                                     |                                                        |                                                   |
 
 Notes the compiler emits for its own findings: `freshness-gap` (§ 4.9), `session-type-override` (§ 4.9),
 `unconsumed-signal` (§ 5.1), `start-target` (§ 5.4), `domain-rules` (each `domainRules.value.warnings` entry),
@@ -902,6 +913,8 @@ render of `git log --oneline -10` (§ 4.3).
   session-owning `fragment` (§ 4.1), so an Errand's orientation precedes `arc errand open` and `run-errand` renders the
   open's result, which names the opened checkout (§ 12); today the orientation follows the open. The checkout renders
   describe the checkout the session starts in.
+- **Freshness** reports whether the meta changed since the handoff (§ 4.9), where today's check compares the meta's
+  last commit with HEAD.
 - **Not rendered, as today:** `pausedWork` and `inboundBackPressure`, dormant before the flip; `errandState`'s
   `resume`, `inFlight`, and `residue`; other slots' `warnings` arrays (`domainRules`' become notes, § 2.3).
 
@@ -923,7 +936,8 @@ current. The retired-subdir trigger is independent of notes freshness and can co
 recommends a pull, by `exec` or offer, the compiler emits no load step; when that pull is declined, the
 `retired-subdirs` render carries the reconcile's command (§ 6.2).
 
-Otherwise the step follows `session.init_load.notes`:
+Otherwise the step follows `session.init_load.notes`, or `prompt` when the `config` slot failed, as the probe's
+retired-subdir recommendation, which reads the same policy, already does:
 
 - **`always`** → an `exec` (id `notes:load`) with a recompile `then` — unless the retired-subdir slot fired and
   publishes `prompt`, which `inferRetiredSubdirs` does on a dirty tree, and then the `prompt` arm below. A `loadNeeded`
@@ -1100,8 +1114,11 @@ gains `--context`.
 
 ### 11. The always-loaded cheap tier
 
-Both copies of each shipped file. Every destination for moved text is checked against `init-recipe.json` in both
-directions — a file present in the package, listed in an index, and byte-identical across copies can still ship
+Each change lands in every copy that carries its text. `DEV-RULES.ARC` and `AGENT-BRIEF.ARC` change in both copies.
+The Configurable templates — `STRATEGY-INDEX`, `QUICK-REFERENCE`, `AGENT-BRIEF.PROJECT`, and `DEV-RULES.PROJECT` — change
+in the package source, and in this repository's own copy only where that copy carries the same text, since those copies
+are the repository's own filled documents. Every destination for moved text is checked against `init-recipe.json` in
+both directions — a file present in the package, listed in an index, and byte-identical across copies can still ship
 nowhere, and a file assumed not to ship can.
 
 - **`DEV-RULES.ARC`:** § When to Load's stale clause ("process-task-loop loads conditionally at session-init when the
@@ -1113,20 +1130,21 @@ nowhere, and a file assumed not to ship can.
   envelope field path for the commit interlock becomes `config.value.settings["commit.interlock"]` read from the
   agenda's residual `config`; `arc.role`, the git config key a person sets, stays.
 - **`AGENT-BRIEF.ARC`:** correct the PRD → task generation → execution pipeline line and the release-push "takes no
-  target argument" claim (`arg-grammar.ts` accepts a matching `-u origin <branch>` pair); cut the stale one-level
-  backlog-nesting line and the footer. The Methods line stays: fresh reviewers read the briefs and not `DEV-RULES.ARC`.
+  target argument" claim (`arg-grammar.ts` accepts a matching `origin <branch>` pair, with or without `-u`); cut the
+  stale one-level backlog-nesting line in § Directory Structure and the footer. The Methods line stays: fresh
+  reviewers read the briefs and not `DEV-RULES.ARC`.
 - **`STRATEGY-INDEX`:** the purpose sentence, duplicated in `DEV-RULES.ARC`; the "create project strategies" prose and
   example list, repeated in `strategies/project/README.md`; the "these ship with the framework" line.
 - **`QUICK-REFERENCE.template` § Environment & Path Context:** the duplicate `.arc/` row and the fill-time comments.
   The heading stays: `resolveLoadSetManifest` keys the partial read on it.
 - **`AGENT-BRIEF.PROJECT.template`:** the fill-time comments, their examples moved to `02_define-project`'s step; the
-  footer.
+  footer; and the stale "constitution" in § Repository Layout's `.arc/` line.
 - **`DEV-RULES.PROJECT` (shipped):** the domain-rules paragraph's stale `constitution/` path, corrected to
   `system/rules/` rather than cut, since its load-on-demand trigger is the only always-loaded statement of when to read
-  the files `domainRules` lists; duplicate pointers; the capture-routing default text, which duplicates `DEV-RULES.ARC`
-  and contradicts it in its first bullet, down to its heading and a placeholder line, since
-  `03_configure-external-integration` targets that section; the quality-gates definition sentence; fill-time comments;
-  the self-description.
+  the files `domainRules` lists; the stale "constitution" in § File Organization's `.arc/` line; duplicate pointers;
+  the capture-routing default text, which duplicates `DEV-RULES.ARC` and contradicts it in its first bullet, down to
+  its heading and a placeholder line, since `03_configure-external-integration` targets that section; the
+  quality-gates definition sentence; fill-time comments; the self-description.
 - **`arc-session` skill:** § 9.2.
 
 ### 12. Propagation
@@ -1137,10 +1155,11 @@ retargeted in both copies:
 - `DEV-RULES.ARC` § Commit control — the prefix mapping and `releaseRouting` lookups name "the session-init envelope";
   they read the agenda's residual inputs at the same field paths, or the envelope.
 - `strategy-session-operations.md` — § Probe pattern and § Extension contract (the agenda verb is a second reader
-  beside the probe, not a slot resolver; a new slot reaches the session through a compiler case), § Loading Mechanisms
-  § Session initialization (agenda-driven, not a prescribed bulk load), § Method Classification by Trigger (the three
-  methods), and § Session-Init Consumption's "Methods — no init read" (the spine fires three methods at `fragment`
-  steps).
+  beside the probe, not a slot resolver; a new slot reaches the session through a compiler case), § Handoff envelope
+  fields (its pointer to the session-init field table, which leaves with `probe-envelope.md`, points at
+  `arc schema get session-init-envelope`), § Loading Mechanisms § Session initialization (agenda-driven, not a
+  prescribed bulk load), § Method Classification by Trigger (the three methods), and § Session-Init Consumption's
+  "Methods — no init read" (the spine fires three methods at `fragment` steps).
 - `system/methods/README.md`'s loading model — "Session-init does not read methods" becomes false for the same reason.
 - `assess-parallel-fit.md` — its consuming workflows name `session-init.md`; the fire-point moves to
   `discover-next-work`, and `in-flight-scope-check.md` keeps its own.
@@ -1285,12 +1304,18 @@ compiler compiles both arms from whichever the probe's readers return.
   override's limits and names the `.template.md` path). A pin whose rule the spine keeps re-pins to the spine's wording;
   a pin whose rule moves into the compiler — the frame authority, a surface's condition, the Errand materialize command,
   the `--errand --next` phrases the skill restated — becomes a compiler unit test of that behavior; a pin of
-  `probe-envelope.md` text that moves into `.describe()` reads the served schema; the Errand materialization checks the
-  handoff replaces become a test of the handoff. `framework-sync.test.ts`'s recipe-membership, rendered-source,
-  inventory-count, and manifest checks and `skills.test.ts`'s generated-copy check cover the recipe and skill changes.
-  No eval instrument for workflow prose exists, so verification also leans on rehearsal sessions over fixed fixtures on
-  a kit install (Success Criterion 3) — a plain resume, `--plan`, `--errand`, branch-gone, Orient discovery, `--context`
-  — a proxy, named as one.
+  `probe-envelope.md` text that moves into `.describe()` reads the served schema, and one of text that leaves with the
+  file retires where a behavior test already covers it, as `session-init-delivery-position-readonly.test.ts` covers the
+  probe's passivity; the Errand materialization checks the handoff replaces become a test of the handoff.
+  `framework-sync.test.ts`'s recipe-membership, rendered-source, inventory-count, and manifest checks cover the recipe
+  changes and hold the skill's two copies equal; `skills.test.ts` exercises skill generation over fixture files, not
+  the shipped skill. No eval instrument for workflow prose exists, so verification also leans on rehearsal sessions
+  over fixed fixtures on a kit install (Success Criterion 3) — a plain resume, `--plan`, `--errand`, branch-gone, Orient
+  discovery, `--context` — a proxy, named as one.
+- **Measurement.** Success Criteria 1–3's two instruments apply per part. Part 2 measures the whole load a session
+  entering Orient carries before its first line. Part 1 measures, by each instrument, only the files it compares —
+  the baseline `session-init.md`, and per row the spine, `read-load-set`, and that row's method — the real-session
+  instrument reading a session whose only reads are those files, less an empty session.
 - **Procedure and knowledge strategies.** The design keeps to `strategy-procedure-evolution` and
   `strategy-knowledge-evolution`: the agenda is a flat list whose mutations recompile rather than nest; the spine
   narrates no Git mechanics, which reach the agent only as argv; the four new terms are defined in the spine, their
@@ -1339,8 +1364,8 @@ compiler compiles both arms from whichever the probe's readers return.
     `in-flight-scope-check.md` ship too. `session-recover.md` fires `read-load-set` and keeps its stop rules.
 11. **Removals.** `session-init.contributor.md` and `probe-envelope.md` are gone from both copies and the recipe, no
     shipped file references them, and the `inboxState` routable-count note appears in the served envelope schema.
-12. **Cheap tier.** Each § 11 change lands in both copies, and every destination of moved text has an install
-    disposition.
+12. **Cheap tier.** Each § 11 change lands in every copy § 11 assigns it, and every destination of moved text has an
+    install disposition.
 13. **Propagation.** Each § 12 reader is retargeted, and the four wording-pin test files pass against the new text.
 14. **Rehearsal.** Each rehearsal fixture — plain resume, `--plan`, `--errand`, branch-gone, Orient discovery,
     `--context` — starts from a kit install, sets up the state its row needs, and reaches the same orientation surfaces,
