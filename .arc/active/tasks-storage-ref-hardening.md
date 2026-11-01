@@ -224,16 +224,10 @@ classification calls the sweep settled.
 - _Note:_ See `notes-storage-ref-hardening.md` § Fault-site inventory › 3.5 and § Classification calls the sweep settled
   for its sites, their rows and sides.
 
-    - `[ ]` **3.5.a Tip checks and push exclusion**
-        - `checkSyncRefTip` over 3.1.a's `checkRefTip`, and `excludeBrokenPushRefs`' tip checks and batch walk.
-        - Build `test-first` (one behavior at a time):
-            - a pull of a ref whose tip tree is missing holds it with a `namespace-corrupt` notice carrying the
-              **Missing** row's condition and remedy
-            - once that tree is restored, the same pull completes with no notice for the ref
-            - a pull of a ref with unparseable tip metadata holds it with the forward repair, as today
-            - a push excludes a ref whose metadata blob is missing with a `refused` failure carrying the restore
-              remedy, and publishes the rest
-            - once that blob is restored, the same push publishes the ref
+    - `[x]` **3.5.a Tip checks and push exclusion**
+        - Sync tip holds preserve Missing and current-tip forward repairs. Public pulls and pushes retain damaged
+          endpoints, admit independent state, and resume after exact-object restoration in both layouts. The unpublished
+          batch walk uses the helper for missing ancestry and retains pending refs until membership is readable.
 
     - `[ ]` **3.5.b The merges' side reads**
         - `groupSides` through `sideMetadata` and `metadataAt`, `indexRecords`, `readableSyncReference`,
@@ -406,9 +400,8 @@ classification calls the sweep settled.
   inventory's tolerated, unchanged, and invariant sites, and Phase 3's cases pass in the store suites and the unit
   tests.
 
-- _Note:_ Approved feedback carry: the four root/tip-damage cases in `store-ref-broken-operations.test.ts` retain
-  their combined point/history/write assertions until the shared-tip, write, and change migrations update the whole
-  Missing surface. They remain known failing feedback and must pass before this segment closes.
+- _Note:_ Task 3.4.a closed the earlier feedback carry in `store-ref-broken-operations.test.ts`; the full store-suite
+  run remains part of this segment's verification.
 
     - Run the search, `npx arc check run test:store`, and `npx arc check segment`, and record what each found.
     - A site outside the inventory fails the criterion; its classification and fix land in a revision parent of their
