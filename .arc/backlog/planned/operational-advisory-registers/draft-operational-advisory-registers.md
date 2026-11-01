@@ -202,4 +202,24 @@ session-init's `notesDriftSurface` carries `expected` / `caution`. Each was mint
 third naming that does not absorb these two leaves three vocabularies where the problem was one too many, so the
 inventory owes a mapping for the existing fields, not only a classification of the conditions.
 
+### `[ ]` **Decide whether the session-start reminder nudges survive before building cadence on their markers**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ its cadence mechanism — the draft plans to batch or rate-limit awareness advisories through the existing
+  daily nudge markers.
+
+- _Observation:_ the three once-per-day nudges at session start — the notes compaction advisory, the flagged-Errand
+  reminder (`_Remind:` captures past `inbox.remind_after_days`), and the stale in-flight reminder — are not in active
+  use, and the Owner expects them to need a redesign (2026-10-31). `session-init-agenda` keeps them as they are: their
+  `note` steps carry the marker, and the agent writes it after orientation, as today. The compaction advisory retires
+  with the storage cutover's notes module either way.
+
+- _Approach:_ before building cadence on the daily markers, decide with the Owner whether the Errand and stale
+  in-flight reminders earn their place. Retiring them reaches the `arc-inbox` skill's reminder flag, `drain-inbox`,
+  `strategy-session-operations.md` § USER-INBOX, the `inbox.remind_after_days` setting, `nudge-rate-limit.ts` and its
+  slot fields, and the envelope schema.
+
+- _Captured during:_ `session-init-agenda` draft-design, 2026-10-31.
+
 ---
