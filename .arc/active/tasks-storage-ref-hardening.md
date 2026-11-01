@@ -101,6 +101,8 @@ listing schemas and output unchanged.
   history commits and saved states.
 
     - `[ ]` **2.3.a The fault rows and their remedies**
+        - State-row checkpoint: `refObjectFault` maps Missing, Unparseable, and No metadata through current point
+          reads, saved metadata reads, and listing diagnostics. Archive and local-transport wiring remain open.
         - **Missing** → recoverable `state-unresolvable` with the restore-or-fetch remedy; **Unparseable** and **No
           metadata** → terminal `namespace-corrupt` with the forward repair at a current tip and the historical remedy
           at a history commit or saved state; **Misplaced** → terminal `namespace-corrupt` carrying a placement
@@ -169,6 +171,7 @@ classification calls the sweep settled.
 
 - _Note:_ Task 2.1 brought forward `capturedMetadata` and the UID point read's discriminated-reader wiring. The
   containing-tree resolution, shared fault helper, and remaining sites below still complete this task.
+  Caller-level slug checks also cover live cohort refs and retained work/cohort history during these migrations.
 
     - `[ ]` **3.1.a The shared tip check and record point reads**
         - `checkRefTip`, which history, changes, pull, and push all run first, classifies a missing tip or tree as

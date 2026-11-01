@@ -2,7 +2,7 @@
 
 import { createHash } from "node:crypto";
 import { createRefStore } from "../../../src/lib/store/create.js";
-import { RecordReferenceSchema } from "../../../src/lib/store/identity.js";
+import { RecordReferenceSchema, StateVersionSchema } from "../../../src/lib/store/identity.js";
 import type { RefStorePorts } from "../../../src/lib/store/ports.js";
 
 export const metadataUid = "12345678-1234-4234-8234-123456789abc";
@@ -100,7 +100,7 @@ export function refObjectReadFixture(options: {
     identity: async () => null, backingRepository: unexpected, actor: unexpected, lock: unexpected,
     clock: () => new Date(0), sleep: { wait: unexpected, bound: unexpected }, random: () => 0.5,
   };
-  return { store: createRefStore(ports), calls, reference: RecordReferenceSchema.parse({
+  return { store: createRefStore(ports), calls, version: StateVersionSchema.parse(manifest.oid), reference: RecordReferenceSchema.parse({
     owner: { type: "work-item", name: "alpha", uid: metadataUid }, kind: "work-item/companion", key: "extra",
   }) };
 }

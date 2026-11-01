@@ -4,19 +4,19 @@ import type { StoredRecordHome } from "../stored-path.js";
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { resolveRefPointObject } from "./point-object.js";
-import { missingRefObjects } from "./missing-objects.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** Inspect the pinned tree before suggesting that an unavailable record should be created. */
 export async function refRecordAbsence(context: RefBackendContext, reference: RecordReference,
   home: StoredRecordHome, tip: string): Promise<StoreResult<never>> {
   const resolved = await resolveRefPointObject(context, { ref: home.ref, tip, path: home.path }, null);
-  if (resolved.kind === "missing") return { status: "refused", refusal: missingRefObjects(home.ref, {
+  if (resolved.kind === "missing") return { status: "refused", refusal: refObjectFault(home.ref, "missing", {
     reference, historyRefs: [],
     ...resolved.entries ? {
       condition: `The record blob at ${home.path} on ${home.ref} is unavailable locally.`,
       remedy: { text: `Restore or fetch the missing record objects for ${home.ref} in the store repository, then retry.` },
     } : {},
-  }) };
+  }).refusal };
   return absentRefRecord(reference);
 }
 

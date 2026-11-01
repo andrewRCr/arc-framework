@@ -1,5 +1,4 @@
 /** Live UID reads resolve slug paths from metadata and pin their object basis. */
-import { corruptRef } from "./namespace-health.js";
 import { RecordReferenceSchema, type RecordReference } from "../identity.js";
 import { expandStoredPath, holdsNoRecord, type StoredRecordHome } from "../stored-path.js";
 import type { StoreRecord } from "../read.js";
@@ -12,7 +11,7 @@ import { conflictParentQuery, readOpenConflicts } from "./conflicts-read.js";
 import { checkRefKey } from "./path-admission.js";
 import { absentRefRecord, refRecordAbsence } from "./record-absence.js";
 import { resolveRefPointObject } from "./point-object.js";
-import { missingRefObjects } from "./missing-objects.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** Read the canonical slug before choosing paths, checking it against the pinned tip. */
 export async function readUidRefRecord(context: RefBackendContext, requested: RecordReference): Promise<StoreResult<StoreRecord> | null> {
@@ -74,7 +73,7 @@ async function unreadableUidTip(context: RefBackendContext, reference: RecordRef
   const pinned = (await readBatchObjects(context, [query])).get(query);
   if (pinned?.oid !== first?.oid) return "retry";
   const resolved = await resolveRefPointObject(context, { ref: shell.ref, tip, path: shell.metadataPath }, pinned);
-  if (resolved.kind === "missing") return { status: "refused", refusal: missingRefObjects(shell.ref, { reference, historyRefs: [] }) };
+  if (resolved.kind === "missing") return { status: "refused", refusal: refObjectFault(shell.ref, "missing", { reference }).refusal };
   if (resolved.kind === "absent" && holdsNoRecord(shell, resolved.entries.map(({ path }) => path))) return absentRefRecord(reference);
-  return { status: "refused", refusal: corruptRef(shell.ref) };
+  return { status: "refused", refusal: refObjectFault(shell.ref, resolved.kind === "absent" ? "no-metadata" : "unparseable").refusal };
 }

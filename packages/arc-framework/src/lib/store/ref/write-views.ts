@@ -17,7 +17,7 @@ import { appendArchivedLookupTrees, type RefLookupCapture } from "./lookup-trees
 import { isArchiveRef } from "./archive-read.js";
 import { lookupCapturedRefTrees, type RefLookupTree } from "./lookup.js";
 import { expandStoredPath, holdsNoRecord, type StoredRecordHome } from "../stored-path.js";
-import { canonicalPrimaryKind, type RefMetadata } from "./metadata.js";
+import { canonicalPrimaryKind, readRefMetadata, type RefMetadata } from "./metadata.js";
 import { projectOwnerFromEntries, admitProjectReference, projectListInput, projectListingBinding, registryTreeUnavailable,
   type CapturedRegistry } from "./project-identity.js";
 import { archivedViewRecords } from "./archive-view.js";
@@ -25,6 +25,7 @@ import { checkRefKey } from "./path-admission.js";
 import { rootFamily } from "./path-decode.js";
 import { readCapturedRefHistory } from "./history.js";
 import { captureArchivedFolders, selectEndedOwners } from "./ended-owners.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** Build lazy views which never recapture a live ref during a check. */
 export function createRefWriteViews(context: RefBackendContext, tips: ReadonlyMap<string, string>,
@@ -184,8 +185,12 @@ function needsOwnerLookup(reference: RecordReference): boolean {
 
 function missingViewMetadata(state: RefViewState, reference: RecordReference, home: StoredRecordHome): StoreResult<never> {
   const entries = state.refs.get(home.ref)?.entries;
-  if (entries && holdsNoRecord(home, entries.map(({ path }) => path))) return missing(reference, state.saved);
-  return { status: "refused", refusal: corruptRef(home.ref, !entries, state.saved) };
+  if (!entries) return { status: "refused", refusal: corruptRef(home.ref, true, state.saved) };
+  const entry = entries.find(({ path }) => path === home.metadataPath);
+  const read = readRefMetadata(home.ref, entry, state.objects);
+  if (read.kind === "missing") return { status: "refused", refusal: refObjectFault(home.ref, "missing", { reference }).refusal };
+  if (read.kind === "absent" && holdsNoRecord(home, entries.map(({ path }) => path))) return missing(reference, state.saved);
+  return { status: "refused", refusal: refObjectFault(home.ref, read.kind === "absent" ? "no-metadata" : "unparseable", { saved: state.saved }).refusal };
 }
 
 function missing(reference: RecordReference, saved = false): StoreResult<never> {

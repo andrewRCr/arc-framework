@@ -6,7 +6,7 @@ import type { HistoryRef, Remedy, StoreRefusal } from "../refusal.js";
 /** Keep object restoration distinct from repairing present state, retaining any more specific caller text. */
 export function missingRefObjects(ref: string, options: {
   historyRefs: HistoryRef[]; reference?: RecordReference; condition?: string; remedy?: Remedy;
-}): StoreRefusal {
+}): Extract<StoreRefusal, { code: "state-unresolvable" }> {
   return { code: "state-unresolvable", class: "recoverable", historyRefs: options.historyRefs,
     ...options.reference ? { reference: options.reference } : {},
     condition: options.condition ?? `Objects required to read ${ref} are unavailable locally.`,

@@ -14,7 +14,7 @@ import type { FamilyId } from "../catalog.js";
 import { FAMILY_REGISTRY } from "../registry.js";
 import { readBatchObjects, readRefTips, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { decodeRecord, decodeReference, matchesFamilyRef, refOwner, rootFamily, type RefRecordDecodeOptions } from "./codec.js";
-import { canonicalPrimaryKind, parseRefMetadata, readRefMetadata, unparsedMetadata, type RefMetadata } from "./metadata.js";
+import { canonicalPrimaryKind, parseRefMetadata, readRefMetadata, type RefMetadata } from "./metadata.js";
 import type { RefBackendContext } from "./context.js";
 import { saveCapturedManifest } from "./manifest.js";
 import { recordDiagnostic } from "./content-read.js";
@@ -30,7 +30,7 @@ import { readUidRefRecord } from "./read-uid.js";
 import { absentRefRecord as missing, refRecordAbsence } from "./record-absence.js";
 import type { RefViewState } from "./view-state.js";
 import { resolveRefPointObject } from "./point-object.js";
-import { missingRefObjects } from "./missing-objects.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** Read a record, resolving name-only owners through one captured namespace. */
 export async function readRefRecord(context: RefBackendContext, input: ReadInput): Promise<StoreResult<StoreRecord>> {
@@ -77,11 +77,11 @@ async function readBoundRecord(context: RefBackendContext, requested: RecordRefe
 async function readPointMetadata(context: RefBackendContext, reference: RecordReference,
   home: StoredRecordHome, tip: string, object: BatchObject | null | undefined): Promise<StoreResult<RefMetadata>> {
   const resolvedMetadata = await resolveRefPointObject(context, { ref: home.ref, tip, path: home.metadataPath }, object);
-  if (resolvedMetadata.kind === "missing") return { status: "refused", refusal: missingRefObjects(home.ref, { reference, historyRefs: [] }) };
+  if (resolvedMetadata.kind === "missing") return { status: "refused", refusal: refObjectFault(home.ref, "missing", { reference }).refusal };
   if (resolvedMetadata.kind === "absent") return holdsNoRecord(home, resolvedMetadata.entries.map(({ path }) => path))
-    ? missing(reference) : { status: "refused", refusal: corruptRef(home.ref) };
+    ? missing(reference) : { status: "refused", refusal: refObjectFault(home.ref, "no-metadata").refusal };
   const read = readRefMetadata(home.ref, resolvedMetadata.object);
-  if (read.kind !== "parsed") return { status: "refused", refusal: corruptRef(home.ref) };
+  if (read.kind !== "parsed") return { status: "refused", refusal: refObjectFault(home.ref, "unparseable").refusal };
   return { status: "ok", result: read.metadata };
 }
 
@@ -279,13 +279,11 @@ function capturedMetadata(home: StoredRecordHome, entries: readonly RefTreeEntry
       kind: "key-mismatch", condition: "The metadata filename names a UID other than its ref's owner",
     }, saved)) };
   return { records: [], unreadable: true,
-    diagnostics: [{ kind: "unreadable", key: home.ref, ...unparsedMetadata(home.ref, saved) }] };
+    diagnostics: [refObjectFault(home.ref, read.kind === "absent" ? "no-metadata" : "unparseable", { saved }).diagnostic] };
 }
 
 function unreadableRef(ref: string, condition = `The tip or a tree of ${ref} is not available locally`): DecodedRecords {
-  return { records: [], unreadable: true, diagnostics: [{ kind: "unreadable", key: ref,
-    condition,
-    remedy: { text: `Restore the missing objects for ${ref} in the store repository, then retry.` } }] };
+  return { records: [], unreadable: true, diagnostics: [refObjectFault(ref, "missing", { condition }).diagnostic] };
 }
 
 function selectRecords(records: readonly StoreRecord[], input: ListInput): StoreRecord[] {

@@ -7,6 +7,7 @@ import { ConflictRecordSchema } from "../conflict.js";
 import type { KindDefinition } from "../registry.js";
 import { PROJECTED_RECORD_MAX_BYTES } from "../limits.js";
 import type { ListingDiagnostic } from "../read.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** A content defect whose diagnostic receives its stored path at the caller. */
 export interface ContentProblem { kind: ListingDiagnostic["kind"]; condition: string }
@@ -27,11 +28,12 @@ export function readRefContent(kind: KindDefinition, bytes: Uint8Array, pointRea
 
 /** Describe a record defect without losing its exact stored entry path. */
 export function recordDiagnostic(path: string, problem: ContentProblem, saved = false): ListingDiagnostic {
+  if (problem.kind === "unreadable") return refObjectFault(path, "missing", { condition: problem.condition, saved,
+    ...saved ? { remedy: { text: `Restore or fetch the original missing objects for saved entry ${path}, then retry this saved state.` } } : {},
+  }).diagnostic;
   return { ...problem, key: path, remedy: { text: problem.kind === "unknown-format-version"
     ? "Return to the merge base or rebuild with support for this format version."
-    : saved && problem.kind === "unreadable"
-      ? `Restore or fetch the original missing objects for saved entry ${path}, then retry this saved state.`
-      : saved ? `Select a readable saved state or read current state after repairing ${path}; a forward repair cannot change the saved bytes.`
+    : saved ? `Select a readable saved state or read current state after repairing ${path}; a forward repair cannot change the saved bytes.`
     : `Repair the stored entry at ${path}, then retry.` } };
 }
 
