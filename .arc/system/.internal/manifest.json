@@ -15,7 +15,7 @@
     "README.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "592340c889e9d99a60e8aaf128d4a8640b395362c38c4a5f688734057e3a2ba1"
+      "pristine_hash": "6a17e9e0f8ac4fe2b614117ec277211387065f43ce5e96d067ff970cfbdb27af"
     },
     "reference/QUICK-REFERENCE.md": {
       "classification": "Configurable",
@@ -135,7 +135,7 @@
     "reference/strategies/arc/strategy-configurability-architecture.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "3ece93af9c0d0beb7dc5590023f6e97152a6b84e629764606c5409eb0d125646"
+      "pristine_hash": "06404900b4359a77f5a50e7a91ecc6ee080607f8e6c2f57aa9e49322d417292e"
     },
     "reference/strategies/arc/strategy-file-classification.md": {
       "classification": "Framework",

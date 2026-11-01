@@ -8,6 +8,7 @@ import { resolveIdentity } from "../git/identity.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { GitProcessError } from "../git/process-error.js";
 import { createExecaGitExec, createExecaGitExecInput, createExecaRawGitExec } from "../git/process-executor.js";
+import { createGitFloorGate, gateGitExecutors, type GitFloorGate } from "../git/version-floor.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock, withAdvisoryLock } from "../advisory-lock.js";
 import { readGitDirectories } from "../git/directories.js";
 import { withTrackedWriteLock } from "./tracked-lock.js";
@@ -16,12 +17,26 @@ import { getOrCreateMachineId } from "../user-sync/sync-state.js";
 import { createKindRegistry } from "./registry.js";
 import { PRODUCTION_REGISTRATIONS } from "./kinds/registrations.js";
 
-/** Bind native ref-store dependencies while leaving the checkout's configuration at the caller. */
+// The native executors run the `git` the process's PATH names, which the process does not change, so their floor
+// answers hold for the whole process.
+const processGitFloor = createGitFloorGate();
+
+/** Bind native ref-store dependencies while leaving the checkout's configuration at the caller.
+ * @param input - Checkout, lazy backing pointer, optional already-bound Git adapters, and an optional floor gate. Without
+ *   one, injected adapters get answers of their own, apart from the process's native answers.
+ * @returns Store ports whose Git executors each refuse a Git below the supported floor before their first call runs.
+ */
 export function createDefaultRefStorePorts(input: { checkoutRoot: string; exec?: GitExec; execInput?: GitExecInput;
-  backingRepository: RefStorePorts["backingRepository"]; writeBackingRepository?: RefStorePorts["writeBackingRepository"] }): RefStorePorts {
-  const defaults = createDefaultStorePorts(input);
-  return { ...defaults, backingRepository: input.backingRepository, ...input.writeBackingRepository ? { writeBackingRepository: input.writeBackingRepository } : {},
-    rawExec: createExecaRawGitExec(input.checkoutRoot), sleep: { wait: signalEndedSleep, bound: signalEndedSleep },
+  backingRepository: RefStorePorts["backingRepository"]; writeBackingRepository?: RefStorePorts["writeBackingRepository"];
+  gitFloor?: GitFloorGate }): RefStorePorts {
+  const injected = input.exec !== undefined || input.execInput !== undefined;
+  const git = gateGitExecutors(input.gitFloor ?? (injected ? createGitFloorGate() : processGitFloor), {
+    exec: input.exec ?? createExecaGitExec(), execInput: input.execInput ?? createExecaGitExecInput(),
+    rawExec: createExecaRawGitExec(input.checkoutRoot) });
+  // Identity, remote, and actor resolution read Git through these ports too, so they pass the same gate.
+  const defaults = createDefaultStorePorts({ ...input, exec: git.exec, execInput: git.execInput });
+  return { ...defaults, rawExec: git.rawExec, backingRepository: input.backingRepository, ...input.writeBackingRepository ? { writeBackingRepository: input.writeBackingRepository } : {},
+    sleep: { wait: signalEndedSleep, bound: signalEndedSleep },
     random: Math.random, registry: createKindRegistry(PRODUCTION_REGISTRATIONS), migrateStep: async () => {},
     actor: async (identity) => {
       const id = await getOrCreateMachineId(input.checkoutRoot, {

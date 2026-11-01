@@ -1,5 +1,5 @@
 /** Disposable first-party build sources using the real installed compiler and native loaders. */
-import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { copyLiveDependencies } from "./copy-live-dependencies.js";
@@ -12,7 +12,11 @@ import { REACH_DECLARATIONS } from "../../src/lib/local-vitest-runner.js";
 export async function makeNativeBuildFixture(): Promise<{ root: string; packageRoot: string }> {
   const sourcePackage = resolve(import.meta.dirname, "../..");
   const sourceRoot = resolve(sourcePackage, "../..");
-  const root = await mkdtemp(join(tmpdir(), "arc-native-build-"));
+  // Windows may spell the temporary directory with an 8.3 alias, as hosted runners' `C:\Users\RUNNER~1` does. Vite
+  // resolves each config root with an alias-keeping realpath until an asynchronous probe settles and with the native
+  // one after, so one run can see both spellings and relate a test file to a root spelled differently. Root every
+  // fixture at the native long form.
+  const root = await mkdtemp(join(await realpath(tmpdir()), "arc-native-build-"));
   const packageRoot = join(root, "packages/arc-framework");
   await mkdir(packageRoot, { recursive: true });
   await copyLiveDependencies(sourcePackage, packageRoot, [

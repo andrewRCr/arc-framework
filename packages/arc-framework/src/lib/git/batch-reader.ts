@@ -34,10 +34,20 @@ export class GitBatchReadScope {
     return pending;
   }
 
+  /** Drain queued exchanges and release readers while allowing later exchanges to reopen them. */
+  reset(): Promise<void> {
+    const pending = this.queue.then(() => this.closeReaders());
+    this.queue = pending.catch(() => undefined);
+    return pending;
+  }
+
   /** End stdin and await every direct child, releasing pack handles before returning. */
   async close(): Promise<void> {
     this.closed = true;
-    await this.queue;
+    await this.reset();
+  }
+
+  private async closeReaders(): Promise<void> {
     const results = await Promise.allSettled([...this.readers.values()].map((reader) => reader.close()));
     this.readers.clear();
     const failed = results.find((result) => result.status === "rejected");
