@@ -3,7 +3,7 @@
   "slug": "first-pull-call-limit",
   "claimId": "3cb450926f30d2f75e28672a02585a8d",
   "createdAt": "2026-11-01T01:32:03.355Z",
-  "updatedAt": "2026-11-01T01:32:03.355Z",
+  "updatedAt": "2026-11-01T02:03:10.947Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Give first-pull designation subprocesses the shared call budget and their cases setup headroom.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Give the first-pull designation cases headroom over their 10 s subprocess limit",
   "originEntrySourceDigest": "sha256:0415ed869ba2dc31022f21a0ca6f435cbde55a37bc53fde8405ee787f74ee357",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/first-pull-call-limit",
+    "headSha": "00e3c1979ffa7aeaf2871ad46e2494bc4519c4dd"
+  }
 }
