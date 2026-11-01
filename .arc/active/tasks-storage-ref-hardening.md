@@ -139,21 +139,10 @@ every behavior case Phase 3 lists passes in a `store-ref-*` suite or a unit test
 _Design decisions:_ `notes-storage-ref-hardening.md` § Fault-site inventory — every site, its row, its side, and the
 classification calls the sweep settled.
 
-### `[ ]` **3.1 Point reads, listings, and lookups — § 1.3, § 1.6, § 1.9**
+### `[x]` **3.1 Point reads, listings, and lookups — § 1.3, § 1.6, § 1.9**
 
 - _Goal:_ A point read, listing, or owner lookup that meets a missing object refuses recoverably or lists it with the
   restore remedy, and one that meets unparseable or absent metadata keeps its terminal refusal with its side's remedy.
-
-- _Note:_ See `notes-storage-ref-hardening.md` § Fault-site inventory › 3.1 and § Classification calls the sweep settled
-  for its sites, their rows and sides.
-
-- _Note:_ Task 2.1 brought forward `capturedMetadata` and the UID point read's discriminated-reader wiring. The
-  containing-tree resolution, shared fault helper, and remaining sites below still complete this task.
-  Caller-level slug checks also cover live cohort refs and retained work/cohort history during these migrations.
-
-- _Note:_ 3.1.c's owner and project readers preserve object faults and saved recovery routes. Candidate designation
-  retains its fetched commit and remote, with a targeted refetch that restores missing objects before retry. Archived
-  history bases remain open in that subtask.
 
     - `[x]` **3.1.a The shared tip check and record point reads**
         - Shared tip admission and unreadable archive quarters use `refObjectFault`; tip metadata retains its decoded
@@ -166,24 +155,11 @@ classification calls the sweep settled.
           forward in Phase 2. Added public current/saved listing assertions for live and archive metadata remedies;
           strict schemas and missing-record restoration remain covered without exposing the capture tag.
 
-    - `[ ]` **3.1.c Owner and project lookups**
-        - `readLineageOwners`, `readLiveRefOwners`, `decodeLookupCapture`, the project-identity reads with their
-          callers, `checkRefDesignationProject`'s incoming arm, and `resolveArchivedReferences` with
-          `archivedHistoryBatches`.
-        - Build `test-first` (one behavior at a time):
-            - a lineage or live-owner lookup whose metadata entry is present with its blob removed refuses **Missing**,
-              and one whose entry is absent refuses **No metadata**; a saved read takes the historical remedy
-            - a lookup whose tip or tree is missing refuses **Missing**
-            - a missing project identity blob or registry tree refuses **Missing**; an unparseable identity keeps
-              `record-malformed`
-            - the designation check's incoming refusal keeps its condition, led by the candidate registry's commit and
-              remote; a missing candidate object takes the restore remedy or a `git fetch --refetch` of
-              `refs/arc/project/registry` from the target the check fetched from, a backing candidate's URL included,
-              with `--git-dir` where the layout is separate, and an unparseable identity the remote's registry repair,
-              never the local registry's
-            - running the rendered `git fetch --refetch` for a missing candidate object, then retrying, completes the
-              designation
-            - an archived reference whose history tip is not a commit refuses **Missing**, naming the history ref
+    - `[x]` **3.1.c Owner and project lookups**
+        - Owner, lineage, lookup, and project identity readers preserve Missing and current/saved metadata remedies.
+          Candidate failures name their fetched commit and remote; targeted refetch restores missing objects before
+          designation retry. Archive resolution names non-commit retained histories and unavailable quarter trees as
+          Missing; the earlier write-group and archive-view tree guards preserve that classification end to end.
 
 ### `[ ]` **3.2 Archived folders: placement faults, record keys, and their converters — § 1.5, § 1.6, § 1.9**
 
@@ -238,6 +214,10 @@ classification calls the sweep settled.
 
 - _Note:_ See `notes-storage-ref-hardening.md` § Fault-site inventory › 3.3 and § Classification calls the sweep settled
   for its sites, their rows and sides.
+
+- _Note:_ Task 3.1.c brought forward `readWriteGroups`' missing-tree guard and `archivedViewRead`'s unavailable-quarter
+  guard to close archived read, history, write, and observation recovery together. Metadata and remaining tree sites
+  below still complete this task.
 
     - `[ ]` **3.3.a The write path**
         - `readWriteGroups` with `capturedGroupMetadata`, `staleMutation`, `checkRecord`, the archive quarter reads,

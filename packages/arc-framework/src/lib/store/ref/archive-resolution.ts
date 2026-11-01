@@ -7,7 +7,8 @@ import { HistoryRefSchema, type StoreResult, type StoreRefusal } from "../refusa
 import { archivedFolders, archiveOwnerTrees, isArchiveRef, type ArchivedFolder } from "./archive-read.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
+import { missingHistoryRefs } from "./missing-history.js";
 import { readHistoryBatchIndex } from "./history-batches.js";
 import type { ResolvedBatch } from "./write-resolution.js";
 
@@ -26,7 +27,9 @@ export async function resolveArchivedReferences(context: RefBackendContext, refe
     .filter(({ owner }) => requested.some((reference) => sameOwner(owner, reference.owner)));
   // A quarter whose tree cannot be read may hold a requested owner's folder, or a later one, so no folder set is established.
   const unreadable = [...selected.keys()].find((ref) => !quarters.has(ref));
-  if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true) };
+  if (unreadable) return { status: "refused", refusal: refObjectFault(unreadable, "missing", {
+    condition: `The tip or a tree of ${unreadable} is unavailable locally.`,
+  }).refusal };
   const diagnostic = decoded.flatMap(({ diagnostics }) => diagnostics)[0];
   if (diagnostic) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
     namespace: diagnostic.key.split(":")[0] ?? diagnostic.key, condition: diagnostic.condition, remedy: diagnostic.remedy } };
@@ -50,7 +53,10 @@ export async function resolveArchivedReferences(context: RefBackendContext, refe
 async function archivedHistoryBatches(context: RefBackendContext, reference: RecordReference, history: string,
   tip: string, current: ReadonlyMap<string, string>, evidence?: StoreCreationReceiptReader): Promise<StoreResult<Set<string>>> {
   const index = await readHistoryBatchIndex(context, history, tip, reference, evidence, current);
-  if (!index) return { status: "refused", refusal: corruptRef(history, true) };
+  if (!index) return { status: "refused", refusal: refObjectFault(history, "missing", {
+    reference, historyRefs: await missingHistoryRefs(context, [history], current),
+    condition: `The tip or a tree of ${history} is unavailable locally.`,
+  }).refusal };
   return index.status === "refused" ? index : { status: "ok", result: new Set(index.result.keys()) };
 }
 

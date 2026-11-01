@@ -29,7 +29,8 @@ import { archiveRefChanges } from "./write-archive.js";
 import { planRefCloseouts } from "./write-closeouts.js";
 import { prepareRefAnchors } from "./write-anchors.js";
 import { stampCompletedWrites, refreshCompletedChanges } from "./write-completed.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
+import { missingHistoryRefs } from "./missing-history.js";
 import { latestFolderPlacement } from "./archive-read.js";
 import { withCompletedPlacement } from "./archive-refresh.js";
 import { planRefRetirements, sweepRefRetirements, retirementRefChanges } from "./write-retirement.js";
@@ -253,7 +254,10 @@ async function readWriteGroups(context: RefBackendContext, resolved: ResolvedBat
     if (groups.has(home.ref)) continue;
     const tip = tips.get(home.ref);
     // A tip whose tree cannot be read names restoration; only a readable tree without usable metadata needs a forward repair.
-    if (tip && !trees.has(home.ref)) return { status: "refused", refusal: corruptRef(home.ref, true) };
+    if (tip && !trees.has(home.ref)) return { status: "refused", refusal: refObjectFault(home.ref, "missing", {
+      historyRefs: await missingHistoryRefs(context, [home.ref], resolved.tips),
+      condition: `The tip or a tree of ${home.ref} is unavailable locally.`,
+    }).refusal };
     const priorMetadata = tip ? objects.get(metadataOids.get(home.ref) ?? "") ?? null : undefined;
     const metadata = capturedGroupMetadata(resolved, home.ref, reference, priorMetadata)
       ?? (holdsNoRecord(home, (trees.get(home.ref) ?? []).map(({ path }) => path))

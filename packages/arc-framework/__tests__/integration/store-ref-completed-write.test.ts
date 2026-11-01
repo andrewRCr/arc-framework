@@ -201,7 +201,8 @@ describe("writes to completed ref records", () => {
     const path = join(f.root, ".git", "objects", tree.slice(0, 2), tree.slice(2));
     const bytes = await readFile(path);
     await rm(path);
-    const unavailable = { status: "refused", refusal: { code: "namespace-corrupt", namespace: ref } };
+    const unavailable = { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", historyRefs: [],
+      condition: expect.stringContaining(ref) } };
     const write = update(f, archived, f.content(primary.reference, "valid"));
     const observed = { writes: [mutationOf(update(f, target, "accepted\n"))], provenance: testProvenance,
       observations: [{ reference: primary.reference, expected: { version: archived.version, conflicts: [] } }] };
@@ -545,7 +546,7 @@ describe("writes to completed ref records", () => {
     const object = (await f.ports.rawExec(["cat-file", damage, oid])).stdout;
     await removeLooseObject(f.root, oid);
     for (const result of [await f.store.write(update(f, archived)), await f.store.history({ reference: primary.reference })]) {
-      expect(result).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: history,
+      expect(result).toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", historyRefs: [history],
         remedy: { text: expect.stringMatching(/restore|fetch/iu) } } });
     }
     expect(success(await f.store.read({ reference: primary.reference })).version).toBe(archived.version);

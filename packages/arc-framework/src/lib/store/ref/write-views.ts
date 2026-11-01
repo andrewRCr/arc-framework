@@ -246,7 +246,9 @@ function canonicalViewReference(context: RefBackendContext, reference: RecordRef
 function archivedViewRead(context: RefBackendContext, state: RefViewState, reference: RecordReference): StoreResult<StoreRecord> {
   if (!archivable(context, reference)) return missing(reference, state.saved);
   const unreadable = [...state.refs].find(([ref, captured]) => isArchiveRef(ref) && !captured.entries)?.[0];
-  if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true, state.saved) };
+  if (unreadable) return { status: "refused", refusal: refObjectFault(unreadable, "missing", {
+    condition: `The tip or a tree of ${unreadable} is unavailable locally.`,
+  }).refusal };
   const ended = selectEndedOwners(state, captureArchivedFolders(state, context.registry[reference.kind].family, [reference.owner]));
   const diagnostic = ended.diagnostics[0];
   if (diagnostic) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
