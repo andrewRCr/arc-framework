@@ -208,6 +208,7 @@ export function selectLocalE2eSpecifications(
 /** Filename filters the portability tier runs on each supported platform. */
 const PORTABILITY_SUITES = [
   "unit/paths.test.ts",
+  "unit/git/linked-worktree.test.ts",
   "check-runner-home.e2e.test.ts",
   "fs.test.ts",
   "build-context.test.ts",

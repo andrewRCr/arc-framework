@@ -46,8 +46,8 @@ export async function checkGitVersionFloor(probe: GitVersionProbe, cause: unknow
   try { output = await probe(); } catch { return; }
   const version = parseGitVersion(output);
   if (version === null) return;
-  if (version.major < 2 || (version.major === 2 && version.minor < 47)) {
+  if (version.major < 2 || (version.major === 2 && version.minor < 53)) {
     const found = `${version.major}.${version.minor}.${version.patch}`;
-    throw new Error(`Git ${found} is below the required Git 2.47. Upgrade Git and retry.`, { cause });
+    throw new Error(`Git ${found} is below the required Git 2.53. Upgrade Git and retry.`, { cause });
   }
 }
