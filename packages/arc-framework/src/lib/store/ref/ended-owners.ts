@@ -63,6 +63,6 @@ function archiveDiagnostic(ref: string, missing: boolean, saved = false): Captur
   if (missing) return refObjectFault(ref, "missing", {
     condition: `The tip or a tree of ${ref} is unavailable locally.`,
   }).diagnostic;
-  const { condition, remedy } = corruptRef(ref, false, saved);
+  const { condition, remedy } = corruptRef(ref, { saved });
   return { kind: "unreadable", key: ref, condition, remedy };
 }

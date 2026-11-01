@@ -97,7 +97,7 @@ async function lookupViewTree(context: RefBackendContext, state: RefViewState, r
   if (family && group.entries && holdsNoRecord(expandStoredPath(refPrototype(context, ref, family),
     { registry: context.registry }), group.entries.map(({ path }) => path))) return;
   if (!group.entries) return viewObjectFault(context, ref, "missing", { condition: `The tip or a tree of ${ref} is unavailable locally.` });
-  if (!family) return corruptRef(ref, false, state.saved);
+  if (!family) return corruptRef(ref, { saved: state.saved });
   const read = viewRefMetadata(context, state, ref, family);
   if (read.kind !== "parsed") return viewObjectFault(context, ref, read.kind === "absent" ? "no-metadata" : read.kind, { saved: state.saved });
   return { entries: group.entries, metadata: read.metadata, objects: state.objects };

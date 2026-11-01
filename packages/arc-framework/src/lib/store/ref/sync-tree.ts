@@ -181,6 +181,6 @@ function sideMetadata(entries: readonly RefTreeEntry[], objects: ReadonlyMap<str
     if (empty) return { status: "ok", result: empty };
   }
   if (metadata) return { status: "ok", result: metadata };
-  return { status: "refused", refusal: recordFree && read.kind === "absent" ? corruptRef(ref, false, saved)
+  return { status: "refused", refusal: recordFree && read.kind === "absent" ? corruptRef(ref, { saved })
     : refObjectFault(ref, read.kind === "absent" ? "no-metadata" : "unparseable", { saved }).refusal };
 }

@@ -7,12 +7,9 @@ import { readRefMetadata, unparsedMetadata } from "./metadata.js";
 import { refObjectFault } from "./object-fault.js";
 import { missingHistoryRefs } from "./missing-history.js";
 
-/** Keep unavailable objects distinct from a present tree with unusable metadata. */
-export function corruptRef(ref: string, missingObjects = false, saved = false): StoreRefusal {
-  return { code: "namespace-corrupt", class: "terminal", namespace: ref, ...(missingObjects ? {
-    condition: `The tip or a tree of ${ref} is unavailable locally.`,
-    remedy: { text: `Restore or fetch the missing objects for ${ref} in the store repository, then retry.` },
-  } : unparsedMetadata(ref, saved)) };
+/** Report unusable metadata without admitting missing objects through this terminal refusal. */
+export function corruptRef(ref: string, options: { saved?: boolean } = {}): StoreRefusal {
+  return { code: "namespace-corrupt", class: "terminal", namespace: ref, ...unparsedMetadata(ref, options.saved ?? false) };
 }
 
 /** Refuse an unreadable endpoint before Git's history walker can abort the operation. */

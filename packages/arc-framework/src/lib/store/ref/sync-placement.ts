@@ -5,7 +5,6 @@ import type { SyncTreeSide } from "./sync-tree.js";
 import { archivedFolders, archiveOwnerTrees } from "./archive-read.js";
 import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { readHistoricalGraph } from "./history-graph.js";
-import { corruptRef } from "./namespace-health.js";
 import { RefSyncLabelError } from "./sync-label.js";
 import { refDiagnosticRefusal, refObjectFault } from "./object-fault.js";
 import { OwnerIdentitySchema } from "../identity.js";
@@ -28,7 +27,7 @@ export async function completeSyncPlacements(context: RefBackendContext, ref: st
   // A quarter whose tree cannot be read may hold the folder itself, so no earlier state of it supplies the placement.
   const unreadable = captured.find(({ label }) => !trees.has(label));
   if (unreadable) throw new RefSyncLabelError(ref, refObjectFault(unreadable.ref, "missing", {
-    condition: corruptRef(unreadable.ref, true).condition,
+    condition: `The tip or a tree of ${unreadable.ref} is unavailable locally.`,
   }).refusal);
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
   const family = ref.includes("/cohort/") ? "cohort" : "work-item";
@@ -67,7 +66,7 @@ async function historicalPlacement(context: RefBackendContext, live: string, sid
   const tips = [...new Set(captured.filter(({ ref }) => ref === quarter).map(({ tip }) => tip))];
   if (!tips.length) return undefined;
   const walked = await readHistoricalGraph(context, ["rev-list", ...tips], () => refObjectFault(quarter, "missing", {
-    condition: corruptRef(quarter, true).condition,
+    condition: `The tip or a tree of ${quarter} is unavailable locally.`,
   }).refusal);
   if (walked.status === "refused") throw new RefSyncLabelError(live, walked.refusal);
   const commits = walked.result.split(/\r?\n/u).filter(Boolean);

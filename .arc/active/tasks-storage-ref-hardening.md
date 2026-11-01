@@ -283,7 +283,7 @@ classification calls the sweep settled.
   recoverable cleanup refusal with its retained-journal restore route. Origin's transient refs and source keepers
   remain protected; exact journal restoration resumes cleanup without rebuilding the landed work or claims.
 
-### `[ ]` **3.9 The readers whose behavior changes, and `corruptRef` without a missing arm — § 1.4, § 1.8**
+### `[x]` **3.9 The readers whose behavior changes, and `corruptRef` without a missing arm — § 1.4, § 1.8**
 
 - _Goal:_ Every reader that branches on a changed code, notice kind, failure code, pull status, or refusal class
   behaves as § 1.8's table states, and no caller can report a missing object through `corruptRef`.
@@ -303,10 +303,9 @@ classification calls the sweep settled.
           refusals and the move record. Public-store and unit cases cover the reader table's retries, refusal
           propagation, identity adoption, migration journals, and continuation after object repair.
 
-    - `[ ]` **3.9.b `corruptRef` keeps only its unparseable arm**
-        - `corruptRef` (`namespace-health.ts`) drops its missing-objects parameter and takes `saved` as an option, so a
-          surviving positional call fails both type checks instead of landing its boolean in `saved`. The type checks
-          are its evidence; it has no failing-first case.
+    - `[x]` **3.9.b `corruptRef` keeps only its unparseable arm**
+        - `corruptRef` accepts only an optional `saved` option and reports unparseable metadata; all callers use the
+          options shape. Sync placement retains its Missing condition directly through the object-fault helper.
 
 ### `[ ]` **3.10 Re-run the fault search over the swept inventory** — validate exit criterion at segment scope
 

@@ -42,7 +42,7 @@ function cohortMetadataFailure(context: RefBackendContext, ref: string, entries:
   read: Exclude<RefMetadataRead, { kind: "parsed" }>, saved = false): StoreResult<never> {
   const home = expandStoredPath(refPrototype(context, ref, "cohort"), { registry: context.registry });
   if (read.kind === "absent" && holdsNoRecord(home, entries.map(({ path }) => path))) {
-    return { status: "refused", refusal: corruptRef(ref, false, saved) };
+    return { status: "refused", refusal: corruptRef(ref, { saved }) };
   }
   return { status: "refused", refusal: refObjectFault(ref, read.kind === "absent" ? "no-metadata" : read.kind, { saved }).refusal };
 }
