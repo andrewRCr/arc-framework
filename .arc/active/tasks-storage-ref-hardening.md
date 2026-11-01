@@ -432,15 +432,14 @@ a fresh disposable copy returns a report with no refused record, whose every not
 an Errand origin that changed, a skipped derived capture, the identity-mint notice, a personal link, or an unreadable
 annotated commit.
 
-### `[ ]` **5.1 A body-less execute-bound capture imports without its mark — § 11.2**
+### `[x]` **5.1 A body-less execute-bound capture imports without its mark — § 11.2**
 
 - _Goal:_ An execute-bound capture whose mark is its last line is queued, and its entry stays in the imported inbox
   without the mark, as a capture with a body does.
 
-    - The pattern in `import/pending-entries.ts` accepts a mark at the end of its entry, since `splitEntryList`
-      (`lib/store/concurrency/entries.ts`) moves trailing newlines into the separator.
-    - Build `test-first` (one behavior at a time): a body-less capture is queued, and its entry stays in the imported
-      inbox without its mark; a capture with a body still imports as today.
+- _Outcome:_ Pending-entry cleanup accepts a mark at the end of its entry. Native imports retain the stamped,
+  body-less capture in the inbox, queue the same identity, and remove the mark in both layouts; existing body-bearing
+  captures retain their queue and inbound behavior.
 
 ### `[ ]` **5.2 Personal links are followed where notes saved through them, and reported — § 11.2**
 
