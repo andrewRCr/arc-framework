@@ -308,7 +308,7 @@ command's sweep takes over the copies a stopped command left.
   blocks — reads as a deleted file with the remedy naming its path. The emptied file's replacement lands with the swap
   (3.2). `stampless.ts` takes the gate's window and clock. Covered in `unit/store/projection/read-gate.test.ts`.
 
-### `[ ]` **3.2 Replace a file by the swap behind the replace guard — § 5.1, § 5.2, § 5.3**
+### `[x]` **3.2 Replace a file by the swap behind the replace guard — § 5.1, § 5.2, § 5.3**
 
 - _Goal:_ Every replacement re-checks its file by the racy rule, takes an edit in first, and replaces by moving the old
   file aside and linking the new one in, so a save timed into the replacement lands in the aside copy rather than being
@@ -336,41 +336,15 @@ command's sweep takes over the copies a stopped command left.
           included. Removals and a path-keyed companion join the batch in 3.4. Covered in
           `integration/store/projection/swap.test.ts`.
 
-    - `[ ]` **3.2.c The second check and a refused copy**
+    - `[x]` **3.2.c The second check and a refused copy**
 
-        - A command keeps its aside copies until it ends, then takes each worktree's lock again and checks each copy
-          through the take-in before deleting it; a copy taken in there, its path not moved on (3.2.a), is deleted once
-          its edit lands whole, its file replaced at the next refresh. Only the writer checks and deletes its copies
-          while it runs.
-        - A copy whose edit is `refused` or `unparseable` is never deleted while refused: where its path has not moved
-          on and holds the blob id its swap linked, swapped back onto it, the file then pending and refused; where it
-          has not moved on and is absent, linked back, the file marked pending and refused; otherwise its path has moved
-          on, and it is kept as such a copy is (3.2.a), reported with its path as a refused edit, until the person
-          deletes it.
-        - A copy whose take-in answers `clashed` goes the same way, never deleted while its clash stands: where its path
-          has not moved on, swapped back or linked back to it, where its clash is drawn as markers found in the checkout
-          (`projection-write-back`), the file pending and held by them; otherwise kept as a copy whose path has moved on
-          is, reported with its path as a clash to resolve by hand, which the removal check refuses over
-          (`projection-worktrees`) and a removal's or release's takeover refuses as held by a conflict.
-        - Build `test-first` (one behavior at a time):
-            - a save written through a handle opened before the move, landing after the first check, is found at the
-              second
-            - a copy whose take-in answers `deferred` at the second check stays for the next sweep, which takes it in
-            - a refused copy whose path still holds the replacement is swapped back and reported as a refused edit
-            - a refused copy swapped back at the first check keeps its pending mark through the batch's second index
-              write
-            - a refused copy whose path is absent is linked back and reported, and keeps its pending mark through the
-              batch's second index write
-            - a refused copy whose path went absent before the second check is linked back there, its file marked
-              pending
-            - a refused copy whose path was saved over stays in the aside folder, reported with its path, and no later
-              sweep sends it
-            - a copy whose take-in answers `clashed` at the second check is swapped back to its path, pending, and
-              reported
-            - a copy whose take-in clashes at the sweep, its path saved over, stays in the aside folder, reported with
-              its path
-            - a save written through a handle opened before the move, landing after the first check and after a later
-              save to the path, is kept at the second check, reported with its path, and the later save stands
+        - `runSecondCheck` (`lib/store/projection/second-check.ts`) settles each copy the batches made that the index
+          still records, then writes the index. `putBack` (`aside-copies.ts`) returns a refused, unparseable, or clashed
+          copy to a path that has not moved on — swapped back, its replacement recorded as a copy holding what its swap
+          moved, or linked back — and otherwise keeps it aside, reported with its path; the swap's first check puts such
+          a copy back too. The swap's rename and link moved to `aside-moves.ts`, which the put-back shares. A
+          replacement made at the second check waits for the next sweep. Covered in
+          `integration/store/projection/second-check.test.ts` and `swap.test.ts`.
 
 ### `[ ]` **3.3 Sweep the aside folder — § 5.4**
 

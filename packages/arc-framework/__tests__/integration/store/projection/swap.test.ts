@@ -1,87 +1,34 @@
 /** The swap over a seeded projection: the old file moved aside, the staged file linked in, between two index writes. */
-import { chmod, link, readFile, rename, rm, stat as fsStat, symlink, writeFile } from "node:fs/promises";
+import { link, readFile, rename, rm, stat as fsStat, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
-import { seedProjection } from "../../../helpers/store/projection/seeded-projection.js";
+import {
+  deferring, landingCopies, prepareSwap, SWAP_PATH, SWAP_WRITER, type PrepareSwapOptions,
+} from "../../../helpers/store/projection/swap-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { gitBlobId, storedBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { checkAsideCopy } from "../../../../src/lib/store/projection/aside-copies.js";
 import { createHistoryMemo } from "../../../../src/lib/store/projection/base-recovery.js";
-import { readReference, readStat } from "../../../../src/lib/store/projection/change-detection.js";
+import { readStat } from "../../../../src/lib/store/projection/change-detection.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import type { RecordEntry } from "../../../../src/lib/store/projection/index-schema.js";
-import { guardReplacement } from "../../../../src/lib/store/projection/replace-guard.js";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { readStamplessFile } from "../../../../src/lib/store/projection/stampless.js";
-import { stageRecordFile } from "../../../../src/lib/store/projection/staging.js";
-import { swapBatch, type SwapBatchInput } from "../../../../src/lib/store/projection/swap.js";
 import type { TakeInPort } from "../../../../src/lib/store/projection/take-in-port.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
-const PATH = ".arc/backlog/planned/one/cohort-one.md";
-const WRITER = { pid: process.pid, processInstance: "swap-test", processScope: "pid:[swap-test]" };
-const PROVENANCE = { verb: "save", lifecycleAction: "save" } as const;
+const PATH = SWAP_PATH;
+const WRITER = SWAP_WRITER;
 
-/** A take-in that defers every edit. */
-const deferring: TakeInPort = async (request) => ({ answer: "deferred", entry: request.entry });
-
-/**
- * A projected file, its record's next version stored and staged, and the guard's decision to replace it, with a batch
- * that swaps it.
- */
+/** A prepared swap whose checkout this file removes after each test. */
 async function prepared(
-  path = PATH, contents: readonly [string, string] = ["# Cohort: one\n\nBody.\n", "# Cohort: one\n\nBody, refreshed.\n"], readOnly = false,
-  guarded: { readonly before?: (file: string) => Promise<void>; readonly takeIn?: TakeInPort } = {},
+  path = PATH, contents?: readonly [string, string], readOnly = false, guarded: PrepareSwapOptions["guarded"] = {},
 ) {
-  const fixture = createReferenceFixture();
-  const reference = fixture.reference("cohort/document", "one");
-  const put = await fixture.store.write({ action: "put", reference, content: contents[0], expected: null, provenance: PROVENANCE });
-  if (put.status !== "ok") throw new Error("the fixture write was refused");
-  const seeded = await seedProjection({ store: fixture.store, files: [{ reference, path }] });
-  directories.push(seeded.checkout);
-  const laid = seeded.index.entries[path];
-  if (laid?.kind !== "record") throw new Error("expected the file's record entry");
-  const next = await fixture.store.write({ action: "put", reference, content: contents[1], expected: laid.base.version, provenance: PROVENANCE });
-  if (next.status !== "ok") throw new Error("the fixture write was refused");
-  const record = await fixture.store.read({ reference });
-  if (record.status !== "ok") throw new Error("the fixture read was refused");
-  if (readOnly) await chmod(join(seeded.checkout, path), 0o444);
-  await guarded.before?.(join(seeded.checkout, path));
-  const staged = await stageRecordFile({
-    checkout: seeded.checkout, path, record: record.result, replacing: laid.base.blob, writer: WRITER, format: "sha1", readOnly,
-  });
-  const replace = await guardReplacement({
-    checkout: seeded.checkout, path, entry: laid, staged, reference: await readReference(seeded.checkout), format: "sha1",
-    store: fixture.store, writer: WRITER, takeIn: guarded.takeIn ?? deferring,
-  });
-  if (replace.kind !== "replace") throw new Error("expected the guard to replace the file");
-  const file = join(seeded.checkout, path);
-  const swap = (overrides: Partial<SwapBatchInput> = {}) => swapBatch({
-    location: seeded.location, checkout: seeded.checkout, index: seeded.index, files: [{ path, replace }], readBack: false,
-    writer: WRITER, format: "sha1", takeIn: deferring, ...overrides,
-  });
-  return { fixture, reference, seeded, laid, staged, file, swap, path, replace, record: record.result };
-}
-
-/** A take-in that lands what an aside copy holds over the record's current version, standing in for write-back's merge. */
-function landingCopies(store: ReturnType<typeof createReferenceFixture>["store"]): TakeInPort {
-  return async (request) => {
-    const location = join(request.checkout, request.copy ?? request.path);
-    const text = await readFile(location, "utf8");
-    const current = await store.read({ reference: request.entry.reference });
-    if (current.status !== "ok") throw new Error("the fixture read was refused");
-    const written = await store.write({
-      action: "put", reference: request.entry.reference, content: parseStampedFile(text).content, expected: current.result.version,
-      provenance: PROVENANCE,
-    });
-    if (written.status !== "ok") throw new Error("the landing write was refused");
-    const stat = await readStat(location);
-    if (stat === null) throw new Error("nothing to take in");
-    return { answer: "taken-in", entry: request.entry, read: { stat, blob: gitBlobId(text, "sha1") } };
-  };
+  const swap = await prepareSwap({ path, ...(contents === undefined ? {} : { contents }), readOnly, guarded });
+  directories.push(swap.seeded.checkout);
+  return swap;
 }
 
 describe("the swap", () => {
@@ -223,8 +170,53 @@ describe("the swap", () => {
     expect(await readStat(file)).toBeNull();
     const [copy] = written.copies;
     if (copy === undefined) throw new Error("expected the aside copy's record");
-    expect(await checkAsideCopy({ checkout: seeded.checkout, path, entry: written, copy, format: "sha1", takeIn: deferring }))
+    expect(await checkAsideCopy({ checkout: seeded.checkout, path, entry: written, copy, format: "sha1", takeIn: deferring, writer: WRITER }))
       .toEqual({ kind: "no-edit", entry: written });
+  });
+});
+
+describe("a copy refused at the first check", () => {
+  const mark = { reason: "malformed-entry", remedy: { text: "Repair the malformed entry, then save again." } };
+  const refusing: TakeInPort = async (request) => ({ answer: "refused", entry: request.entry, mark });
+
+  it("is swapped back, keeping its pending mark through the second write, the replacement kept for the second check", async () => {
+    const { laid, file, swap, path } = await prepared();
+    const text = renderStampedFile({ content: "# Cohort: one\n\nA malformed save.\n", stamp: laid.base.blob });
+    const result = await swap({ takeIn: refusing, hooks: { afterRecheck: async () => writeFile(file, text) } });
+    expect(await readFile(file, "utf8")).toBe(text);
+    const entry = result.index.entries[path];
+    expect(entry).toMatchObject({ pending: true, refused: mark });
+    if (entry?.kind !== "record") throw new Error("expected the file's record entry");
+    expect(result.copies.map((each) => each.copy)).toEqual(entry.copies.map((record) => record.name));
+    expect(result.copies).toHaveLength(1);
+  });
+
+  it("is linked back to a path gone absent, keeping its pending mark through the second write", async () => {
+    const { laid, file, swap, path } = await prepared();
+    const text = renderStampedFile({ content: "# Cohort: one\n\nA malformed save.\n", stamp: laid.base.blob });
+    // The file is deleted while write-back reads the copy, so the copy's path is absent when the refusal returns.
+    const deleting: TakeInPort = async (request) => { await rm(file); return refusing(request); };
+    const result = await swap({ takeIn: deleting, hooks: { afterRecheck: async () => writeFile(file, text) } });
+    expect(await readFile(file, "utf8")).toBe(text);
+    expect(result.index.entries[path]).toMatchObject({ pending: true, refused: mark, copies: [] });
+    expect(result.copies).toEqual([]);
+  });
+
+  it("stays aside where a save recreates the path while it is swapped back, the save kept and both copies checked again", async () => {
+    const { seeded, laid, file, swap, path } = await prepared();
+    const text = renderStampedFile({ content: "# Cohort: one\n\nA malformed save.\n", stamp: laid.base.blob });
+    const save = renderStampedFile({ content: "# Cohort: one\n\nSaved mid-swap.\n", stamp: laid.base.blob });
+    let links = 0;
+    // The batch's own link comes first; the save lands before the swap back's.
+    const savingFirst = async (existing: string, at: string) => { links += 1; if (links === 2) await writeFile(at, save); await link(existing, at); };
+    const result = await swap({ takeIn: refusing, fs: { link: savingFirst }, hooks: { afterRecheck: async () => writeFile(file, text) } });
+    expect(await readFile(file, "utf8")).toBe(save);
+    const entry = result.index.entries[path];
+    if (entry?.kind !== "record") throw new Error("expected the file's record entry");
+    expect(entry).toMatchObject({ pending: true });
+    const held = await Promise.all(entry.copies.map(async (record) => readFile(join(seeded.checkout, record.name), "utf8")));
+    expect(held).toEqual([expect.stringContaining("A malformed save."), expect.stringContaining("Body, refreshed.")]);
+    expect(result.copies.map((each) => each.copy)).toEqual(entry.copies.map((record) => record.name));
   });
 });
 

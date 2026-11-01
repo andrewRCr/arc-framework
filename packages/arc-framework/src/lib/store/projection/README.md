@@ -134,20 +134,37 @@ anything but what the swap linked, or once a write-back of it has been sent sinc
 `recordWriteBackSent` marks every copy but the one being taken in before such a send. Settling a copy reads it by
 `lstat` first: one not a file is deleted as no edit, never followed, as is one holding what its swap moved or what it
 held when its own take-in landed, without reaching the port. One holding an edit goes to the take-in only while its path
-has not moved on, and is deleted once its edit lands whole; otherwise it is kept, and one whose path has moved on is
-reported with its path and never sent. A record whose copy is gone is dropped.
+has not moved on, and is deleted once its edit lands whole, kept where the take-in defers or leaves it pending; one
+whose path has moved on is kept, reported with its path and never sent. A record whose copy is gone is dropped. A copy
+whose edit is refused, unparseable, or clashed is never deleted while that stands. Where its path has not moved on it
+goes back there — linked back to an absent path, or swapped back onto one holding what its swap linked, the replacement
+moved aside and recorded as a copy holding what its swap moved — and the file is pending, marked refused or held by the
+markers the take-in left. Where the path has moved on, or a save recreates it mid-move, the copy stays aside, reported
+with its path.
+
+`aside-moves.ts` makes a swap's two moves, the rename into the aside folder and the link onto the path, inside the
+bounded retry, since a reader holding the file without sharing delete access refuses them for a moment on Windows. A
+link refused because something is at the path reads as a save that recreated it. The swap, a copy's put-back, and the
+second check take the operations and retry sleep a test injects.
 
 `swap.ts` replaces a batch of files between two index writes. The first, with the reference after it, records each
-file's new base, the staged file's stat — which the path shares once it is linked — pending, the record of the aside copy
-its move makes, and, for a file other than Markdown, an in-progress record naming the version it replaces and that
-copy. Then each file is renamed aside and its staged file hard-linked onto the path, both inside the bounded retry, and
-its copy checked once, an edit taken in, nothing deleted; an absent file is rebuilt by the link alone, which makes no
-copy. A link refused because a save recreated the path yields to it, the replaced version still recorded; a move still
-refused past the bound leaves the file in place, its entry restored; and a link failing otherwise links the copy back,
-unless it is a symbolic link, which leaves the path absent. The second write clears the pending mark of each file whose
-path still holds the staged file's identity, and a rebuild's in-progress record, but keeps a mark a file carried into a
-read-back's batch. A stop between the writes leaves a file pending that write-back reads no edit in. Hooks after the
-re-check, the move, and the first check, and before a rebuild's link, place a save in each interval for tests.
+file's new base, the staged file's stat — which the path shares once it is linked — pending, the record of the aside
+copy its move makes, and, for a file other than Markdown, an in-progress record naming the version it replaces and that
+copy. Then each file is renamed aside and its staged file hard-linked onto the path, both inside the bounded retry
+(`aside-moves.ts`), and its copy checked once, an edit taken in and one refused or clashed put back as `aside-copies.ts`
+states, nothing deleted; an absent file is rebuilt by the link alone, which makes no copy. A link refused because a save
+recreated the path yields to it, the replaced version still recorded; a move still refused past the bound leaves the
+file in place, its entry restored; and a link failing otherwise links the copy back, unless it is a symbolic link, which
+leaves the path absent. The second write clears the pending mark of each file whose path still holds the staged file's
+identity, and a rebuild's in-progress record, but keeps a mark a file carried into a read-back's batch. A stop between
+the writes leaves a file pending that write-back reads no edit in. The batch returns the copies it made that its index
+still records, for the second check. Hooks after the re-check, the move, and the first check, and before a rebuild's
+link, place a save in each interval for tests.
+
+`second-check.ts` checks each aside copy a command's batches made once more at the command's end, under the projection
+lock again, since a save through a handle opened before the move can write after the first check. Each copy the index
+still records is settled as `aside-copies.ts` states, and the index is written. A copy kept there, and the replacement
+a swap back there moves aside, wait for the next command's sweep.
 
 `index-file.ts` writes the index whole by temp-and-rename into that folder, never creating it, so a write that stops
 partway leaves the previous index and no write recreates a removed worktree's Git directory. A commit smudges the index,

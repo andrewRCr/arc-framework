@@ -9,3 +9,8 @@ rather than building index entries by hand; tests of full materialization use ma
 `state-unresolvable`, naming the history ref a clone would fetch, `refs/arc/history/<work|cohort>/<uid>` from the
 owner's stored UID, which the reference backend, holding no history refs, cannot return. Every other call passes
 through unchanged, and each operation's calls are counted, so a test can show nothing was pulled or written.
+
+`prepareSwap` readies one projected file's swap over a seeded projection: the record's next version stored and staged,
+the replace guard's decision to replace it, and a batch that swaps it, taking the take-in, hooks, and file-system
+operations a test passes. `deferring` is a take-in that defers every edit, and `landingCopies` one that lands a copy's
+edit in the store whole, as a bound write-back would.
