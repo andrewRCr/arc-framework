@@ -119,12 +119,10 @@ with a typed refusal, and leaves the repository as found.
 - _Goal:_ The compiler resolves exactly one row in § 2.2's order, every stop compiles to its `locus` render and a
   `gate stop` with orientation `none`, and the verb prints the asserted agenda without writing anything.
 
-    - `[ ]` **1.5.a Define the compiler's inputs and the shared fixtures**
-        - The compiler takes the composed envelope plus a read port bound to the session checkout — file existence,
-          size, contents, and Git reads — which unit tests fake
-        - A shared fixture builder under `__tests__/helpers/`: the probe-input builders move out of
-          `__tests__/unit/status/run.test.ts`, each fixture runs through `runSessionInitStatus` with stub probes, and
-          `assertSessionInitProbeResult` checks the result, so no test asserts a state the composer cannot produce
+    - `[x]` **1.5.a Define the compiler's inputs and the shared fixtures**
+        - Added checkout-bound filesystem/Git reads and the compiler input contract. Extracted the existing probe
+          builders into `session-init-fixtures.ts`; its composed fixture runs `runSessionInitStatus` and the public
+          envelope assertion. Existing status cases use those shared builders without changing their outcomes.
 
     - `[ ]` **1.5.b Resolve the row**
         - Stops, then branch-gone, then a signal, then `--start`, then the entry row: transient resume, work-unit
