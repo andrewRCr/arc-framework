@@ -182,7 +182,7 @@ export async function resolveDeliveryReviewTerminusAcceptance(
       return refused("record-conflict", "The exact member already carries a different Owner terminus.");
     }
     const record = publicMemberTerminus(existing);
-    if (record === null) return refused("record-conflict",
+    if (record === null) return refused("stale-offer",
       "The retained member terminus has no recorded author for this acceptance response. Re-run work-unit review status to continue from its stored decision.");
     return DeliveryReviewTerminusAcceptanceResultSchema.parse({
       schemaVersion: 1,
@@ -234,7 +234,6 @@ export async function resolveDeliveryReviewTerminusAcceptance(
     recommendedActionText: "Commit and push the staged Owner terminus, then re-enter work-unit review status.",
   });
 }
-
 
 async function readExistingMemberTerminus(boundary: PublishedIntegrationBoundaryLocus, offer: DeliveryReviewTerminusOffer,
   dependencies: DeliveryReviewTerminusAcceptanceDependencies): Promise<ResolvedDeliveryReviewMemberTerminus | undefined> {

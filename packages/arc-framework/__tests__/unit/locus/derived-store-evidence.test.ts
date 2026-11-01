@@ -324,7 +324,7 @@ it("recovers an Integrating Candidate's boundary and session type from its work-
   const owner = success(await h.fixture.store.read({ reference: h.reference })).reference.owner;
   await seed(h.fixture, recordReferences["review/candidate"](owner), candidate);
   const boundary = projectPublicationBoundary({ workUnit: name, branch: "main", candidateId: attestation.candidateId,
-    candidateSubjectDigest: subject.subjectDigest, reservation: null, changeRequest: null });
+    candidateSubjectDigest: subject.subjectDigest, reservation: null, changeRequest: null }, 1);
   await seed(h.fixture, recordReferences["review/integration-boundary"](owner), JSON.stringify(boundary));
   const localIO: SubjectMetaIO = { ...subjectMetaIO, projectCandidateTarget: projectDurableCandidateTarget,
     readFile: async () => { throw new Error("Checkout projections are not authoritative"); } };

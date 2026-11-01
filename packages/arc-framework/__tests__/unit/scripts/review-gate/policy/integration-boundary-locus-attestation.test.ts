@@ -38,7 +38,7 @@ function publication(changeRequest: { repository: string; pullRequest: number } 
   return projectPublicationBoundary({
     workUnit, branch: "feat/example", candidateId, candidateSubjectDigest, reservation, terminus,
     standardLaneOwnerVersion: 7, changeRequest,
-  });
+  }, 1);
 }
 
 function recover(stored: IntegrationBoundaryLocus | null, overrides: Partial<
@@ -66,7 +66,7 @@ describe("attested singleton publication conservation", () => {
     const stored = projectPublicationBoundary({
       workUnit, branch: "feat/example", candidateId, candidateSubjectDigest,
       reservation: null, terminus: null, changeRequest: null,
-    });
+    }, 1);
     expect(recover(stored)).toEqual(stored);
   });
 
@@ -105,7 +105,7 @@ describe("attested singleton publication conservation", () => {
   it("does not treat an unbound subject as exact public authority", () => {
     const stored = projectPublicationBoundary({
       workUnit, branch: "feat/example", candidateId, reservation, changeRequest: null,
-    });
+    }, 1);
     expect(recover(stored)).toBeNull();
   });
 
@@ -136,7 +136,7 @@ describe("attested singleton publication conservation", () => {
         },
       }),
       changeRequest: null,
-    });
+    }, 1);
     expect(stored.locus).toBe("publication-pending");
     expect(recover(stored)).toBeNull();
   });

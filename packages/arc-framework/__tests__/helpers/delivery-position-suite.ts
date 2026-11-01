@@ -1041,7 +1041,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         },
       },
       changeRequest: { repository: "owner/repo", pullRequest: 42 },
-    }), null);
+    }, 1), null);
     await git(fixture.repository, [
       "add",
       ".arc/active",
@@ -1597,7 +1597,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         },
       },
       changeRequest: { repository: "owner/repo", pullRequest: 42 },
-    }), null);
+    }, 1), null);
     const taskListPath = join(fixture.repository, ".arc", "active", "tasks-delivery-plan-record.md");
     const taskList = [
       "# Task List: Delivery Plan Record",
@@ -1980,7 +1980,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       candidateSubjectDigest: candidate.subject.subjectDigest,
       reservation,
       changeRequest: { repository: "owner/repo", pullRequest: 403 },
-    }), null);
+    }, 1), null);
     await git(fixture.repository, ["add", "-A"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "install direct pending fixture"]);
     const correctionHead = await git(fixture.repository, ["rev-parse", "HEAD"]);
@@ -2519,7 +2519,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
       candidateSubjectDigest: durableSubject.subjectDigest,
       reservation,
       changeRequest: { repository: "owner/repo", pullRequest: 403 },
-    });
+    }, 1);
     const publicContinuation = projectDeliveryPublicReviewContinuation({
       plan: fixture.plan,
       state,
@@ -3217,7 +3217,7 @@ export function registerDeliveryPositionSuite(mode: DeliveryPositionSuiteMode): 
         },
       },
       changeRequest: { repository: "owner/repo", pullRequest: 403 },
-    }), null);
+    }, 1), null);
     await git(fixture.repository, ["add", ".arc/active", ".arc/system/.internal/candidates"]);
     await git(fixture.repository, ["commit", "--no-verify", "-m", "install integration fixture"]);
     const oldTarget = createReviewTarget({

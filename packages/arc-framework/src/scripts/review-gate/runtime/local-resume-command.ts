@@ -3,10 +3,10 @@
 import { z } from "zod";
 import type { ReviewOutcome } from "../../../lib/store/kinds/review/outcome/schema.js";
 import { reviewOutcomeKey } from "../../../lib/store/kinds/review/outcome/key.js";
-import { readRetainedLocalReviewSource } from "./local-outcome-source.js";
+import { bindEndedLocalReview } from "./local-outcome-source.js";
 import { publishLocalReviewReceipt, readLocalReviewReceipts } from "./local-outcome-receipts.js";
 import type { LocalReviewState } from "../core/operation-state-schema.js";
-import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches, bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
+import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches } from "../core/review-operation-reference.js";
 
 import {
   validateReviewReceipt,
@@ -100,9 +100,9 @@ async function resumeEndedLocalReview(operationId: string, stored: StoredReviewF
   if (outcome.attemptId !== operationId || local === undefined || requirement === undefined) {
     throw new LocalResumeCommandError("local review outcome does not match its admission");
   }
-  assertLocalReviewClaimBinding(local);
-  const base = { operationId, persistedVersion, operationRef: bindNativeReviewOperationReference({ operationId,
-    repositoryId: outcome.target.repositoryId, workItem: stored.reference.owner }) };
+  const replay = bindEndedLocalReview(stored, local, dependencies,
+    () => new LocalResumeCommandError("local review source snapshot mismatch"));
+  const base = { operationId, persistedVersion, operationRef: replay.operationRef };
   if (local.receipt === undefined) {
     if (outcome.outcome !== "terminal-failure" && outcome.outcome !== "transient-unavailable"
       && outcome.outcome !== "stale-target") throw new LocalResumeCommandError("terminal local review operation has no durable receipt");
@@ -114,16 +114,9 @@ async function resumeEndedLocalReview(operationId: string, stored: StoredReviewF
   if (confirmation.state === "stale-target") return LocalResumeEnvelopeSchema.parse({ schemaVersion: 1,
     mode: "review-local-resume", diagnostics: [], state: "stale-target", nextAction: "prepare-current-target",
     payload: { ...base, attemptedTarget: confirmation.attemptedTarget, currentTarget: confirmation.currentTarget } });
-  const retained = await readRetainedLocalReviewSource(dependencies, operationId);
-  if (retained !== null && (retained.source.sourceDigest !== local.sourceDigest
-    || retained.source.repositoryId !== outcome.target.repositoryId || retained.source.targetId !== outcome.target.targetId)) {
-    throw new LocalResumeCommandError("local review source snapshot mismatch");
-  }
+  await replay.readRetainedSource();
   const approved = await validateCompletedLocalDisposition(outcome, dependencies);
-  const coordinates = { kind: "attested-local" as const, operationId, durableRef: reviewOutcomeKey(outcome) };
-  const receiptRef = dependencies.bindSourceReference === undefined
-    ? bindReviewSourceReference({ ...coordinates, repositoryId: outcome.target.repositoryId, workItem: stored.reference.owner })
-    : await dependencies.bindSourceReference(coordinates);
+  const receiptRef = await replay.receiptReference();
   const payload = { ...base, currentTarget: outcome.target, receiptRef };
   if (receipt.result === "findings" && !approved) return LocalResumeEnvelopeSchema.parse({ schemaVersion: 1,
     mode: "review-local-resume", diagnostics: [], state: "respond-to-findings", nextAction: "respond",

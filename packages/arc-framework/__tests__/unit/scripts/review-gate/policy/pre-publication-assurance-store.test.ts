@@ -64,7 +64,7 @@ it.each(["conflicts", "refusal", "fields"] as const)("refuses stored metadata wi
         refusal: { code: "namespace-corrupt", remedy: { text: "Restore the work-item metadata, then retry." } } });
     } else {
       expect(await dependencies.readAssurance("example")).toEqual({ status: "refused", reason: fault === "fields"
-        ? "The active meta record for `example` is incomplete."
+        ? "Metadata fields for `example` could not be read. Repair the work unit's metadata fields, then retry."
         : `The work-unit metadata has unresolved conflicts.${describeRecordConflicts([primary.reference])}` });
     }
     faulty = false;

@@ -7,7 +7,7 @@ import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { LaneProgressProjection } from "../lane-progress.js";
 import type { ReviewLaneJudgment, ReviewPolicyCommandRequest, ReviewPolicyBoundRequest } from "./review-policy-driver.js";
-import type { CandidateRead, PrePublicationCompositionDependencies, ReviewLane, ReviewPolicyTarget } from "./pre-publication-request.js";
+import type { CandidateRead, PrePublicationCompositionDependencies, ReviewLane, ReviewPolicyTarget } from "./pre-publication-contract.js";
 
 /** Bind native grants to their actual Candidate subject or review target without changing caller routing inputs. */
 export async function composePrePublicationLaneJudgment(input: {

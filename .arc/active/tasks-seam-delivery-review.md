@@ -191,10 +191,10 @@ the mapping (Phase 3) and the review gate (Phases 4–6) compute them one way.
 
 ### `[x]` **1.R Preserve no-fix settlement performance headers — § 6.2, § 6.5**
 
-**Additional Context:** `notes-seam-delivery-review.md` § A10.
-
 - _Goal:_ Evidence retains recorded no-fix settlement headers without inventing fix transitions, while performed Errand
   and member fixes still require their complete authorized response (A10).
+
+- **Additional Context:** `notes-seam-delivery-review.md` § A10.
 
 - _Outcome:_ Evidence ownership validation distinguishes recorded settlement headers from complete fix transitions.
   Errand and member fixes still require their authorized response, while no-fix sets refuse either response object.
@@ -288,6 +288,8 @@ retires.
   writes through the typed access, takes its types from the kinds' public schemas and its paths from their new home, and
   passes today's tests unchanged.
 
+    - _Amended in:_ review-fix (A31)
+
     - `[x]` **2.4.a Attest, the publication claim, and the reopen permit**
 
         - Attest and publication reads and writes use typed access with the executor's store; Candidate history uses
@@ -347,6 +349,9 @@ retires.
 ### `[x]` **2.7 Before the flip** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+
+    - _Amended in:_ review-fix (A26)
+    - _Amended in:_ review-fix (A31)
 
 - _Outcome:_ On merged base `9fe2f2f0d`, the existing review, delivery, integration, and checkpoint scenarios pass with
   their behavioral assertions preserved. The boundary adapter joins the Candidate adapter's import ban at a zero floor,
@@ -622,6 +627,8 @@ through rename and slug reuse; mismatched references refuse and succeed after co
 
     - `[x]` **4.3.b Its callers and the refusal**
 
+        - _Amended in:_ review-fix (A23)
+
         - Direct and lazy identity reads retain the invocation's project-ID reader. Command, status, and integration
           refusals keep port text and commands, with submitted requests retained for stdin retries; remedy-free identity
           error envelopes refuse. Native policy, lifecycle, checkpoint, and merge re-entry resumes after project
@@ -635,6 +642,8 @@ through rename and slug reuse; mismatched references refuse and succeed after co
   work unit whose meta carries no `Branch` and has no file in the checkout.
 
     - `[x]` **4.4.a The work-unit resolution**
+
+        - _Amended in:_ review-fix (A26)
 
         - Live context, subject selection, and all five review-local resolver calls use project-qualified branch links
           and stored metadata from the flip. Default hosted progress, chunking, and incremental applicability resolve
@@ -707,6 +716,8 @@ through rename and slug reuse; mismatched references refuse and succeed after co
 
     - `[x]` **4.6.a Attest's reads, its batch, and its pause refusal**
 
+        - _Amended in:_ review-fix (A24)
+
         - Attest reads stored metadata, tasks, and pause state by exact identity. Candidate, version 2 boundary, and
           only the two orientation fields land in one batch; stale metadata, Candidate, or boundary bases leave no
           partial writes. Native root, re-root, convergence, and repair retain their continuations and retired fields.
@@ -763,12 +774,17 @@ through rename and slug reuse; mismatched references refuse and succeed after co
 
     - `[x]` **4.R2.a Build the owner-bearing codecs and widen their published embeddings**
 
+        - _Amended in:_ review-fix (A26)
+
         - Native codecs and published continuations retain project and exact owner outside stable IDs. Local,
           frontline, and hosted embeddings check operation/admission agreement; zero working versions and omitted
           local source references require native locators. Hosted action and timing projections retain them, while
           repository inputs and emitted values stay unchanged.
 
     - `[x]` **4.R2.b Bind native continuation roots from their produced reference**
+
+        - _Amended in:_ review-fix (A26)
+        - _Amended in:_ review-fix (A27)
 
         - Default local, frontline, and hosted continuations bind the admitted UID from their produced operation or
           source reference before family access. Work-unit and Errand findings reach response proposals without owner
@@ -798,6 +814,8 @@ through rename and slug reuse; mismatched references refuse and succeed after co
   as in flight, no pass holds two attempts under way or one after its finished outcome, and the in-repo arm still reads
   today's records.
 
+    - _Amended in:_ review-fix (A27)
+
 - _Outcome:_ UID-bound execution records persist under `in-flight/`, composing local, frontline, and hosted pending
   admissions with portable outcomes and evidence. Ended attempts disappear on the next write without losing the
   record's version. Duplicate pending passes and finished-pass admissions refuse; Errand records span heads while
@@ -808,6 +826,8 @@ through rename and slug reuse; mismatched references refuse and succeed after co
 - _Goal:_ From the flip the Candidate history read walks the record's store history for the supersession chain and gives
   a record's revision as its store version, returning the chain the in-repo arm returns over the same versions, so pass
   inheritance runs over the reference backend.
+
+    - _Amended in:_ review-fix (A26)
 
 - _Outcome:_ Native Candidate readers share the exact stored supersession walk, skip removals, retain opaque versions,
   and refuse damaged linked history. Attestation's recovery carries the stored version; inherited review names the
@@ -903,6 +923,11 @@ through rename and slug reuse; mismatched references refuse and succeed after co
 ### `[x]` **4.11 The review gate's store** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+
+    - _Amended in:_ review-fix (A23)
+    - _Amended in:_ review-fix (A24)
+    - _Amended in:_ review-fix (A26)
+    - _Amended in:_ review-fix (A27)
 
     - _Amended in:_ 4.R5 (A22)
 
@@ -1024,6 +1049,8 @@ this extension, following the 4.11 local proof.
   request from it, and delivery reads evidence and outcomes in place of disposition and operation-state records, while
   a verification response stays a Candidate transition alone.
 
+    - _Amended in:_ review-fix (A25)
+
 - _Outcome:_ Delivery binds its native owner lazily, validates ended local member responses from immutable outcomes,
   and publishes complete fix performance through native evidence. Continuation retains the approved policy request
   after pruning and on a fresh checkout; exact replay preserves evidence versions and outcomes. Verification-only
@@ -1036,6 +1063,8 @@ this extension, following the 4.11 local proof.
   reaches today's verdicts.
 
     - `[x]` **5.6.a The result readers**
+
+        - _Amended in:_ review-fix (A24)
 
         - Native result composition preserves producer verdicts, portable source keys, recorded frontline binding IDs,
           and Candidate/member bindings after redaction. Exact owner/project references retain refusal and repair.
@@ -1085,6 +1114,8 @@ this extension, following the 4.11 local proof.
 
     - `[x]` **5.7.a The command, its help, and its request schema**
 
+        - _Amended in:_ review-fix (A23)
+
         - Registered the command, navigation, public request and result schemas, and pinned schema inventories.
           Its text-only `unsupported` variant belongs to this mode alone. Shared JSON transport, error projection,
           and option diagnostics now live outside the large handler and CLI modules.
@@ -1099,6 +1130,12 @@ this extension, following the 4.11 local proof.
 ### `[x]` **5.8 Every lane's results** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+
+    - _Amended in:_ review-fix (A23)
+    - _Amended in:_ review-fix (A24)
+    - _Amended in:_ review-fix (A25)
+    - _Amended in:_ review-fix (A26)
+    - _Amended in:_ review-fix (A27)
 
 - _Outcome:_ Base `acc49f873` is reconciled in `679ec0950`. Reference-backend local, frontline, and hosted
   results survive actual execution-file pruning and a second Git clone. Default reduction and response proposals
@@ -1134,6 +1171,8 @@ this phase puts publication's claim and reopen's boundary write in their transit
   an incomplete listing, and publication writes its claim in the publish transition's batch, while
   `standardLaneOwnerVersion` guards publication before the flip.
 
+    - _Amended in:_ review-fix (A28)
+
 - _Outcome:_ Native readiness binds the complete standard-lane facts and pending attempts; advanced re-entry and
   attestation-ordering recovery retain its digest. Publication rechecks that binding and the exact boundary version,
   preparing its claim for the lifecycle batch. Attestation and response recovery preserve the stored binding, and
@@ -1146,6 +1185,8 @@ this phase puts publication's claim and reopen's boundary write in their transit
   token keeps only its call inputs, the frontline resolve form relays a recorded judgment by its decision, and the
   boundary names the terminus it carries by key, carrying or dropping it where today's writers carry or drop the
   terminus.
+
+    - _Amended in:_ review-fix (A32)
 
     - _Amended in:_ 6.R (A18)
 
@@ -1295,6 +1336,8 @@ this phase puts publication's claim and reopen's boundary write in their transit
   head is the current root, or reads a record from history or a head tree; each mechanism keeps its in-repo arm behind
   one branch on `stateOffBranch`.
 
+    - _Amended in:_ review-fix (A24)
+
     - `[x]` **6.5.a Write, then stage**
 
         - Native applicability and response writes finish in the selected store. Attestation, pre-publication, member
@@ -1317,6 +1360,8 @@ this phase puts publication's claim and reopen's boundary write in their transit
           advances and own-record selection carry retire on the capability; ordinary coordinate proofs remain available.
 
     - `[x]` **6.5.e Subject protection and record reads from history**
+
+        - _Amended in:_ review-fix (A25)
 
         - Native advanced re-entry binds Candidate and subject identity; retained tracked projections remain neutral.
           Lifecycle and shipped-boundary reads bypass Git reconstruction. Delivery acknowledgment uses the stored
@@ -1359,6 +1404,11 @@ this phase puts publication's claim and reopen's boundary write in their transit
 ### `[x]` **6.6 The Candidate and its boundary** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+
+    - _Amended in:_ review-fix (A24)
+    - _Amended in:_ review-fix (A25)
+    - _Amended in:_ review-fix (A28)
+    - _Amended in:_ review-fix (A32)
 
 - _Outcome:_ Base `b83a37f45` is reconciled in `c43f1e4df`. Reference-backend attestation, withdrawal, fresh readiness,
   interrupted publication, and archive retirement preserve stored authority without record-only commits. Changed

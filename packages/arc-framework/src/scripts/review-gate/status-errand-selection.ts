@@ -12,7 +12,10 @@ export type ErrandStatusSelection = { readonly kind: "none" } | { readonly kind:
   readonly workItem?: OwnerIdentity;
 };
 
-/** Apply the same branch, ordinary-purpose, state, and retained-target checks to either backend's claims. */
+/**
+ * Check exact branch, ordinary purpose, state, and retained target. The stored reader supplies only ordinary claims
+ * belonging to the active identity; repository-backed callers supply their complete transient claim set.
+ */
 export function matchingOrdinaryErrand(
   records: readonly TransientIdentityRecord[],
   target: StatusTarget,

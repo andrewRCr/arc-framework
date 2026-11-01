@@ -1,4 +1,6 @@
 /** Machine-readable review workflow handlers. */
+import { nativeReplayLanes } from "./review-pre-publication-replay.js";
+import { requireReviewWorkItem } from "../lib/store/kinds/review/access-shared.js";
 import { persistPrePublicationOutcome, persistPrePublicationTerminusDecision, type PrePublicationPersistenceAccess } from "./review-pre-publication-persistence.js";
 import { readReviewReadinessBinding } from "../scripts/review-gate/runtime/readiness-binding.js";
 import { readPrePublicationProgress, bindPrePublicationProgress, readAdvancedPrePublicationReentry,
@@ -3641,6 +3643,8 @@ async function executeDefaultHostedRequest(
                 ? {}
                 : { sourceId: request.invocation.sourceId }),
             },
+            new GhDeliveryHostPort(runner),
+            bound,
           );
           if (currentObligation.state !== "review-required"
             || !("action" in currentObligation)
@@ -4333,9 +4337,9 @@ function prePublicationStandardLaneAccess(exec: GitExec, invocationFor: (root: s
     },
     readReadinessBinding: async (root, candidateId, headSha) => {
       const bound = invocationFor(root);
-      if (bound.workItem === undefined) return { status: "incomplete", condition: "Resolve the named work unit before reading its publication readiness." };
+      const workItem = requireReviewWorkItem(bound.workItem, "Publication readiness");
       const { family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
-      return readReviewReadinessBinding({ store: bound.store, workItem: bound.workItem, inFlight: family.ports.inFlight,
+      return readReviewReadinessBinding({ store: bound.store, workItem, inFlight: family.ports.inFlight,
         repositoryId: await bound.projectId(), candidateId, headSha });
     },
     withStandardLaneLock: async (root, candidateId, headSha, action) => {
@@ -4357,6 +4361,11 @@ function defaultPrePublicationDependencies(
   const exec = invocation.exec ?? createGitExec(interaction?.subprocess);
   const invocationFor = createReviewInvocationResolver(exec, invocation);
   const recordStoreFor = (root: string): Store => invocationFor(root).store;
+  const selectedInvocationFor = (root: string): ReviewInvocationContext => {
+    const bound = invocationFor(root);
+    if (bound.store.capabilities.stateOffBranch) requireReviewWorkItem(bound.workItem, "Pre-publication review");
+    return bound;
+  };
   const boundarySnapshots = new Map<string, Awaited<ReturnType<typeof readSubmissionBoundaryVersioned>>>();
   return {
     resolveRoot: (cwd) => boundary.resolveRoot(cwd),
@@ -4376,13 +4385,13 @@ function defaultPrePublicationDependencies(
       boundarySnapshots.set(workUnit, snapshot);
       return snapshot;
     },
-    ...prePublicationStandardLaneAccess(exec, invocationFor),
+    ...prePublicationStandardLaneAccess(exec, selectedInvocationFor),
     compose: async (root, input, judgment) => {
       const snapshot = boundarySnapshots.get(input.name)
-        ?? await readSubmissionBoundaryVersioned(root, input.name, { store: recordStoreFor(root), owner: invocationFor(root).workItem });
+        ?? await readSubmissionBoundaryVersioned(root, input.name, { store: recordStoreFor(root), owner: selectedInvocationFor(root).workItem });
       boundarySnapshots.set(input.name, snapshot);
       const compositionDependencies = bindPrePublicationCarriedTerminus(
-        createPrePublicationCompositionDependencies({ ...invocationFor(root), cwd: root, exec }), snapshot.boundary);
+        createPrePublicationCompositionDependencies({ ...selectedInvocationFor(root), cwd: root, exec }), snapshot.boundary);
       const composition = await composePrePublicationReviewRequest(
         {
           workUnit: input.name,
@@ -4413,10 +4422,10 @@ function defaultPrePublicationDependencies(
       }
       return carried;
     },
-    persistTerminusDecision: (root, decision) => persistNativeTerminusDecision({ ...invocationFor(root), cwd: root, exec }, decision),
+    persistTerminusDecision: (root, decision) => persistNativeTerminusDecision({ ...selectedInvocationFor(root), cwd: root, exec }, decision),
     persistBoundary: async (root, settled, decision) => {
       const snapshot = boundarySnapshots.get(settled.workUnit)
-        ?? await readSubmissionBoundaryVersioned(root, settled.workUnit, { store: recordStoreFor(root), owner: invocationFor(root).workItem });
+        ?? await readSubmissionBoundaryVersioned(root, settled.workUnit, { store: recordStoreFor(root), owner: selectedInvocationFor(root).workItem });
       const existing = snapshot.boundary;
       const preservesReservation = existing !== null
         && existing.candidateId === settled.candidateId
@@ -4424,29 +4433,23 @@ function defaultPrePublicationDependencies(
         && existing.reservation !== null
         && settled.reservation === null
         && settled.terminus === null;
-      await persistPrePublicationBoundary({ ...invocationFor(root), cwd: root, exec }, preservesReservation
+      await persistPrePublicationBoundary({ ...selectedInvocationFor(root), cwd: root, exec }, preservesReservation
         ? { ...settled, reservation: existing.reservation }
         : settled, snapshot.version, decision);
     },
     persistAcceptedFrontlineSkip: (root, accepted) => persistAcceptedFrontlineSkip({
-      ...invocationFor(root),
+      ...selectedInvocationFor(root),
       root,
       ...accepted,
       exec,
     }),
     recoverAttestationOrdering: async (root, recovered, expectedVersion, decision) => {
-      await persistPrePublicationBoundary({ ...invocationFor(root), cwd: root, exec }, recovered, expectedVersion, decision);
-      boundarySnapshots.set(recovered.workUnit, await readSubmissionBoundaryVersioned(root, recovered.workUnit, { store: recordStoreFor(root), owner: invocationFor(root).workItem }));
+      await persistPrePublicationBoundary({ ...selectedInvocationFor(root), cwd: root, exec }, recovered, expectedVersion, decision);
+      boundarySnapshots.set(recovered.workUnit, await readSubmissionBoundaryVersioned(root, recovered.workUnit, { store: recordStoreFor(root), owner: selectedInvocationFor(root).workItem }));
     },
-    write: (text) => {
-      boundary.write(text);
-    },
-    warn: (text) => {
-      process.stderr.write(text);
-    },
-    setExitCode: (code) => {
-      boundary.setExitCode(code);
-    },
+    write: text => { boundary.write(text); },
+    warn: text => { process.stderr.write(text); },
+    setExitCode: code => { boundary.setExitCode(code); },
   };
 }
 
@@ -4779,13 +4782,15 @@ export async function handleReviewPrePublication(
       emitAdvancedReplayRefusal("The saved scope judgment no longer matches the current exact review target.");
       return;
     }
+    const callerReplayLanes = replaySchemaVersion === 2
+      ? nativeReplayLanes(callerJudgment.lanes, false) : callerJudgment.lanes;
     if (!plainReentry && savedReplay !== null && pendingBoundary !== null && pending !== undefined
       && composition.request.candidateId === pendingBoundary.candidateId
       && composition.request.candidate.subjectDigest === pendingBoundary.candidateSubjectDigest
       && canonicalize({
         ...(callerJudgment.selfReview === undefined ? {} : { selfReview: callerJudgment.selfReview }),
         ...(callerJudgment.changeSet === undefined ? {} : { changeSet: callerJudgment.changeSet }),
-        ...(callerJudgment.lanes === undefined ? {} : { lanes: callerJudgment.lanes }),
+        ...(callerReplayLanes === undefined ? {} : { lanes: callerReplayLanes }),
         ...(callerJudgment.frontlineCeilingHeadSha === undefined
           ? {}
           : { frontlineCeilingHeadSha: callerJudgment.frontlineCeilingHeadSha }),

@@ -2770,7 +2770,7 @@ async function reserveHostedReview(root: string, approvedHead: string): Promise<
       obligation: OBLIGATION,
     }),
     changeRequest: { repository: "owner/repo", pullRequest: 42 },
-  }), version);
+  }, 1), version);
 }
 
 function registerRoutedReviewObligation(it: typeof vitestIt): void {

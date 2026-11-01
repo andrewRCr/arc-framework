@@ -286,7 +286,7 @@ export async function writeBoundary(
     candidateSubjectDigest: candidate.subject.subjectDigest,
     reservation,
     changeRequest: { repository, pullRequest: 42 },
-  }), current.version);
+  }, 1), current.version);
   lifecycleOrder?.push("publication-transition");
 }
 

@@ -1,5 +1,6 @@
 /** Publication withdrawal joins reopening without changing the Candidate or its portable review decisions. */
 import { expect, it } from "vitest";
+import { DeliveryReviewMemberVehicleSchema } from "../../../../src/lib/delivery/review-vehicle.js";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { candidateFixture } from "../../../helpers/store/tracked-write-fixture.js";
@@ -26,14 +27,20 @@ async function fixture(accepted = false, present = true) {
   const decision = { ...terminusDecision(), subject: { lineage: { kind: "candidate" as const, candidateId: candidate.attestation.candidateId },
     headSha: null, subjectDigest: candidate.subject.subjectDigest } };
   const decisions = createReviewDecisionPort(h.store, primary.reference.owner);
+  const vehicle = DeliveryReviewMemberVehicleSchema.parse({ kind: "delivery-member" as const, workUnitId: "example",
+    planId: "123e4567-e89b-42d3-a456-426614174000", deliverableId: canonicalDigest({ member: 1 }), head: "b".repeat(40) });
+  const member = await decisions.create({ ...terminusDecision(), subject: { lineage: {
+    kind: "delivery-member", workUnitId: vehicle.workUnitId, planId: vehicle.planId, deliverableId: vehicle.deliverableId },
+    headSha: vehicle.head, subjectDigest: null } });
+  const deliveryReviewTermini = [{ vehicle, terminus: reviewDecisionKey(member.value) }];
   const terminus = accepted ? reviewDecisionKey((await decisions.create(decision)).value) : null;
   const reservation = accepted ? null : createStandardReviewReservation({ candidateId: candidate.attestation.candidateId,
     sourceId: "codex-pr", repository: "owner/repo", headSha: candidate.attestation.baseRevision,
     obligation: { obligation: "required", reasons: ["sensitive-change-set"], rubricVersion: "standard-review/v1",
       rubricDigest: canonicalDigest({ rubric: 1 }), retrigger: "full-final", count: 1 } });
-  const boundary = projectPublicationBoundary({ workUnit: "example", branch: "feat/example",
+  const boundary = { ...projectPublicationBoundary({ workUnit: "example", branch: "feat/example",
     candidateId: candidate.attestation.candidateId, candidateSubjectDigest: candidate.subject.subjectDigest,
-    reservation, terminus, readinessBinding: canonicalDigest({ readiness: 1 }), changeRequest: null }, 2);
+    reservation, terminus, readinessBinding: canonicalDigest({ readiness: 1 }), changeRequest: null }, 2), deliveryReviewTermini };
   const savedBoundary = present ? await h.seedBoundary(primary.reference.owner, boundary) : null;
   const forbidden = (): Promise<never> => Promise.reject(new Error("tracked artifact access"));
   let withdrawals = 0;
@@ -60,7 +67,8 @@ it.each([
   expect(await runReopen(h.ctx, { name: "example", prMerged: false, withdrawMode })).toMatchObject({ status: "reopened" });
   const stored = (await h.readBoundary()).boundary;
   const expected = { ...projectCandidateReviewBoundary({ workUnit: "example", candidateId: h.boundary.candidateId,
-    candidateSubjectDigest: h.boundary.candidateSubjectDigest }, 2), terminus: h.boundary.terminus };
+    candidateSubjectDigest: h.boundary.candidateSubjectDigest }, 2), terminus: h.boundary.terminus,
+    deliveryReviewTermini: h.boundary.deliveryReviewTermini };
   expect(stored).toEqual(expected);
   if (stored?.schemaVersion !== 2) throw new Error("Expected native withdrawal");
   expect(authorizeActivePublication({ boundary: stored, candidateId: stored.candidateId,

@@ -10,13 +10,14 @@ import type { IntegrationBoundaryLocus, PostAttestContinuation } from
 
 function mapReplayCommand(command: string, workUnit: string): string {
   if (!command.includes(" --resume ")) return command;
-  const { lanes, frontlineCeilingHeadSha: ignoredHead, ...inputs } =
+  const { lanes, frontlineCeilingHeadSha, ...inputs } =
     decodePrePublicationReplay(replayTokenFromAction(command, workUnit));
-  void ignoredHead;
   const judgments = PrePublicationLaneJudgmentsSchema.parse(lanes ?? {});
   const callLanes = Object.fromEntries(Object.entries(judgments).map(([lane, judgment]) => [lane, {
     ...(judgment.scopeMode === undefined ? {} : { scopeMode: judgment.scopeMode }),
     ...(judgment.invocation === undefined ? {} : { invocation: judgment.invocation }),
+    ...(lane !== "frontline" || frontlineCeilingHeadSha !== undefined || judgment.ceilingOverride === undefined
+      ? {} : { ceilingOverride: judgment.ceilingOverride }),
   }]));
   const token = encodePrePublicationReplayV2({ ...inputs, ...(lanes === undefined ? {} : { lanes: callLanes }) });
   return `arc review pre-publication ${workUnit} --resume ${token}`;

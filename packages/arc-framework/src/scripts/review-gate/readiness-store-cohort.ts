@@ -3,7 +3,7 @@ import type { Store } from "../../lib/store/contract.js";
 import type { StoreRecord } from "../../lib/store/read.js";
 import type { LifecycleEntry } from "../../lib/store/lifecycle-index.js";
 import { parseCohortDocument, type ParsedCohortDocument } from "../../lib/store/kinds/cohort/index.js";
-import type { ReviewReadinessFact } from "./readiness.js";
+import type { ReviewReadinessFact } from "./readiness-contract.js";
 import { validCohortCloseout } from "./readiness-artifact-facts.js";
 import { describeRecordConflicts } from "../../lib/store/conflict-diagnostics.js";
 

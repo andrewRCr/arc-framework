@@ -1,8 +1,7 @@
 /** Retain the operational owner selected by a frontline admission across run invocations. */
-import { isOffBranchStoreRefusal } from "../../../lib/store/refusal-error.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 import { resolveReviewOperationInvocation } from "./continuation-invocation.js";
 import { createReviewCompositionContext } from "./composition-context.js";
-import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
 import { FrontlineAdmissionError } from "../core/frontline-admission-error.js";
 import type { FrontlineRunCommandRequest } from "../core/frontline-run-command-schema.js";
 import { FrontlineOperationCorruptStateError } from "../policy/frontline-operation.js";
@@ -20,7 +19,8 @@ export async function resolveFrontlineRunInvocation(options: ReviewInvocationInp
   if (!input.store?.capabilities.stateOffBranch || (options.workItem !== undefined && operationRef === undefined)) return input;
   const operations = createReviewCompositionContext(input).family.ports.inFlight;
   await readValidatedFrontlineAdmission(operations, request.resolution.payload.admission, request.target).catch((error: unknown) => {
-    if (error instanceof FrontlineAdmissionError || error instanceof ProjectIdentityError || isOffBranchStoreRefusal(error)) throw error;
+    if (error instanceof FrontlineAdmissionError) throw error;
+    rethrowNativeRefusal(error);
     throw new FrontlineOperationCorruptStateError(`Restore the pending frontline admission and retry: ${error instanceof Error ? error.message : String(error)}`);
   });
   return input;

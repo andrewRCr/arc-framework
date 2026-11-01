@@ -100,7 +100,7 @@ describe("delivery review-fix record effects", () => {
       candidateSubjectDigest: effectiveSubjectDigest,
       reservation,
       changeRequest: null,
-    });
+    }, 1);
     const beforeBoundary = projectCorrectiveDeliveryStatusBoundary({
       workUnit: plan.workUnitId,
       candidateId: candidate.attestation.candidateId,

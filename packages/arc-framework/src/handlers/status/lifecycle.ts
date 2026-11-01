@@ -8,7 +8,8 @@ import { runActiveStatus } from "../../commands/active.js";
 import { renderInFlightWarning } from "../../lib/git/in-flight-derivation.js";
 import type { GitExec } from "../../lib/git/index.js";
 import { readGitBlobEntry } from "../../lib/io-context.js";
-import type { StoreRefusal } from "../../lib/store/refusal.js";
+import type { StoreRefusal, Remedy } from "../../lib/store/refusal.js";
+import { isNativeTypedRefusal } from "../../lib/store/native-refusal.js";
 import type { LifecycleIndexOutcome } from "../../lib/store/lifecycle-index.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { StoreSyncPort } from "../../lib/store/operational-sync.js";
@@ -282,13 +283,18 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
 }
 
 // A refused boundary read stops the query through its typed refusal rather than an untyped throw.
+type StatusQueryRefusal = { code: string; condition: string; remedy: Remedy };
+
 async function readStoreStatusBoundary(input: { store: Store; cwd: string; record: Awaited<ReturnType<typeof readWorkUnit>>;
-  fields?: ParsedMetaRecord }): Promise<{ boundary: PublishedIntegrationBoundaryLocus | null } | { refusal: StoreRefusal }> {
+  fields?: ParsedMetaRecord }): Promise<{ boundary: PublishedIntegrationBoundaryLocus | null } | { refusal: StatusQueryRefusal }> {
   if (input.record.status !== "ok" || (input.fields?.state !== "Active" && input.fields?.state !== "Integrating")) return { boundary: null };
   const { owner } = input.record.result.reference;
   try { return { boundary: await readSubmissionBoundary(input.cwd, owner.name, { store: input.store, owner }) }; }
   catch (error) {
     if (error instanceof StoreRefusalError) return { refusal: error.refusal };
+    if (isNativeTypedRefusal(error)) return { refusal: "refusal" in error ? error.refusal : "failure" in error
+      ? { code: "project-identity-unavailable", condition: error.failure.reason, remedy: error.failure.remedy }
+      : { code: error.code, condition: error.condition, remedy: error.remedy } };
     throw error;
   }
 }
@@ -319,7 +325,7 @@ function lifecycleListingWarnings(listing: LifecycleIndexOutcome): string[] {
   return listing.status === "unreadable" ? [listing.condition] : [];
 }
 /** Preserve the exact refusal in machine output and its remedy in human output. */
-function renderStoreQueryRefusal(refusal: StoreRefusal, opts: StatusCliOptions, warnings: readonly string[] = []): void {
+function renderStoreQueryRefusal(refusal: StatusQueryRefusal, opts: StatusCliOptions, warnings: readonly string[] = []): void {
   if (!opts.json) for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
   if (opts.json) process.stdout.write(`${JSON.stringify({ status: "refused", refusal, ...(warnings.length ? { warnings } : {}) })}\n`);
   else p.log.error(`${refusal.condition} ${refusal.remedy.text}`);

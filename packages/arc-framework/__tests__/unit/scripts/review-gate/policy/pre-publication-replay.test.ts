@@ -30,8 +30,10 @@ it.each([
 ])("refuses a stored replay containing a review choice: %j", (lanes) => {
   const original = { lanes };
   expect(decodePrePublicationReplay(Buffer.from(JSON.stringify(original)).toString("base64url"))).toEqual(original);
-  expect(() => encodePrePublicationReplayV2(original)).toThrow();
-  expect(() => decodePrePublicationReplayV2(Buffer.from(JSON.stringify(original)).toString("base64url"))).toThrow();
+  const refusal = expect.objectContaining({ issues: expect.arrayContaining([expect.objectContaining({
+    code: "unrecognized_keys", path: ["lanes", "standard"], keys: ["terminus"] })]) });
+  expect(() => encodePrePublicationReplayV2(original)).toThrow(refusal);
+  expect(() => decodePrePublicationReplayV2(Buffer.from(JSON.stringify(original)).toString("base64url"))).toThrow(refusal);
 });
 
 it.each([

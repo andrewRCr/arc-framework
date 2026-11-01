@@ -1,5 +1,5 @@
 /** Shared authored lifecycle obligations for repository-backed and stored readiness. */
-import type { ReviewReadinessFact } from "./readiness.js";
+import type { ReviewReadinessFact } from "./readiness-contract.js";
 
 function fact(code: string, path: string, message: string): ReviewReadinessFact {
   return { code, path, message };

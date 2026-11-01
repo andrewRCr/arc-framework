@@ -59,7 +59,7 @@ async function acceptStop(action: DeliveryReviewTerminusAcceptanceAction, curren
     target: { kind: "delivery", repository: target.repository, planId: vehicle.planId, workUnitId: "example" } });
   let boundary = projectPublicationBoundary({ workUnit: "example", branch: "feat/example", candidateId: binding.candidateId,
     candidateSubjectDigest: binding.candidateSubjectDigest, reservation,
-    changeRequest: { repository: target.repository, pullRequest: handle.target.pullRequest } });
+    changeRequest: { repository: target.repository, pullRequest: handle.target.pullRequest } }, 1);
   const result = await resolveDeliveryReviewTerminusAcceptance({ ...action, judgment: { mode: "owner-accepted" } }, {
     readBoundary: async () => ({ boundary, version: binding.expectedBoundaryVersion }),
     readOwnerAuthority: async () => ({ status: "authorized", ownerIdentity: "andrew" }),

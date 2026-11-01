@@ -78,7 +78,9 @@ export async function currentNamedWorkItem(store: Pick<Store, "capabilities" | "
   if (selected.name === name) return selected;
   if (!store.capabilities.stateOffBranch) return null;
   const current = await readWorkUnit(store, name, selected);
-  return current.status === "ok" && current.result.reference.owner.name === name ? current.result.reference.owner : null;
+  if (current.status === "refused" && current.refusal.code === "not-found") return null;
+  const record = unwrapReviewRecordResult(store, current);
+  return record.reference.owner.name === name ? record.reference.owner : null;
 }
 
 /** Select the owner a write of work unit `name`'s review record lands under, refusing a work item that is not it. */

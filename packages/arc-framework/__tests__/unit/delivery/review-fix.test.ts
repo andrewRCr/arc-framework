@@ -389,7 +389,7 @@ describe("delivery review-fix routing", () => {
     };
     const publication = schemaVersion === 2
       ? projectPublicationBoundary({ ...publicationInput, readinessBinding: null }, 2)
-      : projectPublicationBoundary(publicationInput);
+      : projectPublicationBoundary(publicationInput, 1);
     const boundary = projectCorrectiveDeliveryStatusBoundary({
       workUnit: plan.workUnitId,
       candidateId,

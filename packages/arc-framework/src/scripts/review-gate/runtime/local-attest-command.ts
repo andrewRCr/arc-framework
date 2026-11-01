@@ -2,10 +2,9 @@
 
 import { z } from "zod";
 import type { ReviewOutcome } from "../../../lib/store/kinds/review/outcome/schema.js";
-import { reviewOutcomeKey } from "../../../lib/store/kinds/review/outcome/key.js";
-import { readRetainedLocalReviewSource } from "./local-outcome-source.js";
+import { bindEndedLocalReview } from "./local-outcome-source.js";
 import { publishLocalReviewReceipt, readLocalReviewReceipts } from "./local-outcome-receipts.js";
-import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches, bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
+import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches } from "../core/review-operation-reference.js";
 
 import { canonicalize } from "../../../lib/kernel/index.js";
 import {
@@ -145,11 +144,11 @@ async function replayEndedLocalAttestation(request: z.infer<typeof LocalAttestRe
   if (outcome.attemptId !== request.operationId || local === undefined || requirement === undefined) {
     throw new LocalAttestCommandError("corrupt-state", "local review outcome does not match its admission");
   }
-  assertLocalReviewClaimBinding(local);
+  const replay = bindEndedLocalReview(stored, local, dependencies,
+    () => new LocalAttestCommandError("corrupt-state", "local review source snapshot mismatch"));
   const target = outcome.target;
   const base = { operationId: request.operationId, persistedVersion,
-    operationRef: bindNativeReviewOperationReference({ operationId: request.operationId,
-      repositoryId: target.repositoryId, workItem: stored.reference.owner }) };
+    operationRef: replay.operationRef };
   const result = normalizeLocalReviewResult(request.result, { repositoryId: target.repositoryId,
     targetId: target.targetId, headSha: target.headSha, headTree: target.headTree,
     rubricVersion: requirement.rubricVersion, rubricDigest: requirement.rubricDigest,
@@ -158,11 +157,7 @@ async function replayEndedLocalAttestation(request: z.infer<typeof LocalAttestRe
     return LocalAttestEnvelopeSchema.parse({ schemaVersion: 1, mode: "review-local-attest", diagnostics: [],
       state: "terminal-operation", nextAction: "rerun-review", payload: base });
   }
-  const retained = await readRetainedLocalReviewSource(dependencies, request.operationId);
-  if (retained !== null && (retained.source.sourceDigest !== local.sourceDigest
-    || retained.source.repositoryId !== target.repositoryId || retained.source.targetId !== target.targetId)) {
-    throw new LocalAttestCommandError("corrupt-state", "local review source snapshot mismatch");
-  }
+  const retained = await replay.readRetainedSource();
   const receipt = createLocalReviewReceipt({ target, requirement,
     carrier: { target, request: local.request, attestation: local.attestation }, result,
     runtimeIdentity: local.attestation.runtimeIdentity, attestationMechanism: local.attestation.mechanism,
@@ -172,10 +167,7 @@ async function replayEndedLocalAttestation(request: z.infer<typeof LocalAttestRe
   }
   if (retained !== null) await dependencies.releaseMaterialization(request.operationId);
   const current = await dependencies.confirmTarget(target);
-  const coordinates = { kind: "attested-local" as const, operationId: request.operationId, durableRef: reviewOutcomeKey(outcome) };
-  const receiptRef = dependencies.bindSourceReference === undefined
-    ? bindReviewSourceReference({ ...coordinates, repositoryId: target.repositoryId, workItem: stored.reference.owner })
-    : await dependencies.bindSourceReference(coordinates);
+  const receiptRef = await replay.receiptReference();
   if (current.state === "stale-target") return LocalAttestEnvelopeSchema.parse({ schemaVersion: 1,
     mode: "review-local-attest", diagnostics: [], state: "stale-target", nextAction: "prepare-current-target",
     payload: { ...base, receiptRecorded: true, receiptRef, attemptedTarget: current.attemptedTarget,

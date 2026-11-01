@@ -1,7 +1,6 @@
 /** Kernel registration for public review request schemas owned by their own command modules. */
 import { ReviewAdversarialRecordRequestSchema } from "./core/adversarial-record-schema.js";
 
-
 import { ReviewLaneReadRequestSchema } from "./lane-read-schema.js";
 import type { KernelRegistry } from "../../lib/kernel/index.js";
 import { HostedAwaitEnvelopeSchema } from "./hosted/await.js";

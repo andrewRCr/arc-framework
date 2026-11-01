@@ -16,6 +16,10 @@ import { publishNativeReviewPerformance } from "../../../../../src/scripts/revie
 import { publishNativeReviewApproval } from "../../../../../src/scripts/review-gate/runtime/native-review-approval.js";
 import { publishNativeHostedSettlement } from "../../../../../src/scripts/review-gate/runtime/native-hosted-settlement.js";
 import { bindNativeReviewPorts } from "../../../../helpers/store/native-review-ports.js";
+import { bindHostedAttemptDisposition } from "../../../../../src/scripts/review-gate/lane-progress-hosted-settlement.js";
+import { createDispositionSet, approveDispositionSet } from "../../../../../src/scripts/review-gate/core/dispositions.js";
+import { ReviewEvidenceSchema } from "../../../../../src/lib/store/kinds/review/evidence/schema.js";
+import { publishNativeReviewSuccessor } from "../../../../../src/scripts/review-gate/runtime/native-review-successor.js";
 
 async function nativeSettlement(fix = false, perform = true) {
   const h = createReviewHarness(), seed = hostedSettlementFixture();
@@ -44,6 +48,83 @@ async function nativeSettlement(fix = false, perform = true) {
   }
   return { h, primary, outcome, original, approved, ports, performanceInput, input: { ...ports, producerId: outcome.attemptId, settlement: entry } };
 }
+
+async function settlementOperations(h: Awaited<ReturnType<typeof nativeSettlement>>) {
+  const checkout = await createReviewCheckout(h.h);
+  onTestFinished(checkout.cleanup);
+  return bindNativeReviewPorts({ store: h.h.store, owner: h.primary.reference.owner,
+    publisher: new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd), projectId: h.h.projectId }).inFlight;
+}
+
+it("binds only the approved hosted finding actions and retries a corrected binding without changing evidence", async () => {
+  const h = await nativeSettlement(), operations = await settlementOperations(h);
+  const binding = { operationId: outcomeLaneOperationId(h.outcome), attemptId: h.outcome.attemptId,
+    dispositionSetId: h.approved.value.dispositionSet.dispositionSetId,
+    findingDispositions: h.approved.value.settlement!.findingActions, now: "2026-10-20T13:00:00Z" };
+  const before = await h.ports.evidence.list();
+  await expect(bindHostedAttemptDisposition(operations, { ...binding,
+    findingDispositions: binding.findingDispositions.map(action => ({ ...action, disposition: "reject" as const })) }))
+    .rejects.toThrow("Approve the exact hosted finding actions before binding their settlement, then retry.");
+  expect(await h.ports.evidence.list()).toEqual(before);
+  expect(await bindHostedAttemptDisposition(operations, binding)).toMatchObject({ attempts: [{
+    attemptId: h.outcome.attemptId, hosted: { dispositionSetId: binding.dispositionSetId } }] });
+  expect(await h.ports.evidence.list()).toEqual(before);
+});
+
+it("refuses settlement on a superseded response and settles its repaired successor", async () => {
+  const h = await nativeSettlement(), inFlight = await settlementOperations(h);
+  const prior = h.approved.value;
+  const { dispositionSetId: ignored, ...identity } = prior.dispositionSet;
+  void ignored;
+  const dispositionSet = createDispositionSet({ ...identity, proposedBy: "successor-proposer" });
+  const next = ReviewEvidenceSchema.parse({ ...prior, dispositionSet, approval: approveDispositionSet({ dispositionSet,
+    approvedBy: "andrew", approvedAt: "2026-10-20T13:00:00Z" }),
+    predecessorDispositionSetId: prior.dispositionSet.dispositionSetId, settlement: { ...prior.settlement!, evidence: [] } });
+  await publishNativeReviewSuccessor({ ...h.ports, store: h.h.store, inFlight,
+    record: composeReviewDispositionRecord(h.outcome, [{ ...prior, successorDispositionSetId: dispositionSet.dispositionSetId }, next],
+      h.primary.reference.owner), now: () => "2026-10-20T13:00:00Z" });
+  const before = await h.ports.evidence.list();
+  await expect(publishNativeHostedSettlement(h.input)).rejects.toThrow(
+    "Hosted settlement requires the current approved response for this producer; restore it and retry.");
+  expect(await h.ports.evidence.list()).toEqual(before);
+  expect((await publishNativeHostedSettlement({ ...h.input,
+    settlement: { ...h.input.settlement, dispositionSetId: dispositionSet.dispositionSetId } })).value.settlement?.evidence)
+    .toHaveLength(1);
+});
+
+it("refuses another producer's approval and settles once the original set is restored", async () => {
+  const h = await nativeSettlement();
+  const outcome = ReviewOutcomeSchema.parse(hostedOutcome({ repositoryId: h.outcome.target.repositoryId, logicalPass: 2,
+    outcome: "findings", findings: h.outcome.hosted!.sealedResult!.findings,
+    artifact: { kind: "issue-comment", id: "comment-other", url: "https://example.invalid/comment-other",
+      createdAt: "2026-10-20T12:00:00Z" } }));
+  await h.ports.outcomes.create(outcome);
+  const other = await publishNativeReviewApproval({ ...h.ports,
+    record: composeReviewDispositionRecord(outcome, [reviewEvidenceFixture(outcome)], h.primary.reference.owner),
+    now: () => "2026-10-20T12:00:00Z" });
+  const before = await h.ports.evidence.list();
+  await expect(publishNativeHostedSettlement({ ...h.input,
+    settlement: { ...h.input.settlement, dispositionSetId: other.value.dispositionSet.dispositionSetId } })).rejects.toThrow(
+    "Hosted settlement requires the current approved response for this producer; restore it and retry.");
+  expect(await h.ports.evidence.list()).toEqual(before);
+  expect((await publishNativeHostedSettlement(h.input)).value.settlement?.evidence).toHaveLength(1);
+});
+
+it("refuses settlement when the producer observation is no longer findings and retries after repair", async () => {
+  const h = await nativeSettlement();
+  const clean = ReviewOutcomeSchema.parse(hostedOutcome({ repositoryId: h.outcome.target.repositoryId, outcome: "clean" }));
+  expect(clean.attemptId).toBe(h.outcome.attemptId);
+  const outcomes = { ...h.ports.outcomes, list: async () => {
+    const listing = await h.ports.outcomes.list();
+    return listing.status !== "complete" ? listing : { ...listing, records: listing.records.map(record =>
+      record.value.attemptId === clean.attemptId ? { ...record, value: clean } : record) };
+  } };
+  const before = await h.ports.evidence.list();
+  await expect(publishNativeHostedSettlement({ ...h.input, outcomes })).rejects.toThrow(
+    "Hosted settlement requires the current approved response for this producer; restore it and retry.");
+  expect(await h.ports.evidence.list()).toEqual(before);
+  expect((await publishNativeHostedSettlement(h.input)).value.settlement?.evidence).toHaveLength(1);
+});
 
 it("appends each hosted receipt once and derives settlement in a checkout without execution files", async () => {
   const { h, primary, outcome, original, approved, ports, input } = await nativeSettlement();

@@ -37,6 +37,7 @@ function mapReplayChoices(boundary: IntegrationBoundaryLocus, replay: PrePublica
   for (const lane of ["frontline", "standard"] as const) {
     const ceiling = lanes[lane]?.ceilingOverride;
     if (ceiling === undefined || ceiling.conditionalPassAuthorizationId !== undefined) continue;
+    if (lane === "frontline" && replay.frontlineCeilingHeadSha === undefined) continue;
     decisions.push({ schemaVersion: 1,
       subject: { lineage: { kind: "candidate", candidateId: replay.candidateId ?? boundary.candidateId },
         headSha: lane === "frontline" ? replay.frontlineCeilingHeadSha ?? null : replay.scopeJudgmentTarget?.headSha ?? null,

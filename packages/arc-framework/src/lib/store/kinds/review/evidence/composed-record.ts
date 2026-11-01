@@ -8,25 +8,37 @@ import { laneProgressOperationId } from "../../../../../scripts/review-gate/lane
 import type { ReviewOutcome } from "../outcome/schema.js";
 import { reviewOutcomeKey } from "../outcome/key.js";
 import type { ReviewEvidence } from "./schema.js";
+import { StoreRefusalError } from "../../../refusal-error.js";
+
+/** Attribute a damaged approval lineage to every producer, evidence key, and outcome key it contains. */
+export function reviewEvidenceLineageRefusal(evidence: readonly ReviewEvidence[], rule: string, remedy: string): StoreRefusalError {
+  const records = evidence.map(value => ({ producer: value.dispositionSet.producerId,
+    evidence: value.dispositionSet.dispositionSetId, outcome: value.result.outcomeKey,
+    predecessor: value.predecessorDispositionSetId, successor: value.successorDispositionSetId }));
+  return new StoreRefusalError({ code: "record-malformed", class: "recoverable", rule: `review.evidence.${rule}`,
+    condition: `The approved-response lineage is damaged: ${JSON.stringify(records)}.`, remedy: { text: remedy } }, true);
+}
 
 /** Require and order one complete approved-response lineage. */
 export function orderReviewEvidenceLineage(evidence: readonly ReviewEvidence[]): ReviewEvidence[] {
   const roots = evidence.filter((value) => value.predecessorDispositionSetId === null);
   const records = new Map(evidence.map((value) => [value.dispositionSet.dispositionSetId, value]));
-  if (roots.length !== 1 || records.size !== evidence.length) throw new Error("Restore one complete approved-response lineage.");
+  if (roots.length !== 1 || records.size !== evidence.length) throw reviewEvidenceLineageRefusal(evidence, "root",
+    "A single approved-response root is required. No command currently repairs a pull-merged second root.");
   const ordered: ReviewEvidence[] = [];
   const seen = new Set<string>();
   let current = roots[0];
   while (current !== undefined) {
     const id = current.dispositionSet.dispositionSetId;
-    if (seen.has(id)) throw new Error("Restore an acyclic approved-response lineage.");
+    if (seen.has(id)) throw reviewEvidenceLineageRefusal(evidence, "cycle", "Restore an acyclic approved-response lineage.");
     seen.add(id);
     ordered.push(current);
     if (current.successorDispositionSetId === null) break;
     current = records.get(current.successorDispositionSetId);
-    if (current === undefined) throw new Error("Restore the missing approved-response successor.");
+    if (current === undefined) throw reviewEvidenceLineageRefusal(evidence, "successor", "Restore the missing approved-response successor.");
   }
-  if (ordered.length !== evidence.length) throw new Error("Restore every connected approved response before reading the lineage.");
+  if (ordered.length !== evidence.length) throw reviewEvidenceLineageRefusal(evidence, "connected",
+    "Restore every connected approved response before reading the lineage.");
   return ordered;
 }
 

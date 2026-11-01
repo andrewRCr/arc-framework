@@ -594,7 +594,7 @@ async function createEightMemberHarness(): Promise<EightMemberHarness> {
     candidateSubjectDigest: candidate.subject.subjectDigest,
     reservation,
     changeRequest: { repository, pullRequest: 48 },
-  }), null);
+  }, 1), null);
   return {
     root,
     exec,
@@ -3012,7 +3012,7 @@ describe("hosted review fan-out lifecycle", () => {
       candidateSubjectDigest: candidate.record.subject.subjectDigest,
       reservation: pinnedReservation,
       changeRequest: { repository, pullRequest: 42 },
-    }), boundary.version);
+    }, 1), boundary.version);
     const lineage = {
       kind: "candidate" as const,
       candidateId: candidate.record.attestation.candidateId,
@@ -3129,7 +3129,7 @@ describe("hosted review fan-out lifecycle", () => {
       candidateSubjectDigest: candidate.record.subject.subjectDigest,
       reservation,
       changeRequest: { repository, pullRequest: 42 },
-    }), boundary.version);
+    }, 1), boundary.version);
     const lineage = { kind: "candidate" as const, candidateId: candidate.record.attestation.candidateId };
     const target = { repository, pullRequest: 42, headSha: harness.priorSecond };
     const reviewTarget = createReviewTarget({

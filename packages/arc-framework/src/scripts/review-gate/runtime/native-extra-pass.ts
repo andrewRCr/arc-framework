@@ -1,6 +1,6 @@
 /** Record and resolve the Owner's stored ceiling and additional review-pass judgments. */
 import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
-import { readConfiguredIdentity } from "../../../lib/git/identity.js";
+import { resolveIdentity } from "../../../lib/git/identity.js";
 import type { ReviewInvocationInput } from "./invocation.js";
 import { ReviewDecisionSchema, type ReviewDecision } from "../../../lib/store/kinds/review/decision/schema.js";
 import { reviewDecisionKey } from "../../../lib/store/kinds/review/decision/key.js";
@@ -106,7 +106,7 @@ export async function resolveNativeInvocationExtraPassJudgment(
   input: Omit<NativeExtraPassInput, "facts" | "actor" | "now">,
 ): Promise<NativeExtraPassResolution> {
   const supplied = requestedExtraPasses({ ...input, facts }).some(request => request.decisionKey === undefined);
-  const actor = supplied ? await readConfiguredIdentity(invocation.exec, invocation.cwd) : null;
-  if (supplied && actor === null) throw new Error("Set git config --local arc.identity <identity>, then retry the extra-pass judgment.");
+  const actor = supplied ? await resolveIdentity({ exec: (command, args, options) =>
+    invocation.exec(command, args, { ...options, cwd: invocation.cwd }) }) : null;
   return resolveNativeExtraPassJudgment({ ...input, facts, ...(actor === null ? {} : { actor }), now: new Date().toISOString() });
 }

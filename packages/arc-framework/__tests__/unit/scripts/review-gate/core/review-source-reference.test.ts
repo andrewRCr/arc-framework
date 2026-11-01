@@ -11,14 +11,14 @@ const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "original-rev
 const operation = { repositoryId: "project-id", workItem: owner, operationId: "local-review/producer" };
 
 const invalidCoordinates = [
-  ["missing owner UID", { workItem: { type: "work-item", name: "review" } }],
-  ["person owner", { workItem: { type: "person", name: "reviewer" } }],
-  ["cohort owner", { workItem: { type: "cohort", name: "review", uid: "14bc6336-193b-4d7a-9380-1b4ca79a714b" } }],
-  ["invalid owner UID", { workItem: { type: "work-item", name: "review", uid: "not-a-uid" } }],
-  ["empty project", { repositoryId: "" }],
-  ["invalid operation ID", { operationId: "bad operation" }],
-  ["oversized operation ID", { operationId: "a".repeat(129) }],
-  ["unknown payload field", { unrelated: true }],
+  ["missing owner UID", { workItem: { type: "work-item", name: "review" } }, ["workItem"], "custom"],
+  ["person owner", { workItem: { type: "person", name: "reviewer" } }, ["workItem"], "custom"],
+  ["cohort owner", { workItem: { type: "cohort", name: "review", uid: "14bc6336-193b-4d7a-9380-1b4ca79a714b" } }, ["workItem"], "custom"],
+  ["invalid owner UID", { workItem: { type: "work-item", name: "review", uid: "not-a-uid" } }, ["workItem", "uid"], "invalid_format"],
+  ["empty project", { repositoryId: "" }, ["repositoryId"], "invalid_format"],
+  ["invalid operation ID", { operationId: "bad operation" }, ["operationId"], "invalid_format"],
+  ["oversized operation ID", { operationId: "a".repeat(129) }, ["operationId"], "invalid_format"],
+  ["unknown payload field", { unrelated: true }, [], "unrecognized_keys"],
 ] as const;
 
 function replacePayload(reference: string, patch: object): string {
@@ -61,20 +61,22 @@ describe("portable review references", () => {
     expect(parseReviewSourceReference(reference, "frontline")).toEqual(source);
   });
 
-  it.each(invalidCoordinates)("refuses %s on operation and source locators", (_label, patch) => {
+  it.each(invalidCoordinates)("refuses %s on operation and source locators", (_label, patch, path, code) => {
+    const refusal = expect.objectContaining({ issues: expect.arrayContaining([expect.objectContaining({ path: [...path], code })]) });
     const input = { ...operation, ...patch };
     expect.soft(() => bindNativeReviewOperationReference(input as NativeReviewOperationReference))
-      .toThrow();
+      .toThrow(refusal);
     const source = { ...input, kind: "hosted", durableRef: "acknowledged-attempt" } as BoundReviewSourceReference;
-    expect.soft(() => bindReviewSourceReference(source)).toThrow();
+    expect.soft(() => bindReviewSourceReference(source)).toThrow(refusal);
   });
 
-  it.each(invalidCoordinates)("refuses decoded %s from an external locator", (_label, patch) => {
+  it.each(invalidCoordinates)("refuses decoded %s from an external locator", (_label, patch, path, code) => {
+    const refusal = expect.objectContaining({ issues: expect.arrayContaining([expect.objectContaining({ path: [...path], code })]) });
     const operationRef = replacePayload(bindNativeReviewOperationReference(operation), patch);
-    expect.soft(() => parseNativeReviewOperationReference(operationRef)).toThrow();
+    expect.soft(() => parseNativeReviewOperationReference(operationRef)).toThrow(refusal);
     const sourceRef = replacePayload(bindReviewSourceReference({ ...operation, kind: "hosted",
       durableRef: "acknowledged-attempt" }), patch);
-    expect.soft(() => parseReviewSourceReference(sourceRef, "hosted", true)).toThrow();
+    expect.soft(() => parseReviewSourceReference(sourceRef, "hosted", true)).toThrow(refusal);
   });
 
   it("rejects a native source decoded as another source kind", () => {
@@ -85,23 +87,23 @@ describe("portable review references", () => {
   it("rejects incomplete native coordinates rather than falling back to a repository reference", () => {
     expect(() => bindReviewSourceReference({ kind: "frontline", operationId: operation.operationId,
       durableRef: "result-key", repositoryId: operation.repositoryId } as BoundReviewSourceReference))
-      .toThrow();
+      .toThrow(expect.objectContaining({ issues: expect.arrayContaining([expect.objectContaining({ path: ["workItem"], code: "invalid_union" })]) }));
   });
 
   it("keeps repository readers from accepting native owner coordinates", () => {
     const reference = bindReviewSourceReference({ ...operation, kind: "frontline", durableRef: "result-key" });
-    expect(() => parseReviewSourceReference(reference, "frontline")).toThrow();
+    expect(() => parseReviewSourceReference(reference, "frontline")).toThrow("review source reference kind mismatch");
   });
 
   it("refuses an unsupported operation reference version", () => {
     const reference = bindNativeReviewOperationReference(operation).replace(":v1:", ":v9:");
-    expect(() => parseNativeReviewOperationReference(reference)).toThrow();
+    expect(() => parseNativeReviewOperationReference(reference)).toThrow("native review operation reference kind or version mismatch");
   });
 
-  it("refuses an unsupported native source reference version", () => {
+  it("refuses an unknown native prefix version as a source kind mismatch", () => {
     const reference = bindReviewSourceReference({ ...operation, kind: "hosted", durableRef: "attempt" })
       .replace(":v2:", ":v9:");
-    expect(() => parseReviewSourceReference(reference, "hosted", true)).toThrow();
+    expect(() => parseReviewSourceReference(reference, "hosted", true)).toThrow("review source reference kind mismatch");
   });
 
 });

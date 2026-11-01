@@ -31,8 +31,9 @@ it("excludes a foreign historical frontline payload before decoding its findings
 });
 
 it("requires the complete native payload schema when a live attempt joins the frontline result", async () => {
-  const { input } = await historicalFrontlineInput();
-  expect(() => mapReviewRecords(input)).toThrow(/sourceOrdinal/u);
+  const { input, source } = await historicalFrontlineInput();
+  expect(() => mapReviewRecords(input)).toThrow(expect.objectContaining({ name: "ReviewMappingSourceError",
+    source: source.path, message: expect.stringContaining("sourceOrdinal") }));
 });
 
 it("leaves a frontline outcome behind for its lane's not-live owner, not as a retired attempt", async () => {

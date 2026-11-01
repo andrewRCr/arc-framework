@@ -20,14 +20,14 @@ import { createStandardReviewReservation, projectPublicationBoundary } from "../
 import { writeWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 
 /** Seed a published local stack, a native Candidate and reservation, and an isolated GitHub executable. */
-export async function createNativeDeliveryReviewRepository(firstBranch = "member-1") {
+export async function createNativeDeliveryReviewRepository(firstBranch = "member-1", sourceId = "delegated-agent") {
   const branches = [firstBranch, "member-2"];
   const h = await createReviewRepositoryHarness();
   onTestFinished(h.cleanup);
   const { cwd, exec: realExec } = h.native;
   const git = async (...args: string[]) => (await realExec("git", args, { cwd })).stdout.trim();
   await mkdir(join(cwd, ".arc/system"), { recursive: true });
-  await writeFile(join(cwd, ".arc/system/arc-config.yml"), "branch.base: main\nreview.standard_sources: [delegated-agent]\n");
+  await writeFile(join(cwd, ".arc/system/arc-config.yml"), `branch.base: main\nreview.standard_sources: [${sourceId}]\n`);
   await writeFile(join(cwd, ".gitignore"), ".arc/system/.internal/\n.arc/user/\n");
   await git("add", ".");
   await git("commit", "-m", "Configure delivery review");
@@ -69,7 +69,7 @@ export async function createNativeDeliveryReviewRepository(firstBranch = "member
   const publishedState = await new RepositoryDeliveryStateStore(publisher).publish(plan.planId, state, 0);
   if (publishedState.status !== "ok") throw new Error(publishedState.reason);
   const obligation = projectStandardReviewObligation(resolveReviewRouting({}).decision);
-  const reservation = createStandardReviewReservation({ candidateId: attestation.candidateId, sourceId: "delegated-agent",
+  const reservation = createStandardReviewReservation({ candidateId: attestation.candidateId, sourceId,
     target: { kind: "delivery", repository: "owner/repo", workUnitId: "example", planId: plan.planId }, obligation });
   const boundary = projectPublicationBoundary({ workUnit: "example", branch: "member-2", candidateId: attestation.candidateId,
     candidateSubjectDigest: collected.target.subject.subjectDigest, reservation, changeRequest: null, readinessBinding: null }, 2);
@@ -87,6 +87,7 @@ export async function createNativeDeliveryReviewRepository(firstBranch = "member
   await writeFile(join(bin, "gh"), `#!/usr/bin/env node\nconst args = process.argv.slice(2);\nconst pulls = JSON.parse(require("node:fs").readFileSync(${JSON.stringify(pullsPath)}, "utf8"));\n`
     + `let value;\nif (args[0] === 'pr' && args[1] === 'list') value = pulls.filter(p => p.head.ref === args[args.indexOf('--head') + 1]).map(p => ({number:p.number,url:'https://github.com/owner/repo/pull/'+p.number,state:p.merged?'MERGED':p.state.toUpperCase(),baseRefName:p.base.ref,headRefName:p.head.ref,headRefOid:p.head.sha}));\n`
     + `else if (args[0] === 'pr' && args[1] === 'checks') value = [];\n`
+    + `else if (args[0] === 'repo' && args[1] === 'view') value = {nameWithOwner:'owner/repo'};\n`
     + `else if (args.includes('graphql')) value = {data:{repository:{pullRequest:{reviewDecision:null}}}};\n`
     + `else { const path = args.find(a => a.startsWith('repos/')); const match = /^repos\\/owner\\/repo\\/pulls\\/(\\d+)$/.exec(path ?? '');\n`
     + `if (match) value = pulls.find(p => p.number === Number(match[1]));\n`

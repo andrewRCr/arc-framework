@@ -1,7 +1,6 @@
 /** Registry binding for public review command envelopes. */
+
 import { ReviewAdversarialRecordEnvelopeSchema } from "./adversarial-record-schema.js";
-
-
 import { LocalCancelEnvelopeSchema } from "./local-cancel-envelope.js";
 import { ReviewLaneReadEnvelopeSchema } from "../lane-read-schema.js";
 import type { KernelRegistry } from "../../../lib/kernel/index.js";

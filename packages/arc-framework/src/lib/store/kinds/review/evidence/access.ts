@@ -5,7 +5,7 @@ import type { ReviewEvidencePort } from "../../../../../scripts/review-gate/core
 import { createReviewFactAccess, reviewFactListingError } from "../fact-access.js";
 import { ReviewEvidenceSchema, type ReviewEvidence } from "./schema.js";
 import { createReviewOutcomePort } from "../outcome/access.js";
-import { composeReviewDispositionRecord } from "./composed-record.js";
+import { composeReviewDispositionRecord, reviewEvidenceLineageRefusal } from "./composed-record.js";
 
 /** Open typed evidence access on the supplied backend. */
 export function createReviewEvidencePort(store: Store, owner: OwnerIdentity): ReviewEvidencePort {
@@ -22,7 +22,8 @@ export function createReviewEvidencePort(store: Store, owner: OwnerIdentity): Re
     const first = evidence[0];
     if (first === undefined) return null;
     const outcome = await outcomes.read(first.result.outcomeKey);
-    if (outcome === null) throw new Error(`Restore outcome ${first.result.outcomeKey} before reading its approved responses.`);
+    if (outcome === null) throw reviewEvidenceLineageRefusal(evidence, "outcome",
+      `Restore outcome ${first.result.outcomeKey} before reading its approved responses.`);
     return composeReviewDispositionRecord(outcome.value, evidence, outcome.reference.owner);
   };
   return { read: access.read, list: access.list,

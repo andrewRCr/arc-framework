@@ -61,7 +61,8 @@ import {
   assessDeliveryTerminalTop,
   classifyDeliveryTerminalDrift,
 } from "../../lib/delivery/terminal-integration.js";
-import { canonicalize } from "../../lib/kernel/index.js";
+import { canonicalize, type CanonicalDigest } from "../../lib/kernel/index.js";
+import type { PublishedIntegrationBoundaryLocus } from "../review-gate/policy/integration-boundary-locus.js";
 import { resolveSlugQuery } from "../../lib/work-unit/lifecycle-query.js";
 import { readSubmissionBoundary } from "../../lib/store/kinds/review/integration-boundary/access.js";
 import { resolveSubmissionBoundaryPath } from "../../lib/store/kinds/review/paths.js";
@@ -127,6 +128,12 @@ import { createLineageReviewComposer } from "./lineage-review-composition.js";
 import { composeCanonicalSettlementPlan } from "./settlement-plan.js";
 import { composeDeliveryCheckpointArm } from "./delivery-checkpoint.js";
 import { rethrowNativeRefusal } from "../../lib/store/native-refusal.js";
+
+function nativePublicationReadiness(boundary: PublishedIntegrationBoundaryLocus): { readinessBinding?: CanonicalDigest | null } {
+  return boundary.schemaVersion === 1 ? {} : {
+    readinessBinding: "readinessBinding" in boundary ? boundary.readinessBinding : null,
+  };
+}
 
 export interface CachedCandidate {
   record: CandidateManagedRecordV1;
@@ -1339,11 +1346,12 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
         candidateSubjectDigest: value.effective.recognizedTarget.subject.subjectDigest,
         reservation: publicationBoundary.reservation,
         terminus: publicationBoundary.terminus,
+        ...nativePublicationReadiness(publicationBoundary),
         changeRequest: {
           repository: changeRequest.targetRef.repository,
           pullRequest: changeRequest.candidate.number,
         },
-      });
+      }, publicationBoundary.schemaVersion);
       let discharge;
       if (delivery.status === "ready") {
         discharge = {

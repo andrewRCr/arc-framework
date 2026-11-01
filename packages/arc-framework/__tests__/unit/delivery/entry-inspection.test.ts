@@ -153,7 +153,7 @@ function publicContinuationFixture() {
       },
     },
     changeRequest: null,
-  });
+  }, 1);
   const boundary = projectCorrectiveDeliveryStatusBoundary({
     workUnit: plan.workUnitId,
     candidateId,
@@ -380,7 +380,7 @@ describe("delivery entry inspection", () => {
       candidateSubjectDigest: `sha256:${"b".repeat(64)}`,
       reservation: null,
       changeRequest: null,
-    });
+    }, 1);
     await expect(inspectDeliveryEntry({
       workUnitId: plan.workUnitId,
       entryMode: "integrating",
@@ -432,7 +432,7 @@ describe("delivery entry inspection", () => {
         },
       },
       changeRequest: null,
-    });
+    }, 1);
     const boundary = projectCorrectiveDeliveryStatusBoundary({
       workUnit: plan.workUnitId,
       candidateId,
@@ -688,7 +688,7 @@ describe("delivery entry inspection", () => {
         },
       },
       changeRequest: null,
-    });
+    }, 1);
 
     await expect(inspectDeliveryCandidateRenewal(
       plan.workUnitId,

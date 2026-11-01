@@ -128,6 +128,29 @@ it("records a delivery status judgment before pure admission and relays its exac
   expect(lifecycleSuccess(await h.reference.store.version())).toBe(version);
 }, 60_000);
 
+it("discharges an authorless retained member decision on status re-entry", async () => {
+  const h = await fixture();
+  const status = await h.status();
+  if (status.nextAction !== "review-local-prepare") throw new Error(JSON.stringify(status));
+  const vehicle = status.action.vehicle;
+  if (vehicle.kind !== "delivery-member") throw new Error("Expected delivery member");
+  const decisions = createReviewDecisionPort(h.reference.store, h.primary.reference.owner);
+  const recorded = await decisions.create({ schemaVersion: 1, lane: "standard", subject: { lineage: {
+    kind: "delivery-member", planId: vehicle.planId, deliverableId: vehicle.deliverableId, workUnitId: vehicle.workUnitId },
+  headSha: vehicle.head, subjectDigest: null }, choice: { kind: "terminus" }, decidedBy: null, decidedAt: null,
+  basis: { passCount: 0 } });
+  const snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", h.access);
+  await writeSubmissionBoundary(h.cwd, { ...projectPublicationBoundary({ workUnit: "example", branch: "member-2",
+    candidateId: h.boundary.candidateId, candidateSubjectDigest: h.boundary.candidateSubjectDigest,
+    reservation: h.boundary.reservation, readinessBinding: null,
+    changeRequest: { repository: "owner/repo", pullRequest: 42 } }, 2), deliveryReviewTermini: [
+    { vehicle, terminus: reviewDecisionKey(recorded.value) }] }, snapshot.version, h.access);
+  const before = await h.reference.store.version();
+  expect(await h.workUnitStatus()).toMatchObject({ nextAction: "review-local-prepare", action: { vehicle: {
+    deliverableId: h.plan.members[1]!.deliverableId } } });
+  expect(await h.reference.store.version()).toEqual(before);
+}, 60_000);
+
 it.each(["reference", "raw"] as const)("reopens the queried converged member with one stored additional decision and an executable %s continuation", async relay => {
   const h = await fixture();
   const precedingProducerId = await completeMember(h, "member-one");

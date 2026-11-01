@@ -10,6 +10,7 @@ import { batchLifecycleWrites, recordPut } from "../../../../src/lib/store/lifec
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { ProjectIdentityError } from "../../../../src/lib/store/project-identity.js";
 import { describeRecordConflicts } from "../../../../src/lib/store/conflict-diagnostics.js";
+import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const root = "/tree", head = "a".repeat(40);
@@ -54,6 +55,25 @@ async function fixture(options: { state?: "Active" | "Integrating" | "Shipped"; 
 it("accepts an Integrating stored work unit on its opaque adopted branch without projected metadata", async () => {
   const h = await fixture();
   expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready", diagnostics: [] });
+});
+
+it.each(["missing", "errand", "unreadable"] as const)("reports a %s work-unit read with its exact remedy and is ready after repair", async fault => {
+  const h = await fixture(), lookup = h.store.lookup.bind(h.store), read = h.store.read.bind(h.store);
+  const refusal = StoreRefusalSchema.parse({ ...(fault === "missing"
+    ? { code: "not-found", class: "recoverable", reference: h.primary.reference }
+    : { code: "namespace-corrupt", class: "terminal", namespace: "work-item" }),
+    condition: "Work-unit metadata is unavailable.", remedy: { text: "Restore work-unit metadata, then retry." } });
+  if (fault !== "unreadable") h.store.lookup = async () => fault === "missing" ? { status: "refused", refusal }
+    : { status: "ok", result: { reference: recordReferences["work-item/record"](h.primary.reference.owner) } };
+  else h.store.read = async input => input.reference.kind === "work-item/meta" ? { status: "refused", refusal } : read(input);
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid", payload: { facts: [{
+    code: fault === "missing" ? "missing-artifact" : fault === "errand" ? "malformed-artifact" : "unreadable-artifact",
+    path: "work-item/meta:example", message: fault === "errand"
+      ? "`example` resolves to an Errand rather than a work unit. Use the Errand verb for `example`, or name a work unit."
+      : `${refusal.condition} ${refusal.remedy.text}` }] } });
+  h.store.lookup = lookup;
+  h.store.read = read;
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
 });
 
 it("refuses a clone holding no project ID with the port's typed failure, and is ready once the clone holds it", async () => {

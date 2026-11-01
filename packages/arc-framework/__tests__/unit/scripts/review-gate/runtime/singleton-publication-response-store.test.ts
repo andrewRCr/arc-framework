@@ -48,7 +48,7 @@ it("advances the selected generation's publication boundary after its slug is re
   const boundaryReference = recordReferences["review/integration-boundary"](first.reference.owner);
   const boundary = projectPublicationBoundary({ workUnit: "example", branch: "feat/example",
     candidateId: response.candidateId, candidateSubjectDigest: response.oldTarget.subject.subjectDigest,
-    reservation: null, changeRequest: null });
+    reservation: null, changeRequest: null }, 1);
   lifecycleSuccess(await store.write({ action: "put", reference: boundaryReference, expected: null,
     content: JSON.stringify(boundary), provenance: { verb: "attest", lifecycleAction: "attest" } }));
   lifecycleSuccess(await store.write({ action: "remove", reference: first.reference, expected: first.version,

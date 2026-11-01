@@ -8,6 +8,7 @@ import { deliveryStackPlanForWorkUnitFixture } from "../../../../fixtures/delive
 import { createPreBindingDeliveryReviewTargetDependencies, createPrePublicationCompositionDependencies } from "../../../../../src/scripts/review-gate/policy/pre-publication-composition.js";
 
 import { createProjectIdentityReader, ProjectIdentityError } from "../../../../../src/lib/store/project-identity.js";
+import { ReviewOwnerSelectionError } from "../../../../../src/lib/store/kinds/review/errors.js";
 
 it("uses the linked work branch as the originating top without a projected meta", async ({ onTestFinished }) => {
   const harness = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -63,5 +64,25 @@ it("preserves the identity refusal while resolving Owner authority and authorize
     projectId: createProjectIdentityReader(harness.store) });
   await expect(dependencies().readOwnerTerminusAuthority("example")).rejects.toBeInstanceOf(ProjectIdentityError);
   await harness.seedProject(projectId);
+  expect(await dependencies().readOwnerTerminusAuthority("example")).toEqual({ status: "authorized", ownerIdentity: "test-user" });
+});
+
+it("preserves native owner selection failure and authorizes after the linked primary is repaired", async ({ onTestFinished }) => {
+  const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
+  await h.seedProject(projectId);
+  const primary = await h.seedMeta("example", { branch: null }, { kind: "active" }, {
+    branches: [{ repository: projectId, ref: "opaque", linkedAs: "adopted", excluded: [] }],
+  });
+  const checkout = await createReviewCheckout(h);
+  onTestFinished(checkout.cleanup);
+  await checkout.occupy("opaque", { kind: "work-unit", name: "example" });
+  const read = h.store.read.bind(h.store);
+  h.store.read = async input => input.reference.kind === "work-item/meta"
+    ? { status: "refused", refusal: { code: "not-found", class: "recoverable", reference: input.reference,
+      condition: "Linked metadata is missing.", remedy: { text: "Restore linked metadata." } } } : read(input);
+  const dependencies = () => createPrePublicationCompositionDependencies({ ...checkout, workItem: primary.reference.owner,
+    projectId: createProjectIdentityReader(h.store) });
+  await expect(dependencies().readOwnerTerminusAuthority("example")).rejects.toBeInstanceOf(ReviewOwnerSelectionError);
+  h.store.read = read;
   expect(await dependencies().readOwnerTerminusAuthority("example")).toEqual({ status: "authorized", ownerIdentity: "test-user" });
 });

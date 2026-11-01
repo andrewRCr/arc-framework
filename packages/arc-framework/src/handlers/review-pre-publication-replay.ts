@@ -83,7 +83,8 @@ function nativeReplayLane(judgment: ReplayLaneJudgment, retainGrants: boolean) {
     ...(additionalPassAuthorization === undefined ? {} : { additionalPassAuthorization }) };
 }
 
-function nativeReplayLanes(input: unknown, retainGrants: boolean): PrePublicationReplayInputV2["lanes"] {
+/** Project the native token's call inputs, retaining only grants no subject has recorded when requested. */
+export function nativeReplayLanes(input: unknown, retainGrants: boolean): PrePublicationReplayInputV2["lanes"] {
   if (input === undefined) return undefined;
   const supplied = PrePublicationLaneJudgmentsSchema.parse(input);
   const lanes: NonNullable<PrePublicationReplayInputV2["lanes"]> = {};

@@ -5,6 +5,39 @@ import { IntegrationBoundaryLocusV2Schema } from "../../../../../../src/lib/stor
 import { boundaryLoci } from "../../../../../fixtures/review-boundary.js";
 import { mappingBoundaryFixture } from "../../../../../fixtures/review-mapping-boundary.js";
 import { assertReviewMapping } from "../../../../../helpers/store/assert-review-mapping.js";
+import { IntegrationBoundaryLocusSchema } from "../../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+import { decodePrePublicationReplayV2, replayTokenFromAction } from "../../../../../../src/scripts/review-gate/policy/pre-publication-replay.js";
+import { createReviewHarness } from "../../../../../helpers/store/review-harness.js";
+import { createReviewDecisionPort } from "../../../../../../src/lib/store/kinds/review/decision/access.js";
+import { resolveNativeExtraPassJudgment } from "../../../../../../src/scripts/review-gate/runtime/native-extra-pass.js";
+
+it("retains a headless frontline ceiling as a call input until its native head is selected", async () => {
+  const { input, boundary } = mappingBoundaryFixture();
+  const ceilingOverride = { exhaustedPassCount: 2, nextPass: 3 };
+  const replay = { candidateId: boundary.candidateId, candidateSubjectDigest: boundary.candidateSubjectDigest,
+    lanes: { frontline: { ceilingOverride } } };
+  const token = Buffer.from(JSON.stringify(replay)).toString("base64url");
+  input.candidates[0]!.boundary = JSON.stringify(IntegrationBoundaryLocusSchema.parse({ ...boundary,
+    nextAction: { kind: "continue-pre-publication-review", command: `arc review pre-publication example --resume ${token}`,
+      interactionText: "Resume review." } }));
+  const mapped = mapReviewRecords(input);
+  expect(mapped.records.filter(record => record.reference.kind === "review/decision")).toEqual([]);
+  const projected = IntegrationBoundaryLocusV2Schema.parse(JSON.parse(mapped.records.find(
+    record => record.reference.kind === "review/integration-boundary")!.contents[0]!));
+  const retained = decodePrePublicationReplayV2(replayTokenFromAction(projected.nextAction.command, "example"));
+  expect(retained.lanes).toEqual({ frontline: { ceilingOverride } });
+  const h = createReviewHarness(), primary = await h.seedMeta("example");
+  const decisions = createReviewDecisionPort(h.store, primary.reference.owner);
+  const headSha = "a".repeat(40);
+  const invocation = { facts: { decisions, readProjectId: async () => input.projectId }, repositoryId: input.projectId,
+    subject: { lineage: { kind: "candidate" as const, candidateId: boundary.candidateId },
+      headSha, subjectDigest: boundary.candidateSubjectDigest }, lane: "frontline" as const, completedPasses: 2,
+    actor: "test-user", now: "2026-11-01T12:00:00Z", policyTarget: { repository: "owner/repo", pullRequest: null, headSha } };
+  const resolved = await resolveNativeExtraPassJudgment({ ...invocation, judgment: retained.lanes?.frontline });
+  expect(resolved.judgment?.ceilingOverride?.decisionKey).toMatch(/^sha256:/u);
+  expect(await decisions.list()).toMatchObject({ status: "complete", records: [{ value: { subject: { headSha } } }] });
+  expect(await resolveNativeExtraPassJudgment(invocation)).toEqual(resolved);
+});
 
 it.each(boundaryLoci)("maps a native %s boundary to its current strict variant", async (locus) => {
   const { input, boundary } = mappingBoundaryFixture(locus);

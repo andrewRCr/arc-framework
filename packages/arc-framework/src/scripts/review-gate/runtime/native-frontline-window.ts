@@ -1,5 +1,5 @@
 /** Immutable skip decisions close the selected vehicle's opening frontline window. */
-import { readConfiguredIdentity } from "../../../lib/git/identity.js";
+import { resolveIdentity } from "../../../lib/git/identity.js";
 import { readCandidateRecord } from "../../../lib/store/kinds/review/candidate/access.js";
 import { ReviewDecisionSchema } from "../../../lib/store/kinds/review/decision/schema.js";
 import { reviewDecisionKey } from "../../../lib/store/kinds/review/decision/key.js";
@@ -32,8 +32,8 @@ export async function recordNativeFrontlineSkip(input: {
   if (await input.facts.readProjectId() !== input.repositoryId) {
     throw new Error("Restore the review subject's project identity before recording its frontline skip.");
   }
-  const decidedBy = await readConfiguredIdentity(input.invocation.exec, input.invocation.cwd);
-  if (decidedBy === null) throw new Error("Set git config --local arc.identity <identity>, then retry the frontline skip.");
+  const decidedBy = await resolveIdentity({ exec: (command, args, options) =>
+    input.invocation.exec(command, args, { ...options, cwd: input.invocation.cwd }) });
   let subjectDigest = input.targetDigest;
   if (input.lineage.kind === "candidate") {
     const owner = requireReviewWorkItem(input.invocation.workItem, "A native frontline skip");

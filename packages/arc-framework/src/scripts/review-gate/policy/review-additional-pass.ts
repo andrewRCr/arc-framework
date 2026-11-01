@@ -2,7 +2,6 @@
 
 import { z } from "zod";
 import type { ReviewAttempt } from "./review-policy-attempt.js";
-import type { ReviewPolicyRequest } from "./review-policy-driver.js";
 
 import { GitObjectIdSchema, ReviewIdentifierSchema, ReviewCanonicalDigestSchema } from "../core/gate-contract-v2-schema.js";
 import { CompletedReviewPassCountSchema, ReviewPassSchema } from "../core/review-pass.js";
@@ -49,8 +48,14 @@ export function verifiedAdditionalPassPredecessor(request: {
     ? terminal : undefined;
 }
 
-type FixCheckSuccessorRequest = Pick<ReviewPolicyRequest, "lane" | "attempts" | "verifiedTerminalSignal"
-  | "standardReview" | "nextPassContext" | "chosenCoverage">;
+type FixCheckSuccessorRequest = {
+  lane: "frontline" | "standard";
+  attempts: readonly ReviewAttempt[];
+  verifiedTerminalSignal?: { reviewOperationId: string; effectiveCoverage: string | null; materialFix: boolean };
+  standardReview: { retrigger: string };
+  nextPassContext?: { convergence: string; responseDue: boolean; incremental: unknown };
+  chosenCoverage?: "complete" | "incremental";
+};
 
 /** Recognize a verified clean incremental result that still requires its complete final successor. */
 export function isCleanFixCheckCompleteSuccessor(request: FixCheckSuccessorRequest): boolean {

@@ -18,7 +18,7 @@ export interface ReviewMappingSources {
   discarded: Map<string, string>;
   operations: Map<string, ReviewOperationState>;
   operationVersions: Map<string, number>;
-  frontline: Map<string, { operationId: string; value: unknown }>;
+  frontline: Map<string, { source: string; operationId: string; value: unknown }>;
   receipts: { source: string; receipts: ReviewReceiptV2[] }[];
 }
 
@@ -43,7 +43,7 @@ function indexFrontline(source: Extract<ReviewMappingSource, { kind: "gate" }>, 
   const value = decodeReviewMappingSource(source);
   const record = FrontlineIdentityHeaderSchema.parse(value);
   if (record.operationId !== record.record.operationId) throw new Error(`Outcome identity mismatch: ${source.source}`);
-  if (record.record.repositoryId === projectId) index.frontline.set(source.source, { operationId: record.operationId, value });
+  if (record.record.repositoryId === projectId) index.frontline.set(source.source, { source: source.source, operationId: record.operationId, value });
   else index.discarded.set(source.source, "Record names another repository ID.");
 }
 
@@ -52,7 +52,7 @@ export function mappingFrontlineOutcome(sources: ReviewMappingSources, operation
   const matches = [...sources.frontline.values()].filter((record) => record.operationId === operationId);
   const match = matches[0];
   if (matches.length !== 1 || match === undefined) throw new Error(`Expected one frontline outcome for ${operationId}.`);
-  return FrontlineOutcomeStoreRecordSchema.parse(match.value).record;
+  return mapReviewSource(match.source, () => FrontlineOutcomeStoreRecordSchema.parse(match.value).record);
 }
 
 function indexReceipts(source: Extract<ReviewMappingSource, { kind: "gate" }>, projectId: string,

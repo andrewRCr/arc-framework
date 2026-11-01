@@ -1,7 +1,6 @@
 /** Bind Owner authorization and native extra-pass judgments to the selected pre-publication invocation. */
-import { isOffBranchStoreRefusal } from "../../../lib/store/refusal-error.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 import { SlugSchema, type CanonicalDigest } from "../../../lib/kernel/index.js";
-import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
 import type { ReviewInFlightPort } from "../core/ports.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import type { ReviewInvocationInput } from "../runtime/invocation.js";
@@ -10,7 +9,7 @@ import { prepareNativeReviewTerminus, type PreparedNativeReviewTerminus } from "
 import { resolveNativeReviewTerminus } from "../runtime/native-terminus.js";
 import type { ReviewLaneJudgment, ReviewPolicyBoundRequest } from "./review-policy-driver.js";
 import type { NativeOwnerAcceptedReviewTerminus } from "./review-terminus.js";
-import type { OwnerTerminusAuthorityRead, ReviewLane, PrePublicationCompositionDependencies } from "./pre-publication-request.js";
+import type { OwnerTerminusAuthorityRead, ReviewLane, PrePublicationCompositionDependencies } from "./pre-publication-contract.js";
 
 /** Preserve Owner-only terminus authorization while recording ordinary judgments under the active identity. */
 export function createPrePublicationOwnerJudgments(input: ReviewInvocationInput, store: ReviewInFlightPort):
@@ -20,7 +19,7 @@ export function createPrePublicationOwnerJudgments(input: ReviewInvocationInput,
     let live: Awaited<ReturnType<typeof readLocalReviewLiveContext>>;
     try { live = await readLocalReviewLiveContext(input); }
     catch (error) {
-      if (error instanceof ProjectIdentityError || isOffBranchStoreRefusal(error)) throw error;
+      rethrowNativeRefusal(error);
       return { status: "refused", reason: `The Work Unit Owner could not be resolved: ${error instanceof Error ? error.message : String(error)}` };
     }
     if (live.context.workUnit?.identity !== name) {
@@ -54,7 +53,6 @@ export function createPrePublicationOwnerJudgments(input: ReviewInvocationInput,
   }) };
 }
 
-
 /** Preserve stored provenance unless this call supplies a newly authorized Owner judgment. */
 export function projectPrePublicationTerminus(input: {
   lane: ReviewLane; judgment?: ReviewLaneJudgment; authority: OwnerTerminusAuthorityRead | null;
@@ -66,7 +64,6 @@ export function projectPrePublicationTerminus(input: {
   return { terminus: { schemaVersion: 1, semanticsVersion: "review-terminus/v1", kind: "owner-accepted", lane: "standard",
     acceptedBy: input.authority.ownerIdentity, completedPasses: input.completedPasses } };
 }
-
 
 /** Prepare native persistence only for the fresh judgment whose existing Owner check authorized it. */
 export async function preparePrePublicationTerminusDecision(input: {

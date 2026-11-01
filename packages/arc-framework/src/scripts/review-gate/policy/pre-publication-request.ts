@@ -1,10 +1,8 @@
 /** Lane policy-request composition for the typed pre-publication review procedure. */
-import type { PreparedNativeReviewTerminus } from "../runtime/native-terminus-write.js";
+
 import { projectPrePublicationTerminus, preparePrePublicationTerminusDecision } from "./pre-publication-owner-judgments.js";
 import { composePrePublicationLaneJudgment, withoutExtraPassGrants, applyPrePublicationExtraPassJudgment } from "./pre-publication-lane-judgments.js";
 import { deriveReviewNextPassContextFromAttempts, latestCompletedLaneAttempt } from "./review-next-pass.js";
-import type { PerformedResponseProofInput } from "./performed-response-proof.js";
-
 
 import { z } from "zod";
 import { canonicalize, type CanonicalDigest } from "../../../lib/kernel/canonical/canonical-json.js";
@@ -12,26 +10,18 @@ import { canonicalize, type CanonicalDigest } from "../../../lib/kernel/canonica
 import { currentApprovedDispositionNode } from "../core/advisory-records.js";
 import { validateApprovedDispositionRecordForResult } from
   "../core/review-result-disposition.js";
-import type { CandidateConvergenceProjection, CandidateSupersessionAncestor } from
-  "../../../lib/work-unit/candidate-attestation.js";
+import type { CandidateSupersessionAncestor } from "../../../lib/work-unit/candidate-attestation.js";
 import type { ReviewMethodActivity, ReviewAssuranceInput } from "./assurance-schema.js";
-import type { LanePolicyConfig } from "./lane-policy-config.js";
+
 import type { LanePolicyAttempt, LaneProgressProjection } from "../lane-progress.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
-import type { ReviewScopeMode } from "../core/review-primitives.js";
+
 import { ReviewResponseSettlementSourceSchema } from "../core/response-plan-schema.js";
 import { bindReviewSourceReference } from "../core/review-source-reference.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import { laneSubjectOwnerMatches } from "../core/lane-admission.js";
-import type {
-  ApprovedDispositionRecordReader,
-  ReviewResultReader,
-} from "../core/ports.js";
-import type { ReviewPrePublicationRefusalCode } from "../core/review-command-envelope.js";
-import type {
-  PreBindingDeliveryReviewTarget,
-  PreBindingDeliveryReviewTargets,
-} from "./pre-publication-delivery-targets.js";
+
+import type { PreBindingDeliveryReviewTarget } from "./pre-publication-delivery-targets.js";
 import {
   PrePublicationReviewRequestSchema,
   type PrePublicationReviewRequest,
@@ -41,6 +31,7 @@ import {
   resolveReviewPolicy,
   ReviewLaneJudgmentSchema,
   type ReviewPolicyBoundRequest,
+  type ReviewPolicyRequest,
   type ReviewLaneJudgment,
 } from "./review-policy-driver.js";
 import {
@@ -49,17 +40,22 @@ import {
   readIncrementalPredecessorResponseEvidence,
   ReviewProducerScopeMismatchError,
 } from "./review-policy-evidence.js";
-import type { NativeOwnerAcceptedReviewTerminus, ResolvedOwnerAcceptedReviewTerminus } from "./review-terminus.js";
+import type { ResolvedOwnerAcceptedReviewTerminus } from "./review-terminus.js";
 import { projectStandardReviewObligation } from "./standard-review-projection.js";
 import { resolveReviewRouting } from "./routing.js";
-import type {
-  PublishedIntegrationBoundaryLocus,
-  StandardReviewReservationTarget,
-  StandardReviewReservationV1,
-} from "./integration-boundary-locus.js";
-import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
+import type { StandardReviewReservationV1 } from "./integration-boundary-locus.js";
+
 import type { ReviewResult } from "../core/review-result.js";
-import type { IncrementalPredecessorApplicability } from "./incremental-coverage-basis.js";
+
+import type {
+  ReviewLane, ReviewPolicyTarget, CandidateRead, PrePublicationCompositionDependencies,
+  PrePublicationCompositionInput, PrePublicationComposition,
+} from "./pre-publication-contract.js";
+export type {
+  PrePublicationSelfReviewState, ReviewLane, ReviewPolicyTarget, CandidateRead, AssuranceRead, TargetRead,
+  ReservationTargetRead, ImmutableTargetRead, OwnerTerminusAuthorityRead, PrePublicationCompositionDependencies,
+  PrePublicationCompositionInput, PrePublicationComposition,
+} from "./pre-publication-contract.js";
 
 /** Per-lane scope, invocation, ceiling, and Owner-terminus judgment, keyed by lane. */
 export const PrePublicationLaneJudgmentsSchema = z.strictObject({
@@ -123,183 +119,6 @@ export function consumeFrontlineCeilingOverride(input: unknown): unknown {
   delete frontline.ceilingOverride;
   return { ...parsed.data, frontline };
 }
-
-/** The author self-review states the procedure distinguishes. */
-export type PrePublicationSelfReviewState = PrePublicationReviewRequest["selfReview"];
-/** The two lanes a pre-publication request composes. */
-export type ReviewLane = PrePublicationReviewRequest["frontline"]["lane"];
-/**
- * The target both lanes route against — repository, pull request, and head.
- *
- * Lane routing needs no more than this. It is not the exact-target identity the review operations
- * themselves bind to; that is {@link ImmutableTargetRead}, composed separately below.
- */
-export type ReviewPolicyTarget = PrePublicationReviewRequest["frontline"]["target"];
-
-export type CandidateRead =
-  | { status: "missing" }
-  | { status: "blocked"; reason: string }
-  | ({
-    status: "current";
-    candidateId: CanonicalDigest;
-    headSha: string;
-    subjectDigest: CanonicalDigest;
-    implementationChanged: boolean;
-    lineageHeadShas: readonly string[];
-    supersessionAncestors?: readonly CandidateSupersessionAncestor[];
-    /** Exact originating target retained only while an approved fix awaits response settlement. */
-    pendingReviewTarget?: ReviewTarget;
-    /** Effective current Candidate head while the reviewed target remains pinned for response. */
-    pendingFixRootHeadSha?: string;
-  } & CandidateConvergenceProjection);
-
-export type AssuranceRead =
-  | { status: "resolved"; assurance: ReviewAssuranceInput; activity: ReviewMethodActivity }
-  | { status: "refused"; reason: string };
-
-export type TargetRead =
-  | { status: "resolved"; target: ReviewPolicyTarget }
-  | { status: "refused"; reason: string };
-
-/** Exact reservation marker selected from current singleton or delivery authority. */
-export type ReservationTargetRead =
-  | { status: "resolved"; target: StandardReviewReservationTarget }
-  | { status: "refused"; reason: string };
-
-/**
- * The immutable review target, or why the checkout cannot produce one.
- *
- * Unavailability is reported rather than refused: the procedure routes to work that needs no exact
- * target — self-review, convergence verification, submission — and refusing all of it because a
- * working tree is dirty would gate the whole boundary on a condition only some of it has.
- */
-export type ImmutableTargetRead =
-  | { status: "resolved"; target: ReviewTarget }
-  | { status: "unavailable"; reason: string };
-
-/** Live identity/ownership result used to bind an Owner-accepted terminus. */
-export type OwnerTerminusAuthorityRead =
-  | { status: "authorized"; ownerIdentity: string }
-  | { status: "refused"; reason: string };
-
-/** Repository reads the composition needs, each owned by its production binder. */
-export interface PrePublicationCompositionDependencies {
-  /** Selected backend context; this is absent from caller-owned lane judgments. */
-  readonly stateOffBranch?: true;
-  readCandidate(workUnit: string): Promise<CandidateRead>;
-  readAssurance(workUnit: string): Promise<AssuranceRead>;
-  resolveTarget(headSha: string): Promise<TargetRead>;
-  readReservationTarget(
-    workUnit: string,
-    singleton: { repository: string; headSha: string },
-  ): Promise<ReservationTargetRead>;
-  readDeliveryReviewTargets(workUnit: string): Promise<PreBindingDeliveryReviewTargets>;
-  deriveImmutableTarget(headSha: string): Promise<ImmutableTargetRead>;
-  readOwnerTerminusAuthority(workUnit: string): Promise<OwnerTerminusAuthorityRead>;
-  prepareNativeTerminusDecision?(input: {
-    subject: { lineage: LaneSubjectLineage; headSha: string | null; subjectDigest: CanonicalDigest | null };
-    acceptedBy: string; completedPasses: number;
-  }): Promise<PreparedNativeReviewTerminus>;
-  resolveNativeTerminus?(input: {
-    decisionKey?: CanonicalDigest;
-    carriedBoundary?: PublishedIntegrationBoundaryLocus;
-    subject: { lineage: LaneSubjectLineage; headSha: string; subjectDigest: CanonicalDigest | null };
-  }): Promise<NativeOwnerAcceptedReviewTerminus | undefined>;
-  resolveExtraPassJudgment?(input: {
-    repositoryId?: string; subject: { lineage: LaneSubjectLineage; headSha: string; subjectDigest: CanonicalDigest | null };
-    policyTarget: ReviewPolicyTarget; lane: ReviewLane; completedPasses: number; judgment?: ReviewLaneJudgment;
-  }): Promise<ReviewLaneJudgment | undefined>;
-  readLaneProgress(
-    lane: ReviewLane,
-    headSha: string,
-    lineageHeadShas: readonly string[],
-    lineage?: LaneSubjectLineage,
-    supersessionAncestors?: readonly CandidateSupersessionAncestor[],
-  ): Promise<LaneProgressProjection>;
-  readSingletonFrontlinePhaseClosed?(
-    candidateId: CanonicalDigest,
-    ancestors: readonly CandidateSupersessionAncestor[],
-    headSha?: string,
-  ): Promise<boolean>;
-  readLanePolicy(lane: ReviewLane): Promise<LanePolicyConfig>;
-  resultReader: ReviewResultReader;
-  dispositionStore: ApprovedDispositionRecordReader;
-  readResponsePerformance(predecessor: ReviewResult): Promise<LaneResponsePerformance | null>;
-  readCandidateCorrectionProof?(workUnit: string): Promise<PerformedResponseProofInput["candidateProof"]>;
-  confirmIncrementalApplicability(
-    workUnit: string,
-    predecessor: ReviewResult,
-    current: ReviewResult,
-    policyTarget: ReviewPolicyTarget,
-  ): Promise<IncrementalPredecessorApplicability>;
-  confirmPriorProducerApplicability(
-    workUnit: string,
-    predecessor: ReviewResult,
-    currentTarget: ReviewTarget,
-    currentLineage: LaneSubjectLineage,
-    policyTarget: ReviewPolicyTarget,
-  ): Promise<IncrementalPredecessorApplicability>;
-}
-
-export interface PrePublicationCompositionInput {
-  workUnit: string;
-  /** The author's report that an applicable self-review ran; applicability stays repository-owned. */
-  selfReview?: Extract<PrePublicationSelfReviewState, "settled">;
-  /**
-   * The author's change-set routing facts; absent, the change set routes as unestablished. Only the
-   * facts below are read — the work unit's `Class` and effective method activity are supplied from
-   * the repository and cannot be overridden here.
-   */
-  changeSet?: unknown;
-  /**
-   * Per-lane scope, invocation, ceiling, and Owner-terminus judgment. Unlike the
-   * change-set facts, these refuse rather than normalize: dropping a malformed bounded scope
-   * silently reviews the whole target, dropping an invocation changes the selected carrier, and
-   * dropping a malformed ceiling override silently re-blocks a pass the operator already approved.
-   */
-  lanes?: unknown;
-  /** Exact frontline head to which a caller-carried one-pass ceiling approval remains bound. */
-  frontlineCeilingHeadSha?: string;
-}
-
-export type PrePublicationComposition =
-  | {
-    status: "composed";
-    request: PrePublicationReviewRequest;
-    /** Composition facts the envelope cannot carry and a caller must not lose. */
-    advisories: readonly string[];
-    terminusDecision?: PreparedNativeReviewTerminus;
-    /** Independently observed current root head for an approved, pending Candidate fix. */
-    pendingFixRootHeadSha?: string;
-    /** The delivery member targets this call's selection examined, in plan order. */
-    examinedTargets?: readonly ReviewTarget[];
-  }
-  | {
-    status: "refused";
-    reason: string;
-    code?: Extract<ReviewPrePublicationRefusalCode, "candidate-unexplained-delta" | "scope-judgment-required">;
-    scopeMismatch?: {
-      lane: ReviewLane;
-      observedScope: ReviewScopeMode;
-      selectedScope: ReviewScopeMode;
-      target: ReviewTarget;
-    };
-    /** The carried Owner terminus a native scope refusal records before its call-input continuation. */
-    terminusDecision?: PreparedNativeReviewTerminus;
-    /** A delivery plan refused before selecting its member, so its continuation keeps grants no subject yet binds. */
-    retainsGrants?: true;
-    /** The delivery member targets this call's selection examined, in plan order, through the refusing one. */
-    examinedTargets?: readonly ReviewTarget[];
-    pendingReview?: {
-      lane: ReviewLane;
-      operationId: string;
-      sourceId: string;
-      kind: "local" | "hosted" | "frontline";
-      request: { schemaVersion: 1; operationId: string }
-        | { schemaVersion: 1; handle: NonNullable<NonNullable<LanePolicyAttempt["hosted"]>["handle"]> }
-        | null;
-    };
-  };
 
 /** Keep post-publication source routing on the ordered reservation rather than live config order. */
 export function applyCarriedStandardReviewReservation(
@@ -636,6 +455,71 @@ function standardNextPassProgress(progress: LaneProgressProjection) {
   return { completePasses: progress.completePasses, predecessorOperationId: earlier?.attemptId };
 }
 
+interface LaneCompositionState {
+  advisories: string[];
+  terminalAttempts: Partial<Record<ReviewLane, LanePolicyAttempt>>;
+  pendingSources: Partial<Record<ReviewLane, z.infer<typeof ReviewResponseSettlementSourceSchema> | null>>;
+  judgedPasses: Partial<Record<ReviewLane, number>>;
+}
+
+type DeliveryMemberSelection = {
+  exactTarget: ReviewTarget;
+  policyTarget: ReviewPolicyTarget;
+  lineage: LaneSubjectLineage;
+  frontline: ReviewPolicyRequest;
+  vehicle: PreBindingDeliveryReviewTarget["vehicle"];
+};
+type FrontlineFailureContext = [ReviewPolicyTarget, ReviewTarget | null, readonly string[], LaneSubjectLineage?];
+type DeliverySelectionResult = {
+  advisories: string[];
+  laneState: LaneCompositionState;
+  examinedTargets: ReviewTarget[];
+} & ({ kind: "selected"; selected: DeliveryMemberSelection } | { kind: "empty" }
+  | { kind: "failed"; error: unknown; context: FrontlineFailureContext; selecting: boolean });
+
+async function selectDeliveryReviewMember(input: {
+  targets: readonly PreBindingDeliveryReviewTarget[];
+  repository: string;
+  native: boolean;
+  judgment: ReviewLaneJudgment | undefined;
+  composeFrontline(target: ReviewPolicyTarget, exact: ReviewTarget, lineage: LaneSubjectLineage,
+    judgment: ReviewLaneJudgment | undefined, state: LaneCompositionState): Promise<ReviewPolicyRequest>;
+}): Promise<DeliverySelectionResult> {
+  const laneState: LaneCompositionState = { advisories: [], terminalAttempts: {}, pendingSources: {}, judgedPasses: {} };
+  const examinedTargets: ReviewTarget[] = [];
+  const result = { advisories: laneState.advisories, laneState, examinedTargets };
+  const selectionJudgment = input.native ? withoutExtraPassGrants(input.judgment) : input.judgment;
+  let selected: DeliveryMemberSelection | null = null;
+  // Stored decisions select the member before caller grants bind to that one exact subject.
+  for (const member of input.targets) {
+    examinedTargets.push(member.target);
+    const policyTarget = { repository: input.repository, pullRequest: null, headSha: member.target.headSha };
+    const lineage: LaneSubjectLineage = { kind: "delivery-member", planId: member.vehicle.planId,
+      deliverableId: member.vehicle.deliverableId, workUnitId: member.vehicle.workUnitId };
+    let frontline: ReviewPolicyRequest;
+    try {
+      frontline = await input.composeFrontline(policyTarget, member.target, lineage, selectionJudgment, laneState);
+    } catch (error) {
+      return { ...result, kind: "failed", error,
+        context: [policyTarget, member.target, [member.target.headSha], lineage], selecting: input.native };
+    }
+    selected = { exactTarget: member.target, policyTarget, lineage, frontline, vehicle: member.vehicle };
+    const state = resolveReviewPolicy(frontline).state;
+    if (laneState.pendingSources.frontline !== null || (state !== "skipped" && state !== "pass-complete")) break;
+  }
+  if (selected === null) return { ...result, kind: "empty" };
+  if (input.native) {
+    try {
+      selected.frontline = await input.composeFrontline(selected.policyTarget, selected.exactTarget,
+        selected.lineage, input.judgment, { ...laneState, advisories: [] });
+    } catch (error) {
+      return { ...result, kind: "failed", error, context: [selected.policyTarget, selected.exactTarget,
+        [selected.exactTarget.headSha], selected.lineage], selecting: false };
+    }
+  }
+  return { ...result, kind: "selected", selected };
+}
+
 /**
  * Compose both lane policy requests for one work unit from repository state and author judgment.
  *
@@ -768,12 +652,8 @@ export async function composePrePublicationReviewRequest(
     dependencies.readLanePolicy("frontline"),
     dependencies.readLanePolicy("standard"),
   ]);
-  const terminalAttempts: { frontline?: LanePolicyAttempt; standard?: LanePolicyAttempt } = {};
-  const pendingSources: {
-    frontline?: z.infer<typeof ReviewResponseSettlementSourceSchema> | null;
-    standard?: z.infer<typeof ReviewResponseSettlementSourceSchema> | null;
-  } = {};
-  const judgedPasses: Partial<Record<ReviewLane, number>> = {};
+  const laneState: LaneCompositionState = { advisories, terminalAttempts: {}, pendingSources: {}, judgedPasses: {} };
+  const { pendingSources, judgedPasses } = laneState;
   // A delivery call examines several member targets; a scope judgment confirmed for any of them still binds.
   const examinedTargets: ReviewTarget[] = [];
   const withExaminedTargets = (composition: PrePublicationComposition): PrePublicationComposition =>
@@ -785,6 +665,7 @@ export async function composePrePublicationReviewRequest(
     lineageHeadShas: readonly string[],
     lineage?: LaneSubjectLineage,
     callerJudgment = lanes.data[lane],
+    state = laneState,
   ) => {
     const rawProgress = await readComposedLaneProgress(
       dependencies, lane, policyTarget.headSha, lineageHeadShas, lineage,
@@ -794,14 +675,14 @@ export async function composePrePublicationReviewRequest(
       ? separateSameHeadTerminals(rawProgress, exactTarget)
       : { progress: rawProgress, sameHeadCandidate: undefined };
     refusePendingLaneReview(progress, lane);
-    if (progress.status === "unrecorded") advisories.push(unrecordedLaneAdvisory(lane));
+    if (progress.status === "unrecorded") state.advisories.push(unrecordedLaneAdvisory(lane));
     const judged = await composePrePublicationLaneJudgment({ candidate, lane, lineage, policyTarget, exactTarget, progress,
       judgment: callerJudgment, dependencies });
-    judgedPasses[lane] = judged.completedPasses;
+    state.judgedPasses[lane] = judged.completedPasses;
     return { ...judged, rawProgress, progress, sameHeadCandidate };
   };
   const composeLane = async (...args: Parameters<typeof judgeLane>) => {
-    const [lane, policyTarget, exactTarget, , lineage] = args;
+    const [lane, policyTarget, exactTarget, , lineage, , state = laneState] = args;
     const policy = lane === "frontline" ? frontlinePolicy : standardPolicy;
     const { completedPasses, currentLineage, judgment, invocation, frontlinePhaseClosed, extraPassAuthority, terminus,
       rawProgress, progress, sameHeadCandidate } = await judgeLane(...args);
@@ -809,7 +690,7 @@ export async function composePrePublicationReviewRequest(
       lane, progress, sameHeadCandidate, exactTarget, lineage,
       workUnit: input.workUnit, policyTarget, dependencies,
     });
-    terminalAttempts[lane] = effectiveTerminalAttempt(progress, historicalAttempt);
+    state.terminalAttempts[lane] = effectiveTerminalAttempt(progress, historicalAttempt);
     const policyInput: ReviewPolicyBoundRequest = {
       schemaVersion: 1,
       target: policyTarget,
@@ -830,14 +711,14 @@ export async function composePrePublicationReviewRequest(
     // Binding still validates the immutable producer; only this known pending route permits its
     // provisional policy signal while approval and response remain incomplete.
     const pendingSource = await terminalResponseSource(
-      policyInput, dependencies, terminalAttempts[lane],
+      policyInput, dependencies, state.terminalAttempts[lane],
     );
-    pendingSources[lane] = pendingSource;
+    state.pendingSources[lane] = pendingSource;
     const evidenceDependencies = {
       ...(dependencies.stateOffBranch === true ? { stateOffBranch: true as const } : {}),
       ...(frontlinePhaseClosed === true ? { frontlinePhaseClosed: true } : {}),
       allowUnapprovedFindings: pendingSource !== null,
-      terminalResponseSettled: settledTerminalResponse(terminalAttempts[lane], pendingSource),
+      terminalResponseSettled: settledTerminalResponse(state.terminalAttempts[lane], pendingSource),
       sources: policy.sources,
       maxPasses: policy.maxPasses,
       ...(historicalAttempt === undefined
@@ -917,79 +798,19 @@ export async function composePrePublicationReviewRequest(
   let frontline: Awaited<ReturnType<typeof composeLane>>;
   let responseBinding: PrePublicationReviewRequest["responseBinding"] = undefined;
   if (deliveryTargets.status === "composed") {
-    let selected: {
-      exactTarget: ReviewTarget;
-      policyTarget: ReviewPolicyTarget;
-      lineage: LaneSubjectLineage;
-      frontline: Awaited<ReturnType<typeof composeLane>>;
-      vehicle: PreBindingDeliveryReviewTarget["vehicle"];
-    } | null = null;
-    // Natively, members select on their stored decisions; the caller's grants then bind to the selected member alone.
-    const native = dependencies.resolveExtraPassJudgment !== undefined;
-    const selectionJudgment = native ? withoutExtraPassGrants(lanes.data.frontline) : lanes.data.frontline;
-    for (const member of deliveryTargets.targets) {
-      examinedTargets.push(member.target);
-      const memberPolicyTarget = {
-        repository: target.repository,
-        pullRequest: null,
-        headSha: member.target.headSha,
-      };
-      let memberFrontline: Awaited<ReturnType<typeof composeLane>>;
-      try {
-        memberFrontline = await composeLane(
-          "frontline",
-          memberPolicyTarget,
-          member.target,
-          [member.target.headSha],
-          {
-            kind: "delivery-member",
-            planId: member.vehicle.planId,
-            deliverableId: member.vehicle.deliverableId,
-            workUnitId: member.vehicle.workUnitId,
-          },
-          selectionJudgment,
-        );
-      } catch (error) {
-        return refuseFrontline(error, [memberPolicyTarget, member.target, [member.target.headSha], {
-          kind: "delivery-member",
-          planId: member.vehicle.planId,
-          deliverableId: member.vehicle.deliverableId,
-          workUnitId: member.vehicle.workUnitId,
-        }], native);
-      }
-      selected = {
-        exactTarget: member.target,
-        policyTarget: memberPolicyTarget,
-        lineage: {
-          kind: "delivery-member",
-          planId: member.vehicle.planId,
-          deliverableId: member.vehicle.deliverableId,
-          workUnitId: member.vehicle.workUnitId,
-        },
-        frontline: memberFrontline,
-        vehicle: member.vehicle,
-      };
-      const state = resolveReviewPolicy(memberFrontline).state;
-      if (pendingSources.frontline !== null
-        || (state !== "skipped" && state !== "pass-complete")) break;
-    }
-    if (selected === null) {
-      return {
-        status: "refused",
-        reason: "The canonical delivery plan produced no private review members.",
-      };
-    }
-    if (native) {
-      const recorded = advisories.length;
-      try {
-        selected.frontline = await composeLane("frontline", selected.policyTarget, selected.exactTarget,
-          [selected.exactTarget.headSha], selected.lineage);
-      } catch (error) {
-        return refuseFrontline(error, [selected.policyTarget, selected.exactTarget, [selected.exactTarget.headSha],
-          selected.lineage]);
-      }
-      advisories.length = recorded;
-    }
+    const selection = await selectDeliveryReviewMember({ targets: deliveryTargets.targets, repository: target.repository,
+      native: dependencies.resolveExtraPassJudgment !== undefined, judgment: lanes.data.frontline,
+      composeFrontline: (memberTarget, exact, lineage, judgment, state) => composeLane("frontline", memberTarget,
+        exact, [exact.headSha], lineage, judgment, state) });
+    advisories.push(...selection.advisories);
+    Object.assign(laneState.terminalAttempts, selection.laneState.terminalAttempts);
+    Object.assign(pendingSources, selection.laneState.pendingSources);
+    Object.assign(judgedPasses, selection.laneState.judgedPasses);
+    examinedTargets.push(...selection.examinedTargets);
+    if (selection.kind === "failed") return refuseFrontline(selection.error, selection.context, selection.selecting);
+    if (selection.kind === "empty") return { status: "refused",
+      reason: "The canonical delivery plan produced no private review members." };
+    const { selected } = selection;
     exactTarget = selected.exactTarget;
     policyTarget = selected.policyTarget;
     policyLineage = [selected.exactTarget.headSha];

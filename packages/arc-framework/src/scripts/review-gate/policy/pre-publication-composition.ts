@@ -299,7 +299,8 @@ async function readAssuranceMeta(input: ReviewInvocationInput, workUnit: string)
     if (read.result.conflicts.length > 0) return { status: "refused", reason:
       `The work-unit metadata has unresolved conflicts.${describeRecordConflicts(read.result.conflicts)}` };
     const fields = readLifecycleMetaFields(read.result);
-    meta = fields.status === "refused" ? null : toMetaRecord(fields.result);
+    if (fields.status === "refused") return { status: "refused", reason: `${fields.refusal.condition} ${fields.refusal.remedy.text}` };
+    meta = toMetaRecord(fields.result);
   } else {
     const metaPath = materializeArcPath(input.cwd, resolveArcPath({ kind: "work-unit-artifact",
       placement: { kind: "active", scope: { kind: "project" } }, slug: SlugSchema.parse(workUnit), artifact: "meta" }));

@@ -29,8 +29,24 @@ async function fixture(state: "Active" | "Integrating" | "Planning" = "Integrati
     });
     return output;
   };
-  return { ...h, boundary, run };
+  return { ...h, boundary, meta, run };
 }
+
+it("renders a native owner-selection refusal and reports the boundary after repair", async () => {
+  const h = await fixture();
+  const read = h.store.read.bind(h.store);
+  h.store.read = async input => {
+    const result = await read(input);
+    return input.reference.kind !== "review/integration-boundary" || result.status !== "ok" ? result
+      : { status: "ok", result: { ...result.result, content: JSON.stringify({ ...h.boundary, workUnit: "another" }) } };
+  };
+  expect(JSON.parse(await h.run(true))).toMatchObject({ status: "refused", refusal: {
+    code: "invalid-input", condition: expect.stringContaining("another"),
+    remedy: { text: "Name work unit `another`, or run the command from `example`'s checkout." } } });
+  h.store.read = read;
+  process.exitCode = undefined;
+  expect(JSON.parse(await h.run(true))).toMatchObject({ state: "integrating", integrationBoundary: h.boundary });
+});
 
 it.each([undefined, "/elsewhere"])("reports native publication and its stored push with holder %s", async holder => {
   const h = await fixture();

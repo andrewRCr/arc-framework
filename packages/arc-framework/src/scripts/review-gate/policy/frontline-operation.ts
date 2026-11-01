@@ -5,7 +5,7 @@ import { laneProgressOperationId } from "../lane-progress.js";
 import { bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
 import { storedFrontlineAdmissionMatches, projectStoredFrontlineOutcome } from "../core/frontline-result.js";
 import { computeFrontlineSourceBindingId } from "../core/frontline-source-binding.js";
-import { projectFrontlineOutcome } from "../../../lib/store/kinds/review/mapping-frontline.js";
+import { projectFrontlineOutcome } from "../../../lib/store/kinds/review/outcome/frontline.js";
 import { reviewOutcomeKey } from "../../../lib/store/kinds/review/outcome/key.js";
 
 import { canonicalize } from "../../../lib/kernel/index.js";

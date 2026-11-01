@@ -238,7 +238,7 @@ function publicationBoundary(
     standardLaneOwnerVersion: 0,
     reservation,
     changeRequest: null,
-  });
+  }, 1);
 }
 
 /** The same submission with neither orientation override supplied. */

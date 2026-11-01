@@ -66,7 +66,7 @@ it("refuses conflicting routing, then records the reserved singleton requirement
     target: { kind: "pinned-head", repository: "owner/repo", headSha: await git("rev-parse", "HEAD") } });
   await writeSubmissionBoundary(cwd, projectPublicationBoundary({ workUnit: "example", branch: "feat/example",
     candidateId: attestation.candidateId, candidateSubjectDigest: collected.target.subject.subjectDigest,
-    reservation, changeRequest: { repository: "owner/repo", pullRequest: 42 } }), current.version);
+    reservation, changeRequest: { repository: "owner/repo", pullRequest: 42 } }, 1), current.version);
   await git("add", "."); await git("commit", "-m", "reserve standard review");
   const request = { schemaVersion: 1, evaluatorIdentity: "independent-reviewer", routingFacts,
     policyJudgment: { invocation: { mode: "force", sourceId: "delegated-agent" } } };

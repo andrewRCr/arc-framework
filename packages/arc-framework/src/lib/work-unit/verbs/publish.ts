@@ -417,7 +417,7 @@ async function runRepositoryPublish(ctx: ExecuteTransitionContext & CurrentWuRec
         ? { standardLaneOwnerVersion: boundary.standardLaneOwnerVersion }
         : {}),
       changeRequest: null,
-    });
+    }, 1);
     if (currentWorkflow === "integrate-work-unit") {
       return { status: "unchanged", boundary: publicationBoundary };
     }
@@ -523,7 +523,7 @@ async function runRepositoryPublish(ctx: ExecuteTransitionContext & CurrentWuRec
     // Submission fires at the head of the publication step, before the change request exists, so a
     // carried reservation has nothing to run against yet.
     changeRequest: null,
-  });
+  }, 1);
 
   try {
     await params.claimPublicationBoundary(publicationBoundary);

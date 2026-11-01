@@ -662,13 +662,13 @@ export function recoverPrePublicationBoundary(input: {
  * at the hosted resume point. Every other combination continues publication, including a
  * reservation still waiting for its change request.
  */
-export function projectPublicationBoundary(input: unknown, schemaVersion?: 1): IntegrationBoundaryLocus;
+export function projectPublicationBoundary(input: unknown, schemaVersion: 1): IntegrationBoundaryLocus;
 /** Project native publication with the readiness binding that authorized it. */
 export function projectPublicationBoundary(input: unknown, schemaVersion: 2): IntegrationBoundaryLocusV2;
 /** Select the persisted format explicitly at the backend boundary. */
 export function projectPublicationBoundary(input: unknown, schemaVersion: 1 | 2): PublishedIntegrationBoundaryLocus;
 /** Preserve shared publication routing across both persisted formats. */
-export function projectPublicationBoundary(input: unknown, schemaVersion: 1 | 2 = 1): PublishedIntegrationBoundaryLocus {
+export function projectPublicationBoundary(input: unknown, schemaVersion: 1 | 2): PublishedIntegrationBoundaryLocus {
   const value = schemaVersion === 2 ? PublicationBoundaryInputV2Schema.parse(input) : PublicationBoundaryInputSchema.parse(input);
   const hosted = value.reservation !== null && value.changeRequest !== null;
   const deliveryHosted = hosted && value.reservation?.target.kind === "delivery";
@@ -829,7 +829,7 @@ export function recoverPublicationBoundary(input: PublicationRecoveryInput): Pub
     reservation: stored.reservation,
     terminus: stored.terminus,
     changeRequest: null,
-  });
+  }, 1);
 }
 
 /**

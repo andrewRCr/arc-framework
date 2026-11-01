@@ -2155,7 +2155,7 @@ describe("handleAttest", () => {
       reservation: null,
       terminus,
       changeRequest: null,
-    });
+    }, 1);
     mockParseMetaRecord.mockReturnValue({
       branch: "feat/foo",
       state: "Active",
@@ -2253,7 +2253,7 @@ describe("handleAttest", () => {
         candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
         reservation,
         changeRequest: null,
-      }),
+      }, 1),
       deliveryReviewTermini: [memberTerminus],
     };
     const deliveryContinuation = {
@@ -2362,7 +2362,7 @@ describe("handleAttest", () => {
       candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
       reservation,
       changeRequest: null,
-    });
+    }, 1);
     const deliveryContinuation = {
       schemaVersion: 1 as const,
       semanticsVersion: "delivery-public-review-continuation/v1" as const,
@@ -2485,7 +2485,7 @@ describe("handleAttest", () => {
       candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
       reservation,
       changeRequest: null,
-    });
+    }, 1);
     let boundaryVersion = "source-boundary-version";
     let stateRevision = 7;
     const continuation = () => ({

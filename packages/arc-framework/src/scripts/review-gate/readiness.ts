@@ -35,21 +35,16 @@
  * @module
  */
 
+import { readFile, readdir, stat } from "node:fs/promises";
+import { resolve } from "node:path";
+
 import { escapeRegExp, lifecycleArtifactFacts, validCohortCloseout } from "./readiness-artifact-facts.js";
-export { lifecycleArtifactFacts } from "./readiness-artifact-facts.js";
 import { evaluateStoredWorkUnitReadiness } from "./readiness-store.js";
 import type { Store } from "../../lib/store/contract.js";
 import { usesOffBranchState } from "../../lib/store/lifecycle-write.js";
 
-import { readFile, readdir, stat } from "node:fs/promises";
-import { isAbsolute, resolve } from "node:path";
-
-import { z } from "zod";
-import { CanonicalDigestSchema } from "../../lib/kernel/schema/vocabulary.js";
-
 import { parseMetaRecord } from "../../lib/active/meta-reader.js";
 import { isErrandBranchType } from "../../lib/errand/branch-type.js";
-import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { branchToWorkUnitSlug } from "../../lib/work-unit/work-unit-slug.js";
 import {
   classifyPredecessorRelation,
@@ -60,104 +55,18 @@ import type {
   DeliveryMemberBinding,
   DeliveryMemberIdentityLookup,
 } from "./core/delivery-member-lookup.js";
-import { GitObjectIdSchema } from "./core/gate-contract-v2-schema.js";
 
-const RepositorySchema = z
-  .string()
-  .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u)
-  .refine(
-    (repository) => repository.split("/").every((segment) => /[^.]/u.test(segment)),
-    "repository segments must not consist only of dots",
-  );
-const PlanIdSchema = z.uuid();
-const DeliverableIdSchema = CanonicalDigestSchema;
+import {
+  ReviewReadinessEnvelopeSchema, ReviewReadinessRequestSchema, type ReviewReadinessRequest,
+  type ReviewReadinessInput, type ReviewReadinessFact, type ReviewReadinessEnvelope,
+} from "./readiness-contract.js";
 
-export const ReviewTargetSchema = z.strictObject({
-  repository: RepositorySchema,
-  pullRequest: z.number().int().positive(),
-  headSha: GitObjectIdSchema,
-});
-
-export const LivePullRequestSchema = z.strictObject({
-  repository: RepositorySchema,
-  number: z.number().int().positive(),
-  state: z.enum(["open", "closed"]),
-  headBranch: z.string().min(1),
-  headSha: GitObjectIdSchema,
-});
-
-export const ReviewTreeRootSchema = z.string().min(1).refine(isAbsolute, "treeRoot must be absolute");
-
-export const ReviewVehicleSchema = z.discriminatedUnion("kind", [
-  z.strictObject({
-    kind: z.literal("work-unit"),
-    slug: SlugSchema,
-    archiveCadence: z.enum(["with-integration", "manual"]),
-  }),
-  z.strictObject({
-    kind: z.literal("errand"),
-    slug: SlugSchema,
-  }),
-  z.strictObject({
-    kind: z.literal("delivery-member"),
-    planId: PlanIdSchema,
-    deliverableId: DeliverableIdSchema,
-    workUnitSlug: SlugSchema,
-  }),
-]);
-
-export const ReviewReadinessRequestSchema = z.strictObject({
-  schemaVersion: z.literal(1),
-  treeRoot: ReviewTreeRootSchema,
-  target: ReviewTargetSchema,
-  pullRequest: LivePullRequestSchema,
-  vehicle: ReviewVehicleSchema,
-}).readonly();
-export type ReviewReadinessRequest = z.infer<typeof ReviewReadinessRequestSchema>;
-type ReviewReadinessInput = Omit<z.input<typeof ReviewReadinessRequestSchema>, "vehicle"> & {
-  vehicle: z.input<typeof ReviewVehicleSchema> | {
-    kind: "delivery-member";
-    planId: string;
-    deliverableId: string;
-    workUnitSlug: string;
-  };
-};
-
-export const ReviewReadinessFactSchema = z.strictObject({
-  code: z.string().min(1),
-  path: z.string().min(1),
-  message: z.string().min(1),
-}).readonly();
-export type ReviewReadinessFact = z.infer<typeof ReviewReadinessFactSchema>;
-
-const ReviewReadinessHeaderShape = {
-  schemaVersion: z.literal(1),
-  mode: z.literal("review-readiness"),
-  diagnostics: z.array(ReviewReadinessFactSchema).readonly(),
-};
-
-export const ReviewReadinessEnvelopeSchema = z.discriminatedUnion("state", [
-  z.strictObject({
-    ...ReviewReadinessHeaderShape,
-    state: z.literal("ready"),
-    nextAction: z.literal("none"),
-    payload: z.strictObject({
-      target: ReviewTargetSchema,
-      vehicle: ReviewVehicleSchema,
-    }).readonly(),
-  }),
-  z.strictObject({
-    ...ReviewReadinessHeaderShape,
-    state: z.literal("invalid"),
-    nextAction: z.literal("stop"),
-    payload: z.strictObject({
-      target: ReviewTargetSchema,
-      vehicle: ReviewVehicleSchema,
-      facts: z.array(ReviewReadinessFactSchema).min(1).readonly(),
-    }).readonly(),
-  }),
-]);
-export type ReviewReadinessEnvelope = z.infer<typeof ReviewReadinessEnvelopeSchema>;
+export { lifecycleArtifactFacts } from "./readiness-artifact-facts.js";
+export {
+  ReviewTargetSchema, LivePullRequestSchema, ReviewTreeRootSchema, ReviewVehicleSchema,
+  ReviewReadinessRequestSchema, ReviewReadinessFactSchema, ReviewReadinessEnvelopeSchema,
+} from "./readiness-contract.js";
+export type { ReviewReadinessRequest, ReviewReadinessFact, ReviewReadinessEnvelope } from "./readiness-contract.js";
 
 /** Minimal stat shape used by the readiness filesystem boundary. */
 export interface ReviewReadinessStat {
@@ -180,6 +89,7 @@ export interface ReviewReadinessFs {
 
 /** Injectable boundaries for the readiness checker. */
 export interface ReviewReadinessDependencies {
+  /** Selected operational backend for native work-unit lifecycle records. */
   store?: Store;
   fs: ReviewReadinessFs;
   /**
@@ -376,7 +286,6 @@ function identityFacts(request: ReviewReadinessRequest, storedWorkUnit = false):
   }
   return facts;
 }
-
 
 /**
  * Bound one admitted advance from above, against every member head bound over this one.
@@ -751,7 +660,6 @@ async function hasOpenCohortMember(
   }
   return { open: false, facts: [] };
 }
-
 
 async function cohortCoordinateFacts(
   root: string,

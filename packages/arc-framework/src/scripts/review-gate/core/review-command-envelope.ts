@@ -1,6 +1,4 @@
 /** Registered command-result envelopes for the public review transition protocol. */
-import { ReviewAdversarialUnsupportedEnvelopeSchema } from "./adversarial-record-schema.js";
-
 
 import { isDeepStrictEqual } from "node:util";
 
@@ -40,6 +38,7 @@ import { ReviewCommandErrorCodeSchema, ReviewPrePublicationRefusalCodeSchema } f
   "./review-command-error-codes.js";
 import type { ReviewPrePublicationRefusalCode } from "./review-command-error-codes.js";
 import { ReviewRoutingProjectionSchema } from "../policy/routing-schema.js";
+import { ReviewAdversarialUnsupportedEnvelopeSchema } from "./adversarial-record-schema.js";
 import { ReviewReductionProjectionSchema } from "./advisory-records.js";
 import { NormalizedReviewFindingsSchema } from "./finding-records.js";
 import { ProposedDispositionSetSchema } from "./disposition-records.js";

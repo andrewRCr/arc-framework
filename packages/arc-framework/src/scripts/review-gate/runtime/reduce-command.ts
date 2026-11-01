@@ -1,13 +1,13 @@
 /** Read-only reduction over durable local and frontline advisory review records. */
 
-import { isOffBranchStoreRefusal } from "../../../lib/store/refusal-error.js";
+import { bindEndedLocalReview } from "./local-outcome-source.js";
+import { isNativeTypedRefusal } from "../../../lib/store/native-refusal.js";
 import { z } from "zod";
 import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches, bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
 import { projectStoredFrontlineOutcome } from "../core/frontline-result.js";
 import type { FrontlineReviewOutcome } from "../policy/frontline-outcome.js";
 import { reviewOutcomeKey } from "../../../lib/store/kinds/review/outcome/key.js";
 import type { ReviewOutcome } from "../../../lib/store/kinds/review/outcome/schema.js";
-import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
 
 import {
   currentApprovedDispositionNode,
@@ -131,30 +131,21 @@ async function reduceStoredLocal(stored: StoredReviewFact<ReviewOutcome>,
   if (local?.receipt === undefined || outcome.requirement === undefined) {
     throw new ReduceCommandError("local review receipt is unavailable");
   }
-  assertLocalReviewClaimBinding(local);
+  const replay = bindEndedLocalReview(stored, local, dependencies,
+    () => new ReduceCommandError("local review source snapshot mismatch"));
   const operationId = outcome.attemptId, target = outcome.target;
-  const operationRef = bindNativeReviewOperationReference({ operationId, repositoryId: target.repositoryId,
-    workItem: stored.reference.owner });
+  const operationRef = replay.operationRef;
   const confirmation = await dependencies.confirmTarget(target);
   if (confirmation.state === "stale-target") return ReduceEnvelopeSchema.parse({ schemaVersion: 1,
     mode: "review-reduce", diagnostics: [], state: "stale-target", nextAction: "prepare-current-target",
     payload: { operationId, operationRef, persistedVersion: persisted.version, attemptedTarget: confirmation.attemptedTarget,
       currentTarget: confirmation.currentTarget } });
   const receipt = validateLocalReductionReceipt(target, outcome.requirement, local.request, local.receipt);
-  const receiptRef = await (dependencies.bindSourceReference ?? bindReviewSourceReference)({
-    kind: "attested-local", operationId, durableRef: reviewOutcomeKey(outcome) });
+  const receiptRef = await replay.receiptReference();
   const disposition = await dependencies.dispositionStore.readDispositionRecord(operationId);
-  let sourceRef: string | undefined;
-  const retainedSource = persisted.state?.kind === "local-review" ? persisted.state.sourceRef
-    : await dependencies.operationStore.readLocalSourceReference?.(operationId);
-  if (retainedSource !== undefined && retainedSource !== null) {
-    const source = await dependencies.sourceStore.readSource(retainedSource);
-    if (source !== null) {
-      if (source.sourceDigest !== local.sourceDigest || source.repositoryId !== target.repositoryId
-        || source.targetId !== target.targetId) throw new ReduceCommandError("local review source snapshot mismatch");
-      sourceRef = retainedSource;
-    }
-  }
+  const retained = await replay.readRetainedSource(
+    persisted.state?.kind === "local-review" ? persisted.state.sourceRef : undefined);
+  const sourceRef = retained?.sourceRef;
   return reduceLocalReceipt({ operationId, operationRef, persistedVersion: persisted.version, target, requestId: local.requestId,
     receipt, receiptRef, durableEvidenceRef: reviewOutcomeKey(outcome), ...(sourceRef === undefined ? {} : { sourceRef }) }, disposition, dependencies);
 }
@@ -546,7 +537,7 @@ export class DurableReviewReductionPort implements ReviewReductionPort {
       }
       throw new ReduceCommandError("operation kind is not reducible");
     } catch (error) {
-      if (error instanceof ReduceCommandError || error instanceof ProjectIdentityError || isOffBranchStoreRefusal(error)) throw error;
+      if (error instanceof ReduceCommandError || isNativeTypedRefusal(error)) throw error;
       throw new ReduceCommandError(
         error instanceof Error ? error.message : "review reduction cannot validate durable state",
       );
@@ -563,7 +554,7 @@ export async function reduceReviewCommand(
   try {
     return await dependencies.reductionPort.reduce(request.operationId);
   } catch (error) {
-    if (error instanceof ReduceCommandError || error instanceof ProjectIdentityError || isOffBranchStoreRefusal(error)) throw error;
+    if (error instanceof ReduceCommandError || isNativeTypedRefusal(error)) throw error;
     throw new ReduceCommandError(
       error instanceof Error ? error.message : "review reduction cannot validate durable state",
     );

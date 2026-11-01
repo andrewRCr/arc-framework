@@ -1,5 +1,5 @@
 /** Work-unit readiness over current operational records and repository-qualified branch links. */
-import type { ReviewReadinessFact, ReviewReadinessRequest } from "./readiness.js";
+import type { ReviewReadinessFact, ReviewReadinessRequest } from "./readiness-contract.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { StoreRecord } from "../../lib/store/read.js";
 import { readWorkUnit, readLifecycleMetaFields, workUnitMetaPath } from "../../lib/store/lifecycle-write.js";

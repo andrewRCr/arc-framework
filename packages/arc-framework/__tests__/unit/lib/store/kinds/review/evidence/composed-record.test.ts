@@ -13,11 +13,41 @@ import { composeReviewDispositionRecord } from "../../../../../../../src/lib/sto
 import { ReviewEvidenceSchema } from "../../../../../../../src/lib/store/kinds/review/evidence/schema.js";
 import { laneProgressOperationId } from "../../../../../../../src/scripts/review-gate/lane-progress.js";
 import { createProjectIdentityReader } from "../../../../../../../src/lib/store/project-identity.js";
+import { canonicalDigest } from "../../../../../../../src/lib/kernel/index.js";
+import { StoreRefusalError } from "../../../../../../../src/lib/store/refusal-error.js";
 
 const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "example",
   uid: "14bc6336-193b-4d7a-9380-1b4ca79a714b" });
 
 describe("composed approved disposition records", () => {
+  it.each(["roots", "successor", "outcome"] as const)("attributes a broken %s lineage to its producer and record keys", async fault => {
+    const h = await storedLocalApproval();
+    const prior = (await h.evidence.read(h.original.currentDispositionSetId))!;
+    const missing = canonicalDigest({ missing: fault });
+    const { dispositionSetId: ignored, ...fields } = prior.value.dispositionSet;
+    void ignored;
+    const dispositionSet = createDispositionSet({ ...fields, proposedBy: "second-proposer" });
+    const approved = approveDispositionState({ proposed: proposeDispositionSet(dispositionSet), approvedBy: "andrew",
+      approvedAt: "2026-09-09T21:00:00Z" });
+    const duplicate = { ...prior.value, dispositionSet, approval: approved.approval };
+    const records = fault === "roots" ? [prior.value, duplicate]
+      : [{ ...prior.value, successorDispositionSetId: missing }];
+    const read = h.harness.store.read.bind(h.harness.store);
+    if (fault === "outcome") h.harness.store.read = async input => input.reference.kind === "review/outcome"
+      ? { status: "refused", refusal: { code: "not-found", class: "recoverable", reference: input.reference,
+        condition: "Outcome is missing.", remedy: { text: "Restore the outcome." } } } : read(input);
+    const attempt = () => fault === "outcome" ? h.evidence.readDispositionRecord(h.original.operationId)
+      : Promise.resolve().then(() => composeReviewDispositionRecord(h.outcome, records, h.owner));
+    const error: unknown = await attempt().catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StoreRefusalError);
+    expect(error).toMatchObject({ offBranch: true, refusal: { code: "record-malformed",
+      rule: `review.evidence.${fault === "roots" ? "root" : fault}` } });
+    const message = (error as Error).message;
+    for (const key of [h.original.operationId, prior.value.dispositionSet.dispositionSetId, prior.value.result.outcomeKey,
+      ...(fault === "roots" ? [dispositionSet.dispositionSetId] : fault === "successor" ? [missing] : [])]) expect(message).toContain(key);
+    h.harness.store.read = read;
+    expect(await h.evidence.readDispositionRecord(h.original.operationId)).not.toBeNull();
+  });
   it("reproduces the native local approval with portable source coordinates", async () => {
     const { evidence, original, outcome, fixture, harness, owner } = await storedLocalApproval();
     expect(await createProjectIdentityReader(harness.store)()).toBe(fixture.state.repositoryId);

@@ -4,6 +4,9 @@ import { createReviewHarness } from "../../../../helpers/store/review-harness.js
 import { candidateFixture } from "../../../../helpers/store/tracked-write-fixture.js";
 import { reviewDecisionKey } from "../../../../../src/lib/store/kinds/review/decision/key.js";
 import { createReviewDecisionPort } from "../../../../../src/lib/store/kinds/review/decision/access.js";
+import { createReviewOutcomePort } from "../../../../../src/lib/store/kinds/review/outcome/access.js";
+import { createReviewEvidencePort } from "../../../../../src/lib/store/kinds/review/evidence/access.js";
+import { recordNativeFrontlineSkip } from "../../../../../src/scripts/review-gate/runtime/native-frontline-window.js";
 import { mapReviewReplayDecisions } from "../../../../../src/lib/store/kinds/review/mapping-replay-decisions.js";
 import { projectCandidateReviewBoundary, IntegrationBoundaryLocusSchema } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
@@ -17,11 +20,29 @@ async function fixture() {
   await h.seedProject(repositoryId);
   const primary = await h.seedMeta("example");
   await h.seedCandidate(primary.reference.owner, candidate);
-  return { ...h, input: { facts: { decisions: createReviewDecisionPort(h.store, primary.reference.owner), readProjectId: h.projectId },
+  return { ...h, owner: primary.reference.owner, input: { facts: {
+    outcomes: createReviewOutcomePort(h.store, primary.reference.owner),
+    evidence: createReviewEvidencePort(h.store, primary.reference.owner),
+    decisions: createReviewDecisionPort(h.store, primary.reference.owner), readProjectId: h.projectId },
     repositoryId, policyTarget: { repository: "Owner/Repo", pullRequest: 41, headSha: "a".repeat(40) }, subject: { lineage: { kind: "candidate" as const, candidateId: candidate.attestation.candidateId },
       headSha: "a".repeat(40), subjectDigest: candidate.subject.subjectDigest }, lane: "standard" as const,
     completedPasses: 2, actor: "test-user", now: "2026-10-20T12:00:00Z" } };
 }
+
+it.each(["ceiling", "skip"] as const)("records a %s under the active identity derived from user.name", async kind => {
+  const h = await fixture();
+  const git = scriptGitExec([
+    { match: ["config", "--null", "--get", "arc.identity"], responses: [{ failure: { exitCode: 1 } }] },
+    { match: ["config", "--get", "user.name"], responses: [{ stdout: "Derived User\n" }] },
+  ]);
+  const invocation = { cwd: "/selected", exec: git.exec, store: h.store, workItem: h.owner };
+  if (kind === "ceiling") await resolveNativeInvocationExtraPassJudgment(invocation, h.input.facts,
+    { ...h.input, judgment: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } } });
+  else await recordNativeFrontlineSkip({ invocation, facts: h.input.facts, repositoryId: h.input.repositoryId,
+    lineage: h.input.subject.lineage, headSha: h.input.subject.headSha, now: h.input.now });
+  expect(await h.input.facts.decisions.list()).toMatchObject({ status: "complete", records: [{ value: {
+    decidedBy: "derived-user", choice: { kind: kind === "ceiling" ? "extra-pass" : "lane-skip" } } }] });
+});
 
 it("records one ceiling decision and carries its pass across later heads of the same Candidate", async () => {
   const h = await fixture();
@@ -38,6 +59,26 @@ it("records one ceiling decision and carries its pass across later heads of the 
   expect(await h.store.version()).toEqual(before);
   expect(await resolveNativeExtraPassJudgment({ ...h.input, subject: { ...h.input.subject,
     lineage: { kind: "candidate", candidateId: canonicalDigest({ successor: 1 }) } } })).toEqual({});
+});
+
+it.each([3, 4])("reads a ceiling grant at logical count %s without rewriting its authority", async completedPasses => {
+  const h = await fixture();
+  const first = await resolveNativeExtraPassJudgment({ ...h.input,
+    judgment: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } } });
+  const before = await h.store.version();
+  expect(await resolveNativeExtraPassJudgment({ ...h.input, completedPasses })).toEqual(completedPasses === 3 ? first : {});
+  expect(await h.store.version()).toEqual(before);
+});
+
+it("refuses a spent ceiling reference without replacing it", async () => {
+  const h = await fixture();
+  const first = await resolveNativeExtraPassJudgment({ ...h.input,
+    judgment: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } } });
+  const before = await h.store.version();
+  await expect(resolveNativeExtraPassJudgment({ ...h.input, completedPasses: 4,
+    judgment: { ceilingOverride: { exhaustedPassCount: 4, nextPass: 5,
+      decisionKey: first.judgment?.ceilingOverride?.decisionKey } } })).rejects.toThrow("outside this target's reach");
+  expect(await h.store.version()).toEqual(before);
 });
 
 it("records an additional pass at its exact head and reads it as spent after that logical pass finishes", async () => {

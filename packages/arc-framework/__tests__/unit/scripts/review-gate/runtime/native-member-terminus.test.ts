@@ -50,6 +50,29 @@ it.each(["known", "unknown"])("resolves a %s author and pass basis without rewri
   expect(await h.store.version()).toEqual(before);
 });
 
+it("routes an authorless retained member decision back to status without rewriting it", async () => {
+  const h = await fixture();
+  const recorded = await h.decisions.create({ ...terminusDecision(), subject: h.subject, decidedBy: null });
+  await h.seedBoundary(h.primary.reference.owner, { ...h.boundary, deliveryReviewTermini: [
+    { vehicle: h.vehicle, terminus: reviewDecisionKey(recorded.value) }] });
+  const access = { store: h.store, owner: h.primary.reference.owner };
+  const snapshot = await readSubmissionBoundaryVersioned(h.invocation.cwd, "example", access);
+  const offer = DeliveryReviewTerminusOfferSchema.parse({ schemaVersion: 1, kind: "delivery-member-owner-terminus",
+    workUnitId: "example", remote: "origin", expectedBoundaryVersion: snapshot.version, candidateId: h.boundary.candidateId,
+    candidateSubjectDigest: h.boundary.candidateSubjectDigest, vehicle: h.vehicle,
+    target: { repository: "owner/repo", pullRequest: 42, headSha: h.vehicle.head }, completedPasses: 2,
+    interactionText: "Accept this exact completed member review." });
+  const before = await h.store.version();
+  expect(await resolveDeliveryReviewTerminusAcceptance({ schemaVersion: 1, offer, judgment: { mode: "owner-accepted" } }, {
+    ...createNativeMemberTerminusBindings(() => h.invocation),
+    readBoundary: () => readSubmissionBoundaryVersioned(h.invocation.cwd, "example", access),
+    readOwnerAuthority: async () => ({ status: "authorized", ownerIdentity: "andrew" }),
+    readCurrentOffer: async () => offer, writeBoundary: async () => { throw new Error("A retained decision must not be written"); },
+  })).toMatchObject({ state: "refused", reason: "stale-offer", nextAction: "rerun-status",
+    detail: expect.stringContaining("Re-run work-unit review status to continue from its stored decision.") });
+  expect(await h.store.version()).toEqual(before);
+});
+
 it.each(["missing", "wrong-kind", "wrong-head", "withdrawn"] as const)("refuses a %s member reference and resolves after repair", async condition => {
   const h = await fixture();
   const live = await h.decisions.create({ ...terminusDecision(), subject: h.subject });

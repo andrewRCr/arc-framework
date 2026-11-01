@@ -84,7 +84,7 @@ async function fixture(extraPath?: string,
     reservation: createStandardReviewReservation({ candidateId: attestation.candidateId, sourceId: "codex-pr",
       repository: "owner/repo", headSha: originatingHeadSha, obligation: { obligation: "required",
         reasons: ["routine-code"], rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
-        rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest, retrigger: "full-final", count: 1 } }) });
+        rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest, retrigger: "full-final", count: 1 } }) }, 1);
   if (previousBoundary) await writeFile(join(cwd, boundaryPath), canonicalize(boundary));
   await git("add", ".");
   await git("commit", "-m", "attest");

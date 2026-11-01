@@ -1,5 +1,5 @@
 /** Native pending execution persists separately from legacy operation snapshots. */
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { createReviewHarness } from "../../../../../helpers/store/review-harness.js";
@@ -20,6 +20,7 @@ import { lifecycleSuccess } from "../../../../../helpers/store/lifecycle-harness
 import { bindNativeReviewPorts } from "../../../../../helpers/store/native-review-ports.js";
 import { createProjectIdentityReader, ProjectIdentityError } from "../../../../../../src/lib/store/project-identity.js";
 import type { Store } from "../../../../../../src/lib/store/contract.js";
+import { nativeReviewInFlightRecordName } from "../../../../../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 
 async function fixture() {
   const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -40,6 +41,46 @@ async function fixture() {
     operations: bindNativeReviewPorts({ store: h.store, owner: primary.reference.owner,
       publisher, projectId: h.projectId }).inFlight };
 }
+
+it.each(["work-item-mismatch", "project-identity-mismatch"] as const)("refuses %s before writing and accepts a repaired admission", async code => {
+  const h = await fixture(), before = await h.operations.readOperationSnapshot();
+  const foreign = "123e4567-e89b-42d3-a456-426614174777";
+  const state = code === "work-item-mismatch" ? { ...h.lane, workItem: { ...h.primary.reference.owner, uid: foreign } }
+    : { ...h.lane, repositoryId: foreign };
+  await expect(h.operations.publishOperation(state, 0)).rejects.toMatchObject({ code });
+  expect(await h.operations.readOperationSnapshot()).toEqual(before);
+  expect(await h.operations.publishOperation(h.lane, 0)).toEqual({ version: 1 });
+});
+
+it("refuses to publish execution for an operation that already ended", async () => {
+  const h = await fixture();
+  await finishLocal(h);
+  const before = await h.publisher.snapshot({ root: "review-gate", namespace: "in-flight" });
+  await expect(h.operations.publishOperation(h.local, 0)).rejects.toMatchObject({ code: "operation-already-ended" });
+  expect(await h.publisher.snapshot({ root: "review-gate", namespace: "in-flight" })).toEqual(before);
+});
+
+it.each(["unexpected-in-flight-entry", "operation-record-name-mismatch", "damaged-record"] as const)(
+  "reports %s in the native inventory and reads a complete snapshot after repair", async fault => {
+    const h = await fixture();
+    await h.operations.publishOperation(h.lane, 0);
+    const directory = join(h.commonDir, "arc/review-gate/in-flight");
+    const [name] = await readdir(directory);
+    if (name === undefined || h.primary.reference.owner.type !== "work-item" || h.primary.reference.owner.uid === undefined) throw new Error("Expected native record");
+    const path = join(directory, name), original = await readFile(path, "utf8");
+    const other = join(directory, nativeReviewInFlightRecordName(h.primary.reference.owner.uid, "other-operation"));
+    if (fault === "unexpected-in-flight-entry") await mkdir(other);
+    else if (fault === "operation-record-name-mismatch") await rename(path, other);
+    else await writeFile(path, "{");
+    expect(await h.operations.readOperationSnapshot()).toMatchObject(fault === "damaged-record"
+      ? { status: "unavailable", reason: expect.stringContaining(`Native execution record '${name}' is malformed:`) }
+      : { status: "incomplete", reason: fault });
+    if (fault === "unexpected-in-flight-entry") await rm(other, { recursive: true });
+    else if (fault === "operation-record-name-mismatch") await rename(other, path);
+    else await writeFile(path, original);
+    expect(await h.operations.readOperationSnapshot()).toMatchObject({ status: "complete", records: [{ state: {
+      operationId: h.lane.operationId } }] });
+  });
 
 it("round-trips pending local execution in its own namespace without legacy lane facts", async () => {
   const h = await fixture();

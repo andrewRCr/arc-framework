@@ -9,6 +9,9 @@ import { recordReferences } from "../../../../../../src/lib/store/index.js";
 import { createCandidateAttestation } from "../../../../../../src/lib/work-unit/candidate-attestation.js";
 import { readCandidateRecord, writeCandidateRecord } from "../../../../../../src/lib/store/kinds/review/candidate/access.js";
 import { StoreRefusalError } from "../../../../../../src/lib/store/refusal-error.js";
+import { OwnerIdentitySchema } from "../../../../../../src/lib/store/identity.js";
+import { requireReviewRecordOwner } from "../../../../../../src/lib/store/kinds/review/access-shared.js";
+import { resolveNamedReviewWorkUnitInvocation } from "../../../../../../src/scripts/review-gate/runtime/review-work-unit.js";
 
 const mocks = vi.hoisted(() => ({ createStore: vi.fn<typeof import("../../../../../../src/lib/store/create.js").createStore>() }));
 vi.mock("../../../../../../src/lib/store/create.js", async importOriginal => ({
@@ -24,6 +27,27 @@ async function resetMockDefaults(): Promise<void> {
 beforeEach(async () => {
   vi.resetAllMocks();
   await resetMockDefaults();
+});
+
+it.each([0, 1])("preserves renamed selection reader %s and selects it after repair", async index => {
+  const h = createReviewHarness();
+  const primary = await h.seedMeta("example");
+  const selected = OwnerIdentitySchema.parse({ ...primary.reference.owner, name: "former" });
+  const read = h.store.read.bind(h.store);
+  const refusal = { code: "namespace-corrupt" as const, class: "terminal" as const, namespace: "work-item",
+    condition: "The selected metadata cannot be read.", remedy: { text: "Restore the selected metadata and retry." } };
+  h.store.read = async () => ({ status: "refused", refusal });
+  const operations = [
+    () => requireReviewRecordOwner(h.store, selected, "example"),
+    () => resolveNamedReviewWorkUnitInvocation({ cwd: "/unused", store: h.store, workItem: selected,
+      exec: async () => { throw new Error("Unexpected process execution"); } }, "example"),
+  ];
+  await expect(operations[index]!()).rejects.toMatchObject({
+    name: "StoreRefusalError", offBranch: true, refusal,
+    message: `${refusal.condition} ${refusal.remedy.text}` });
+  h.store.read = read;
+  expect(await operations[0]!()).toEqual(primary.reference.owner);
+  expect(await operations[1]!()).toMatchObject({ workItem: primary.reference.owner });
 });
 
 it("writes an archived item's Candidate through the store it opens after pulling the history this clone lacks", async () => {

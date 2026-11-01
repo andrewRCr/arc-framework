@@ -49,7 +49,7 @@ export function replayTokenFromAction(command: string, workUnit: string): string
   return z.string().regex(/^[A-Za-z0-9_-]+$/u).parse(argv[5]);
 }
 
-// Grants appear only where a delivery plan's scope refusal kept the ones no member subject has yet recorded.
+// Grants remain call inputs until their exact subject has recorded them, including a ceiling imported without a head.
 const ReplayCallLaneSchema = ReviewLaneJudgmentSchema.unwrap().pick({ scopeMode: true, invocation: true,
   ceilingOverride: true, additionalPassAuthorization: true });
 const ReplayCallLanesSchema = PrePublicationLaneJudgmentsSchema.pipe(z.strictObject({

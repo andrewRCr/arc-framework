@@ -26,7 +26,7 @@ import { recordNativeFrontlineSkip } from "../../../src/scripts/review-gate/runt
 import { composePrePublicationReviewRequest } from "../../../src/scripts/review-gate/policy/pre-publication-request.js";
 import { createPrePublicationCompositionDependencies } from "../../../src/scripts/review-gate/policy/pre-publication-composition.js";
 import { resolveReviewPolicy } from "../../../src/scripts/review-gate/policy/review-policy-driver.js";
-import { readAdvancedPrePublicationReentry } from "../../../src/handlers/review-pre-publication-progress.js";
+import { readAdvancedPrePublicationReentry, readPrePublicationProgress } from "../../../src/handlers/review-pre-publication-progress.js";
 
 import { createReviewDecisionPort } from "../../../src/lib/store/kinds/review/decision/access.js";
 import { createReviewOutcomePort } from "../../../src/lib/store/kinds/review/outcome/access.js";
@@ -38,6 +38,31 @@ import { mapReviewReplayDecisions } from "../../../src/lib/store/kinds/review/ma
 import { prepareNativeReviewTerminus } from "../../../src/scripts/review-gate/runtime/native-terminus-write.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
+
+it("reports damaged publication listings as durable corruption and continues after repair", async () => {
+  const h = await fixture();
+  await h.seedCandidate();
+  const condition = "The review/decision listing is incomplete.";
+  const incomplete = { status: "incomplete" as const, condition };
+  const read = () => Promise.resolve(incomplete);
+  await expect(readPrePublicationProgress({ readStandardLaneOwnerVersion: async () => 0,
+    readReadinessBinding: read }, h.cwd, canonicalDigest({ candidate: true }), "a".repeat(40), 2))
+    .rejects.toMatchObject({ code: "corrupt-state", message: expect.stringContaining(condition) });
+  expect(await h.run(false, {}, undefined, { readReadinessBinding: read })).toMatchObject({
+    error: { code: "corrupt-state", message: expect.stringContaining(condition) } });
+  expect(await h.run()).toMatchObject({ nextAction: { kind: "run-self-review" } });
+});
+
+it("requires owner selection before reading readiness and continues after the boundary selects it", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  const current = await createPrePublicationCompositionDependencies({ ...h, workItem: owner }).readCandidate("example");
+  const version = await h.store.version();
+  expect(await h.run(false, {}, undefined, { readBoundary: async () => snapshot, readCandidate: async () => current }))
+    .toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("exact work item") } });
+  expect(await h.store.version()).toEqual(version);
+  expect(await h.run()).toMatchObject({ nextAction: { kind: "run-self-review" } });
+});
 async function fixture(project = true) {
   const h = createReviewHarness();
   if (project) await h.seedProject(projectId);
@@ -66,8 +91,8 @@ async function fixture(project = true) {
   ] });
   onTestFinished(checkout.cleanup);
   await checkout.occupy(branch, { kind: "work-unit", name: "example" });
-  const seedCandidate = async (convergence = false) => {
-    const primary = await h.seedMeta("example", { branch: null }, { kind: "active" }, {
+  const seedCandidate = async (convergence = false, existingPrimary?: Awaited<ReturnType<typeof h.seedMeta>>) => {
+    const primary = existingPrimary ?? await h.seedMeta("example", { branch: null }, { kind: "active" }, {
       branches: [{ repository: projectId, ref: branch, linkedAs: "adopted", excluded: [] }],
     });
     const subject = createCandidateSubjectSnapshot([]);
@@ -100,7 +125,7 @@ async function fixture(project = true) {
     { ...checkout, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
   };
-  return { ...checkout, seedCandidate,
+  return { ...checkout, seedCandidate, seedMeta: h.seedMeta,
     run: (settled = false, lanes: unknown = { frontline: { invocation: { mode: "skip" } } }, resume?: string,
       overrides?: Parameters<typeof handleReviewPrePublication>[2]) => invoke(
       resume === undefined ? settled ? { selfReview: "settled", lanes: "lanes.json" } : {} : { resume }, lanes, overrides),
@@ -171,9 +196,32 @@ it("reports a refused Candidate history read as the store's refusal rather than 
 
 it("keeps the missing-Candidate response and reaches self-review after the records are created", async () => {
   const h = await fixture();
+  const primary = await h.seedMeta("example");
   expect(await h.run()).toMatchObject({ error: { message: "No managed Candidate record exists for `example`." } });
-  await h.seedCandidate();
+  await h.seedCandidate(false, primary);
   expect(await h.run()).toMatchObject({ locus: "candidate-review-pending", nextAction: { kind: "run-self-review" } });
+});
+
+it.each(["same", "scope", "invocation"] as const)("compares native post-attest call inputs with a %s judgment", async changed => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const lanes = { frontline: { scopeMode: "whole-target" as const, invocation: { mode: "skip" as const } },
+    standard: { terminus: { mode: "owner-accepted" as const }, ceilingOverride: { exhaustedPassCount: 0, nextPass: 1 } } };
+  expect(await h.run(true, lanes)).toMatchObject({ locus: "candidate-publish-ready" });
+  const snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  const ready = snapshot.boundary;
+  if (ready?.schemaVersion !== 2 || ready.candidateSubjectDigest === null) throw new Error("Expected native readiness");
+  const token = encodePrePublicationReplayV2({ candidateId: ready.candidateId, candidateSubjectDigest: ready.candidateSubjectDigest,
+    selfReview: "settled", lanes: { frontline: lanes.frontline } });
+  await writeSubmissionBoundary(h.cwd, projectCandidateReviewResumeBoundary({ workUnit: "example", candidateId: ready.candidateId,
+    candidateSubjectDigest: ready.candidateSubjectDigest, reservation: null, terminus: ready.terminus, postAttestContinuation: {
+      reviewedHead: "a".repeat(40), nextAction: { kind: "continue-pre-publication-review",
+        command: `arc review pre-publication example --resume ${token}`, interactionText: "Resume review." } } }, 2), snapshot.version,
+  { store: h.store, owner });
+  const supplied = changed === "scope" ? { ...lanes, frontline: { ...lanes.frontline, scopeMode: "chunked" } }
+    : changed === "invocation" ? { ...lanes, frontline: { scopeMode: lanes.frontline.scopeMode } } : lanes;
+  const result = await h.run(true, supplied);
+  expect(result, JSON.stringify(result)).toMatchObject(changed === "same" ? { locus: "candidate-publish-ready" }
+    : { error: { code: "post-attest-judgment-mismatch" } });
 });
 
 it("projects a native skipped window as proven closure through default pre-publication composition", async () => {

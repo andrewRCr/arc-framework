@@ -116,7 +116,7 @@ describe("canonical tracked writer inputs", () => {
       obligation: { obligation: "required", reasons: ["sensitive-change-set"], rubricVersion: "standard-review/v1",
         rubricDigest: CanonicalDigestSchema.parse(`sha256:${"b".repeat(64)}`), retrigger: "full-final", count: 1 } });
     const current = projectPublicationBoundary({ workUnit: "example", candidateId, branch: "feat/example", reservation,
-      changeRequest: { repository: "arc-framework/example", pullRequest: 42 } });
+      changeRequest: { repository: "arc-framework/example", pullRequest: 42 } }, 1);
     const legacy = { ...current, locus: "hosted-review-pending", nextAction: { kind: "continue-hosted-review",
       command: "arc review status --target '{targetRef}' --json", interactionText: current.nextAction.interactionText } };
     const parsed = parseIntegrationBoundaryLocus(legacy);

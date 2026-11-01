@@ -114,6 +114,9 @@ contract, changing nothing observable before the flip except what § 3 names.
 8. **No observable change before the flip** beyond Goal 6, the rerouting (§ 3), and the recording verb's registration,
    which refuses `unsupported` until the flip (§ 7.2); and no import-ratchet floor grows.
 
+    - The pre-flip exceptions in § 3.5 include a saved delivery scope judgment binding to every member its selection
+      examined, in either storage arm (A33), and the published base-drift reason `locus-unavailable` (A34).
+
 ## Non-Goals
 
 _Editable in place until activation, then frozen; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
@@ -169,6 +172,23 @@ emissions remain unchanged.
 Amended 2026-10-30 — A26 records three corrections to in-repo output in § 3.5 before the flip: Candidate chain
 refusals, continuation reference errors, and respond's reading of completed names. They extend Goal 8's exceptions; no
 pre-existing test's assertion changes.
+
+Amended 2026-11-01 — A2 admits the boundary's version 2, `verificationKind` `"merge"`, and store versions in published
+schemas before the flip (§ 3.5), extending the pre-flip record-shape exclusion; in-repo emissions remain unchanged.
+
+Amended 2026-11-01 — A4 admits `project-identity-unavailable`, merge's landing-link result, the unconsumed
+`storage.track_design_docs` option, and the export path's classification before the flip (§ 3.5), extending the
+pre-flip behavior and record-shape exclusions; their flip-time emissions remain unchanged.
+
+Amended 2026-11-01 — A5 admits the flip-time forms of the run-verification continuation, member-terminus acceptance,
+and delivery's acknowledged verification before the flip (§ 3.5), extending the record-shape exclusion; in-repo
+emissions remain unchanged.
+
+Amended 2026-11-01 — A16 admits ordinary extra-pass decision references in published schemas before the flip
+(§ 3.5), extending the record-shape exclusion; in-repo emissions remain unchanged and reject native references.
+
+Amended 2026-11-01 — A33 makes a saved delivery scope judgment bind to every member its selection examined in both
+storage arms (§ 3.5), extending the pre-flip review-behavior exclusion after the examined-member review finding (A33).
 
 ## Proposed Design
 
@@ -353,8 +373,10 @@ in-repo backend's static import closure, whose deferred modules a test pins (`in
 
 ### 3. Before the flip
 
-The review gate's behavior is unchanged until the flip, with the checkpoint exception (§ 3.2) and the two
-ordinary extra-pass continuation corrections in § 5.5 (A18), including the clean fix-check clarification (A19).
+The review gate's behavior is unchanged until the flip except for the checkpoint's binding (§ 3.2), the ordinary
+extra-pass continuation corrections in § 5.5 (A18, A19), and § 3.5's published-schema additions and corrections:
+Candidate chain refusals, continuation reference errors, respond's reading of completed names (A26), and delivery
+scope judgments binding to every member their selection examined (A33).
 
 #### 3.1 Candidate and boundary callers through the contract
 
@@ -529,6 +551,10 @@ both, and nothing it emits changes until the flip (A2, A4):
   holds the boundary in no file a commit carries (§ 14.3). The in-repo arm still names the carried boundary's path. No
   clone omits it before the flip.
 
+- **The base-drift reason `locus-unavailable` (A34).** `BaseDriftUnavailableReasonSchema`
+  (`lib/git/base-drift-types.ts`) admits this unavailable reason before the flip. The native path in `handleBaseDrift`
+  (`handlers/base.ts`) emits it when a typed native locus read refuses; the in-repo path keeps its existing emissions.
+
 Two additions besides a schema's widening are observable before the flip too, with nothing they do changing until it:
 
 - **`storage.track_design_docs`** (§ 12.5), a configuration option defaulting to `specs`, which joins the lists kept by
@@ -556,6 +582,12 @@ than preparing a flip-time arm:
 - **Respond passes over completed names that are not slugs.** From a checkout owning no work unit, respond's Candidate
   selection and mutation-owner check read completed work units as owners (`handlers/candidate-mutation-owner.ts`), so
   a completed work unit whose name is not a slug, which no command can name, selects no Candidate.
+
+A saved delivery scope judgment binds to every member its selection examined, in both storage arms (A33).
+`composePrePublicationReviewRequest` returns those exact targets in plan order, through a refusing member where
+selection stops. `scopeJudgmentTargetExamined` (`handlers/review-pre-publication-replay.ts`) checks that set on replay,
+so passing an already-discharged earlier member does not discard the judgment merely because selection advances.
+A target outside the examined set still requires fresh judgment.
 
 A value renamed with no flip-time arm needing it waits for the deletion pass rather than widening a schema early
 (§ 5.9).
@@ -1809,7 +1841,9 @@ request on the host and in the commits that carried its records, and nothing rea
   remaining subject and ordinal reach, so replay needs no new decision. A ceiling override becomes a `ceiling` extra
   pass unless it cites a conditional pass authorization (`conditionalPassAuthorizationId`), which maps to nothing,
   since that authorization's `approved-fix` decision covers it, a frontline one decided on the head the token bound it to
-  (`frontlineCeilingHeadSha`); and a terminus maps to nothing where the boundary carries a terminus, and otherwise
+  (`frontlineCeilingHeadSha`). When that head is absent, the mapping writes no frontline ceiling decision and keeps
+  the `ceilingOverride` in the re-encoded version-two token as a call input (A35). Native re-entry records it at the
+  selected frontline head where it first applies. A terminus maps to nothing where the boundary carries one, and otherwise
   becomes a terminus decision on the boundary's subject, as above, whose basis is the pass count the imported outcomes
   give its Candidate, passes carried across its supersession chain included, as the token's terminus counts them today
   (`readLaneProgress`'s inherited passes, `rg/policy/pre-publication-composition.ts`), so no one is asked to accept
@@ -2757,5 +2791,15 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 
 - **A32** — 2026-11-01 — design: a delivery plan's scope refusal keeps the grants it cannot yet record.
   _Supersedes:_ § 9.3 (the `--resume` token). _Trigger:_ FC1-F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A33** — 2026-11-01 — design: a delivery scope judgment binds to the members its selection examined, in both arms.
+  _Supersedes:_ § 3.5, Goal 8. _Trigger:_ AGG-F13 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A34** — 2026-11-01 — design: admit the `locus-unavailable` base-drift reason before the flip.
+  _Supersedes:_ § 3.5, Goal 8. _Trigger:_ AGG-F14 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A35** — 2026-11-01 — design: the import keeps a frontline ceiling saved without its head as a token call input.
+  _Supersedes:_ § 11.2 (the `--resume` token's judgments). _Trigger:_ AGG-F4 review. _Work:_ review-fix.
+  _Revalidated:_ review-fix.
 
 ---

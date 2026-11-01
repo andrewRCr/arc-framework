@@ -581,7 +581,7 @@ it("passes the review mapping into the import from arc store migrate and covers 
   await h.git("git", ["commit", "-m", "Attest alpha"]);
   await h.git("git", ["update-ref", "refs/heads/feat/alpha", (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim()]);
   const common = await resolveGitCommonDir(h.git, h.root);
-  const gate = ["arc/review-gate/retired/old.json", "arc/review-gate/.quarantine/evidence.bin"];
+  const gate = ["arc/review-gate/retired/old.json", "arc/review-gate/quarantine/evidence.bin"];
   for (const file of gate) {
     await mkdir(dirname(join(common, file)), { recursive: true });
     await writeFile(join(common, file), "{}");
@@ -592,6 +592,8 @@ it("passes the review mapping into the import from arc store migrate and covers 
   expect(trial.result.reviewMapping.map(({ source }) => source).sort())
     .toEqual([...gate, path, ...commits.map(commit => `${path}@${commit}`), boundary].sort());
   expect(trial.result.reviewMapping.find(({ source }) => source === path)).toMatchObject({ outcome: "mapped" });
+  expect(trial.result.reviewMapping.find(({ source }) => source === gate[1])).toMatchObject({
+    outcome: "left-behind", reason: "Quarantined disposition records are machine-local." });
   expect(trial.result.notices.filter(({ condition }) => condition.startsWith("Review "))).toEqual([]);
   expect(await h.migrateCommand()).toMatchObject({ status: "ok" });
   const store = createRefStore(h.ports);
