@@ -178,6 +178,14 @@ describe("conformance runs", () => {
     expect(collectRunCases(split, { range: "first" })).toEqual(collectRunCases(whole, { range: "first" }));
   });
 
+  it("lists the cases a live file registers, skipping an item exclusion for a family that registered assertions there", () => {
+    const probe = registration({ familyExclusions: { "work-item": { items: { 1: "Probe" } } } });
+    const inventory = [...collectConformanceCoverage(probe).cases].flatMap(([item, ids]) => [...ids].map((id) => `${item}: ${id}`));
+    expect(inventory.length).toBeGreaterThan(30);
+    expect(inventory).not.toContain("1: work-item: item 1");
+    expect(collectRunCases(probe)).toEqual(inventory);
+  });
+
   it("checks exclusions and the per-change subset against every case of the registration, whatever a file runs", () => {
     const probe: ConformanceRegistration = { ...registration({ familyExclusions: { "work-item": { assertions: { "reopen-read:work-item/meta": "Probe" } } } }),
       runs: { ranges: { first: [1, 6], rest: [7, 17] }, subset: { 13: ["work-item: reopen-read:work-item/meta"] } } };

@@ -87,8 +87,9 @@ export function collectConformanceCoverage(registration: ConformanceRegistration
  * @returns Each selected case as `<item>: <case ID>`, in registration order.
  */
 export function collectRunCases(registration: ConformanceRegistration, run?: ConformanceRun): string[] {
-  const selection = runSelection(registration, run), selected: string[] = [];
-  for (const item of SUITE_ITEMS) registerItem({ item, registration, selects: (at, id) => {
+  // The inventory decides which empty-item skips register, so it matches what a live file registers and counts.
+  const selection = runSelection(registration, run), coverage = createAssertionCoverage(), selected: string[] = [];
+  for (const item of SUITE_ITEMS) registerItem({ item, registration, coverage, selects: (at, id) => {
     if (selection.selects(at, id)) selected.push(`${at}: ${id}`);
     return false;
   } });
