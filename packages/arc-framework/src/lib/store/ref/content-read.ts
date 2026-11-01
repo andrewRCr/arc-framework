@@ -38,6 +38,14 @@ export function recordDiagnostic(path: string, problem: ContentProblem, saved = 
     : `Repair the stored entry at ${path}, then retry.` } };
 }
 
+/** Qualify a decoded record's location after its archive folder has been selected. */
+export function archivedRecordDiagnostic(ref: string, root: string, diagnostic: CapturedRefDiagnostic): CapturedRefDiagnostic {
+  const key = `${ref}:${root}${diagnostic.key}`;
+  const text = diagnostic.remedy.text.includes(diagnostic.key)
+    ? diagnostic.remedy.text.replaceAll(diagnostic.key, key) : `${diagnostic.remedy.text} Archive entry: ${key}.`;
+  return { ...diagnostic, key, remedy: { ...diagnostic.remedy, text } };
+}
+
 /** Compare a parsed origin or conflict target with its containing ref's owner. */
 export function parsedOwnerProblem(reference: RecordReference, fields: unknown, formerNames: readonly string[] = []): ContentProblem | null {
   if (reference.kind.endsWith("/conflict-record")) {

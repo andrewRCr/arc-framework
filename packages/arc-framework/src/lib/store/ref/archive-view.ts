@@ -5,6 +5,7 @@ import type { RefViewState } from "./view-state.js";
 import type { ListInput, StoreRecord, ListingDiagnostic } from "../read.js";
 import { decodeCapturedRef } from "./read.js";
 import { captureArchivedFolders, selectEndedOwners } from "./ended-owners.js";
+import { archivedRecordDiagnostic } from "./content-read.js";
 
 /** Decode archived owners, with a prepared live owner superseding its former folders. */
 export function archivedViewRecords(context: RefBackendContext, state: RefViewState, input: ListInput): {
@@ -16,7 +17,7 @@ export function archivedViewRecords(context: RefBackendContext, state: RefViewSt
     const decoded = decodeCapturedRef(context, input, folder.liveRef, folder.entries,
       state.objects, folder.metadata, undefined, folder.placement, { saved: state.saved });
     records.push(...decoded.records);
-    diagnostics.push(...decoded.diagnostics.map((diagnostic) => ({ ...diagnostic, key: folder.root + diagnostic.key })));
+    diagnostics.push(...decoded.diagnostics.map(diagnostic => archivedRecordDiagnostic(folder.ref, folder.root, diagnostic)));
   }
   return { records, diagnostics };
 }

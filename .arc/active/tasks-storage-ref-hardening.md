@@ -175,21 +175,11 @@ classification calls the sweep settled.
   task. Task 3.1.c also brings forward the unavailable-quarter diagnostic needed to preserve Missing through owner
   lookup.
 
-    - `[ ]` **3.2.a The decoder and its keys**
-        - `decodeArchiveFolderControls` reports § 1.5's three `folderPlacement` conditions as `malformed` diagnostics
-          with `rule: "placement"`, keyed `${ref}:${root}`, with the current or saved remedy and the **Misplaced**
-          fault. A cohort folder with no closeout letter stays a `key-mismatch`. `decodeArchiveFolder`'s metadata takes
-          § 1.2's read.
-        - An archived record diagnostic is keyed `${ref}:${root}${path}` at the `archive-view.ts` and `read.ts` sites,
-          not inside `decodeCapturedRef`, and its remedy names that key.
-        - Build `test-first` (one behavior at a time):
-            - each placement condition yields its § 1.5 condition and current remedy, and the saved remedy on a saved
-              capture
-            - a sequence prefix `ArchiveSequenceSchema` rejects reaches the sequence condition; any other bad folder
-              name stays a `key-mismatch`
-            - a record-role work item's folder reaches only the first two conditions
-            - an archived record diagnostic's key and remedy name `${ref}:${root}${path}`, and the key's first segment
-              is the ref
+    - `[x]` **3.2.a The decoder and its keys**
+        - Placement diagnostics retain their fault row and current/saved remedies; sequence validation stays distinct
+          from owner-coordinate mismatches, including a cohort's missing closeout letter. Archived record diagnostics
+          qualify both key and remedy with the archive ref and full stored path after decoding, preserving the
+          folder-relative matching used by point reads.
 
     - `[ ]` **3.2.b The converters**
         - Each converter the inventory lists takes the diagnostic's fault row through the helper, and a diagnostic with

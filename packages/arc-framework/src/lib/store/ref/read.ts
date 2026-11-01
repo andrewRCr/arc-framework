@@ -16,7 +16,7 @@ import { decodeRecord, decodeReference, matchesFamilyRef, refOwner, rootFamily, 
 import { canonicalPrimaryKind, parseRefMetadata, readRefMetadata, type RefMetadata } from "./metadata.js";
 import type { RefBackendContext } from "./context.js";
 import { saveCapturedManifest } from "./manifest.js";
-import { recordDiagnostic } from "./content-read.js";
+import { recordDiagnostic, archivedRecordDiagnostic } from "./content-read.js";
 import { readOpenConflicts, attachOpenConflicts, conflictParentQuery } from "./conflicts-read.js";
 import { checkRefKey } from "./path-admission.js";
 import { projectIdentityQueries, projectOwnerFromObjects, admitProjectReference, projectListInput, projectListingBinding, checkProjectIdentity,
@@ -203,7 +203,7 @@ function decodeArchivedListing(context: RefBackendContext, input: ListInput, sta
   const ended = selectEndedOwners(state, captureArchivedFolders(state, input.family));
   const decoded = ended.folders.map(folder => {
     const group = decodeCapturedRef(context, input, folder.liveRef, folder.entries, state.objects, folder.metadata, undefined, folder.placement);
-    return { records: group.records, diagnostics: group.diagnostics.map(diagnostic => ({ ...diagnostic, key: folder.root + diagnostic.key })) };
+    return { records: group.records, diagnostics: group.diagnostics.map(diagnostic => archivedRecordDiagnostic(folder.ref, folder.root, diagnostic)) };
   });
   return { records: decoded.flatMap(group => group.records), diagnostics: [...ended.diagnostics, ...decoded.flatMap(group => group.diagnostics)],
     ...[...state.refs].filter(([ref]) => isArchiveRef(ref)).every(([, group]) => !group.entries) ? { unreadable: true as const } : {} };

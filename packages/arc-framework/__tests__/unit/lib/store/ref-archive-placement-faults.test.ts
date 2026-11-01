@@ -48,4 +48,22 @@ describe("ref archive placement facts", () => {
       records: [expect.objectContaining({ content: "kept" })], diagnostics: [], missed: false,
     } });
   });
+
+  it.each([
+    { label: "a cohort without its closeout letter", root: "01_cohort-alpha/", family: "cohort", metadata: {
+      formatVersion: 1, slug: "alpha", formats: {}, placement: { kind: "completed", quarter: "2026-q4" },
+    } },
+    { label: "a nonnumeric work-item folder", root: "bad_alpha/", family: "work-item", metadata: completed },
+  ] as const)("keeps $label as a coordinate mismatch", async ({ root, family, metadata }) => {
+    const { store, namespace, version } = fixture({ metadata: JSON.stringify(metadata), archive: { root, quarter: "2026-q4" } });
+    const key = `${namespace}:${root}`;
+    for (const saved of [false, true]) {
+      expect(await store.list({ family, ...saved ? { asOf: version } : {} })).toMatchObject({ status: "ok", result: {
+        records: [], missed: true, diagnostics: [{ kind: "key-mismatch", key,
+          condition: expect.stringContaining("role or owner coordinates"),
+          remedy: { text: saved ? expect.stringContaining("ancestor") : expect.stringContaining("Restore the folder name") },
+        }],
+      } });
+    }
+  });
 });
