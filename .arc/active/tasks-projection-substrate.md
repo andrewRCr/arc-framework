@@ -410,7 +410,7 @@ refusing slot is injected where a test needs one. The lock tasks follow Phase 3,
 `.ignore` (4.3), which waits until just before landing. No one-off pass locks the existing worktrees: each takes the
 lock when it is next spawned, and `storage-cutover` locks any left before the flip (§ 12.7).
 
-### `[ ]` **4.1 Lock each checkout ARC spawns for a work item — § 12.1, § 12.4, § 12.5**
+### `[x]` **4.1 Lock each checkout ARC spawns for a work item — § 12.1, § 12.4, § 12.5**
 
 - _Goal:_ Every linked checkout ARC spawns for a work unit or an Errand carries `git worktree lock` with
   `PROJECTION_LOCK_REASON` once its spawn has succeeded, before the flip as after, but for one another tool already
@@ -446,24 +446,13 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
         - A lock the spawn cannot set (`failed`) completes the spawn and warns with the remedy of locking the checkout,
           as a failed relock does (spec § 17, item 9).
 
-    - `[ ]` **4.1.c Relock after a failed retirement**
+    - `[x]` **4.1.c Relock after a failed retirement**
 
-        - `removeWorktreeCheckout` (`lib/git/worktree-removal.ts`) unlocks a checkout held with
-          `PROJECTION_LOCK_REASON` before its second `beforeRetire` and the remove, and its error path returns `failed`
-          naming the step with the checkout left unlocked. Where the call unlocked the projection's lock and did not
-          remove the checkout — that `beforeRetire` throws, `onlyMissing` finds the folder returned, or
-          `git worktree remove` fails — it runs `git worktree lock --reason <reason> <path>` with
-          `PROJECTION_LOCK_REASON` before returning `failed`; a relock that itself fails is named in the result's
-          detail with the remedy of locking the checkout again. A failure before the unlock leaves the lock as it was.
-        - Of the three exits after the unlock, the folder `onlyMissing` finds returned is a `return`, not a throw, so
-          the relock covers that return as well as the error path.
-        - Build `test-first` (one behavior at a time):
-            - Integration tier, over a real repository
-            - a `git worktree remove` that fails after the unlock returns `failed` with the checkout locked again with
-              the reason, and a rerun removes it
-            - a `beforeRetire` throwing after the unlock, and a folder `onlyMissing` finds returned, each leave the lock
-            - a relock that fails is named in the `failed` result's detail with its remedy
-            - a persist slot that refuses, injected, leaves the lock untouched, since it refuses before the unlock
+        - `removeWorktreeCheckout` (`lib/git/worktree-removal.ts`) notes when it unlocked the projection's lock; its
+          error path and the `onlyMissing` return of a returned folder then lock the checkout again through `relock()`
+          before returning `failed`, and a relock that fails adds its error and the `git worktree lock --reason` remedy
+          to the detail. A refusal before the unlock, the persist slot's included, leaves the lock as it was. Covered in
+          `integration/worktree-projection-lock.test.ts`.
 
 ### `[ ]` **4.2 Rewrite the removals printed or documented — § 12.6**
 

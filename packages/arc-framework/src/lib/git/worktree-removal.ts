@@ -81,6 +81,7 @@ export async function removeWorktreeCheckout(options: RemoveWorktreeCheckoutOpti
     return { kind: "failed", step: "remove", detail: `Checkout folder has returned at ${options.checkoutPath}; its registration was left intact.` };
   }
   let step: "persist" | "unlock" | "remove" = "persist";
+  let unlocked = false;
   try {
     if (check.kind !== "missing") {
       const persisted = await slots.persist(options.checkoutPath);
@@ -91,15 +92,30 @@ export async function removeWorktreeCheckout(options: RemoveWorktreeCheckoutOpti
     await options.beforeRetire?.();
     if (registration?.locked === PROJECTION_LOCK_REASON) {
       await options.exec("git", ["worktree", "unlock", options.checkoutPath], { cwd: options.primaryWorktreePath });
+      unlocked = true;
     }
     step = "remove";
     if (options.onlyMissing && await (options.folderExists ?? folderExists)(options.checkoutPath)) {
-      return { kind: "failed", step, detail: `Checkout folder has returned at ${options.checkoutPath}; its registration was left intact.` };
+      return await relock(options, unlocked,
+        { kind: "failed", step, detail: `Checkout folder has returned at ${options.checkoutPath}; its registration was left intact.` });
     }
     await options.beforeRetire?.();
     await options.exec("git", ["worktree", "remove", options.checkoutPath], { cwd: options.primaryWorktreePath });
     return { kind: check.kind === "missing" ? "pruned" : "removed" };
-  } catch (error) { return { kind: "failed", step, detail: message(error) }; }
+  } catch (error) { return relock(options, unlocked, { kind: "failed", step, detail: message(error) }); }
+}
+/** A retirement that unlocked the projection's lock and kept the checkout locks it again before it reports failing. */
+async function relock(
+  options: RemoveWorktreeCheckoutOptions, unlocked: boolean, failed: Extract<WorktreeRemovalResult, { kind: "failed" }>,
+): Promise<WorktreeRemovalResult> {
+  if (!unlocked) return failed;
+  try {
+    await options.exec("git", ["worktree", "lock", "--reason", PROJECTION_LOCK_REASON, options.checkoutPath], { cwd: options.primaryWorktreePath });
+    return failed;
+  } catch (error) {
+    return { ...failed, detail: `${failed.detail}; locking the checkout again failed too (${message(error)}): `
+      + `lock it with git worktree lock --reason "${PROJECTION_LOCK_REASON}" ${options.checkoutPath}` };
+  }
 }
 /** Persist a retained checkout before its caller touches its marker. */
 export async function releaseWorktreeCheckout(options: RemoveWorktreeCheckoutOptions): Promise<{ kind: "released" } | { kind: "refused"; check: Extract<RemovalCheck, { kind: "refused" }> }> {
