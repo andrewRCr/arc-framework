@@ -3,7 +3,7 @@
   "slug": "one-shot-failure-output-timeout",
   "claimId": "e7342e6153e163b16474bfe16324e6bc",
   "createdAt": "2026-11-02T03:14:16.662Z",
-  "updatedAt": "2026-11-02T03:14:16.662Z",
+  "updatedAt": "2026-11-02T04:11:20.788Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Diagnose the failure-output integration timeout and apply the supported call budget correction.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Investigate the one-shot script failure-output test timeout",
   "originEntrySourceDigest": "sha256:aaf4e84cf511de90e58623205a3f2adff9e026bc600c7acc55e1718d75deabdc",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/one-shot-failure-output-timeout",
+    "headSha": "0bec935e0aa577b217e288301516b8edab5e3314"
+  }
 }
