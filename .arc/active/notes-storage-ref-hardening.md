@@ -313,6 +313,51 @@ request met the complete stale-build refusal; its one prescribed fast build and 
 The completion marks 7.2, 7.2.R, and 7.R and closes A1/A2's revalidation entries. Hosted qualification at the final
 implementation head remains due in Phase 8; no new hosted run is claimed here.
 
+## Push exclusion refusal evidence
+
+`publishRefAttempt` keeps the notices from its own `pullPushBasis`, then independently calls `capturePushListing`.
+`readPushListing` can therefore discover a pending end after another public pull changed the clone's state, without
+adding that second pull's notice to the original push. The native case pauses before the push listing acquires the
+personal lock, lets a separate public pull discover an archive with missing retained history, then resumes. In both
+layouts the original push's own notices remain empty, its personal/work batch is excluded, and the independent inbox
+publishes. Original exclusion produced empty condition/remedy fields and failed `PushResultSchema`; the fallback now
+names the required history, and restoring it permits a successful push with the personal write preserved.
+
+That public input replaces the planned direct private-helper test without changing the task's Goal. The source scout
+`/root/push_seed_reach` supplied advisory reachability evidence; the native run and primary source checks establish
+this concrete path. `task-7.3-pending-fallback-red.log` is the two-layout schema failure, and
+`task-7.3-pending-fallback-green.log` passes both complete repair scenarios.
+
+The double-end cases use genuine independently published archive batches, a mirror erasure, and an unpublished
+completed-companion/personal batch. An independent live movement makes the listing inspect the pending owner whose
+retained history lacks the other end's batch. Pull reports `ended-twice` by item UID and suppresses `end-pending`;
+`excludeBrokenPushRefs` now carries the item-keyed notice's condition/remedy instead of the generic missing-history
+fallback. `task-7.3-ended-reason-red.log` records the exact wrong-reason failure, and
+`task-7.3-ended-and-fallback-retry.log` passes all four scenarios through restoration, reopening, ending once, and
+publication. The first recovery attempt updated tracking alone and left an incompatible keeper; the corrected native
+procedure restores the erased published-quarter witness and accepts the other history into tracking and seen refs
+atomically before merging by name. No production remedy or existing refusal assertion was weakened for that setup.
+
+The history-divergence case retains genuine completed history and quarter evidence while its live batch remains
+unpublished, then rewrites the remote history to its genuine pre-end ancestor. The rejected rewrite leaves local and
+tracking history equal, so `publishRefAttempt`'s early changed-history refusal does not mask exclusion. Pull suppresses
+`end-pending` beside `history-diverged`; the original selection still chose the generic missing-history repair.
+`task-7.3-diverged-reason-red.log` records that exact two-layout failure. `pendingEndRefusal` now prefers a kept notice
+naming the live/history coordinate before matching a double-end notice by family and UID, then uses the fallback.
+Its pure selection adds no Git process. Each initial exclusion reason covers its unchanged atomic batch closure.
+
+`task-7.3-reasons-green.log` passes all six native cases through complete repair. The divergence case performs the
+notice's lease-bound keep-ours publication and retries successfully; double-end recovery preserves both histories
+before reopening and ending once; fallback recovery restores missing history. Every case also observes independent
+inbox publication and preservation of its personal batch contribution. The test files import only public storage
+surfaces and native fixture helpers; no private module or test facade was introduced. File lint initially found
+complexity 18 in the exclusion function and an unused initial test assignment. `pendingEndRefusals` extracts reason
+collection and the test now declares its retained tip without the unused initializer; all four files pass file lint.
+The broader native regression passes all 119 cases in ten suites (`task-7.3-push-regression.log`), including tracking
+failure exclusion, double ends, listing growth, batch-object loss, and ancestry repair. The increment request passes
+all 11 selected checks, including both source and test type checks (`task-7.3-increment.log`). Related feedback and
+commit checks are retained separately as `task-7.3-related.log` and the ordinary hook records.
+
 ## Verification at the final head
 
 SC 3, SC 8's Windows case, SC 9, and SC 12 take their evidence mid-change, and no gate at the final head takes it again:

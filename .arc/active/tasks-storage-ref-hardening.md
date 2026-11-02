@@ -842,24 +842,19 @@ before its fix and passes after it in the store suites.
   and atomic publication counts remain unchanged; owned acquisitions save one reader and one enumeration. Raw
   before/after evidence and `task-7.R-process-deltas.json` are recorded in the notes.
 
-### `[ ]` **7.3 Push exclusion builds a refusal for every excluded ref — § 9**
+### `[x]` **7.3 Push exclusion builds a refusal for every excluded ref — § 9**
 
 - _Goal:_ A pending end the pull withholds without an end-pending seed never makes push emit a schema-invalid failed
   publish: exclusion builds a refusal with a condition and remedy for every ref it excludes.
 
-    - Seedless ends arise in `sync-pull-lifecycle.ts`, at the merge filter, whose blocked or withheld ref a notice
-      already names, and at the `ended-twice` filter, whose notice is keyed by its item; and through `uniqueNotices`
-      (`pull.ts`), which drops `end-pending` beside `history-diverged` or `tracking-update-failed`.
-      `excludeBrokenPushRefs` seeds from `listing.pending`.
-    - A ref the seed alone excludes takes the condition and remedy of the pull notice `uniqueNotices` kept that names it
-      or its counterpart, or of an `ended-twice` notice whose item's UID the ref carries; with no such notice, it takes
-      the end-pending condition and remedy (`sync-pull-lifecycle.ts`) naming its history ref.
-    - Build `test-first` (one behavior at a time): an `end-pending` dropped beside `history-diverged` yields a
-      schema-valid failed publish carrying the `history-diverged` notice's remedy; a clone that ends an item the remote
-      also ended pulls an `ended-twice` notice, and its push yields a schema-valid failed publish carrying that notice's
-      remedy; a ref the seed alone excludes with no notice naming it, handed to `excludeBrokenPushRefs` directly, yields
-      one carrying the end-pending remedy naming its history ref. 6.4 covers the end dropped beside
-      `tracking-update-failed`.
+- _Note:_ The planned direct-helper fallback case is covered by a public concurrent-pull interleaving, preserving
+  private-module boundaries. Feedback corrections complete the double-end fixture's tracking/keeper and published
+  witness restoration, extract pending-reason collection to meet complexity 15, and remove an unused test initializer.
+
+- _Outcome:_ Pending seeds retain the matching live/history notice, then an item-keyed double-end notice, or the
+  history-restoration fallback. Every excluded atomic contribution has a nonempty reason and remedy while independent
+  state publishes. Public native cases in both layouts exercise all three reason classes and carry out their repairs;
+  see `notes-storage-ref-hardening.md` § Push exclusion refusal evidence.
 
 ### `[ ]` **7.4 Quarter provenance attributes a restored primary — § 9**
 
