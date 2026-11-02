@@ -412,10 +412,10 @@ Design-copy branch: remove an origin's canonical draft while its unchanged Desig
 Design publication is blocked by the existing contract. Source inspection and both native layouts confirm that
 boundary. The advisor did not authorize a contract or acceptance change.
 
-The proposed direction is to retain conventional Design admission and narrow § 10's acceptance claim to the reachable
-report defect. This is a design-arm correction of § 10 ¶1 at low derivation depth: the implementation mechanism is
-settled, but changing the approved outcome remains the Owner's decision. Task 7.5 and its Goal stay open and verbatim;
-no amendment, criterion change, or broadened Design behavior is recorded as approved.
+A3 was approved after the report correction and native boundary evidence were presented. The amendment retains
+conventional Design admission and narrows § 10's acceptance claim to the reachable report defect. Task 7.5's original
+Goal is preserved with a forward reference to 7.5.R; successful verbatim Design publication is superseded, and the
+existing metadata and planning-profile contracts remain in force.
 
 Evidence under `~/dev/arc-evidence/storage-ref-hardening/implementation/`:
 
@@ -429,6 +429,36 @@ Evidence under `~/dev/arc-evidence/storage-ref-hardening/implementation/`:
   strips the final newline. The assertion now uses the byte-preserving raw Git port; expected record bytes are intact.
 - `task-7.5-companion-regression-retry.log`: the two report cases, two unchanged Design boundary probes, existing native
   cut admission, and conventional draft/single/paired Design scaffolds pass together (36 cases across four suites).
+
+## A3 — Conventional Design admission and companion reports
+
+Owner approved the proposed A3 row on 2026-11-02. This low-depth design amendment supersedes § 10 ¶1's Design-success
+claim and adds criterion 16. The original statement was:
+
+> `copyCoordinates` (`lib/decompose/scaffold-copy.ts:47-48`) derives a verbatim companion's name with
+> `companionArtifactName`. The store places the record by `companionStoredName` (`lib/store/companion-name.ts:11-13`).
+> The record lands correctly, but the member meta's Design entry (`member-scaffold.ts:64,72-74`) and the decompose
+> report name a record that resolves to nothing. Both use `companionStoredName`. Only `arc decompose` under the ref
+> backend reaches it.
+
+`copyCoordinates` now supplies the same stored companion name as `expandStoredPath`, and `reportDecomposeAdditive`
+returns it. A report-only native regression reaches the actual defect without bypassing admission. The new member's
+Design-success branch cannot satisfy `checkMetaDesignEntry` for a verbatim path; the amendment retains that rule and
+`decomposePlanningProfile` rather than adding a new Design contract.
+
+The bounded author check covers § 10, criterion 16, Tasks 7.5 and 7.5.R, Phase 7's exit criterion, and the Phase 8
+verification note. Reader independence and binding completeness hold: the amended specification states the desired
+report name and retained Design limits directly. Grounding traces `copyCoordinates`, `companionStoredName`,
+`expandStoredPath`, `reportDecomposeAdditive`, `scaffoldMember`, `checkMetaDesignEntry`, and
+`decomposePlanningProfile`, with the native report and Design refusal evidence above. The grounding-only task audit
+finds no new prerequisite or unsettled implementation choice; 7.5.R revalidates the committed correction and retained
+boundary. This is author evidence. Independent planning review is omitted at low amendment depth under
+`planning-review`; no evaluator pass is claimed.
+
+Propagation retains the original Task 7.5 Goal and appends its A3 reference. Phase 7's exit still closes on the
+reachable defect's fail-first case; criterion 16 adds the explicit retained-contract acceptance that Phase 8 must
+verify. Earlier completed-task evidence is unaffected. No import, mapping, delivery, schema, or process-cost behavior
+changes. The final author reread found no remaining contradiction within this footprint.
 
 ## Verification at the final head
 

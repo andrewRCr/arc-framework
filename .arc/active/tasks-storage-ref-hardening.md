@@ -871,16 +871,30 @@ before its fix and passes after it in the store suites.
 - _Goal:_ Under the ref backend, a decomposed member's meta Design entry and the decompose report name the verbatim
   companion record that actually resolves.
 
-- _Note:_ The specified stored-name correction fixes native optional-copy reports. Production metadata admission
-  rejects a fresh member's verbatim Design entry before the report can land, both before and after that correction.
-  The task remains open for disposition of § 10's Design-success claim; see `notes-storage-ref-hardening.md`
-  § Decomposition companion naming evidence. No Design admission or planning-profile rule has changed.
+    - _Amended in:_ 7.5.R (A3)
+
+- _Note:_ A3 retains conventional Design admission and narrows § 10 to the reachable optional-copy report defect.
+  The specified stored-name correction landed in `c237427f5b`; 7.5.R verifies the amended scope before closure.
+  See `notes-storage-ref-hardening.md` § Decomposition companion naming evidence.
 
     - `copyCoordinates` (`lib/decompose/scaffold-copy.ts`) and the member meta's Design entry (`member-scaffold.ts`)
       use `companionStoredName` (`lib/store/companion-name.ts`), which the store places the record by.
     - Build `test-first` (one behavior at a time), in a `store-ref-*` suite through
       `__tests__/helpers/store/ref-decompose.ts`: a verbatim companion's name in the Design entry and the report
       resolves to the stored record.
+
+### `[ ]` **7.5.R Verify companion reports with conventional Design admission — § 10 (A3)**
+
+- _Goal:_ Optional-copy reports name each verbatim companion's actual stored path in both ref layouts, while
+  conventional Design names and new-member Design admission retain their existing behavior (A3).
+
+    - Revalidate `copyCoordinates`'s committed `companionStoredName` correction through the native optional-notes
+      regression and the existing draft, single-spec, and paired-spec scaffold cases.
+    - Re-run the retained public-store Design probe in both layouts: an origin's nested verbatim draft may reach
+      preflight, but fresh member metadata still refuses `meta.design-entry`. Keep the probe and its raw result with
+      the evidence, without weakening the production registry or admission checks.
+    - Retain the original report-name fail-first witness and record the amended acceptance evidence in
+      `notes-storage-ref-hardening.md` § A3 — Conventional Design admission and companion reports.
 
 ## **Phase 8:** Verification
 
@@ -956,3 +970,7 @@ before its fix and passes after it in the store suites.
 - `[ ]` Completed-copy refresh adds only the existing batched tree and commit writes per otherwise-unwritten changed
   quarter per attempt, with no additional listing, redundant discovery, or publication transaction; unchanged
   quarters and unaffected success paths retain their process budget (A2, spec criterion 15).
+
+- `[ ]` Decomposition's optional-copy reports name each verbatim companion's actual stored path in both ref layouts;
+  conventional draft, single-spec, and paired-spec Design names and new-member Design admission stay unchanged
+  (A3, spec criterion 16).

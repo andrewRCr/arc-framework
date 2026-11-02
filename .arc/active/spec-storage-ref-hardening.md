@@ -907,11 +907,18 @@ The design:
 
 ### 10. Decomposition names a verbatim companion by its stored name
 
-`copyCoordinates` (`lib/decompose/scaffold-copy.ts:47-48`) derives a verbatim companion's name with
-`companionArtifactName`. The store places the record by `companionStoredName` (`lib/store/companion-name.ts:11-13`).
-The record lands correctly, but the member meta's Design entry (`member-scaffold.ts:64,72-74`) and the decompose
-report name a record that resolves to nothing. Both use `companionStoredName`. Only `arc decompose` under the ref
-backend reaches it.
+`copyCoordinates` (`lib/decompose/scaffold-copy.ts`) names copied companions with `companionStoredName`
+(`lib/store/companion-name.ts`), the same formatter that `expandStoredPath` uses. A slug-safe companion key keeps its
+conventional artifact name; a verbatim path stays as written. `reportDecomposeAdditive` (`lib/decompose/additive-report.ts`)
+returns that stored name in each copy's `basename`, so an optional copied companion's report names its actual record.
+The native case uses a nested notes companion allocated through a fresh preflight map (A3).
+
+`scaffoldMember` (`lib/decompose/member-scaffold.ts`) also consumes those coordinates for Design, but successful
+verbatim Design entries are outside this correction. `checkMetaDesignEntry` (`lib/store/kinds/meta/reference-rules.ts`)
+continues to admit only the new member's own conventional draft/spec names or paired-spec names backed by canonical
+`spec-prd` / `spec-rfc` companions. `decomposePlanningProfile` (`lib/decompose/source-profile.ts`) retains its conventional
+origin profiles. Existing draft, single-spec, and paired-spec scaffolds keep their names and admission; neither rule
+is broadened to make a verbatim Design entry publish (A3).
 
 ### 11. The import
 
@@ -1225,6 +1232,9 @@ more than about a week out.
     quarter per attempt, without an additional listing, redundant discovery, or publication transaction. Unchanged
     quarters and unaffected success paths retain their process budget (A2).
 
+16. Decomposition's optional-copy reports name each verbatim companion's actual stored path in both ref layouts.
+    Conventional draft, single-spec, and paired-spec Design names and new-member Design admission remain unchanged (A3).
+
 ## Open Questions
 
 None. Module and helper names inside `lib/store/ref/` for § 1.2's metadata result, § 1.4's helper, and § 5.2's
@@ -1236,5 +1246,8 @@ wrapper are implementation detail.
   _Trigger:_ 7.2 must-stop. _Work:_ 7.2.R. _Revalidated:_ 7.2.
 - **A2** — 2026-11-02 — design: permit required quarter writes. _Supersedes:_ Cross-cutting › Performance ¶1.
   _Trigger:_ 7.2 must-stop. _Work:_ 7.R. _Revalidated:_ 7.R.
+
+- **A3** — 2026-11-02 — design: retain conventional Design admission; fix reachable companion reports.
+  _Supersedes:_ § 10 ¶1. _Trigger:_ 7.5 must-stop. _Work:_ 7.5.R. _Revalidated:_ pending → 7.5.R.
 
 ---
