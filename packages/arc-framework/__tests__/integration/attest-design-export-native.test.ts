@@ -66,6 +66,33 @@ it.each([true, false])("reports replacement of a differing review copy on initia
   else expect(matching).not.toContain("Replaced design review copy:");
 }, 30_000);
 
+it.each([true, false])("reports an exported replacement when the Candidate batch refuses, json=%s", async json => {
+  const h = await fixture(), path = ".arc/specs/example/spec-example.md", store = h.reference.store;
+  await mkdir(join(h.cwd, ".arc/specs/example"), { recursive: true });
+  await writeFile(join(h.cwd, path), "# Hand-edited review copy\n");
+  const batch = store.batch.bind(store);
+  let held = true;
+  store.batch = async input => held && input.writes.some(write => write.reference.kind === "review/candidate")
+    ? { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: "candidate-batch",
+      condition: "Candidate batch is held.", remedy: { text: "Release the lock and retry attestation." } } }
+    : batch(input);
+  const rejected = await h.attest(json), notice = `Replaced design review copy: ${path}`;
+  if (json) expect(rejected).toMatchObject({ status: "rejected", reason: expect.stringContaining(notice),
+    refusal: { condition: "Candidate batch is held." } });
+  else expect(rejected).toContain(notice);
+  expect(await readFile(join(h.cwd, path), "utf8")).toBe("# Stored specification\n");
+  expect((await h.exec("git", ["show", `:${path}`], { cwd: h.cwd })).stdout).toBe("# Stored specification");
+  expect(await store.read({ reference: recordReferences["review/candidate"](h.primary.reference.owner) }))
+    .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  held = false;
+  process.exitCode = 0;
+  const retry = await h.attest(json);
+  if (json) expect(retry).toMatchObject({ status: "attested" });
+  else expect(retry).not.toContain(notice);
+  expect(retry).not.toHaveProperty("designExport");
+  expect(await store.read({ reference: recordReferences["review/candidate"](h.primary.reference.owner) })).toMatchObject({ status: "ok" });
+}, 30_000);
+
 it.each(["branch", "bound"] as const)("attests the exact completed %s generation while a live work unit reuses its slug", async generation => {
   const h = await fixture({ generation, tracking: "none" });
   const live = await h.reference.seedMeta("example", { branch: null, taskList: "tasks-example.md" }, { kind: "active" });

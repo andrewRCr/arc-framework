@@ -92,19 +92,19 @@ class DeliveryCandidateRenewalRefusal extends Error {}
 
 class CandidateReviewRecoveryRefusal extends Error {}
 
-function refuseProjectIdentityFailure(error: unknown, json: boolean): boolean {
+function refuseProjectIdentityFailure(error: unknown, json: boolean, notice = ""): boolean {
   if (!(error instanceof ProjectIdentityError)) return false;
-  refuseWithRemedy(error.failure.reason, error.failure.remedy, json);
+  refuseWithRemedy(error.failure.reason + notice, error.failure.remedy, json);
   return true;
 }
 
-function refuseAttestationStateFailure(error: unknown, json: boolean): boolean {
+function refuseAttestationStateFailure(error: unknown, json: boolean, notice = ""): boolean {
   if (error instanceof ReviewOwnerSelectionError) {
-    refuseWithRemedy(error.condition, error.remedy, json);
+    refuseWithRemedy(error.condition + notice, error.remedy, json);
     return true;
   }
-  if (!(error instanceof StoreRefusalError) || !error.offBranch) return refuseProjectIdentityFailure(error, json);
-  refuseWithRemedy(error.refusal.condition, error.refusal.remedy, json, error.refusal);
+  if (!(error instanceof StoreRefusalError) || !error.offBranch) return refuseProjectIdentityFailure(error, json, notice);
+  refuseWithRemedy(error.refusal.condition + notice, error.refusal.remedy, json, error.refusal);
   return true;
 }
 
@@ -494,10 +494,12 @@ async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestComma
           }),
     });
   } catch (error) {
-    if (refuseAttestationStateFailure(error, input.json === true)) return;
+    const notice = designExport.result?.overwritten === true
+      ? `\nReplaced design review copy: ${designExport.result.path}` : "";
+    if (refuseAttestationStateFailure(error, input.json === true, notice)) return;
     if (error instanceof CandidateReviewRecoveryRefusal) {
       refuseWithRemedy(
-        `\`arc attest\` cannot bind the live review to its Candidate record: ${error.message}`,
+        `\`arc attest\` cannot bind the live review to its Candidate record: ${error.message}${notice}`,
         spineRemedy(
           "The review-owning Candidate record must be verified at the exact live review head before re-root.",
           "Restore that review head and its managed Candidate record in local Git history, then retry re-root",
@@ -510,7 +512,7 @@ async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestComma
     if (!(error instanceof DeliveryCandidateRenewalRefusal)) throw error;
     refuseWithRemedy(
       `\`arc attest\` refused stale or mismatched public delivery Candidate renewal for \`${input.name}\`: `
-        + error.message,
+        + error.message + notice,
       spineRemedy(
         "Corrective attestation writes only one exact version-bound public member-review continuation.",
         "Restore the exact public Candidate, plan, state, member, and review evidence, then re-attest",
