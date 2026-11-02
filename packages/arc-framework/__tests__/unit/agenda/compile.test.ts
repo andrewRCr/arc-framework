@@ -15,11 +15,11 @@ const noReads: AgendaReadPort = {
 
 describe("session agenda compilation", () => {
   it("refuses an uncompiled arm with its selected row and a restart route", async () => {
-    const result = await compileSessionInitAgenda(createAgendaFixtureInput(await sessionInitFixture(), { signals: { start: "target" },
+    const result = await compileSessionInitAgenda(createAgendaFixtureInput(await sessionInitFixture(), { signals: {},
       answers: { answered: {}, done: [] }, read: noReads }));
     expect(result).toEqual({ ok: false, refusal: {
-      code: "row-not-compiled", flags: [], row: "start",
-      remedy: expect.stringMatching(/start.*session-init\.md.*base branch.*another checkout/u),
+      code: "row-not-compiled", flags: [], row: "orient",
+      remedy: expect.stringMatching(/orient.*session-init\.md.*base branch.*another checkout/u),
     } });
   });
 });

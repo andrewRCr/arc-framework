@@ -756,6 +756,11 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "597e96777cd46892c44a9ac5ceae8d7ece891cce270e718293ea5dee8dfee139"
+    },
+    "system/methods/assess-start-readiness.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "74649f4a2f075348046a052de28e544a2a56391bff057e0f3b912f7996a9faae"
     }
   }
 }

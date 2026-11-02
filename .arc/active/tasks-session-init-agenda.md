@@ -414,40 +414,21 @@ rehearsals reach today's orientation except where the specification states a cha
   their selected set and checkout. The full prefix and checkout-only degradation scope apply before entry. A
   contextless husk retains cleanup attention, stays out of execution, and stops after synchronization.
 
-### `[ ]` **4.4 Compile `--start` and author `assess-start-readiness` — § 5.4, § 8.2**
+### `[x]` **4.4 Compile `--start` and author `assess-start-readiness` — § 5.4, § 8.2**
 
 - _Goal:_ A resolvable `--start` target compiles to its reads, the readiness renders, the `assess-start-readiness`
   fragment, and a `gate launch`; an unresolved one to a `start-target` note and the entry row as if absent.
 
-- _Note:_ See `notes-session-init-agenda.md` § Shipping a file and § Carried context.
+    - `[x]` **4.4.a Compile the row**
+        - Shared local lifecycle selection with status, retaining backend quality and exact refusals. Start admits only
+          unstarted backlog targets, groups their full artifact reads with universal context, and presents checkout,
+          notes, freshness and workload readiness before the method and launch gate. Unresolved targets name their
+          evidence and fall back to the entering row with automatic proceed withheld.
 
-    - `[ ]` **4.4.a Compile the row**
-        - Extract a shared lifecycle resolver from `handleLifecycleStatus` (`handlers/status/lifecycle.ts`), covering
-          both its in-repository and store branches, that returns a state or a typed unresolved reason; it reads with
-          `local` acquisition, so the verb writes nothing, and `arc status <slug>` calls it
-        - The fragment's arguments are the `slug`, its meta path (`resolveBacklogStub().metaPath`), and the task list
-          the meta's `taskList` field names, when present; both read `full`, with no cursor, since the probe computes
-          none for a backlog target
-        - Build `test-first` (one behavior at a time):
-            - the slug resolves through the shared resolver, `arc start`'s `isComposedLifecycleSlugIndeterminate`
-              quality check first
-            - an indeterminate slug, a store refusal other than `not-found` with ambiguity included, or the conflict
-              refusal the handler composes is unresolved, its note naming the warning or refusal
-            - `provisional` and `planned` resolve; `nonexistent`, `shipped`, and the started states — `planning`,
-              `active`, `integrating`, and `parked` — are unresolved
-            - a resolved target reads its meta and any task list, renders the dirty tree, the freshness note on a
-              work-unit checkout, the worktree states and `stale-base` as readiness input with no sync step, the notes
-              surfaces, and `concurrent-workload`, then the fragment and `gate launch`
-            - orientation is `subject` with `kind: "work-unit"`
-
-    - `[ ]` **4.4.b Author the method**
-        - Moved from today's focused-recon arm: best-effort readiness, Tier 1 gates by `arc status <slug>` and base
-          drift where a readiness baseline exists, Tier 2 reading the agenda's `concurrent-workload` note; the launch
-          question; `arc start <slug>` with its interlocks unchanged; the seeded mini-handoff check at the path
-          `materializeWorkUnitSessionNotesPath` gives; the generic handoff with no harness-specific command; the
-          informed opt-in before moving the session
-        - Ship it per the notes, declare it in the spine's `arc.methods`, and add it to both of
-          `integration/init.test.ts`'s method lists
+    - `[x]` **4.4.b Author the method**
+        - Added the readiness method with dependency and baseline gates, advisory judgment, spawn launch, seeded-notes
+          verification and generic handoff. Registered its declaration, Configurable install disposition, manifest,
+          inventory and both fresh-init method lists; installed Start fragments resolve to the method.
 
 ### `[ ]` **4.5 Compile Orient, author `discover-next-work`, and offer the routes — § 5.4, § 5.8, § 7.2, § 8.3**
 

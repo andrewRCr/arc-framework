@@ -590,9 +590,6 @@
     }
   },
   "src/handlers/status/lifecycle.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "arc/surface-names": {
       "count": 1
     }

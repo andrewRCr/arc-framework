@@ -11,7 +11,7 @@ type Render = Extract<AgendaStep, { type: "render" }>;
 export function compileAdvisoryOrientation(input: AgendaCompileInput, options: { concurrentWorkload?: boolean } = {}): OrientationSurface[] {
   const reminder = reminderSurface(input);
   const inFlight = inFlightSurface(input);
-  const workload = options.concurrentWorkload ? workloadSurface(input) : null;
+  const workload = options.concurrentWorkload ? compileConcurrentWorkload(input) : null;
   return [reminder, inFlight, workload].flatMap(step => step === null ? [] : [{ id: step.surface, steps: [step] }]);
 }
 
@@ -52,7 +52,8 @@ function advisoryMarker(nudge: NudgeMarkerState): Pick<Render, "marker"> {
 }
 
 
-function workloadSurface(input: AgendaCompileInput): Extract<AgendaStep, { type: "note" }> | null {
+/** Render the workload advisory without enabling reminders or completion-tail guidance. */
+export function compileConcurrentWorkload(input: AgendaCompileInput): Extract<AgendaStep, { type: "note" }> | null {
   const composition = input.envelope.inFlightComposition;
   if (composition === undefined || (composition.heavy === 0 && composition.novel === 0)) return null;
   const classes = [composition.novel > 0 ? `${composition.novel} Novel` : null,

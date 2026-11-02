@@ -64,6 +64,17 @@ function overriddenContext(input: AgendaCompileInput, sessionType: LoadSetSessio
   }) };
 }
 
+/** Read only the entering work unit's baseline for readiness on another target. */
+export async function compileCheckoutFreshness(input: AgendaCompileInput): Promise<Note | null> {
+  const frame = input.envelope.derivedLocusState;
+  if (!frame.ok || frame.value.entering.kind !== "selected" || frame.value.entering.row.kind !== "work-unit") return null;
+  const context = selectedAgendaContext(input);
+  if (context === null) return null;
+  const notesPath = context.loadSet.entries.find(entry => isDocument(entry.path, "SESSION-NOTES.md"))?.path;
+  const notes = readSessionNotesFields(await optionalContent(input, notesPath) ?? "");
+  return compileHandoffFreshness(input, notes.commitAtHandoff, context.metaPath);
+}
+
 /** Compare a recorded handoff with the checkout's current commit and history. */
 export async function compileHandoffFreshness(input: AgendaCompileInput, baseline: string | null, metaPath: string): Promise<Note | null> {
   const note = (text: string): Note => ({ type: "note", surface: "freshness-gap", text });

@@ -457,3 +457,20 @@ silently reinterpreted as a stub. Bounded advisor consultation `/root/advisor` s
 validation and checkout corroboration above establish its required premise. The scalar fragment-argument contract
 carries `subjectKind`, `subjectKey`, and `generation`; orientation retains its subject object. No agenda schema change
 is needed.
+
+## Start lifecycle selection
+
+`resolveLifecycleSubject` shares backend acquisition and subject selection with `handleLifecycleStatus`; the
+presentation and Start admission policies remain separate. Status retains its explicit passive-live legacy fetch and
+optional Store refresh, outside selection. Agenda selects locally. The shared Store result preserves the inventory,
+standing holders, named record and exact refusals, including the handler's existing primary-conflict refusal.
+
+A successful Store view can still carry an unreadable inventory; Start reports its condition and remedy before
+considering state. Target diagnostics and withheld projections similarly precede state. Unrelated malformed records
+remain warnings for status and do not deny a healthy planned target. Legacy selection retains its composed quality
+facts, and Start applies the existing minting predicate before admitting provisional or planned state. The bounded
+advisor consultation supported this factoring over reusing human status output or creating another lifecycle model.
+
+An unresolved Start retains its invocation intent in the agenda but compiles continuation commands as if that signal
+were absent, preventing a recompile loop. Its diagnostic also withholds automatic proceed on an otherwise clean
+`--next` resume.

@@ -4,6 +4,7 @@ audience: agent
 arc:
   methods:
     - read-load-set
+    - assess-start-readiness
     - session-state
 ---
 

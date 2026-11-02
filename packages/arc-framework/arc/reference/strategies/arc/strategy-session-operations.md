@@ -358,6 +358,7 @@ unconditionally: `grep -m 1 "^active:"` retrieves the flag without reading the b
 | review-triage                 | prepare / integrate            | Prepublication and integration findings                       |
 | assess-evidence-applicability | integrate / deliver / errand   | Conditional — bounded review / verification residual          |
 | classify-review-risk          | prepare / errand               | Every review routing-fact composition                         |
+| assess-start-readiness        | session-init                   | Conditional — resolved Start readiness and launch             |
 | read-load-set                 | session-init / session-recover | Context-read steps and verified recovery load sets            |
 | session-state                 | session-handoff                | Session end only                                              |
 

@@ -54,7 +54,7 @@ export async function compileResumeReads(
 }
 
 /** Compile universal context while preserving the supplied identity-global working-memory path. */
-export async function compileUniversalReads(input: AgendaCompileInput): Promise<AgendaStep[]> {
+export async function compileUniversalReads(input: AgendaCompileInput, additional: LoadSetEntry[] = []): Promise<AgendaStep[]> {
   const slot = input.envelope.loadSet;
   if (!slot.ok) {
     const degraded = renderDegradedSlot("loadSet", slot);
@@ -63,7 +63,7 @@ export async function compileUniversalReads(input: AgendaCompileInput): Promise<
   const workingMemoryPath = slot.value.entries.find(entry => entry.path.replaceAll("\\", "/").endsWith("/WORKING-MEMORY.md"))?.path;
   const loadSet = resolveLoadSetManifest({ identity: input.envelope.identity.identity, workingMemoryPath,
     activeWorkUnit: null, metaPath: null, sessionType: null, planningStage: null, taskListPath: null, cohortDocPath: null });
-  return compileManifestReads(input, { loadSet, sessionType: null, workflow: null });
+  return compileManifestReads(input, { loadSet: { ...loadSet, entries: [...loadSet.entries, ...additional] }, sessionType: null, workflow: null });
 }
 
 async function compileManifestReads(input: AgendaCompileInput, context: AgendaResumeReadContext, options: AgendaReadOptions = {}): Promise<AgendaStep[]> {
