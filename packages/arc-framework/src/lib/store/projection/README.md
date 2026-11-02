@@ -10,16 +10,17 @@ each shared root and the machine-local folder, as directory patterns. The person
 alone and never enters the exclude file. The list is written through `ensureGitExcludePatterns` (`lib/git/exclude.ts`)
 in one Git call and one write.
 
-`ignore-guard.ts` proves every projected root and the aside folder ignored with one `git check-ignore -z -v
---non-matching --no-index --stdin` call, which judges the rules alone, so a root holding tracked files still reads as
-ignored. A path re-included by a `!` pattern reads as not ignored, and the personal root passes only on a rule from a
-regular `.gitignore` inside the repository, since `npm pack` reads only those. A relative excludes setting naming the
-same path cannot authorize a symlink in its place. A refusal names each path and the line that would ignore it; a call
-that fails otherwise refuses every root, typed apart, with the remedy of running the command again. A pass returns the
-ignore files its verdict rests on — `info/exclude` in the common Git directory, every `.gitignore` on the path to each
-guarded root, present or not, and every other file a match names as its source — so a caller can skip the call while
-none of them changes. `predictableIgnoreFiles` names the first two kinds, which every pass rests on whatever the call
-answers.
+`ignore-guard.ts` proves every projected root and the aside folder ignored with `git check-ignore -z -v --non-matching
+--no-index --stdin`. The first query uses the captured excludes selection for all roots; the second checks personal
+roots with global excludes disabled and the same captured case policy. Each personal root must match a regular ancestor
+worktree `.gitignore` in that second query, since `npm pack` reads worktree rules. A relative excludes setting naming
+that file cannot supply the worktree proof. `--no-index` judges the rules alone, so a root holding tracked files still
+reads as ignored; a path re-included by a `!` pattern reads as not ignored. A refusal names each path and the line that
+would ignore it; a call that fails otherwise refuses every root, typed apart, with the remedy of running the command
+again. A pass returns the union of both queries' source files — `info/exclude` in the common Git directory, every
+`.gitignore` on the path to each guarded root, present or not, and every other file a match names — so a caller can skip
+the guard while none changes. `predictableIgnoreFiles` names the first two kinds, which every pass rests on whatever the
+queries answer.
 
 `index-schema.ts` is the strict schema of the index each projected worktree keeps about its copy. Per path it holds the
 record reference the file was read with, its stat, the blob id last written there, its base, its marks, and the aside
@@ -48,14 +49,15 @@ regular `.gitignore` into a link invalidates the old pass, and a supported exclu
 edits. A dangling or looping link reads as absent. Git's guard decides which sources actually authorize each root.
 
 `ignore-check.ts` runs the guard before a command's first write into a root when a source may have changed or the
-guarded roots, effective excludes path, ordered excludes values or ordered case-policy values differ. Its pass records
-the actual roots independently of the index's projection identity. The command's configuration read supplies the
-rules; a fresh guard pins the captured excludes path and effective case setting, then confirms all raw values before
-returning its basis for the sweep to record beside the snapshots. A pass reads every source before the call — the
-predictable ones and each file the last pass recorded, a `core.excludesFile` among them — and again after it, and
-returns its records only where every read agrees, so an edit landing while Git reads never becomes the baseline a later
-command skips the call against. Otherwise it reads again, knowing every file the call named, at most three times, and
-then refuses every root with the remedy of running the command again. A refusal stands as the call read it.
+guarded roots, effective excludes path, ordered excludes values or ordered case-policy values differ. Reuse also
+requires `personalRules: "worktree"`, recording the additional worktree-context proof. Its pass records the actual roots
+independently of the index's projection identity. The command's configuration read supplies the rules; a fresh guard
+pins the captured excludes path and effective case setting, then confirms all raw values before returning its basis for
+the sweep to record beside the snapshots. A pass reads every source before both queries — the predictable ones and each
+file the last pass recorded, a `core.excludesFile` among them — and again after both, and returns its records only where
+every read agrees, so an edit landing while Git reads never becomes the baseline a later command skips the call against.
+Otherwise it reads again, knowing every file the call named, at most three times, and then refuses every root with the
+remedy of running the command again. A refusal stands as the call read it.
 
 `lock.ts` is the projection lock, one advisory lock per worktree at `arc-projection/lock`, its holder recording the
 process ID, instance, and process scope under a renewable lease. It creates, renews, and releases only inside a state
