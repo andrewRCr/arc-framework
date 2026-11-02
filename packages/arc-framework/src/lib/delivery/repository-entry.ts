@@ -186,6 +186,7 @@ async function classifyTerminalDelta(
   }
   return classifyGitDeliveryTerminalDelta({
     exec: input.exec,
+    stateOffBranch: input.store?.capabilities.stateOffBranch,
     workUnitId: input.workUnitId,
     activeMetaPath: validateManagedPath(active.path),
     protectedBaseRef: `refs/heads/${base}`,

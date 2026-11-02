@@ -144,6 +144,7 @@ function byteSort(left: string, right: string): number {
 export class CurrentDeliveryLifecycleContributionPathSource
 implements DeliveryLifecycleContributionPathSource {
   constructor(private readonly input: {
+    readonly stateOffBranch?: boolean;
     readonly readDirectory: (path: string) => Promise<readonly string[]>;
     readonly readArtifactsAtRef?: (
       ref: string,
@@ -158,6 +159,7 @@ implements DeliveryLifecycleContributionPathSource {
     readonly protectedBaseRef?: string;
     readonly topRef?: string;
   }): Promise<DeliveryLifecycleContributionPaths> {
+    if (this.input.stateOffBranch === true) return { paths: [] };
     const currentArtifacts = await listCurrentWuArtifactPaths(
       input.workUnitId,
       input.activeMetaPath,

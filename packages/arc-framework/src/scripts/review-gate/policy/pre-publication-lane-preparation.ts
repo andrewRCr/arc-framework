@@ -28,7 +28,7 @@ export function createPrePublicationLanePreparation(input: PrePublicationComposi
     const rawProgress = await readComposedLaneProgress(dependencies, lane, policyTarget.headSha, heads, lineage,
       candidateAncestorsForLineage(candidate, lineage));
     const separated = lane === "standard" ? separateSameHeadTerminals(rawProgress, exactTarget) : { progress: rawProgress };
-    refusePendingLaneReview(separated.progress, lane);
+    await refusePendingLaneReview(separated.progress, lane, dependencies);
     const prepared = { rawProgress, ...separated };
     cache.set(key, prepared);
     return prepared;
@@ -62,11 +62,14 @@ export class PendingLaneReviewError extends Error {
   }
 }
 
-function refusePendingLaneReview(progress: LaneProgressProjection, lane: ReviewLane): void {
+async function refusePendingLaneReview(progress: LaneProgressProjection, lane: ReviewLane,
+  dependencies: PrePublicationCompositionDependencies): Promise<void> {
   if (progress.status !== "recorded") return;
   const pending = progress.attempts.find((attempt) => attempt.outcome === "pending");
   if (pending === undefined) return;
   const handle = pending.hosted?.handle;
+  const reference = await dependencies.pendingOperationReference?.(pending);
+  const operationRef = reference === undefined ? {} : { operationRef: reference };
   throw new PendingLaneReviewError({
     lane,
     operationId: pending.attemptId,
@@ -74,8 +77,8 @@ function refusePendingLaneReview(progress: LaneProgressProjection, lane: ReviewL
     kind: pending.local !== undefined ? "local"
       : pending.hosted !== undefined ? "hosted" : "frontline",
     request: pending.local !== undefined
-      ? { schemaVersion: 1, operationId: pending.attemptId }
-      : handle ? { schemaVersion: 1, handle } : null,
+      ? { schemaVersion: 1, operationId: pending.local.operationId ?? pending.attemptId, ...operationRef }
+      : handle ? { schemaVersion: 1, handle, ...operationRef } : null,
   });
 }
 

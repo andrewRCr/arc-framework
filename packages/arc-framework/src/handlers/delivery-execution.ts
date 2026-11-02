@@ -4257,6 +4257,7 @@ async function executeDeliveryCommand(
     if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
     try {
       const paths = await new CurrentDeliveryLifecycleContributionPathSource({
+        stateOffBranch: reviewRecordStore.capabilities.stateOffBranch,
         readDirectory: (path) => readdir(resolve(cwd, path)),
         readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(exec, ref, workUnitId, reviewRecordStore.capabilities.stateOffBranch),
       }).resolve({
@@ -4627,6 +4628,7 @@ async function executeDeliveryCommand(
     let lifecyclePaths: readonly string[];
     try {
       const resolvedPaths = await new CurrentDeliveryLifecycleContributionPathSource({
+        stateOffBranch: reviewRecordStore.capabilities.stateOffBranch,
         readDirectory: (path) => readdir(resolve(cwd, path)),
         readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(exec, ref, workUnitId, reviewRecordStore.capabilities.stateOffBranch),
       }).resolve({
@@ -6405,6 +6407,7 @@ async function executeDeliveryCommand(
             if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
             try {
               const paths = await new CurrentDeliveryLifecycleContributionPathSource({
+                stateOffBranch: reviewRecordStore.capabilities.stateOffBranch,
                 readDirectory: (path) => readdir(resolve(cwd, path)),
                 readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(
                   exec,

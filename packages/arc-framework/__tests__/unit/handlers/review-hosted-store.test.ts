@@ -9,7 +9,7 @@ import { HostedAwaitCommandResultSchema } from "../../../src/scripts/review-gate
 import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, expect, it, onTestFinished, vi } from "vitest";
-import { handleReviewHostedRequest, handleReviewHostedAwait, handleReviewRespond, handleReviewHostedSettle, handleReviewResolve } from "../../../src/handlers/review.js";
+import { handleReviewHostedRequest, handleReviewHostedAwait, handleReviewRespond, handleReviewHostedSettle, handleReviewResolve, handleReviewPrePublication } from "../../../src/handlers/review.js";
 import { createCandidateAttestation, createCandidateSubjectSnapshot } from "../../../src/lib/work-unit/candidate-attestation.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import { createStandardReviewReservation } from "../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
@@ -74,6 +74,7 @@ async function fixture(workUnit = false, findings = false, threaded = false) {
     branches: [{ repository: projectId, ref: branch, linkedAs: "adopted", excluded: [] }],
   }) : await h.seedErrand(record);
   const checkout = await createReviewCheckout(h, { script: [
+    { match: ["rev-parse", "HEAD"], responses: [{ stdout: head }] },
     { match: ["rev-parse", "--verify", "HEAD^{commit}"], responses: [{ stdout: head }] },
     { match: ["for-each-ref", "--format=%(objectname)", "refs/remotes/origin/main"], responses: [{ stdout: base }] },
     { match: ["merge-base", "--all", head, base], responses: [{ stdout: base }] },
@@ -191,6 +192,12 @@ Reclassify the changed target before continuing.`,
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
   const index = new HostedRequestOwnerIndex(publisher);
   return { ...checkout, primary, request, policyRequest, record, publisher, index, complete: () => { complete = true; },
+    pending: async () => {
+      let output = "";
+      await handleReviewPrePublication("example", { selfReview: "settled" }, { resolveRoot: () => checkout.cwd,
+        write: text => { output += text; }, setExitCode: () => {} }, undefined, checkout);
+      return JSON.parse(output) as { error: { code: string; message: string } };
+    },
     removeProject: async () => { lifecycleSuccess(await h.store.write({ action: "remove", reference: projectRecord.reference,
       expected: projectRecord.version, provenance: { verb: "remove", lifecycleAction: "remove" } })); },
     respond: async (input: unknown, bound: { workItem?: OwnerIdentity; store?: Store } = {}) => {
@@ -208,6 +215,19 @@ Reclassify the changed target before continuing.`,
     awaitResult: (input: unknown, bound?: { workItem?: OwnerIdentity; store?: Store }) => invoke(handleReviewHostedAwait, input, bound) };
 }
 
+
+it("continues a hosted request using the exact native await input emitted by pre-publication", async () => {
+  const h = await fixture(true);
+  const requested = HostedRequestResultSchema.parse(await h.run());
+  if (requested.state !== "requested") throw new Error(JSON.stringify(requested));
+  const pending = await h.pending();
+  expect(pending, JSON.stringify(pending)).toMatchObject({ error: { code: "review-in-progress" } });
+  const emitted: unknown = JSON.parse(pending.error.message.split("Exact stdin request: ")[1]!.slice(0, -1));
+  expect(emitted).toMatchObject({ schemaVersion: 1, handle: requested.handle, operationRef: requested.operationRef });
+  h.complete();
+  expect(await h.awaitResult(emitted)).toMatchObject({ state: "clean", nextAction: "complete", operationRef: requested.operationRef });
+  expect(await h.pending()).not.toMatchObject({ error: { code: "review-in-progress" } });
+});
 
 it.each([false, true])("checks the fresh hosted owner before grants or dispatch (work unit: %s)", async workUnit => {
   const h = await fixture(workUnit), foreign = await h.seedMeta("elsewhere");

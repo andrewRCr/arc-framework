@@ -128,6 +128,8 @@ export interface PrePublicationCompositionDependencies {
     lineage?: LaneSubjectLineage,
     supersessionAncestors?: readonly CandidateSupersessionAncestor[],
   ): Promise<LaneProgressProjection>;
+  /** Bind a pending native continuation to the selected project and exact work-item generation. */
+  pendingOperationReference?(attempt: LanePolicyAttempt): Promise<string | undefined>;
   readSingletonFrontlinePhaseClosed?(
     candidateId: CanonicalDigest,
     ancestors: readonly CandidateSupersessionAncestor[],
@@ -214,8 +216,8 @@ export type PrePublicationComposition =
       operationId: string;
       sourceId: string;
       kind: "local" | "hosted" | "frontline";
-      request: { schemaVersion: 1; operationId: string }
-        | { schemaVersion: 1; handle: NonNullable<NonNullable<LanePolicyAttempt["hosted"]>["handle"]> }
+      request: { schemaVersion: 1; operationId: string; operationRef?: string }
+        | { schemaVersion: 1; handle: NonNullable<NonNullable<LanePolicyAttempt["hosted"]>["handle"]>; operationRef?: string }
         | null;
     };
   };

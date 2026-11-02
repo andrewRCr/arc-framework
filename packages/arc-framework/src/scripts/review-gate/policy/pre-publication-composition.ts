@@ -52,6 +52,7 @@ import { resolveChangeRequest } from "../change-request.js";
 import { laneSubjectOwnerMatches } from "../core/lane-admission.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { ReviewResult } from "../core/review-result.js";
+import { bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
 import { resolveAcceptableDeliveryBaseRefs } from "../core/delivery-member-lookup.js";
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
 import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
@@ -349,6 +350,7 @@ export function createPreBindingDeliveryReviewTargetDependencies(options: Review
       const active = await resolveReviewActiveWu(input);
       if (active.status !== "resolved" || active.name !== plan.workUnitId) return null;
       const paths = await new CurrentDeliveryLifecycleContributionPathSource({
+        stateOffBranch: input.store.capabilities.stateOffBranch,
         readDirectory: (path) => readdir(resolve(input.cwd, path)),
         readArtifactsAtRef: (ref, workUnitId) => readGitDeliveryLifecycleArtifactsAtRef(
           input.exec,
@@ -568,6 +570,14 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
 
   return {
     ...(reviewRecordStore.capabilities.stateOffBranch ? { stateOffBranch: true } : {}),
+    pendingOperationReference: async attempt => {
+      if (!reviewRecordStore.capabilities.stateOffBranch) return undefined;
+      const operationId = attempt.local !== undefined ? attempt.local.operationId ?? attempt.attemptId
+        : attempt.hosted?.handle?.admission.admissionId;
+      if (operationId === undefined) return undefined;
+      if (input.workItem === undefined) throw new Error("Select the exact work item before continuing its pending review, then retry.");
+      return bindNativeReviewOperationReference({ repositoryId: await repositoryId(), workItem: input.workItem, operationId });
+    },
     resultReader,
     dispositionStore,
     readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),

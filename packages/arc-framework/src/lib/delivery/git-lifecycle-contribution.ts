@@ -57,6 +57,7 @@ export async function readGitDeliveryLifecycleArtifactsAtRef(
  */
 export async function classifyGitDeliveryTerminalDelta(input: {
   readonly exec: GitExec;
+  readonly stateOffBranch?: boolean;
   readonly workUnitId: string;
   readonly activeMetaPath: ManagedPath;
   readonly protectedBaseRef: string;
@@ -72,6 +73,7 @@ export async function classifyGitDeliveryTerminalDelta(input: {
 }): Promise<DeliveryTerminalDeltaClassification | null> {
   try {
     const resolved = await new CurrentDeliveryLifecycleContributionPathSource({
+      stateOffBranch: input.stateOffBranch,
       readDirectory: input.readDirectory,
       ...(input.readArtifactsAtRef === undefined
         ? {}

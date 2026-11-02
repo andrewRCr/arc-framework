@@ -1,7 +1,7 @@
 /** Native local review defaults publish portable results from their authenticated checkout owner. */
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { expect, it, onTestFinished } from "vitest";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { delimiter, join } from "node:path";
+import { expect, it, onTestFinished, vi } from "vitest";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
 import { localReviewResult } from "../helpers/in-process-review.js";
 import { collectGitCandidateSubject } from "../../src/lib/work-unit/git-candidate-subject.js";
@@ -25,7 +25,7 @@ import { LocalPrepareEnvelopeSchema, LocalAttestEnvelopeSchema, LocalResumeEnvel
   from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import { parseNativeReviewOperationReference } from "../../src/scripts/review-gate/core/review-operation-reference.js";
 import { bindReviewSourceReference, parseReviewSourceReference } from "../../src/scripts/review-gate/core/review-source-reference.js";
-import { handleReviewLocalPrepare, handleReviewLocalAttest, handleReviewLocalResume, handleReviewReduce }
+import { handleReviewLocalPrepare, handleReviewLocalAttest, handleReviewLocalResume, handleReviewReduce, handleReviewPrePublication }
   from "../../src/handlers/review.js";
 
 it.each(["clean", "findings"] as const)("replays a %s result and approved evidence through actual defaults after pruning, rename, and slug reuse on two clones", async outcome => {
@@ -33,6 +33,9 @@ it.each(["clean", "findings"] as const)("replays a %s result and approved eviden
   onTestFinished(h.cleanup);
   const { cwd, exec } = h.native;
   const git = async (...args: string[]) => (await exec("git", args, { cwd })).stdout.trim();
+  const hostUrl = "https://github.com/owner/repository.git";
+  await git("config", `url.${h.origin}.insteadOf`, hostUrl);
+  await git("remote", "set-url", "origin", hostUrl);
   const projectId = "123e4567-e89b-42d3-a456-426614174099", branch = "topic/opaque";
   await h.reference.seedProject(projectId);
   const primary = await h.reference.seedMeta("example", { owner: "andrew", branch: null, workClass: "Light" }, { kind: "active" }, {
@@ -43,6 +46,15 @@ it.each(["clean", "findings"] as const)("replays a %s result and approved eviden
   await writeFile(join(cwd, ".arc/system/arc-config.yml"),
     "branch.base: main\nreview.standard_sources: [delegated-agent]\nreview.standard_max_passes: 4\n");
   await writeFile(join(cwd, ".gitignore"), ".arc/system/.internal/\n.arc/user/\n");
+  const bin = join(cwd, ".arc/system/.internal/host-bin");
+  await mkdir(bin, { recursive: true });
+  await writeFile(join(bin, "gh"), "#!/usr/bin/env node\nconst a=process.argv.slice(2);\n"
+    + "if(a[0]==='pr'&&a[1]==='list') console.log('[]');\n"
+    + "else if(a[0]==='repo'&&a[1]==='view') console.log(JSON.stringify({nameWithOwner:'owner/repository'}));\n"
+    + "else {console.error('Unexpected gh invocation',a);process.exit(1);}\n");
+  await chmod(join(bin, "gh"), 0o755);
+  vi.stubEnv("PATH", `${bin}${delimiter}${process.env.PATH ?? ""}`);
+  onTestFinished(() => { vi.unstubAllEnvs(); });
   await writeFile(join(cwd, "example.ts"), "export const value = 0;\n");
   await git("add", ".");
   await git("commit", "-m", "Configure local review");
@@ -78,6 +90,15 @@ it.each(["clean", "findings"] as const)("replays a %s result and approved eviden
   if (prepared.state !== "ready" || prepared.payload.operationRef === undefined) throw new Error("Expected a native admission");
   const operationRef = prepared.payload.operationRef;
   expect(parseNativeReviewOperationReference(operationRef).workItem).toEqual(primary.reference.owner);
+  let pendingOutput = "";
+  await handleReviewPrePublication("example", { selfReview: "settled" }, { resolveRoot: () => cwd,
+    write: text => { pendingOutput += text; }, setExitCode: () => {} }, undefined, h.native);
+  const pending: { error: { code: string; message: string } } = JSON.parse(pendingOutput);
+  expect(pending, pendingOutput).toMatchObject({ error: { code: "review-in-progress" } });
+  const emitted: unknown = JSON.parse(pending.error.message.split("Exact stdin request: ")[1]!.slice(0, -1));
+  expect(emitted).toMatchObject({ schemaVersion: 1, operationId: prepared.payload.operationId, operationRef });
+  expect(LocalResumeEnvelopeSchema.parse(await invoke(handleReviewLocalResume, emitted)))
+    .toMatchObject({ payload: { operationId: prepared.payload.operationId } });
   const findings = outcome === "clean" ? [] : [{ findingId: "retained-finding", severity: "major",
     locus: "example.ts:1", evidenceUrlOrId: "source:example.ts:1" }];
   const request = { ...localReviewResult(prepared.payload, "default-native-review", findings), operationRef };
