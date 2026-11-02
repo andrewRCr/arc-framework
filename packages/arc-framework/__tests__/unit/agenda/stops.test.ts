@@ -1,7 +1,7 @@
 /** Stops carry only authoritative locus guidance, a relevant failure, and the stop gate. */
 
 import { describe, expect, it } from "vitest";
-import { baseFrame, forRow, selectedRow, workUnitRow, frameWithRow } from "../../helpers/agenda-fixtures.js";
+import { createAgendaFixtureInput, baseFrame, forRow, selectedRow, workUnitRow, frameWithRow } from "../../helpers/agenda-fixtures.js";
 import { sessionInitFixture } from "../../helpers/session-init-fixtures.js";
 import { compileSessionInitAgenda } from "../../../src/commands/agenda/compile.js";
 import type { AgendaReadPort } from "../../../src/commands/agenda/compile-input.js";
@@ -18,7 +18,7 @@ const stopGate = { type: "gate", kind: "stop", autoProceed: false };
 
 async function compileStop(envelope: SessionInitProbeResult, signals: AgendaSignals = {},
   answers: AgendaAnswers = { answered: {}, done: [] }): Promise<SessionInitAgenda> {
-  const result = await compileSessionInitAgenda({ envelope, signals, answers, read: noReads });
+  const result = await compileSessionInitAgenda(createAgendaFixtureInput(envelope, { signals, answers, read: noReads }));
   expect(result.ok, JSON.stringify(result)).toBe(true);
   if (!result.ok) throw new Error("Expected an agenda for the stop row");
   return result.agenda;

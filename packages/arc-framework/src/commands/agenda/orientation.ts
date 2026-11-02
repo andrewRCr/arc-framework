@@ -8,7 +8,7 @@ import { quoteShellArgument } from "../../lib/release/commit-message-retry.js";
 import type { SessionAction } from "../../lib/session-init/actions.js";
 import { pullResultNotices } from "../../lib/store/operational-sync.js";
 import { parseLifecycleMetaContent } from "../../lib/store/lifecycle-meta-content.js";
-import type { AgendaCompileInput } from "./compile-input.js";
+import type { AgendaCompileInput, SyncChannels } from "./compile-input.js";
 import { renderDegradedSlot, renderLocus } from "./render.js";
 import { renderAnswered } from "./progress.js";
 import { compileSyncState, type AgendaSyncState } from "./sync-state.js";
@@ -42,6 +42,26 @@ export function orderOrientationSurfaces(surfaces: OrientationSurface[]): Agenda
 export function compileSessionOrientation(input: AgendaCompileInput, findings: Extract<AgendaStep, { type: "render" | "note" }>[], sync: AgendaSyncState = compileSyncState(input)): OrientationSurface[] {
   return [...compileCoreOrientation(input, findings, sync), ...compileCheckoutOrientation(input, sync),
     ...compileNotesOrientation(input, sync), ...compileCleanupOrientation(input), ...compileAdvisoryOrientation(input)];
+}
+
+/** Frame an explicit entry on checkout-local facts without work-unit or discovery surfaces. */
+export function compileCheckoutSessionOrientation(input: AgendaCompileInput, channels: SyncChannels = "all",
+  consumed: { seed?: boolean; next?: boolean; start?: boolean } = {}): OrientationSurface[] {
+  const sync = compileSyncState(input, channels);
+  const steps: AgendaStep[] = [renderHeader(input), ...publishedSurfaces(input)
+    .filter(step => (step.type === "render" || step.type === "note") && (step.surface === "hooks-path" || step.surface === "store-sync")),
+  ...sync.unsettled, ...compileUnconsumedSignals(input, consumed)];
+  const locus = renderLocus(input.envelope);
+  if (locus !== null) steps.push(locus);
+  const answered = renderAnswered(input);
+  if (answered !== null) steps.push(answered);
+  for (const name of ["worktree", "dirty", "baseDistance", "baseBranchSync", "user", "hooksPath",
+    "partialPushMarker", "compactionAdvisory", "retiredSubdirs"] as const) {
+    const degraded = renderDegradedSlot(name, input.envelope[name]);
+    if (degraded !== null) steps.push(degraded);
+  }
+  return [...steps.flatMap(step => step.type === "render" || step.type === "note" ? [{ id: step.surface, steps: [step] }] : []),
+    ...compileCheckoutOrientation(input, sync, channels), ...compileNotesOrientation(input, sync)];
 }
 
 /** Collect core resume surfaces and findings for the shared ordered assembly. */

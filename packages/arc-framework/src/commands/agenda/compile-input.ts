@@ -4,6 +4,7 @@ import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { GitExec } from "../../lib/git/index.js";
 import type { SessionInitProbeResult } from "../status.js";
+import type { SessionStatusContext } from "../../handlers/status/session-context.js";
 import type { AgendaAnswers, AgendaSignals } from "./schema.js";
 
 /** Synchronization channels available to the selected entering row. */
@@ -17,12 +18,16 @@ export interface AgendaReadPort {
   git(args: readonly string[]): Promise<string>;
 }
 
+/** Request-bound personal readers and selected operational store for explicit entry. */
+export type AgendaEntryContext = Pick<SessionStatusContext, "cwd" | "io" | "identity" | "readUserInbox" | "store">;
+
 /** The shared probe result, invocation intent, and checkout reads for one compile. */
 export interface AgendaCompileInput {
   envelope: SessionInitProbeResult;
   signals: AgendaSignals;
   answers: AgendaAnswers;
   read: AgendaReadPort;
+  entry: AgendaEntryContext;
 }
 
 /** Bind agenda reads to one checkout without writing files, refs, notes, or markers. */

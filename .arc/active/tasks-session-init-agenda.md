@@ -372,21 +372,10 @@ rehearsals reach today's orientation except where the specification states a cha
 - _Goal:_ `--errand` (queue head, seeded, bare), `--plan` (found, bare or not found), `--housekeep`, and `--context`
   each compile to their § 5.4 sequence on a notes-only prefix, and the workflows they enter own their entry.
 
-    - `[ ]` **4.2.a Compile the `--errand` rows**
-        - Extract `resolveErrandNext({cwd, io, identity})` from `handleErrandNext` (`handlers/errand.ts`), with its
-          refusals, its catch, and the private `resolveCurrentExecutionStartupOffer`, into a module the compiler
-          imports; `handleErrandNext` calls it
-        - The compiler reads the inbox on every checkout through `readUserInbox`; a failed read becomes a note, and the
-          pick offers only its `elicit` choice and decline
-        - Build `test-first` (one behavior at a time), replacing the retired `--errand --next` and Errand entry pins:
-            - `--errand --next` resolves the queue head through `resolveErrandNext`: available renders its text, the
-              checkout renders, and a `run-errand` fragment with `mode: "launch"`, `fromInbox`, and `isolate`; empty
-              and refused render and stop
-            - a seeded `--errand` enters `run-errand` with the seed, passing a flagged `§ Errand` capture whose `key`
-              equals the seed exactly as `fromInbox`
-            - bare `--errand` offers `errand:pick`: a `signal` choice per capture `extractReminderEntries` returns, an
-              `elicit` choice, and a decline that clears `errand` and `isolate` and recompiles
-            - orientation is `subject` with the Errand, `key: null` while unpicked
+    - `[x]` **4.2.a Compile the `--errand` rows**
+        - Extracted the shared typed queue resolver and retained handler refusals. Seeded, flagged-capture, bare-pick,
+          and queue-head entries now compile on the notes-only prefix, with checkout framing and literal recompiles.
+          Failed inbox reads retain elicitation and recover after repair; native cases preserve inbox, checkout, and refs.
 
     - `[ ]` **4.2.b Compile the `--plan` rows**
         - Build `test-first` (one behavior at a time), replacing the retired `--plan` entry pins:

@@ -58,5 +58,8 @@ export function createAgendaFixtureInput(
 ): AgendaCompileInput {
   const unexpectedRead = async (): Promise<never> => { throw new Error("Unexpected agenda read"); };
   return { envelope, signals: {}, answers: { answered: {}, done: [] },
-    read: { exists: unexpectedRead, size: unexpectedRead, read: unexpectedRead, git: unexpectedRead }, ...overrides };
+    read: { exists: unexpectedRead, size: unexpectedRead, read: unexpectedRead, git: unexpectedRead },
+    entry: { cwd: "/repo", identity: envelope.identity.identity, readUserInbox: unexpectedRead,
+      io: { exec: unexpectedRead, readFile: unexpectedRead, writeFile: unexpectedRead, mkdir: unexpectedRead,
+        readDir: unexpectedRead, writeNote: unexpectedRead, readNote: unexpectedRead } }, ...overrides };
 }
