@@ -460,6 +460,13 @@ reachable defect's fail-first case; criterion 16 adds the explicit retained-cont
 verify. Earlier completed-task evidence is unaffected. No import, mapping, delivery, schema, or process-cost behavior
 changes. The final author reread found no remaining contradiction within this footprint.
 
+A3's capture is `ebb67b75a0`. Task 7.5.R re-ran the native report regression, the retained public-store Design probe in
+both layouts, and the existing draft, single-spec, and paired-spec scaffold suite: all 14 cases across three suites
+passed. The new log is `task-7.5.R-revalidation.log` in the implementation evidence directory. The temporary probe was
+removed after the run; its exact source remains `task-7.5-design-admission-probe.ts` beside the logs. Existing
+Design admission is a retained property, while the report correction keeps its original native fail-first witness.
+Task 7.5 closes on the amended scope through 7.5.R, and criterion 16 remains unchecked for final verification.
+
 ## Verification at the final head
 
 SC 3, SC 8's Windows case, SC 9, and SC 12 take their evidence mid-change, and no gate at the final head takes it again:

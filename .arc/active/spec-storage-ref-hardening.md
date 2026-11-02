@@ -1248,6 +1248,6 @@ wrapper are implementation detail.
   _Trigger:_ 7.2 must-stop. _Work:_ 7.R. _Revalidated:_ 7.R.
 
 - **A3** — 2026-11-02 — design: retain conventional Design admission; fix reachable companion reports.
-  _Supersedes:_ § 10 ¶1. _Trigger:_ 7.5 must-stop. _Work:_ 7.5.R. _Revalidated:_ pending → 7.5.R.
+  _Supersedes:_ § 10 ¶1. _Trigger:_ 7.5 must-stop. _Work:_ 7.5.R. _Revalidated:_ 7.5.R.
 
 ---
