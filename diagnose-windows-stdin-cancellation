@@ -3,7 +3,7 @@
   "slug": "diagnose-windows-stdin-cancellation",
   "claimId": "d6ca48eb932462797da4e70dc0b18314",
   "createdAt": "2026-11-02T13:56:14.054Z",
-  "updatedAt": "2026-11-02T13:56:14.054Z",
+  "updatedAt": "2026-11-02T16:22:42.359Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Diagnose hosted Windows native-raw stdin cancellation failure using phase and child-exit evidence without changing production behavior, assertions, or time limits",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Diagnose the hosted Windows native-raw stdin cancellation failure",
   "originEntrySourceDigest": "sha256:5b02fbb954196513182f22b2a0be201b573c5c0505f09f4be6efaf49188bd02e",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/diagnose-windows-stdin-cancellation",
+    "headSha": "673ba05f6f4767842917d5d9305b3f39c89df214"
+  }
 }
