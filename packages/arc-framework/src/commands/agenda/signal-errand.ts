@@ -3,7 +3,7 @@ import { SlugSchema } from "../../lib/kernel/index.js";
 import { basename } from "node:path";
 import { resolveArcPath } from "../../lib/layout/index.js";
 import { resolveErrandNext } from "../errand-next.js";
-import { extractReminderEntries, type ReminderEntry } from "../../lib/session-init/inbox-reminders.js";
+import { projectErrandCaptures, resolveErrandCapture, type ErrandCapture } from "./errand-captures.js";
 import { buildAgendaArgv } from "./argv.js";
 import type { AgendaCompileInput } from "./compile-input.js";
 import { createSessionInitAgenda } from "./document.js";
@@ -21,21 +21,21 @@ export async function compileErrandSignal(input: AgendaCompileInput): Promise<Se
   if (prefix.at(-1)?.type === "exec") return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, prefix));
   if (input.signals.next) return compileQueueHead(input, prefix);
   const { entries, notes } = await readCaptures(input);
-  const capture = entries.find(entry => entry.key === seed);
+  const capture = await resolveErrandCapture(seed, entries, input.entry.store?.capabilities.stateOffBranch === true);
   const decision: AgendaStep = seed === null ? pickErrand(input, entries) : { type: "fragment", target: {
     kind: "workflow", path: ".arc/system/workflows/arc/run-errand.md",
   }, args: { mode: "launch", seed, isolate: input.signals.isolate === true,
-    ...(capture === undefined ? {} : { fromInbox: capture.key }) } };
+    ...(capture === undefined ? {} : { fromInbox: capture }) } };
   return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, [
     ...prefix, ...await compileUniversalReads(input),
     ...orderOrientationSurfaces(compileCheckoutSessionOrientation(input, "notes")), ...notes, decision,
   ]));
 }
 
-async function readCaptures(input: AgendaCompileInput): Promise<{ entries: ReminderEntry[]; notes: AgendaStep[] }> {
+async function readCaptures(input: AgendaCompileInput): Promise<{ entries: ErrandCapture[]; notes: AgendaStep[] }> {
   try {
     const content = await input.entry.readUserInbox(input.entry.identity ?? "");
-    return { entries: extractReminderEntries({ content }).entries, notes: [] };
+    return { entries: projectErrandCaptures(content, input.entry.store?.capabilities.stateOffBranch === true), notes: [] };
   } catch (error) {
     const inbox = basename(resolveArcPath({ kind: "inbox", scope: { kind: "identity", identity: SlugSchema.parse(input.entry.identity ?? "identity") } }), ".md");
     return { entries: [], notes: [{ type: "note", surface: "errand-inbox",
@@ -43,11 +43,11 @@ async function readCaptures(input: AgendaCompileInput): Promise<{ entries: Remin
   }
 }
 
-function pickErrand(input: AgendaCompileInput, entries: ReminderEntry[]): AgendaStep {
+function pickErrand(input: AgendaCompileInput, entries: ErrandCapture[]): AgendaStep {
   const argv = (value: string | null): string[] => buildAgendaArgv(input.signals, input.answers,
     { signal: { signal: "errand", value } });
   return { type: "offer", id: "errand:pick", ask: "now", text: "Select an Errand capture or describe a new concern.", choices: [
-    ...entries.map((entry): OfferChoice => ({ kind: "signal", label: entry.key, signal: "errand", value: entry.key,
+    ...entries.map((entry): OfferChoice => ({ kind: "signal", label: entry.label, signal: "errand", value: entry.key,
       recompile: argv(entry.key) })),
     { kind: "elicit", label: "Describe a new concern", signal: "errand",
       recompile: buildAgendaArgv(input.signals, input.answers, { elicit: "errand" }) },

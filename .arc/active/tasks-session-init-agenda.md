@@ -367,20 +367,15 @@ rehearsals reach today's orientation except where the specification states a cha
   text and occupied-checkout guidance. Real producer fixtures and native Git scenarios cover ordinary, option-looking,
   and alias names while preserving checkout, previous-checkout history, and code refs.
 
-### `[ ]` **4.R2 Use backend capture selectors for Errand entry**
+### `[x]` **4.R2 Use backend capture selectors for Errand entry**
 
 - _Goal:_ Apply A3 to explicit Errand entry: retain legacy title selection and use qualified capture IDs after the
   flip, without changing the agenda schema, workflow argument shape, or adoption refusal checks.
 
-- Build `test-first` (one behavior at a time):
-    - Keep legacy flagged-title picker and exact-title adoption behavior
-    - Project only flagged personal Errand captures to title-plus-ID labels and qualified signal values after the flip,
-      preserving duplicate titles as distinct IDs and excluding unflagged and Work Unit captures
-    - Forward explicit qualified personal and project IDs unchanged as `fromInbox`, including an ID removed since
-      selection; prove the compiled selector through `prepareErrandAdoption`, retaining its refusal rather than
-      falling back to a new concern
-    - Treat other text seeds as new concerns after the flip, including a flagged title
-    - Preserve literal recompiles, isolate/decline behavior, unreadable-inbox recovery, and the public schema
+- _Outcome:_ Errand pickers retain legacy titles and project flagged store captures to title-plus-qualified-ID labels,
+  preserving duplicate titles. Explicit personal/project IDs reach the real adoption planner unchanged, including
+  disappeared selections that refuse and recover after repair; other text remains a new concern after the flip.
+  Fixtures bind their served envelope and entry store to the same backend mode.
 
 ### `[ ]` **4.2 Compile the signal rows — § 5.4, § 12**
 

@@ -29,7 +29,7 @@ describe("Errand signal entry", () => {
   });
 
   it.each(["captured concern", "Captured concern "])("does not adopt a non-exact seed %j", async seed => {
-    const { input } = await createSignalAgendaFixture("## Errand\n\n" + entry("11111111", "Captured concern", "- _Hold:_ `true`"));
+    const { input } = await createSignalAgendaFixture("## Errand\n\n" + entry("11111111", "Captured concern", "- _Hold:_ `true`"), {}, false);
     input.signals = { errand: seed };
     const agenda = await compile(input);
     const step = agenda.steps.at(-1);
@@ -54,7 +54,7 @@ describe("Errand signal entry", () => {
     const config = configSessionInit(); config.settings["session.init_pull.notes"] = "always";
     const { input } = await createSignalAgendaFixture(undefined, { config: async () => config,
       user: async () => userSessionInit({ identity: "test-user", state: "remote-ahead", shouldPromptToPull: true }),
-    });
+    }, false);
     input.signals = { errand: "Concern" };
     input.entry.readUserInbox = async () => { throw new Error("A pending sync must precede inbox reads"); };
     const agenda = await compile(input);
@@ -102,7 +102,7 @@ describe("Errand signal entry", () => {
   it.each([false, true])("offers flagged captures and literal elicitation with isolate=%s", async isolate => {
     const content = "## Errand\n\n" + [entry("11111111", "Held", "- _Hold:_ `true`"),
       entry("22222222", "Remember", "- _Remind:_ `true`"), entry("33333333", "Unflagged")].join("\n\n");
-    const { input } = await createSignalAgendaFixture(content);
+    const { input } = await createSignalAgendaFixture(content, {}, false);
     input.signals = { errand: true, ...(isolate ? { isolate: true as const } : {}) };
     const agenda = await compile(input);
     expect(agenda.orientation).toEqual({ shape: "subject", subject: { kind: "errand", key: null } });
@@ -118,7 +118,7 @@ describe("Errand signal entry", () => {
   });
 
   it("reports a failed inbox read and keeps only elicitation and decline", async () => {
-    const { input } = await createSignalAgendaFixture("## Errand\n\n" + entry("11111111", "Captured concern", "- _Hold:_ `true`"));
+    const { input } = await createSignalAgendaFixture("## Errand\n\n" + entry("11111111", "Captured concern", "- _Hold:_ `true`"), {}, false);
     input.signals = { errand: true };
     const readUserInbox = input.entry.readUserInbox;
     input.entry.readUserInbox = async () => { throw new Error("personal inbox unavailable"); };
@@ -138,7 +138,7 @@ describe("Errand signal entry", () => {
 
   it.each(["Hold", "Remind"])("adopts an exact flagged capture with %s", async flag => {
     const { input } = await createSignalAgendaFixture("## Errand\n\n" + entry("11111111", "Captured concern",
-      `- _${flag}:_ \`true\`\n\nBody`));
+      `- _${flag}:_ \`true\`\n\nBody`), {}, false);
     input.signals = { errand: "Captured concern" };
     const agenda = await compile(input);
     expect(agenda.steps.at(-1)).toMatchObject({ type: "fragment", args: {
