@@ -18,7 +18,7 @@ arc:
 
 **Session-init entry:** Launch receives `mode: "launch"`, an optional `seed` or `fromInbox`, and `isolate`. Use the
 seed as the concern and pass a supplied `fromInbox` selector unchanged to adoption. Resume receives `mode: "resume"`,
-`subject` (kind and key), and `generation` for the exact checkout session-init selected.
+`subjectKind`, `subjectKey`, and `generation` for the exact checkout session-init selected.
 
 Execution body for an **errand** — a single **atomic** concern (one indivisible unit of work, bounded to one
 session) — entered warm from an active session via the `arc-errand` skill, cold via `arc-session` (`--errand`, or
@@ -96,7 +96,8 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
    - **Isolate posture:** when the session was started with `--isolate`, or the developer asks to keep the primary
      free, add `--isolate` to this and every later `arc errand open` the session makes. Each Errand then gets its
      own provisioned transient and the primary stays free for another session; partial protection refuses it.
-   - **Resume mode:** consume only the exact current checkout, `subject`, and `generation` selected by session-init.
+   - **Resume mode:** consume only the exact current checkout, `subjectKind`, `subjectKey`, and `generation` selected
+     by session-init.
      Its derived transient role is the re-entry authority; do not open or materialize another checkout here.
 
    In Launch mode, execute subsequent commands from `allocation.checkoutPath`; in Resume mode, remain in the selected

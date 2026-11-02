@@ -404,25 +404,15 @@ rehearsals reach today's orientation except where the specification states a cha
           targets from fresh installs. Launch reports its exact allocation and passes adoption selectors unchanged;
           Resume retains the selected checkout. Explicit Plan entry skips preflight only on its computed grooming flag.
 
-### `[ ]` **4.3 Compile transient resumes and the contextless husk — § 5.4**
+### `[x]` **4.3 Compile transient resumes and the contextless husk — § 5.4**
 
 - _Goal:_ A transient row enters its owning workflow by recovery's mapping with its exact subject and generation, and a
   contextless current husk orients on the husk and stops.
 
-- Export `transientWorkflow` (`lib/recover/locus-context.ts`)
-- Keep the owning workflow's grooming-resume entry distinct from fresh `--plan` admission: continue the selected
-  grooming session with `subject` and `generation`, preserving that shape without treating the set key as a stub
-- Build `test-first` (one behavior at a time), replacing the retired groom and housekeep dispatch pins:
-    - `errand` and `partial-errand` enter `run-errand` with `mode: "resume"`, `groom` enters `draft-design`, and
-      `housekeep` enters `drain-inbox`, each by `transientWorkflow`
-    - the fragment carries the subject's kind and key and the marker generation, a null `markerGeneration` passing
-      through as `generation: null`, with orientation `subject`
-    - a partial Errand compiles without an identity
-    - a transient resume runs the full prefix, the worktree pull and superseded reset included, and renders degraded
-      lines only for the slots its checkout renders draw on
-    - a contextless current husk runs the full prefix, renders `husk` and its other surfaces, and stops with
-      orientation `work-state`
-    - neither a transient resume nor a contextless husk renders `concurrent-workload` when the probe emits it
+- _Outcome:_ Transient resumes share recovery's workflow mapping and carry scalar subject kind, key, and nullable
+  generation arguments. Partial Errands remain marker-derived without a portable identity; grooming resumes retain
+  their selected set and checkout. The full prefix and checkout-only degradation scope apply before entry. A
+  contextless husk retains cleanup attention, stays out of execution, and stops after synchronization.
 
 ### `[ ]` **4.4 Compile `--start` and author `assess-start-readiness` — § 5.4, § 8.2**
 

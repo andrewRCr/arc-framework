@@ -443,15 +443,17 @@ qualified explicit references, unchanged owning refusal authority, and criterion
 ## Grooming resume entry
 
 Explicit `--plan` admission and a selected grooming resume carry distinct arguments. `compilePlanSignal` supplies
-`stub` and the exact computed `onGroomingBranch`; the transient row carries the existing grooming set's `subject`
-and `generation`, not a new backlog target. `validateGroom` requires the full-protection record's branch to derive
-from its anchor, and `projectDerivedCheckoutRow` corroborates that expected topology through
+`stub` and the exact computed `onGroomingBranch`; `compileTransientResume` carries the existing grooming set's subject
+kind, key, and marker generation, not a new backlog target. `validateGroom` requires the full-protection record's
+branch to derive from its anchor, and `projectDerivedCheckoutRow` corroborates that expected topology through
 `corroborateCheckoutRole`. `projectIdentityAuthority` refuses a marker-selected ordinary transient without its exact
 identity; there is no marker-only groom admission. Partial grooming legitimately permits the base. The legacy
 `classifyPlanningEntry` admits a full-protection fresh request only on a Planning-meta branch, so reapplying that
 fresh-entry check to an established groom would redirect a valid resume.
 
-Task 4.2.d scopes its changed skip to explicit `--plan` arguments. Task 4.3 adds the owning workflow's separate
-resume entry while preserving `{subject, generation}` and the selected checkout. A grooming-set key is not silently
-reinterpreted as a stub. Bounded advisor consultation `/root/advisor` supported this interpretation; source validation
-and checkout corroboration above establish its required premise. No specification or public argument shape changes.
+Task 4.2.d scopes its changed skip to explicit `--plan` arguments. Task 4.3 adds the owning workflow's separate resume
+entry while preserving the subject kind and key, marker generation, and selected checkout. A grooming-set key is not
+silently reinterpreted as a stub. Bounded advisor consultation `/root/advisor` supported this interpretation; source
+validation and checkout corroboration above establish its required premise. The scalar fragment-argument contract
+carries `subjectKind`, `subjectKey`, and `generation`; orientation retains its subject object. No agenda schema change
+is needed.

@@ -1,6 +1,6 @@
 /** Validated session probes and read-bound compiler inputs for agenda tests. */
 
-import { activeSessionInit, derivedFrameFromActive, sessionInitFixture, worktreeSync } from "./session-init-fixtures.js";
+import { activeSessionInit, derivedFrameFromActive, sessionInitFixture, worktreeSync, type SessionInitProbeOverrides } from "./session-init-fixtures.js";
 import type { AgendaCompileInput } from "../../src/commands/agenda/compile-input.js";
 import type { DerivedLocusFrame } from "../../src/lib/locus/derived-reader.js";
 import type { DerivedCheckoutRow } from "../../src/lib/locus/derived-roster.js";
@@ -36,7 +36,7 @@ export function workUnitRow(context = true, detached = false): DerivedCheckoutRo
     checkout: { ...row.checkout, primary: !detached, detached, branch: detached ? null : "feat/work" } };
 }
 
-export async function forRow(row: DerivedCheckoutRow, husk: "absent" | "null" | "failed" | "present" = "absent", branchGone = false):
+export async function forRow(row: DerivedCheckoutRow, husk: "absent" | "null" | "failed" | "present" = "absent", branchGone = false, probes: SessionInitProbeOverrides = {}):
 Promise<SessionInitProbeResult> {
   return sessionInitFixture({
     derivedLocusState: async () => frameWithRow(row),
@@ -48,6 +48,7 @@ Promise<SessionInitProbeResult> {
       return husk === "present" ? { worktreePath: row.checkout.path, subject: { kind: "work-unit", name: "work" },
         branch: "feat/work", stamp: { kind: "legacy", authorization: "merged-preserved" } } : null;
     },
+    ...probes,
   });
 }
 

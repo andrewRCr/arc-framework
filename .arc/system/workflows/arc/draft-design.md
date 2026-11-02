@@ -32,6 +32,10 @@ start.
 
 ## Planning-entry gate
 
+**Session-init grooming resume:** `subjectKind: "groom"`, `subjectKey`, and `generation` identify the selected
+existing grooming set. Continue in its current checkout at **Resolve depth & Class**, without running this fresh-entry
+gate or treating the set key as a backlog stub.
+
 **Session-init planning entry:** `stub` identifies the selected backlog stub; `onGroomingBranch` reports whether
 this checkout is already on that stub's grooming branch.
 

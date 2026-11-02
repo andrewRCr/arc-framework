@@ -1,5 +1,7 @@
 /** Compile session entry decisions into an asserted agenda or an actionable refusal. */
 
+import { compileCurrentHusk } from "./husk.js";
+import { compileTransientResume } from "./transient.js";
 import { createSessionInitAgenda } from "./document.js";
 import { compileHousekeepSignal, compileContextSignal } from "./signal-checkout.js";
 import { compilePlanSignal } from "./signal-plan.js";
@@ -24,6 +26,8 @@ export async function compileSessionInitAgenda(input: AgendaCompileInput): Promi
   if (row === "housekeep") return { ok: true, agenda: await compileHousekeepSignal(input) };
   if (row === "plan") return { ok: true, agenda: await compilePlanSignal(input) };
   if (row === "errand") return { ok: true, agenda: await compileErrandSignal(input) };
+  if (row === "current-husk") return { ok: true, agenda: await compileCurrentHusk(input) };
+  if (row === "transient") return { ok: true, agenda: await compileTransientResume(input) };
   if (row === "work-unit") return { ok: true, agenda: await compileWorkUnitResume(input) };
   return { ok: false, refusal: {
     code: "row-not-compiled", flags: [], row,
