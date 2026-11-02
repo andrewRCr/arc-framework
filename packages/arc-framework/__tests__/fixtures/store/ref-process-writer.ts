@@ -4,11 +4,13 @@ import { createExecaRawGitExec } from "../../../src/lib/git/process-executor.js"
 import { SlugSchema, ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
 import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/index.js";
 import { RefProcessJobSchema, RefProcessReportSchema, type RefProcessReport } from "./ref-process-protocol.js";
+import { installRefFetchDiagnostics } from "./ref-fetch-diagnostics.js";
 import { publishAcceptedWrite } from "../../helpers/store/ref-publication.js";
 
 const job = RefProcessJobSchema.parse(JSON.parse(process.argv[3] ?? "null"));
 const root = process.argv[2];
 if (!root) throw new Error("A writer requires a checkout");
+await installRefFetchDiagnostics(root, { mode: job.mode, identity: job.identity, job });
 const defaults = createDefaultStorePorts({ checkoutRoot: root }), native = createRefLockFactory(defaults);
 const report: RefProcessReport = { outcomes: [], retries: [], refusals: [] };
 let paused = false;

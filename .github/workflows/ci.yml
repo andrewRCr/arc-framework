@@ -25,7 +25,7 @@ on:
         type: boolean
         default: false
       portability_timing_only:
-        description: 'Diagnostic only: run Windows/macOS operation timing, skipping other test jobs'
+        description: 'TEMPORARY DIAGNOSTIC BRANCH: reproduce the Windows default publishing burst with fetch evidence'
         type: boolean
         default: false
       portability_files:
@@ -910,7 +910,7 @@ jobs:
   # Setup supplies the shared invocation forecast. Each OS divides the tier across six shards balanced by the
   # integration durations; a timing-only or named-files run needs one job per OS.
   portability-cross-platform:
-    name: ${{ inputs.portability_timing_only && 'Portability timing diagnostic' || 'Portability targeted' }} (${{ matrix.os }}, ${{ matrix.shard }})
+    name: ${{ inputs.portability_timing_only && 'Ref fetch diagnostic' || 'Portability targeted' }} (${{ matrix.os }}, ${{ matrix.shard }})
     permissions:
       contents: read
       actions: write # upload portability measurements
@@ -924,7 +924,7 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest]
         shard: [1, 2, 3, 4, 5, 6]
-        exclude: ${{ fromJSON((inputs.portability_timing_only || inputs.portability_files) && '[{"shard":2},{"shard":3},{"shard":4},{"shard":5},{"shard":6}]' || '[]') }}
+        exclude: ${{ fromJSON(inputs.portability_timing_only && '[{"shard":2},{"shard":3},{"shard":4},{"shard":5},{"shard":6},{"os":"macos-latest"}]' || inputs.portability_files && '[{"shard":2},{"shard":3},{"shard":4},{"shard":5},{"shard":6}]' || '[]') }}
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -976,15 +976,32 @@ jobs:
         PORTABILITY_FILES: ${{ inputs.portability_files }}
         ARC_E2E_SKIP_BUILD: '1'
         ARC_STORE_BURSTS: '1'
-    - name: Measure native operation timing only
+    - name: Prepare retained fetch evidence
       if: ${{ github.event_name == 'workflow_dispatch' && inputs.portability_timing_only }}
-      run: npm run test:file -- packages/arc-framework/__tests__/integration/store-ref-timing.test.ts --maxWorkers=1
+      shell: pwsh
+      run: |
+        $capture = "$env:RUNNER_TEMP/arc-ref-fetch"
+        New-Item -ItemType Directory -Force "$capture/events" | Out-Null
+        "ARC_REF_FETCH_DIAGNOSTICS=$capture" >> $env:GITHUB_ENV
+        "GIT_TRACE2_EVENT=$capture/events/" >> $env:GITHUB_ENV
+        "GIT_TRACE_REFS=$capture/refs.log" >> $env:GITHUB_ENV
+    - name: Reproduce the default publishing burst once
+      if: ${{ github.event_name == 'workflow_dispatch' && inputs.portability_timing_only }}
+      run: npm run test:file -- packages/arc-framework/__tests__/integration/store-ref-bursts.test.ts --project integration-bursts -t 'full inbox bursts [(]default[)].*converges twenty'
       env:
         ARC_E2E_SKIP_BUILD: '1'
         ARC_STORE_BURSTS: '1'
         ARC_STORE_PROFILE: '1'
+    - name: Upload retained fetch evidence
+      if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.portability_timing_only }}
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: ref-fetch-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/arc-ref-fetch
+        include-hidden-files: true
+        if-no-files-found: error
     - name: Upload portability measurements
-      if: ${{ !cancelled() }}
+      if: ${{ !cancelled() && !inputs.portability_timing_only }}
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
         name: portability-results-${{ runner.os }}-${{ matrix.shard }}

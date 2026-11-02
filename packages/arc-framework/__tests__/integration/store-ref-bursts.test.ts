@@ -6,6 +6,7 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { createDefaultRefStorePorts, createRefStore, parseEntryList, writeEntryList,
   RecordReferenceSchema, type PushResult } from "../../src/lib/store/index.js";
 import type { RefProcessReport } from "../fixtures/store/ref-process-protocol.js";
+import { installRefFetchDiagnostics } from "../fixtures/store/ref-fetch-diagnostics.js";
 import { startRefWriter } from "../helpers/store/ref-process.js";
 import { refSyncFixture, createRefSyncCheckout } from "../helpers/store/ref-sync.js";
 import { removeGitBackedDir } from "../helpers/temp-repo.js";
@@ -81,6 +82,7 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1").each(["default", "separate
   // which no retry clears, so this case is skipped there until the deadline releases its own lock.
   it.skipIf(process.platform === "win32" && layout === "separate")("converges twenty simultaneously publishing clones on every accepted inbox write", async () => {
     const f = await refSyncFixture(layout), store = nativeStore(f.cloneA);
+    await installRefFetchDiagnostics(f.cloneA, { role: "controller", layout });
     const parent = await mkdtemp(join(tmpdir(), "arc-inbox-clones-"));
     onTestFinished(() => removeGitBackedDir(parent));
     success(await store.write({ action: "put", reference: inbox, expected: null, content: original, provenance }));
