@@ -6,6 +6,7 @@ import type { LoadSetEntry } from "../../lib/load-set/types.js";
 import type { TaskListCursorFileResult } from "../../lib/task-list/file-cursor.js";
 import type { TaskListCursor } from "../../lib/task-list/cursor.js";
 import type { AgendaCompileInput } from "./compile-input.js";
+import { renderDegradedSlot } from "./render.js";
 import { compileNotesSync } from "./notes.js";
 import type { AgendaStep } from "./schema.js";
 
@@ -14,7 +15,7 @@ export const READ_GROUP_BUDGET_BYTES = 48 * 1024;
 /** Context pointers that determine resume reads, including a session-type override. */
 export type AgendaResumeReadContext = Pick<Extract<SubjectMetaProjection, { kind: "resolved" }>, "sessionType" | "workflow" | "loadSet">;
 /** Cursor authority and any diagnostic that replaces its read. */
-export interface AgendaCursorRead { cursor: TaskListCursor | null; note: AgendaStep | null }
+export interface AgendaCursorRead { cursor: TaskListCursor | null; note: AgendaStep | null; degraded?: AgendaStep }
 
 /** Read the entering checkout's selected context without scanning for another subject. */
 export function selectedAgendaContext(input: AgendaCompileInput): Extract<SubjectMetaProjection, { kind: "resolved" }> | null {
@@ -25,7 +26,11 @@ export function selectedAgendaContext(input: AgendaCompileInput): Extract<Subjec
 /** Select a valid strategic cursor or its diagnostic. */
 export function resolveAgendaTaskCursor(slot: Probe<TaskListCursorFileResult> | undefined): AgendaCursorRead {
   if (slot === undefined) return cursorNote("Task cursor is unavailable; task context was not read.");
-  if (!slot.ok) return cursorNote(`Task cursor ${slot.error.kind}: ${slot.error.message}`);
+  if (!slot.ok) {
+    const degraded = renderDegradedSlot("taskCursor", slot);
+    return { ...cursorNote(`Task cursor ${slot.error.kind}: ${slot.error.message}`),
+      ...(degraded === null ? {} : { degraded }) };
+  }
   if (slot.value.status === "found") return { cursor: slot.value.cursor, note: null };
   if (slot.value.status === "malformed") return cursorNote(`Task cursor at line ${slot.value.error.line}: ${slot.value.error.message}`);
   return { cursor: null, note: null };
@@ -56,8 +61,8 @@ async function compileRead(
 ): Promise<AgendaStep[]> {
   const strategic = entry.readMode.kind === "partial-strategic";
   if (strategic && context.sessionType === "planning") return [];
-  const { cursor, note } = strategic ? resolveAgendaTaskCursor(input.envelope.taskCursor) : { cursor: null, note: null };
-  if (strategic && cursor === null) return note === null ? [] : [note];
+  const { cursor, note, degraded }: AgendaCursorRead = strategic ? resolveAgendaTaskCursor(input.envelope.taskCursor) : { cursor: null, note: null };
+  if (strategic && cursor === null) return [...(degraded === undefined ? [] : [degraded]), ...(note === null ? [] : [note])];
   if (!await input.read.exists(entry.path)) return missingRead(input, entry.path);
   const bytes = await input.read.size(entry.path);
   if (group.bytes > 0 && group.bytes + bytes > READ_GROUP_BUDGET_BYTES) { group.id += 1; group.bytes = 0; }

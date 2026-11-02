@@ -14,7 +14,7 @@ const noReads: AgendaReadPort = {
 
 describe("session agenda compilation", () => {
   it("refuses an uncompiled arm with its selected row and a restart route", async () => {
-    const result = compileSessionInitAgenda({ envelope: await sessionInitFixture(), signals: { start: "target" },
+    const result = await compileSessionInitAgenda({ envelope: await sessionInitFixture(), signals: { start: "target" },
       answers: { answered: {}, done: [] }, read: noReads });
     expect(result).toEqual({ ok: false, refusal: {
       code: "row-not-compiled", flags: [], row: "start",

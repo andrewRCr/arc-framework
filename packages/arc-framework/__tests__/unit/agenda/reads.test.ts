@@ -63,7 +63,7 @@ describe("agenda resume reads", () => {
 
   it("reports a failed cursor probe at the cursor decision boundary", () => {
     expect(resolveAgendaTaskCursor({ ok: false, error: { kind: "runtime", message: "Cursor read failed" } }))
-      .toMatchObject({ cursor: null, note: { type: "note", surface: "task-cursor", text: expect.stringContaining("Cursor read failed") } });
+      .toMatchObject({ cursor: null, degraded: { type: "render", surface: "degraded-slot", text: expect.stringContaining("Cursor read failed") }, note: { type: "note", surface: "task-cursor", text: expect.stringContaining("Cursor read failed") } });
   });
 
   it("reports absent expected context but silently skips absent working memory", async () => {

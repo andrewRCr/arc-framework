@@ -35,7 +35,7 @@ export async function handleAgenda(
   });
   const context = await createSessionStatusContext(cwd, exec, transitionExec, localOnlyTransitionExec, interaction);
   const { result } = await composeSessionInitStatus(context);
-  const compiled = compileSessionInitAgenda({ envelope: result, signals: parsed.signals, answers: parsed.answers,
+  const compiled = await compileSessionInitAgenda({ envelope: result, signals: parsed.signals, answers: parsed.answers,
     read: createAgendaReadPort(cwd, exec) });
   if (!compiled.ok) { renderRefusal(compiled.refusal, options.json === true); return; }
   if (options.json) { process.stdout.write(`${JSON.stringify(compiled.agenda)}\n`); return; }

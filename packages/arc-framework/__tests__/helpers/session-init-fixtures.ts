@@ -219,6 +219,7 @@ export function derivedFrameFromActive(
   cohortDocPath: string | null,
   taskCursor: TaskListCursorFileResult | null,
   workingMemoryPath: string | null = null,
+  stateOffBranch = false,
 ): DerivedLocusFrame {
   if (active.resolution !== "single" || active.path === null) {
     const row = {
@@ -271,7 +272,7 @@ export function derivedFrameFromActive(
     cohortDocPath,
     loadSet: resolveLoadSetManifest({
       identity,
-      workingMemoryPath,
+      workingMemoryPath, stateOffBranch,
       activeWorkUnit: key,
       metaPath: active.path,
       sessionType: active.sessionType,

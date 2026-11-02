@@ -203,38 +203,15 @@ _Mode:_ `slice` through Phase 3 — closes on a plain resume driven end to end b
           overrides warn. Freshness resolves abbreviated commits and reports history/meta changes, absent baselines
           and unreachable baselines from current reads.
 
-### `[ ]` **2.4 Compile the core orientation and auto-proceed — § 2.3, § 4.10, § 5.1, § 6.2**
+### `[x]` **2.4 Compile the core orientation and auto-proceed — § 2.3, § 4.10, § 5.1, § 6.2**
 
 - _Goal:_ A resume's agenda carries its residual inputs and core surfaces in § 6.2's order and ends in a `gate proceed`
   that auto-proceeds only under `--next` on a compile with nothing that would block a bare-clean orientation.
 
-- _Approach:_ This task owns § 6.2's order: an ordered surface-id list and the orientation assembly the later tasks'
-  builders plug into, the cutover module's surfaces included. It also owns the failed-slot rule (§ 4.4): a failed
-  slot the compiler reads renders one `degraded-slot` line at its place in the order, right after `locus`, and
-  suppresses exactly the steps the slot supplies. A stop renders only a failed `currentHusk` (Task 1.5.c), and the
-  signal and transient rows only the slots their checkout renders draw on (Tasks 4.2.c and 4.3).
-
-- Build `test-first` (one behavior at a time):
-    - `residual` carries `config`, `releaseRouting`, and `domainRules`, and `inboxState` on a primary checkout only,
-      at the envelope's field paths; each `domainRules.value.warnings` entry becomes a `domain-rules` note
-    - a failed slot renders its `degraded-slot` line in order and counts against `autoProceed`
-    - a failed `user` slot leaves no notes pull and no `loadNeeded` load, while a retired-subdir load still fires from
-      its own healthy slot; a failed `worktree` leaves no worktree pull or superseded reset, a failed `baseBranchSync`
-      no base sync, a failed `userReferenceReconcile` no apply, and each failed cleanup sweep no cleanup offer; the rest
-      compiles from healthy slots
-    - `header` renders the branch, clean or dirty, and the worktree path on a linked checkout
-    - `delivery-position` renders `deliveryPosition.value.line` once, and nothing for an `ok` null value
-    - `locus` renders every present optional string and non-empty array of the guidance except `entering`, which
-      renders only on a stop
-    - `current-wu-reconcile`, `user-references`, and `hooks-path` render `recommendedPromptText` on `surface`, their
-      commands as text
-    - after the flip, a store pull other than a no-op becomes a `store-sync` note with its `actions` as text; a no-op
-      is a `noop` or `no-remote` status whose summary carries no notice
-    - an unconsumed positional seed, `--next`, or `--start` becomes an `unconsumed-signal` note with § 5.1's text
-    - orientation is `work-state`
-    - `autoProceed` holds with `--next`, a clean tree, no freshness gap, no meta `**Blockers:**` value
-      (`parseMetaRecord`'s `blockers`, read through the port), and no `render` or `note` but `header` and `answered`
-      and no `offer`; any one of them clears it
+- _Outcome:_ Wired asynchronous work-unit resume compilation through the CLI, sharing asserted envelope assembly
+  with stops. Added ordered orientation surfaces, published guidance as text, complete locus narration, degraded-slot
+  isolation and store notices. The proceed gate checks compiler surfaces, offers, cleanliness and parsed meta blockers;
+  the native adapter exercises the full read/residual/gate path.
 
 ### `[ ]` **2.5 Compile the checkout-local and notes surfaces — § 5.5, § 6.2, § 7.1**
 

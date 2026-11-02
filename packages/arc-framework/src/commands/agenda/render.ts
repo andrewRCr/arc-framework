@@ -1,5 +1,6 @@
 /** CLI-composed locus and failed-slot surfaces for session agendas. */
 
+import type { LocusSessionGuidance } from "../../lib/locus/session-guidance.js";
 import type { Probe, SessionInitProbeResult } from "../status.js";
 import type { AgendaStep } from "./schema.js";
 
@@ -7,10 +8,8 @@ import type { AgendaStep } from "./schema.js";
 export function renderLocus(envelope: SessionInitProbeResult, stop = false): AgendaStep | null {
   const guidance = envelope.locusGuidance;
   if (guidance.kind === "unavailable") return { type: "render", surface: "locus", text: guidance.message };
-  const lines = [guidance.pause, guidance.primaryAvailability, guidance.identityDiscovery,
-    ...guidance.cleanup, ...guidance.diagnostics].filter((line): line is string => line !== undefined);
+  const lines = renderReadyLocusLines(guidance, stop);
   if (stop) {
-    if (guidance.entering !== undefined) lines.push(guidance.entering);
     const locus = envelope.derivedLocusState;
     if (locus.ok && locus.value.entering.kind === "selected") {
       lines.push(`No work-unit context resolves for checkout ${locus.value.entering.row.checkout.path}.`);
@@ -24,4 +23,15 @@ export function renderDegradedSlot(name: string, slot: Probe<unknown> | undefine
   if (slot === undefined || slot.ok) return null;
   return { type: "render", surface: "degraded-slot",
     text: `${name} unavailable (${slot.error.kind}): ${slot.error.message}` };
+}
+
+/** Retain all ready-guidance lines appropriate to this orientation boundary. */
+export function renderReadyLocusLines(guidance: Extract<LocusSessionGuidance, { kind: "ready" }>, stop = false): string[] {
+  const lines: string[] = [];
+  for (const [key, value] of Object.entries(guidance)) {
+    if (key === "kind" || (key === "entering" && !stop)) continue;
+    if (typeof value === "string") lines.push(value);
+    else if (Array.isArray(value)) lines.push(...value);
+  }
+  return lines;
 }

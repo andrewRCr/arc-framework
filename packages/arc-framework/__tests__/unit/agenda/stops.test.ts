@@ -16,9 +16,9 @@ const noReads: AgendaReadPort = {
 };
 const stopGate = { type: "gate", kind: "stop", autoProceed: false };
 
-function compileStop(envelope: SessionInitProbeResult, signals: AgendaSignals = {},
-  answers: AgendaAnswers = { answered: {}, done: [] }): SessionInitAgenda {
-  const result = compileSessionInitAgenda({ envelope, signals, answers, read: noReads });
+async function compileStop(envelope: SessionInitProbeResult, signals: AgendaSignals = {},
+  answers: AgendaAnswers = { answered: {}, done: [] }): Promise<SessionInitAgenda> {
+  const result = await compileSessionInitAgenda({ envelope, signals, answers, read: noReads });
   expect(result.ok, JSON.stringify(result)).toBe(true);
   if (!result.ok) throw new Error("Expected an agenda for the stop row");
   return result.agenda;
@@ -28,7 +28,7 @@ describe("session agenda stops", () => {
   it.each([false, true])("renders unavailable locus guidance with missing identity=%s", async missingIdentity => {
     const envelope = missingIdentity ? await sessionInitFixture({}, { identity: null })
       : await sessionInitFixture({ derivedLocusState: async () => { throw new Error("locus read failed"); } });
-    const agenda = compileStop(envelope, { start: "target", next: true, seed: "source" });
+    const agenda = await compileStop(envelope, { start: "target", next: true, seed: "source" });
     expect(envelope.locusGuidance.kind).toBe("unavailable");
     if (envelope.locusGuidance.kind !== "unavailable") throw new Error("Expected unavailable guidance");
     expect(agenda.orientation).toEqual({ shape: "none" });
@@ -41,7 +41,7 @@ describe("session agenda stops", () => {
     const frame = baseFrame();
     const envelope = await sessionInitFixture({ derivedLocusState: async () => ({ ...frame,
       entering: { kind: "unresolved", checkoutPath: "/missing", diagnostics: [{ code: "missing", message: "No row" }] } }) });
-    const agenda = compileStop(envelope);
+    const agenda = await compileStop(envelope);
     if (envelope.locusGuidance.kind !== "unavailable") throw new Error("Expected unavailable guidance");
     expect(agenda.steps).toEqual([
       { type: "render", surface: "locus", text: envelope.locusGuidance.message }, stopGate,
@@ -52,7 +52,7 @@ describe("session agenda stops", () => {
     const row = selectedRow(baseFrame());
     const envelope = await forRow({ ...row, kind: "unresolved-checkout",
       diagnostics: [{ code: "topology-mismatch", message: "Cannot corroborate" }] });
-    const agenda = compileStop(envelope);
+    const agenda = await compileStop(envelope);
     if (envelope.locusGuidance.kind !== "unavailable") throw new Error("Expected unavailable guidance");
     expect(agenda.steps).toEqual([
       { type: "render", surface: "locus", text: envelope.locusGuidance.message }, stopGate,
@@ -61,7 +61,7 @@ describe("session agenda stops", () => {
 
   it.each(["absent", "null", "failed"] as const)("explains the contextless work unit with %s husk evidence", async husk => {
     const envelope = await forRow(workUnitRow(false, husk !== "absent"), husk);
-    const agenda = compileStop(envelope);
+    const agenda = await compileStop(envelope);
     if (envelope.locusGuidance.kind !== "ready") throw new Error("Expected ready guidance");
     expect(agenda.steps[0]).toMatchObject({ type: "render", surface: "locus" });
     const locus = agenda.steps[0];
@@ -79,7 +79,7 @@ describe("session agenda stops", () => {
       primaryAvailability: { kind: "unsafe", checkoutPath: "/repo", reasons: ["not clean"] },
       identityDiscovery: { kind: "error", stage: "tip", message: "Identity tip unavailable" },
     }) });
-    const agenda = compileStop(envelope);
+    const agenda = await compileStop(envelope);
     if (envelope.locusGuidance.kind !== "ready") throw new Error("Expected ready guidance");
     const locus = agenda.steps[0];
     if (locus?.type !== "render") throw new Error("Expected locus rendering");
@@ -91,7 +91,7 @@ describe("session agenda stops", () => {
 
   it("renders a failed currentHusk with its error kind and message and no action", async () => {
     const envelope = await forRow(workUnitRow(false, true), "failed");
-    const agenda = compileStop(envelope);
+    const agenda = await compileStop(envelope);
     const slot = envelope.currentHusk;
     if (!slot || slot.ok) throw new Error("Expected failed current-husk evidence");
     expect(agenda.steps[1]).toEqual({ type: "render", surface: "degraded-slot",
@@ -104,7 +104,7 @@ describe("session agenda stops", () => {
       hooksPath: fail, worktree: fail });
     const signals: AgendaSignals = { context: true, next: true, start: "target", seed: "source" };
     const answers: AgendaAnswers = { answered: { "notes:pull": "decline" }, done: ["notes:load"] };
-    const agenda = compileStop(envelope, signals, answers);
+    const agenda = await compileStop(envelope, signals, answers);
     expect(agenda.signals).toEqual(signals);
     expect(agenda.answers).toEqual(answers);
     expect(agenda.residual).toEqual({ config: envelope.config, releaseRouting: envelope.releaseRouting,

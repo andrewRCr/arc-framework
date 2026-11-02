@@ -2,6 +2,7 @@
 
 import type { AgendaCompileInput } from "./compile-input.js";
 import type { AgendaStep } from "./schema.js";
+import { pullResultNotices } from "../../lib/store/operational-sync.js";
 import { createSyncExec, createSyncOffer, syncPending } from "./sync-steps.js";
 
 const LOAD_PROMPT = "Notes: local notes are current but disk lags the latest note. Load?";
@@ -32,4 +33,16 @@ function compileNotesLoad(input: AgendaCompileInput, loadNeeded: boolean): Agend
   const spec = { id: "notes:load", text, label: "Load notes",
     actions: [{ text: "arc user load", argv: ["arc", "user", "load"] }] };
   return [policy === "always" && !retiredPrompts ? createSyncExec(input, spec) : createSyncOffer(input, spec)];
+}
+
+/** Render an operational-store pull and its remedies as advisory text. */
+export function renderStoreSync(input: AgendaCompileInput): AgendaStep | null {
+  const slot = input.envelope.user;
+  if (!slot.ok || slot.value === null || !("status" in slot.value)) return null;
+  const value = slot.value;
+  const quiet = (value.status === "noop" || value.status === "no-remote")
+    && pullResultNotices(value).length === 0 && (value.advisories?.length ?? 0) === 0;
+  if (quiet) return null;
+  const text = [value.summary, ...(value.actions?.map(action => action.text) ?? [])].join("\n");
+  return { type: "note", surface: "store-sync", text };
 }
