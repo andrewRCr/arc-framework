@@ -655,10 +655,10 @@ without an offer.
 |                              | (`mode: "launch"`, `fromInbox` the offer's key, `isolate`); empty → `render` +            |
 |                              | `gate stop`; refused → `render` of reason, remedy, and retry command + `gate stop`        |
 | `--errand <seed>`            | prefix, checkout renders, `fragment` `run-errand` (`mode: "launch"`, `seed`, `isolate`);  |
-|                              | a seed naming a flagged `§ Errand` capture passes it as `fromInbox`                       |
+|                              | capture selectors pass as `fromInbox` under the backend rule below (A3)                   |
 | `--errand` bare              | prefix, then offer `errand:pick`: a `signal` choice per `§ Errand` capture flagged        |
-|                              | `_Remind:_` or `_Hold:_` (`extractReminderEntries`), an `elicit` choice for a new         |
-|                              | concern, and a decline that clears the signal, and `--isolate` with it, and recompiles    |
+|                              | `_Remind:_` or `_Hold:_`, an `elicit` choice for a new concern, and a decline that        |
+|                              | clears the signal, and `--isolate` with it, and recompiles                                |
 | `--plan <stub>`, found       | prefix, checkout renders, `fragment` `draft-design` (`stub`, `onGroomingBranch`)          |
 | `--plan` bare or not found   | prefix, then offer `plan-stub:<value>`: an `elicit` choice carrying any unmatched value,  |
 |                              | and a decline that clears the signal and recompiles; an answer still not found is asked   |
@@ -693,10 +693,20 @@ without an offer.
   the `--start` target (`kind: "work-unit"`). Branch-gone takes its entering row's shape: `subject` on a transient row,
   with that row's subject, and `work-state` otherwise.
 - **Bare `--errand` and `--plan` resolve at compile.** The closed part of the choice set is known to the CLI — the
-  flagged captures `extractReminderEntries` returns, and a seed's stub from `resolveBacklogStub`, which matches exact
-  slugs — so no arm workflow elicits. A lookup that fails (two stubs matching in one state directory, an unreadable
-  backlog directory, or a store refusal) compiles as not found, and the `plan-stub` offer's text names the failed lookup
-  and its message, so the person can give another stub or decline.
+  flagged personal Errand captures and a seed's stub from `resolveBacklogStub`, which matches exact slugs — so no arm
+  workflow elicits. (A3) A lookup that fails (two stubs matching in one state directory, an unreadable backlog
+  directory, or a store refusal) compiles as not found, and the `plan-stub` offer's text names the failed lookup and its
+  message, so the person can give another stub or decline.
+- **Errand capture selectors follow the selected backend.** Before the flip, retain title-based picker values and
+  adoption: an exact flagged personal `§ Errand` title passes as `fromInbox`. After the flip, the picker still lists
+  only personal `§ Errand` captures flagged `_Remind:_` or `_Hold:_`; each label shows its title and `personal:<id>`,
+  and its signal value is that qualified ID. Every explicit `personal:<id>` or `project:<id>` seed, where `<id>` is
+  exactly eight lowercase hexadecimal characters, passes unchanged as `fromInbox`, whether or not it is still in the
+  picker. Other text seeds are new concerns, even when they equal a flagged title. `parseEntryList` supplies each
+  store entry's own ID; `extractReminderEntries` supplies legacy flagged title keys. `resolveInboxEntryOperand` and
+  `prepareErrandAdoption`, reached through `prepareHandlerErrandAdoption`, retain their existing missing, moved,
+  conflicted, and held-capture refusals. A disappeared ID never becomes a new text concern. No agenda field or
+  workflow argument shape changes. (A3)
 - **`--start` target.** It resolves the slug as `arc status <slug>` does (`handleLifecycleStatus`,
   `handlers/status/lifecycle.ts`), checking lifecycle quality first. A slug the composed index marks indeterminate
   (`isComposedLifecycleSlugIndeterminate`, which `arc start` checks before minting a branch), or one the store refuses
@@ -1385,6 +1395,11 @@ compiler compiles both arms from whichever the probe's readers return.
     A literal `-` never produces an executable recovery action: sole resolved and base-fallback destinations stay
     held with manual guidance; ambiguous menus retain a bare manual choice alongside their other candidates. (A2)
 
+17. **Backend capture selectors.** Before the flip, flagged personal Errand titles retain title-based selection and
+    adoption. After it, picker labels include title and qualified personal ID, choices carry that ID, and explicit
+    personal or project IDs reach adoption unchanged, retaining missing, moved, conflicted, and held refusals. Other
+    text seeds remain new concerns, including text equal to a flagged title. The agenda schema is unchanged. (A3)
+
 ## Open Questions
 
 None blocks starting. The per-group read budget's value, the surface ids' spelling, and the compiler's module split are
@@ -1396,3 +1411,5 @@ implementation detail.
   _Supersedes:_ § 3.2 offer ¶1; § 4.5 ¶1. _Trigger:_ 1.3.c must-stop. _Work:_ 1.R. _Revalidated:_ 1.R.b.
 - **A2** — 2026-11-01 — design: preserve Git branch operands and hold the checkout-history alias.
   _Supersedes:_ § 5.3 free rule. _Trigger:_ 4.1.c must-stop. _Work:_ 4.R. _Revalidated:_ pending → 4.7.
+- **A3** — 2026-11-02 — design: use backend capture keys for Errand entry. _Supersedes:_
+  § 5.4 Errand rows. _Trigger:_ 4.2.c must-stop. _Work:_ 4.R2. _Revalidated:_ pending → 4.7.

@@ -367,6 +367,21 @@ rehearsals reach today's orientation except where the specification states a cha
   text and occupied-checkout guidance. Real producer fixtures and native Git scenarios cover ordinary, option-looking,
   and alias names while preserving checkout, previous-checkout history, and code refs.
 
+### `[ ]` **4.R2 Use backend capture selectors for Errand entry**
+
+- _Goal:_ Apply A3 to explicit Errand entry: retain legacy title selection and use qualified capture IDs after the
+  flip, without changing the agenda schema, workflow argument shape, or adoption refusal checks.
+
+- Build `test-first` (one behavior at a time):
+    - Keep legacy flagged-title picker and exact-title adoption behavior
+    - Project only flagged personal Errand captures to title-plus-ID labels and qualified signal values after the flip,
+      preserving duplicate titles as distinct IDs and excluding unflagged and Work Unit captures
+    - Forward explicit qualified personal and project IDs unchanged as `fromInbox`, including an ID removed since
+      selection; prove the compiled selector through `prepareErrandAdoption`, retaining its refusal rather than
+      falling back to a new concern
+    - Treat other text seeds as new concerns after the flip, including a flagged title
+    - Preserve literal recompiles, isolate/decline behavior, unreadable-inbox recovery, and the public schema
+
 ### `[ ]` **4.2 Compile the signal rows — § 5.4, § 12**
 
 - _Goal:_ `--errand` (queue head, seeded, bare), `--plan` (found, bare or not found), `--housekeep`, and `--context`
@@ -376,6 +391,8 @@ rehearsals reach today's orientation except where the specification states a cha
         - Extracted the shared typed queue resolver and retained handler refusals. Seeded, flagged-capture, bare-pick,
           and queue-head entries now compile on the notes-only prefix, with checkout framing and literal recompiles.
           Failed inbox reads retain elicitation and recover after repair; native cases preserve inbox, checkout, and refs.
+
+        - _Amended in:_ 4.R2 (A3)
 
     - `[x]` **4.2.b Compile the `--plan` rows**
         - Added selected-store and filesystem stub lookup, canonical subject orientation, and the exact grooming-branch
@@ -725,3 +742,7 @@ tier pass against the new text.
 
 - `[ ]` Recovery fetch and switch argv put `--` before the branch operand; a literal `-` has no executable action,
   remains held with manual guidance when sole, and appears as a bare manual choice in an ambiguous menu (A2)
+
+- `[ ]` Before the flip, Errand capture titles retain selection and adoption; after it, flagged personal picker labels
+  include title and ID, choices carry qualified IDs, and personal/project ID seeds retain adoption refusal checks.
+  Other text remains a new concern, including a flagged title; the agenda schema is unchanged (A3)

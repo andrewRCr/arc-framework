@@ -405,3 +405,37 @@ above. Reader independence and binding completeness hold: the body defines the e
 no obligation lives only in this note. Grounding-only task audit resolves all named symbols and test seams. The
 post-settle coherence read retains the common held path and per-candidate dispositions with this explicit exception.
 Independent review is omitted at the amendment's determinate correction depth.
+
+## A3 — Backend capture selectors
+
+Superseded § 5.4 statements:
+
+> a seed naming a flagged `§ Errand` capture passes it as `fromInbox`
+>
+> a `signal` choice per `§ Errand` capture flagged `_Remind:_` or `_Hold:_` (`extractReminderEntries`)
+
+`extractReminderEntries` returns title keys. `prepareHandlerErrandAdoption` selects the backend and calls
+`resolveInboxEntryOperand`, which accepts legacy titles before the flip but requires `personal:<id>` or
+`project:<id>` afterward. `compileErrandSignal` previously forwarded the title in either mode, making a post-flip
+picker selection reach an operand refusal. The read-only resolver probe retained in the personal workspace as
+`errand-capture-selector-evidence.json` demonstrates title acceptance before the flip, title refusal afterward, and
+qualified-ID acceptance. `parseEntryList` exposes each store capture's ID without a title join, preserving distinct
+captures with duplicate titles. `prepareErrandAdoption` resolves that exact list and ID and retains missing/moved,
+conflict, and open-holder refusals; its returned writes are plans and are not applied by compilation.
+
+The amended body defines the backend rule completely. Explicit qualified seeds remain references even if removed
+since selection; other text is a new concern after the flip. No title-to-ID fallback or new lifecycle authority is
+introduced. Reader independence and binding completeness require no information unique to this note.
+
+The propagation sweep covers § 5.4's rows and compile-time resolution paragraph, criterion 5, appended criterion 17,
+completed Task 4.2.a, revision 4.R2, Task 4.2.d's workflow handoff, and the upcoming 4.7 fixture/rehearsal verifier.
+The rows and paragraph fold into A3, 4.2.a takes an additive pointer, and 4.R2 carries the correction. Existing
+criteria 5, 7, and 14 and the 4.2.d argument shape are unaffected and remain applicable. Queue-head selection already
+carries qualified keys through `resolveQueueExecutionOffer` and is unaffected. The schema, prefix, Plan and other
+signal rows, and earlier baseline evidence are unaffected; no new planning segment or Class ratchet is needed.
+
+Author review covers the specification delta, surrounding § 5.4 obligations and selector definition, and revision
+4.R2 with its immediate neighbors. Grounding-only task audit traces the producers and adoption consumer named above;
+reader independence, binding completeness, and coherence hold over this footprint. Independent amendment review is
+omitted at the determinate correction depth. The final post-settle read retains flagged-personal picker scope,
+qualified explicit references, unchanged owning refusal authority, and criterion coverage without an open decision.
