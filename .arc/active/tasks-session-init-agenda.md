@@ -492,49 +492,26 @@ tier pass against the new text.
         - Removed both copies and inventory entries; served count descriptions carry routing and execution
           exclusions. The count pin now reads production JSON Schema; reference-only pins were retired.
 
-### `[ ]` **5.2 Cut the always-loaded cheap tier — § 11**
+### `[x]` **5.2 Cut the always-loaded cheap tier — § 11**
 
 - _Goal:_ Each § 11 cut and correction lands in every copy § 11 assigns it, every destination of moved text has an
   install disposition, and no rule's placement or load-set membership changes.
 
-- _Note:_ `DEV-RULES.ARC` and `AGENT-BRIEF.ARC` change in both copies. The Configurable templates change in package
-  source, and this repository's copy, its own filled document, takes a change only where it carries the template's text
-  verbatim; never copy one over the other. `pr-lifecycle` and `review-gate-workflows` read these files at the commit
-  gate.
+    - `[x]` **5.2.a `DEV-RULES.ARC`**
+        - Removed redundant guidance and unused definitions in both copies; commit-prefix and release-routing
+          instructions now read the agenda's residual inputs at the actual settings paths.
 
-- **Additional Context:** `notes-session-init-agenda.md` § The always-loaded cut audit
+    - `[x]` **5.2.b `AGENT-BRIEF.ARC`**
+        - Corrected the design/spec pipeline and matching push-target grammar in both copies; removed the footer
+          and stale backlog-depth guidance.
 
-    - `[ ]` **5.2.a `DEV-RULES.ARC`**
-        - § When to Load's stale clause, keeping "load it before beginning any task"; the duplicate `STRATEGY-INDEX`,
-          workflow-authoring, and methods bullets; the preamble's `DEV-RULES.PROJECT` pointer; § Discovered Work
-          Routing's Errand-vs-work-unit pointer; § Method loading's sentence restated in
-          `strategy-workflow-authoring.md`; § Artifact relocatability's narrative
-        - Remove the link definitions the cuts leave unused — `[workflow-authoring]`, `[arc-methods-dir]`, and
-          `[dev-rules-project]`; `[strategy-index]` stays in use
-        - § Commit control reads the commit interlock as `config.value.settings["commit.interlock"]` from the agenda's
-          residual `config`, and its `releaseRouting` lookups read the agenda's residual inputs or the envelope
+    - `[x]` **5.2.c `STRATEGY-INDEX` and `QUICK-REFERENCE.template`**
+        - Removed shared index introductions in both copies and source-only project examples. The quick-reference
+          context section drops fill-time comments and the duplicate ARC row while preserving its lookup heading.
 
-    - `[ ]` **5.2.b `AGENT-BRIEF.ARC`**
-        - Correct the pipeline line and the release-push "takes no target argument" claim (`arg-grammar.ts` accepts a
-          matching `origin <branch>` pair, with or without `-u`); cut § Directory Structure's backlog-nesting line and
-          the footer
-
-    - `[ ]` **5.2.c `STRATEGY-INDEX` and `QUICK-REFERENCE.template`**
-        - The index's purpose sentence and "these ship with the framework" line in both copies; its "create project
-          strategies" prose and example list in package source
-        - The reference's duplicate `.arc/` row and fill-time comments, in package source; its heading stays, since the
-          partial read keys on it
-
-    - `[ ]` **5.2.d `AGENT-BRIEF.PROJECT.template` and `DEV-RULES.PROJECT`**
-        - The brief's fill-time comments, their examples moved into `02_define-project`'s step, and the stale
-          "constitution" in § Repository Layout's `.arc/` line, in package source; its footer in both copies
-        - The shipped rules in package source: correct the domain-rules paragraph's `constitution/` path to
-          `system/rules/` and the stale "constitution" in § File Organization's `.arc/` line; cut the duplicate
-          pointers, the quality-gates definition sentence, the fill-time comments, and the self-description; cut the
-          capture-routing default text down to its heading and a placeholder line, which
-          `03_configure-external-integration` targets
-        - This repository's copy takes the duplicate pointers it shares verbatim and keeps its filled self-description
-          and its project-specific Capture Routing
+    - `[x]` **5.2.d `AGENT-BRIEF.PROJECT.template` and `DEV-RULES.PROJECT`**
+        - Removed template fill-time guidance, moved brief examples into the shipped setup step, and corrected
+          rule paths. Shared footer/pointer cuts apply to filled copies; project-specific guidance is preserved.
 
 ### `[ ]` **5.3 Retarget the remaining shipped readers — § 12**
 
