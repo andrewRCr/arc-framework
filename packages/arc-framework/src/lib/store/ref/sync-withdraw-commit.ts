@@ -21,6 +21,7 @@ import type { PullNotice } from "../sync.js";
 import { refObjectFault } from "./object-fault.js";
 import { isArchiveRef } from "./archive-read.js";
 import { RefSyncLabelError } from "./sync-label.js";
+import { captureWithdrawCopyBatches } from "./sync-withdraw-copies.js";
 
 /** One unpublished end whose record still stands beside another machine's published end. */
 export interface WithdrawEnd { owner: OwnerIdentity; live: string; history: string; batch: string }
@@ -29,8 +30,11 @@ export interface WithdrawEnd { owner: OwnerIdentity; live: string; history: stri
 export async function commitWithdrawEnd(context: RefBackendContext, end: WithdrawEnd, held: ReadonlyMap<string, string>,
   state: ReadonlyMap<string, string>, incoming: ReadonlyMap<string, string>, options: RefMergeOptions): Promise<RefMergeResult> {
   const reference = RecordReferenceSchema.parse({ owner: end.owner, kind: end.owner.type === "cohort" ? "cohort/document" : "work-item/meta" }), batches = new Set([end.batch]);
-  let journal: WithdrawJournalDescription[];
-  try { journal = await describeWithdrawJournal(context, held, batches, reference, end.history); }
+  let journal: WithdrawJournalDescription[], copyBatches: Map<string, ReadonlySet<string>>;
+  try {
+    journal = await describeWithdrawJournal(context, held, batches, reference, end.history);
+    copyBatches = await captureWithdrawCopyBatches(context, state, journal, end.history);
+  }
   catch (error) {
     if (!(error instanceof UnavailableWithdrawJournal)) throw error;
     return heldWithdrawal(error, end);
@@ -40,7 +44,7 @@ export async function commitWithdrawEnd(context: RefBackendContext, end: Withdra
     ...held.has("refs/arc/project/registry") || state.has("refs/arc/project/registry") ? ["refs/arc/project/registry"] : [],
     ...journal.some(({ ref }) => /^refs\/arc\/history\/(?:work|cohort)\//u.test(ref) && ref !== end.history)
       ? [...state.keys()].filter(isArchiveRef) : []]);
-  const basis: WithdrawalBasis = { end, held, state, incoming, reference, batches, journal };
+  const basis: WithdrawalBasis = { end, held, state, incoming, reference, batches, journal, copyBatches };
   return withRefLocks({ ...context, lock: options.lock }, [...watched].map((ref) => options.targetRef?.(ref) ?? ref), async () => {
     const captured = await readSyncRefs(context, "refs/arc/");
     if ([...watched].some((ref) => captured.get(options.targetRef?.(ref) ?? ref) !== state.get(ref))) return { status: "restart" };

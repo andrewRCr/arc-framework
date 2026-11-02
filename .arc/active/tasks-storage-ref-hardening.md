@@ -803,51 +803,44 @@ before its fix and passes after it in the store suites.
   preparation identifies exact destinations without duplicating policy. The third losing attempt keeps the repair
   refusal; nonancestor history still refuses immediately. Native cases also cover atomic batches and successful repair.
 
-### `[ ]` **7.2 Withdrawal conflict placements read the captured tips — § 9**
+### `[x]` **7.2 Withdrawal conflict placements read the captured tips — § 9**
 
 - _Goal:_ The withdrawal places its conflicts from the tip sets its operation captured, as every other
   `completeSyncPlacements` caller does, not from a fresh live listing.
 
-- _Note:_ The captured-tip change clears the native quarter-move refusal in both layouts. Its current-view assertion
-  exposed omitted completed copies, reproduced on original code without a quarter move. Approved amendment A1 adds
-  7.2.R before this task closes; see `notes-storage-ref-hardening.md` § A1 — Withdrawal conflict visibility.
+- _Note:_ Feedback correction: the historical-placement fixture explicitly accepts its forced quarter rewrite in
+  tracking and seen refs too, so no captured incoming tip supplies healthy placement evidence. Its original fault,
+  no-publication, preserved-history, and successful-retry assertions remain intact.
 
-    - `prepareWithdrawEnd`'s basis holds the captured `state`, `held`, and `incoming` tips. Thread them through
-      `inverseWithdrawStep`, `inverseEntry`, `inverseEntryDocument`, and `mergeDocumentStage` to `conflictValue`
-      (`sync-withdraw-entries.ts`), which passes them as `mergeGroupTree` passes its own and no longer calls
-      `readSyncRefs`.
-    - Build `test-first` (one behavior at a time): a ref that moves between capture and conflict placement leaves the
-      placements as captured.
+- _Outcome:_ The entry inverse threads captured `state`, `held`, and `incoming` tips through every whole-record
+  alternative. Native quarter movement leaves conflict placements bound to those snapshots; 7.2.R makes the retained
+  conflicts visible through current completed reads.
 
-### `[ ]` **7.2.R Refresh surviving completed copies before withdrawal publishes — § 9 (A1)**
+### `[x]` **7.2.R Refresh surviving completed copies before withdrawal publishes — § 9 (A1)**
 
 - _Goal:_ The final history groups and every surviving eligible completed copy publish the same retained conflicts
   and undone entry changes atomically, preserving independent ends and placements without recreating the withdrawn
   end's folder (A1).
 
-- _Note:_ Native coverage reaches a completed copy moved to a non-journal quarter. Approved amendment A2 qualifies
-  the zero-extra-process descriptor below: only otherwise-unwritten changed quarters add the existing tree/commit
-  writes. Task 7.R verifies the bound; see `notes-storage-ref-hardening.md` § A2 — Required quarter publication cost.
+- _Note:_ Approved amendment A2 permits only the existing tree/commit writes for otherwise-unwritten changed
+  quarters. Feedback corrections extract unchanged-quarter cleanup to meet complexity 15 and narrow optional
+  provenance batch IDs before retaining their witnessed set.
 
-    - After all journal inverses and preserved sibling lineage, refresh surviving completed folders from their final
-      prepared history groups using `refreshArchivedFolder`, before namespace validation and publication. Retain each
-      folder's end batch and placement. Keep every refreshed quarter within captured, locked, expected-value bases;
-      reuse prepared evidence without a fresh listing or extra success-path Git process.
-    - Build `test-first` (one behavior at a time): the captured-placement scenario's completed point read exposes its
-      retained whole-record conflict; without a later conflicting edit, the completed point read reflects the entry
-      change undone with the withdrawn batch. Existing withdrawal coverage still proves removal of the withdrawn
-      folder, preservation of independent ends, and atomic publication in both layouts.
+- _Outcome:_ `sync-withdraw-copies.ts` selects surviving completed folders by captured history batch evidence and
+  refreshes them from final inverse groups, including conflicts and undone entries. Moved copies join the existing
+  locked atomic transaction; unchanged new quarters are omitted and withdrawn folders stay removed. A2's bounded
+  publication cost is verified by 7.R; details are in `notes-storage-ref-hardening.md` § A1/A2 implementation evidence.
 
-### `[ ]` **7.R Verify the bounded cost of completed-copy publication — Performance (A2)**
+### `[x]` **7.R Verify the bounded cost of completed-copy publication — Performance (A2)**
 
 - _Goal:_ A1's completed-copy repair preserves the existing process budget except the necessary batched tree and
   commit write for each otherwise-unwritten quarter whose composed tree changes, per attempt, while retaining one
   atomic publication and no additional listing or redundant discovery (A2).
 
-    - Trace the ordinary-copy and moved-copy native regressions and a no-refresh control in both layouts before and
-      after the repair. Record the per-command counts alongside their behavioral results. Do not add unchanged
-      quarters to the publication. New metadata joins the existing staged-blob flush.
-    - Re-run 7.2's behavioral regression and record the bounded cost evidence before closing this parent.
+- _Outcome:_ Scoped native traces show the existing tree/commit pair only for the otherwise-unwritten moved
+  quarter, no added publication work for ordinary copies, and unchanged no-refresh controls. Listing, blob-flush,
+  and atomic publication counts remain unchanged; owned acquisitions save one reader and one enumeration. Raw
+  before/after evidence and `task-7.R-process-deltas.json` are recorded in the notes.
 
 ### `[ ]` **7.3 Push exclusion builds a refusal for every excluded ref — § 9**
 

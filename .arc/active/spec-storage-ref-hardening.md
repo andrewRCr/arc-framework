@@ -1233,8 +1233,8 @@ wrapper are implementation detail.
 ## Amendments
 
 - **A1** — 2026-11-02 — spec-depth: refresh surviving completed copies after withdrawal. _Supersedes:_ none.
-  _Trigger:_ 7.2 must-stop. _Work:_ 7.2.R. _Revalidated:_ pending → 7.2.
+  _Trigger:_ 7.2 must-stop. _Work:_ 7.2.R. _Revalidated:_ 7.2.
 - **A2** — 2026-11-02 — design: permit required quarter writes. _Supersedes:_ Cross-cutting › Performance ¶1.
-  _Trigger:_ 7.2 must-stop. _Work:_ 7.R. _Revalidated:_ pending → 7.R.
+  _Trigger:_ 7.2 must-stop. _Work:_ 7.R. _Revalidated:_ 7.R.
 
 ---

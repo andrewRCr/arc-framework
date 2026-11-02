@@ -19,7 +19,8 @@ import { independentlyPublished, sameWithdrawRecord, selectedWithdrawFormat, wit
 
 /** Undo an unpublished end in an already merged snapshot, selecting untouched published entries. */
 export async function inverseWithdrawStep(context: RefBackendContext, step: WithdrawJournalStep,
-  current: ReadonlyMap<string, RefTreeEntry>, batches: ReadonlySet<string>, published: ReadonlyMap<string, RefTreeEntry>): Promise<Map<string, RefTreeEntry>> {
+  current: ReadonlyMap<string, RefTreeEntry>, batches: ReadonlySet<string>, published: ReadonlyMap<string, RefTreeEntry>,
+  tipSets: readonly ReadonlyMap<string, string>[]): Promise<Map<string, RefTreeEntry>> {
   const entries = new Map(current);
   const objects = await readBatchObjects(context, [...new Set([...current.values(), ...step.before.values(), ...step.after.values(), ...step.ancestor.values(), ...published.values()].map(({ oid }) => oid))]);
   if (isArchiveRef(step.ref)) return inverseArchive(step.ref, entries, objects, batches);
@@ -27,7 +28,7 @@ export async function inverseWithdrawStep(context: RefBackendContext, step: With
   const conflicts: ConflictRecord[] = [], formats: WithdrawEntryResult["retainedFormat"][] = [];
   for (const path of paths) {
     if (step.lineageOnly && !["metadata-registry.json", `lineage/${step.lineageOnly}.json`].includes(path)) continue;
-    await inverseEntry(context, step, path, entries, current, published, objects, conflicts, formats, batches);
+    await inverseEntry(context, step, path, entries, current, published, objects, conflicts, formats, batches, tipSets);
   }
   await repairWithdrawnLineage(context, step, entries, current, objects);
   await retainSelectedFormats(context, step, current, entries, formats);
@@ -83,7 +84,7 @@ async function inverseMetadata(context: RefBackendContext, ref: string, entries:
 
 async function inverseEntry(context: RefBackendContext, step: WithdrawJournalStep, path: string,
   entries: Map<string, RefTreeEntry>, current: ReadonlyMap<string, RefTreeEntry>, published: ReadonlyMap<string, RefTreeEntry>, objects: ReadonlyMap<string, BatchObject | null>, conflicts: ConflictRecord[], formats: WithdrawEntryResult["retainedFormat"][],
-  batches: ReadonlySet<string>): Promise<void> {
+  batches: ReadonlySet<string>, tipSets: readonly ReadonlyMap<string, string>[]): Promise<void> {
   const before = step.before.get(path), here = entries.get(path);
   const live = step.ref.replace("refs/arc/history/", "refs/arc/"), family = viewRefFamily(live);
   const metadataPath = family === undefined ? undefined : expandStoredPath(refPrototype(context, live, family), { registry: context.registry }).metadataPath;
@@ -95,7 +96,7 @@ async function inverseEntry(context: RefBackendContext, step: WithdrawJournalSte
       left !== current && left !== published, right !== current && right !== published,
     ]);
   if (logicalSame(step.before, step.after)) return;
-  const text = await inverseEntryDocument(context, step, path, current, published, objects);
+  const text = await inverseEntryDocument(context, step, path, current, published, objects, tipSets);
   if (text !== undefined) {
     if (text.selected) entries.set(path, text.selected); else entries.delete(path);
     conflicts.push(...text.conflicts);

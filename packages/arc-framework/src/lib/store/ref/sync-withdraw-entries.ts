@@ -16,7 +16,6 @@ import { RefSyncLabelError } from "./sync-label.js";
 import { refObjectFault } from "./object-fault.js";
 import { writeRefBlob } from "./tree-write.js";
 import { completeSyncPlacements } from "./sync-placement.js";
-import { readSyncRefs } from "./sync-graph.js";
 import { readHistoricalGraph } from "./history-graph.js";
 import type { SyncTreeSide } from "./sync-tree.js";
 
@@ -33,7 +32,7 @@ type EntrySource = "ancestor" | "before" | "after" | "current" | "published";
 /** First preserve pre-batch and published changes, then replay the surrounding local changes. */
 export async function inverseEntryDocument(context: RefBackendContext, step: WithdrawJournalStep, path: string,
   currentEntries: ReadonlyMap<string, RefTreeEntry>, publishedEntries: ReadonlyMap<string, RefTreeEntry>,
-  objects: ReadonlyMap<string, BatchObject | null>): Promise<WithdrawEntryResult | undefined> {
+  objects: ReadonlyMap<string, BatchObject | null>, tipSets: readonly ReadonlyMap<string, string>[]): Promise<WithdrawEntryResult | undefined> {
   // A whole-document removal or later recreation keeps the existing generic inverse policy.
   if (!currentEntries.has(path) || !step.after.has(path)) return undefined;
   const record = withdrawRecordDefinition(context, step.ref, path, [step.after, step.before, currentEntries, publishedEntries, step.ancestor], objects);
@@ -49,9 +48,9 @@ export async function inverseEntryDocument(context: RefBackendContext, step: Wit
   const publishedLabel = step.publishedTip ? await entryLabel(context, step.ref, step.publishedTip, path) : beforeLabel;
   const currentLabel = sameDocument(current, published) ? publishedLabel : step.currentTip
     ? await entryLabel(context, step.ref, step.currentTip, path) : beforeLabel;
-  const without = await mergeDocumentStage(context, step.ref, definition, ancestor, before, published, beforeLabel, publishedLabel);
+  const without = await mergeDocumentStage(context, step.ref, definition, ancestor, before, published, beforeLabel, publishedLabel, tipSets);
   const inverse = await mergeDocumentStage(context, step.ref, definition, after, current, without.selected, currentLabel,
-    sameDocument(without.selected, published) ? publishedLabel : beforeLabel);
+    sameDocument(without.selected, published) ? publishedLabel : beforeLabel, tipSets);
   return { selected: inverse.selected?.entry,
     retainedFormat: { path, selected: inverse.selected?.entry, metadataPath: definition.metadataPath, key: refFormatKey(definition.reference), version: inverse.selected?.formatVersion },
     conflicts: [...without.conflicts, ...inverse.conflicts] };
@@ -60,12 +59,12 @@ export async function inverseEntryDocument(context: RefBackendContext, step: Wit
 /** Use the existing current-side policy for whole-record clashes, including explicit absence. */
 async function mergeDocumentStage(context: RefBackendContext, ref: string, definition: EntryDefinition,
   base: EntryDocument | undefined, current: EntryDocument | undefined, incoming: EntryDocument | undefined,
-  currentLabel: SideLabel, incomingLabel: SideLabel): Promise<EntryStage> {
+  currentLabel: SideLabel, incomingLabel: SideLabel, tipSets: readonly ReadonlyMap<string, string>[]): Promise<EntryStage> {
   if (sameDocument(current, base)) return { selected: incoming, conflicts: [] };
   if (sameDocument(incoming, base) || sameDocument(current, incoming)) return { selected: current, conflicts: [] };
   if (!current || !incoming || [base, current, incoming].some(document => document?.invalidIds)) {
     const [original, left, right] = await Promise.all([
-      conflictValue(context, ref, definition, base), conflictValue(context, ref, definition, current), conflictValue(context, ref, definition, incoming),
+      conflictValue(context, ref, definition, base, tipSets), conflictValue(context, ref, definition, current, tipSets), conflictValue(context, ref, definition, incoming, tipSets),
     ]);
     return { selected: current, conflicts: [{ record: definition.reference, location: { kind: "record" }, base: original,
       current: { value: left, label: currentLabel }, incoming: { value: right, label: incomingLabel } }] };
@@ -83,13 +82,13 @@ function sameDocument(left: EntryDocument | undefined, right: EntryDocument | un
 }
 
 async function conflictValue(context: RefBackendContext, ref: string, definition: EntryDefinition,
-  document: EntryDocument | undefined): Promise<ConflictRecordValue | null> {
+  document: EntryDocument | undefined, tipSets: readonly ReadonlyMap<string, string>[]): Promise<ConflictRecordValue | null> {
   if (!document) return null;
   const { metadata, formatVersion, entry, content } = document;
   const side: SyncTreeSide = { tip: null, metadata, entries: new Map([[entry.path, entry]]) };
   const storedPlacement = metadata.primary?.placement ?? metadata.placement;
   if (storedPlacement?.kind === "completed" && metadata.primary?.role !== "work-item/record"
-    && !await completeSyncPlacements(context, ref, [side], [await readSyncRefs(context, "refs/arc/")])) throw new RefSyncLabelError(ref);
+    && !await completeSyncPlacements(context, ref, [side], tipSets)) throw new RefSyncLabelError(ref);
   const placement = side.placement ?? storedPlacement;
   return ConflictRecordValueSchema.parse({ reference: definition.reference, content, version: documentVersion(definition, document), formatVersion,
     ...placement ? { placement } : {} });

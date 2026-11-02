@@ -266,6 +266,53 @@ adds 7.R and Phase 8's criterion; backward propagation leaves the recorded 6.10 
 copy-consistency criterion remains intact. Post-settle coherence found no conflicting exclusion or changed schema.
 Independent planning review is omitted at this determinate amendment's depth; all checks here are author-run.
 
+## A1/A2 implementation evidence
+
+`sync-withdraw-copies.ts` captures batch provenance from the operation's existing lifecycle log evidence, keyed by the
+captured history tip before the locked inverse. It uses those immutable facts only for the existing witnessed-batch
+eligibility rule; locked tree/blob availability still starts fresh. `prepareWithdrawEnd` batches captured quarter trees
+and owned metadata into its existing acquisitions, completes every inverse and preserved sibling lineage, then
+refreshes surviving eligible copies from final prepared history through `refreshArchivedFolder`. The existing watched
+lock set and expected-value transaction already include all captured state quarters. A newly affected quarter joins
+`prepared` only if its composed entries differ; removed withdrawn folders are never recreated.
+
+The persistent public-store regression covers undone entry removal with and without a later quarter move, and a
+whole-record conflict whose quarter tip temporarily moves after capture, in both layouts. The original fresh-listing
+placement failure and pre-existing copy omission have separate red evidence recorded above. The clean focused retry
+`task-7.2-placement-feedback-retry.log` passes all seven cases, including the existing placement-fault remedy/retry.
+
+Temporary native process tracing compared the original pending placement fix with the copy repair, using ordinary,
+moved, conflict, and no-refresh scenarios in both layouts. The baseline has six expected behavioral failures and two
+passing controls; the repair passes all eight. Within each withdrawal, only these process deltas occur:
+
+| Scenario           | `cat-file` | `diff-tree` | `mktree --batch` | `commit-tree` | Listing / blob flush / publication |
+| ------------------ | ---------: | ----------: | ---------------: | ------------: | ---------------------------------- |
+| Ordinary copy      |         −1 |          −1 |                0 |             0 | unchanged                          |
+| Moved copy         |         −1 |          −1 |               +1 |            +1 | unchanged                          |
+| Conflict copy      |         −1 |          −1 |                0 |             0 | unchanged                          |
+| No-refresh control |          0 |           0 |                0 |             0 | unchanged                          |
+
+`task-7.R-scoped-baseline-trace.log` and `task-7.R-scoped-repair-trace.log` contain the raw records;
+`task-7.R-process-deltas.json` records the exact comparison for all eight cases. Each normal withdrawal retains one
+ref listing, one staged blob flush, and one publication transaction. The conflict fixture additionally performs two
+outside-writer `update-ref` calls, unchanged in both runs. Whole-pull traces also include later merge ancestry checks,
+whose counts vary in the baseline itself; the scoped trace isolates the repair and preserves the full counts too.
+All source probes, test tracing, and temporary controls were restored before the clean focused run and final checks.
+
+Feedback corrections stay with the owning tasks. File lint first reported complexity 16 in the refresh loop;
+`dropUnchangedQuarters` extracts its independent cleanup and the restored source passes file lint. Both type checks
+found the same optional provenance `batchId` narrowing; the helper now retains only present batch IDs, as the existing
+history-copy selector does. The broader regression first passed 337 of 338 cases: the old historical-placement
+fixture still left a healthy tracking tip, which the corrected captured-tip policy can legitimately use. Its native
+forced rewrite is now explicitly accepted in tracking and seen refs too, so every captured tip lacks the healthy
+witness. Every original fault, no-publication, history-preservation, and successful-retry assertion stays unchanged;
+the corrected case passes in the clean focused retry. The final native regression passes all 338 cases in 20 suites
+(`task-7.2-withdraw-regression-final.log`); both source and test type checks pass
+(`task-7.2-A1-A2-types-final.log`), as does file lint over the five production files and both tests. The first type
+request met the complete stale-build refusal; its one prescribed fast build and exact retry were retained separately.
+The completion marks 7.2, 7.2.R, and 7.R and closes A1/A2's revalidation entries. Hosted qualification at the final
+implementation head remains due in Phase 8; no new hosted run is claimed here.
+
 ## Verification at the final head
 
 SC 3, SC 8's Windows case, SC 9, and SC 12 take their evidence mid-change, and no gate at the final head takes it again:

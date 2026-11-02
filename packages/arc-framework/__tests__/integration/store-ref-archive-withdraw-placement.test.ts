@@ -47,6 +47,12 @@ it("holds withdrawal on an owned ancestor placement fault and retries with resto
   const empty = await plantRef(h.a.root, archive, [], { parents: [damaged.tip], message: "Keep completed history without a current folder" });
   expect((await h.a.git(["remote", "get-url", h.remoteName])).stdout).toBe(h.origin);
   await h.a.git(["push", "--force", h.remoteName, `${archive}:${archive}`]);
+  // Accept the rewrite in tracking too, so no captured tip supplies a healthy placement witness.
+  const tracking = `refs/arc-remotes/${h.remoteName}/archive/${auxiliaryQuarter}`;
+  const seen = `refs/arc/tmp/seen/${h.remoteName}/archive/${auxiliaryQuarter}`;
+  await h.a.git(["fetch", "--atomic", "--no-tags", h.remoteName, `+${archive}:${tracking}`, `+${archive}:${seen}`]);
+  expect((await h.a.git(["rev-parse", tracking])).stdout.trim()).toBe(empty.tip);
+  expect((await h.a.git(["rev-parse", seen])).stdout.trim()).toBe(empty.tip);
   const history = `refs/arc/history/work/${auxiliary.reference.owner.uid}`;
   const before = (await h.a.git(["rev-parse", history])).stdout.trim();
   const held = success(await h.a.store.pull());
