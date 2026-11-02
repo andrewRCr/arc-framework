@@ -452,6 +452,8 @@ alone.
 - _Goal:_ A live work unit's every Candidate version maps whole, oldest first, and its boundary at its current content
   maps to version 2, keeping the publication state it holds today.
 
+    - _Amended in:_ review-fix (A36)
+
 - _Outcome:_ Accepted Candidate versions retain complete source bytes and chronology; refused schemas or supersession
   chains keep per-version reasons. Boundary conversion preserves every locus, reservation, and continuation while
   naming imported termini, retaining hosted producer references, and encoding only caller inputs in saved tokens.
@@ -522,6 +524,7 @@ alone.
 
 - _Goal:_ The segment's exit criterion holds over this repository's review records on a freshly merged base.
 
+    - _Amended in:_ review-fix (A36)
     - _Amended in:_ 6.2.R (A16)
     - _Amended in:_ 3.R2 (A20)
 
@@ -1472,6 +1475,8 @@ prerequisites have landed, and every earlier task is independent of the remainin
   the export path stays evidence-neutral so adding, re-exporting, and deleting the copy leave the review subject
   unchanged.
 
+    - _Amended in:_ review-fix (A37)
+
     - `[x]` **7.3.a The evidence-neutral arm**
 
         - The shared path classifier uses the layout address to neutralize only the context work unit's export
@@ -1528,6 +1533,8 @@ prerequisites have landed, and every earlier task is independent of the remainin
 ### `[x]` **7.7 Delivery and integration at the flip** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+
+    - _Amended in:_ review-fix (A37)
 
 - _Outcome:_ Base `5cadb46a3` is reconciled in `fba098895`. Over the reference backend, adding, rewriting, and
   deleting the review copy leave the subject unchanged, and landed, already-merged, and recovered merges write the

@@ -65,7 +65,26 @@ function currentCandidateListing(source: CandidateRevision, state: CandidateMapp
   return candidateListingEntry(source.source, newest.reason, state.groups.get(source.workItem.uid));
 }
 
-/** Keep accepted source bytes in chronological order and classify each refused version separately. */
+function withholdRefusedCurrent(sources: readonly ReviewMappingSource[], state: CandidateMappingState,
+  listing: ReviewMappingResult["listing"]): void {
+  const refused = new Map<string, string>();
+  for (const source of sources) {
+    if (source.kind !== "current-candidate") continue;
+    const reason = state.newest.get(source.workItem.uid)?.reason;
+    if (reason === undefined || reason === null) continue;
+    refused.set(source.workItem.uid, `Current Candidate refused: ${reason} Candidate history is withheld; repair the current source and retry the import.`);
+    state.groups.delete(source.workItem.uid);
+  }
+  for (const source of sources) {
+    if (source.kind !== "candidate" && source.kind !== "current-candidate") continue;
+    const reason = refused.get(source.workItem.uid);
+    if (reason === undefined) continue;
+    const index = listing.findIndex(entry => entry.source === source.source);
+    if (index >= 0) listing[index] = candidateListingEntry(source.source, reason, undefined);
+  }
+}
+
+/** Replay accepted history only when its current source is accepted, accounting for every withheld revision. */
 export function mapReviewCandidateSources(sources: readonly ReviewMappingSource[]): {
   records: ReviewMappingResult["records"]; listing: ReviewMappingResult["listing"];
 } {
@@ -79,5 +98,6 @@ export function mapReviewCandidateSources(sources: readonly ReviewMappingSource[
       listing.push(candidateListingEntry(source.source, "The live work unit holds no current Candidate record, which today's reader then does not find.", undefined));
     } else listing.push(candidateRevisionListing(source, state));
   }
+  withholdRefusedCurrent(sources, state, listing);
   return { records: [...state.groups.values()], listing };
 }

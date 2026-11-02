@@ -4,8 +4,8 @@ import type { GitExec } from "../../../lib/git/exec.js";
 import { currentApprovedDispositionNode, type ApprovedDispositionRecord } from "../core/advisory-records.js";
 import type { ApprovedDispositionRecordReader, ReviewOperationStateStore } from "../core/ports.js";
 import type { ConfirmResponseHeadContinuation, ResponseHeadContinuationInput } from "../core/response-head-continuation.js";
-import { canonicalize, SlugSchema, type CanonicalDigest } from "../../../lib/kernel/index.js";
-import { resolveArcPath } from "../../../lib/layout/index.js";
+import { canonicalize, type CanonicalDigest } from "../../../lib/kernel/index.js";
+import { resolveWorkUnitSpecExportPath } from "../../../lib/layout/index.js";
 import { candidateReviewResponses, parseCandidateManagedRecord } from
   "../../../lib/work-unit/candidate-attestation.js";
 import type { CandidateReviewResponseEvidenceV1 } from "../../../lib/work-unit/candidate-attestation.js";
@@ -107,8 +107,8 @@ export async function confirmCandidateResponseHeadContinuation(input: {
 }
 
 function exportChangesMatch(workUnit: string, paths: string[]): boolean {
-  const folder = resolveArcPath({ kind: "work-unit-export", slug: SlugSchema.parse(workUnit) });
-  return paths.length > 0 && paths.every(path => path.startsWith(`${folder}/`));
+  const copy = resolveWorkUnitSpecExportPath(workUnit);
+  return paths.length > 0 && paths.every(path => path === copy);
 }
 
 async function recordChangesMatch(read: (args: string[]) => Promise<string>,

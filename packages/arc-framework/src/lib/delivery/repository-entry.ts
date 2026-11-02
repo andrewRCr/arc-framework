@@ -10,7 +10,7 @@ import type { GitExec } from "../git/exec.js";
 import { createRawGitExec } from "../io-context.js";
 import type { Store } from "../store/contract.js";
 import { recordReferences } from "../store/identity.js";
-import { describeRecordConflicts } from "../store/conflict-diagnostics.js";
+import { recordConflictRefusal } from "../store/conflict-diagnostics.js";
 import { resolveReviewInvocation, type ReviewInvocationOptions } from "../../scripts/review-gate/runtime/invocation.js";
 import { createReviewCompositionContext } from "../../scripts/review-gate/runtime/composition-context.js";
 import { projectGitCandidateEffectiveTarget } from "../work-unit/git-candidate-effective-target.js";
@@ -67,7 +67,8 @@ export async function readInspectionTaskList(input: Pick<RepositoryDeliveryInspe
   if (input.workItem === undefined) throw new Error("Resolve the selected work item before inspecting its task list.");
   const read = await store.read({ reference: recordReferences["work-item/task-list"](input.workItem) });
   if (read.status === "refused") throw new StoreRefusalError(read.refusal, true);
-  if (read.result.conflicts.length > 0) throw new Error(`The task list has unresolved conflicts.${describeRecordConflicts(read.result.conflicts)}`);
+  if (read.result.conflicts.length > 0) throw new StoreRefusalError(
+    recordConflictRefusal(read.result, "The task list", "delivery.task-list-conflict"), true);
   return read.result.content;
 }
 

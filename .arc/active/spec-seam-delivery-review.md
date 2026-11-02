@@ -563,8 +563,8 @@ Two additions besides a schema's widening are observable before the flip too, wi
   (`EMPTY_CONFIG_VALIDATION_PASS_LINES`, `__tests__/fixtures/config/cases.ts`) — and every complete settings object a
   test builds (`ConfigSettingsSchema`, `lib/config/schema.ts`), which type checking finds; nothing reads it before the
   flip.
-- **The export path's classification** (§ 12.5): `classifyPathTreatment` classifies a work unit's own export folder,
-  `.arc/specs/<slug>`, as evidence-neutral, which matches no path until the export writes one from the flip.
+- **The export path's classification** (§ 12.5): `classifyPathTreatment` classifies only the work unit's exact review copy,
+  `.arc/specs/<slug>/spec-<slug>.md`, as evidence-neutral (A37). Sibling files stay reviewable in both storage arms.
 
 Three corrections change in-repo output before the flip as well (A26), each repairing a defect review found rather
 than preparing a flip-time arm:
@@ -1735,8 +1735,9 @@ path the one its work unit's slug gives (`resolveCandidateRecordRelativePath`), 
 holds no current Candidate record, which today's reader then does not find (A21); a live work unit's current Candidate
 record by that tracked path alone (A20), with its newest committed version's outcome where it repeats that version,
 adding no content, and otherwise as that Candidate record's newest revision, an uncommitted record among them, mapped or
-left behind as today's reader takes it over the committed versions as its history (A21); and each boundary by its
-tracked path — as mapped with the records it became, left behind with a reason, or in flight, no two entries covering
+left behind as today's reader takes it over the committed versions as its history (A21). A refused current source
+withholds every Candidate version for its work item from live import (A36); each boundary lists by its tracked path —
+as mapped with the records it became, left behind with a reason, or in flight, no two entries covering
 one file. A file mapped in part, as the repository-wide receipt ledger is, lists as mapped, its reason naming the
 entries it left behind. The import's reads, its writes, its trial, and its refusals stay the ref backend's.
 
@@ -1818,14 +1819,15 @@ request on the host and in the commits that carried its records, and nothing rea
   and its record names no lineage to place it on.
 - **Frontline run state and review suspensions (`operations/`, `frontline-run`, `review-suspension`)** — left behind:
   working state (§ 4.7).
-- **A live work unit's Candidate record, every replayed version** — `review/candidate`, every version, transitions whole
-  (§ 8). A work unit reopened before the flip keeps its `publication-pending` boundary through the import: today's
-  records cannot tell a deliberate withdrawal from an interrupted publish, both admitted by
-  `authorizeActivePublication`'s `publication-pending` arm (`lib/work-unit/verbs/publish.ts`), so it keeps its
-  publication authority after the import, as it does today, and a reopen from the flip withdraws it. Each review
-  response's approval joins the evidence record for its disposition set, which also holds the machine-local approval, so
-  one disposition set yields one record; a review response that later versions repeat maps once, at the first version
-  holding it.
+- **A live work unit's Candidate record, every replayed version** — `review/candidate`, every accepted version,
+  transitions whole (§ 8), only when its current source is accepted (A36). A refused current source withholds the entire
+  Candidate history from live import, preserving its bytes for repair and retry. A work unit reopened before the flip
+  keeps its `publication-pending` boundary through the import: today's records cannot tell a deliberate withdrawal from
+  an interrupted publish, both admitted by `authorizeActivePublication`'s `publication-pending` arm
+  (`lib/work-unit/verbs/publish.ts`), so it keeps its publication authority after the import, as it does today, and a
+  reopen from the flip withdraws it. Each review response's approval joins the evidence record for its disposition set,
+  which also holds the machine-local approval, so one disposition set yields one record; a review response that later
+  versions repeat maps once, at the first version holding it.
 - **A live work unit's boundary, at its current content** — `review/integration-boundary` (§ 9.1). Its `terminus` and
   each `deliveryReviewTermini` entry become terminus decisions, decided by `acceptedBy` with no time, their basis
   `{ passCount }` the pass count they hold, and the boundary names each by key where it held it (§ 9.1). Today's
@@ -1861,8 +1863,9 @@ request on the host and in the commits that carried its records, and nothing rea
 - **Disposition records in an older shape, which today's reader skips (`parseEnumeratedRecord`)** — left behind: 192 of
   the store's disposition records on 2026-10-15.
 - **A Candidate version today's reader refuses** — one failing its schema (`readCandidateRecordVersioned`) or one whose
-  supersession chain does not resolve (`resolveCandidateSupersessionAncestors`) — left behind: no live work unit holds
-  one today, and the archived Candidates the diagnostic run supplies hold both kinds.
+  supersession chain does not resolve (`resolveCandidateSupersessionAncestors`) — left behind. If it is the current
+  source, every Candidate version for that work item is also left behind with the current refusal reason (A36).
+  `mapReviewCandidateSources` preserves the raw sources so repair followed by a new import trial can admit them.
 - **`quarantine/` and `retired/`** — left behind: quarantined disposition records and retired snapshots of earlier
   stores, machine-local under D5, which no reader decides from.
 - **A not-live work unit's Candidate and boundary files** — never given to the mapping: the import lands them as found,
@@ -2085,19 +2088,16 @@ host outruns the delete. A draft is a procedural hold that anyone with write acc
 deliberate merge before the delete, or any early merge where the project sets no lock, leaves the copy on the base
 branch, which an ordinary change removes, as D18 names for a project with no merge gate; nothing reads the copy back.
 
-The delete must not reopen review, so lifecycle classification keeps the one arm D18 names (§ 13, item 5): the work
-unit's own export path is evidence-neutral, as its design artifacts are today (`isWorkUnitArtifactOrCompanion`,
-`lib/evidence-applicability/path-treatment.ts`). No code knows the export path yet, so this change adds the export
-folder as a layout address (`resolveArcPath`, `lib/layout/projection.ts`) resolving to `.arc/specs/<slug>` with no
-trailing separator, which a managed path refuses as an empty segment (`validateManagedPath`,
-`lib/kernel/canonical/managed-path.ts`); the export, the continuation proof (§ 5.6), and the arm the export brings to
-`classifyPathTreatment` all read it. The arm classifies by path alone, and only the folder of the work unit its context
-names, so another work unit's copy stays reviewable; the subject digests reviewable entries only
-(`createCandidateSubjectSnapshot`), so adding, re-exporting, and deleting the copy all leave the subject unchanged; the
-copy reaches review on the pull request, where D18 has design artifacts reach review only through the export. Subject
-construction cannot carry the arm instead: the copy is never in base, so once deleted its path drops out of the
-base-relative diff and the subject never sees the delete. The arm survives the cutover's removal of the other work-unit
-arms.
+The delete must not reopen review, so lifecycle classification keeps the one arm D18 names (§ 13, item 5): only the
+work unit's exact review copy is evidence-neutral (A37). `resolveWorkUnitSpecExportPath` composes the layout's
+`work-unit-export` folder address with `spec-<slug>.md`; the writer, response-head continuation proof (§ 5.6), and
+`classifyPathTreatment` share that exact path. The classifier reads only its context work unit and the path, so sibling
+files beneath that folder and other work units' copies stay reviewable in both storage arms. The subject digests
+reviewable entries only (`createCandidateSubjectSnapshot`), so adding, re-exporting, and deleting the copy leave the
+subject unchanged. The copy reaches review on the pull request, where D18 has design artifacts reach review only
+through the export. Subject construction cannot carry the arm instead: the copy is never in base, so once deleted its
+path drops out of the base-relative diff and the subject never sees the delete. The arm survives the cutover's removal
+of the other work-unit arms.
 
 A stacked delivery meets the copy a second way. Delivery's lifecycle-contribution path group
 (`CurrentDeliveryLifecycleContributionPathSource`, `lib/delivery/lifecycle-contribution.ts`) holds the work unit's
@@ -2801,5 +2801,11 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 - **A35** — 2026-11-01 — design: the import keeps a frontline ceiling saved without its head as a token call input.
   _Supersedes:_ § 11.2 (the `--resume` token's judgments). _Trigger:_ AGG-F4 review. _Work:_ review-fix.
   _Revalidated:_ review-fix.
+
+- **A36** — 2026-11-01 — design: refused current Candidates withhold history import.
+  _Supersedes:_ § 11.2, bullets 11 and 15. _Trigger:_ AGG-F4 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A37** — 2026-11-01 — design: only the exact exported specification is evidence-neutral.
+  _Supersedes:_ § 12.5 ¶4. _Trigger:_ AGG-F12 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

@@ -8,6 +8,7 @@ import { checkCurrentWorkflowConsistency } from "../lib/active/current-workflow-
 import { checkAdvancingPause } from "../lib/store/lifecycle-pause.js";
 import { writeStoredAttestation, type StoredAttestationInput } from "../lib/store/attest-publication.js";
 import type { StoreRecord } from "../lib/store/read.js";
+import type { RecordObservation } from "../lib/store/write.js";
 import { isOffBranchStoreRefusal, StoreRefusalError } from "../lib/store/refusal-error.js";
 import type { Store } from "../lib/store/contract.js";
 import { retryEndedItemHistory } from "../lib/store/history-retry.js";
@@ -54,6 +55,7 @@ import {
   inspectRepositoryDeliveryReopen,
 } from "../lib/delivery/repository-entry.js";
 import { readAttestInput } from "../lib/store/attest-input.js";
+import { bindDeliveryWorkItem } from "./delivery-review-fix-entry.js";
 import {
   readSubmissionBoundaryVersioned,
   writeSubmissionBoundary,
@@ -109,11 +111,12 @@ function refuseAttestationStateFailure(error: unknown, json: boolean): boolean {
 
 /** Adapt the exact Store batch to attestation's publication callback. */
 async function publishStoredAttestation(store: Store | undefined, primary: StoreRecord | undefined,
-  input: Omit<StoredAttestationInput, "store" | "primary">): Promise<Awaited<ReturnType<AttestContext["publish"]>>> {
-  if (store === undefined || primary === undefined) {
-    throw new Error("Native attestation requires its selected metadata record and Store.");
+  taskListObservation: RecordObservation | undefined,
+  input: Omit<StoredAttestationInput, "store" | "primary" | "taskListObservation">): Promise<Awaited<ReturnType<AttestContext["publish"]>>> {
+  if (store === undefined || primary === undefined || taskListObservation === undefined) {
+    throw new Error("Native attestation requires its selected metadata, checked task-list basis, and Store.");
   }
-  const written = await writeStoredAttestation({ ...input, store, primary });
+  const written = await writeStoredAttestation({ ...input, store, primary, taskListObservation });
   if (written.status === "refused") throw new StoreRefusalError(written.refusal, store.capabilities.stateOffBranch);
   return written.result;
 }
@@ -242,7 +245,9 @@ async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestComma
   const attesting = base.store === undefined ? base : { ...base, store: retryEndedItemHistory(base.store) };
   const { executor, settings } = await buildExecutor(attesting);
   const boundarySchemaVersion = executor.store?.capabilities.stateOffBranch === true ? 2 : 1;
-  const subjectInput = await readAttestInput({ cwd: base.cwd, store: executor.store,
+  const reviewInvocation = resolveReviewInvocation({ ...base, exec: base.io.exec, store: executor.store, projectId: executor.projectId });
+  await bindDeliveryWorkItem(base.cwd, base.io.exec, reviewInvocation, input.name);
+  const subjectInput = await readAttestInput({ cwd: base.cwd, store: executor.store, workItem: reviewInvocation.workItem,
     readFile: path => base.io.readFile(path), activeMetaPath: projectActiveMetaPath,
     readArchivedMeta: async slug => (await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs })).get(slug),
   }, input.name, input.newRoot === true);
@@ -252,8 +257,6 @@ async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestComma
   }
   const { metaPath, meta, taskListPath, lastCompleted } = subjectInput;
   let metaContent = subjectInput.metaContent;
-  const reviewInvocation = resolveReviewInvocation({ ...base, exec: base.io.exec, store: executor.store, projectId: executor.projectId,
-    workItem: subjectInput.primary?.reference.owner ?? base.workItem });
   const absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
   const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, input.name, { store: executor.store, owner: reviewInvocation.workItem });
   const inspectRenewal = () => inspectRepositoryDeliveryCandidateRenewal({
@@ -444,7 +447,7 @@ async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestComma
         const nextAction = locus === singletonPublication
           ? locus.nextAction.interactionText
           : boundaryMatches || priorMeta.state === "Shipped" ? publication.nextAction : locus.nextAction.interactionText;
-        if (recordPath === null) return publishStoredAttestation(executor.store, subjectInput.primary, {
+        if (recordPath === null) return publishStoredAttestation(executor.store, subjectInput.primary, subjectInput.taskListObservation, {
           publication, boundary: locus, expectedBoundaryVersion: boundarySnapshot.version, boundaryMatches, nextAction });
         const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
         const orientation: Record<string, string> = {};

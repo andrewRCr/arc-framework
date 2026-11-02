@@ -40,6 +40,15 @@ it("refuses an open stored task and admits the same input after closure", async 
     provenance: { verb: "close-task", lifecycleAction: "edit" } }));
   expect(await readAttestInput(h.ports, "example")).toMatchObject({ status: "ready" });
 });
+
+it("reads the selected completed generation despite a live namesake with open tasks", async () => {
+  const h = await fixture("Shipped");
+  const live = await h.seedMeta("example", { taskList: "tasks-example.md" });
+  await h.seed(recordReferences["work-item/task-list"](live.reference.owner), closedTasks.replace("[x]", "[ ]"));
+  const selected = { ...h.ports, workItem: h.primary.reference.owner };
+  expect(await readAttestInput(selected, "example", true)).toMatchObject({ status: "ready",
+    primary: h.primary, lifecycle: "Shipped", taskList: closedTasks });
+});
 it("preserves a missing task's repair route and admits it after restoration", async () => {
   const h = await fixture("Active", null);
   const missing = await h.store.read({ reference: h.reference });

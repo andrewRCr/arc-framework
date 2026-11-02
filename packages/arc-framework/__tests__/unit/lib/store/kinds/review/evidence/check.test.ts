@@ -53,6 +53,18 @@ async function check(value: ReviewEvidence, outcome: ReviewOutcome, options: { p
 }
 
 describe("evidence write admission", () => {
+  it.each(["before", "after"] as const)("requires resolved evidence history in the %s view", async (side) => {
+    const { value, outcome } = performedEvidenceFixture();
+    const related = evidenceRecord(value);
+    const conflicted = { ...related, conflicts: [recordReferences["work-item/conflict-record"](owner, "pending-resolution")] };
+    const options = side === "before" ? { before: [conflicted] }
+      : { view: ruleView([outcomeRecord(outcome), conflicted]) };
+    expect(await check(value, outcome, options)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ rule: "review.evidence.complete-listing", condition: expect.stringContaining(String(related.reference.key)),
+        remedy: { text: expect.stringMatching(/resolve/iu) } }),
+    ]));
+    expect(await check(value, outcome)).toEqual([]);
+  });
   it("requires the canonical disposition-set key and admits a complete performed record", async () => {
     const { value, outcome } = performedEvidenceFixture();
     expect(await check(value, outcome, { key: canonicalDigest({ wrong: "key" }) })).toEqual(expect.arrayContaining([

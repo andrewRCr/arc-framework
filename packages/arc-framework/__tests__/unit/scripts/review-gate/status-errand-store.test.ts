@@ -13,6 +13,7 @@ import { createReviewDecisionPort } from "../../../../src/lib/store/kinds/review
 import { reviewDecisionKey } from "../../../../src/lib/store/kinds/review/decision/key.js";
 import type { ReviewCeilingOverride, ReviewAdditionalPassAuthorization } from "../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
+import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const head = "a".repeat(40), branch = "chore/repair";
@@ -130,5 +131,20 @@ it("raises a native outcome-listing refusal from the Errand's lane read, and rea
   await expect(h.run({}, store)).rejects.toMatchObject({ name: "StoreRefusalError", offBranch: true,
     message: expect.stringContaining("The review outcome index cannot be read.") });
   unreadable = false;
+  expect(await h.run({}, store)).toMatchObject({ state: "review-required" });
+});
+
+it.each(["version", "list"] as const)("preserves a native %s refusal during Errand acquisition and retries after repair", async method => {
+  const h = await fixture();
+  const refusal = StoreRefusalSchema.parse({ code: "record-malformed", class: "recoverable", reference: h.primary.reference,
+    rule: "fixture.inventory", condition: "The selected Errand inventory cannot be acquired.",
+    remedy: { text: "Restore the selected inventory, then retry.", argv: ["arc", "store", "status", "--json"] } });
+  const store = Object.create(h.store) as Store;
+  let broken = true;
+  if (method === "version") store.version = async () => broken ? { status: "refused", refusal } : h.store.version();
+  else store.list = async input => broken && input.kind === "work-item/record"
+    ? { status: "refused", refusal } : h.store.list(input);
+  await expect(h.run({}, store)).rejects.toMatchObject({ name: "StoreRefusalError", offBranch: true, refusal });
+  broken = false;
   expect(await h.run({}, store)).toMatchObject({ state: "review-required" });
 });

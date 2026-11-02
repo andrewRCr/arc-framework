@@ -95,7 +95,7 @@ it("refuses duplicate hosted admission identities even under different stored ke
   ]));
 });
 
-it.each(["source", "scope", "coverage", "pass", "vehicle"] as const)("keeps authorized retry %s stable", async (changed) => {
+it.each(["source", "scope", "coverage", "pass", "vehicle", "author", "evaluator", "policy", "request-mechanism", "runtime-kind"] as const)("keeps authorized retry %s stable", async (changed) => {
   const first = authorized(local({ outcome: "terminal-failure" }));
   const correctionScope = { schemaVersion: 1 as const, predecessorProducerId: first.attemptId,
     predecessorHeadSha: "b".repeat(40), basisHeadSha: "b".repeat(40), headSha: first.target.headSha, requiredFindings: [] };
@@ -104,10 +104,16 @@ it.each(["source", "scope", "coverage", "pass", "vehicle"] as const)("keeps auth
       ...(changed === "scope" ? { scopeMode: "chunked" as const } : {}),
       ...(changed === "vehicle" ? { vehicle: { kind: "work-unit" as const, identity: "another-work" } } : {}),
       ...(changed === "pass" ? { logicalPass: 2 } : {}),
+      ...(changed === "author" ? { authority: { authorIdentity: "author-2" } } : {}),
+      ...(changed === "evaluator" ? { authority: { evaluatorIdentity: "evaluator-2" } } : {}),
+      ...(changed === "policy" ? { policyBindingDigest: `sha256:${"2".repeat(64)}` } : {}),
+      ...(changed === "request-mechanism" ? { requestMechanism: "delegated-attestation" } : {}),
+      ...(changed === "runtime-kind" ? { authority: { attestationRuntimeKind: "another-runtime" } } : {}),
       ...(changed === "coverage" ? { coverageAdmission: { requestedCoverage: "incremental" as const, correctionScope } } : {}) }));
   expect(await check([first, second])).toEqual(expect.arrayContaining([
     expect.objectContaining({ rule: "review.outcome.authorized-retry-contract" }),
   ]));
+  expect(await check([first, authorized(local({ retryGeneration: 1 }))])).toEqual([]);
 });
 
 it("requires unique contiguous generations for one extra-pass authorization", async () => {
@@ -157,6 +163,17 @@ it("refuses malformed entries in an otherwise complete listing", async () => {
   expect(await check([value], undefined, ruleView([malformed, record(value)]))).toEqual(expect.arrayContaining([
     expect.objectContaining({ rule: "review.outcome.complete-listing", condition: expect.stringContaining("malformed-entry") }),
   ]));
+});
+
+it("requires conflict resolution before using the proposed outcome history", async () => {
+  const value = local();
+  const stored = record(value);
+  const conflicted = { ...stored, conflicts: [recordReferences["work-item/conflict-record"](owner, "pending-resolution")] };
+  expect(await check([value], undefined, ruleView([conflicted]))).toEqual(expect.arrayContaining([
+    expect.objectContaining({ rule: "review.outcome.complete-listing", condition: expect.stringContaining(String(stored.reference.key)),
+      remedy: { text: expect.stringMatching(/resolve/iu) } }),
+  ]));
+  expect(await check([value])).toEqual([]);
 });
 
 it("refuses removing a stored record, which later records cite", async () => {

@@ -9,6 +9,7 @@ import { reviewOutcomeKey } from "../outcome/key.js";
 import { canonicalize } from "../../../../kernel/index.js";
 import type { ReviewOutcome } from "../outcome/schema.js";
 import { checkHostedEvidence } from "./hosted-check.js";
+import { reviewRecordConflict } from "../check-conflicts.js";
 
 /** Check an approved response against its exact immutable producer outcome. */
 export async function checkReviewEvidenceResult(input: WriteCheckInput, value: ReviewEvidence): Promise<readonly BrokenRule[]> {
@@ -16,6 +17,8 @@ export async function checkReviewEvidenceResult(input: WriteCheckInput, value: R
   if (observed.status !== "known") return [brokenRule("review.evidence.outcome-unavailable",
     observed.status === "absent" ? "The response's outcome is missing on this work item." : observed.condition,
     "Restore the exact producer outcome on this work item before retrying.")];
+  const conflict = reviewRecordConflict(observed.value, "review.evidence.outcome-unavailable");
+  if (conflict !== null) return [conflict];
   const decoded = decodeReviewOutcome(observed.value.content);
   if (!decoded.success || reviewOutcomeKey(decoded.data) !== value.result.outcomeKey
     || !reviewOutcomeMatchesDispositionSet(decoded.data, value.dispositionSet)) {

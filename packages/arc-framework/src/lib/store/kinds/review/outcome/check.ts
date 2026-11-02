@@ -6,6 +6,7 @@ import type { ReviewOutcome } from "./schema.js";
 import { brokenRule, observeRecords } from "../../rule-support.js";
 import { parseReviewOutcome } from "./parser.js";
 import { reviewOutcomeKey } from "./key.js";
+import { reviewRecordConflict } from "../check-conflicts.js";
 
 /** Check an outcome against its key and every proposed outcome of the same lane owner. */
 export async function checkReviewOutcome(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
@@ -22,6 +23,8 @@ export async function checkReviewOutcome(input: WriteCheckInput): Promise<readon
     "Restore the complete outcome listing and retry the write.")];
   const outcomes: ReviewOutcome[] = [];
   for (const record of observed.value) {
+    const conflict = reviewRecordConflict(record, "review.outcome.complete-listing");
+    if (conflict !== null) return [...rules, conflict];
     const parsed = parseReviewOutcome(record.content);
     if (parsed === null) return [...rules, brokenRule("review.outcome.complete-listing",
       `Outcome ${JSON.stringify(record.reference.key)} is malformed and cannot be read.`,

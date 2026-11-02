@@ -62,6 +62,7 @@ export function localOutcome(options: {
   vehicle?: LocalReviewAuthority["vehicle"]; coverageAdmission?: LocalReviewCoverageAdmission;
   deliveryAdmission?: DeliveryLocalReviewAdmission; outcome?: "clean" | "findings" | "terminal-failure";
   findings?: NormalizedReviewFinding[]; retrigger?: StandardReviewObligationProjection["retrigger"];
+  authority?: Partial<LocalReviewAuthority>; policyBindingDigest?: string; requestMechanism?: string;
 } = {}) {
   const target = options.target ?? createHostedHandleFixture().admission.reviewTarget;
   const logicalPass = options.logicalPass ?? 1;
@@ -76,15 +77,15 @@ export function localOutcome(options: {
   });
   if (requirement === null) throw new Error("expected required review");
   const lineage = options.lineage ?? { kind: "candidate" as const, candidateId: canonicalDigest({ candidate: 1 }) };
-  const admission = createLocalReviewAdmission({ target, requirement, lineage, logicalPass, retryGeneration, scopeMode: options.scopeMode,
-    authority: { vehicle: options.vehicle ?? { kind: "work-unit", identity: "test-work" }, authorIdentity: "author-1",
+  const authority: LocalReviewAuthority = { vehicle: options.vehicle ?? { kind: "work-unit", identity: "test-work" }, authorIdentity: "author-1",
       evaluatorIdentity: "evaluator-1", attestationRuntimeKind: "arc-cli", runtimeIdentity: "arc-cli/1.0.0",
-      attestationMechanism: "local-attestation" },
-    laneSourceId: "delegated-agent", policyBindingDigest: canonicalDigest({ policy: 1 }),
-    requestMechanism: "local-attestation", coverageAdmission, deliveryAdmission: options.deliveryAdmission });
+      attestationMechanism: "local-attestation", ...options.authority };
+  const admission = createLocalReviewAdmission({ target, requirement, lineage, logicalPass, retryGeneration, scopeMode: options.scopeMode,
+    authority, laneSourceId: "delegated-agent", policyBindingDigest: options.policyBindingDigest ?? canonicalDigest({ policy: 1 }),
+    requestMechanism: options.requestMechanism ?? "local-attestation", coverageAdmission, deliveryAdmission: options.deliveryAdmission });
   const receipt = outcome === "terminal-failure" ? undefined : createReviewReceipt({ target, requirement, request: admission.carrier.request,
-    applicabilityId: null, reviewRunId: "run-1", evaluatorIdentity: "evaluator-1",
-    attestingRuntimeIdentity: "arc-cli/1.0.0", attestationMechanism: "local-attestation",
+    applicabilityId: null, reviewRunId: "run-1", evaluatorIdentity: authority.evaluatorIdentity,
+    attestingRuntimeIdentity: authority.runtimeIdentity, attestationMechanism: authority.attestationMechanism,
     providerEventIdentity: null, result: outcome, findings: options.findings ?? [] });
   return {
     schemaVersion: 1, attemptId: admission.operationId, lane: "standard", lineage, logicalPass, retryGeneration,

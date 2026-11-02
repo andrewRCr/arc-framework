@@ -161,6 +161,22 @@ it("refuses the completed name list when the live inventory is unreadable, and l
   expect(await resolveCompletedCandidateWorkUnits("/memory", h.store)).toEqual(["example"]);
 });
 
+it("refuses a missed live namesake before granting completed continuation by name", async () => {
+  const { h } = await reusedSlug();
+  const list = h.store.list.bind(h.store);
+  let missed = true;
+  h.store.list = async input => {
+    const result = await list(input);
+    return missed && input.filter?.locations?.includes("active") === true
+      && result.status === "ok" && result.result.status === "complete"
+      ? { status: "ok", result: { ...result.result, records: [], missed: true } } : result;
+  };
+  await expect(resolveCompletedCandidateWorkUnits("/memory", h.store)).rejects.toMatchObject({ code: "corrupt-state",
+    message: expect.stringContaining("live work-unit inventory is incomplete"), remedy: { text: expect.stringMatching(/repair/iu) } });
+  missed = false;
+  expect(await resolveCompletedCandidateWorkUnits("/memory", h.store)).toEqual([]);
+});
+
 it("carries the store's refusal whole when the checkout's own work unit cannot be read", async () => {
   const h = createLifecycleHarness();
   await expect(resolveCandidateMutationGeneration(h.store, "example", "owned", named)).rejects.toMatchObject({

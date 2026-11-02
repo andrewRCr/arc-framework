@@ -151,14 +151,24 @@ it.each([
   await assertReviewMapping(result);
 });
 
-it("leaves an uncommitted current Candidate record today's reader refuses behind with its reason", async () => {
+it.each(["malformed", "supersession"] as const)("withholds history when the current Candidate is %s", async reason => {
   const versions = [{ commit: "a".repeat(40), content: acceptedVersion("c".repeat(40)) }];
-  const result = mapReviewRecords({ projectId: "repo-1", gate: [], workItems: live,
-    candidates: [{ workItem: mappingErrand.uid, versions, current: "{}", boundary: null }] });
-  expect(result.records).toEqual([{ reference, contents: [versions[0]!.content] }]);
-  expect(result.listing.filter(({ source }) => source === path)).toEqual([{ source: path, outcome: "left-behind",
-    reason: expect.stringContaining("malformed"), records: [] }]);
-  await assertReviewMapping(result);
+  const original = JSON.parse(versions[0]!.content);
+  const current = reason === "malformed" ? "{}" : JSON.stringify({ ...original,
+    attestation: createCandidateAttestation({ ...original.attestation, subject: original.subject,
+      supersedes: canonicalDigest({ missing: "root" }) }) });
+  const input: ReviewMappingInput = { projectId: "repo-1", gate: [], workItems: live,
+    candidates: [{ workItem: mappingErrand.uid, versions, current, boundary: null }] };
+  const result = mapReviewRecords(input);
+  expect(result.records).toEqual([]);
+  expect(result.listing).toHaveLength(2);
+  expect(result.listing).toEqual(result.listing.map(({ source }) => ({ source, outcome: "left-behind", records: [],
+    reason: expect.stringContaining(reason) })));
+  expect(input.candidates[0]!.current).toBe(current);
+  input.candidates[0]!.current = versions[0]!.content;
+  const repaired = mapReviewRecords(input);
+  expect(repaired.records).toEqual([{ reference, contents: [versions[0]!.content] }]);
+  await assertReviewMapping(repaired);
 });
 
 it("leaves committed versions behind when the live work unit holds no current Candidate record", async () => {

@@ -7,6 +7,7 @@ import {
   ProjectDocumentKindSchema,
   identifyWorkUnitArtifactPath,
   resolveArcPath,
+  resolveWorkUnitSpecExportPath,
   type ProjectDocumentKind,
 } from "../layout/index.js";
 import { artifactMatcher } from "../work-unit/mutators/relocate-artifacts.js";
@@ -52,8 +53,7 @@ export function classifyPathTreatment(
   if (context.projectionPaths?.has(path) === true) return "evidence-neutral";
   if (context.workUnit !== undefined) {
     const workUnit = SlugSchema.parse(context.workUnit);
-    const exportFolder = resolveArcPath({ kind: "work-unit-export", slug: workUnit });
-    if (path.startsWith(`${exportFolder}/`)) return "evidence-neutral";
+    if (path === resolveWorkUnitSpecExportPath(workUnit)) return "evidence-neutral";
     if (isWorkUnitArtifactOrCompanion(path, workUnit)) return "evidence-neutral";
   }
   return "reviewable";

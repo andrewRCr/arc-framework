@@ -1,7 +1,8 @@
 /** Preserve the established identity and exact-branch selection for stored Errand status. */
 import type { Store } from "../../lib/store/contract.js";
 import type { OwnerIdentity } from "../../lib/store/identity.js";
-import { acquireStoreErrands } from "../../lib/errand/store-discovery.js";
+import { acquireStoreErrandsWithFailure } from "../../lib/errand/store-discovery.js";
+import { StoreRefusalError } from "../../lib/store/refusal-error.js";
 import type { TransientIdentityRecord } from "../../lib/errand/identity-record.js";
 
 type StatusTarget = { readonly repository: string; readonly headRef: string; readonly headSha: string };
@@ -45,7 +46,11 @@ export function matchingOrdinaryErrand(
  * unreadable record never blocks a matched claim; it blocks only absence, which an incomplete listing cannot establish.
  */
 export async function readStoredStatusErrandSelection(store: Store, identity: string, target: StatusTarget): Promise<ErrandStatusSelection> {
-  const inventory = await acquireStoreErrands(store);
+  const acquired = await acquireStoreErrandsWithFailure(store);
+  if ("failure" in acquired && acquired.failure.kind === "refused" && store.capabilities.stateOffBranch) {
+    throw new StoreRefusalError(acquired.failure.refusal, true);
+  }
+  const inventory = acquired.acquisition;
   if (inventory.kind === "absent") return { kind: "none" };
   if (inventory.kind === "error") return { kind: "blocked", detail: inventory.message };
   const claims = inventory.records.flatMap((saved) => {

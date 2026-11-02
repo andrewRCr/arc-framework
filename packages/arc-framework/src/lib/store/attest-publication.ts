@@ -8,6 +8,7 @@ import { readLifecycleMetaFields, recordPut, workUnitMetaPath, batchLifecycleWri
 import { writeMetaCurrentWorkflow, writeMetaNextAction } from "./kinds/meta/writers.js";
 import { prepareCandidateRecordPut } from "./kinds/review/candidate/access.js";
 import { prepareSubmissionBoundaryPut } from "./kinds/review/integration-boundary/access.js";
+import type { RecordObservation } from "./write.js";
 
 type Publication = Parameters<AttestContext["publish"]>[0];
 type PublishedAttestation = Awaited<ReturnType<AttestContext["publish"]>>;
@@ -15,6 +16,7 @@ type PublishedAttestation = Awaited<ReturnType<AttestContext["publish"]>>;
 export interface StoredAttestationInput {
   store: Store;
   primary: StoreRecord;
+  taskListObservation: RecordObservation;
   publication: Publication;
   boundary: PublishedIntegrationBoundaryLocus;
   expectedBoundaryVersion: string | null;
@@ -35,7 +37,7 @@ export async function writeStoredAttestation(input: StoredAttestationInput): Pro
   }
   const writes = [prepareCandidateRecordPut(publication.name, publication.record, publication.expectedRecordVersion, primary.reference.owner),
     prepareSubmissionBoundaryPut(boundary, input.expectedBoundaryVersion, primary.reference.owner), recordPut(primary, { content })];
-  const written = await batchLifecycleWrites(store, writes, { verb: "attest", lifecycleAction: "attest" });
+  const written = await batchLifecycleWrites(store, writes, { verb: "attest", lifecycleAction: "attest" }, [input.taskListObservation]);
   if (written.status === "refused") return written;
   return { status: "ok", result: { metaPath: workUnitMetaPath(primary), locus: boundary } };
 }

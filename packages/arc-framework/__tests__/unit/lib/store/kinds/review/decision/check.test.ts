@@ -32,6 +32,19 @@ function withdrawal(value: ReviewDecision, decidedBy: string | null = value.deci
 }
 
 describe("decision write check", () => {
+  it.each(["decision", "outcome"] as const)("requires conflict resolution before using related %s history", async (kind) => {
+    const producer = ReviewOutcomeSchema.parse(localOutcome());
+    const target = approvedFixDecision(producer);
+    const value = withdrawal(target);
+    const related = kind === "decision" ? decisionRecord(target) : outcomeRecord(producer);
+    const records = [decisionRecord(value), kind === "decision" ? outcomeRecord(producer) : decisionRecord(target),
+      { ...related, conflicts: [recordReferences["work-item/conflict-record"](owner, "pending-resolution")] }];
+    expect(await check(value, [], reviewDecisionKey(value), ruleView(records))).toEqual(expect.arrayContaining([
+      expect.objectContaining({ rule: "review.decision.complete-listing", condition: expect.stringContaining(String(related.reference.key)),
+        remedy: { text: expect.stringMatching(/resolve/iu) } }),
+    ]));
+    expect(await check(value, [decisionRecord(target), outcomeRecord(producer)])).toEqual([]);
+  });
   it("binds the stored key to the decision's content", async () => {
     const value = terminusDecision();
     expect(await check(value)).toEqual([]);

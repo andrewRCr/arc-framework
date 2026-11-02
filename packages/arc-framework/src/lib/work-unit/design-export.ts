@@ -1,12 +1,12 @@
 /** One-way export of a stored specification into the code repository for review. */
 import * as filesystem from "node:fs/promises";
 import { join, posix } from "node:path";
-import { resolveArcPath } from "../layout/index.js";
+import { resolveWorkUnitSpecExportPath } from "../layout/index.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
 import type { GitExec } from "../git/exec.js";
 import type { Store } from "../store/contract.js";
 import { recordReferences, type OwnerIdentity } from "../store/identity.js";
-import { readWorkUnit, usesOffBranchState, workUnitArtifactName } from "../store/lifecycle-write.js";
+import { readWorkUnit, usesOffBranchState } from "../store/lifecycle-write.js";
 import { StoreRefusalError } from "../store/refusal-error.js";
 import { recordConflictRefusal } from "../store/conflict-diagnostics.js";
 
@@ -46,7 +46,7 @@ export async function exportWorkUnitSpec(input: DesignExportInput): Promise<Desi
   const slug = SlugSchema.parse(input.workUnit);
   const content = await readStoredSpec(input.store, slug, input.owner);
   if (content === null) return null;
-  const path = posix.join(resolveArcPath({ kind: "work-unit-export", slug }), workUnitArtifactName(slug, "spec"));
+  const path = resolveWorkUnitSpecExportPath(slug);
   const fs = input.fs ?? filesystem;
   let prior: string | null;
   try { prior = await fs.readFile(join(input.cwd, path), "utf8"); }

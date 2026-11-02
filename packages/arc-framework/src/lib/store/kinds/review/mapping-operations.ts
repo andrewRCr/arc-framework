@@ -3,7 +3,7 @@ import { OwnerIdentitySchema, recordReferences } from "../../identity.js";
 import type { LaneProgressState, FrontlinePhaseState } from "../../../../scripts/review-gate/core/operation-state-schema.js";
 import { reviewMappingListingEntry } from "./mapping-listing.js";
 import type { createReviewMappingWorkItemResolver } from "./mapping-work-items.js";
-import type { ReviewMappingSources } from "./mapping-sources.js";
+import { mappingLegacyDurableRef, type ReviewMappingSources } from "./mapping-sources.js";
 import { mapReviewAttempt } from "./mapping-outcomes.js";
 import { reviewOutcomeKey } from "./outcome/key.js";
 import { mapReviewLaneDecisions, mappedReviewDecision } from "./mapping-decisions.js";
@@ -29,7 +29,8 @@ function mapLane(source: string, state: LaneProgressState, indexed: ReviewMappin
     const owner = resolveOwner(outcome.lineage);
     if (owner.outcome === "left-behind") { leftBehind.push(owner.reason); continue; }
     const identity = OwnerIdentitySchema.parse({ type: "work-item", name: owner.workItem.slug, uid: owner.workItem.uid });
-    records.push({ reference: recordReferences["review/outcome"](identity, reviewOutcomeKey(outcome)), outcome });
+    records.push({ reference: recordReferences["review/outcome"](identity, reviewOutcomeKey(outcome)), outcome,
+      legacyDurableRef: mappingLegacyDurableRef(indexed, outcome) });
   }
   return { records, listing: reviewMappingListingEntry({ source,
     records: records.map(({ reference }) => reference), leftBehind }) };

@@ -6,7 +6,7 @@ import { reviewMappingListingEntry, type ReviewMappingSource } from "./mapping-l
 import type { ReviewMappingResult } from "./mapping-types.js";
 
 /** Ended outcomes paired with the imported identity that stores them. */
-export interface MappedReviewOutcome { reference: RecordReference; outcome: ReviewOutcome }
+export interface MappedReviewOutcome { reference: RecordReference; outcome: ReviewOutcome; legacyDurableRef?: string }
 
 function workingStateReason(source: ReviewMappingSource, indexed: ReviewMappingSources): string {
   const discarded = indexed.discarded.get(source.source);

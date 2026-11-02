@@ -1,6 +1,6 @@
 /** Candidate-authorized publication over one prepared reconcile followed by one lifecycle batch. */
 import type { StoreRefusal, StoreResult, Remedy } from "../../store/refusal.js";
-import type { Mutation } from "../../store/write.js";
+import type { Mutation, RecordObservation } from "../../store/write.js";
 import type { Store } from "../../store/contract.js";
 import type { StoreRecord } from "../../store/read.js";
 import { readWorkUnit, readLifecycleMetaFields, workUnitMetaPath } from "../../store/lifecycle-write.js";
@@ -60,7 +60,7 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
   try { claim = await params.preparePublicationClaim(boundary); }
   catch (error) { return rejectPublicationClaim(error, reject); }
   const outcome = await executeTransition(ctx, { verb: "publish", slug: params.name,
-    inputs: { storeTransition: { primary, additionalWrites: [claim] }, softFields: { nextAction: params.nextAction ?? boundary.nextAction.interactionText } } });
+    inputs: { storeTransition: { primary, additionalWrites: [claim], observations: [current.candidateObservation] }, softFields: { nextAction: params.nextAction ?? boundary.nextAction.interactionText } } });
   return outcome.status === "ok" ? { status: "published", outcome, metaPath, reconcile: applied, boundary } : outcome.status === "rejected" ? reject(outcome.message, outcome.refusal, outcome.remedy) : reject(outcome.message);
 }
 
@@ -115,7 +115,8 @@ async function authorizeStoredPublication(params: PublishParams, boundary: Integ
 
 async function inspectPublication(ctx: ExecuteTransitionContext & { store: Store }, params: PublishParams,
   reject: PublicationReject): Promise<
-  { status: "ready"; branch: string; metaPath: string; primary: StoreRecord } | Extract<PublishResult, { status: "rejected" | "unchanged" }>> {
+  { status: "ready"; branch: string; metaPath: string; primary: StoreRecord; candidateObservation: RecordObservation }
+  | Extract<PublishResult, { status: "rejected" | "unchanged" }>> {
   const read = params.reference === undefined ? await readWorkUnit(ctx.store, params.name)
     : await ctx.store.read({ reference: params.reference });
   if (read.status === "refused") return reject(read.refusal.condition, read.refusal);
@@ -129,20 +130,22 @@ async function inspectPublication(ctx: ExecuteTransitionContext & { store: Store
   if (branch === null) return reject("The work unit has no unambiguous branch link; activate its work branch first.");
   const candidate = await readPublicationCandidate(ctx.store, read.result);
   if (candidate.status === "refused") return reject(candidate.refusal.condition, candidate.refusal);
-  if (!params.candidateCurrent || candidate.result !== params.candidateId) return reject("The current Candidate identity is absent or stale; re-attest it.");
+  if (!params.candidateCurrent || candidate.result?.candidateId !== params.candidateId) return reject("The current Candidate identity is absent or stale; re-attest it.");
   if (meta.state === "Integrating" && meta.currentWorkflow === "integrate-work-unit") {
     return resumeIntegratingPublication(params, branch, reject);
   }
-  return { status: "ready", branch, metaPath, primary: read.result };
+  return { status: "ready", branch, metaPath, primary: read.result, candidateObservation: candidate.result.observation };
 }
 
-async function readPublicationCandidate(store: Store, primary: StoreRecord): Promise<StoreResult<string | null>> {
+async function readPublicationCandidate(store: Store, primary: StoreRecord): Promise<StoreResult<
+  { candidateId: string; observation: RecordObservation } | null>> {
   const reference = recordReferences["review/candidate"](primary.reference.owner);
   const read = await store.read({ reference });
   if (read.status === "refused") return read.refusal.code === "not-found" ? { status: "ok", result: null } : read;
   const parsed = CandidateManagedRecordV1Schema.safeParse(read.result.fields);
   if (parsed.success && parsed.data.attestation.workUnit === primary.reference.owner.name && read.result.conflicts.length === 0) {
-    return { status: "ok", result: parsed.data.attestation.candidateId };
+    return { status: "ok", result: { candidateId: parsed.data.attestation.candidateId,
+      observation: { reference: read.result.reference, expected: { version: read.result.version, conflicts: read.result.conflicts } } } };
   }
   return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference,
     rule: "publication.candidate", condition: `Candidate authority is unreadable.${describeRecordConflicts(read.result.conflicts)}`,

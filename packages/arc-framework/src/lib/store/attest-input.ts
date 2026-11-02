@@ -11,15 +11,17 @@ import type { Remedy } from "./refusal.js";
 import { readWorkUnit, readLifecycleMetaFields, workUnitMetaPath } from "./lifecycle-write.js";
 import { checkAdvancingPause } from "./lifecycle-pause.js";
 import { lifecycleRecordPath } from "./lifecycle-record-path.js";
-import { recordReferences } from "./identity.js";
+import { recordReferences, type OwnerIdentity } from "./identity.js";
 import { describeRecordConflicts } from "./conflict-diagnostics.js";
 import { resolveLastCompletedTask, resolveTaskListCursor } from "../task-list/cursor.js";
 import { attestArgv, attestNewRootArgv, spineRemedy } from "../../scripts/integration/spine-refusal.js";
+import type { RecordObservation } from "./write.js";
 
 /** Physical input reads remain available to the repository-backed arm. */
 export interface AttestInputPorts {
   cwd: string;
   store?: Store;
+  workItem?: OwnerIdentity;
   readFile(path: string): Promise<string>;
   readArchivedMeta(name: string): Promise<{ location: string; path: string } | undefined>;
   activeMetaPath(name: string): ManagedPath;
@@ -27,7 +29,7 @@ export interface AttestInputPorts {
 /** Exact input basis retained for the publication batch. */
 type AttestInputResult = { status: "ready"; primary?: StoreRecord; metaPath: ManagedPath; metaContent: string;
   meta: ParsedMetaRecord; lifecycle: "Active" | "Integrating" | "Shipped"; taskListPath: string; taskList: string;
-  lastCompleted: string | null } | { status: "rejected"; reason: string; remedy: Remedy };
+  taskListObservation?: RecordObservation; lastCompleted: string | null } | { status: "rejected"; reason: string; remedy: Remedy };
 type Metadata = { primary?: StoreRecord; metaPath: ManagedPath; metaContent: string; meta: ParsedMetaRecord };
 type Rejected = Extract<AttestInputResult, { status: "rejected" }>;
 
@@ -40,7 +42,7 @@ function reject(name: string, newRoot: boolean, reason: string, text = "Repair t
 
 async function readMetadata(ports: AttestInputPorts, name: string, newRoot: boolean): Promise<Metadata | Rejected> {
   if (ports.store?.capabilities.stateOffBranch === true) {
-    const read = await readWorkUnit(ports.store, name);
+    const read = await readWorkUnit(ports.store, name, ports.workItem);
     if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, remedy: read.refusal.remedy };
     const primary = read.result, fields = readLifecycleMetaFields(primary);
     if (fields.status === "refused") return { status: "rejected", reason: fields.refusal.condition, remedy: fields.refusal.remedy };
@@ -64,7 +66,7 @@ async function readMetadata(ports: AttestInputPorts, name: string, newRoot: bool
 }
 
 async function readTasks(ports: AttestInputPorts, basis: Metadata, name: string, newRoot: boolean): Promise<
-  { taskListPath: string; taskList: string } | Rejected> {
+  { taskListPath: string; taskList: string; taskListObservation?: RecordObservation } | Rejected> {
   if (ports.store?.capabilities.stateOffBranch === true && basis.primary !== undefined) {
     const pause = await checkAdvancingPause(ports.store, name, basis.primary);
     if (pause.status === "rejected") return { status: "rejected", reason: pause.reason,
@@ -76,7 +78,8 @@ async function readTasks(ports: AttestInputPorts, basis: Metadata, name: string,
     const path = lifecycleRecordPath(basis.primary, task.result);
     if (path === null || basis.meta.taskList !== posix.basename(path)) return reject(name, newRoot,
       `\`arc attest\` requires a canonical task-list binding for \`${name}\`.`);
-    return { taskListPath: path, taskList: task.result.content };
+    return { taskListPath: path, taskList: task.result.content, taskListObservation: { reference: task.result.reference,
+      expected: { version: task.result.version, conflicts: task.result.conflicts } } };
   }
   const taskListPath = resolveTaskListPath(basis.metaPath, basis.meta.taskList);
   if (taskListPath === null) return reject(name, newRoot, `\`arc attest\` requires a canonical task-list binding for \`${name}\`.`,

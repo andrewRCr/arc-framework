@@ -104,7 +104,7 @@ it.each(["attested-local", "frontline", "hosted"] as const)("resolves a %s respo
   const { createLocalMappingFixture, createFrontlineMappingFixture, createHostedMappingFixture } = await import("../../../../../fixtures/review-mapping.js");
   const { approvedRecord } = await import("../../../../../fixtures/review-response-proof.js");
   const { IntegrationBoundaryLocusSchema } = await import("../../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js");
-  const { parseReviewSourceReference, parseReviewSourceReferenceForOwner } = await import("../../../../../../src/scripts/review-gate/core/review-source-reference.js");
+  const { bindReviewSourceReference, parseReviewSourceReference, parseReviewSourceReferenceForOwner } = await import("../../../../../../src/scripts/review-gate/core/review-source-reference.js");
   const { OwnerIdentitySchema } = await import("../../../../../../src/lib/store/identity.js");
   let input: typeof base;
   let producer;
@@ -148,6 +148,18 @@ it.each(["attested-local", "frontline", "hosted"] as const)("resolves a %s respo
     && JSON.parse(contents[0]!).attemptId === producer.producerId)!;
   expect(decoded.durableRef).toBe(kind === "hosted" ? producer.producerId : outcome.reference.key);
   await assertReviewMapping(result);
+  if (source.kind !== "hosted") {
+    const saved = input.candidates[0]!.boundary;
+    const original = parseReviewSourceReference(originalRef, kind);
+    const mismatched = bindReviewSourceReference({ ...original, durableRef: `${original.durableRef}-other-snapshot` });
+    const responseSource = source.kind === "attested-local" ? { ...source, receiptRef: mismatched }
+      : { ...source, outcomeRef: mismatched };
+    const changed = IntegrationBoundaryLocusSchema.parse(JSON.parse(saved!));
+    input.candidates[0]!.boundary = JSON.stringify({ ...changed, nextAction: { ...changed.nextAction, responseSource } });
+    expect(() => mapReviewRecords(input)).toThrow(/response source.*snapshot/iu);
+    input.candidates[0]!.boundary = saved;
+    await assertReviewMapping(mapReviewRecords(input));
+  }
 });
 
 it.each(["policy", "resume"] as const)("folds a native %s review boundary into the version-two resume variant", async (variant) => {

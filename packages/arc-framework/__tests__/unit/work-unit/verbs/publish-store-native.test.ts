@@ -23,7 +23,6 @@ import { approvedFixDecision, terminusDecision } from "../../../fixtures/review-
 import { createReviewEvidencePort } from "../../../../src/lib/store/kinds/review/evidence/access.js";
 import { createReviewDecisionPort } from "../../../../src/lib/store/kinds/review/decision/access.js";
 import { reviewDecisionKey } from "../../../../src/lib/store/kinds/review/decision/key.js";
-import { localPendingBinding } from "../../../fixtures/lane-pending-binding.js";
 import { recordLaneAttempt } from "../../../../src/scripts/review-gate/lane-progress.js";
 import { candidateRecordFixture } from "../../../fixtures/review-candidate.js";
 import { CandidateManagedRecordV1Schema } from "../../../../src/lib/work-unit/candidate-attestation.js";
@@ -32,6 +31,8 @@ import { runPublish } from "../../../../src/lib/work-unit/verbs/publish.js";
 import { buildStoreCurrentWuReconcile } from "../../../../src/lib/work-unit/store-current-wu-reconcile.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import { StoreRefusalError } from "../../../../src/lib/store/refusal-error.js";
+import { createMemoryRemote } from "../../../helpers/store/sync.js";
+import { ReferenceBackend } from "../../../helpers/store/reference-backend.js";
 
 async function fixture() {
   const h = createReviewHarness(), repositoryId = "123e4567-e89b-42d3-a456-426614174099", candidate = candidateFixture();
@@ -234,6 +235,70 @@ async function recordReady(h: Awaited<ReturnType<typeof fixture>>) {
   await writeSubmissionBoundary(h.cwd, ready, snapshot.version, { store: h.store, owner: h.primary.reference.owner });
   return refreshedParameters(h, ready);
 }
+it.each(["outcome-add", "evidence-advance", "approved-fix", "withdrawal"] as const)(
+  "refuses %s synchronized after claim preparation without partial publication, then accepts renewed readiness", async kind => {
+    const h = await fixture(), owner = h.primary.reference.owner;
+    const target = createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "change-set",
+      repositoryId: await h.projectId(), baseRef: "main", diffBaseSha: "b".repeat(40), diffBaseTree: "c".repeat(40),
+      headSha: "a".repeat(40), headTree: "d".repeat(40) });
+    const outcome = ReviewOutcomeSchema.parse(localOutcome({ target, lineage: { kind: "candidate", candidateId: h.params.candidateId },
+      outcome: "findings", findings: [{ findingId: "finding-1", severity: "major", locus: "src/main.ts:1",
+        evidenceUrlOrId: "finding:1", sourceOrdinal: 1 }] }));
+    if (kind !== "outcome-add") await createReviewOutcomePort(h.store, owner).create(outcome);
+    const performed = performedEvidenceFixture("candidate", outcome).value;
+    const { performance: ignored, ...unperformed } = performed;
+    void ignored;
+    if (kind === "evidence-advance") await createReviewEvidencePort(h.store, owner).create(unperformed);
+    const grant = approvedFixDecision(outcome);
+    if (kind === "withdrawal") await createReviewDecisionPort(h.store, owner).create(grant);
+    const params = await recordReady(h);
+    const remote = createMemoryRemote();
+    h.store.context.publication.remote = remote;
+    lifecycleSuccess(await h.store.push());
+    const writer = new ReferenceBackend({ state: remote.state, registry: h.store.context.registry });
+    if (kind === "outcome-add") await createReviewOutcomePort(writer, owner).create(outcome);
+    else if (kind === "evidence-advance") {
+      const evidence = createReviewEvidencePort(writer, owner), prior = await evidence.read(performed.dispositionSet.dispositionSetId);
+      if (prior === null) throw new Error("Expected remote approval");
+      await evidence.advance(performed, prior.version);
+    } else await createReviewDecisionPort(writer, owner).create(kind === "approved-fix" ? grant
+      : { ...grant, choice: { kind: "withdrawal", decisionKey: reviewDecisionKey(grant) } });
+    let synchronized: Awaited<ReturnType<typeof h.store.version>> | undefined;
+    const raced = { ...params, preparePublicationClaim: async (claim: IntegrationBoundaryLocusV2) => {
+      const prepared = await params.preparePublicationClaim(claim);
+      lifecycleSuccess(await h.store.pull());
+      synchronized = await h.store.version();
+      return prepared;
+    } };
+    expect(await runPublish(h.ctx, raced)).toMatchObject({ status: "rejected",
+      remedy: { argv: ["arc", "review", "pre-publication", "example"] } });
+    expect(await h.store.version()).toEqual(synchronized);
+    expect(lifecycleSuccess(await h.store.read({ reference: h.primary.reference })).fields).toMatchObject({ state: "Active" });
+    expect((await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).boundary)
+      .toMatchObject({ locus: "candidate-publish-ready" });
+    expect(await runPublish(h.ctx, await recordReady(h))).toMatchObject({ status: "published" });
+  },
+);
+it("refuses a Candidate replacement after final inspection without partial publication and accepts renewed authorization", async () => {
+  const h = await fixture(), owner = h.primary.reference.owner;
+  let afterReplacement: Awaited<ReturnType<typeof h.store.version>> | undefined;
+  const params = { ...h.params, preparePublicationClaim: async (claim: IntegrationBoundaryLocusV2) => {
+    const prepared = await h.params.preparePublicationClaim(claim);
+    const current = await readCandidateRecordVersioned(h.cwd, "example", { store: h.store, owner });
+    if (current.record === null) throw new Error("Expected current Candidate");
+    const selection = { ...candidateRecordFixture().reviewSelection, candidateId: h.params.candidateId };
+    const changed = CandidateManagedRecordV1Schema.parse({ ...current.record, transitions: [...current.record.transitions, selection] });
+    await writeCandidateRecord(h.cwd, "example", changed, current.version, { store: h.store, owner });
+    afterReplacement = await h.store.version();
+    return prepared;
+  } };
+  expect(await runPublish(h.ctx, params)).toMatchObject({ status: "rejected", refusal: { code: "version-conflict" } });
+  expect(await h.store.version()).toEqual(afterReplacement);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.primary.reference })).fields).toMatchObject({ state: "Active" });
+  expect((await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).boundary)
+    .toMatchObject({ locus: "candidate-publish-ready" });
+  expect(await runPublish(h.ctx, h.params)).toMatchObject({ status: "published" });
+});
 it.each(["evidence-advance", "approved-fix", "withdrawal", "in-flight"])("refuses publication after %s changes and admits renewed readiness", async kind => {
   const h = await fixture(), owner = h.primary.reference.owner;
   const target = createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "change-set",
@@ -251,21 +316,25 @@ it.each(["evidence-advance", "approved-fix", "withdrawal", "in-flight"])("refuse
   const grant = approvedFixDecision(outcome);
   if (kind === "withdrawal") await decisions.create(grant);
   const params = await recordReady(h);
+  const pending = ReviewOutcomeSchema.parse(localOutcome({ target, lineage: outcome.lineage, logicalPass: 2, outcome: "terminal-failure" }));
   if (approved !== null) await evidence.advance(performed, approved.version);
   else if (kind === "approved-fix") await decisions.create(grant);
   else if (kind === "withdrawal") await decisions.create({ ...grant, choice: { kind: "withdrawal", decisionKey: reviewDecisionKey(grant) } });
   else {
     const { family } = createReviewCompositionContext({ ...h, workItem: owner });
+    if (pending.local === undefined) throw new Error("Expected local admission");
+    const { operationId, requestId, vehicle, target: reviewTarget, requestedCoverage, effectiveCoverage, scopeMode } = pending.local;
     await recordLaneAttempt(family.ports.inFlight, { lane: "standard", repositoryId: target.repositoryId,
-      headSha: target.headSha, changeRequestId: null, lineage: outcome.lineage, attemptId: "pending-review",
-      sourceId: outcome.source.sourceId, outcome: "pending", consumedPass: false,
-      local: localPendingBinding({ operationId: "pending-review", headSha: target.headSha, repositoryId: target.repositoryId }),
+      headSha: target.headSha, changeRequestId: null, lineage: outcome.lineage, attemptId: pending.attemptId,
+      sourceId: outcome.source.sourceId, outcome: "pending", consumedPass: false, logicalPass: 2,
+      local: { operationId, requestId, vehicle, target: reviewTarget, requestedCoverage, effectiveCoverage, scopeMode },
       now: "2026-10-20T13:00:00Z" });
   }
   const before = await h.store.version();
   expect(await runPublish(h.ctx, params)).toMatchObject({ status: "rejected", reason: expect.stringMatching(/review progress changed/iu),
     remedy: { argv: ["arc", "review", "pre-publication", "example"] } });
   expect(await h.store.version()).toEqual(before);
+  if (kind === "in-flight") await createReviewOutcomePort(h.store, owner).create(pending);
   expect(await runPublish(h.ctx, await recordReady(h))).toMatchObject({ status: "published" });
 });
 it("resumes the Integrating publication left by an interruption after the atomic batch", async () => {

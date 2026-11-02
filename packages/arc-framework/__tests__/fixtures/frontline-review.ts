@@ -58,7 +58,7 @@ export function createFrontlineFixture(target: ReviewTarget = createReviewTarget
     receiptIndex: { readReceiptEntries: async () => [], readReceiptReference: async () => null },
     sourceStore: { readSource: async () => null, appendSource: async () => { throw new Error("not used"); } },
     outcomeStore: { readOutcome: async () => ({ version: 1, record: outcomeRecord,
-      outcomeRef: "git-common:review-gate/outcomes/frontline.json#1" }),
+      outcomeRef: `git-common:review-gate/outcomes/frontline-outcome-${canonicalDigest({ operationId: admission.operationId }).slice("sha256:".length)}.json#1` }),
       appendOutcome: async () => { throw new Error("not used"); } },
   });
   return { admission, outcomeRecord, run, lane, reader };

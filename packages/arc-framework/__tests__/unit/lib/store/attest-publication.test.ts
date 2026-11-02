@@ -36,6 +36,8 @@ async function fixture(fields: MetaRenderOverrides = {}, seedCandidate = false, 
     readFile: async () => { throw new Error("No projected files"); }, readArchivedMeta: async () => undefined,
   }, "example", lifecycle === "Shipped");
   if (admitted.status !== "ready" || admitted.primary === undefined) throw new Error("Expected stored attestation inputs");
+  if (admitted.taskListObservation === undefined) throw new Error("Expected native task-list basis");
+  let taskListObservation = admitted.taskListObservation;
   let selected = admitted.primary;
   let target = { revision: record.attestation.baseRevision, subject: record.subject };
   let snapshot = await readSubmissionBoundaryVersioned("/no-projected-files", "example", { store: h.store, owner: selected.reference.owner });
@@ -53,6 +55,7 @@ async function fixture(fields: MetaRenderOverrides = {}, seedCandidate = false, 
         && snapshot.boundary.candidateSubjectDigest === publication.candidateSubjectDigest;
       const boundary = publication.repairCurrent && boundaryMatches && snapshot.boundary !== null ? snapshot.boundary : projected;
       const input: StoredAttestationInput = { store: h.store, primary: selected, publication, boundary,
+        taskListObservation,
         expectedBoundaryVersion: snapshot.version, boundaryMatches,
         nextAction: boundaryMatches || lifecycle === "Shipped" ? publication.nextAction : boundary.nextAction.interactionText };
       const concurrent = beforeWrite;
@@ -67,6 +70,8 @@ async function fixture(fields: MetaRenderOverrides = {}, seedCandidate = false, 
     beforeWrite: (concurrent: NonNullable<typeof beforeWrite>) => { beforeWrite = concurrent; },
     rebind: async () => {
       selected = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
+      const tasks = lifecycleSuccess(await h.store.read({ reference: recordReferences["work-item/task-list"](selected.reference.owner) }));
+      taskListObservation = { reference: tasks.reference, expected: { version: tasks.version, conflicts: tasks.conflicts } };
       snapshot = await readSubmissionBoundaryVersioned("/no-projected-files", "example", { store: h.store, owner: selected.reference.owner });
     } };
 }

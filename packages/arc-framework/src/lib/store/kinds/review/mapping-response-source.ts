@@ -15,6 +15,9 @@ export function mapReviewResponseSource(source: ResponseSource, outcomes: readon
   const attemptId = source.kind === "hosted" ? reference.durableRef : reference.operationId;
   const producer = outcomes.find(({ outcome }) => outcome.attemptId === attemptId);
   if (producer === undefined) throw new Error(`Response source ${attemptId} has no mapped live result.`);
+  if (source.kind !== "hosted" && producer.legacyDurableRef !== reference.durableRef) {
+    throw new Error(`Response source ${attemptId} snapshot ${reference.durableRef} differs from its original producer snapshot ${producer.legacyDurableRef ?? "(missing)"}; restore the exact saved response source before retrying.`);
+  }
   const durableRef = source.kind === "hosted" ? producer.outcome.attemptId : reviewOutcomeKey(producer.outcome);
   const mapped = bindReviewSourceReference({ kind: reference.kind, operationId: reference.operationId, durableRef,
     repositoryId: owner.repositoryId, workItem: owner.workItem });

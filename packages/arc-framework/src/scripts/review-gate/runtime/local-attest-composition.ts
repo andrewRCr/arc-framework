@@ -17,6 +17,7 @@ import { LocalForwardReviewReceiptStore } from "../hosts/local/receipt-store.js"
 import type { ForwardReviewReceiptStore } from "../core/ports.js";
 import { LocalAttestCommandError, type LocalAttestDependencies } from "./local-attest-command.js";
 import { createLocalPrepareDependencies } from "./local-prepare-composition.js";
+import { createNativeLocalSourceSweepRecords } from "../hosts/local/source-sweep-records.js";
 
 /** Bind local attestation to the same trusted facts and Git-common stores as preparation. */
 export function createLocalAttestDependencies(options: ReviewInvocationInput): LocalAttestDependencies {
@@ -65,7 +66,14 @@ export function createLocalAttestDependencies(options: ReviewInvocationInput): L
       exec: input.exec,
       source,
     }),
-    releaseMaterialization: (operationId) => sweepAdapter.releaseWithinLock(operationId),
+    releaseMaterialization: async operationId => {
+      if (input.store.capabilities.stateOffBranch) {
+        const retained = await createNativeLocalSourceSweepRecords({ publisher, store: input.store,
+          projectId: input.projectId, operationIds: [operationId] });
+        if (!await retained.canRelease(operationId)) return;
+      }
+      await sweepAdapter.releaseWithinLock(operationId);
+    },
     now: () => new Date().toISOString(),
   };
 }

@@ -3,6 +3,7 @@ import type { BrokenRule, StoreView, WriteCheckInput } from "../../../write-chec
 import { observeRecords, brokenRule } from "../../rule-support.js";
 import { decodeReviewEvidence } from "./parser.js";
 import type { ReviewEvidence } from "./schema.js";
+import { reviewRecordConflict } from "../check-conflicts.js";
 
 export type EvidenceHistory = ReadonlyMap<string, ReviewEvidence>;
 type EvidenceHistoryObservation = { status: "known"; value: EvidenceHistory } | { status: "unavailable"; rule: BrokenRule };
@@ -15,6 +16,8 @@ export async function readEvidenceHistory(input: WriteCheckInput, view: StoreVie
   if (observed.status !== "known") return refuse(observed.status === "unavailable" ? observed.condition : "Evidence could not be enumerated.");
   const entries = new Map<string, ReviewEvidence>();
   for (const record of observed.value) {
+    const conflict = reviewRecordConflict(record, "review.evidence.complete-listing");
+    if (conflict !== null) return { status: "unavailable", rule: conflict };
     const parsed = decodeReviewEvidence(record.content);
     const key = record.reference.key;
     if (!parsed.success || typeof key !== "string" || key !== parsed.data.dispositionSet.dispositionSetId || entries.has(key)) {

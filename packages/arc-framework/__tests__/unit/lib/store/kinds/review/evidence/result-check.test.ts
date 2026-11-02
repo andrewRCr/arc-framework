@@ -28,6 +28,15 @@ const outcome = ReviewOutcomeSchema.parse(localOutcome({ outcome: "findings", fi
   severity: "major", locus: "src/main.ts:1", evidenceUrlOrId: "finding:1", sourceOrdinal: 1 }] }));
 
 describe("evidence producer admission", () => {
+  it("requires the exact producer outcome's conflicts to be resolved", async () => {
+    const value = reviewEvidenceFixture(outcome);
+    const related = outcomeRecord(outcome);
+    expect(await check(value, [{ ...related, conflicts: [recordReferences["work-item/conflict-record"](owner, "pending-resolution")] }])).toEqual(expect.arrayContaining([
+      expect.objectContaining({ rule: "review.evidence.outcome-unavailable", condition: expect.stringContaining(String(related.reference.key)),
+        remedy: { text: expect.stringMatching(/resolve/iu) } }),
+    ]));
+    expect(await check(value, [related])).toEqual([]);
+  });
   it("requires the exact outcome on the response's own work item", async () => {
     const value = reviewEvidenceFixture(outcome);
     expect(await check(value)).toEqual(expect.arrayContaining([expect.objectContaining({ rule: "review.evidence.outcome-unavailable" })]));

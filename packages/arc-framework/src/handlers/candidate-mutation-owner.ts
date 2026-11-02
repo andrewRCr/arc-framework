@@ -99,6 +99,11 @@ async function readLiveNames(store: Store): Promise<ReadonlySet<string>> {
   if (listing.status === "refused") throw new StoreRefusalError(listing.refusal, true);
   const result = listing.result;
   if (result.status === "unreadable") throw new ReviewOwnerSelectionError("corrupt-state", result.condition, result.remedy);
+  if (result.status === "complete" && result.missed) {
+    throw new ReviewOwnerSelectionError("corrupt-state", ["The live work-unit inventory is incomplete.",
+      ...result.diagnostics.map(item => `${item.condition} ${item.remedy.text}`)].join(" "),
+    { text: "Repair the live work units' metadata and restore the complete inventory, then retry." });
+  }
   return result.status === "complete" ? liveNames(result) : new Set();
 }
 

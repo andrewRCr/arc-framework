@@ -15,9 +15,10 @@ const context = {
 };
 
 describe("evidence applicability path treatment", () => {
-  it("neutralizes only the current work unit's export folder by path alone", () => {
+  it("neutralizes only the current work unit's exact exported specification by path alone", () => {
     expect(classifyPathTreatment(".arc/specs/example/spec-example.md", context)).toBe("evidence-neutral");
-    expect(classifyPathTreatment(".arc/specs/example/other.md", context)).toBe("evidence-neutral");
+    expect(classifyPathTreatment(".arc/specs/example/other.md", context)).toBe("reviewable");
+    expect(classifyPathTreatment(".arc/specs/example/code.ts", context)).toBe("reviewable");
   });
 
   it.each([

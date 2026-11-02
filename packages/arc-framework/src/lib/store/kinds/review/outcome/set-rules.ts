@@ -1,5 +1,6 @@
 /** Whole-set constraints for one subject owner's review lane. */
 import { frontlineRetryContract } from "../../../../../scripts/review-gate/core/frontline-retry-contract.js";
+import { localReviewRetryActorContract } from "../../../../../scripts/review-gate/core/conditional-retry-contract.js";
 import { canonicalize } from "../../../../kernel/index.js";
 import { brokenRule } from "../../rule-support.js";
 import type { BrokenRule } from "../../../write-check.js";
@@ -64,7 +65,7 @@ function authorizedRetryContract(value: ReviewOutcome): string {
   const frontline = value.frontline?.admission;
   return canonicalize({ grouping: retryGroup(value),
     local: local === undefined ? null : { vehicle: local.vehicle, rubricIdentity: local.rubricIdentity ?? null,
-      deliveryAdmission: local.deliveryAdmission ?? null },
+      deliveryAdmission: local.deliveryAdmission ?? null, actors: localReviewRetryActorContract(local) },
     frontline: frontline === undefined ? null : frontlineRetryContract(frontline) });
 }
 
@@ -72,8 +73,8 @@ function checkAuthorizedRetries(outcomes: readonly ReviewOutcome[]): BrokenRule[
   return grouped(outcomes.filter((value) => value.admittedBy !== undefined), (value) => value.admittedBy ?? "").flatMap((group) => {
     const rules: BrokenRule[] = [];
     if (new Set(group.map(authorizedRetryContract)).size !== 1) rules.push(brokenRule("review.outcome.authorized-retry-contract",
-      "Outcomes admitted by one decision differ in pass, source, scope, or coverage admission.",
-      "Keep each retry within the original extra-pass admission's source, scope, coverage, and logical pass."));
+      "Outcomes admitted by one decision differ in pass, source, scope, coverage, actors, policy, or mechanism.",
+      "Keep each retry within the original extra-pass admission's review and actor contract."));
     const admittedGenerations = group.map((value) => value.retryGeneration);
     if (new Set(admittedGenerations).size !== admittedGenerations.length) rules.push(brokenRule("review.outcome.authorized-generation-duplicate",
       "Outcomes admitted by one decision reuse a retry generation.",

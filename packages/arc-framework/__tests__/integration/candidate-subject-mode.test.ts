@@ -52,6 +52,27 @@ function subjectPaths(target: Awaited<ReturnType<typeof collectSubject>>): strin
 }
 
 describe("Git Candidate subject modes", () => {
+  it.each(["add", "rewrite", "delete"] as const)("keeps a sibling file's %s reviewable beneath the export folder", async operation => {
+    const root = await initRepository("arc-candidate-export-sibling-");
+    const path = ".arc/specs/example/code.ts";
+    await writeAt(root, "src/example.ts", "base\n");
+    await git(root, "add", "-A");
+    await git(root, "commit", "-m", "base");
+    await git(root, "switch", "-c", "feat/example");
+    await writeAt(root, "src/example.ts", "implementation\n");
+    if (operation !== "add") await writeAt(root, path, "initial sibling\n");
+    await git(root, "add", "-A");
+    await git(root, "commit", "-m", "implementation");
+    const before = await collectSubject({ cwd: root, name: "example", baseBranch: "main", exec });
+    if (operation === "delete") await rm(join(root, path));
+    else await writeAt(root, path, "changed sibling\n");
+    await git(root, "add", "-A");
+    const staged = await collectSubject({ cwd: root, name: "example", baseBranch: "main", exec });
+    expect(staged.subject.subjectDigest).not.toBe(before.subject.subjectDigest);
+    await git(root, "commit", "-m", "update sibling");
+    expect((await collectSubject({ cwd: root, name: "example", baseBranch: "main", revision: await git(root, "rev-parse", "HEAD"), exec }))
+      .subject.subjectDigest).toBe(staged.subject.subjectDigest);
+  }, 30_000);
   it.each(["add", "rewrite", "delete"] as const)("keeps the subject unchanged when an exported spec is %s", async (operation) => {
     const root = await initRepository("arc-candidate-export-");
     await writeAt(root, "src/example.ts", "base\n");

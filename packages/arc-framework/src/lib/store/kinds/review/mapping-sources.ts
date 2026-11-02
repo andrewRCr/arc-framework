@@ -7,6 +7,8 @@ import type { ReviewOperationState, LocalReviewState } from "../../../../scripts
 import type { ReviewReceiptV2 } from "../../../../scripts/review-gate/core/gate-contract-v2-schema.js";
 import type { ReviewMappingSource } from "./mapping-listing.js";
 import { mapReviewSource } from "./mapping-error.js";
+import type { ReviewOutcome } from "./outcome/schema.js";
+import { canonicalDigest } from "../../../kernel/index.js";
 
 const FrontlineIdentityHeaderSchema = FrontlineOutcomeStoreRecordSchema.extend({ record: z.object({
   operationId: FrontlineOutcomeStoreRecordSchema.shape.record.shape.operationId,
@@ -83,4 +85,24 @@ export function mappingLocalOperation(sources: ReviewMappingSources, operationId
   const match = matches[0];
   if (matches.length !== 1 || match === undefined) throw new Error(`Expected one local operation for ${operationId}; found ${matches.length}.`);
   return match;
+}
+
+/** Recover the original local receipt ordinal or frontline outcome snapshot before translating its address. */
+export function mappingLegacyDurableRef(sources: ReviewMappingSources, outcome: ReviewOutcome): string | undefined {
+  if (outcome.local?.receipt !== undefined) {
+    for (const ledger of sources.receipts) {
+      const index = ledger.receipts.findIndex(receipt => receipt.requestId === outcome.local?.receipt?.requestId
+        && receipt.reviewRunId === outcome.local.receipt.reviewRunId);
+      if (index >= 0) return `git-common:review-gate/evidence/receipts-v2.json#${index + 1}`;
+    }
+  }
+  if (outcome.frontline !== undefined) {
+    const operationId = outcome.frontline.admission.operationId;
+    const match = [...sources.frontline.values()].find(value => value.operationId === operationId);
+    if (match === undefined) return undefined;
+    const { version } = FrontlineOutcomeStoreRecordSchema.parse(match.value);
+    const name = `frontline-outcome-${canonicalDigest({ operationId }).slice("sha256:".length)}.json`;
+    return `git-common:review-gate/outcomes/${name}#${version}`;
+  }
+  return undefined;
 }

@@ -1,6 +1,7 @@
 /** Complete related-record observations used by decision admission. */
 import type { BrokenRule, WriteCheckInput } from "../../../write-check.js";
 import { brokenRule, observeRecords } from "../../rule-support.js";
+import { reviewRecordConflict } from "../check-conflicts.js";
 
 type DecisionCheckHistory<T> = { status: "known"; entries: readonly { key: string; value: T }[] }
   | { status: "unavailable"; rule: BrokenRule };
@@ -17,6 +18,8 @@ export async function readDecisionCheckHistory<T>(
   if (observed.status !== "known") return refuse(observed.status === "unavailable" ? observed.condition : "history was not enumerable");
   const entries: { key: string; value: T }[] = [];
   for (const record of observed.value) {
+    const conflict = reviewRecordConflict(record, "review.decision.complete-listing");
+    if (conflict !== null) return { status: "unavailable", rule: conflict };
     const parsed = decode(record.content);
     if (!parsed.success || typeof record.reference.key !== "string") {
       return refuse(`record ${JSON.stringify(record.reference.key)}: ${parsed.success ? "missing key" : parsed.error}`);

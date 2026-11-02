@@ -16,6 +16,8 @@ import { prepareLocalReview } from "../../../../../../src/scripts/review-gate/ru
 import { createLocalReviewPreparationFixture } from "../../../../../fixtures/local-review-preparation.js";
 import { recordLocalReceiptConclusion } from "../../../../../../src/scripts/review-gate/lane-progress.js";
 import { bindNativeReviewPorts } from "../../../../../helpers/store/native-review-ports.js";
+import { cancelLocalReviewCommand } from "../../../../../../src/scripts/review-gate/runtime/local-cancel-command.js";
+import type { ReviewOperationStateStore, ReviewOutcomePort } from "../../../../../../src/scripts/review-gate/core/ports.js";
 
 it("keeps an unfinished native review's pin until its cleanup deadline", async () => {
   const h = await nativeLocalReview();
@@ -143,7 +145,7 @@ async function prepareSibling(h: Awaited<ReturnType<typeof nativeLocalReview>>, 
   return { other, outcomes, operations, prepared, state };
 }
 
-it("refuses a pin with two retained owners and reads it again after the duplicate is removed", async () => {
+it("repairs duplicate ownership by cancelling reviews, retaining source until the final owner completes", async () => {
   const h = await nativeLocalReview();
   onTestFinished(h.cleanup);
   const sibling = await prepareSibling(h);
@@ -157,13 +159,22 @@ it("refuses a pin with two retained owners and reads it again after the duplicat
   const uid = owner.uid, primaryUid = primary.uid;
   const refused = await inventory.readOperation(h.state.operationId).then(() => null, (error: unknown) => error);
   expect(refused).toBeInstanceOf(LocalOperationStateStoreError);
-  expect(refused).toMatchObject({ code: "malformed-operation-state",
-    message: expect.stringMatching(/attest or cancel one of them from its owner's checkout, then retry source cleanup\.$/u) });
+  expect(refused).toMatchObject({ code: "malformed-operation-state" });
   expect([primaryUid, uid].filter(id => (refused as Error).message.includes(id))).toEqual([primaryUid, uid]);
-  await h.publisher.update({ root: "review-gate", namespace: "in-flight" },
-    nativeReviewInFlightRecordName(uid, sibling.state.operationId), () => ({ kind: "delete", result: undefined }));
+  const receipts = new LocalForwardReviewReceiptStore(h.publisher, h.state.repositoryId);
+  const cancel = (operationStore: ReviewOperationStateStore, outcomes: ReviewOutcomePort) => cancelLocalReviewCommand(
+    { schemaVersion: 1, operationId: h.state.operationId }, { operationStore, outcomes, receiptStore: receipts,
+      withLocalReviewLock: action => action(), releaseMaterialization: async () => {}, now: () => h.state.updatedAt });
+  expect(await cancel(sibling.operations, sibling.outcomes)).toMatchObject({ state: "cancelled" });
   expect(await (await createNativeLocalSourceSweepRecords(input)).readOperation(h.state.operationId))
     .toMatchObject({ state: { workItem: h.primary.reference.owner } });
+  expect(await cancel(h.operations, h.outcomes)).toMatchObject({ state: "cancelled" });
+  const pins = new Set([h.state.operationId]);
+  const records = await createNativeLocalSourceSweepRecords(input);
+  expect(await sweepLocalReviewSources({ ...records, listOperationIds: async () => [...pins],
+    readReceipts: targetId => receipts.readReceipts(targetId), release: async id => { pins.delete(id); },
+    now: () => h.state.updatedAt })).toEqual({ reaped: [{ operationId: h.state.operationId, reason: "completed" }] });
+  expect([...pins]).toEqual([]);
 });
 
 it("skips another operation's damaged execution record, keeping this pin's cleanup", async () => {

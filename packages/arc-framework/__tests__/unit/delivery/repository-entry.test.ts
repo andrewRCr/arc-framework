@@ -1,8 +1,9 @@
-import { expect, it } from "vitest";
+import { expect, it, onTestFinished } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { inspectRepositoryDeliveryEntry } from "../../../src/lib/delivery/repository-entry.js";
+import { inspectRepositoryDeliveryEntry, inspectRepositoryDeliveryCandidateRenewal, inspectRepositoryDeliveryReopen }
+  from "../../../src/lib/delivery/repository-entry.js";
 import { DeliveryEntryInspectionRequestSchema } from "../../../src/lib/delivery/entry-inspection.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
 import { recordReferences } from "../../../src/lib/store/identity.js";
@@ -19,6 +20,32 @@ async function inspectionInput(store: Store, workItem: OwnerIdentity, onTestFini
     exec: scriptGitExec([{ match: ["rev-parse", "--git-common-dir"], responses: [{ stdout: commonDir }] }]).exec };
 }
 const taskList = "# Task List\n\n## **Phase 1:** Build\n\n### `[x]` **1.1 Build feature**\n";
+
+it.each(["entry", "renewal", "reopen"] as const)("retains task-list conflict coordinates through %s and continues after repair", async kind => {
+  const h = createLifecycleHarness(), primary = await h.seedMeta("example", { taskList: "tasks-example.md" });
+  const reference = recordReferences["work-item/task-list"](primary.reference.owner);
+  await h.seed(reference, taskList);
+  const conflict = recordReferences["work-item/conflict-record"](primary.reference.owner, "tasks-conflict");
+  const store = Object.create(h.store) as Store;
+  let conflicted = true;
+  store.read = async input => {
+    const result = await h.store.read(input);
+    return conflicted && input.reference.kind === "work-item/task-list" && result.status === "ok"
+      ? { status: "ok", result: { ...result.result, conflicts: [conflict] } } : result;
+  };
+  const input = { ...await inspectionInput(store, primary.reference.owner, onTestFinished), workUnitId: "example" };
+  const run = () => kind === "entry" ? inspectRepositoryDeliveryEntry(input)
+    : kind === "renewal" ? inspectRepositoryDeliveryCandidateRenewal({ ...input, sourceBoundary: null })
+    : inspectRepositoryDeliveryReopen(input);
+  if (kind === "renewal") {
+    await expect(run()).rejects.toMatchObject({ name: "StoreRefusalError", offBranch: true, refusal: { reference,
+      condition: expect.stringContaining(JSON.stringify(conflict)), remedy: { text: expect.stringMatching(/resolve/iu) } } });
+  } else {
+    expect(await run()).toMatchObject({ status: "refused", recommendedActionText: expect.stringContaining(JSON.stringify(conflict)) });
+  }
+  conflicted = false;
+  expect(await run()).toMatchObject({ status: kind === "reopen" ? "reopen-permitted" : "not-applicable" });
+});
 
 it("inspects the selected generation's stored task list without a checkout file", async ({ onTestFinished }) => {
   const h = createLifecycleHarness();
