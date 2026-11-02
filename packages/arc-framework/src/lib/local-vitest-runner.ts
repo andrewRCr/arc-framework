@@ -232,6 +232,7 @@ const PORTABILITY_SUITES = [
   "check-source-git.test.ts",
   "delivery-transfer.e2e",
   "store-ref-bursts.test.ts",
+  "store-ref-transaction-deadline.test.ts",
   "store-ref-directory.test.ts",
   "store-ref-write-batching.test.ts",
   "store-ref-reader-lifetime.test.ts",

@@ -624,7 +624,7 @@ _Exit criterion:_ A transaction held at `prepared` past the deadline commits or 
 lock, on Linux and Windows; both layouts' Windows publishing bursts converge; a push overlapping another checkout's
 pull leaves writes and pull merges free of `lock-held` on the layout lock.
 
-### `[ ]` **6.1 A launched ref transaction finishes past the sync deadline — § 5.1, § 12**
+### `[x]` **6.1 A launched ref transaction finishes past the sync deadline — § 5.1, § 12**
 
 - _Goal:_ A ref transaction that the deadline did not refuse at launch runs to Git's own end, so the deadline never
   strands a ref lock from a transaction it launched.
@@ -639,12 +639,9 @@ pull leaves writes and pull merges free of `lock-held` on the layout lock.
         - Public `pull` cases cover deadline admission and both repository layouts; the public Git transaction API
           covers caller cancellation, since no Store transaction caller supplies an independent signal today.
 
-    - `[ ]` **6.1.b The deadline-kill case**
-        - A `reference-transaction` hook holds the transaction at `prepared` until the deadline fires; the transaction
-          commits or fails on Git's own terms and leaves no lock.
-        - Its test file is a `store-ref-*` integration file, so the store check's reach selects it on Linux, and its
-          name joins `PORTABILITY_SUITES` (`lib/local-vitest-runner.ts`), so it runs on Windows in 6.10's dispatched
-          pair.
+    - `[x]` **6.1.b The deadline-kill case**
+        - Real `reference-transaction` hooks hold both layouts at `prepared` past signal expiry. Git then commits,
+          leaves no native ref lock, and permits a fresh pull. The store suite joins the dispatched portability set.
 
 ### `[ ]` **6.2 A held Git ref lock refuses `lock-held` at every transaction site — § 5.2, § 5.3, § 8, § 12**
 
