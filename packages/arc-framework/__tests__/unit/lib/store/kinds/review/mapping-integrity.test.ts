@@ -1,6 +1,6 @@
 /** Import refuses inconsistent joins and attributes each failure to its supplied source. */
 import { expect, it } from "vitest";
-import { createLocalMappingFixture, createFrontlineMappingFixture, mappingOperation } from "../../../../../fixtures/review-mapping.js";
+import { createLocalMappingFixture, createFrontlineMappingFixture, mappingOperation, mappingErrand } from "../../../../../fixtures/review-mapping.js";
 import { mappingBoundaryFixture } from "../../../../../fixtures/review-mapping-boundary.js";
 import { approvedRecord } from "../../../../../fixtures/review-response-proof.js";
 import { mapReviewRecords } from "../../../../../../src/lib/store/kinds/review/mapping.js";
@@ -13,6 +13,8 @@ import { IntegrationBoundaryLocusSchema } from "../../../../../../src/scripts/re
 import { bindReviewSourceReference } from "../../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import { canonicalDigest } from "../../../../../../src/lib/kernel/index.js";
 import { assertReviewMapping } from "../../../../../helpers/store/assert-review-mapping.js";
+import { LaneProgressStateSchema } from "../../../../../../src/scripts/review-gate/core/operation-state-schema.js";
+import { laneProgressOperationId } from "../../../../../../src/scripts/review-gate/lane-progress.js";
 
 const laneJoins = "the operations, frontline outcomes, and receipts its attempts cite";
 const boundaryJoins = "the Candidate records, review outcomes, and operations it cites";
@@ -26,6 +28,29 @@ function refuses(input: ReviewMappingInput, source: string, message: RegExp, joi
   expect(failure).toBeInstanceOf(ReviewMappingSourceError);
   expect(failure).toMatchObject({ source, joins, message: expect.stringMatching(message) });
 }
+
+it("refuses a local producer in another live lane owner and maps its repaired historical head", async () => {
+  const h = await createLocalMappingFixture();
+  await h.conclude("clean");
+  const entry = [...h.operations.entries()].find(([, record]) => record.state.kind === "lane-progress");
+  if (entry === undefined || entry[1].state.kind !== "lane-progress") throw new Error("Expected local lane");
+  const [key, original] = entry, lane = original.state;
+  if (lane.kind !== "lane-progress" || lane.lineage.kind !== "head-bound") throw new Error("Expected Errand lineage");
+  const lineage = { ...lane.lineage, vehicleIdentity: "claim-other" };
+  const foreign = LaneProgressStateSchema.parse({ ...lane, lineage,
+    operationId: laneProgressOperationId({ lane: lane.lane, repositoryId: lane.repositoryId,
+      headSha: lineage.headSha, lineage }) });
+  h.operations.set(key, { ...original, state: foreign });
+  const input = h.input();
+  input.workItems.push({ ...mappingErrand, slug: "other-review-errand", claimId: "claim-other",
+    uid: "123e4567-e89b-42d3-a456-426614174001" });
+  refuses(input, mappingOperation(foreign, original.version).path, /Local producer lane owner mismatch/u, laneJoins);
+  const repairedLineage = { ...lane.lineage, headSha: "e".repeat(40) };
+  h.operations.set(key, { ...original, state: LaneProgressStateSchema.parse({ ...lane, lineage: repairedLineage,
+    operationId: laneProgressOperationId({ lane: lane.lane, repositoryId: lane.repositoryId,
+      headSha: repairedLineage.headSha, lineage: repairedLineage }) }) });
+  await assertReviewMapping(mapReviewRecords(h.input()));
+});
 
 it.each(["missing", "duplicate"] as const)("refuses a %s joined local operation and maps after repair", async fault => {
   const h = await createLocalMappingFixture();
