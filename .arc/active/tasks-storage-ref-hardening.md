@@ -502,19 +502,19 @@ annotated commit.
   and repair instructions through the shared import refusal module, with the import continuation added. Native
   refusal-and-repair cases retain cleanup leases and journals until retry succeeds; origin access retains its remedy.
 
-### `[ ]` **5.7 The batch path check runs once per ref — § 11.2**
+### `[x]` **5.7 The batch path check runs once per ref — § 11.2**
 
 - _Goal:_ `checkRefBatchPaths` costs time linear in the batch, so an import of every personal document passes it where
   the pairwise check could not, and a batch write's pre-check does too.
 
-    - `checkRefBatchPaths` (`path-admission.ts`) groups the records by the composite key it already uses, which keeps
-      unresolved owners sharing a placeholder UID apart, and runs `findRefNamespaceCollision` once per group over its
-      paths. The grouping skips a repeat of one reference at one path, and the refusal names a colliding pair in
-      today's wording, without pinning which pair when collisions interleave.
-    - `storedPathCollision` (`write-build.ts`), which a batch write passes afterward, is unchanged.
-    - Build `test-first` (one behavior at a time): a collision refuses naming a colliding pair in today's wording; a
-      repeated reference at one path is not a collision; two unresolved owners of one kind whose records share a
-      placeholder path do not collide; 20,000 distinct personal paths finish within the test's timeout.
+- _Note:_ Lint feedback replaced private-helper test imports with public-boundary cases and required explicit
+  guards when recovering the original stored paths from a logical collision. The public primary-record fixture
+  also carries its required placement.
+
+- _Outcome:_ Batch admission groups original stored paths by ref and unresolved owner, skips identical references,
+  and checks each namespace once. Logical collisions name their original stored paths. Public preflight and native
+  mapping cases retain the collision and exemption behavior; a real CLI trial checks 20,000 personal paths within
+  its invocation limit. The later stored-tree collision check is unchanged.
 
 ### `[ ]` **5.8 A Git checkout inside personal state is reported, not walked — § 11.2**
 
