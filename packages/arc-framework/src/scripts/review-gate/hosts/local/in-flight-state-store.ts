@@ -120,7 +120,8 @@ export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
       const outcomes = await this.outcomes(), evidence = await this.evidence();
       for (const entry of await this.input.publisher.snapshot(location)) {
         if (!entry.name.startsWith(this.prefix)) continue;
-        if (entry.kind !== "file") return { status: "incomplete", reason: "unexpected-in-flight-entry" };
+        if (entry.kind !== "file") return { status: "incomplete",
+          reason: `unexpected-in-flight-entry: Native execution entry '${entry.name}' is not a file. Repair or move aside this entry, then retry.` };
         const record = await this.parse(entry.content, entry.name);
         records.set(record.operationId, { version: record.version, state: composeReviewInFlightState(record.state) });
       }

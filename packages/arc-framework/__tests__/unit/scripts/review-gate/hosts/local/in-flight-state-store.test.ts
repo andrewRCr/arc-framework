@@ -73,9 +73,12 @@ it.each(["unexpected-in-flight-entry", "operation-record-name-mismatch", "damage
     else if (fault === "operation-record-name-mismatch") await rename(path, other);
     else await writeFile(path, "{");
     expect(await h.operations.readOperationSnapshot()).toMatchObject(fault === "unexpected-in-flight-entry"
-      ? { status: "incomplete", reason: fault }
+      ? { status: "incomplete", reason: expect.stringContaining(nativeReviewInFlightRecordName(h.primary.reference.owner.uid, "other-operation")) }
       : { status: "unavailable", reason: expect.stringContaining(`Native execution record '${fault === "damaged-record"
         ? name : nativeReviewInFlightRecordName(h.primary.reference.owner.uid, "other-operation")}' is malformed:`) });
+    if (fault === "unexpected-in-flight-entry") {
+      expect(await h.operations.readOperationSnapshot()).toMatchObject({ reason: expect.stringMatching(/repair.*retry/iu) });
+    }
     if (fault === "unexpected-in-flight-entry") await rm(other, { recursive: true });
     else if (fault === "operation-record-name-mismatch") await rename(other, path);
     else await writeFile(path, original);
