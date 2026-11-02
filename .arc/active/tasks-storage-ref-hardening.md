@@ -632,18 +632,12 @@ pull leaves writes and pull merges free of `lock-held` on the layout lock.
 - _Note:_ `sync-deadline.ts` and `ref-transaction.ts` carry deadline behavior another unit's change relies on; see
   `notes-storage-ref-hardening.md` § Coordination with `store-operation-git-access`.
 
-    - `[ ]` **6.1.a The uninterruptible option**
-        - `GitExecOptions` (`lib/git/exec.ts`) gains `uninterruptible?: true`, and `GitExecInput`'s options admit it.
-          `bindDeadline` (`sync-deadline.ts`) honors it on `execInput`: when the deadline's signal has aborted at launch
-          — expiry here is the signal, never the clock-based end alone — it refuses with the canceled `GitProcessError`
-          the port raises for an aborted call, so every caller's deadline arm still matches; otherwise it calls the
-          port without the deadline's signal, while a signal the caller supplied still applies.
-        - `updateRefTransaction` (`lib/git/ref-transaction.ts`) sets the option on its `update-ref --stdin` call
-          alone; `readTransactionTips` and the version probe keep the signal. No check follows the call.
-        - Build `test-first` (one behavior at a time), through `withRefSyncDeadline`, since `bindDeadline` is internal:
-          a deadline whose signal the test aborts refuses an uninterruptible call before launch, as a canceled
-          `GitProcessError`; a live deadline launches it without its signal; a caller's own signal still cancels it;
-          `bindDeadline` passes every option it does not own through to the default port, `uninterruptible` included.
+    - `[x]` **6.1.a The uninterruptible option**
+        - Native ref updates carry `uninterruptible` through deadline and operation wrappers. An aborted deadline
+          refuses admission through the default port; a live signal permits completion past its clock end, while
+          an explicit caller signal still cancels the Git transaction. Read-back and version probes stay cancellable.
+        - Public `pull` cases cover deadline admission and both repository layouts; the public Git transaction API
+          covers caller cancellation, since no Store transaction caller supplies an independent signal today.
 
     - `[ ]` **6.1.b The deadline-kill case**
         - A `reference-transaction` hook holds the transaction at `prepared` until the deadline fires; the transaction

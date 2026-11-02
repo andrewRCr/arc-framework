@@ -57,7 +57,9 @@ function bindDeadline(context: RefBackendContext, deadline: NonNullable<RefBacke
       }
     },
     exec: (command, args, options) => context.exec(command, args, { ...options, signal: combinedSignal(deadline.signal, options?.signal) }),
-    execInput: (args, input, options) => context.execInput(args, input, { ...options, signal: combinedSignal(deadline.signal, options?.signal) }),
+    execInput: (args, input, options) => context.execInput(args, input,
+      options?.uninterruptible && !deadline.signal.aborted ? options
+        : { ...options, signal: combinedSignal(deadline.signal, options?.signal) }),
     rawExec: (args, options) => context.rawExec(args, { ...options, signal: combinedSignal(deadline.signal, options?.signal) }),
   };
 }
