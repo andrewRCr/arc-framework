@@ -860,6 +860,13 @@ The design:
   (`sync-tree.ts:75-76`, `sync-label.ts:58`) pass tip sets their operation captured. The withdrawal passes the tip sets
   it captured, threaded from `inverseEntryDocument` (`:34`) through `mergeDocumentStage` to `conflictValue`, and
   reads no fresh listing there.
+- **Completed copies after withdrawal (A1).** After all original contributions have been inverted, the withdrawal
+  refreshes each surviving eligible completed folder of an affected history group from that group's final entries
+  and metadata, including newly retained conflicts and undone entry changes. `prepareWithdrawEnd` composes the
+  refresh before publication, using `refreshArchivedFolder` to preserve the folder's independent end batch and
+  completed placement. It never recreates a folder removed for the withdrawn end. Every refreshed quarter belongs
+  to the operation's captured, locked, expected-value transaction; the existing atomic publication admits all inverse
+  groups and refreshed copies together. No fresh live listing supplies the refresh or its conflict placements.
 - **A stranded tracking lock in the push loop.** `publishRefAttempt` (`push.ts:106-108`) refuses on
   `history-diverged` and seeds exclusion from `namespace-corrupt` and `end-pending`, but ignores
   `tracking-update-failed`. With a stranded tracking lock, the push's lease holds the stale tracking tip and loses on
@@ -1206,6 +1213,9 @@ more than about a week out.
     every notice is of a kind that does not block: an Errand origin that changed, a skipped derived capture, the
     identity-mint notice, a personal link, or an unreadable annotated commit.
 13. § 12's four port properties hold for the default ports, each pinned by a test.
+14. After withdrawal, current reads of surviving completed copies expose the final history group's retained conflicts
+    and undone entry changes, preserving each folder's independent end and placement without recreating a withdrawn
+    folder. All refreshed copies publish atomically with the inverse from captured, locked bases (A1).
 
 ## Open Questions
 
@@ -1214,6 +1224,7 @@ wrapper are implementation detail.
 
 ## Amendments
 
-None yet.
+- **A1** — 2026-11-02 — spec-depth: refresh surviving completed copies after withdrawal. _Supersedes:_ none.
+  _Trigger:_ 7.2 must-stop. _Work:_ 7.2.R. _Revalidated:_ pending → 7.2.
 
 ---

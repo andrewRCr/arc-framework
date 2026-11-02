@@ -150,6 +150,55 @@ not race evidence. Its corrected initial run is `task-7.1-multiple-destinations-
 failure led to the typed attempt extraction recorded on the task; the restored code passes file lint. Hosted evidence
 at the final implementation head is still due during verification.
 
+## A1 — Withdrawal conflict visibility
+
+Task 7.2's captured-tip change threads the withdrawal's `state`, `held`, and `incoming` through its entry inverse.
+The native case uses an already-completed second owner's production inbound document: an unpublished end creates
+it, a later write leaves it present-empty, and a competing published end triggers withdrawal. An independent,
+Store-produced quarter tip replaces the live quarter after capture and is restored before normal publication checks.
+The old fresh listing retains the end with a placement failure; captured tips let withdrawal complete in both layouts.
+
+The final current-view assertion exposes a separate pre-existing gap. The completed owner's history ref contains the
+new whole-record conflict, whose nonempty base and empty current value both carry the captured quarter and sequence.
+Its current quarter folder contains the inbound, primary, and metadata only, so the archived point read reports an
+empty conflict set. `prepareWithdrawEnd` prepares each journal ref independently: the archive inverse removes folders
+for the withdrawn end, while the history inverse appends the new conflict without refreshing that completed copy.
+
+The original production source at `c8f5708e1c`, with no quarter move, reproduces the same omission in both layouts.
+The completed-copy correction is separate from the captured-placement change and the later quarter-provenance fix.
+The outside-range stop was raised, and the Owner approved extending 7.2 with the atomic refresh before publication.
+The original 7.2 Goal stays unchanged; revision 7.2.R carries A1's additional behavior.
+
+The approved correction reuses `refreshArchivedFolder`, as `prepareSyncHistoryQuarters` does, after all inverse groups
+are prepared and before collision validation/publication. Refresh only surviving eligible completed folders from
+their final history groups, preserving each independent end and placement; do not recreate the withdrawn end's folder.
+Every refreshed quarter must remain within the captured, locked, expected-value transaction. The refresh also carries
+entry changes undone by the inverse, so a surviving copy cannot retain a removed contribution.
+
+The prepared captured-tip change passes file lint and both source/test type checks. Its native regression remains red
+on the omitted current conflict set in both layouts; no Task 7.2 completion or passing native result is claimed.
+
+Evidence is under `~/dev/arc-evidence/storage-ref-hardening/implementation/`: the placement-specific failure is
+`task-7.2-captured-placement-red-exposed.log`; the post-change current-view failure is
+`task-7.2-captured-placement-green.log`; the retained conflict and omitted quarter paths are in
+`task-7.2-conflict-location-diagnostic.log`; and `task-7.2-quarter-conflict-baseline-control.log` reproduces the omission
+against the original code without a quarter move. Temporary diagnostics and baseline controls are restored. Earlier
+setup refusals from the inbound-held rule and a missing primary-content read are not fail-first evidence.
+
+A1 elaborates Goal 8's withdrawal robustness: § 9 and the original criteria did not require completed-copy consistency,
+so the entry gate selects spec-depth rather than incomplete task derivation. No Non-Goal excludes this correction.
+The existing refresh and atomic publication mechanisms make the correction determinate; no lifecycle or Class change
+is needed. The capture adds the § 9 obligation, spec criterion 14, the appended task criterion, and 7.2.R.
+
+Author checks over A1's footprint traced `prepareWithdrawEnd`, `inverseWithdrawStep`, `preserveInverseConflicts`,
+`commitWithdrawal`, `prepareSyncHistoryQuarters`, and `refreshArchivedFolder`. The retained-history and current-read
+mismatch is reproduced by the logs above. The new obligation states the desired behavior without requiring these
+notes; its criterion distinguishes conflict visibility, entry inversion, placement, and atomic publication. Grounding
+of 7.2.R and its immediate neighbors found no import or review-mapping dependency. Forward propagation includes 7.2's
+covering regression and Phase 8's final criterion walk; 7.3–7.5 are unaffected. Backward propagation leaves 7.1's retry
+outcome and 6.10's deadline/concurrency qualification unchanged: neither attested this completed-copy behavior.
+Independent planning review is omitted for this determinate amendment; these checks are author-run evidence.
+
 ## Verification at the final head
 
 SC 3, SC 8's Windows case, SC 9, and SC 12 take their evidence mid-change, and no gate at the final head takes it again:

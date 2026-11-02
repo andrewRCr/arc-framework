@@ -808,12 +808,31 @@ before its fix and passes after it in the store suites.
 - _Goal:_ The withdrawal places its conflicts from the tip sets its operation captured, as every other
   `completeSyncPlacements` caller does, not from a fresh live listing.
 
+- _Note:_ The captured-tip change clears the native quarter-move refusal in both layouts. Its current-view assertion
+  exposed omitted completed copies, reproduced on original code without a quarter move. Approved amendment A1 adds
+  7.2.R before this task closes; see `notes-storage-ref-hardening.md` § A1 — Withdrawal conflict visibility.
+
     - `prepareWithdrawEnd`'s basis holds the captured `state`, `held`, and `incoming` tips. Thread them through
       `inverseWithdrawStep`, `inverseEntry`, `inverseEntryDocument`, and `mergeDocumentStage` to `conflictValue`
       (`sync-withdraw-entries.ts`), which passes them as `mergeGroupTree` passes its own and no longer calls
       `readSyncRefs`.
     - Build `test-first` (one behavior at a time): a ref that moves between capture and conflict placement leaves the
       placements as captured.
+
+### `[ ]` **7.2.R Refresh surviving completed copies before withdrawal publishes — § 9 (A1)**
+
+- _Goal:_ The final history groups and every surviving eligible completed copy publish the same retained conflicts
+  and undone entry changes atomically, preserving independent ends and placements without recreating the withdrawn
+  end's folder (A1).
+
+    - After all journal inverses and preserved sibling lineage, refresh surviving completed folders from their final
+      prepared history groups using `refreshArchivedFolder`, before namespace validation and publication. Retain each
+      folder's end batch and placement. Keep every refreshed quarter within captured, locked, expected-value bases;
+      reuse prepared evidence without a fresh listing or extra success-path Git process.
+    - Build `test-first` (one behavior at a time): the captured-placement scenario's completed point read exposes its
+      retained whole-record conflict; without a later conflicting edit, the completed point read reflects the entry
+      change undone with the withdrawn batch. Existing withdrawal coverage still proves removal of the withdrawn
+      folder, preservation of independent ends, and atomic publication in both layouts.
 
 ### `[ ]` **7.3 Push exclusion builds a refusal for every excluded ref — § 9**
 
@@ -922,3 +941,7 @@ before its fix and passes after it in the store suites.
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
 - `[ ]` Ready for integration
+
+- `[ ]` After withdrawal, current completed reads expose final history conflicts and undone entry changes; surviving
+  folders keep independent ends and placements, withdrawn folders stay removed, and refreshed copies publish
+  atomically with the inverse from captured, locked bases (A1, spec criterion 14).
