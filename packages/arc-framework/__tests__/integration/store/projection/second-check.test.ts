@@ -2,6 +2,7 @@
 import { link, open, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { createEditorHandles } from "../../../helpers/store/projection/editor-handles.js";
 import {
   deferring, landingCopies, prepareSwap, SWAP_WRITER, type PrepareSwapOptions,
 } from "../../../helpers/store/projection/swap-fixture.js";
@@ -17,7 +18,11 @@ import type { SwapHooks } from "../../../../src/lib/store/projection/swap.js";
 import type { TakeInPort } from "../../../../src/lib/store/projection/take-in-port.js";
 
 const directories: string[] = [];
-afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
+const editors = createEditorHandles();
+afterEach(async () => {
+  await editors.closeAll();
+  await removeGitBackedDirs(directories.splice(0));
+});
 
 /**
  * A file swapped with a handle held open from before its move, so a save can still write into the aside copy, and a
@@ -28,7 +33,7 @@ async function swappedWithHandle(options: PrepareSwapOptions = {}, hooks: SwapHo
   directories.push(prepared.seeded.checkout);
   let handle: Awaited<ReturnType<typeof open>> | undefined;
   const result = await prepared.swap({
-    hooks: { ...hooks, afterRecheck: async (path) => { handle = await open(prepared.file, "r+"); await hooks.afterRecheck?.(path); } },
+    hooks: { ...hooks, afterRecheck: async (path) => { handle = await editors.open(prepared.file); await hooks.afterRecheck?.(path); } },
   });
   /** Write a whole save through the handle opened before the move, as an editor holding the file would. */
   const writeThroughHandle = async (content: string): Promise<void> => {
@@ -229,7 +234,7 @@ async function truncatedBeforeMove(options: PrepareSwapOptions = {}) {
   directories.push(prepared.seeded.checkout);
   let handle: Awaited<ReturnType<typeof open>> | undefined;
   const result = await prepared.swap({
-    hooks: { afterRecheck: async () => { handle = await open(prepared.file, "r+"); await handle.truncate(0); } },
+    hooks: { afterRecheck: async () => { handle = await editors.open(prepared.file); await handle.truncate(0); } },
   });
   const [made] = result.copies;
   if (made === undefined || handle === undefined) throw new Error("expected the swap's aside copy and the save's handle");

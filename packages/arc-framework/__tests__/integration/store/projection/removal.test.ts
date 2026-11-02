@@ -3,6 +3,7 @@ import { readProjectionConfiguration } from "../../../../src/lib/store/projectio
 import { lstat, open, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { createEditorHandles } from "../../../helpers/store/projection/editor-handles.js";
 import { deferring, landingCopies, prepareRemoval, SWAP_WRITER, type PrepareRemovalOptions } from "../../../helpers/store/projection/swap-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import type { GitDirectoryFileAccess } from "../../../../src/lib/git/directories.js";
@@ -21,9 +22,13 @@ import type { SwapBatchResult } from "../../../../src/lib/store/projection/swap.
 import type { TakeInPort } from "../../../../src/lib/store/projection/take-in-port.js";
 
 const directories: string[] = [];
+const editors = createEditorHandles();
 const mark = { reason: "record-archived", remedy: { text: "Move the edit to the archived record's successor." } };
 const refusing: TakeInPort = async (request) => ({ answer: "refused", entry: request.entry, mark });
-afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
+afterEach(async () => {
+  await editors.closeAll();
+  await removeGitBackedDirs(directories.splice(0));
+});
 
 const gitFs: GitDirectoryFileAccess = { lstat, readFile: (path) => readFile(path, "utf8"), realpath };
 /** A take-in no step in these tests should reach. */
@@ -168,7 +173,7 @@ describe("removing a file", () => {
     const batch = await removal.remove({
       takeIn: landingCopies(removal.fixture.store),
       hooks: {
-        afterRecheck: async () => { handle = await open(removal.file, "r+"); },
+        afterRecheck: async () => { handle = await editors.open(removal.file); },
         afterMove: async () => {
           await handle?.truncate(0);
           await handle?.write(edit, 0);
@@ -194,7 +199,7 @@ describe("removing a file", () => {
     const removal = await prepared();
     let handle: Awaited<ReturnType<typeof open>> | undefined;
     const batch = await removal.remove({
-      hooks: { afterRecheck: async () => { handle = await open(removal.file, "r+"); await handle.truncate(0); } },
+      hooks: { afterRecheck: async () => { handle = await editors.open(removal.file); await handle.truncate(0); } },
     });
     const [made] = batch.copies;
     if (made === undefined || handle === undefined) throw new Error("expected the removal's aside copy and the save's handle");
@@ -251,7 +256,7 @@ describe("removing a file at a path the projection now lays another record at", 
   it("puts a copy refused at the second check back, holding the arrival back, and takes it in against the leaving record", async () => {
     const removal = await prepared({ relaid: true });
     let handle: Awaited<ReturnType<typeof open>> | undefined;
-    const batch = await removal.remove({ hooks: { afterRecheck: async () => { handle = await open(removal.file, "r+"); } } });
+    const batch = await removal.remove({ hooks: { afterRecheck: async () => { handle = await editors.open(removal.file); } } });
     const { stamp } = parseStampedFile(await readFile(join(removal.seeded.checkout, batch.copies[0]?.copy ?? ""), "utf8"));
     const saved = renderStampedFile({ content: "# Cohort: one\n\nSaved through a held handle.\n", stamp: stamp ?? "" });
     await handle?.truncate(0);

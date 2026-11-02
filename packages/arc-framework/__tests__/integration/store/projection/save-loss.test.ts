@@ -5,6 +5,7 @@
  */
 import { open, readFile, rm, type FileHandle } from "node:fs/promises";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { createEditorHandles } from "../../../helpers/store/projection/editor-handles.js";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
 import {
   gatedLanding, HANDLE_MODES, runSaveLoss, SAVE_MODES, SAVE_OUTCOMES, saveAs, saveThrough, startSaver, type HandleMode,
@@ -27,7 +28,11 @@ import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/p
 import { swapBatch, type SwapBatchResult, type SwapHooks } from "../../../../src/lib/store/projection/swap.js";
 
 const directories: string[] = [];
-afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
+const editors = createEditorHandles();
+afterEach(async () => {
+  await editors.closeAll();
+  await removeGitBackedDirs(directories.splice(0));
+});
 
 /** How many placed saves produced each interval's outcome on this platform, printed once the file's tests end. */
 const reached: Record<string, number> = {};
@@ -136,7 +141,7 @@ describe("a save timed into a replacement", () => {
     const swap = await swapping();
     const content = "# Cohort: one\n\nSaved after a stall.\n";
     let handle: FileHandle | undefined;
-    const batch = await whileHeld(swap.file, { afterRecheck: async () => { handle = await open(swap.file, "r+"); await handle.truncate(0); } },
+    const batch = await whileHeld(swap.file, { afterRecheck: async () => { handle = await editors.open(swap.file); await handle.truncate(0); } },
       (hooks) => swap.swap({ takeIn: swap.takeIn, hooks }));
     // The host stalls the save past the settle window across the command's second check, as one did on Windows.
     const stalled = { ...SYSTEM_READ_GATE, now: () => wallClockNs() + 2n * SETTLE_WINDOW_NS };
@@ -236,7 +241,7 @@ describe("a save timed into a removal", () => {
 function heldThrough(file: string, mode: HandleMode, text: string) {
   let handle: Awaited<ReturnType<typeof open>> | undefined;
   return {
-    afterRecheck: async () => { handle = await open(file, "r+"); },
+    afterRecheck: async () => { handle = await editors.open(file); },
     afterFirstCheck: async () => {
       if (handle === undefined) throw new Error("the handle was never opened");
       await saveThrough(handle, mode, text);
