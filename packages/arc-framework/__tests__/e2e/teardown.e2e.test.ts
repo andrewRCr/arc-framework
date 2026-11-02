@@ -4,15 +4,15 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdir, mkdtemp, rm, writeFile, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runArc, createTempRepo, cleanupTempDir, git, unwrapPresentationOutput } from "./helpers.js";
+import { runArc, cleanupTempDir, git, unwrapPresentationOutput } from "./helpers.js";
+import { initializedRepository } from "../helpers/initialized-repository.js";
 
+/** Build the linked teardown fixture from an initialized repository. */
 async function prepareSelfTeardown(
   repo: string,
   worktreeParent: string,
   options: { marked: boolean },
 ): Promise<string> {
-  const init = await runArc(["init", "--yes", "--name", "test-project"], repo);
-  expect(init.exitCode).toBe(0);
   await git(repo, ["add", "."]);
   await git(repo, ["commit", "--allow-empty", "-m", "chore: initialize ARC"]);
   await git(repo, ["checkout", "-b", "feat/demo"]);
@@ -98,9 +98,8 @@ describe("arc teardown (CLI surface)", () => {
   });
 
   it("removes a detached branch husk through branch-scoped CLI replay", async () => {
-    tmpDir = await createTempRepo();
+    tmpDir = await initializedRepository("initialized");
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-branch-husk-e2e-"));
-    expect((await runArc(["init", "--yes", "--name", "test-project"], tmpDir)).exitCode).toBe(0);
     await git(tmpDir, ["add", "."]);
     await git(tmpDir, ["commit", "--allow-empty", "-m", "chore: initialize ARC"]);
     const branch = "chore/leftover", worktree = join(worktreeParent, "wt");
@@ -124,8 +123,7 @@ describe("arc teardown (CLI surface)", () => {
   });
 
   it("refuses without a work-unit name", async () => {
-    tmpDir = await createTempRepo();
-    await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    tmpDir = await initializedRepository("initialized");
 
     const result = await runArc(["teardown"], tmpDir);
 
@@ -134,8 +132,7 @@ describe("arc teardown (CLI surface)", () => {
   });
 
   it("refuses a nonexistent receipt-backed target without a branch or detached husk", async () => {
-    tmpDir = await createTempRepo();
-    await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    tmpDir = await initializedRepository("initialized");
     await git(tmpDir, ["add", "."]);
     await git(tmpDir, ["commit", "-m", "chore: initialize ARC"]);
 
@@ -146,8 +143,7 @@ describe("arc teardown (CLI surface)", () => {
   });
 
   it("refuses branch-scoped teardown for non-chore branches", async () => {
-    tmpDir = await createTempRepo();
-    await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    tmpDir = await initializedRepository("initialized");
 
     const result = await runArc(["teardown", "--branch", "feat/demo"], tmpDir);
 
@@ -156,8 +152,7 @@ describe("arc teardown (CLI surface)", () => {
   });
 
   it("refuses malformed branch-scoped chore values before treating them as absent", async () => {
-    tmpDir = await createTempRepo();
-    await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    tmpDir = await initializedRepository("initialized");
 
     const result = await runArc(["teardown", "--branch", "chore/groom demo"], tmpDir);
 
@@ -167,8 +162,7 @@ describe("arc teardown (CLI surface)", () => {
   });
 
   it("accepts an already-absent recordless chore branch as an idempotent no-op", async () => {
-    tmpDir = await createTempRepo();
-    await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    tmpDir = await initializedRepository("initialized");
 
     const result = await runArc(["teardown", "--branch", "chore/missing"], tmpDir);
 
@@ -177,7 +171,7 @@ describe("arc teardown (CLI surface)", () => {
   });
 
   it("removes one missing shipped checkout registration while preserving other stale registrations", async () => {
-    tmpDir = await createTempRepo();
+    tmpDir = await initializedRepository("initialized");
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
     const other = join(worktreeParent, "other");
@@ -192,7 +186,7 @@ describe("arc teardown (CLI surface)", () => {
   });
 
   it("refuses a missing checkout held by an operator lock with the unlock remedy", async () => {
-    tmpDir = await createTempRepo();
+    tmpDir = await initializedRepository("initialized");
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
     await git(tmpDir, ["worktree", "lock", "--reason", "operator", worktree]);
@@ -204,7 +198,7 @@ describe("arc teardown (CLI surface)", () => {
   });
 
   it("names dirty paths before removing a shipped checkout", async () => {
-    tmpDir = await createTempRepo();
+    tmpDir = await initializedRepository("initialized");
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
     await writeFile(join(worktree, "dirty-file"), "keep me\n");
@@ -215,7 +209,7 @@ describe("arc teardown (CLI surface)", () => {
   });
 
   it("reports marked self-teardown as a live husk", async () => {
-    tmpDir = await createTempRepo();
+    tmpDir = await initializedRepository("initialized");
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
 
@@ -231,7 +225,7 @@ describe("arc teardown (CLI surface)", () => {
   });
 
   it("refuses markerless linked self-teardown as externally managed", async () => {
-    tmpDir = await createTempRepo();
+    tmpDir = await initializedRepository("initialized");
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: false });
 
@@ -244,7 +238,7 @@ describe("arc teardown (CLI surface)", () => {
   });
 
   it.each(["linux", "xterm-256color"])("reports outside husk replay as physical removal under %s", async term => {
-    tmpDir = await createTempRepo();
+    tmpDir = await initializedRepository("initialized");
     worktreeParent = await mkdtemp(join(tmpdir(), `arc-teardown-e2e-wt-${process.platform === "win32" ? "│" : "|│"}-${"long-".repeat(24)}`));
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
     const created = await runArc(["teardown", "demo"], worktree);
@@ -263,7 +257,7 @@ describe("arc teardown (CLI surface)", () => {
   });
 
   it("does not let an old husk delete a restarted same-slug projection", async () => {
-    tmpDir = await createTempRepo();
+    tmpDir = await initializedRepository("initialized");
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
     const created = await runArc(["teardown", "demo"], worktree);
@@ -279,7 +273,7 @@ describe("arc teardown (CLI surface)", () => {
   });
 
   it("reports a surviving local ref and retry guidance after detach", async () => {
-    tmpDir = await createTempRepo();
+    tmpDir = await initializedRepository("initialized");
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
     const lock = join(tmpDir, ".git", "refs", "heads", "feat", "demo.lock");
@@ -297,7 +291,7 @@ describe("arc teardown (CLI surface)", () => {
   });
 
   it("reports a dirty preflight refusal as still branched and unchanged", async () => {
-    tmpDir = await createTempRepo();
+    tmpDir = await initializedRepository("initialized");
     worktreeParent = await mkdtemp(join(tmpdir(), "arc-teardown-e2e-wt-"));
     const worktree = await prepareSelfTeardown(tmpDir, worktreeParent, { marked: true });
     await writeFile(join(worktree, "dirty.txt"), "dirty\n");

@@ -564,14 +564,21 @@ Conditional Sync Pulls reference. Broader searches retain matches in historical 
 those are not current shipped instructions. The five named source modules carry no retired-step citations, and the
 `constitution/types` import is a live command module rather than a stale rules-directory reference.
 
-The final full integration run includes all 12 framework-sync cases and passes 4,997 tests across 510 files, with
-755 tests and one file skipped. Full link validation passes. The segment request passes, including both type checks,
+The pre-reconciliation full integration run includes all 12 framework-sync cases and passes 4,997 tests across 510 files,
+with 755 tests and one file skipped. Full link validation passes. The segment request passes, including both type checks,
 TypeScript lint, the full unit suite, Markdown checks, and package sync. Evidence is retained under
 `~/dev/arc-evidence/session-init-agenda/result/shipped-surface/`.
 
 The initial integration run `a668f1e4a5304c5f9a6188c8ef11e9b2` had one 15-second timeout in the unchanged
 `one-shot-script-entrypoints.test.ts` failure-output case; the other 4,996 tests passed. Runner diagnostics were inspected
 before attribution. The unchanged focused file passed all five cases, and the approved unchanged full-suite retry
-`804f3c438e19478db2df3794f71a6619` passed. This establishes intermittence, not a confirmed cause or a fix. The original
-failure, focused pass, final full log, and runner histories remain retained; no timeout or source change was made.
+`804f3c438e19478db2df3794f71a6619` passed. Those passes established intermittence while the cause was unidentified.
+The original failure, focused pass, full retry log, and runner histories remain retained; no timeout or source change
+was made between those runs.
+
+The PM follow-up identified upstream #1235, merge `ee7da5f6c80814540a69571a4c6b16dec342bab8`, as the existing fix.
+Inspection confirms that the failure-output subprocess gains the shared 30-second `CALL_LIMIT`, and its case budget
+becomes twice that limit instead of 15 seconds. This branch predated the fix; its 13,950 ms full retry fits the reported
+failure mode. Reconciliation with main `255b75b43257fd1a61001ea76fad9a9bb6d988db` brings that fix into the branch.
+Any recurrence after this merge is new evidence rather than a continuation of the pre-fix timeout.
 Whole-suite E2E and hosted CI remain outside this execution boundary and have not run.

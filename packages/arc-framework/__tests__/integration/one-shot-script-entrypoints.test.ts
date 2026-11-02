@@ -7,6 +7,8 @@ import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { CALL_LIMIT } from "../helpers/call-limit.js";
+
 const execute = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 const npmExecutable = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -107,6 +109,7 @@ describe("one-shot TypeScript package scripts", () => {
       {
         cwd: repositoryRoot,
         encoding: "utf8",
+        timeout: CALL_LIMIT,
         env: { ...process.env, FORCE_COLOR: undefined, ARC_LISTEN_PROBE: marker, NODE_OPTIONS: nodeOptions },
       },
     )).rejects.toMatchObject({
@@ -115,7 +118,7 @@ describe("one-shot TypeScript package scripts", () => {
       stderr: expect.stringContaining("--output requires a path"),
     });
     expect(await readFile(marker, "utf8")).toMatch(/^armed:\d+\n(?:armed:\d+\n)*$/u);
-  }, PROCESS_TIMEOUT_MS);
+  }, 2 * CALL_LIMIT);
 
   it("shows prose formatter usage before validating help as a Markdown path", async () => {
     const result = await execute(npmExecutable, ["run", "-s", "format:prose", "--", "--help"], {
