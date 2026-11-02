@@ -871,6 +871,11 @@ before its fix and passes after it in the store suites.
 - _Goal:_ Under the ref backend, a decomposed member's meta Design entry and the decompose report name the verbatim
   companion record that actually resolves.
 
+- _Note:_ The specified stored-name correction fixes native optional-copy reports. Production metadata admission
+  rejects a fresh member's verbatim Design entry before the report can land, both before and after that correction.
+  The task remains open for disposition of § 10's Design-success claim; see `notes-storage-ref-hardening.md`
+  § Decomposition companion naming evidence. No Design admission or planning-profile rule has changed.
+
     - `copyCoordinates` (`lib/decompose/scaffold-copy.ts`) and the member meta's Design entry (`member-scaffold.ts`)
       use `companionStoredName` (`lib/store/companion-name.ts`), which the store places the record by.
     - Build `test-first` (one behavior at a time), in a `store-ref-*` suite through

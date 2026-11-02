@@ -388,6 +388,48 @@ six cases and the existing quarter provenance, archive, completed-write, reopen,
 - `task-7.4-restored-primary-green.log` and `task-7.4-quarter-regression.log`: restored source passes all six new cases
   and the broader regression selection.
 
+## Decomposition companion naming evidence
+
+Task 7.5's reachable report defect is reproduced through the production registry and native public store in both
+layouts. The origin keeps its normal draft Design and owns a companion keyed `design/notes-origin.md`. Fresh preflight
+scans its basename, and a producer-derived map allocates its notes unit to `notes-member-a.md`. The additive write
+copies and retitles the real companion successfully, but its report originally names
+`design/notes-origin.md-member-a.md`. `copyCoordinates` now calls `companionStoredName`, the specified change, so the
+report names `design/notes-origin.md`; the test reads the actual copied record and Git blob at that reported name.
+
+The Design-success claim in § 10 requires disposition before this task closes. `checkMetaDesignEntry`
+(`store/kinds/meta/reference-rules.ts`) accepts fresh member Design entries only for its own conventional draft/spec
+names or its paired-spec names with canonical `spec-prd` / `spec-rfc` companions. Reserved-path and alias admission
+prevent a raw companion key from masquerading as those canonical records. A new verbatim Design entry fails even
+with the corrected formatter. `decomposePlanningProfile` (`decompose/source-profile.ts`) independently requires the
+origin's conventional design profile. The report correction changes neither contract.
+
+Astra's bounded consultation (`decompose_name_advisor`, first for this task) confirmed the report reproduction and
+recommended the specified correction, retaining ordinary Design coverage. It identified a faithful path into the
+Design-copy branch: remove an origin's canonical draft while its unchanged Design survives, then seed
+`design/draft-origin.md`. Native preflight succeeds, but additive publication refuses the new member's
+`meta.design-entry` both before and after the formatter correction. Thus the branch is reachable; successful verbatim
+Design publication is blocked by the existing contract. Source inspection and both native layouts confirm that
+boundary. The advisor did not authorize a contract or acceptance change.
+
+The proposed direction is to retain conventional Design admission and narrow § 10's acceptance claim to the reachable
+report defect. This is a design-arm correction of § 10 ¶1 at low derivation depth: the implementation mechanism is
+settled, but changing the approved outcome remains the Owner's decision. Task 7.5 and its Goal stay open and verbatim;
+no amendment, criterion change, or broadened Design behavior is recorded as approved.
+
+Evidence under `~/dev/arc-evidence/storage-ref-hardening/implementation/`:
+
+- `task-7.5-companion-report-red.log`: both layouts fail on the actual wrong report name, run
+  `4bcd5e1f9e9e4313842a3aee16497e08`; its retained pool history confirms command exit 1.
+- `task-7.5-reserved-path-setup-refusal.log`, `task-7.5-primary-placement-setup-refusal.log`, and
+  `task-7.5-design-setup-refusal.log`: rejected fixture inputs, none supplying target fail-first evidence.
+- `task-7.5-design-admission-baseline.log` and `task-7.5-design-admission-probe.ts`: the native Design boundary probe
+  before the formatter change. Its temporary test file was removed from the checkout after retaining its exact input.
+- `task-7.5-companion-regression.log`: the first corrected-name run reached a native assertion whose string Git port
+  strips the final newline. The assertion now uses the byte-preserving raw Git port; expected record bytes are intact.
+- `task-7.5-companion-regression-retry.log`: the two report cases, two unchanged Design boundary probes, existing native
+  cut admission, and conventional draft/single/paired Design scaffolds pass together (36 cases across four suites).
+
 ## Verification at the final head
 
 SC 3, SC 8's Windows case, SC 9, and SC 12 take their evidence mid-change, and no gate at the final head takes it again:
