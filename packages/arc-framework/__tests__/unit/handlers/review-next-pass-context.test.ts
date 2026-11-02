@@ -58,7 +58,7 @@ it("counts an inherited complete look from stored Candidate history without a Ca
   await resolveRepositoryIdentity(new RepositoryGitCommonStatePublisher(exec, root), () => target.repositoryId);
   const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = fixture.producer.requirement;
   const request = ReviewPolicyCommandRequestSchema.parse({ schemaVersion: 1, lane: "standard",
-    target: { repository: "example/repo", pullRequest: null, headSha: target.headSha }, completedPasses: 2, attempts: [],
+    target: { repository: "example/repo", pullRequest: null, headSha: target.headSha }, completedPasses: 1, attempts: [],
     standardReview: { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } });
   const input = { root, exec, request, configuredSources: ["delegated-agent"],
     store: fixture.harness.store, workItem: fixture.owner, projectId: async () => target.repositoryId,
@@ -71,5 +71,5 @@ it("counts an inherited complete look from stored Candidate history without a Ca
     remedy: { text: "Restore the authoritative project identity." } });
   await expect(readResolveNextPassContext({ ...input, request: terminalRequest,
     projectId: async () => { throw unavailable; } })).rejects.toMatchObject({ failure: unavailable.failure });
-  expect(await readResolveNextPassContext({ ...input, request: terminalRequest })).toMatchObject({ completePasses: 2 });
+  expect(await readResolveNextPassContext({ ...input, request: terminalRequest })).toMatchObject({ completePasses: 1 });
 });

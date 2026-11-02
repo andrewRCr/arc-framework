@@ -66,7 +66,7 @@ export async function readResolveNextPassContext(input: ReviewInvocationOptions 
   const inherited = candidate === null || workUnit === undefined ? null
     : await readCandidateInheritedLaneProgress(operationStore, { lane: "standard", repositoryId,
       headSha: target.headSha,
-      ancestors });
+      ancestors: ancestors.filter(ancestor => lineage.kind !== "candidate" || ancestor.candidateId !== lineage.candidateId) });
   const inheritedOwner = inherited?.ancestorOwners.find(({ owner: ancestor }) =>
     ancestor?.attempts.some(attempt => attempt.terminalProducer
       && (attempt.outcome === "clean" || attempt.outcome === "findings" || attempt.outcome === "settled-findings")) === true)?.owner;

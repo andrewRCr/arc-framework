@@ -101,7 +101,8 @@ export async function composeNativePolicyGrants(input: ReviewInvocationInput & {
   const ancestors = candidate === null || workUnit === undefined ? [] : await readRepositoryCandidateSupersessionChain({
     ...input, workUnit, record: candidate });
   const inherited = await readCandidateInheritedLaneProgress(input.operationStore, {
-    lane: request.lane, repositoryId, headSha: target.headSha, ancestors });
+    lane: request.lane, repositoryId, headSha: target.headSha,
+    ancestors: ancestors.filter(ancestor => lineage.kind !== "candidate" || ancestor.candidateId !== lineage.candidateId) });
   const completedPasses = (progress.status === "recorded" ? progress.completedPasses : 0) + inherited.inheritedCompletedPasses;
   const value = { repositoryId, lane: request.lane, completedPasses, policyTarget: request.target,
     ceilingOverride: request.ceilingOverride, additionalPassAuthorization: request.additionalPassAuthorization,
