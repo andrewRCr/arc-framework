@@ -7,6 +7,7 @@ import { SlugSchema, type Slug } from "../../../kernel/schema/slug.js";
 import { IDENTITY_STATUS_FILENAME } from "../../../user-surfaces.js";
 import { isAllowedFile, MAX_FILE_SIZE } from "../../../git/user-sync.js";
 import { legacyRootSessionNotesName } from "./personal-layout.js";
+import { containsImportCheckout, type ImportPersonalCheckout } from "./personal-checkouts.js";
 
 type ImportFileAccess = NonNullable<RefBackendContext["importSource"]>["ports"]["fs"];
 
@@ -16,7 +17,7 @@ export interface ImportPersonalFile { person: Slug; path: string; physicalPath: 
 export interface ImportPersonalLink { person: Slug; path: string; physicalPath: string; root: string }
 /** All identities and their materializations, including identities with notes alone. */
 export interface ImportPersonalDisk { people: Set<Slug>; files: ImportPersonalFile[]; links: ImportPersonalLink[];
-  visited: Map<string, Set<string>> }
+  visited: Map<string, Set<string>>; checkouts: ImportPersonalCheckout[] }
 
 /** Exclude machine-local folders and the identity's generated status cache on both sides. */
 export function importPersonalExcluded(path: string): boolean {
@@ -39,7 +40,7 @@ export async function readImportPersonalDisk(context: RefBackendContext): Promis
     { ...options, cwd: source.ports.checkoutRoot, objectAccess: "local-only" });
   const roster = await scanRegisteredWorktrees(exec, path => source.ports.fs.lstat(path));
   if (!roster.ok) throw new Error(`Cannot enumerate personal materializations: ${roster.message}`);
-  const result: ImportPersonalDisk = { people: new Set(), files: [], links: [], visited: new Map() };
+  const result: ImportPersonalDisk = { people: new Set(), files: [], links: [], visited: new Map(), checkouts: [] };
   const refs = await exec("git", ["for-each-ref", "--format=%(refname)", "refs/notes/arc/user/"]);
   for (const ref of refs.stdout.trim().split("\n")) {
     const person = SlugSchema.safeParse(ref.slice("refs/notes/arc/user/".length));
@@ -82,7 +83,9 @@ async function walk(fs: ImportFileAccess, result: ImportPersonalDisk,
   const real = await readPersonalPath(join(root, prefix), () => fs.realpath(join(root, prefix)));
   if (visited.has(real)) return;
   visited.add(real);
-  for (const entry of await directories(fs, join(root, prefix))) {
+  const entries = await directories(fs, join(root, prefix));
+  if (containsImportCheckout(entries)) { result.checkouts.push({ person, path: prefix, physicalPath: join(root, prefix) }); return; }
+  for (const entry of entries) {
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (importPersonalExcluded(path)) continue;
     const physicalPath = join(root, path), stat = await readPersonalPath(physicalPath, () => fs.lstat(physicalPath));

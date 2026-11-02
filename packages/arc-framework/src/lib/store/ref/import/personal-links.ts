@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { RefStorePorts } from "../../ports.js";
 import type { MigrateReport } from "../../commands.js";
 import { importPersonalExcluded, type ImportPersonalFile, type ImportPersonalLink } from "./personal-disk.js";
+import { containsImportCheckout, type ImportPersonalCheckout } from "./personal-checkouts.js";
 
 type ImportFileAccess = NonNullable<RefStorePorts["importSource"]>["ports"]["fs"];
 interface LinkReader {
@@ -12,16 +13,17 @@ interface LinkReader {
   files: ImportPersonalFile[];
   skipped: Set<string>;
   visited: Map<string, Set<string>>;
+  checkouts: ImportPersonalCheckout[];
 }
 
 /** Acquire saved links at their original manifest paths before ordinary notes comparison. */
 export async function followImportPersonalLinks(fs: ImportFileAccess, links: readonly ImportPersonalLink[],
   snapshot: Readonly<Record<string, string>>, notices: MigrateReport["notices"],
-  visited: ReadonlyMap<string, ReadonlySet<string>>): Promise<{ files: ImportPersonalFile[]; skipped: Set<string> }> {
+  visited: ReadonlyMap<string, ReadonlySet<string>>): Promise<{ files: ImportPersonalFile[]; skipped: Set<string>; checkouts: ImportPersonalCheckout[] }> {
   const reader: LinkReader = { fs, snapshot, notices, files: [], skipped: new Set(),
-    visited: new Map([...new Set(links.map(link => link.root))].map(root => [root, new Set(visited.get(root))])) };
+    visited: new Map([...new Set(links.map(link => link.root))].map(root => [root, new Set(visited.get(root))])), checkouts: [] };
   for (const link of links) await followLink(reader, link);
-  return { files: reader.files, skipped: reader.skipped };
+  return { files: reader.files, skipped: reader.skipped, checkouts: reader.checkouts };
 }
 
 async function followLink(reader: LinkReader, link: ImportPersonalLink): Promise<void> {
@@ -30,9 +32,11 @@ async function followLink(reader: LinkReader, link: ImportPersonalLink): Promise
   try {
     const target = await reader.fs.realpath(link.physicalPath), stat = await reader.fs.lstat(target), collected: ImportPersonalFile[] = [];
     if (stat.isDirectory()) {
-      if (!await collectLinkedDirectory({ ...reader, files: collected }, link, target)) {
+      const outcome = await collectLinkedDirectory({ ...reader, files: collected }, link, target);
+      if (outcome === "visited") {
         skipLink(reader, link, saved, "its real directory was already visited."); return;
       }
+      if (outcome === "checkout") return;
     } else if (stat.isFile()) collected.push({ ...link, size: stat.size, content: await reader.fs.readFile(link.physicalPath) });
     else throw new Error("The link target is neither a file nor a directory");
     reader.files.push(...collected);
@@ -47,12 +51,14 @@ function skipLink(reader: LinkReader, link: ImportPersonalLink, saved: readonly 
   reader.notices.push({ condition: `Skipped personal link ${link.person}/${link.path} at ${link.physicalPath}: ${reason}` });
 }
 
-async function collectLinkedDirectory(reader: LinkReader, link: ImportPersonalLink, target: string): Promise<boolean> {
+async function collectLinkedDirectory(reader: LinkReader, link: ImportPersonalLink, target: string): Promise<"read" | "visited" | "checkout"> {
   const visited = reader.visited.get(link.root) ?? new Set<string>();
   reader.visited.set(link.root, visited);
-  if (visited.has(target)) return false;
+  if (visited.has(target)) return "visited";
   visited.add(target);
-  for (const entry of await reader.fs.readdir(link.physicalPath)) {
+  const entries = await reader.fs.readdir(link.physicalPath);
+  if (containsImportCheckout(entries)) { reader.checkouts.push(link); return "checkout"; }
+  for (const entry of entries) {
     const child = { ...link, path: link.path ? `${link.path}/${entry.name}` : entry.name, physicalPath: join(link.physicalPath, entry.name) };
     if (importPersonalExcluded(child.path)) continue;
     const stat = await reader.fs.lstat(child.physicalPath);
@@ -60,5 +66,5 @@ async function collectLinkedDirectory(reader: LinkReader, link: ImportPersonalLi
     else if (stat.isDirectory()) await collectLinkedDirectory(reader, child, await reader.fs.realpath(child.physicalPath));
     else if (stat.isFile()) reader.files.push({ ...child, size: stat.size, content: await reader.fs.readFile(child.physicalPath) });
   }
-  return true;
+  return "read";
 }

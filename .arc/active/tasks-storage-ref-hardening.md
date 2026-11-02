@@ -516,19 +516,16 @@ annotated commit.
   mapping cases retain the collision and exemption behavior; a real CLI trial checks 20,000 personal paths within
   its invocation limit. The later stored-tree collision check is unchanged.
 
-### `[ ]` **5.8 A Git checkout inside personal state is reported, not walked — § 11.2**
+### `[x]` **5.8 A Git checkout inside personal state is reported, not walked — § 11.2**
 
 - _Goal:_ The import never enters a directory that holds a `.git` entry, under `.arc/user/<identity>/`, the identity
   directory included, or under a followed link's target, and reports it once with a blocking notice whose remedy is to
   move the checkout outside personal state or remove it.
 
-    - `walk` (`import/personal-disk.ts`), and 5.2's read of a followed directory, stop at a `.git` file or directory,
-      and each stop is returned as a notice that blocks, as the import's other personal-state faults are
-      (`personal.ts`), naming the path, with `git worktree move` for a registered worktree.
-    - Build `test-first` (one behavior at a time): at `readImportPersonalDisk`, a directory with a `.git` directory is
-      reported once and its files are not read; the same for a `.git` file; a sibling directory without one is read as
-      today. At `appendImportPersonal`, a followed linked directory that holds a `.git` entry is reported once and not
-      read.
+- _Outcome:_ Physical directories, identity roots, and saved linked targets stop at a `.git` entry with one
+  blocking move-or-remove notice. Their excluded saved paths do not become missing-materialization notices, while
+  ordinary siblings and unsaved link skips retain their behavior. Native cases exercise both Git entry forms and
+  successful continuation after moving the checkout or its personal-state entry out, including `git worktree move`.
 
 ### `[ ]` **5.9 Fix the import review's reachable findings — § 11.1**
 
