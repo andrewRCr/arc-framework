@@ -36,7 +36,7 @@ import { HostedRequestOwnerIndex } from "../../../src/scripts/review-gate/hosts/
 import { bindReviewSourceReference, parseReviewSourceReference } from "../../../src/scripts/review-gate/core/review-source-reference.js";
 import { bindNativeReviewOperationReference, parseNativeReviewOperationReference } from "../../../src/scripts/review-gate/core/review-operation-reference.js";
 
-import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../../src/lib/kernel/index.js";
 import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
 
 // The locus probe runs as itself unless a case makes one call meet a store refusal from another checkout's records.
@@ -202,10 +202,41 @@ Reclassify the changed target before continuing.`,
       return JSON.parse(output) as unknown;
     },
     run: (bound?: { workItem?: OwnerIdentity }) => invoke(handleReviewHostedRequest, request, bound),
-    runRequest: (input: unknown) => invoke(handleReviewHostedRequest, input),
+    runRequest: (input: unknown, bound?: { workItem?: OwnerIdentity }) => invoke(handleReviewHostedRequest, input, bound),
+    dispatchedRequests: () => requestNumber,
     settle: (input: unknown, bound?: { workItem?: OwnerIdentity; store?: Store }) => invoke(handleReviewHostedSettle, input, bound),
     awaitResult: (input: unknown, bound?: { workItem?: OwnerIdentity; store?: Store }) => invoke(handleReviewHostedAwait, input, bound) };
 }
+
+
+it.each([false, true])("checks the fresh hosted owner before grants or dispatch (work unit: %s)", async workUnit => {
+  const h = await fixture(workUnit), foreign = await h.seedMeta("elsewhere");
+  const request = { ...h.request, ceilingOverride: { target: h.request.target, lane: "standard" as const,
+    exhaustedPassCount: 0, nextPass: 1 } };
+  const own = createReviewCompositionContext({ ...h, workItem: h.primary.reference.owner }).family.ports.inFlight;
+  const other = createReviewCompositionContext({ ...h, workItem: foreign.reference.owner }).family.ports.inFlight;
+  const before = [await own.readOperationSnapshot(), await other.readOperationSnapshot()];
+  const version = lifecycleSuccess(await h.store.version());
+  expect(await h.runRequest(request, { workItem: foreign.reference.owner })).toMatchObject({ error: { code: "invalid-input" } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
+  expect([await own.readOperationSnapshot(), await other.readOperationSnapshot()]).toEqual(before);
+  expect(await h.index.read(projectId, request)).toBeNull();
+  expect(h.dispatchedRequests()).toBe(0);
+  const raw = await h.run({ workItem: h.primary.reference.owner });
+  expect(raw, JSON.stringify(raw)).toMatchObject({ state: "requested" });
+  expect(h.dispatchedRequests()).toBe(1);
+  expect(await createReviewDecisionPort(h.store, foreign.reference.owner).list()).toMatchObject({ status: "complete", records: [] });
+  expect(await createReviewDecisionPort(h.store, h.primary.reference.owner).list())
+    .toMatchObject({ status: "complete", records: [] });
+});
+
+it.each([false, true])("normalizes a retained former name on fresh hosted admission (work unit: %s)", async workUnit => {
+  const h = await fixture(workUnit), selected = h.primary.reference.owner;
+  const raw = await h.run({ workItem: { ...selected, name: SlugSchema.parse("former-name") } });
+  const requested = HostedRequestResultSchema.parse(raw);
+  if (requested.state !== "requested" || requested.operationRef === undefined) throw new Error(JSON.stringify(raw));
+  expect(parseNativeReviewOperationReference(requested.operationRef).workItem).toEqual(selected);
+});
 
 async function completedHostedPass(workUnit = false) {
   const h = await fixture(workUnit);
@@ -221,7 +252,7 @@ async function completedHostedPass(workUnit = false) {
 it.each([false, true])("records a hosted additional grant with the active identity and relays its reference (work unit: %s)", async workUnit => {
   const h = await completedHostedPass(workUnit);
   const request = { ...h.request, additionalPassAuthorization: h.additionalPassAuthorization };
-  const raw = await h.runRequest(request);
+  const raw = await h.runRequest(request, { workItem: h.primary.reference.owner });
   expect(raw, JSON.stringify(raw)).toMatchObject({ state: "requested", handle: { admission: { logicalPass: 2, actorIdentity: "123" } } });
   const decisions = await createReviewDecisionPort(h.store, h.primary.reference.owner).list();
   if (decisions.status !== "complete") throw new Error(decisions.reason);
@@ -403,6 +434,7 @@ it("retains a branch-linked Work Unit UID through default hosted continuation af
     provenance: { verb: "archive", lifecycleAction: "archive" } }));
   const replacement = await h.seedMeta("example", { branch: null });
   expect(replacement.reference.owner).not.toEqual(h.primary.reference.owner);
+  expect(await h.run({ workItem: h.primary.reference.owner })).toEqual(requested);
   h.complete();
   expect(await h.awaitResult(requested.action)).toMatchObject({ state: "clean", operationRef: requested.operationRef });
 });

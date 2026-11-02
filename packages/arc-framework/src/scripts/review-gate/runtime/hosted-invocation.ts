@@ -9,7 +9,7 @@ import { createReviewCompositionContext } from "./composition-context.js";
 import { laneProgressOperationId } from "../lane-progress.js";
 import { HostedAwaitCommandResultSchema, type HostedAwaitEnvelope } from "../hosted/await.js";
 import type { HostedRequestOwnerIndexRecord } from "../hosts/local/hosted-request-owner-index.js";
-import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
+import { readLocalReviewLiveContext, corroborateLocalReviewOwner } from "../hosts/local/live-context.js";
 import { resolveNamedReviewWorkUnitInvocation } from "./review-work-unit.js";
 import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationOptions } from "./invocation.js";
 import { resolveReviewOperationInvocation, ReviewContinuationReferenceError } from "./continuation-invocation.js";
@@ -27,17 +27,21 @@ export async function resolveHostedRequestInvocation(options: ReviewInvocationIn
     }
     return { ...input, workItem: input.workItem ?? indexed.workItem };
   }
-  if (input.workItem !== undefined) return input;
   if (request.vehicle?.kind === "delivery-member") {
     const workUnitId = request.vehicle.workUnitId;
-    const selected = await resolveNamedReviewWorkUnitInvocation(input, workUnitId);
+    const selected = await resolveNamedReviewWorkUnitInvocation({ ...input, workItem: undefined }, workUnitId);
     if (selected.workItem === undefined) throw Object.assign(new Error(`The delivery member's work unit \`${workUnitId}\` `
       + "is not stored. Name the member's stored work unit, then retry arc review hosted request -."), { code: "invalid-input" });
+    if (input.workItem !== undefined && !sameOwner(input.workItem, selected.workItem)) {
+      throw Object.assign(new Error("The bound review work item does not match the delivery member's stored owner. "
+        + "Select the member's current work item and retry arc review hosted request -."), { code: "invalid-input" });
+    }
     return selected;
   }
   const live = await readLocalReviewLiveContext(input);
-  if (live.workItem === undefined) throw new Error("Hosted review progress requires one active work unit or an explicit vehicle.");
-  return { ...input, workItem: live.workItem };
+  const workItem = corroborateLocalReviewOwner(input.workItem, live);
+  if (workItem === undefined) throw new Error("Hosted review progress requires one active work unit or an explicit vehicle.");
+  return { ...input, workItem };
 }
 
 /** Bind await from the acknowledged admission locator before inspecting pending state or opening review ports. */

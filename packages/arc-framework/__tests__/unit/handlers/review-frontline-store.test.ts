@@ -136,12 +136,12 @@ async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand
       write: text => { output += text; }, setExitCode: () => {} },
     undefined, { ...checkout, codeRabbit, store: bound.store ?? checkout.store, workItem: bound.workItem, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
-  }, resolve: async (mode: "skip" | "force" = "skip", policyJudgment?: FrontlineResolveRequest["policyJudgment"]) => {
+  }, resolve: async (mode: "skip" | "force" = "skip", policyJudgment?: FrontlineResolveRequest["policyJudgment"], workItem?: OwnerIdentity) => {
     let output = "";
     await handleReviewFrontlineResolve("-", { resolveRoot: () => checkout.cwd,
       readText: async () => JSON.stringify({ ...request(mode), ...(policyJudgment === undefined ? {} : { policyJudgment }) }),
       write: text => { output += text; }, setExitCode: () => {} },
-    undefined, { ...checkout, projectId: createProjectIdentityReader(checkout.store) });
+    undefined, { ...checkout, workItem, projectId: createProjectIdentityReader(checkout.store) });
     const result = JSON.parse(output) as unknown;
     const parsed = FrontlineResolveEnvelopeSchema.safeParse(result);
     if (parsed.success && parsed.data.state === "ready" && parsed.data.payload.operationRef !== undefined) {
@@ -150,6 +150,39 @@ async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand
     return result;
   } };
 }
+
+
+it.each(["errand", "work-unit"] as const)("refuses a foreign owner before fresh %s frontline effects and accepts matching retry", async vehicle => {
+  for (const mode of ["skip", "force"] as const) {
+    const h = await fixture(true, vehicle), foreign = await h.seedMeta("elsewhere");
+    const selected = lifecycleSuccess(await h.store.lookup({ kind: "slug",
+      slug: SlugSchema.parse(vehicle === "errand" ? "repair" : "example") })).reference.owner;
+    const own = createReviewCompositionContext({ ...h, workItem: selected }).family.ports.inFlight;
+    const other = createReviewCompositionContext({ ...h, workItem: foreign.reference.owner }).family.ports.inFlight;
+    const before = [await own.readOperationSnapshot(), await other.readOperationSnapshot()];
+    const version = lifecycleSuccess(await h.store.version());
+    expect(await h.resolve(mode, { ceilingOverride: { exhaustedPassCount: 0, nextPass: 1 } }, foreign.reference.owner))
+      .toMatchObject({ error: { code: "invalid-input" } });
+    expect(lifecycleSuccess(await h.store.version())).toBe(version);
+    expect([await own.readOperationSnapshot(), await other.readOperationSnapshot()]).toEqual(before);
+    const raw = await h.resolve(mode, undefined, selected);
+    expect(raw, JSON.stringify(raw)).toMatchObject({ state: mode === "skip" ? "skipped" : "ready" });
+    expect(await createReviewDecisionPort(h.store, foreign.reference.owner).list())
+      .toMatchObject({ status: "complete", records: [] });
+    expect(await createReviewDecisionPort(h.store, selected).list())
+      .toMatchObject({ status: "complete", records: mode === "skip" ? [expect.anything()] : [] });
+  }
+});
+
+it.each(["errand", "work-unit"] as const)("normalizes a retained former name on fresh %s frontline admission", async vehicle => {
+  const h = await fixture(true, vehicle);
+  const selected = lifecycleSuccess(await h.store.lookup({ kind: "slug",
+    slug: SlugSchema.parse(vehicle === "errand" ? "repair" : "example") })).reference.owner;
+  const raw = await h.resolve("force", undefined, { ...selected, name: SlugSchema.parse("former-name") });
+  const result = FrontlineResolveEnvelopeSchema.parse(raw);
+  if (result.state !== "ready" || result.payload.operationRef === undefined) throw new Error(JSON.stringify(raw));
+  expect(parseNativeReviewOperationReference(result.payload.operationRef).workItem).toEqual(selected);
+});
 
 it.each(["skip", "force"] as const)("resolves a native work unit's %s from its stored Candidate", async mode => {
   const h = await fixture(true, "work-unit");
@@ -352,7 +385,7 @@ it("records an ordinary frontline ceiling pass and validates references before p
   h.advanceHead();
   await writeFile(join(h.cwd, ".arc/system/arc-config.yml"), "branch.base: main\nreview.frontline_max_passes: 1\n");
   const grant = { exhaustedPassCount: 1, nextPass: 2 };
-  const raw = await h.resolve("force", { ceilingOverride: grant });
+  const raw = await h.resolve("force", { ceilingOverride: grant }, workItem);
   expect(raw, JSON.stringify(raw)).toMatchObject({ state: "ready", payload: { pass: 2, maxPasses: 2 } });
   const admitted = FrontlineResolveEnvelopeSchema.parse(raw);
   if (admitted.state !== "ready") throw new Error(JSON.stringify(admitted));

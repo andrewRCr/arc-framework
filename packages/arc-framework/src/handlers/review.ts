@@ -193,7 +193,7 @@ import {
   confirmNonDeliveryIncrementalApplicability,
 } from
   "../scripts/review-gate/policy/local-review-coverage-selection.js";
-import { readLiveErrandClaimId, readLocalReviewLiveContext } from
+import { readLiveErrandClaimId, readLocalReviewLiveContext, corroborateLocalReviewOwner } from
   "../scripts/review-gate/hosts/local/live-context.js";
 import { recordNativeFrontlineSkip, createNativeFrontlineSkipRecorder } from "../scripts/review-gate/runtime/native-frontline-window.js";
 import { createHostedPassJudgmentContext } from "../scripts/review-gate/runtime/native-hosted-pass-judgments.js";
@@ -2647,14 +2647,15 @@ function defaultFrontlineResolveDependencies(context: InteractionContext, invoca
     resolve: async (request, root) => {
       try {
         const initial = invocationFor(root);
-        const selectedLive = initial.store.capabilities.stateOffBranch && initial.workItem === undefined
+        const selectedLive = initial.store.capabilities.stateOffBranch
           ? await readLocalReviewLiveContext({ ...initial, exec, cwd: root }) : null;
-        if (selectedLive !== null && selectedLive.workItem === undefined) {
+        const selectedOwner = selectedLive === null ? initial.workItem : corroborateLocalReviewOwner(initial.workItem, selectedLive);
+        if (selectedLive !== null && selectedOwner === undefined) {
           if (request.vehicle !== undefined) throw new PlannedFrontlineMemberRefreshError(request.vehicle.workUnitId,
             "The owning work unit is no longer active in this checkout.");
           throw new Error("frontline review lineage authority is unavailable");
         }
-        const bound = selectedLive === null ? initial : { ...initial, workItem: selectedLive.workItem };
+        const bound = selectedLive === null ? initial : { ...initial, workItem: selectedOwner };
         const { publisher, family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
         const operationStore = family.ports.inFlight;
         const dispositionStore = family.ports.dispositions;
