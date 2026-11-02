@@ -121,7 +121,7 @@ async function publishRefAttempt(context: RefBackendContext, loop: PushLoop): Pr
   context = await writeRefRepository(context);
   const notices = pulled.result.pulls.filter((pull) => pull.remote === remote.name && pull.role === "state").flatMap(({ notices }) => notices);
   const refused = notices.filter((notice) => notice.kind === "history-diverged");
-  const blocked = new Set(notices.filter((notice) => notice.kind === "namespace-corrupt" || notice.kind === "end-pending").map(({ ref }) => ref));
+  const blocked = new Set(notices.filter((notice) => notice.kind === "namespace-corrupt" || notice.kind === "end-pending" || notice.kind === "tracking-update-failed").map(({ ref }) => ref));
   const captured = await capturePushListing(context, remote.name, await context.identity(), new Set(refused.map(({ ref }) => ref)), blocked);
   const divergence = refused.find((notice) => captured.changes.some(({ ref }) => ref === notice.ref));
   if (divergence?.kind === "history-diverged") return failedStatePublication(context, result, {

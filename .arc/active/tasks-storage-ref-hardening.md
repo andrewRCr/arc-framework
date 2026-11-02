@@ -673,22 +673,14 @@ pull leaves writes and pull merges free of `lock-held` on the layout lock.
   stale or held remedy. A lock already gone retains the existing condition and remedy; native cases preserve local
   state and apply the incoming state after repair.
 
-### `[ ]` **6.4 A stranded tracking lock excludes its ref from the push — § 9**
+### `[x]` **6.4 A stranded tracking lock excludes its ref from the push — § 9**
 
 - _Goal:_ A push meeting a stranded tracking lock publishes the rest and reports the excluded ref's `refused` failure
   with the notice's condition and remedy, instead of retrying to the deadline.
 
-- _Note:_ the exclusion expects Git 2.53.0 or later, whose fetch updates the other refs when one is rejected; the
-  floor raise lands outside this change, so a case that relies on it skips below 2.53.0, where the floor job runs.
-
-    - `excludeBrokenPushRefs` (`push-exclusion.ts`) seeds exclusion from `tracking-update-failed` as well as
-      `namespace-corrupt` and `end-pending`. The push loop's `blocked` set in `publishRefAttempt` keeps its seeds, as
-      § 9 states.
-    - Build `test-first` (one behavior at a time): in the default layout's files format, with Git 2.53.0 or later, a
-      stranded lock on one tracking ref excludes that ref and the push publishes the others; the excluded ref's failure
-      carries 6.3's lock condition and remedy; an `end-pending` dropped beside `tracking-update-failed` yields a
-      schema-valid failed publish with a condition and remedy. The separate layout's reftable has one `tables.list.lock`
-      for every ref, so a stranded lock there ends the pull `lock-held`, which 6.9 covers.
+- _Outcome:_ Tracking-update failures seed both the push's blocked set and publication exclusion. Healthy refs publish
+  while excluded refs retain the lock notice's condition and remedy, including a pending end whose notice was dropped.
+  Native files-format cases cover atomic batch retention and repaired retries, and skip below Git 2.53.0.
 
 ### `[ ]` **6.5 A lock-failed `!` row counts as applied when its tracking ref holds the fetched tip — § 9**
 

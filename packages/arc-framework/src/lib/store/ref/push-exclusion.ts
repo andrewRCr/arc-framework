@@ -18,7 +18,7 @@ export interface RefPushExclusion {
 /** Reject unusable captured trees without changing their tips or holding back healthy families. */
 export async function excludeBrokenPushRefs(context: RefBackendContext, listing: RefPushListing,
   notices: readonly PullNotice[] = []): Promise<RefPushExclusion> {
-  const seeds = notices.filter((notice) => notice.kind === "namespace-corrupt" || notice.kind === "end-pending");
+  const seeds = notices.filter((notice) => notice.kind === "namespace-corrupt" || notice.kind === "end-pending" || notice.kind === "tracking-update-failed");
   const excluded = new Set(listing.pending), families = new Set<FamilyId>();
   for (const { ref } of seeds) holdLifecycleRef(excluded, ref);
   const refusals: { condition: string; remedy: { text: string } }[] = [...seeds];
