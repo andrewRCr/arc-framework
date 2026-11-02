@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "advisor-implementation-guardrail",
+  "claimId": "93bbf5962a53cad6350e7c051bb194a7",
+  "createdAt": "2026-11-02T04:14:34.190Z",
+  "updatedAt": "2026-11-02T04:14:34.190Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Allow advisor consultation for implementation design forks while excluding determinate ARC ceremonies.",
+  "branch": "chore/advisor-implementation-guardrail",
+  "origin": "inbox",
+  "originEntry": "Let the advisor guardrail allow implementation work, including the task loop",
+  "originEntrySourceDigest": "sha256:a6e96395d93d8d67fe80e4feaee8761d229d632ea7b97ed9fe83a58c22690e8c",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
