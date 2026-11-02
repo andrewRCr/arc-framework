@@ -479,14 +479,13 @@ annotated commit.
   Layout changes and other lost refs keep the private-gathering notice, while matching destination identities
   continue publication. Native races verify each route and successful repair or publication.
 
-### `[ ]` **5.5 A stale publication journal is dropped when no kept tips remain — § 11.2**
+### `[x]` **5.5 A stale publication journal is dropped when no kept tips remain — § 11.2**
 
 - _Goal:_ A rebuild with no transient tips no longer orphans an earlier attempt's import publication journal.
 
-    - `retireImportLocals` and `retireImportRemote` (`import/transient-cleanup.ts`) reach `dropKeptTips`, the journal's
-      only deleter, when a stale journal exists and no kept tips remain.
-    - Build `test-first` (one behavior at a time): an attempt that wrote a journal, then a rebuild with no transient tips,
-      leaves no journal; a rebuild with kept tips keeps today's cleanup.
+- _Outcome:_ Empty-tip local and remote cleanup reaches the shared journal deleter; a genuine no-op returns before
+  its callback or transaction. Stale journals delete under their captured ref lease. The interrupted rebuild clears
+  its journal and keepers while preserving origin's source copy, and existing kept-tip cleanup remains intact.
 
 ### `[ ]` **5.6 A publisher refusal keeps its class through source retirement — § 11.2**
 

@@ -33,7 +33,7 @@ export function importTransientDeletes(tips: ReadonlyMap<string, string>): RefCh
 /** Delete what local transient refs remain before any publication: a separate landing leaves them, and a move into the default layout keeps them. */
 export async function retireImportLocals(context: RefBackendContext): Promise<StoreMigrateResult | undefined> {
   const kept = await readSyncRefs(context, IMPORT_KEPT_PREFIX);
-  if (!kept.size) return;
+  if (!kept.size) return dropKeptTips(context, kept);
   await context.migrateStep?.("import.transient.local-delete");
   const local = await readSyncRefs(context, "refs/arc/user/");
   const changes: RefChange[] = [];
@@ -51,7 +51,7 @@ export async function retireImportLocals(context: RefBackendContext): Promise<St
 /** After publication, remove only the origin generations actually re-homed; with no state remote, name them instead. */
 export async function retireImportRemote(context: RefBackendContext, report: MigrateReport): Promise<StoreMigrateResult | undefined> {
   const kept = await readSyncRefs(context, IMPORT_KEPT_PREFIX);
-  if (!kept.size) return;
+  if (!kept.size) return dropKeptTips(context, kept);
   if (!(await readRefDesignation(context)).pushes.length) {
     try { report.notices.push(...await retainedRemoteNotices(context, kept)); }
     catch (error) {
@@ -92,6 +92,7 @@ async function retireOriginRefs(context: RefBackendContext, kept: ReadonlyMap<st
 
 /** The kept tips go last, so an interrupted cleanup still knows what it re-homed. */
 async function dropKeptTips(context: RefBackendContext, kept: ReadonlyMap<string, string>): Promise<StoreMigrateResult | undefined> {
+  if (!kept.size && !(await readSyncRefs(context, IMPORT_PUBLICATION_REF)).has(IMPORT_PUBLICATION_REF)) return;
   await context.migrateStep?.("import.transient.drop-kept");
   const publication = (await readSyncRefs(context, IMPORT_PUBLICATION_REF)).get(IMPORT_PUBLICATION_REF);
   const changes = [...kept, ...publication ? [[IMPORT_PUBLICATION_REF, publication] as const] : []]
