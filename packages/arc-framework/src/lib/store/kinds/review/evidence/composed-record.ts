@@ -9,14 +9,16 @@ import type { ReviewOutcome } from "../outcome/schema.js";
 import { reviewOutcomeKey } from "../outcome/key.js";
 import type { ReviewEvidence } from "./schema.js";
 import { StoreRefusalError } from "../../../refusal-error.js";
+import { z } from "zod";
 
 /** Attribute a damaged approval lineage to every producer, evidence key, and outcome key it contains. */
-export function reviewEvidenceLineageRefusal(evidence: readonly ReviewEvidence[], rule: string, remedy: string): StoreRefusalError {
+export function reviewEvidenceLineageRefusal(evidence: readonly ReviewEvidence[], rule: string, remedy: string, detail?: string): StoreRefusalError {
   const records = evidence.map(value => ({ producer: value.dispositionSet.producerId,
     evidence: value.dispositionSet.dispositionSetId, outcome: value.result.outcomeKey,
     predecessor: value.predecessorDispositionSetId, successor: value.successorDispositionSetId }));
   return new StoreRefusalError({ code: "record-malformed", class: "recoverable", rule: `review.evidence.${rule}`,
-    condition: `The approved-response lineage is damaged: ${JSON.stringify(records)}.`, remedy: { text: remedy } }, true);
+    condition: `The approved-response lineage is damaged${detail === undefined ? "" : ` (${detail})`}: ${JSON.stringify(records)}.`,
+    remedy: { text: remedy } }, true);
 }
 
 /** Require and order one complete approved-response lineage. */
@@ -80,13 +82,20 @@ export function composeReviewDispositionRecord(outcome: ReviewOutcome, evidence:
   const tail = ordered.at(-1);
   if (value === undefined || tail === undefined) throw new Error("Restore the approved-response lineage before reading it.");
   const binding = value.binding;
-  return ApprovedDispositionRecordSchema.parse({ schemaVersion: 1, semanticsVersion: "review-advisory/v1",
-    repositoryId: outcome.target.repositoryId, operationId: outcome.attemptId,
-    candidate: binding !== null && "candidate" in binding ? binding.candidate : null,
-    errand: binding?.kind === "errand" ? binding.errand : null,
-    deliveryMember: binding !== null && "deliveryMember" in binding ? binding.deliveryMember : null,
-    source: producerSource(outcome, owner),
-    currentDispositionSetId: tail.dispositionSet.dispositionSetId,
-    approvedDispositionLineage: ordered.map((entry) => lineageNode(entry, outcome)),
-  });
+  try {
+    return ApprovedDispositionRecordSchema.parse({ schemaVersion: 1, semanticsVersion: "review-advisory/v1",
+      repositoryId: outcome.target.repositoryId, operationId: outcome.attemptId,
+      candidate: binding !== null && "candidate" in binding ? binding.candidate : null,
+      errand: binding?.kind === "errand" ? binding.errand : null,
+      deliveryMember: binding !== null && "deliveryMember" in binding ? binding.deliveryMember : null,
+      source: producerSource(outcome, owner),
+      currentDispositionSetId: tail.dispositionSet.dispositionSetId,
+      approvedDispositionLineage: ordered.map((entry) => lineageNode(entry, outcome)),
+    });
+  } catch (error) {
+    if (!(error instanceof z.ZodError)) throw error;
+    throw reviewEvidenceLineageRefusal(ordered, "context",
+      "Restore consistent approved-response source and target context for these records, then retry.",
+      error.issues.map(issue => issue.message).join("; "));
+  }
 }

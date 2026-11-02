@@ -20,6 +20,38 @@ const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "example",
   uid: "14bc6336-193b-4d7a-9380-1b4ca79a714b" });
 
 describe("composed approved disposition records", () => {
+  it.each(["keyed", "index"] as const)("attributes reciprocal source-context damage in a %s read and continues after repair", async mode => {
+    const h = await storedLocalApproval(), prior = (await h.evidence.read(h.original.currentDispositionSetId))!;
+    const { dispositionSetId: ignored, ...fields } = prior.value.dispositionSet;
+    void ignored;
+    const dispositionSet = createDispositionSet({ ...fields, policyVersion: canonicalDigest({ other: "policy" }) });
+    const approved = approveDispositionState({ proposed: proposeDispositionSet(dispositionSet), approvedBy: "andrew",
+      approvedAt: "2026-09-09T21:00:00Z" });
+    const root = ReviewEvidenceSchema.parse({ ...prior.value, successorDispositionSetId: dispositionSet.dispositionSetId });
+    const successor = ReviewEvidenceSchema.parse({ ...prior.value, dispositionSet, approval: approved.approval,
+      predecessorDispositionSetId: prior.value.dispositionSet.dispositionSetId });
+    const list = h.harness.store.list.bind(h.harness.store);
+    h.harness.store.list = async input => {
+      const result = await list(input);
+      if (input.kind !== "review/evidence" || result.status !== "ok" || result.result.status !== "complete") return result;
+      const record = result.result.records[0];
+      if (record === undefined) throw new Error("Expected stored evidence");
+      return { status: "ok", result: { ...result.result, records: [
+        { ...record, content: JSON.stringify(root) },
+        { ...record, reference: { ...record.reference, key: dispositionSet.dispositionSetId }, content: JSON.stringify(successor) },
+      ] } };
+    };
+    const read = () => mode === "keyed" ? h.evidence.readDispositionRecord(h.original.operationId) : h.evidence.listDispositionRecords();
+    const error: unknown = await read().catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StoreRefusalError);
+    expect(error).toMatchObject({ offBranch: true, refusal: { code: "record-malformed", rule: "review.evidence.context",
+      remedy: { text: expect.stringMatching(/restore.*retry/iu) } } });
+    for (const key of [h.original.operationId, root.dispositionSet.dispositionSetId,
+      successor.dispositionSet.dispositionSetId, root.result.outcomeKey]) expect((error as Error).message).toContain(key);
+    h.harness.store.list = list;
+    const repaired = await read();
+    expect(mode === "keyed" ? repaired : (repaired as unknown[])[0]).toMatchObject({ currentDispositionSetId: root.dispositionSet.dispositionSetId });
+  });
   it.each(["keyed", "index"] as const)("attributes a nonreciprocal successor in a %s read and continues after repair", async mode => {
     const h = await storedLocalApproval(), prior = (await h.evidence.read(h.original.currentDispositionSetId))!;
     const { dispositionSetId: ignored, ...fields } = prior.value.dispositionSet;
