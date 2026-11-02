@@ -2,6 +2,7 @@
 
 import { LandingLinkStateSchema, recordLandingLink } from "./landing-link.js";
 import { z } from "zod";
+import { nativeRefusalText } from "../../lib/store/native-refusal.js";
 
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import type {
@@ -648,7 +649,7 @@ export async function mergeIntegration(
       existing.providerMergeId, dependencies, existing.confirmationDetail);
     try { await dependencies.validateCheckpointOwnership?.(checkpoint); }
     catch (error) {
-      return mergeOperationRefusal(request.workUnit, error instanceof Error ? error.message : String(error));
+      return mergeOperationRefusal(request.workUnit, nativeRefusalText(error) ?? (error instanceof Error ? error.message : String(error)));
     }
     const settlement = await dependencies.executeSettlement(checkpoint);
     if (settlement.state === "invalidated") {

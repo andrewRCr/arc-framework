@@ -2,6 +2,7 @@
 import { isOffBranchStoreRefusal, type StoreRefusalError } from "./refusal-error.js";
 import { ProjectIdentityError } from "./project-identity.js";
 import { ReviewOwnerSelectionError } from "./kinds/review/errors.js";
+import { renderRemedyArgument } from "../../scripts/integration/spine-refusal.js";
 
 /** An off-branch store's refusal, a missing project ID, or a native work-item selection refusal. */
 export type NativeTypedRefusal = StoreRefusalError | ProjectIdentityError | ReviewOwnerSelectionError;
@@ -16,7 +17,11 @@ export function rethrowNativeRefusal(error: unknown): void {
   if (isNativeTypedRefusal(error)) throw error;
 }
 
-/** A native typed refusal's condition and remedy text, or null for any other failure. */
+/** A native typed refusal's condition, remedy text and supplied corrective command, or null for any other failure. */
 export function nativeRefusalText(error: unknown): string | null {
-  return isNativeTypedRefusal(error) ? error.message : null;
+  if (!isNativeTypedRefusal(error)) return null;
+  const remedy = error instanceof ProjectIdentityError ? error.failure.remedy
+    : error instanceof ReviewOwnerSelectionError ? error.remedy : error.refusal.remedy;
+  return remedy.argv === undefined ? error.message
+    : `${error.message} \`${remedy.argv.map(renderRemedyArgument).join(" ")}\``;
 }

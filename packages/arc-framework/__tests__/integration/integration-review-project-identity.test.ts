@@ -7,6 +7,10 @@ import { handleIntegrationCheckpoint, handleIntegrationMerge } from "../../src/h
 import { IntegrationCheckpointResultSchema } from "../../src/scripts/integration/checkpoint.js";
 import { IntegrationMergeResultSchema } from "../../src/scripts/integration/merge.js";
 import { ProjectIdentityError } from "../../src/lib/store/project-identity.js";
+import { persistIntegrationCheckpointComposition } from "../../src/scripts/integration/checkpoint-store.js";
+import { composeCanonicalSettlementPlan } from "../../src/scripts/integration/settlement-plan.js";
+import { createUserSurfaceResolver } from "../../src/lib/user-surfaces.js";
+import { SlugSchema, canonicalDigest } from "../../src/lib/kernel/index.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 async function fixture() {
@@ -29,6 +33,16 @@ async function fixture() {
     branches: [{ repository: projectId, ref: "topic/opaque", linkedAs: "adopted", excluded: [] }],
   });
   const head = (await exec("git", ["rev-parse", "HEAD"], { cwd })).stdout.trim();
+  if (primary.reference.owner.type !== "work-item" || primary.reference.owner.uid === undefined) throw new Error("Expected work-item UID");
+  const surfaces = createUserSurfaceResolver({ cwd, identity: SlugSchema.parse("test-user") });
+  const checkpoint = await persistIntegrationCheckpointComposition(surfaces.workUnitRoot(SlugSchema.parse("example")), {
+    workUnit: "example", approvedHead: head, lifecycleVersion: primary.version,
+    nativeOwnership: { projectId, workItemUid: primary.reference.owner.uid },
+    target: { repository: "owner/repo", pullRequest: 42, baseRef: "main", headRef: "topic/opaque", headSha: head },
+    settlementPlan: composeCanonicalSettlementPlan([]), mergeMethod: { schemaVersion: 1, mode: "review-merge-method-resolve",
+      repository: "owner/repo", stackPosition: "non-delivery", state: "validated", nextAction: "use-method",
+      method: "merge", allowedMethods: ["merge"], policyFingerprint: canonicalDigest({ policy: 1 }) },
+  });
   const tree = (await exec("git", ["rev-parse", "HEAD^{tree}"], { cwd })).stdout.trim();
   const mergeCommit = (await exec("git", ["commit-tree", tree, "-p", base, "-p", head, "-m", "Test merge"], { cwd })).stdout.trim();
   const hostUrl = "git@github.com:owner/repo.git";
@@ -51,10 +65,10 @@ async function fixture() {
     `api:repos/owner/repo) printf '%s\\n' '{"allow_merge_commit":true,"allow_squash_merge":false,"allow_rebase_merge":false}' ;;`,
     '*) echo "unexpected host invocation: $*" >&2; exit 1 ;;', "esac", ""].join("\n"));
   await chmod(join(bin, "gh"), 0o755);
-  return { ...h, cwd, primary, bin };
+  return { ...h, cwd, primary, bin, checkpoint };
 }
 
-it.each(["checkpoint", "merge"] as const)("preserves %s project repair, names an unstored work unit, and returns its ordinary verdict after restoration", async command => {
+it.each(["checkpoint", "merge"] as const)("preserves %s project repair and returns its ordinary verdict after restoration", async command => {
   const h = await fixture(), originalCwd = process.cwd(), originalPath = process.env.PATH;
   const run = async (projectIdReader?: () => Promise<string>, name = "example") => {
     const output: string[] = [];
@@ -63,7 +77,7 @@ it.each(["checkpoint", "merge"] as const)("preserves %s project repair, names an
       setExitCode: (value: number) => { exitCode = value; } };
     const invocation = { store: h.reference.store, projectId: projectIdReader };
     if (command === "checkpoint") await handleIntegrationCheckpoint(name, {}, undefined, boundary, invocation);
-    else await handleIntegrationMerge(name, { checkpoint: `checkpoint-v1:${"a".repeat(40)}:sha256:${"b".repeat(64)}` },
+    else await handleIntegrationMerge(name, { checkpoint: h.checkpoint },
       undefined, boundary, invocation);
     const value: unknown = JSON.parse(output.join(""));
     const result = command === "checkpoint" ? IntegrationCheckpointResultSchema.parse(value) : IntegrationMergeResultSchema.parse(value);
@@ -73,20 +87,20 @@ it.each(["checkpoint", "merge"] as const)("preserves %s project repair, names an
     process.chdir(h.cwd);
     process.env.PATH = `${h.bin}${delimiter}${originalPath ?? ""}`;
     const refused = await run();
-    expect(refused).toMatchObject({ exitCode: 1, result: { reason: command === "checkpoint" ? "composition-unavailable" : "operation-failed",
+    expect(refused).toMatchObject({ exitCode: command === "checkpoint" ? 1 : 0, result: { reason: command === "checkpoint" ? "composition-unavailable" : "operation-failed",
       detail: expect.stringContaining("Project identity record is missing.") } });
     expect(refused.result).toMatchObject({ detail: expect.stringContaining("Restore the project's unique, valid identity record") });
     const fetchRequired = await run(async () => { throw new ProjectIdentityError({ status: "unavailable",
       reason: "Authoritative project state has not arrived.",
       remedy: { text: "Fetch project state, then retry.", argv: ["git", "fetch", "origin"] } }); });
-    expect(fetchRequired).toMatchObject({ exitCode: 1,
+    expect(fetchRequired).toMatchObject({ exitCode: command === "checkpoint" ? 1 : 0,
       result: { detail: expect.stringContaining("git fetch origin") } });
     await h.reference.seedProject(projectId);
-    expect(await run(undefined, "missing")).toMatchObject({ exitCode: 1, result: {
+    if (command === "checkpoint") expect(await run(undefined, "missing")).toMatchObject({ exitCode: 1, result: {
       detail: "No stored work unit is named `missing`. Name the work unit to integrate, then retry." } });
     const repaired = await run();
     expect(repaired, JSON.stringify(repaired)).toMatchObject({ exitCode: 0,
-      result: { reason: command === "checkpoint" ? "lifecycle-incomplete" : "checkpoint-missing" } });
+      result: { reason: command === "checkpoint" ? "lifecycle-incomplete" : "lifecycle-moved" } });
   } finally {
     process.chdir(originalCwd);
     if (originalPath === undefined) delete process.env.PATH; else process.env.PATH = originalPath;

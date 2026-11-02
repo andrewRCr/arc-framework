@@ -26,6 +26,7 @@ import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import { adversarialPassFixture } from "../../../fixtures/review-adversarial-pass.js";
 import { MergeLockTransitionRequestSchema } from "../../../../src/scripts/review-gate/merge-lock.js";
 import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
+import { ProjectIdentityError } from "../../../../src/lib/store/project-identity.js";
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
@@ -1066,7 +1067,7 @@ describe("integration merge", () => {
   });
 });
 
-async function nativeLandingMerge(completed = false) {
+async function nativeLandingMerge(completed = false, readProjectId?: () => Promise<string>) {
   const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
   await h.seedProject(projectId);
   const links = { branches: [{ repository: projectId, ref: "topic/opaque", linkedAs: "adopted" as const, excluded: [] }],
@@ -1077,7 +1078,7 @@ async function nativeLandingMerge(completed = false) {
   const uid = meta.reference.owner.type === "work-item" ? meta.reference.owner.uid : undefined;
   if (uid === undefined) throw new Error("Expected work-item UID");
   const production = createIntegrationMergeDependencies({ cwd: "/unused", exec: scriptGitExec([]).exec,
-    workUnit: "example", store: h.store, projectId: h.projectId, workItem: meta.reference.owner });
+    workUnit: "example", store: h.store, projectId: readProjectId ?? h.projectId, workItem: meta.reference.owner });
   const { value, state } = dependencies();
   const readCheckpoint = value.readCheckpoint;
   value.readCheckpoint = async (...args) => {
@@ -1090,6 +1091,27 @@ async function nativeLandingMerge(completed = false) {
   value.mergePinned = async target => { state.merged = true; return { state: "merged", target, providerMergeId: oid("d") }; };
   return { ...h, meta, projectId, links, value, state, production, uid };
 }
+
+it.each([false, true])("retains project repair argv through merge ownership and landing-link refusals (already merged: %s)", async merged => {
+  let repaired = false;
+  const h = await nativeLandingMerge(false, async () => {
+    if (!repaired) throw new ProjectIdentityError({ status: "unavailable", reason: "Project objects are missing.",
+      remedy: { text: "Fetch the project state and retry.", argv: ["git", "fetch", "origin", "refs/arc/project/registry"] } });
+    return "123e4567-e89b-42d3-a456-426614174099";
+  });
+  h.value.validateCheckpointOwnership = h.production.validateCheckpointOwnership;
+  h.state.merged = merged;
+  const refused = await mergeIntegration(request, h.value);
+  expect(refused).toMatchObject(merged ? { state: "merged", payload: { landingLink: { state: "not-written",
+    detail: expect.stringContaining("git fetch origin refs/arc/project/registry") } } }
+    : { state: "blocked", reason: "operation-failed", detail: expect.stringContaining("git fetch origin refs/arc/project/registry") });
+  expect(h.state).toEqual({ held: true, merged });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+  repaired = true;
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: { landingLink: { state: "written" } } });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).links?.landingCommit)
+    .toEqual({ repository: h.projectId, sha: oid("d") });
+});
 
 it.each([false, true])("records the native landing commit with project identity and retained links (completed: %s)", async completed => {
   const h = await nativeLandingMerge(completed);

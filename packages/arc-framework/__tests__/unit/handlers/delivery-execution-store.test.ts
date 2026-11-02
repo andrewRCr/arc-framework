@@ -87,7 +87,7 @@ it("refuses an unbound delivery's owner typed without arc.identity, naming how t
   expect(refusal).toBeInstanceOf(ReviewOwnerSelectionError);
   expect(refusal).toMatchObject({ code: "invalid-input",
     remedy: { argv: ["git", "config", "--local", "arc.identity", "<identity>"] } });
-  expect(nativeRefusalText(refusal)).toMatch(/arc\.identity/u);
+  expect(nativeRefusalText(refusal)).toContain("git config --local arc.identity '<identity>'");
   expect(invocation.workItem).toBeUndefined();
   identity.configured = true;
   await bindDeliveryWorkItem(h.cwd, h.exec, invocation, "example");
@@ -121,7 +121,8 @@ function unreadableReviewListing(store: Store) {
   let unreadable = true;
   const refusing = Object.create(store) as Store;
   refusing.list = async input => unreadable && input.family === "review" ? { status: "ok", result: { status: "unreadable",
-    condition: "The review family index cannot be read.", remedy: { text: "Restore the review family index, then retry." } } }
+    condition: "The review family index cannot be read.", remedy: { text: "Restore the review family index, then retry.",
+      argv: ["git", "fetch", "origin", "refs/arc/project/review"] } } }
     : store.list(input);
   return { store: refusing, repair: () => { unreadable = false; } };
 }
@@ -130,7 +131,7 @@ it("names a refused review-response listing's own remedy on a closed task list, 
   const h = await fixture("Shipped");
   const { store, repair } = unreadableReviewListing(h.store);
   expect(await h.run(store)).toMatchObject({ status: "refused", reason: "review-fix-response-unavailable",
-    recommendedActionText: "The review family index cannot be read. Restore the review family index, then retry." });
+    recommendedActionText: expect.stringContaining("git fetch origin refs/arc/project/review") });
   repair();
   expect(await h.run(store)).toMatchObject({ status: "idle", nextAction: "continue-work-unit" });
 });

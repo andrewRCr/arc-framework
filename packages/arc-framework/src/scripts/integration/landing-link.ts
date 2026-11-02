@@ -6,6 +6,7 @@ import { recordConflictRefusal } from "../../lib/store/conflict-diagnostics.js";
 import { mergeLifecycleLinks, readWorkUnit, recordPut } from "../../lib/store/lifecycle-write.js";
 import type { IntegrationCheckpointCompositionRecord } from "./checkpoint-store.js";
 import { SpineRemedySchema, spineRemedy } from "./spine-refusal.js";
+import { nativeRefusalText } from "../../lib/store/native-refusal.js";
 
 /** Native landing-link persistence is distinct from the host's completed merge. */
 export const LandingLinkStateSchema = z.discriminatedUnion("state", [
@@ -57,7 +58,7 @@ export async function recordLandingLink(input: {
       await input.write(input.workUnit, input.providerMergeId);
       return { state: "written" };
     } catch (error) {
-      detail = (error instanceof Error ? error.message : String(error)).replace(/\s+/gu, " ").trim().slice(0, 4_096)
+      detail = (nativeRefusalText(error) ?? (error instanceof Error ? error.message : String(error))).replace(/\s+/gu, " ").trim().slice(0, 4_096)
         || "Landing-link persistence failed.";
     }
   }
