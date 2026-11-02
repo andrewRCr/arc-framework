@@ -1,5 +1,7 @@
 /** Native agenda input refusals retain a reachable corrected invocation. */
 
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { appendAgendaOption, buildAgendaArgv } from "../../src/commands/agenda/argv.js";
 import { assertSessionInitAgenda } from "../../src/commands/agenda/schema.js";
@@ -28,9 +30,16 @@ describe("agenda command input", () => {
     });
 
     const repaired = await runArcNoTty(["agenda", "session-init", "--json"], repository);
-    expect(repaired.exitCode).toBe(1);
+    expect(repaired.exitCode, repaired.stdout + repaired.stderr).toBe(0);
     expect(repaired.stderr).toBe("");
-    expect(JSON.parse(repaired.stdout)).toMatchObject({ code: "row-not-compiled", row: "orient" });
+    const agenda: unknown = JSON.parse(repaired.stdout);
+    assertSessionInitAgenda(agenda);
+    expect(agenda.orientation).toEqual({ shape: "work-state" });
+    expect(agenda.steps).toContainEqual(expect.objectContaining({ type: "fragment", target: { kind: "method", name: "discover-next-work" } }));
+    expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "stop", autoProceed: false });
+    for (const name of ["discover-next-work", "assess-parallel-fit"]) {
+      expect(await readFile(join(repository, `.arc/system/methods/${name}.md`), "utf8")).toContain(`# Method: ${name}`);
+    }
   });
 
   it("prints an asserted stop agenda with literal intent and accumulated decisions", async () => {

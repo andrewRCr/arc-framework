@@ -1,5 +1,6 @@
 /** Compile session entry decisions into an asserted agenda or an actionable refusal. */
 
+import { compileOrient } from "./orient.js";
 import { compileStartSignal } from "./signal-start.js";
 import { compileCurrentHusk } from "./husk.js";
 import { compileTransientResume } from "./transient.js";
@@ -27,17 +28,8 @@ export async function compileSessionInitAgenda(input: AgendaCompileInput): Promi
   if (row === "housekeep") return { ok: true, agenda: await compileHousekeepSignal(input) };
   if (row === "plan") return { ok: true, agenda: await compilePlanSignal(input) };
   if (row === "errand") return { ok: true, agenda: await compileErrandSignal(input) };
-  if (row === "start") {
-    const start = await compileStartSignal(input);
-    if (start.ok) return start;
-    const signals = { ...input.signals };
-    delete signals.start;
-    const fallback = await compileSessionInitAgenda({ ...input, signals });
-    if (!fallback.ok) return fallback;
-    const steps: AgendaStep[] = [start.note, ...fallback.agenda.steps.map((step): AgendaStep =>
-      step.type === "gate" && step.kind === "proceed" ? { ...step, autoProceed: false } : step)];
-    return { ok: true, agenda: createSessionInitAgenda(input, fallback.agenda.orientation, steps) };
-  }
+  if (row === "start") return compileStartEntry(input);
+  if (row === "orient") return { ok: true, agenda: await compileOrient(input) };
   if (row === "current-husk") return { ok: true, agenda: await compileCurrentHusk(input) };
   if (row === "transient") return { ok: true, agenda: await compileTransientResume(input) };
   if (row === "work-unit") return { ok: true, agenda: await compileWorkUnitResume(input) };
@@ -46,6 +38,18 @@ export async function compileSessionInitAgenda(input: AgendaCompileInput): Promi
     remedy: `This invocation selects the ${row} row, which is not compiled yet. `
       + "Follow session-init.md from the base branch for this session, or start the arm from another checkout.",
   } };
+}
+
+async function compileStartEntry(input: AgendaCompileInput): Promise<AgendaCompileResult> {
+  const start = await compileStartSignal(input);
+  if (start.ok) return start;
+  const signals = { ...input.signals };
+  delete signals.start;
+  const fallback = await compileSessionInitAgenda({ ...input, signals });
+  if (!fallback.ok) return fallback;
+  const steps: AgendaStep[] = [start.note, ...fallback.agenda.steps.map((step): AgendaStep =>
+    step.type === "gate" && step.kind === "proceed" ? { ...step, autoProceed: false } : step)];
+  return { ok: true, agenda: createSessionInitAgenda(input, fallback.agenda.orientation, steps) };
 }
 
 function compileStop(input: AgendaCompileInput): SessionInitAgenda {

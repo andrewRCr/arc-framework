@@ -5,6 +5,7 @@ arc:
   methods:
     - read-load-set
     - assess-start-readiness
+    - discover-next-work
     - session-state
 ---
 

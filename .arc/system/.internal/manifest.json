@@ -761,6 +761,16 @@
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "74649f4a2f075348046a052de28e544a2a56391bff057e0f3b912f7996a9faae"
+    },
+    "system/methods/discover-next-work.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "64d3707c53b383c222d4cf6ae16945876fb6ee424af7f0f7481e9c0035932378"
+    },
+    "system/methods/assess-parallel-fit.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "e45c89e5918ec7455f58485ff48b56d71571524c7617a3db5c9928d5cd9ce8b0"
     }
   }
 }

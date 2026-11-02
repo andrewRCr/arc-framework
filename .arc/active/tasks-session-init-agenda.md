@@ -430,44 +430,21 @@ rehearsals reach today's orientation except where the specification states a cha
           verification and generic handoff. Registered its declaration, Configurable install disposition, manifest,
           inventory and both fresh-init method lists; installed Start fragments resolve to the method.
 
-### `[ ]` **4.5 Compile Orient, author `discover-next-work`, and offer the routes — § 5.4, § 5.8, § 7.2, § 8.3**
+### `[x]` **4.5 Compile Orient, author `discover-next-work`, and offer the routes — § 5.4, § 5.8, § 7.2, § 8.3**
 
 - _Goal:_ Orient compiles to the prefix, the `discover-next-work` fragment, its renders with the materialize and
   housekeep route offers, and a `gate stop`; the method carries both `pm.mode` arms and fires `assess-parallel-fit`.
 
-- _Note:_ `assess-parallel-fit.md` ships and becomes Configurable with this task; see `notes-session-init-agenda.md`
-  § Shipping a file.
+    - `[x]` **4.5.a Compile the row and its routes**
+        - Compiled Orient with the full prefix, discovery and workload, preserving unconsumed seeds on unavailable
+          configuration. Standing routes retain published commands, exact checkout continuations, one discovery refresh,
+          legacy in-place notes restoration, exact Errand handoffs and the primary Housekeep signal in surface order.
+          Native no-input consumers now expect successful Orient output.
 
-    - `[ ]` **4.5.a Compile the row and its routes**
-        - A route action whose `checkout` is absent or equals the session's checkout recompiles; any other `--here`
-          action, `arc start --new --here` included, hands off; `arc locus release` always recompiles
-        - Build `test-first` (one behavior at a time), replacing the retired Errand-materialize and materialize-exactness
-          pins:
-            - every `free-primary`, `unmanaged-checkout`, and `retired` row but cold-start is Orient, orientation
-              `work-state`, running the full prefix and rendering `concurrent-workload`
-            - the fragment's arguments are `pmMode`, `protection`, and `seed` when present; a followed fragment does
-              not run again after a pick recompiles
-            - with the `config` slot failed, Orient emits no `discover-next-work` fragment, and a positional seed
-              becomes an `unconsumed-signal` note
-            - the materializable work-unit offer has a choice per published action: a spawning `arc materialize <name>`
-              hands off, and the session's own `--here` exits recompile
-            - `refreshRemedy` is its own recompiling choice, offered with no candidates under `materialize:` with an
-              empty operand, and the slot's copy of the same refresh in its `actions` is not offered again
-            - before the flip, the cutover module adds an in-place choice per candidate running
-              `arc materialize <name> --here` then `arc user pull`, recompiling
-            - the materializable Errand offer runs the argv `findMaterializableErrands` publishes and hands off
-            - a failed `materializableWorkUnits` or `errandState` slot renders degraded and offers no route
-            - on a primary checkout, `housekeep` offers a `signal` choice for `housekeep`
-            - the route offers sit at their surfaces' places, in order
-
-    - `[ ]` **4.5.b Author the method**
-        - Moved from today's Step 4: the seed pre-focus with a confirm-only init offer; the `arc-in-git` and other
-          `pm.mode` arms as prose, following the argument's arm; `assess-parallel-fit`'s multi-candidate selection as
-          advisory input, declared in the method's own `arc.methods`; `arc start` under full protection, `create-spec`
-          under partial
-        - Ship it per the notes, declare it in the spine's `arc.methods`, retarget `assess-parallel-fit.md`'s
-          consuming-workflow lines to the method, and add both methods to both of `integration/init.test.ts`'s method
-          lists
+    - `[x]` **4.5.b Author the method**
+        - Added discovery's seed pre-focus, both PM-mode paths and protection-sensitive planning entry. Its declared
+          advisory dependency owns multi-candidate weighing. Shipped both Configurable methods, retargeted the advisory
+          caller, and registered the declaration, install inventories and both fresh-init method lists.
 
 ### `[ ]` **4.6 Compile cold-start and retire the interim refusal — § 5.7**
 

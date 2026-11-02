@@ -335,6 +335,8 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
       "session-state.md",
       "read-load-set.md",
       "assess-start-readiness.md",
+      "discover-next-work.md",
+      "assess-parallel-fit.md",
       "source-grounding.md",
       "spec-review.md",
       "task-audit.md",
@@ -374,7 +376,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
         "design-audit", "disposition-report",
         "issue-triage", "resolve-plan-segmentation", "resolve-planning-depth",
         "review-model", "planning-review", "code-review", "verification-review", "review-response", "review-triage",
-        "session-state", "read-load-set", "assess-start-readiness", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards",
+        "session-state", "read-load-set", "assess-start-readiness", "discover-next-work", "assess-parallel-fit", "source-grounding", "spec-review", "task-audit", "test-first", "testing-standards",
         "validate-criteria",
       ];
 

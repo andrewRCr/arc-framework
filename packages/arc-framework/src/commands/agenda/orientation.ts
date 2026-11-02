@@ -39,8 +39,8 @@ export function orderOrientationSurfaces(surfaces: OrientationSurface[]): Agenda
 }
 
 /** Compile the shared orientation surfaces without selecting synchronization or a terminal gate. */
-export function compileSessionOrientation(input: AgendaCompileInput, findings: Extract<AgendaStep, { type: "render" | "note" }>[], sync: AgendaSyncState = compileSyncState(input)): OrientationSurface[] {
-  return [...compileCoreOrientation(input, findings, sync), ...compileCheckoutOrientation(input, sync),
+export function compileSessionOrientation(input: AgendaCompileInput, findings: Extract<AgendaStep, { type: "render" | "note" }>[], sync: AgendaSyncState = compileSyncState(input), consumed: { seed?: boolean; next?: boolean; start?: boolean } = { next: true }): OrientationSurface[] {
+  return [...compileCoreOrientation(input, findings, sync, consumed), ...compileCheckoutOrientation(input, sync),
     ...compileNotesOrientation(input, sync), ...compileCleanupOrientation(input), ...compileAdvisoryOrientation(input)];
 }
 
@@ -65,7 +65,7 @@ export function compileCheckoutSessionOrientation(input: AgendaCompileInput, cha
 }
 
 /** Collect core resume surfaces and findings for the shared ordered assembly. */
-export function compileCoreOrientation(input: AgendaCompileInput, findings: Extract<AgendaStep, { type: "render" | "note" }>[], sync: AgendaSyncState = compileSyncState(input)): OrientationSurface[] {
+export function compileCoreOrientation(input: AgendaCompileInput, findings: Extract<AgendaStep, { type: "render" | "note" }>[], sync: AgendaSyncState = compileSyncState(input), consumed: { seed?: boolean; next?: boolean; start?: boolean } = { next: true }): OrientationSurface[] {
   const steps: AgendaStep[] = [renderHeader(input), ...publishedSurfaces(input), ...findings];
   const locus = renderLocus(input.envelope);
   if (locus !== null) steps.push(locus);
@@ -77,7 +77,7 @@ export function compileCoreOrientation(input: AgendaCompileInput, findings: Extr
   if (domain.ok) for (const text of domain.value.warnings) steps.push({ type: "note", surface: "domain-rules", text });
   const answered = renderAnswered(input);
   if (answered !== null) steps.push(answered);
-  steps.push(...sync.unsettled, ...compileUnconsumedSignals(input, { next: true }));
+  steps.push(...sync.unsettled, ...compileUnconsumedSignals(input, consumed));
   return steps.flatMap(step => step.type === "render" || step.type === "note" ? [{ id: step.surface, steps: [step] }] : []);
 }
 
@@ -114,8 +114,8 @@ function guidanceText(prompt: string, actions: readonly SessionAction[] | undefi
 }
 
 /** Name invocation intent that the selected row does not consume. */
-export function compileUnconsumedSignals(input: AgendaCompileInput, consumed: { seed?: boolean; next?: boolean; start?: boolean } = {}): AgendaStep[] {
-  const steps: AgendaStep[] = [];
+export function compileUnconsumedSignals(input: Pick<AgendaCompileInput, "signals">, consumed: { seed?: boolean; next?: boolean; start?: boolean } = {}): Extract<AgendaStep, { type: "note" }>[] {
+  const steps: Extract<AgendaStep, { type: "note" }>[] = [];
   const add = (text: string): void => { steps.push({ type: "note", surface: "unconsumed-signal", text }); };
   if (input.signals.seed !== undefined && !consumed.seed) add(`Entry seed '${input.signals.seed}' was not consumed; starting fresh work from it means spawning or checking out a new worktree and entering there.`);
   if (input.signals.next && !consumed.next) add("--next auto-proceeds only a work-unit resume.");
