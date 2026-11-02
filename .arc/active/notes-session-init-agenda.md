@@ -11,6 +11,7 @@
 - Inbound items
 - Strategy fit
 - Coordination pointers
+- Plain-resume rehearsal
 - Test pins
 - Shipping a file
 - Carried context
@@ -250,6 +251,33 @@ Captured on 2026-10-31; each concern lives in its own home:
 - An Errand held until the flip: rename this cohort to `instruction-discipline` with `arc rename`.
 
 New prose says "work unit"; the visible rename to "design unit" (`naming-conventions`) sweeps after the cutover.
+
+## Plain-resume rehearsal
+
+The frozen baseline install and the branch kit from `ae765bbaf7` received the same scripted, committed `resume-pilot`
+fixture. Its meta, spec, task list, and implementation bytes match between projects; only the commit hash in each
+SESSION-NOTES differs. The current task is the open mid-phase leaf `2.2.b`; both repositories remained clean and the
+implementation remained unchanged after their fresh Claude sessions.
+
+Evidence is under `~/dev/arc-evidence/session-init-agenda/rehearsals/`: `apply-resume-fixture.py` and its meta input,
+`resume-baseline.jsonl`, `resume-spine.jsonl`, their final orientations and metadata, the exact branch agenda, and
+`resume-comparison.json`. The new kit lives at `~/dev/sandbox/2026-11-01T204644/agenda-spine`. Its install encountered
+the recorded missing-link-target inventory issue; the same sandbox fill used for baseline supplied nine targets and
+the retry committed with hooks enabled.
+
+Both sessions emitted the clean header, identical notes/disk-drift surface, last-completed `2.2.a`, current `2.2.b`,
+no blockers, the same next task, and “Awaiting direction — proceed to Next Action?” Both also surfaced the still-active
+post-install Working Memory entry. The spine session loaded the reading method and read task-list lines 1–6, 16–19,
+and 25–34: header, phase preamble, and current section, anchored at the emitted cursor. Its 11,315-byte spine is
+inside the ~13 KB budget; with the reading method it is 18.9% of the frozen 73,573-byte workflow.
+
+The empirical result establishes those orientation and read outcomes, not perfect instruction adherence. Both
+sessions emitted progress prose despite the shared suppression instruction. The spine session first tried `npx arc`
+in the globally installed sandbox, observed executable-resolution failure, then used the specified `arc` command;
+it did not honor the spine's failure stop on that mistaken attempt. Its Working Memory warning also framed the
+agenda's selection more strongly than baseline. These deviations remain in the complete transcripts. The amendment
+entry-gate read is its first arm: the tasks still produce the stated resume exit outcome; no settled statement or
+missing derivation needs changing. They are retained as empirical limitations, not erased by another run.
 
 ## Test pins
 

@@ -308,18 +308,15 @@ orientation surfaces, questions, and proceed prompt as today's workflow on the s
   the entry flags and includes `--context`; this checkout's Claude and Codex skill symlinks resolve to the updated
   Framework copy.
 
-### `[ ]` **3.4 Rehearse a plain resume on a kit install** — validate exit criterion at segment scope
+### `[x]` **3.4 Rehearse a plain resume on a kit install** — validate exit criterion at segment scope
 
 - _Goal:_ Evidence that a plain resume runs end to end on the agenda and the spine with today's orientation.
 
-    - A scripted fixture, kept with the evidence: a committed meta, a finalized task list with an open mid-phase task,
-      and SESSION-NOTES carrying `Commit at Handoff`, so the resume exercises `partial-strategic` and the cursor
-    - Apply it identically to Task 1.1's base kit and to a kit built from this branch (the kit's absolute path and
-      `--source`, as in Task 1.1.a), then open a resume session in each, the branch kit's following the spine
-    - Compare their orientation surfaces, questions, and proceed prompts; record both under
-      `~/dev/arc-evidence/session-init-agenda/rehearsals/`
-    - Record the spine's size against its budget
-    - Run `arc check segment`
+- _Outcome:_ Identical committed mid-phase fixtures on the baseline and branch kits reached the same orientation
+  surfaces, task facts, and proceed question. The spine session exercised the emitted strategic cursor and all three
+  task-list slices; its size is 11,315 bytes. Complete transcripts, fixture, and comparison are retained under
+  `~/dev/arc-evidence/session-init-agenda/rehearsals/`; executor-adherence limitations are recorded in
+  `notes-session-init-agenda.md` § Plain-resume rehearsal.
 
 ## **Phase 4:** The remaining arms
 
