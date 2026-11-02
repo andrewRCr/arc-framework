@@ -299,15 +299,14 @@ orientation surfaces, questions, and proceed prompt as today's workflow on the s
         - The spine is 11,315 bytes; with the 2,610-byte reading method it is 18.9% of the frozen
           73,573-byte baseline workflow, inside both the ~13 KB spine budget and ~28% combined budget.
 
-### `[ ]` **3.3 Shrink the `arc-session` skill to a hand-off — § 9.2**
+### `[x]` **3.3 Shrink the `arc-session` skill to a hand-off — § 9.2**
 
 - _Goal:_ The skill runs the spine and passes its arguments as the verb's flags; its description line keeps the flag
   list and gains `--context`.
 
-    - Both copies of the canonical `SKILL.md`; this checkout's `.claude/skills/arc-session` is a symlink into `.arc/`,
-      so the `.arc/` copy reaches the next session here
-    - The skill's `--errand --next` pin in `locus-methodology-contracts.test.ts` retires with the Phase 4 pins, and
-      Task 4.2.a's queue-head tests replace it
+- _Outcome:_ Both canonical copies now hand arguments and the positional seed to the spine. The description retains
+  the entry flags and includes `--context`; this checkout's Claude and Codex skill symlinks resolve to the updated
+  Framework copy.
 
 ### `[ ]` **3.4 Rehearse a plain resume on a kit install** — validate exit criterion at segment scope
 
