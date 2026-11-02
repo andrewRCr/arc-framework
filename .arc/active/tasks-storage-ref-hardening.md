@@ -734,16 +734,18 @@ pull leaves writes and pull merges free of `lock-held` on the layout lock.
   another owner's resolutions. The locked-tip recheck returns to resolution when an additional registry lock is
   needed. Prediction and retirement share cached tree evidence and Missing classification; ordinary writes stay free.
 
-### `[ ]` **6.9 The Windows publishing bursts check their recovery in both layouts — § 5.4**
+### `[x]` **6.9 The Windows publishing bursts check their recovery in both layouts — § 5.4**
 
 - _Goal:_ Both layouts' publishing bursts run unskipped on Windows and pass when every clone converges, directly or
   after the stranded lock its refusal names is removed and it pushes again.
 
-    - In `__tests__/integration/store-ref-bursts.test.ts`, remove the Windows separate-layout skip.
-    - On Windows, once every writer has exited, a lock file left in a clone was stranded; the test finds it by
-      `lstat`ing the clone's candidate lock files. A clone whose publication refused passes when its refusal names that
-      lock's absolute path — as a `lock-held` refusal's `lock`, or within the condition of 6.4's `refused` publish — and
-      removing it and pushing again converges the clone.
+- _Note:_ 6.9 feedback selection correction: the integration-only staged diff gave `test:changed` no reachable unit.
+  Related feedback now selects the branch range, covering the production changes exercised here; the original
+  no-evidence result remains recorded.
+
+- _Outcome:_ Both Windows publishing layouts run without the separate-store skip. After every writer exits, recovery
+  observes candidate files, requires each failure to name its stranded lock, removes only those locks, and retries.
+  Native cases cover both refusal shapes, a disappeared named lock, preserved unrelated files, and convergence.
 
 ### `[ ]` **6.10 Exercise deadline-bound and concurrent sync on both platforms** — validate exit criterion at segment scope
 
