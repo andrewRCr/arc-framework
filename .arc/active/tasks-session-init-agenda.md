@@ -531,21 +531,14 @@ tier pass against the new text.
         - Replaced retired-step citations and stale consumer descriptions across the five source modules;
           comment-free TypeScript syntax is unchanged.
 
-### `[ ]` **5.4 Measure the done-signal — Success Criteria 1–3**
+### `[x]` **5.4 Measure the done-signal — Success Criteria 1–3**
 
 - _Goal:_ Both parts of the done-signal are measured by the Phase 1 instruments and recorded beside the baseline.
 
-    - Part 1, per row — a plain resume, Orient, and `--start`: the itemized runs over the spine, `read-load-set`, and
-      that row's method, if any, and a real session whose only reads are those files, against ~28% of the baseline
-      `session-init.md` by each instrument
-    - Part 2: a kit install from this branch entering Orient, the real session's load before the first user-facing
-      line less an empty session's, and the itemized runs over the result's always-read set — the agenda output in
-      place of the envelope, the spine, `read-load-set`, and `discover-next-work` in place of `session-init.md` —
-      against ~60% of the baseline
-    - Task 1.1's procedure: the same scripts given the result's item lists, the same first-response rule, and the link
-      fill when the install needs it, recorded either way
-    - Raw outputs under `~/dev/arc-evidence/session-init-agenda/result/`; the comparison in
-      `notes-session-init-agenda.md` § Sizing and measurement
+- _Outcome:_ Matched kit measurements put the three rows at 17.25–20.96% itemized and approximately 18.15–22.44%
+  real-session baseline input. Full Orient is 47.70% itemized and approximately 54.75% real-session, below both
+  done-signal targets. The installed kit committed with hooks and pushed locally after its documented seven-target
+  link fill; raw evidence and limits are recorded in `notes-session-init-agenda.md` § Sizing and measurement.
 
 ### `[ ]` **5.5 Verify the shipped surface** — validate exit criterion at segment scope
 

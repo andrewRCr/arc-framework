@@ -129,6 +129,58 @@ were repeated with the same suppression instruction. The full baseline therefore
 implementation changes, while the source remains at base `279aa8ebf9` plus planning-only activation and measurement
 records.
 
+### Result install and comparison
+
+The result kit was built and packed from `bee3d5dc94a02a799cb52a1012860fef31495b1a`, after all shipped-text changes.
+Run `2026-11-02T130014` installed into `~/dev/sandbox/2026-11-02T130014/agenda-result/`. Its first commit found 19
+broken links; the documented fill copied seven missing targets. The retry committed with hooks enabled and pushed to
+its local bare origin. The fresh probe selected Orient on clean `main` with entering row `free-primary`; all five
+measurement sessions left tracked state and installed head `6cb7875c8eda19bc10e1261b190d1b898fd6eb31` unchanged.
+This is the same documented link-fill accommodation as the baseline, with the changed missing-target counts retained.
+
+`~/dev/arc-evidence/session-init-agenda/result/` retains the frozen inputs, raw itemized outputs, all five real-session
+terminals and complete transcripts, launch metadata, installed agenda and probe, kit metadata, and
+`real-context-summary.json`. The itemized script is unchanged from the baseline; its empty comparator is 6,563 tokens.
+
+| Result installed item                          | Net input tokens |
+| ---------------------------------------------- | ---------------: |
+| `session-init.md`                              |            3,839 |
+| `read-load-set`                                |              867 |
+| `discover-next-work`                           |              789 |
+| `assess-start-readiness`                       |            1,012 |
+| `AGENT-BRIEF.ARC`                              |            3,386 |
+| `AGENT-BRIEF.PROJECT`                          |              348 |
+| `DEV-RULES.ARC`                                |           11,281 |
+| `DEV-RULES.PROJECT`                            |              999 |
+| `STRATEGY-INDEX`                               |            1,664 |
+| `QUICK-REFERENCE` § Environment & Path Context |              297 |
+| `arc-session` skill                            |              177 |
+| Session-init agenda                            |            1,061 |
+
+The Part 1 sums include the spine and `read-load-set`, plus the entered method for Orient and Start. Each real-session
+control reads exactly those files and replies `OK`; the empty control replies `OK` without tools. The denominator is
+baseline workflow input: 27,283 itemized tokens and approximately 30.3k real-session tokens after subtracting empty.
+
+| Part 1 row | Itemized tokens | Baseline share | Real report | Less empty | Baseline share |
+| ---------- | --------------: | -------------: | ----------: | ---------: | -------------: |
+| Resume     |           4,706 |         17.25% |       46.3k |      ≈5.5k |        ≈18.15% |
+| Orient     |           5,495 |         20.14% |       47.4k |      ≈6.6k |        ≈21.78% |
+| Start      |           5,718 |         20.96% |       47.6k |      ≈6.8k |        ≈22.44% |
+
+All three rows are below the approximately 28% target by both instruments. The full Orient itemized sum excludes
+`assess-start-readiness`, includes the agenda instead of the envelope, and totals 24,708 tokens: **47.70%** of the
+baseline's 51,801. Full real-session Orient reports 74.2k; less the matched empty session's 40.8k gives approximately
+33.4k: **54.75%** of the baseline's approximately 61k. Both are below the approximately 60% target.
+
+The real sessions use Claude Code `2.1.316`, `claude-opus-5-5`, and the baseline's identical flags and suppression
+instruction. Every value is the first `/context` report after the first completed answer, including that answer;
+rounding makes these estimates rather than exact counters. Each transcript contains one assistant text block after
+all tools: `OK` for the controls, the final orientation for the full session. All required reads completed without
+truncation. Full Orient also read the session-state method, fresh working-memory template, discovery status and inbox,
+and directory listings; those real execution costs remain included. Its extra method read and sequential universal
+reads are observed execution choices, not evidence that the spine's grouping instructions were followed exactly.
+No early-prose result attempt was excluded or repeated.
+
 ## The always-loaded cut audit
 
 Two read-only passes over the shipped copies on 2026-10-31, spot-checked at source:
