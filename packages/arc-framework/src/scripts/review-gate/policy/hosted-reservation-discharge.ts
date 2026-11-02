@@ -856,7 +856,8 @@ export function createHostedReservationDischargeReader(input: {
           }),
     });
     return groundHostedCoverageOffer({ ...discharge, nextPassContext }, { lineage, target: currentTarget, store,
-      dispositionStore: dispositions, nextPassContext, ceiling: await maxPasses(), exec: rawExec });
+      dispositionStore: dispositions, nextPassContext, ceiling: await maxPasses(), exec: rawExec,
+      retrigger: reservation.obligation.retrigger });
   };
 
   const reader = async ({ workUnitId, ...target }: HostedReservationDischargeReaderArgs) => {
