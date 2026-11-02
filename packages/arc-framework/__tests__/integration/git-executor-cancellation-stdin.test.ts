@@ -1,24 +1,64 @@
 /** Cancellation owns backpressured stdin through controller settlement for every input adapter. */
 import { execFile } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { basename, join, resolve } from "node:path";
 import { inspect, promisify } from "node:util";
-import { expect, it, onTestFinished } from "vitest";
+import { beforeAll, expect, it, onTestFailed, onTestFinished } from "vitest";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
 import { quoteShellArgument } from "../../src/lib/release/commit-message-retry.js";
 
 const run = promisify(execFile);
+const WINDOWS_OBSERVER_SETUP_TIMEOUT_MS = 30_000;
+const traceDirectory = resolve(import.meta.dirname, "../../.test-cost-runs/cancellation-stdin");
+let observerSetup: { node: string; durationMs: number } | undefined;
+const windowsProcessQuery = 'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.CommandLine)" }';
+
+// Initialize the cold Windows observer before a controller starts timing backpressured Git input.
+beforeAll(async () => {
+  if (process.platform !== "win32") return;
+  const startedAt = performance.now();
+  const setup = { node: process.version, durationMs: 0 };
+  observerSetup = setup;
+  try {
+    await run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+      "$ErrorActionPreference = 'Stop'; " + windowsProcessQuery], {
+      timeout: WINDOWS_OBSERVER_SETUP_TIMEOUT_MS,
+      env: { ...process.env, FORCE_COLOR: undefined },
+    });
+    setup.durationMs = performance.now() - startedAt;
+    await mkdir(traceDirectory, { recursive: true });
+    await writeFile(join(traceDirectory, "observer-setup.json"), JSON.stringify(setup) + "\n");
+  } catch (error) {
+    setup.durationMs = performance.now() - startedAt;
+    console.error("DIAGNOSTIC_OBSERVER_SETUP_ERROR", inspect(error, { depth: 5, maxStringLength: null, colors: false }));
+    console.error("DIAGNOSTIC_OBSERVER_SETUP", JSON.stringify(setup));
+    throw error;
+  }
+}, WINDOWS_OBSERVER_SETUP_TIMEOUT_MS + 5_000);
 
 it.each(["native raw", "execa raw", "execa stdin", "execa plain"])("settles backpressured %s input without an unhandled stream error and permits the next invocation", async (variant) => {
   const root = await createTempRepoCore();
   const ready = join(root, "input-ready"), blocked = join(root, "blocked-input.mjs"), driver = join(root, "cancel-input.mjs");
-  onTestFinished(async () => {
-    const pid = Number(await readFile(ready, "utf8").catch(() => ""));
-    if (Number.isSafeInteger(pid) && pid > 0) {
-      try { process.kill(pid, "SIGKILL"); } catch { /* The cancellation already ended its owned child. */ }
-    }
-    await removeGitBackedDir(root);
+  const tracePath = join(traceDirectory, `${basename(root)}-${variant.replaceAll(" ", "-")}.jsonl`);
+  const controllerEvents: unknown[] = [];
+  const parentRecord = () => ({ node: process.version, variant, events: controllerEvents });
+  onTestFailed(async () => {
+    if (observerSetup) console.error("DIAGNOSTIC_OBSERVER_SETUP", JSON.stringify(observerSetup));
+    console.error("DIAGNOSTIC_PARENT", JSON.stringify(parentRecord()));
+    console.error("DIAGNOSTIC_PHASES", await readFile(tracePath, "utf8").catch(error => String(error)));
   });
+  onTestFinished(async () => {
+    try {
+      await writeFile(tracePath + ".parent.json", JSON.stringify(parentRecord()) + "\n");
+    } finally {
+      const pid = Number(await readFile(ready, "utf8").catch(() => ""));
+      if (Number.isSafeInteger(pid) && pid > 0) {
+        try { process.kill(pid, "SIGKILL"); } catch { /* The cancellation already ended its owned child. */ }
+      }
+      await removeGitBackedDir(root);
+    }
+  });
+  await mkdir(traceDirectory, { recursive: true });
   await writeFile(blocked, `import { writeFileSync, writeSync } from "node:fs";
 writeSync(1, Buffer.from([65, 0, 128, 255]));
 writeSync(2, "Pending input child ready");
@@ -32,10 +72,10 @@ import { appendFileSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
-const [nativeSource, execaSource, cwd, ready, alias, variant] = process.argv.slice(2);
+const [nativeSource, execaSource, cwd, ready, alias, variant, tracePath] = process.argv.slice(2);
 let stage = "module-imports", census = 0;
 const begun = performance.now();
-const trace = (event, detail = {}) => { try { appendFileSync(ready + ".trace", JSON.stringify({ event, stage, elapsedMs: performance.now() - begun, wallTime: Date.now(), pid: process.pid, variant, ...detail }) + "\\n"); } catch {} };
+const trace = (event, detail = {}) => { try { appendFileSync(tracePath, JSON.stringify({ event, stage, elapsedMs: performance.now() - begun, wallTime: Date.now(), pid: process.pid, variant, ...detail }) + "\\n"); } catch {} };
 const phase = name => { stage = name; trace("phase"); };
 trace("start", { node: process.version, platform: process.platform, arch: process.arch });
 process.on("uncaughtExceptionMonitor", error => trace("uncaughtExceptionMonitor", { message: error.message, stack: error.stack }));
@@ -55,7 +95,7 @@ const processes = async () => {
   trace("census-start", { scan });
   const { stdout } = process.platform === "win32"
     ? await promisify(execFile)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
-      'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.CommandLine)" }'])
+      ${JSON.stringify(windowsProcessQuery)}])
     : await promisify(execFile)("ps", ["-A", "-o", "pid=,args="]);
   trace("census-end", { scan, durationMs: performance.now() - startedAt, bytes: stdout.length });
   return stdout.split(/\\r?\\n/u).flatMap(line => {
@@ -113,11 +153,10 @@ try {
 `);
   const shellPath = (value: string) => quoteShellArgument(process.platform === "win32" ? value.replaceAll("\\", "/") : value);
   const alias = `!${shellPath(process.execPath)} ${shellPath(blocked)} ${shellPath(ready)}`;
-  const controllerEvents: unknown[] = [];
   const parentStart = performance.now();
   const childRun = run(process.execPath, ["--unhandled-rejections=strict", "--import", "tsx", driver,
     new URL("../../src/lib/change-facts.ts", import.meta.url).href,
-    new URL("../../src/lib/git/process-executor.ts", import.meta.url).href, root, ready, alias, variant], {
+    new URL("../../src/lib/git/process-executor.ts", import.meta.url).href, root, ready, alias, variant, tracePath], {
     cwd: process.cwd(), timeout: 15_000,
     env: { ...process.env, FORCE_COLOR: undefined, LC_ALL: "C", LANG: "C" },
   });
@@ -134,9 +173,6 @@ try {
   catch (error) {
     console.error("DIAGNOSTIC_CHILD_ERROR", inspect(error, { depth: 5, maxStringLength: null, colors: false }));
     throw error;
-  } finally {
-    console.error("DIAGNOSTIC_PARENT", JSON.stringify({ node: process.version, variant, events: controllerEvents }));
-    console.error("DIAGNOSTIC_PHASES", await readFile(ready + ".trace", "utf8").catch(error => String(error)));
   }
   expect(JSON.parse(stdout)).toMatchObject({ kind: "canceled", isCanceled: true, nextSucceeded: true });
   expect(JSON.parse(stdout).cleaned).toBeGreaterThanOrEqual(2);
