@@ -345,20 +345,21 @@ unconditionally: `grep -m 1 "^active:"` retrieves the flag without reading the b
 
 ### Method Classification by Trigger
 
-| Method                        | Trigger Workflow             | Session Applicability                                         |
-| ----------------------------- | ---------------------------- | ------------------------------------------------------------- |
-| issue-triage                  | process-task-loop            | Universal — every task execution session                      |
-| test-first                    | process-task-loop            | Conditional — tasks with test-first marker                    |
-| commit-format                 | prepare-commits              | User-triggered commit events                                  |
-| commit-footer                 | prepare-commits              | User-triggered commit events                                  |
-| code-review-author            | code-review                  | Aggregate author check before verification or pre-publication |
-| code-review-frontline         | code-review                  | Optional advisory pre-publication review                      |
-| code-review-standard          | code-review                  | Local or hosted exact-change-set standard                     |
-| implementation-audit          | prepare / integrate          | Prepublication and hosted review rubric                       |
-| review-triage                 | prepare / integrate          | Prepublication and integration findings                       |
-| assess-evidence-applicability | integrate / deliver / errand | Conditional — bounded review / verification residual          |
-| classify-review-risk          | prepare / errand             | Every review routing-fact composition                         |
-| session-state                 | session-handoff              | Session end only                                              |
+| Method                        | Trigger Workflow               | Session Applicability                                         |
+| ----------------------------- | ------------------------------ | ------------------------------------------------------------- |
+| issue-triage                  | process-task-loop              | Universal — every task execution session                      |
+| test-first                    | process-task-loop              | Conditional — tasks with test-first marker                    |
+| commit-format                 | prepare-commits                | User-triggered commit events                                  |
+| commit-footer                 | prepare-commits                | User-triggered commit events                                  |
+| code-review-author            | code-review                    | Aggregate author check before verification or pre-publication |
+| code-review-frontline         | code-review                    | Optional advisory pre-publication review                      |
+| code-review-standard          | code-review                    | Local or hosted exact-change-set standard                     |
+| implementation-audit          | prepare / integrate            | Prepublication and hosted review rubric                       |
+| review-triage                 | prepare / integrate            | Prepublication and integration findings                       |
+| assess-evidence-applicability | integrate / deliver / errand   | Conditional — bounded review / verification residual          |
+| classify-review-risk          | prepare / errand               | Every review routing-fact composition                         |
+| read-load-set                 | session-init / session-recover | Context-read steps and verified recovery load sets            |
+| session-state                 | session-handoff                | Session end only                                              |
 
 ### Review enforcement boundary
 

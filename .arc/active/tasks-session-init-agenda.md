@@ -260,32 +260,23 @@ _Exit criterion:_ On a kit install with a work unit in progress, a session follo
 orientation surfaces, questions, and proceed prompt as today's workflow on the same fixture, and the spine is within its
 ~13 KB budget.
 
-### `[ ]` **3.1 Author `read-load-set` and fire it from recovery — § 8.1**
+### `[x]` **3.1 Author `read-load-set` and fire it from recovery — § 8.1**
 
 - _Goal:_ One method executes every read mode for both consumers — init anchored on the `read` step's cursor, recovery on
   its audit report's — with groups, manifest order, and truncation continuation, and recovery keeps its stop rules.
 
-- _Note:_ 3.1.a–c land in one commit: `lint:arc:triggers` fails a method no workflow declares. See
-  `notes-session-init-agenda.md` § Shipping a file.
+    - `[x]` **3.1.a Author the method**
+        - Added the ordinary overridable method with grouped reads, manifest-order interpretation, truncation
+          continuation, and one shared strategic-slicing procedure. Init uses the read step's cursor; recovery uses
+          verified audit anchors and retains its own failure policy.
 
-    - `[ ]` **3.1.a Author the method**
-        - Ordinary method shape in the flat methods directory, package source first, with `override-active: false` and
-          `[No override configured]`, which the package-neutrality check requires: the read contract and the one
-          `partial-strategic` procedure moved from `session-recover.md` Step 3's slicing
-        - Init anchors on the step's `cursor`, not the meta's `**Next Task:**` triple
-        - A missing header or phase preamble is surfaced and the read continues; entries with no `group` form one group
-        - The method reports a task section it cannot locate, and each consumer responds: init skips the read and
-          surfaces a mismatch, recovery stops
+    - `[x]` **3.1.b Ship it**
+        - Registered the method in the install recipe, Configurable classifier, self-hosting manifest and inventory,
+          and method trigger table. Fresh-install assertions cover its installed file and Configurable manifest entry.
 
-    - `[ ]` **3.1.b Ship it**
-        - The `init-recipe.json` entry, `CONFIGURABLE_FILES`, the manifest, the package-sync strategy's counts and list,
-          and a § Method Classification by Trigger row
-        - Add it to both of `integration/init.test.ts`'s method lists: the installed files and the manifest's
-          Configurable classification
-
-    - `[ ]` **3.1.c Fire it from recovery**
-        - `session-recover.md` Step 3's read-mode mechanics become a fire-point to the method; its frontmatter declares
-          it; its stop rules — no verified anchor, an unlocatable task section — stay in `session-recover.md`
+    - `[x]` **3.1.c Fire it from recovery**
+        - Recovery declares and invokes the method with verified audit anchors. Its checkout binding, missing-anchor
+          stop, unlocatable-section stop, and pending-marker preservation remain in the recovery workflow.
 
 ### `[ ]` **3.2 Replace `session-init` with the spine — § 9.1**
 
