@@ -64,8 +64,8 @@ async function ignoreProjectedRoots(checkout: string): Promise<void> {
 async function sweepAfter(removal: Awaited<ReturnType<typeof prepared>>, takeIn: TakeInPort) {
   const { checkout, location } = removal.seeded;
   return sweepAsideFolder({
-    excludesFile: (await readProjectionConfiguration(createExecaGitExec(), checkout)).excludesFile,
-    readExcludesFile: async () => (await readProjectionConfiguration(createExecaGitExec(), checkout)).excludesFile,
+    ignoreRules: (await readProjectionConfiguration(createExecaGitExec(), checkout)).ignoreRules,
+    readIgnoreRules: async () => (await readProjectionConfiguration(createExecaGitExec(), checkout)).ignoreRules,
     location, checkout, index: await indexOnDisk(location), format: "sha1", takeIn,
     writer: { ...SWAP_WRITER, processInstance: "a-later-run" },
     guard: { root: checkout, identity: SlugSchema.parse("andrew"), exec: createExecaGitExecInput(), fs: gitFs },

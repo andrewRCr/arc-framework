@@ -49,16 +49,16 @@ async function fixture(mode: "tilde" | "home-default" | "xdg-default" | "absolut
   }
   const guard = { root, identity: SlugSchema.parse("andrew"), exec: createExecaGitExecInput(undefined, undefined, environment),
     fs: { lstat, realpath, readFile: (path: string) => readFile(path, "utf8") } };
-  const selection = async () => (await readProjectionConfiguration(git, root, environment)).excludesFile;
-  const check = async (records: Parameters<typeof checkIgnores>[0]["records"] = null, recordedExcludesFile: Parameters<typeof checkIgnores>[0]["recordedExcludesFile"] = null) =>
-    checkIgnores({ guard, records, recordedExcludesFile, excludesFile: await selection(), readExcludesFile: selection,
+  const selection = async () => (await readProjectionConfiguration(git, root, environment)).ignoreRules;
+  const check = async (records: Parameters<typeof checkIgnores>[0]["records"] = null, recordedGuard: Parameters<typeof checkIgnores>[0]["recordedGuard"] = null) =>
+    checkIgnores({ guard, records, recordedGuard, ignoreRules: await selection(), readIgnoreRules: selection,
       reference: 9_000_000_000_000_000_000n, format: "sha1" });
   return { root, source, guard, selection, check };
 }
 
 it.each(["tilde", "home-default", "xdg-default"] as const)("preserves %s traversal and agrees with live Git, then permits repair", async (mode) => {
   const h = await fixture(mode);
-  expect(await h.selection()).toEqual({ kind: "path", path: h.source, values: mode === "tilde" ? ["~/link/../ignore"] : [] });
+  expect(await h.selection()).toMatchObject({ kind: "path", path: h.source, values: mode === "tilde" ? ["~/link/../ignore"] : [] });
   const live = await guardProjectionIgnores(h.guard);
   expect(await h.check()).toMatchObject({ kind: live.kind });
   await writeFile(h.source, RULE);
@@ -73,7 +73,7 @@ it("invalidates a cached pass when the actual matched source behind symlink/.. c
   if (first.kind !== "passed") throw new Error("expected an initial pass");
   await writeFile(h.source, "");
   expect(await guardProjectionIgnores(h.guard)).toMatchObject({ kind: "refused", reason: "not-ignored" });
-  expect(await h.check(first.records, first.excludesFile)).toMatchObject({ kind: "refused", reason: "not-ignored" });
+  expect(await h.check(first.records, first.basis)).toMatchObject({ kind: "refused", reason: "not-ignored" });
   await writeFile(h.source, RULE);
   expect(await h.check()).toMatchObject({ kind: "passed" });
 });

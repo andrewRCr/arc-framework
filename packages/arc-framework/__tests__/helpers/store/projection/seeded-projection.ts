@@ -55,7 +55,7 @@ export async function seedProjection(input: {
   const index = await commitProjectionIndex({
     location, checkout, installing: new Set(Object.keys(entries)),
     index: {
-      format: 1, state: state.result, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreExcludesFile: null, entries,
+      format: 1, state: state.result, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries,
       projectedUnder: {
         view: { mode: "mine", pins: [] }, identity: input.identity ?? SlugSchema.parse("andrew"), claim: null,
         layoutActive: "nested",

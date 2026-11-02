@@ -31,12 +31,12 @@ afterEach(async () => { await rm(checkout, { recursive: true, force: true }); })
 const EMPTY_INDEX: ProjectionIndex = {
   format: 1, state: null,
   projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("andrew"), claim: null, layoutActive: "nested" },
-  withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreExcludesFile: null, entries: {},
+  withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries: {},
 };
 
 async function statOf(target: string): Promise<FileStat> {
   const s = await lstat(target, { bigint: true });
-  return { type: "file", size: s.size, mtimeNs: s.mtimeNs, ino: s.ino };
+  return { type: s.isSymbolicLink() ? "symlink" : "file", size: s.size, mtimeNs: s.mtimeNs, ino: s.ino };
 }
 
 async function writeAt(target: string, content: string, at: Date): Promise<void> {
@@ -105,17 +105,18 @@ describe("the ignore-file snapshot", () => {
     expect(await compared(later)).toBe("changed");
   });
 
-  it("reads an ignore file through a symbolic link, as Git does, and a link that loops as absent", async () => {
+  it("records a readable link as a link, detects target edits, and reads a looping link as absent", async () => {
     const target = join(checkout, "dotfiles", "gitignore");
     await writeAt(target, ".arc/user/*/\n", T);
     await symlink(target, gitignore);
     await mkdir(dirname(exclude), { recursive: true });
     await symlink(exclude, exclude);
     const index = await passed(LATER);
-    expect(index.ignoreFiles).toEqual([
-      { path: gitignore, stat: await statOf(target), blob: gitBlobId(".arc/user/*/\n", "sha1") },
+    expect(index.ignoreFiles).toMatchObject([
+      { path: gitignore, stat: { type: "symlink" }, blob: gitBlobId(".arc/user/*/\n", "sha1") },
       { path: exclude, stat: null, blob: null },
     ]);
+    expect(await compared(index)).toBe("unchanged");
     await writeAt(target, "!.arc/user/*/\n", T);
     expect(await compared(index)).toBe("changed");
   });

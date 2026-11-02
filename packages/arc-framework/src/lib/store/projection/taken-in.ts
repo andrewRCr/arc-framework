@@ -35,7 +35,10 @@ export function restoreEntryIds(content: string, reference: string, config: Entr
   const missing = entriesOf(split).filter((entry) => entry.id === undefined);
   const given = new Map<ListEntry, string>();
   // Text first; the heading pass reads only what the text pass left on both sides.
-  for (const matches of [sameText, (entry: ListEntry, candidate: ListEntry) => sameHeading(entry, candidate, config)]) {
+  for (const matches of [
+    (entry: ListEntry, candidate: ListEntry) => sameText(entry, candidate, config),
+    (entry: ListEntry, candidate: ListEntry) => sameHeading(entry, candidate, config),
+  ]) {
     const open = candidates.filter((candidate) => ![...given.values()].includes(candidate.id ?? ""));
     const waiting = missing.filter((entry) => !given.has(entry));
     for (const entry of waiting) {
@@ -52,8 +55,8 @@ export function restoreEntryIds(content: string, reference: string, config: Entr
 }
 
 /** Whether an entry's text equals a reference entry's apart from that entry's ID line. */
-function sameText(entry: ListEntry, candidate: ListEntry): boolean {
-  return withoutIdLines(candidate.bytes, () => true) === entry.bytes;
+function sameText(entry: ListEntry, candidate: ListEntry, config: EntryListConfig): boolean {
+  return withoutEntryId(candidate, config) === entry.bytes;
 }
 
 /** Whether two entries share a heading, or in a field-header list, a field header. */
@@ -195,16 +198,18 @@ export async function recordWriteBack(input: WriteBackRecording): Promise<{ entr
   return { entry: { ...input.entry, persisted: { stamp: input.stamp, takenIn: record } }, released };
 }
 
-/** An ID line in either entry shape, `- _Id:_` under a heading or `_Id:_` under a field header. */
-const ID_LINE = /^\s*(?:-\s+)?_Id:_\s*`([0-9a-f]{8})`\s*$/u;
-
 /**
  * Whether the record read back holds the content taken in, apart from the ID lines the store stamped: those whose IDs
  * the content taken in lacks, with the final newline normalized.
  */
 function sameApartFromStampedIds(readBack: string, takenIn: string, grammar: EntryListConfig | undefined): boolean {
-  const carried = grammar === undefined ? new Set<string>() : carriedIds(splitEntryList(takenIn, grammar));
-  const kept = withoutIdLines(readBack, (id) => !carried.has(id));
+  if (grammar === undefined) return withFinalNewline(readBack) === withFinalNewline(takenIn);
+  const carried = carriedIds(splitEntryList(takenIn, grammar));
+  const split = splitEntryList(readBack, grammar);
+  const kept = rejoinEntryList({ parts: split.parts.map((part) => (
+    part.kind === "entry" && part.id !== undefined && !carried.has(part.id)
+      ? { ...part, bytes: withoutEntryId(part, grammar) } : part
+  )) });
   return withFinalNewline(kept) === withFinalNewline(takenIn);
 }
 
@@ -212,14 +217,18 @@ function carriedIds(split: SplitEntryList): Set<string> {
   return new Set(entriesOf(split).flatMap((entry) => (entry.id === undefined ? [] : [entry.id])));
 }
 
-/** Remove each ID line, outside comments, whose ID `drop` selects. */
-function withoutIdLines(content: string, drop: (id: string) => boolean): string {
-  const lines = content.match(/[^\n]*(?:\n|$)/gu) ?? [];
-  const masked = maskComments(content).match(/[^\n]*(?:\n|$)/gu) ?? [];
-  return lines.filter((_line, index) => {
-    const id = ID_LINE.exec((masked[index] ?? "").replace(/\n$/u, ""))?.[1];
-    return id === undefined || !drop(id);
-  }).join("");
+/** Remove only the entry's managed ID, including the boundary introduced when it was appended at the end. */
+function withoutEntryId(entry: ListEntry, config: EntryListConfig): string {
+  if (entry.id === undefined) return entry.bytes;
+  const pattern = config.shape === "heading"
+    ? /^[ \t]*-[ \t]+_Id:_[ \t]*`([0-9a-f]{8})`[ \t]*$/u
+    : /^[ \t]*_Id:_[ \t]*`([0-9a-f]{8})`[ \t]*$/u;
+  const lines = [...maskComments(entry.bytes).matchAll(/[^\n]*(?:\n|$)/gu)];
+  const line = lines.find((line) => pattern.exec(line[0].replace(/\r?\n$/u, ""))?.[1] === entry.id);
+  if (line === undefined) return entry.bytes;
+  const before = entry.bytes.slice(0, line.index);
+  const after = entry.bytes.slice(line.index + line[0].length);
+  return after === "" ? before.replace(/\r?\n$/u, "") : before + after;
 }
 
 function withFinalNewline(content: string): string {

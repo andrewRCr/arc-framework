@@ -10,15 +10,16 @@ each shared root and the machine-local folder, as directory patterns. The person
 alone and never enters the exclude file. The list is written through `ensureGitExcludePatterns` (`lib/git/exclude.ts`)
 in one Git call and one write.
 
-`ignore-guard.ts` proves every projected root and the aside folder ignored with one
-`git check-ignore -z -v --non-matching --no-index --stdin` call, which judges the rules alone, so a root holding
-tracked files still reads as ignored. A path re-included by a `!` pattern reads as not ignored, and the personal root
-passes only on a rule from a `.gitignore` inside the repository, since `npm pack` reads only those. A refusal names
-each path and the line that would ignore it; a call that fails otherwise refuses every root, typed apart, with the
-remedy of running the command again. A pass returns the ignore files its verdict rests on — `info/exclude` in the
-common Git directory, every `.gitignore` on the path to each guarded root, present or not, and every other file a match
-names as its source — so a caller can skip the call while none of them changes. `predictableIgnoreFiles` names the
-first two kinds, which every pass rests on whatever the call answers.
+`ignore-guard.ts` proves every projected root and the aside folder ignored with one `git check-ignore -z -v
+--non-matching --no-index --stdin` call, which judges the rules alone, so a root holding tracked files still reads as
+ignored. A path re-included by a `!` pattern reads as not ignored, and the personal root passes only on a rule from a
+regular `.gitignore` inside the repository, since `npm pack` reads only those. A relative excludes setting naming the
+same path cannot authorize a symlink in its place. A refusal names each path and the line that would ignore it; a call
+that fails otherwise refuses every root, typed apart, with the remedy of running the command again. A pass returns the
+ignore files its verdict rests on — `info/exclude` in the common Git directory, every `.gitignore` on the path to each
+guarded root, present or not, and every other file a match names as its source — so a caller can skip the call while
+none of them changes. `predictableIgnoreFiles` names the first two kinds, which every pass rests on whatever the call
+answers.
 
 `index-schema.ts` is the strict schema of the index each projected worktree keeps about its copy. Per path it holds the
 record reference the file was read with, its stat, the blob id last written there, its base, its marks, and the aside
@@ -41,15 +42,16 @@ replaces: the cached size is zeroed, so the next check hashes it. This includes 
 replacement's stat, and fresh ignore snapshots. Only a staged file awaiting installation after that write is exempt.
 A recorded size of zero for nonempty content always hashes, so a save that empties the file is still found.
 
-`ignore-snapshot.ts` records the ignore files a guard pass rests on — each one's stat and blob id, or that it is absent
-— and compares that record against each file as it is by the same rule, smudging included, so a command runs the guard
-again only when one may have changed. An ignore file is read through a symbolic link, as Git reads it, and a link that
-loops reads as absent.
+`ignore-snapshot.ts` records each readable source's own path type/stat and content hash, or its absence, and compares
+it by the same rule, smudging included. A symlink keeps its own stat and hashes its target on comparison: changing a
+regular `.gitignore` into a link invalidates the old pass, and a supported excludes-file link still detects target
+edits. A dangling or looping link reads as absent. Git's guard decides which sources actually authorize each root.
 
-`ignore-check.ts` runs the guard before a command's first write into a root only where an ignore file may have changed
-since its last pass, by `ignore-snapshot.ts`'s comparison, or any `core.excludesFile` value or its effective path
-changed. The command's existing configuration read supplies that basis; a passing guard carries the confirmed path and
-values for the sweep to record beside the file snapshots. A pass reads every file it rests on before the call — the
+`ignore-check.ts` runs the guard before a command's first write into a root when a source may have changed or the
+guarded roots, effective excludes path, ordered excludes values or ordered case-policy values differ. Its pass records
+the actual roots independently of the index's projection identity. The command's configuration read supplies the
+rules; a fresh guard pins the captured excludes path and effective case setting, then confirms all raw values before
+returning its basis for the sweep to record beside the snapshots. A pass reads every source before the call — the
 predictable ones and each file the last pass recorded, a `core.excludesFile` among them — and again after it, and
 returns its records only where every read agrees, so an edit landing while Git reads never becomes the baseline a later
 command skips the call against. Otherwise it reads again, knowing every file the call named, at most three times, and
@@ -58,23 +60,26 @@ then refuses every root with the remedy of running the command again. A refusal 
 `lock.ts` is the projection lock, one advisory lock per worktree at `arc-projection/lock`, its holder recording the
 process ID, instance, and process scope under a renewable lease. It creates, renews, and releases only inside a state
 folder that exists, so a worktree whose Git directory was removed reads as gone and is never recreated. A lost lease
-ends only the guarded operation, at its next step, with the report the caller names; a wait that times out names the
-holder it last saw. It is not reentrant.
+ends only the guarded operation, at its next step, with the report the caller names. The operation awaits each
+`session.step()`, which confirms ownership through the renewable lease before proceeding, even when a queued heartbeat
+has not run. Failed confirmation stops the operation with a retry report. A wait that times out names the holder it
+last saw. It is not reentrant.
 
 `blob-id.ts` computes Git blob ids with `node:crypto`, `blob <length>\0` plus the bytes, in the repository's object
 format, never by running Git per file. A file's stored blob id is taken over LF line endings with, for Markdown alone,
 the base stamp and notice lines stripped, since the stored record carries neither.
 
-`configuration.ts` supplies the configuration read at command start:
-`git config --null --get-regexp '^(arc\.|user\.name$|extensions\.objectformat$|core\.excludesfile$)'`. Exit status 1
-means no key is set. A single-valued key takes its last occurrence, and every `arc.inflightPin` is kept. It returns the
-object format (SHA-1 where unset), the raw view keys, identity or its repair verdict, and an effective excludes path
-with every raw value in order, or an invalid-setting result. An unset excludes key resolves to Git's default from the
+`configuration.ts` supplies the configuration read at command start: `git config --null --get-regexp
+'^(arc\.|user\.name$|extensions\.objectformat$|core\.(excludesfile|ignorecase)$)'`. Exit status 1 means no key is set. A
+single-valued key takes its last occurrence, and every `arc.inflightPin` is kept. It returns the object format (SHA-1
+where unset), the raw view keys, identity or its repair verdict, and an effective excludes path with every raw excludes
+and case-policy value in order, or an invalid-setting result. An unset excludes key resolves to Git's default from the
 invocation environment; a valueless occurrence is refused before cache reuse, even if a later occurrence has a value.
 Home/default expansion and matched source paths retain their traversal components, so a symlink followed by `..` is
-evaluated by the filesystem. The ignore check pins a fresh Git guard to its captured path, then confirms the path and
-all raw values through the same configuration reader before accepting the pass. A changed selection refuses recoverably.
-Only fresh guards pay for confirmation; an unchanged cached check adds no configuration read.
+evaluated by the filesystem. Git interprets case-policy values: valueless means true and unset defaults to false; an
+earlier invalid value still forces a fresh guard and refusal. The ignore check pins its captured effective setting, then
+confirms the complete selection through the same reader. A changed selection refuses recoverably. Only fresh guards pay
+for confirmation; an unchanged cached check adds no configuration read.
 
 `base-recovery.ts` recovers the base of a file whose stamp was lost. Content equal to a stored version takes it — the
 index's version first, by blob id, so a file still holding it reads no `history`, then each version newest first.

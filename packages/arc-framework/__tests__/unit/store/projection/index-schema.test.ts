@@ -25,7 +25,9 @@ function fullIndex(): ProjectionIndex {
     },
     withheldCopies: ["active/current/meta-alpha.md/0000.1-1-ab.n.aside"],
     tripwires: { refresh: [1.5, 2, 3, 4, 5, 6, 7, 8, 9] },
-    ignoreExcludesFile: { path: "/repo/ignore", values: ["~/prior-ignore", "/repo/ignore"] },
+    ignoreGuard: { roots: ["/repo/.arc/user/andrew/"], configuration: {
+      path: "/repo/ignore", values: ["~/prior-ignore", "/repo/ignore"], ignoreCase: ["true", null],
+    } },
     ignoreFiles: [
       { path: "/repo/.git/info/exclude", stat, blob: blob("a") },
       { path: "/repo/.arc/.gitignore", stat: null, blob: null },

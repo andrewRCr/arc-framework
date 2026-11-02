@@ -21,7 +21,7 @@ export const SIBLING_LOCK_WAIT_MS = 200;
 
 /** What the guarded operation holds: each step it takes first checks the lease still holds. */
 export interface ProjectionLockSession {
-  readonly step: () => void;
+  readonly step: () => Promise<void>;
 }
 
 /** How a guarded operation ended. */
@@ -55,7 +55,7 @@ export type ProjectionLockDependencies = LeaseProcessDependencies & {
  * Run an operation holding a worktree's projection lock. The lock is not reentrant: asking again for one this process
  * holds waits until it times out, so take it at one level only.
  * @param location - The located worktree.
- * @param operation - The operation, which calls `step` before each step it takes.
+ * @param operation - The operation, which awaits `step` before each step it takes.
  * @param options - `maxWaitMs` bounds the wait; unset, the lock's default bound applies.
  * @param overrides - Process and lockfile boundaries to replace.
  * @returns The operation's value, or why it did not run or did not finish.
@@ -117,11 +117,20 @@ async function runLeased<T>(
     terminateProcess: () => { state.lost = true; },
     writeLine: (line) => { lines.push(line); },
   };
-  const session = {
-    step: (): void => { if (state.lost) throw new ProjectionLockLostError("The projection lock was lost"); },
-  };
   try {
-    const value = await withRenewableLease(handle, startedAt, async () => await operation(session), lease,
+    const value = await withRenewableLease(handle, startedAt, async (ownership) => await operation({
+      step: async (): Promise<void> => {
+        if (state.lost) throw new ProjectionLockLostError("The projection lock was lost");
+        try {
+          await ownership.confirmOwnership();
+        } catch (error) {
+          state.lost = true;
+          const detail = error instanceof Error ? error.message : String(error);
+          lines.push(detail);
+          throw new ProjectionLockLostError(detail);
+        }
+      },
+    }), lease,
       { lock: "Projection lock", controller: "this worktree's projection operation" });
     if (state.lost) return { status: "lost", report: lines.join("\n") };
     for (const line of lines) deps.writeLine(line);

@@ -110,8 +110,15 @@ const ProjectedUnderSchema = z.strictObject({
   layoutActive: z.enum(["nested", "flat"]),
 });
 
-/** The excludes source and every ordered setting Git parsed before a passing guard. */
-const ExcludesSelectionSchema = z.strictObject({ path: z.string(), values: z.array(z.string()) });
+/** The excludes source and all ordered settings that affect the ignore verdict. */
+const IgnoreRulesSelectionSchema = z.strictObject({
+  path: z.string(), values: z.array(z.string()), ignoreCase: z.array(z.string().nullable()),
+});
+
+/** The actual roots and captured configuration a passing guard proved, independently of projection settings. */
+const IgnoreGuardBasisSchema = z.strictObject({
+  roots: z.array(z.string().min(1)).min(1), configuration: IgnoreRulesSelectionSchema,
+});
 
 /** The index as JSON stores it, decoded into bigints and validated references. Unknown fields fail. */
 export const ProjectionIndexSchema = z.strictObject({
@@ -121,14 +128,16 @@ export const ProjectionIndexSchema = z.strictObject({
   withheldCopies: z.array(z.string().min(1)),
   tripwires: z.record(z.string().min(1), z.array(z.number().nonnegative()).max(9)),
   ignoreFiles: z.array(IgnoreFileRecordSchema).nullable(),
-  ignoreExcludesFile: ExcludesSelectionSchema.nullable(),
+  ignoreGuard: IgnoreGuardBasisSchema.nullable(),
   entries: z.record(EntryPathSchema, IndexEntrySchema),
 });
 
 /** A decoded projection index. */
 export type ProjectionIndex = z.output<typeof ProjectionIndexSchema>;
-/** The complete excludes configuration basis of a passing guard. */
-export type ExcludesSelection = z.output<typeof ExcludesSelectionSchema>;
+/** The complete ignore configuration basis of a passing guard. */
+export type IgnoreRulesSelection = z.output<typeof IgnoreRulesSelectionSchema>;
+/** The actual paths and configuration authorized by a passing guard. */
+export type IgnoreGuardBasis = z.output<typeof IgnoreGuardBasisSchema>;
 /** A decoded `lstat`, its fields bigints. */
 export type FileStat = z.output<typeof FileStatSchema>;
 /** A decoded ignore-file record. */

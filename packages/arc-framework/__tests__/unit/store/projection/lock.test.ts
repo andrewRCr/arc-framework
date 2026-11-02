@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NATIVE_LEASE_PROCESS } from "../../../../src/lib/lease-process.js";
+import { acquireAdvisoryLock, releaseAdvisoryLockConfirmed, type AdvisoryLockHandle } from "../../../../src/lib/advisory-lock.js";
+import { ADVISORY_LEASE_DURATION_MS } from "../../../../src/lib/renewable-lease.js";
 import type { ProjectionLocation } from "../../../../src/lib/store/projection/location.js";
 import {
   PROJECTION_LOCK_FILE, SIBLING_LOCK_WAIT_MS, withProjectionLock,
@@ -46,6 +48,52 @@ async function hold(): Promise<{ release: () => void; done: Promise<unknown> }> 
 }
 
 describe("the projection lock", () => {
+  it("stops the old owner after cross-scope takeover before any heartbeat is delivered, and permits retry", async () => {
+    let now = 0;
+    let replacement: AdvisoryLockHandle | undefined;
+    let mutated = false;
+    const result = await withProjectionLock(location, async (session) => {
+      now = ADVISORY_LEASE_DURATION_MS + 1;
+      replacement = await acquireAdvisoryLock(join(location.stateDir, PROJECTION_LOCK_FILE), {
+        pid: process.pid, processInstance: "replacement", processScope: "replacement-scope", now: () => now,
+        leaseDurationMs: ADVISORY_LEASE_DURATION_MS, maxWaitMs: 200,
+      });
+      await session.step();
+      mutated = true;
+    }, {}, { now: () => now, resolveProcessScope: async () => "original-scope", scheduleEvery: () => () => undefined });
+    expect(mutated).toBe(false);
+    expect(result).toMatchObject({ status: "lost", report: expect.stringContaining("ownership") });
+    if (replacement === undefined) throw new Error("replacement never acquired the lock");
+    await releaseAdvisoryLockConfirmed(replacement);
+    expect(await withProjectionLock(location, async (session) => { await session.step(); return "retried"; }))
+      .toEqual({ status: "done", value: "retried" });
+  });
+
+  it("reports failed step confirmation without mutating and permits a repaired retry", async () => {
+    let armed = false;
+    let mutated = false;
+    const result = await withProjectionLock(location, async (session) => {
+      armed = true;
+      try {
+        await session.step();
+        mutated = true;
+      } finally {
+        armed = false;
+      }
+    }, {}, {
+      scheduleEvery: () => () => undefined,
+      readFile: async (path) => {
+        if (armed) throw Object.assign(new Error("temporary read failure"), { code: "EACCES" });
+        return readFile(path, "utf8");
+      },
+    });
+    expect(mutated).toBe(false);
+    expect(result).toMatchObject({ status: "lost", report: expect.stringContaining("confirm") });
+    armed = false;
+    expect(await withProjectionLock(location, async (session) => { await session.step(); return "retried"; }))
+      .toEqual({ status: "done", value: "retried" });
+  });
+
   it("skips a sibling held past the bounded wait, and takes one released within it", async () => {
     const holder = await hold();
     expect((await withProjectionLock(location, async () => "skipped", { maxWaitMs: SIBLING_LOCK_WAIT_MS })).status)
@@ -94,15 +142,15 @@ describe("the projection lock", () => {
       // The first renewal reads the holder, then finds the folder gone; the second, queued behind it, finds no holder.
       tick();
       tick();
-      await vi.waitFor(() => { expect(() => { session.step(); }).toThrow(); });
-      session.step();
+      await vi.waitFor(async () => { await expect(session.step()).rejects.toThrow(); });
+      await session.step();
       return "finished";
     }, {}, {
       readFile: removingAfterFirstRead(() => armed),
       scheduleEvery: (callback) => { tick = callback; return () => undefined; },
       terminateProcess: () => { terminated.push("terminated"); },
     });
-    expect(result).toEqual({ status: "lost", report: expect.stringContaining("ownership was lost") });
+    expect(result).toEqual({ status: "lost", report: expect.stringContaining("ownership") });
     expect(terminated).toEqual([]);
     expect(await exists(gitDir)).toBe(false);
   });

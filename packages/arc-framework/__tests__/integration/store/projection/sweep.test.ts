@@ -12,6 +12,7 @@ import { PROJECTION_REFERENCE, readStat } from "../../../../src/lib/store/projec
 import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import type { ProjectionIndex, RecordEntry } from "../../../../src/lib/store/projection/index-schema.js";
 import { nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
+import { recordWriteBackSent } from "../../../../src/lib/store/projection/aside-copies.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import type { SwapHooks } from "../../../../src/lib/store/projection/swap.js";
 import { sweepAsideFolder, type SweepInput } from "../../../../src/lib/store/projection/sweep.js";
@@ -58,8 +59,8 @@ async function leftBy(
   const { checkout, location } = prepared.seeded;
   /** Sweep with the index on disk, as the next command's start reads it. */
   const sweep = async (takeIn: TakeInPort, overrides: Partial<SweepInput> = {}) => sweepAsideFolder({
-    excludesFile: (await readProjectionConfiguration(createExecaGitExec(), checkout)).excludesFile,
-    readExcludesFile: async () => (await readProjectionConfiguration(createExecaGitExec(), checkout)).excludesFile,
+    ignoreRules: (await readProjectionConfiguration(createExecaGitExec(), checkout)).ignoreRules,
+    readIgnoreRules: async () => (await readProjectionConfiguration(createExecaGitExec(), checkout)).ignoreRules,
     location, checkout, index: await indexOnDisk(location), format: "sha1", takeIn, writer: SWEEPER,
     guard: { root: checkout, identity, exec: execInput, fs: gitFs }, ...overrides,
   });
@@ -79,6 +80,42 @@ async function entryOnDisk(location: Parameters<typeof readProjectionIndex>[0], 
 }
 
 describe("the sweep", () => {
+  it.each([
+    ["landed", false], ["landed", true], ["deferred", false], ["deferred", true],
+  ] as const)("keeps the next edited copy after a %s send, with its path absent %s", async (answer, absent) => {
+    const h = await leftBy(null);
+    const index = await indexOnDisk(h.location);
+    const entry = index.entries[h.path];
+    const [first] = entry?.kind === "record" ? entry.copies : [];
+    if (entry?.kind !== "record" || first === undefined) throw new Error("expected a copy");
+    const second = { ...first, name: nameAsideFile({ path: h.path, base: h.laid.base.blob, writer: SWAP_WRITER, role: "aside" }) };
+    const saved = (body: string) => renderStampedFile({ content: `# Cohort: one\n\n${body}\n`, stamp: h.laid.base.blob });
+    await writeFile(join(h.checkout, first.name), saved("First edit."));
+    await writeFile(join(h.checkout, second.name), saved("Older buffer edit."));
+    await writeProjectionIndex(h.location, { ...index, entries: { ...index.entries, [h.path]: { ...entry, copies: [first, second] } } });
+    const sent: (string | null)[] = [];
+    const land = landingCopies(h.fixture.store);
+    const takeIn: TakeInPort = async (request) => {
+      sent.push(request.copy);
+      const marked = recordWriteBackSent(request.entry, request.copy);
+      const result = answer === "landed" ? await land({ ...request, entry: marked })
+        : { answer: "deferred" as const, entry: marked };
+      if (absent) await rm(h.file, { force: true });
+      return result;
+    };
+
+    const swept = await h.sweep(takeIn);
+
+    expect(sent).toEqual([first.name]);
+    expect(swept.swept[1]).toMatchObject({ copy: second.name, outcome: { kind: "moved-on" } });
+    expect(await readFile(join(h.checkout, second.name), "utf8")).toBe(saved("Older buffer edit."));
+    if (absent) expect(await readStat(h.file)).toBeNull();
+    if (answer === "landed") {
+      const stored = await h.fixture.store.read({ reference: h.reference });
+      expect(stored.status === "ok" && stored.result.content).toContain("First edit.");
+    }
+  });
+
   it.each(["recorded", "unrecorded", "no-index"])("preserves a %s directory copy and permits retry after repair", async (mode) => {
     const h = await leftBy("afterMove");
     const index = await indexOnDisk(h.location);

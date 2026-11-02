@@ -7,6 +7,8 @@ import { chmod, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createReferenceFixture } from "../reference-fixture.js";
 import { seedProjection } from "./seeded-projection.js";
+import { recordLandedCopy } from "./take-in-recording.js";
+import { recordWriteBackSent } from "../../../../src/lib/store/projection/aside-copies.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { readReference, readStat } from "../../../../src/lib/store/projection/change-detection.js";
 import { guardReplacement } from "../../../../src/lib/store/projection/replace-guard.js";
@@ -80,6 +82,7 @@ export function landingCopies(store: ReturnType<typeof createReferenceFixture>["
     const text = await readFile(location, "utf8");
     const current = await store.read({ reference: request.entry.reference });
     if (current.status !== "ok") throw new Error("the fixture read was refused");
+    const entry = recordWriteBackSent(request.entry, request.copy);
     const written = await store.write({
       action: "put", reference: request.entry.reference, content: parseStampedFile(text).content, expected: current.result.version,
       provenance: PROVENANCE,
@@ -87,7 +90,8 @@ export function landingCopies(store: ReturnType<typeof createReferenceFixture>["
     if (written.status !== "ok") throw new Error("the landing write was refused");
     const stat = await readStat(location);
     if (stat === null) throw new Error("nothing to take in");
-    return { answer: "taken-in", entry: request.entry, read: { stat, blob: gitBlobId(text, "sha1") } };
+    const blob = gitBlobId(text, "sha1");
+    return { answer: "taken-in", entry: recordLandedCopy(entry, request.copy, blob), read: { stat, blob } };
   };
 }
 

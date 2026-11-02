@@ -5,16 +5,18 @@ import { checkChange, readStat } from "./change-detection.js";
 import type { IgnoreFileRecord } from "./index-schema.js";
 
 /**
- * Record each ignore file a guard pass rests on: its stat and blob id, or that it is absent. A symbolic link is followed,
- * as Git reads an ignore file through one, and anything but a file reads as absent.
+ * Record each readable ignore source's own path type/stat and content hash, or its absence. A symlink retains its own
+ * stat and hashes its target so replacing a regular worktree ignore file cannot reuse its pass, while supported
+ * excludes-file links still detect edits to their targets. Git's guard decides which sources authorize a root.
  * @param paths - The absolute paths the pass returns.
  * @param format - The repository's object format.
  * @returns One record per path, in order.
  */
 export async function snapshotIgnoreFiles(paths: readonly string[], format: ObjectFormat): Promise<IgnoreFileRecord[]> {
   return Promise.all(paths.map(async (path): Promise<IgnoreFileRecord> => {
-    const stat = await readStat(path, true);
-    if (stat?.type !== "file") return { path, stat: null, blob: null };
+    const stat = await readStat(path);
+    const readable = stat?.type === "file" || stat?.type === "symlink" && (await readStat(path, true))?.type === "file";
+    if (!readable) return { path, stat: null, blob: null };
     return { path, stat, blob: gitBlobId(await readFile(path), format) };
   }));
 }
@@ -36,8 +38,15 @@ export async function compareIgnoreFiles(
 
 async function hasChanged(record: IgnoreFileRecord, reference: bigint | null, format: ObjectFormat): Promise<boolean> {
   if (record.stat === null) return (await readStat(record.path, true))?.type === "file";
+  const stat = await readStat(record.path);
+  if (stat?.type !== record.stat.type) return true;
+  if (stat.type === "symlink") {
+    if ((await readStat(record.path, true))?.type !== "file") return true;
+    // The link's stat cannot establish that its target is unchanged.
+    return gitBlobId(await readFile(record.path), format) !== record.blob;
+  }
   const verdict = await checkChange({
-    path: record.path, recorded: record.stat, written: record.blob, reference, format, followLinks: true,
+    path: record.path, recorded: record.stat, written: record.blob, reference, format,
   });
   return verdict.status === "absent" || verdict.status === "changed";
 }

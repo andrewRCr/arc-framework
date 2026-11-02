@@ -6,10 +6,10 @@ import { normalizeGitRejection } from "../../git/process-error.js";
 import type { Slug } from "../../kernel/index.js";
 import type { Remedy } from "../refusal.js";
 import type { ObjectFormat } from "./blob-id.js";
-import type { ExcludesSelection } from "./index-schema.js";
+import type { IgnoreRulesSelection } from "./index-schema.js";
 
 /** Every key the read takes: ARC's own, `user.name`, the object format, and the effective excludes source. */
-const CONFIGURATION_KEYS = "^(arc\\.|user\\.name$|extensions\\.objectformat$|core\\.excludesfile$)";
+const CONFIGURATION_KEYS = "^(arc\\.|user\\.name$|extensions\\.objectformat$|core\\.(excludesfile|ignorecase)$)";
 
 /** What a configuration with no usable identity is told to do. */
 const IDENTITY_REMEDY: Remedy = {
@@ -22,14 +22,14 @@ export type ConfiguredIdentity =
   | { readonly status: "no-identity"; readonly cause: "unset" | "invalid"; readonly remedy: Remedy };
 
 /** The excludes source and raw values Git parses, or a valueless setting that cannot authorize a cached guard pass. */
-export type ConfiguredExcludesFile =
-  | ({ readonly kind: "path" } & ExcludesSelection)
+export type ConfiguredIgnoreRules =
+  | ({ readonly kind: "path" } & IgnoreRulesSelection)
   | { readonly kind: "invalid"; readonly remedy: Remedy };
 
 /** What the one read returns. */
 export interface ProjectionConfiguration {
   readonly objectFormat: ObjectFormat;
-  readonly excludesFile: ConfiguredExcludesFile;
+  readonly ignoreRules: ConfiguredIgnoreRules;
   readonly identity: ConfiguredIdentity;
   /** The in-flight view keys as set, for the view setting to interpret: `arc.inflightView`, and each `arc.inflightPin`. */
   readonly view: { readonly setting: string | null; readonly pins: readonly string[] };
@@ -48,9 +48,11 @@ export async function readProjectionConfiguration(
   const records = parseConfigurationRecords(await readMatchingKeys(exec, cwd));
   // Git prints every scope's value in its own order, so the last occurrence is the one `git config --get` returns.
   const last = (key: string): string | null | undefined => records.get(key)?.at(-1);
+  const excludesFile = excludesFileOf(records.get("core.excludesfile"), environment);
   return {
     objectFormat: objectFormatOf(last("extensions.objectformat")),
-    excludesFile: excludesFileOf(records.get("core.excludesfile"), environment),
+    ignoreRules: excludesFile.kind === "invalid" ? excludesFile
+      : { ...excludesFile, ignoreCase: [...(records.get("core.ignorecase") ?? [])] },
     identity: identityOf(last("arc.identity"), last("user.name")),
     view: {
       setting: last("arc.inflightview") ?? null,
@@ -60,7 +62,9 @@ export async function readProjectionConfiguration(
 }
 
 /** Resolve the default and current-home spelling before the guard pins its path in Git's command scope. */
-function excludesFileOf(values: readonly (string | null)[] | undefined, environment: NodeJS.ProcessEnv): ConfiguredExcludesFile {
+function excludesFileOf(
+  values: readonly (string | null)[] | undefined, environment: NodeJS.ProcessEnv,
+): ({ readonly kind: "path" } & Omit<IgnoreRulesSelection, "ignoreCase">) | Extract<ConfiguredIgnoreRules, { kind: "invalid" }> {
   if (values?.includes(null)) return { kind: "invalid", remedy: {
     text: "A core.excludesFile occurrence has no value. Run git config --show-origin --get-all core.excludesFile "
       + "to locate its configuration file, then give every occurrence a path or remove the valueless entries and run the command again.",

@@ -585,3 +585,7 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
 
 - `[x]` Changing any core.excludesFile occurrence invalidates a cached ignore pass; Git-invalid earlier values
   refuse writes and a repaired configuration permits retry.
+
+- `[x]` A cached ignore pass proves the current guarded roots and captured Git case policy. An identity-only or
+  core.ignoreCase-only change invalidates it; a fresh pass confirms that basis, refusal permits repaired retry,
+  and an unchanged cached start adds no Git call (A6).

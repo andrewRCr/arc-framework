@@ -11,7 +11,7 @@ import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import { checkIgnores, type IgnoreCheck } from "./ignore-check.js";
 import type { ProjectionIgnoreGuardInput } from "./ignore-guard.js";
-import type { ConfiguredExcludesFile } from "./configuration.js";
+import type { ConfiguredIgnoreRules } from "./configuration.js";
 import { readReference, readStat } from "./change-detection.js";
 import { commitProjectionIndex } from "./index-file.js";
 import type { AsideCopyRecord, ProjectionIndex, RecordEntry } from "./index-schema.js";
@@ -34,9 +34,9 @@ export interface SweepInput extends SwapMoves {
   readonly writer: AsideWriterInput;
   /** The ignore guard's Git and file-system boundaries, over this checkout. */
   readonly guard: ProjectionIgnoreGuardInput;
-  /** The effective excludes source from this command's one configuration read. */
-  readonly excludesFile: ConfiguredExcludesFile;
-  readonly readExcludesFile: () => Promise<ConfiguredExcludesFile>;
+  /** The ignore rules from this command's one configuration read. */
+  readonly ignoreRules: ConfiguredIgnoreRules;
+  readonly readIgnoreRules: () => Promise<ConfiguredIgnoreRules>;
   /** Whether a process ID is in use, the system's unless a test injects its own. */
   readonly isProcessAlive?: (pid: number) => boolean;
   /** The read gate every copy check runs on, the system's unless a test injects its own. */
@@ -81,8 +81,8 @@ export async function sweepAsideFolder(input: SweepInput): Promise<SweepResult> 
   const reference = await readReference(input.checkout);
   const ignores = await checkIgnores({
     guard: input.guard, records: input.index?.ignoreFiles ?? null, reference, format: input.format,
-    excludesFile: input.excludesFile, readExcludesFile: input.readExcludesFile,
-    recordedExcludesFile: input.index?.ignoreExcludesFile ?? null,
+    ignoreRules: input.ignoreRules, readIgnoreRules: input.readIgnoreRules,
+    recordedGuard: input.index?.ignoreGuard ?? null,
   });
   const writable = writableUnder(ignores);
   // A refusal of the aside folder, as a failed call refuses every root, leaves the sweep nothing it may write.
@@ -96,8 +96,8 @@ export async function sweepAsideFolder(input: SweepInput): Promise<SweepResult> 
   const index = await commitProjectionIndex({
     location: input.location, checkout: input.checkout, index: {
       ...recorded.index, ignoreFiles: ignoreFilesAfter(ignores, recorded.index),
-      ignoreExcludesFile: ignores.kind === "passed" ? ignores.excludesFile
-        : ignores.kind === "refused" ? null : recorded.index.ignoreExcludesFile,
+      ignoreGuard: ignores.kind === "passed" ? ignores.basis
+        : ignores.kind === "refused" ? null : recorded.index.ignoreGuard,
     },
   });
   const copies = recorded.swept.flatMap(({ path, outcome }) => (
@@ -132,9 +132,10 @@ async function takeOverRecorded(
   const { taking, left } = recordsToTake(initial, judges);
   let index = initial;
   const swept: { path: string; copy: string; outcome: SweptCopy }[] = [];
-  for (const { path, record } of taking) {
+  for (const { path, copy } of taking) {
     const current = index.entries[path];
-    if (current?.kind !== "record") continue;
+    const record = current?.kind === "record" ? current.copies.find((record) => record.name === copy) : undefined;
+    if (current?.kind !== "record" || record === undefined) continue;
     const outcome = await sweepCopy(input, path, current, record);
     index = { ...index, entries: { ...index.entries, [path]: outcome.entry } };
     swept.push({ path, copy: record.name, outcome });
@@ -148,15 +149,15 @@ async function takeOverRecorded(
  */
 function recordsToTake(
   index: ProjectionIndex, { writerOf, writable }: SweepJudges,
-): { taking: { path: string; record: AsideCopyRecord }[]; left: LeftCopy[] } {
-  const taking: { path: string; record: AsideCopyRecord }[] = [];
+): { taking: { path: string; copy: string }[]; left: LeftCopy[] } {
+  const taking: { path: string; copy: string }[] = [];
   const left: LeftCopy[] = [];
   for (const [path, entry] of Object.entries(index.entries)) {
     if (entry.kind !== "record" || !writable(path)) continue;
     for (const record of entry.copies.filter((copy) => !index.withheldCopies.includes(copy.name))) {
       const writer = writerOf(record.name);
       if (writer === "other-scope") left.push({ path, copy: record.name, reason: "other-scope" });
-      if (writer === "exited") taking.push({ path, record });
+      if (writer === "exited") taking.push({ path, copy: record.name });
     }
   }
   return { taking, left };

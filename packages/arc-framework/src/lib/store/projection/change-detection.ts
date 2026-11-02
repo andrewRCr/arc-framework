@@ -73,8 +73,6 @@ export interface ChangeCheck {
   readonly written: string;
   readonly reference: bigint | null;
   readonly format: ObjectFormat;
-  /** Follow a symbolic link to what it names, as Git reads an ignore file, rather than read it as absent. */
-  readonly followLinks?: boolean;
 }
 
 /** What a check found: nothing there, a stat match older than the reference, a hash equal to the write, or a change. */
@@ -93,9 +91,8 @@ export type ChangeVerdict =
 export async function checkChange(
   check: ChangeCheck, readFile: (path: string) => Promise<Uint8Array> = fsReadFile,
 ): Promise<ChangeVerdict> {
-  const stat = await readStat(check.path, check.followLinks);
-  // Unless links are followed, a symbolic link, or anything else not a file, is never followed or read: it reads as a
-  // deleted file.
+  const stat = await readStat(check.path);
+  // A symbolic link, or anything else not a file, is never followed or read: it reads as a deleted file.
   if (stat?.type !== "file") return { status: "absent" };
   if (isStatClean(stat, check)) return { status: "clean", stat };
   const blob = gitBlobId(await readFile(check.path), check.format);

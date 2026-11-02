@@ -32,6 +32,7 @@ afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 async function repository(objectFormat?: "sha1" | "sha256"): Promise<string> {
   const cwd = await createTempRepoCore({ prefix: "arc-projection-config-", ...(objectFormat ? { objectFormat } : {}) });
   directories.push(cwd);
+  await git(cwd, "config", "core.ignoreCase", "false");
   return cwd;
 }
 
@@ -54,22 +55,22 @@ describe("the one configuration read", () => {
     await writeFile(join(cwd, ".git/info/exclude"), ".arc/active/\n.arc/backlog/\n.arc/system/.local/\n");
     await writeFile(join(cwd, ".gitignore"), ".arc/user/*/\n");
     await git(cwd, "config", "core.excludesFile", source);
-    const selection = async () => (await readProjectionConfiguration(counting().exec, cwd, environment)).excludesFile;
+    const selection = async () => (await readProjectionConfiguration(counting().exec, cwd, environment)).ignoreRules;
     const guard = { root: cwd, identity: SlugSchema.parse("andrew"),
       exec: createExecaGitExecInput(undefined, undefined, environment),
       fs: { lstat, realpath, readFile: (path: string) => readFile(path, "utf8") } };
-    const base = { guard, reference: 9_000_000_000_000_000_000n, format: "sha1" as const, readExcludesFile: selection };
-    const first = await checkIgnores({ ...base, excludesFile: await selection(), records: null, recordedExcludesFile: null });
+    const base = { guard, reference: 9_000_000_000_000_000_000n, format: "sha1" as const, readIgnoreRules: selection };
+    const first = await checkIgnores({ ...base, ignoreRules: await selection(), records: null, recordedGuard: null });
     if (first.kind !== "passed") throw new Error("expected an initial pass");
     const configPath = scope === "global" ? globalConfig : join(cwd, ".git/config");
     const original = await readFile(configPath);
     await git(cwd, "config", `--${scope}`, "--add", "core.excludesFile", "~arc-user-that-does-not-exist/ignore");
     if (scope === "local") await git(cwd, "config", "--add", "core.excludesFile", source);
     expect(await guardProjectionIgnores(guard)).toMatchObject({ kind: "refused", reason: "guard-failed" });
-    expect(await checkIgnores({ ...base, excludesFile: await selection(), records: first.records, recordedExcludesFile: first.excludesFile }))
+    expect(await checkIgnores({ ...base, ignoreRules: await selection(), records: first.records, recordedGuard: first.basis }))
       .toMatchObject({ kind: "refused", reason: "guard-failed" });
     await writeFile(configPath, original);
-    expect(await checkIgnores({ ...base, excludesFile: await selection(), records: null, recordedExcludesFile: null }))
+    expect(await checkIgnores({ ...base, ignoreRules: await selection(), records: null, recordedGuard: null }))
       .toMatchObject({ kind: "passed" });
   });
   it("refuses a pass when an earlier excludes value changes during the guard and permits a fresh retry", async () => {
@@ -79,7 +80,7 @@ describe("the one configuration read", () => {
     await writeFile(join(cwd, ".git/info/exclude"), ".arc/active/\n.arc/backlog/\n.arc/system/.local/\n");
     await writeFile(join(cwd, ".gitignore"), ".arc/user/*/\n");
     await git(cwd, "config", "core.excludesFile", source);
-    const selection = async () => (await readProjectionConfiguration(counting().exec, cwd, environment)).excludesFile;
+    const selection = async () => (await readProjectionConfiguration(counting().exec, cwd, environment)).ignoreRules;
     const native = createExecaGitExecInput(undefined, undefined, environment);
     let changed = false;
     const guard = { root: cwd, identity: SlugSchema.parse("andrew"), exec: async (...args: Parameters<typeof native>) => {
@@ -90,8 +91,8 @@ describe("the one configuration read", () => {
       }
       return result;
     }, fs: { lstat, realpath, readFile: (path: string) => readFile(path, "utf8") } };
-    const check = async () => checkIgnores({ guard, reference: null, format: "sha1", readExcludesFile: selection,
-      excludesFile: await selection(), records: null, recordedExcludesFile: null });
+    const check = async () => checkIgnores({ guard, reference: null, format: "sha1", readIgnoreRules: selection,
+      ignoreRules: await selection(), records: null, recordedGuard: null });
     expect(await check()).toMatchObject({ kind: "refused", reason: "guard-failed" });
     expect(await check()).toMatchObject({ kind: "passed" });
   });
@@ -102,12 +103,12 @@ describe("the one configuration read", () => {
     await writeFile(join(cwd, ".git/info/exclude"), ".arc/active/\n.arc/backlog/\n.arc/system/.local/\n");
     await writeFile(join(cwd, ".gitignore"), ".arc/user/*/\n");
     await git(cwd, "config", "core.excludesFile", source);
-    const selection = async () => (await readProjectionConfiguration(counting().exec, cwd, environment)).excludesFile;
+    const selection = async () => (await readProjectionConfiguration(counting().exec, cwd, environment)).ignoreRules;
     const base = { guard: { root: cwd, identity: SlugSchema.parse("andrew"),
       exec: createExecaGitExecInput(undefined, undefined, environment),
       fs: { lstat, realpath, readFile: (path: string) => readFile(path, "utf8") } },
-      reference: 9_000_000_000_000_000_000n, format: "sha1" as const, readExcludesFile: selection };
-    const first = await checkIgnores({ ...base, excludesFile: await selection(), records: null, recordedExcludesFile: null });
+      reference: 9_000_000_000_000_000_000n, format: "sha1" as const, readIgnoreRules: selection };
+    const first = await checkIgnores({ ...base, ignoreRules: await selection(), records: null, recordedGuard: null });
     if (first.kind !== "passed") throw new Error("expected an initial pass");
     if (scope === "global") await writeFile(globalConfig, "[core]\n\texcludesFile\n");
     else {
@@ -115,12 +116,12 @@ describe("the one configuration read", () => {
       await git(cwd, "config", "--add", "core.excludesFile", source);
     }
     const invalid = await selection();
-    expect(await checkIgnores({ ...base, excludesFile: invalid, records: first.records, recordedExcludesFile: first.excludesFile }))
+    expect(await checkIgnores({ ...base, ignoreRules: invalid, records: first.records, recordedGuard: first.basis }))
       .toMatchObject({ kind: "refused", reason: "guard-failed" });
     expect(invalid).toMatchObject({ kind: "invalid", remedy: { text: expect.stringContaining("--show-origin") } });
     if (scope === "global") await writeFile(globalConfig, "");
     else await git(cwd, "config", "--replace-all", "core.excludesFile", source);
-    expect(await checkIgnores({ ...base, excludesFile: await selection(), records: null, recordedExcludesFile: null }))
+    expect(await checkIgnores({ ...base, ignoreRules: await selection(), records: null, recordedGuard: null }))
       .toMatchObject({ kind: "passed" });
   });
   it.each(["xdg", "home", "tilde"])("pins the same %s excludes file Git selects from the invocation environment", async (mode) => {
@@ -136,13 +137,13 @@ describe("the one configuration read", () => {
     await writeFile(join(cwd, ".gitignore"), ".arc/user/*/\n");
     if (mode === "tilde") await git(cwd, "config", "core.excludesFile", "~/personal-ignore");
     const configured = await readProjectionConfiguration(counting().exec, cwd, environment);
-    expect(configured.excludesFile).toEqual({ kind: "path", path: expected, values: mode === "tilde" ? ["~/personal-ignore"] : [] });
-    if (configured.excludesFile.kind !== "path") throw new Error("expected a valid source");
+    expect(configured.ignoreRules).toEqual({ kind: "path", path: expected, values: mode === "tilde" ? ["~/personal-ignore"] : [], ignoreCase: ["false"] });
+    if (configured.ignoreRules.kind !== "path") throw new Error("expected a valid source");
     const guard = { root: cwd, identity: SlugSchema.parse("andrew"),
       exec: createExecaGitExecInput(undefined, undefined, environment),
       fs: { lstat, realpath, readFile: (path: string) => readFile(path, "utf8") } };
     for (const verdict of [await guardProjectionIgnores(guard),
-      await guardProjectionIgnores({ ...guard, excludesFile: configured.excludesFile.path })]) {
+      await guardProjectionIgnores({ ...guard, excludesFile: configured.ignoreRules.path })]) {
       expect(verdict).toMatchObject({ kind: "passed" });
       if (verdict.kind !== "passed") throw new Error("expected a passing guard");
       const sources = await Promise.all(verdict.ignoreFiles.map((path) => realpath(path).catch(() => null)));
@@ -159,11 +160,11 @@ describe("the one configuration read", () => {
     const { exec, calls } = counting();
     expect(await readProjectionConfiguration(exec, cwd, environment)).toEqual({
       objectFormat: "sha256",
-      excludesFile: { kind: "path", path: "/tmp/projection-excludes", values: ["/tmp/projection-excludes"] },
+      ignoreRules: { kind: "path", path: "/tmp/projection-excludes", values: ["/tmp/projection-excludes"], ignoreCase: ["false"] },
       identity: { status: "identified", identity: "andrew" },
       view: { setting: "cohort", pins: ["alpha", "beta"] },
     });
-    expect(calls).toEqual([["config", "--null", "--get-regexp", "^(arc\\.|user\\.name$|extensions\\.objectformat$|core\\.excludesfile$)"]]);
+    expect(calls).toEqual([["config", "--null", "--get-regexp", "^(arc\\.|user\\.name$|extensions\\.objectformat$|core\\.(excludesfile|ignorecase)$)"]]);
   });
 
   it("takes user.name slugified, by the identity owner's rule, where no arc.identity is set", async () => {
@@ -186,9 +187,10 @@ describe("the one configuration read", () => {
   it("reads a repository with no matching key as SHA-1, with no identity and the default view", async () => {
     const cwd = await repository();
     await git(cwd, "config", "--unset", "user.name");
+    await git(cwd, "config", "--unset", "core.ignoreCase");
     expect(await readProjectionConfiguration(counting().exec, cwd, environment)).toEqual({
       objectFormat: "sha1",
-      excludesFile: { kind: "path", path: `${environment.XDG_CONFIG_HOME}/git/ignore`, values: [] },
+      ignoreRules: { kind: "path", path: `${environment.XDG_CONFIG_HOME}/git/ignore`, values: [], ignoreCase: [] },
       identity: { status: "no-identity", cause: "unset", remedy: { text: expect.stringContaining("arc.identity") } },
       view: { setting: null, pins: [] },
     });

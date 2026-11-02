@@ -556,3 +556,39 @@ Superseded § 15.3 read:
 >   identity or no-identity verdict § 2.5 states, naming the remedy that sets `arc.identity`. An unchanged start makes
 >   this call once. A fresh ignore guard makes a confirming read before its pass is accepted, with the same invocation
 >   environment; this does not add a call to an unchanged cached check.
+
+## A6 — bind the complete demonstrated guard basis
+
+The approved correction gives a guard pass its own root set, independently of `projectedUnder.identity`, and retains
+ordered `core.ignoreCase` values alongside the excludes selection. `checkIgnores` compares that basis before reuse;
+`guardProjectionIgnores` pins its captured effective settings and `checkIgnores` confirms them before accepting a
+fresh pass. The unchanged-start budget remains two Git calls. Git validates case-policy values, including valueless
+true entries; ARC preserves the raw sequence rather than implementing another boolean parser.
+
+Superseded § 11.2 cache basis:
+
+> Before a write into a root `checkIgnores` compares the effective excludes source and the complete ordered raw
+> `core.excludesFile` values with the last passing guard's basis before considering file snapshots (A5).
+> `readProjectionConfiguration` resolves an unset `core.excludesFile` to Git's default excludes path from the invocation
+> environment; an explicit string, including an empty string, stays explicit. Any valueless excludes occurrence is
+> invalid, including one before a later valid value, and refuses every root with a configuration-repair remedy, never
+> reusing a passing cache. Path expansion and source snapshots preserve traversal components so the filesystem follows a
+> symlink before a following `..`. A newly run guard receives the captured source as a command-local Git setting, so its
+> verdict and snapshots describe the same selection. Before accepting that pass, `checkIgnores` confirms the source and
+> all raw values through another configuration read; any change or invalid selection refuses every root recoverably, for
+> a retry with fresh settings. The passed result carries its source and raw values, and `sweepAsideFolder` records both
+> with its snapshots. This confirmation runs only with a fresh guard; an unchanged cached pass adds no call to the
+> two-call start budget. As with an ignore-file edit after the guard's final snapshot, a configuration edit after its
+> last observation is seen on the next command.
+
+Superseded § 15.3 read:
+
+> - **The one configuration read (A5).** `readProjectionConfiguration` runs `git config --null --get-regexp` with the
+>   expression `^(arc\.|user\.name$|extensions\.objectformat$|core\.excludesfile$)`. It prints each match as its
+>   lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and exits 1 where no key is set,
+>   read as none set. A single-valued key takes its last occurrence, as `git config --get` returns it, and
+>   `arc.inflightPin` takes every occurrence. It retains every excludes value in order for cache comparison, and returns
+>   the settings, the effective excludes path or an invalid-setting verdict, and the identity or no-identity verdict §
+>   2.5 states, naming the remedy that sets `arc.identity`. An unchanged start makes this call once. A fresh ignore
+>   guard makes a confirming read before its pass is accepted, with the same invocation environment; this does not add a
+>   call to an unchanged cached check.

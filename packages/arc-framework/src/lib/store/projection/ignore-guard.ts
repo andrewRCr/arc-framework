@@ -6,6 +6,7 @@ import { readGitDirectories, type GitDirectoryFileAccess } from "../../git/direc
 import type { Slug } from "../../kernel/index.js";
 import { isProjectedLifecyclePath, projectedRootPaths, projectedRootPatterns } from "../../layout/index.js";
 import { PROJECTION_ASIDE_ROOT, PROJECTION_LOCAL_ROOT } from "./paths.js";
+import { readStat } from "./change-detection.js";
 
 /** Where the line that would ignore a root belongs. */
 export type IgnoreLineFile = "info/exclude" | ".gitignore";
@@ -23,6 +24,8 @@ export type ProjectionIgnoreVerdict =
 export interface ProjectionIgnoreGuardInput {
   /** Pin a captured excludes selection; absent for a standalone guard over live configuration. */
   excludesFile?: string;
+  /** Pin the captured case setting; null is Git's valueless true form. */
+  ignoreCase?: string | null;
   root: string;
   identity: Slug;
   exec: GitExecInput;
@@ -33,8 +36,12 @@ const CHECK_IGNORE_ARGS = ["check-ignore", "-z", "-v", "--non-matching", "--no-i
 
 interface CheckIgnoreMatch { source: string; pattern: string; path: string }
 
-/** Each projected root for the identity and the aside folder, as directory paths, in the order the call answers. */
-function guardedPaths(identity: Slug): GuardedRoot[] {
+/**
+ * Each projected root for the identity and the aside folder, as directory paths, in the order the call answers.
+ * @param identity - The identity whose personal root is guarded.
+ * @returns The roots and their required rule sources.
+ */
+export function guardedProjectionRoots(identity: Slug): GuardedRoot[] {
   const patterns = projectedRootPatterns();
   const roots = projectedRootPaths(identity).map((path, index): GuardedRoot => {
     const line = patterns[index];
@@ -76,7 +83,7 @@ function ancestorGitignores(path: string): string[] {
  */
 export async function predictableIgnoreFiles(input: ProjectionIgnoreGuardInput): Promise<string[]> {
   const { commonDir } = await readGitDirectories(input.root, input.fs);
-  const named = guardedPaths(input.identity).flatMap((root) => ancestorGitignores(root.path));
+  const named = guardedProjectionRoots(input.identity).flatMap((root) => ancestorGitignores(root.path));
   return [...new Set([join(commonDir, "info", "exclude"), ...named.map((path) => resolve(input.root, path))])];
 }
 
@@ -101,7 +108,7 @@ function sourcePath(root: string, source: string): string {
  * @returns A pass with the ignore files it rests on, or a typed refusal.
  */
 export async function guardProjectionIgnores(input: ProjectionIgnoreGuardInput): Promise<ProjectionIgnoreVerdict> {
-  const guarded = guardedPaths(input.identity);
+  const guarded = guardedProjectionRoots(input.identity);
   let stdout: string;
   try {
     stdout = await checkIgnore(input, guarded);
@@ -110,11 +117,12 @@ export async function guardProjectionIgnores(input: ProjectionIgnoreGuardInput):
   }
   const matches = parseMatches(stdout, guarded);
   if (matches === undefined) return guardFailed(guarded, new Error("git check-ignore did not answer every guarded path"));
-  const unignored = guarded.filter((root, index) => !isIgnoredAsRequired(root, matches[index]));
-  if (unignored.length > 0) {
-    return { kind: "refused", reason: "not-ignored", roots: unignored, remedy: notIgnoredRemedy(unignored) };
-  }
   try {
+    const ignored = await Promise.all(guarded.map((root, index) => isIgnoredAsRequired(root, matches[index], input.root)));
+    const unignored = guarded.filter((_root, index) => !ignored[index]);
+    if (unignored.length > 0) {
+      return { kind: "refused", reason: "not-ignored", roots: unignored, remedy: notIgnoredRemedy(unignored) };
+    }
     return { kind: "passed", ignoreFiles: await ignoreFiles(input, matches) };
   } catch (error) {
     return guardFailed(guarded, error);
@@ -131,7 +139,7 @@ export type GuardFailedVerdict = Extract<ProjectionIgnoreVerdict, { reason: "gua
  * @returns The refusal, with the remedy of running the command again.
  */
 export function refuseEveryRoot(identity: Slug, failure: string): GuardFailedVerdict {
-  return guardFailed(guardedPaths(identity), new Error(failure));
+  return guardFailed(guardedProjectionRoots(identity), new Error(failure));
 }
 
 /** Fail closed: a call that did not answer refuses every root for the command, typed apart from a missing line. */
@@ -145,8 +153,11 @@ function guardFailed(guarded: readonly GuardedRoot[], error: unknown): GuardFail
 
 /** Run the one call; exit status 1, which Git returns when it counts no path ignored, still carries every verdict. */
 async function checkIgnore(input: ProjectionIgnoreGuardInput, guarded: readonly GuardedRoot[]): Promise<string> {
-  const args = input.excludesFile === undefined ? CHECK_IGNORE_ARGS
-    : ["-c", `core.excludesFile=${input.excludesFile}`, ...CHECK_IGNORE_ARGS];
+  const args = [
+    ...(input.excludesFile === undefined ? [] : ["-c", `core.excludesFile=${input.excludesFile}`]),
+    ...(input.ignoreCase === undefined ? [] : ["-c", input.ignoreCase === null ? "core.ignoreCase" : `core.ignoreCase=${input.ignoreCase}`]),
+    ...CHECK_IGNORE_ARGS,
+  ];
   try {
     return await input.exec(args, guarded.map((root) => `${root.path}\0`).join(""), { cwd: input.root });
   } catch (error) {
@@ -168,9 +179,12 @@ function isIgnored(match: CheckIgnoreMatch): boolean {
  * root's or one nested on the path to it, which Git names by a repository-relative path — since `npm pack` reads only
  * those; an excludes file named `.gitignore` outside the repository does not count.
  */
-function isIgnoredAsRequired(root: GuardedRoot, match: CheckIgnoreMatch | undefined): boolean {
+async function isIgnoredAsRequired(root: GuardedRoot, match: CheckIgnoreMatch | undefined, checkout: string): Promise<boolean> {
   if (match === undefined || !isIgnored(match)) return false;
-  return root.file !== ".gitignore" || ancestorGitignores(root.path).includes(match.source);
+  if (root.file !== ".gitignore") return true;
+  // A relative excludes selection can name this same path and follow its link; that does not make it a worktree rule.
+  return ancestorGitignores(root.path).includes(match.source)
+    && (await readStat(sourcePath(checkout, match.source)))?.type === "file";
 }
 
 const LINE_FILE_NAMES: Record<IgnoreLineFile, string> = { "info/exclude": "Git's info/exclude", ".gitignore": ".gitignore" };

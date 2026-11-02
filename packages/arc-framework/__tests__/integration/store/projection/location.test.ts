@@ -48,7 +48,7 @@ function index(state: string): ProjectionIndex {
     projectedUnder: {
       view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("andrew"), claim: null, layoutActive: "nested",
     },
-    withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreExcludesFile: null, entries: {},
+    withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries: {},
   };
 }
 

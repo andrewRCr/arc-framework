@@ -425,9 +425,9 @@ reference.
 
 Beside the entries it records its format version; the state version last projected; the in-flight view setting,
 identity, checkout claim — the work item the work-unit marker names — and `layout.active` it was projected under
-(`spec-projection-write-back.md` § 10.3, § 10.4); the recent tripwire measurements (`spec-projection-worktrees.md`
-§ 15.4); the effective excludes source and every raw setting value, and each ignore file's existence, stat, and blob id
-when the guard last passed (§ 11.2) (A3, A5).
+(`spec-projection-write-back.md` § 10.3, § 10.4); the recent tripwire measurements (`spec-projection-worktrees.md` §
+15.4); the guarded roots, effective excludes source and every raw excludes and case-policy value, and each ignore file's
+existence, stat, and blob id when the guard last passed (§ 11.2) (A6).
 
 The index is machine-local, in the worktree's own Git directory under `arc-projection/`, which also holds the projection
 lock and the kept copies (§ 3.2, § 3.6). It is registered in `MACHINE_LOCAL_PATHS` under the per-worktree Git-directory
@@ -883,19 +883,26 @@ projection writes nothing into that root until it is repaired. A call that fails
 timeout, or a spawn failure — fails closed: a refusal of every root for the command, typed apart from a missing line,
 naming the failure and the remedy of running the command again.
 
-Before a write into a root `checkIgnores` compares the effective excludes source and the complete ordered raw
-`core.excludesFile` values with the last passing guard's basis before considering file snapshots (A5).
+Before a write into a root `checkIgnores` compares the actual guarded root set, the effective excludes source and
+complete ordered raw `core.excludesFile` and `core.ignoreCase` values with the last passing guard's basis before
+considering file snapshots (A6). The guarded roots belong to the pass itself, independently of the identity the index
+was projected under, so a changed identity cannot reuse another personal root's authorization.
 `readProjectionConfiguration` resolves an unset `core.excludesFile` to Git's default excludes path from the invocation
 environment; an explicit string, including an empty string, stays explicit. Any valueless excludes occurrence is
-invalid, including one before a later valid value, and refuses every root with a configuration-repair remedy, never
-reusing a passing cache. Path expansion and source snapshots preserve traversal components so the filesystem follows a
-symlink before a following `..`. A newly run guard receives the captured source as a command-local Git setting, so its
-verdict and snapshots describe the same selection. Before accepting that pass, `checkIgnores` confirms the source and
-all raw values through another configuration read; any change or invalid selection refuses every root recoverably, for a
-retry with fresh settings. The passed result carries its source and raw values, and `sweepAsideFolder` records both with
-its snapshots. This confirmation runs only with a fresh guard; an unchanged cached pass adds no call to the two-call
-start budget. As with an ignore-file edit after the guard's final snapshot, a configuration edit after its last
-observation is seen on the next command.
+invalid, including one before a later valid value, and refuses every root with a configuration-repair remedy. A
+valueless `core.ignoreCase` means true, as Git defines it; when unset the guard pins Git's false default. Every raw
+case-policy value stays in the comparison, so an earlier Git-invalid value forces a fresh guard and its refusal.
+Path expansion and source snapshots preserve traversal components so the filesystem follows a symlink before a
+following `..`.
+
+A newly run `guardProjectionIgnores` receives the captured excludes source and effective case-policy setting as
+command-local Git settings, so its verdict and snapshots describe the captured basis. Before accepting that pass,
+`checkIgnores` confirms the excludes selection and complete ordered case-policy values through another configuration
+read; any change or invalid selection refuses every root recoverably, for a retry with fresh settings. The passed
+result carries the guarded roots and configuration basis; `sweepAsideFolder` records it with its snapshots. This
+confirmation runs only with a fresh guard; an unchanged cached pass adds no call to the two-call start budget. As with
+an ignore-file edit after the guard's final snapshot, a configuration edit after its last observation is seen on the
+next command.
 
 The index records each source file's existence, stat, and blob id: `.git/info/exclude`, each ancestor `.gitignore`, and
 each match source, including the effective excludes file where it supplies a match. File snapshots before and after
@@ -1108,22 +1115,24 @@ A command's cost grows with what changed, never with how much state exists. Read
 
 #### 15.3 The no-change budget
 
-- **Two Git calls, started together.** The projection makes two Git calls — the store's `version()` read, and one
-  `git config --get-regexp` reading the `arc.*` keys, `user.name`, `extensions.objectformat`, and `core.excludesFile`:
-  identity, the in-flight view setting, the object format, and the effective excludes source (A3) — started together
-  with the stat walk. Run at once they cost what the store read costs alone, 41.7 ms against 41.6 ms on Windows, where
-  one after the other took 64.8 ms (§ Spike 2). The projection's cost on Windows is one Git call's time, and on Linux it
-  is noise beside the CLI's own start (about 280 ms for `--version`). The guard adds no call while no ignore file may
-  have changed (§ 11.2).
-- **The one configuration read (A5).** `readProjectionConfiguration` runs `git config --null --get-regexp` with the
-  expression `^(arc\.|user\.name$|extensions\.objectformat$|core\.excludesfile$)`. It prints each match as its
-  lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and exits 1 where no key is set, read
-  as none set. A single-valued key takes its last occurrence, as `git config --get` returns it, and `arc.inflightPin`
-  takes every occurrence. It retains every excludes value in order for cache comparison, and returns the settings, the
-  effective excludes path or an invalid-setting verdict, and the identity or no-identity verdict § 2.5 states, naming
-  the remedy that sets `arc.identity`. An unchanged start makes this call once. A fresh ignore guard makes a confirming
-  read before its pass is accepted, with the same invocation environment; this does not add a call to an unchanged
-  cached check.
+- **Two Git calls, started together.** The projection makes two Git calls — the store's `version()` read, and one `git
+  config --get-regexp` reading the `arc.*` keys, `user.name`, `extensions.objectformat`, `core.excludesFile`, and
+  `core.ignoreCase`: identity, the in-flight view setting, the object format, and the ignore configuration basis (A6) —
+  started together with the stat walk. Run at once they cost what the store read costs alone, 41.7 ms against 41.6 ms on
+  Windows, where one after the other took 64.8 ms (§ Spike 2). The projection's cost on Windows is one Git call's time,
+  and on Linux it is noise beside the CLI's own start (about 280 ms for `--version`). The guard adds no call while no
+  ignore file may have changed (§ 11.2).
+
+- **The one configuration read (A6).** `readProjectionConfiguration` runs `git config --null --get-regexp` with the
+  expression `^(arc\.|user\.name$|extensions\.objectformat$|core\.(excludesfile|ignorecase)$)`. It prints each match as
+  its lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and exits 1 where no key is set,
+  read as none set. A single-valued key takes its last occurrence, as `git config --get` returns it, and
+  `arc.inflightPin` takes every occurrence. It retains every excludes and case-policy value in order for cache
+  comparison, including valueless case-policy entries, and returns the settings, the effective excludes path or an
+  invalid-setting verdict, and the identity or no-identity verdict § 2.5 states. Git validates case-policy values in the
+  guard; the one read preserves their spelling and order rather than interpreting them as ARC booleans. An unchanged
+  start makes this call once. A fresh ignore guard makes a confirming read before its pass is accepted, with the same
+  invocation environment; this does not add a call to an unchanged cached check.
 
 ### 16. Forward amendments to shipped specifications
 
@@ -1435,6 +1444,10 @@ _These considerations cover the design the three members build together; § 1.1 
 14. Changing any core.excludesFile occurrence invalidates a cached ignore pass; Git-invalid earlier values
     refuse writes and a repaired configuration permits retry.
 
+15. A cached ignore pass proves the current guarded roots and captured Git case policy. An identity-only or
+    core.ignoreCase-only change invalidates it; a fresh pass confirms that basis, refusal permits repaired retry,
+    and an unchanged cached start adds no Git call (A6).
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -1455,5 +1468,8 @@ this design open.
 
 - **A5** — 2026-11-01 — design: bind ignore passes to all excludes values. _Supersedes:_ § 11.2 ¶2; § 15.3 read.
   _Trigger:_ U1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A6** — 2026-11-01 — design: bind ignore passes to roots and case policy. _Supersedes:_ § 11.2 ¶2; § 15.3 ¶2.
+  _Trigger:_ IGNORE-002 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

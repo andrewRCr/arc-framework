@@ -59,6 +59,37 @@ function recording(overrides: Partial<WriteBackRecording> & Pick<WriteBackRecord
 }
 
 describe("what a persisted write-back took in", () => {
+  it.each(["free document", "outside entries"])("keeps merged literal ID-looking text in a %s", async (shape) => {
+    const grammar = shape === "free document" ? undefined : INBOUND;
+    const takenIn = grammar === undefined ? "# Notes\n\nSaved body.\n" : inbound("### [ ] **Task**\n\nSaved body.\n");
+    const readBack = `_Id:_ \`12345678\`\n${takenIn}`;
+    const source = recording({ takenIn, grammar, readBack: { version: v("v2"), content: readBack } });
+    const reference = grammar === undefined ? createReferenceFixture().reference("personal/document") : source.entry.reference;
+    const { entry } = await recordWriteBack({ ...source, entry: { ...source.entry, reference } });
+
+    expect(entry.persisted?.takenIn.kind).toBe("copy");
+    expect(await selectPersistedBase({ location, entry, stamp: source.stamp, content: takenIn, memo: noHistory }))
+      .toEqual({ status: "ok", result: { kind: "copy", content: takenIn } });
+  });
+
+  it.each([false, true])("restores unique IDs after terminal managed fields with final newline %s", (finalNewline) => {
+    const content = inbound(
+      "### [ ] **Task**\n- _Created:_ 2026-01-01\n",
+      `### [ ] **Task**\n- _Created:_ 2026-01-02${finalNewline ? "\n" : ""}`,
+    );
+    const reference = stamped(content, 0.25, 0.5);
+    expect(restoreEntryIds(content, reference, INBOUND)).toBe(reference);
+  });
+
+  it.each([false, true])("restores unique IDs after terminal removal triggers with final newline %s", (finalNewline) => {
+    const grammar = ENTRY_CONFIGS["personal/working-memory"];
+    const content = "# Working Memory\n\n## Memories\n\n**Remember:**\n_Remove when: first is repaired._\n\n"
+      + `**Remember:**\n_Remove when: second is repaired._${finalNewline ? "\n" : ""}`;
+    const draws = [0.25, 0.5];
+    const reference = stampEntryIds(content, grammar, () => draws.shift() ?? 0.999);
+    expect(restoreEntryIds(content, reference, grammar)).toBe(reference);
+  });
+
   it("compares a stampless save with the landed version even after a later refresh changes the entry base", async () => {
     const fixture = createReferenceFixture();
     const reference = fixture.reference("cohort/document");

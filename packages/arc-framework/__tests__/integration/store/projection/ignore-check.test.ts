@@ -28,10 +28,10 @@ it("never accepts a guard using a different excludes selection from the captured
   const captured = await readProjectionConfiguration(git, cwd);
   await git("git", ["config", "core.excludesFile", good], { cwd });
   const base = { guard: { root: cwd, identity, exec: execInput, fs }, records: null,
-    reference: 9_000_000_000_000_000_000n, format: "sha1" as const, readExcludesFile: () => selection(cwd), recordedExcludesFile: null };
-  expect(await checkIgnores({ ...base, excludesFile: captured.excludesFile })).toMatchObject({ kind: "refused" });
+    reference: 9_000_000_000_000_000_000n, format: "sha1" as const, readIgnoreRules: () => selection(cwd), recordedGuard: null };
+  expect(await checkIgnores({ ...base, ignoreRules: captured.ignoreRules })).toMatchObject({ kind: "refused" });
   const current = await readProjectionConfiguration(git, cwd);
-  expect(await checkIgnores({ ...base, excludesFile: current.excludesFile })).toMatchObject({ kind: "passed" });
+  expect(await checkIgnores({ ...base, ignoreRules: current.ignoreRules })).toMatchObject({ kind: "passed" });
 });
 
 it("refuses a selection changed after the guard read, and succeeds once it is repaired", async () => {
@@ -43,13 +43,13 @@ it("refuses a selection changed after the guard read, and succeeds once it is re
   const captured = await readProjectionConfiguration(git, cwd);
   const initial = await checkIgnores({
     guard: { root: cwd, identity, exec: execInput, fs }, records: null, reference: null, format: "sha1",
-    readExcludesFile: () => selection(cwd), recordedExcludesFile: null, excludesFile: captured.excludesFile,
+    readIgnoreRules: () => selection(cwd), recordedGuard: null, ignoreRules: captured.ignoreRules,
   });
   if (initial.kind !== "passed") throw new Error("expected the initial selection to pass");
   await appendFile(join(cwd, ".git/info/exclude"), "# changed since the cached guard\n");
   const exec = editingAfter((call) => call === 1, async () => { await git("git", ["config", "core.excludesFile", empty], { cwd }); });
   const base = { guard: { root: cwd, identity, exec, fs }, records: initial.records,
-    reference: null, format: "sha1" as const, readExcludesFile: () => selection(cwd), recordedExcludesFile: initial.excludesFile, excludesFile: captured.excludesFile };
+    reference: null, format: "sha1" as const, readIgnoreRules: () => selection(cwd), recordedGuard: initial.basis, ignoreRules: captured.ignoreRules };
   expect(await checkIgnores(base)).toMatchObject({ kind: "refused", reason: "guard-failed", failure: expect.stringContaining("selection changed") });
   await git("git", ["config", "core.excludesFile", good], { cwd });
   expect(await checkIgnores({ ...base, guard: { ...base.guard, exec: execInput } })).toMatchObject({ kind: "passed" });
@@ -58,18 +58,18 @@ it("refuses a selection changed after the guard read, and succeeds once it is re
 it("refuses a valueless setting before reusing an unset setting's cache, then permits repair", async () => {
   const cwd = await repository();
   const configuration = await readProjectionConfiguration(git, cwd);
-  const base = { guard: { root: cwd, identity, exec: execInput, fs }, reference: 9_000_000_000_000_000_000n, format: "sha1" as const, readExcludesFile: () => selection(cwd) };
-  const first = await checkIgnores({ ...base, records: null, excludesFile: configuration.excludesFile, recordedExcludesFile: null });
+  const base = { guard: { root: cwd, identity, exec: execInput, fs }, reference: 9_000_000_000_000_000_000n, format: "sha1" as const, readIgnoreRules: () => selection(cwd) };
+  const first = await checkIgnores({ ...base, records: null, ignoreRules: configuration.ignoreRules, recordedGuard: null });
   if (first.kind !== "passed") throw new Error("expected the initial guard to pass");
   await appendFile(join(cwd, ".git/config"), "\n[core]\n\texcludesFile\n");
   const invalid = await readProjectionConfiguration(git, cwd);
-  expect(await checkIgnores({ ...base, records: first.records, excludesFile: invalid.excludesFile,
-    recordedExcludesFile: first.excludesFile ?? null })).toMatchObject({
+  expect(await checkIgnores({ ...base, records: first.records, ignoreRules: invalid.ignoreRules,
+    recordedGuard: first.basis ?? null })).toMatchObject({
     kind: "refused", reason: "guard-failed", failure: expect.stringContaining("core.excludesFile"),
   });
   await git("git", ["config", "--unset-all", "core.excludesFile"], { cwd });
   const repaired = await readProjectionConfiguration(git, cwd);
-  expect(await checkIgnores({ ...base, records: null, recordedExcludesFile: null, excludesFile: repaired.excludesFile }))
+  expect(await checkIgnores({ ...base, records: null, recordedGuard: null, ignoreRules: repaired.ignoreRules }))
     .toMatchObject({ kind: "passed" });
 });
 
@@ -84,27 +84,27 @@ it.each(["unset", "change"])("invalidates a cached pass when core.excludesFile i
   await writeLines(empty, []);
   await git("git", ["config", "core.excludesFile", excludes], { cwd });
   const configuration = await readProjectionConfiguration(git, cwd);
-  const base = { guard: { root: cwd, identity, exec: execInput, fs }, reference: 9_000_000_000_000_000_000n, format: "sha1" as const, readExcludesFile: () => selection(cwd) };
-  const firstInput = { ...base, records: null, excludesFile: configuration.excludesFile, recordedExcludesFile: null };
+  const base = { guard: { root: cwd, identity, exec: execInput, fs }, reference: 9_000_000_000_000_000_000n, format: "sha1" as const, readIgnoreRules: () => selection(cwd) };
+  const firstInput = { ...base, records: null, ignoreRules: configuration.ignoreRules, recordedGuard: null };
   const first = await checkIgnores(firstInput);
   if (first.kind !== "passed") throw new Error("expected an initial passing guard");
-  const cached = { ...base, records: first.records, recordedExcludesFile: first.excludesFile };
-  expect(await checkIgnores({ ...cached, excludesFile: configuration.excludesFile })).toMatchObject({ kind: "unchanged" });
+  const cached = { ...base, records: first.records, recordedGuard: first.basis };
+  expect(await checkIgnores({ ...cached, ignoreRules: configuration.ignoreRules })).toMatchObject({ kind: "unchanged" });
 
   await git("git", action === "unset" ? ["config", "--unset", "core.excludesFile"] : ["config", "core.excludesFile", empty], { cwd });
   const changed = await readProjectionConfiguration(git, cwd);
-  expect(await checkIgnores({ ...cached, excludesFile: changed.excludesFile })).toMatchObject({
+  expect(await checkIgnores({ ...cached, ignoreRules: changed.ignoreRules })).toMatchObject({
     kind: "refused", reason: "not-ignored", roots: [{ path: ".arc/completed/" }],
   });
   await git("git", ["config", "core.excludesFile", excludes], { cwd });
   const repaired = await readProjectionConfiguration(git, cwd);
-  expect(await checkIgnores({ ...base, records: null, recordedExcludesFile: null, excludesFile: repaired.excludesFile }))
+  expect(await checkIgnores({ ...base, records: null, recordedGuard: null, ignoreRules: repaired.ignoreRules }))
     .toMatchObject({ kind: "passed" });
 });
 
 /** The command's real configuration reader, reused for confirmation with the same executor and environment. */
 async function selection(cwd: string) {
-  return (await readProjectionConfiguration(git, cwd)).excludesFile;
+  return (await readProjectionConfiguration(git, cwd)).ignoreRules;
 }
 
 async function repository(): Promise<string> {
@@ -136,7 +136,7 @@ it("never records a pass over an ignore line removed while the call read, readin
   const exec = editingAfter((call) => call === 1, async () => {
     await writeLines(join(cwd, ".git/info/exclude"), EXCLUDE_LINES.filter((line) => line !== ".arc/backlog/"));
   });
-  const checked = await checkIgnores({ guard: { root: cwd, identity, exec, fs }, records: null, reference: null, format: "sha1", readExcludesFile: () => selection(cwd), excludesFile: await selection(cwd), recordedExcludesFile: null });
+  const checked = await checkIgnores({ guard: { root: cwd, identity, exec, fs }, records: null, reference: null, format: "sha1", readIgnoreRules: () => selection(cwd), ignoreRules: await selection(cwd), recordedGuard: null });
   expect(checked).toMatchObject({ kind: "refused", reason: "not-ignored", roots: [{ path: ".arc/backlog/" }] });
 });
 
@@ -149,7 +149,7 @@ it("reads again where the call names an excludes file the last pass did not, edi
   await writeLines(excludes, [".arc/completed/"]);
   await git("git", ["config", "core.excludesFile", excludes], { cwd });
   const exec = editingAfter((call) => call === 1, async () => { await writeLines(excludes, []); });
-  const checked = await checkIgnores({ guard: { root: cwd, identity, exec, fs }, records: null, reference: null, format: "sha1", readExcludesFile: () => selection(cwd), excludesFile: await selection(cwd), recordedExcludesFile: null });
+  const checked = await checkIgnores({ guard: { root: cwd, identity, exec, fs }, records: null, reference: null, format: "sha1", readIgnoreRules: () => selection(cwd), ignoreRules: await selection(cwd), recordedGuard: null });
   expect(checked).toMatchObject({ kind: "refused", reason: "not-ignored", roots: [{ path: ".arc/completed/" }] });
 });
 
@@ -160,7 +160,7 @@ it("fails closed, refusing every root with the remedy of running again, where an
     edits += 1;
     await appendFile(join(cwd, ".git/info/exclude"), `# edit ${edits}\n`);
   });
-  const checked = await checkIgnores({ guard: { root: cwd, identity, exec, fs }, records: null, reference: null, format: "sha1", readExcludesFile: () => selection(cwd), excludesFile: await selection(cwd), recordedExcludesFile: null });
+  const checked = await checkIgnores({ guard: { root: cwd, identity, exec, fs }, records: null, reference: null, format: "sha1", readIgnoreRules: () => selection(cwd), ignoreRules: await selection(cwd), recordedGuard: null });
   expect(checked).toMatchObject({ kind: "refused", reason: "guard-failed", remedy: expect.stringContaining("run the command again") });
 });
 
@@ -172,7 +172,7 @@ it("makes one call where the last pass named every source, a core.excludesFile a
   const excludes = join(parent, "ignore");
   await writeLines(excludes, [".arc/completed/"]);
   await git("git", ["config", "core.excludesFile", excludes], { cwd });
-  const first = await checkIgnores({ guard: { root: cwd, identity, exec: execInput, fs }, records: null, reference: null, format: "sha1", readExcludesFile: () => selection(cwd), excludesFile: await selection(cwd), recordedExcludesFile: null });
+  const first = await checkIgnores({ guard: { root: cwd, identity, exec: execInput, fs }, records: null, reference: null, format: "sha1", readIgnoreRules: () => selection(cwd), ignoreRules: await selection(cwd), recordedGuard: null });
   if (first.kind !== "passed") throw new Error("expected the first check to pass");
   await appendFile(join(cwd, ".git/info/exclude"), "# a comment\n");
   let calls = 0;
@@ -181,7 +181,7 @@ it("makes one call where the last pass named every source, a core.excludesFile a
     if (calls > 1) throw new Error("a second guard call");
     return execInput(args, input, options);
   };
-  const again = await checkIgnores({ guard: { root: cwd, identity, exec: once, fs }, records: first.records, reference: null, format: "sha1", readExcludesFile: () => selection(cwd), excludesFile: await selection(cwd), recordedExcludesFile: first.excludesFile });
+  const again = await checkIgnores({ guard: { root: cwd, identity, exec: once, fs }, records: first.records, reference: null, format: "sha1", readIgnoreRules: () => selection(cwd), ignoreRules: await selection(cwd), recordedGuard: first.basis });
   expect(again.kind).toBe("passed");
 });
 
@@ -196,6 +196,6 @@ it("reads again where an edit while the call read kept the file's size and modif
     await writeFile(exclude, (await readFile(exclude, "utf8")).replace(".arc/backlog/", "#arc/backlog/"), { flag: "r+" });
     await utimes(exclude, time, time);
   });
-  const checked = await checkIgnores({ guard: { root: cwd, identity, exec, fs }, records: null, reference: null, format: "sha1", readExcludesFile: () => selection(cwd), excludesFile: await selection(cwd), recordedExcludesFile: null });
+  const checked = await checkIgnores({ guard: { root: cwd, identity, exec, fs }, records: null, reference: null, format: "sha1", readIgnoreRules: () => selection(cwd), ignoreRules: await selection(cwd), recordedGuard: null });
   expect(checked).toMatchObject({ kind: "refused", reason: "not-ignored", roots: [{ path: ".arc/backlog/" }] });
 });

@@ -39,7 +39,7 @@ function indexWith(stat: FileStat, written: string): ProjectionIndex {
   return {
     format: 1, state: null,
     projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("andrew"), claim: null, layoutActive: "nested" },
-    withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreExcludesFile: null,
+    withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null,
     entries: {
       [KEY]: {
         kind: "record", reference: recordReferences["work-item/meta"](owner), stat, written,

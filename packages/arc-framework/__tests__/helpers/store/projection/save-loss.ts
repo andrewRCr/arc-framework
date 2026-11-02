@@ -12,6 +12,8 @@ import { Worker } from "node:worker_threads";
 import type { createReferenceFixture } from "../reference-fixture.js";
 import type { SeededProjection } from "./seeded-projection.js";
 import { SWAP_WRITER } from "./swap-fixture.js";
+import { recordLandedCopy } from "./take-in-recording.js";
+import { recordWriteBackSent } from "../../../../src/lib/store/projection/aside-copies.js";
 import type { GitDirectoryFileAccess } from "../../../../src/lib/git/directories.js";
 import { createExecaGitExec, createExecaGitExecInput } from "../../../../src/lib/git/process-executor.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
@@ -97,12 +99,14 @@ export function gatedLanding(
     const { content } = parseStampedFile(text);
     const current = await store.read({ reference: request.entry.reference });
     if (current.status !== "ok") throw new Error("the fixture read was refused");
+    const entry = recordWriteBackSent(request.entry, request.copy);
     const written = await store.write({
       action: "put", reference: request.entry.reference, content, expected: current.result.version, provenance: PROVENANCE,
     });
     if (written.status !== "ok") throw new Error("the landing write was refused");
     landed(content);
-    return { answer: "taken-in", entry: request.entry, read: { stat: verdict.stat, blob: gitBlobId(text, "sha1") } };
+    const blob = gitBlobId(text, "sha1");
+    return { answer: "taken-in", entry: recordLandedCopy(entry, request.copy, blob), read: { stat: verdict.stat, blob } };
   };
 }
 
@@ -293,8 +297,8 @@ export async function runSaveLoss(run: SaveLossRun): Promise<SaveLossCounts> {
     if (entryAt(index, run.path).copies.length > 0) {
       stage = "sweep";
       const swept = await sweepAsideFolder({
-        excludesFile: (await readProjectionConfiguration(createExecaGitExec(), checkout)).excludesFile,
-        readExcludesFile: async () => (await readProjectionConfiguration(createExecaGitExec(), checkout)).excludesFile,
+        ignoreRules: (await readProjectionConfiguration(createExecaGitExec(), checkout)).ignoreRules,
+        readIgnoreRules: async () => (await readProjectionConfiguration(createExecaGitExec(), checkout)).ignoreRules,
         location, checkout, index, format: "sha1", takeIn, writer: SWEEPER,
         guard: { root: checkout, identity, exec, fs: gitFs }, gate,
       });
