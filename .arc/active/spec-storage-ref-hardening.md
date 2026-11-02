@@ -1153,7 +1153,11 @@ more than about a week out.
       directly, since whether Git prints the row `!` depends on its version and ref format. A row whose tracking ref
       moved to a descendant raises no notice, and a rewrite to an ancestor stays `history-diverged`.
     - § 12's four properties are pinned against the default ports.
-- **Performance.** Success paths start no extra Git process:
+- **Performance (A2).** Success paths start no extra Git process except § 9's completed-copy repair: each
+  otherwise-unwritten completed-quarter ref whose composed tree must change may add the existing writer's one
+  `mktree --batch` and one `commit-tree` process per attempt. The repair reuses captured evidence, starts no
+  additional listing or redundant discovery process, and publishes all affected refs in the withdrawal's existing
+  atomic compare-and-swap transaction. Unaffected success paths retain their process budget:
     - § 1.3 reads a tree only after a `missing` answer;
     - § 1.6's local object check runs only after a completed failure with no porcelain rows;
     - § 5.2's wrapper `lstat`s only after a failed transaction with no lost race;
@@ -1217,6 +1221,10 @@ more than about a week out.
     and undone entry changes, preserving each folder's independent end and placement without recreating a withdrawn
     folder. All refreshed copies publish atomically with the inverse from captured, locked bases (A1).
 
+15. Completed-copy refresh adds only one batched tree write and one commit write per otherwise-unwritten changed
+    quarter per attempt, without an additional listing, redundant discovery, or publication transaction. Unchanged
+    quarters and unaffected success paths retain their process budget (A2).
+
 ## Open Questions
 
 None. Module and helper names inside `lib/store/ref/` for § 1.2's metadata result, § 1.4's helper, and § 5.2's
@@ -1226,5 +1234,7 @@ wrapper are implementation detail.
 
 - **A1** — 2026-11-02 — spec-depth: refresh surviving completed copies after withdrawal. _Supersedes:_ none.
   _Trigger:_ 7.2 must-stop. _Work:_ 7.2.R. _Revalidated:_ pending → 7.2.
+- **A2** — 2026-11-02 — design: permit required quarter writes. _Supersedes:_ Cross-cutting › Performance ¶1.
+  _Trigger:_ 7.2 must-stop. _Work:_ 7.R. _Revalidated:_ pending → 7.R.
 
 ---

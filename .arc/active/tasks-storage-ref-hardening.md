@@ -825,6 +825,10 @@ before its fix and passes after it in the store suites.
   and undone entry changes atomically, preserving independent ends and placements without recreating the withdrawn
   end's folder (A1).
 
+- _Note:_ Native coverage reaches a completed copy moved to a non-journal quarter. Approved amendment A2 qualifies
+  the zero-extra-process descriptor below: only otherwise-unwritten changed quarters add the existing tree/commit
+  writes. Task 7.R verifies the bound; see `notes-storage-ref-hardening.md` § A2 — Required quarter publication cost.
+
     - After all journal inverses and preserved sibling lineage, refresh surviving completed folders from their final
       prepared history groups using `refreshArchivedFolder`, before namespace validation and publication. Retain each
       folder's end batch and placement. Keep every refreshed quarter within captured, locked, expected-value bases;
@@ -833,6 +837,17 @@ before its fix and passes after it in the store suites.
       retained whole-record conflict; without a later conflicting edit, the completed point read reflects the entry
       change undone with the withdrawn batch. Existing withdrawal coverage still proves removal of the withdrawn
       folder, preservation of independent ends, and atomic publication in both layouts.
+
+### `[ ]` **7.R Verify the bounded cost of completed-copy publication — Performance (A2)**
+
+- _Goal:_ A1's completed-copy repair preserves the existing process budget except the necessary batched tree and
+  commit write for each otherwise-unwritten quarter whose composed tree changes, per attempt, while retaining one
+  atomic publication and no additional listing or redundant discovery (A2).
+
+    - Trace the ordinary-copy and moved-copy native regressions and a no-refresh control in both layouts before and
+      after the repair. Record the per-command counts alongside their behavioral results. Do not add unchanged
+      quarters to the publication. New metadata joins the existing staged-blob flush.
+    - Re-run 7.2's behavioral regression and record the bounded cost evidence before closing this parent.
 
 ### `[ ]` **7.3 Push exclusion builds a refusal for every excluded ref — § 9**
 
@@ -945,3 +960,7 @@ before its fix and passes after it in the store suites.
 - `[ ]` After withdrawal, current completed reads expose final history conflicts and undone entry changes; surviving
   folders keep independent ends and placements, withdrawn folders stay removed, and refreshed copies publish
   atomically with the inverse from captured, locked bases (A1, spec criterion 14).
+
+- `[ ]` Completed-copy refresh adds only the existing batched tree and commit writes per otherwise-unwritten changed
+  quarter per attempt, with no additional listing, redundant discovery, or publication transaction; unchanged
+  quarters and unaffected success paths retain their process budget (A2, spec criterion 15).

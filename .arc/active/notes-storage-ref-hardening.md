@@ -199,6 +199,73 @@ covering regression and Phase 8's final criterion walk; 7.3–7.5 are unaffected
 outcome and 6.10's deadline/concurrency qualification unchanged: neither attested this completed-copy behavior.
 Independent planning review is omitted for this determinate amendment; these checks are author-run evidence.
 
+### A1 publication-cost constraint
+
+The A1 capture is committed at `af08eb88d3`; its increment request passed all 11 selected checks. New native cases
+confirm the same current-copy omission for an undone entry contribution, with and without a later quarter move,
+in both layouts. `task-7.2-A1-red.log` records four failures for ordinary copies; `task-7.2-A1-moved-red.log` records
+the two moved-copy failures. These are native public-store cases, not private-helper substitutions. No completed-copy
+implementation has begun.
+
+The moved copy's quarter is absent from the original journal, so limiting refresh to journal quarters would leave the
+approved outcome incomplete. `commitWithdrawEnd` already includes captured state quarters in the watched lock set
+when the journal affects another history owner. `commitWithdrawal` can therefore publish an added prepared quarter
+with the existing expected-value transaction, but `writeRefTree` and its per-ref `commit-tree` must create that
+quarter's new tree and commit. This conflicts with Cross-cutting › Performance's zero-extra-process statement and
+7.2.R's matching descriptor. Reusing captured trees, owned metadata, and a shared locked-context lifecycle cache can
+avoid a fresh listing and redundant acquisition; it cannot remove required publication writes for a new quarter.
+Execution stops at this unsettled cost constraint. The recommended bounded exception permits only the tree/commit
+creation needed by newly affected completed quarters; unrelated success paths keep their existing process budget.
+
+The bounded advice from `/root/withdraw_copy_advisor` independently identified the same journal-only coverage gap
+and publication-cost conflict. Its eligibility recommendation is to preserve the existing witnessed-batch rule of
+`readSyncHistoryQuarters` against captured pre-inverse history, then refresh only still-present folders from final
+prepared history. This is advisory evidence, checked against `commitWithdrawEnd`, `commitWithdrawal`, and
+`readSyncHistoryQuarters`; no independent review or fix completion is claimed.
+
+### Advisor on the publication-cost exception
+
+The Owner requested a follow-up from `/root/withdraw_copy_advisor` on whether the exception preserves the original
+intent of the process prohibition. The advisor recommends a narrow explicit amendment; the literal prohibition still
+requires disposition. Its intent reading is an inference from the surrounding record, rather than a recorded waiver:
+the hardening Performance examples avoid added ordinary-path diagnosis and discovery, while the completed
+`spec-store-operation-git-access.md` preserves exact listings and existing tree/write processes. Its Alternatives ›
+Writes rejects batching across refs and reproducing commit identity/date/environment handling for limited savings.
+The cost analysis separates acquisition overhead from writes and calls sync captures exact by design.
+
+The advisor's proposed boundary allows only the existing `writeObjectTrees` batched `mktree` and `commitWithdrawal`'s
+`commit-tree` for each otherwise-unwritten quarter whose composed tree actually changes, per attempt. Metadata blobs
+join `flushRefBlobStage`; all changed refs retain the existing atomic transaction. No extra listing or redundant
+discovery is authorized, unaffected paths keep their process budget, and unchanged quarter trees should add no
+publication work. The recommendation is to compare native ordinary-copy, moved-copy, and no-refresh controls in both
+layouts with temporary process tracing, retaining counts rather than creating a broad benchmark suite.
+
+Primary source checks confirmed the quoted Performance examples, operation-access Non-Goals and Writes alternatives,
+`writeObjectTrees`'s one batched tree process per ref, `commitWithdrawal`'s one commit process per prepared ref, and
+`flushRefBlobStage`'s shared blob flush. The consultation settles the recommendation, not the Owner's decision or the
+implementation's cost proof: captured evidence sufficiency and the unchanged flush/transaction counts still need
+verification. No performance exception has been applied, and the Owner's stated lean is not recorded as approval.
+
+## A2 — Required quarter publication cost
+
+The Owner approved the advisor's bounded exception. A2 supersedes the original Cross-cutting › Performance opening,
+"Success paths start no extra Git process", only for necessary publication of otherwise-unwritten completed quarters.
+A changed quarter may add `writeObjectTrees`'s one `mktree --batch` and `commitWithdrawal`'s one `commit-tree`, per
+attempt. Metadata joins `flushRefBlobStage`, and all refs retain the one atomic compare-and-swap publication. No
+additional listing or redundant discovery is permitted. Unchanged quarters and unaffected paths retain their budget.
+The original 7.2.R Goal and descriptor stay as recorded; its new note points to A2 and 7.R's cost verification.
+
+The amendment is a determinate design correction using the existing writer, with no Class or lifecycle change.
+Author spec-review and grounding-only task-audit cover the changed Performance obligation, appended spec criterion 15,
+appended task criterion, 7.2.R's note, 7.R, and its immediate neighbors. Source checks of `writeRefTree`,
+`writeObjectTrees`, `flushRefBlobStage`, and `commitWithdrawal` establish the stated writer structure; the native
+moved-quarter failure establishes why a new ref must join publication. Captured-evidence reuse and exact incremental
+counts remain implementation obligations to verify, not claims of a passing result. Reader independence and binding
+completeness hold: the Performance text states the exception and its limits without these notes. Forward propagation
+adds 7.R and Phase 8's criterion; backward propagation leaves the recorded 6.10 and 7.1 outcomes unchanged. A1's
+copy-consistency criterion remains intact. Post-settle coherence found no conflicting exclusion or changed schema.
+Independent planning review is omitted at this determinate amendment's depth; all checks here are author-run.
+
 ## Verification at the final head
 
 SC 3, SC 8's Windows case, SC 9, and SC 12 take their evidence mid-change, and no gate at the final head takes it again:
