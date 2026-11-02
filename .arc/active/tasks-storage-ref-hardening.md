@@ -664,16 +664,14 @@ pull leaves writes and pull merges free of `lock-held` on the layout lock.
           guidance. Accepted receiver updates survive acknowledgment failures; candidate checks preserve per-remote
           failures and suppress post-decision cleanup failures. Native repair cases retain successful continuation.
 
-### `[ ]` **6.3 `tracking-update-failed` names the lock it found — § 5.3**
+### `[x]` **6.3 `tracking-update-failed` names the lock it found — § 5.3**
 
 - _Goal:_ A pull notice raised because Git could not update a tracking ref names the lock it found, with its age and
   the stale or held remedy.
 
-    - `rejectedFetchNotice` (`fetch-check.ts`) `lstat`s the tracking ref's candidate lock files through the same
-      candidate set as 6.2.a, and names a lock it finds by its absolute path, the form a `lock-held` refusal's `lock`
-      carries.
-    - Build `test-first` (one behavior at a time): a planted tracking-ref lock is named with its age; with no lock found
-      the notice keeps today's condition and remedy.
+- _Outcome:_ Tracking-update notices use the shared native lock evidence, naming the absolute path and age with the
+  stale or held remedy. A lock already gone retains the existing condition and remedy; native cases preserve local
+  state and apply the incoming state after repair.
 
 ### `[ ]` **6.4 A stranded tracking lock excludes its ref from the push — § 9**
 

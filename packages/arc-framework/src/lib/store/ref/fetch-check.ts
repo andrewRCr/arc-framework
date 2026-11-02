@@ -1,5 +1,6 @@
 /** Interpret failed tracking updates by graph evidence rather than localized Git messages. */
 
+import { findRefGitLock, refGitLockRefusal } from "./git-lock.js";
 import type { FetchOutcome, FetchRefOutcome } from "../../git/fetch.js";
 import { updateStoreRefTransaction } from "./ref-transaction.js";
 import type { PullNotice } from "../sync.js";
@@ -39,9 +40,14 @@ async function rejectedFetchNotice(context: RefBackendContext, remote: RefRemote
     basis.blocked.add(row.ref);
     return unavailableFetchGraphNotice(ref);
   }
-  if (forward) return { kind: "tracking-update-failed", ref,
-    condition: `Git could not update ${row.ref} even though its fetched history does not diverge.`,
-    remedy: { text: "Pull state again. If the update keeps failing, stop the holder or remove its stale Git ref lock, then retry." } };
+  if (forward) {
+    const lock = await findRefGitLock(context, [row.ref], /^0+$/u.test(row.next));
+    const diagnostic = lock ? refGitLockRefusal(lock) : {
+      condition: `Git could not update ${row.ref} even though its fetched history does not diverge.`,
+      remedy: { text: "Pull state again. If the update keeps failing, stop the holder or remove its stale Git ref lock, then retry." },
+    };
+    return { kind: "tracking-update-failed", ref, condition: diagnostic.condition, remedy: diagnostic.remedy };
+  }
   return { kind: "history-diverged", ref, local: row.old, remote: row.next,
     condition: `The fetched tip of ${ref} does not descend from the last head seen; its local and tracking tips were kept.`,
     remedy: await refFetchRewriteRemedy(context, remote, designation, ref, row.next) };
