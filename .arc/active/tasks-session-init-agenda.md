@@ -540,14 +540,14 @@ tier pass against the new text.
   done-signal targets. The installed kit committed with hooks and pushed locally after its documented seven-target
   link fill; raw evidence and limits are recorded in `notes-session-init-agenda.md` § Sizing and measurement.
 
-### `[ ]` **5.5 Verify the shipped surface** — validate exit criterion at segment scope
+### `[x]` **5.5 Verify the shipped surface** — validate exit criterion at segment scope
 
 - _Goal:_ Evidence that every § 10–§ 12 surface is converted in every copy that carries it and the pins hold.
 
-    - Search both copies and `packages/arc-framework/src` for references to the removed files and to the old workflow's
-      sections
-    - Run `framework-sync`, link validation, and `arc check run test:integration:content --range`
-    - Run `arc check segment`
+- _Outcome:_ The two-copy census and current-source search cover the complete removal, cheap-tier, and propagation
+  lists, with no retired-file or old-section references in current shipped content. Framework-sync, link validation,
+  and the full integration tier close the exit scenario. The unchanged integration timeout and approved successful
+  retry remain recorded with their limits in `notes-session-init-agenda.md` § Shipped-surface verification.
 
 ## **Phase 6:** Verification
 

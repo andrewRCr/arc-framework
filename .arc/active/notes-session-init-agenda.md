@@ -555,3 +555,23 @@ The native proof snapshots each Orient, queued Errand, Plan, and Start invocatio
 lifecycle, stub, and worktree fixture, including both temporary-ref families. The operand matrix retains delimited
 branch names and the held literal alias, while real-store capture/adoption fixtures retain qualified keys and their
 refusal boundaries. These checks close A2 and A3 at Task 4.7.
+
+## Shipped-surface verification
+
+The §§ 10–12 census covers both current package and instance copies, recipe/manifest membership, and TypeScript source.
+The current-surface search finds no removed contributor workflow, probe-reference file, old numbered init step, or
+Conditional Sync Pulls reference. Broader searches retain matches in historical ADR and supplemental analysis records;
+those are not current shipped instructions. The five named source modules carry no retired-step citations, and the
+`constitution/types` import is a live command module rather than a stale rules-directory reference.
+
+The final full integration run includes all 12 framework-sync cases and passes 4,997 tests across 510 files, with
+755 tests and one file skipped. Full link validation passes. The segment request passes, including both type checks,
+TypeScript lint, the full unit suite, Markdown checks, and package sync. Evidence is retained under
+`~/dev/arc-evidence/session-init-agenda/result/shipped-surface/`.
+
+The initial integration run `a668f1e4a5304c5f9a6188c8ef11e9b2` had one 15-second timeout in the unchanged
+`one-shot-script-entrypoints.test.ts` failure-output case; the other 4,996 tests passed. Runner diagnostics were inspected
+before attribution. The unchanged focused file passed all five cases, and the approved unchanged full-suite retry
+`804f3c438e19478db2df3794f71a6619` passed. This establishes intermittence, not a confirmed cause or a fix. The original
+failure, focused pass, final full log, and runner histories remain retained; no timeout or source change was made.
+Whole-suite E2E and hosted CI remain outside this execution boundary and have not run.
