@@ -546,18 +546,19 @@ annotated commit.
   coverage of that path. The prompt, verbatim report, exact target, and hashes are retained as `fix-check-1.*` under
   `~/dev/arc-evidence/storage-ref-hardening/import-review/`; this working check supplies no attested review.
 
-### `[ ]` **5.11 Repair the state faults the trial found — § 11.1**
+### `[~]` **5.11 Repair the state faults the trial found — § 11.1**
 
 - _Goal:_ Each state fault 1.3 recorded is cleared by the repair its remedy names, and each repair runs only once it is
   approved, since it changes personal files, branches, or registered checkouts that are the Owner's.
 
-    - For each fault in `notes-storage-ref-hardening.md` § Import state faults, present the repair — reconciling
-      personal copies that differ, archiving or restoring a branch, settling a paused work unit, pruning a stale
-      registered checkout — and run it on approval; record what changed beside the fault.
-    - A fault the code raises wrongly is not a state fault: it takes 1.3's disposition, and a reachable one takes the
-      corrective route 5.10 gives a new finding (`5.R` ahead of 5.13).
-    - An unmapped review source 1.3 recorded as cleared by the review mapping's binding takes no repair; 5.12's
-      rehearsal shows it cleared.
+- _Note:_ The live-file check found S1 already cleared: base merge `3b162c7792` inherited the wrapped-title parser
+  through `9bfb4db5a0`. The approved physical normalization is superseded; its original proposal remains recorded.
+  Documentation feedback reflowed the retained proposal's introduction.
+
+- _Outcome:_ The production registration accepts both the original 16-entry trial file and the current 17-entry file,
+  round-tripping each byte-for-byte with all removal triggers. The concurrent memory addition and live file remain
+  intact. Validation and exact hashes are retained in `working-memory.task-5.11-validation.json` under the evidence
+  directory; no personal-file or canonical-notes write was performed.
 
 ### `[ ]` **5.12 Rehearse the trial with the review mapping bound — § 11.1**
 

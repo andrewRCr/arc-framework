@@ -466,13 +466,22 @@ trial report.
 
 ## Import state faults
 
-- **S1 — Wrapped titles in `andrew`'s `WORKING-MEMORY.md`** — open; repair approved for 5.11. Both trials report a
-  `personal/working-memory` parser fault at line 12: removal triggers require a one-line `**Title:**` header. The
-  resolver-backed file is in the primary checkout's `.arc/user/andrew/`. Join its 12 wrapped title headers, preserving
-  every word, removal trigger, and body. The proposed content parses into 16 entries and round-trips exactly through
-  `writeEntryList`; the patch and original content hash are retained as `working-memory.proposed.patch` and
-  `working-memory.proposal.json` beside the trial reports. Re-read current content before the repair and preserve
-  concurrent changes. Record the performed repair here at 5.11.
+- **S1 — Wrapped titles in `andrew`'s `WORKING-MEMORY.md`** — cleared by the inherited parser fix; the physical
+  repair is superseded at 5.11.
+
+  _Original approved repair (retained):_ Both trials report a `personal/working-memory` parser fault at line 12: removal
+  triggers require a one-line `**Title:**` header. The resolver-backed file is in the primary checkout's
+  `.arc/user/andrew/`. Join its 12 wrapped title headers, preserving every word, removal trigger, and body. The proposed
+  content parses into 16 entries and round-trips exactly through `writeEntryList`; the patch and original content hash
+  are retained as `working-memory.proposed.patch` and `working-memory.proposal.json` beside the trial reports. Re-read
+  current content before the repair and preserve concurrent changes. Record the performed repair here at 5.11.
+
+  _Recheck:_ Base merge `3b162c779263ba604f49fd3c156222924b71c1f5` inherited the lossless wrapped-title parser,
+  including `9bfb4db5a0fb205dba45392e97ef4d46247db8e8`. The current production registration accepts the original
+  trial file as 16 entries and the live file as 17 entries, with byte-exact round trips and every removal trigger.
+  The live hash is `13fa3dc7da64cef4e173112d6263e12264c483e8289d3510e7826a2e064d752a`; its concurrent added memory
+  is preserved. `working-memory.task-5.11-validation.json` under `~/dev/arc-evidence/storage-ref-hardening/` records
+  the exact inputs and checks. No personal-file or canonical-notes write was performed.
 - **M1 — Review-family import mapping** — awaiting binding; cleared by that binding, not by a repair here. The full
   trial reports 3,010 distinct `arc/review-gate/` sources with no mapping. Setting aside the copy's sources other than
   repository identity removes every such notice. Their remedy is to bind the review family's import mapping; 5.12
