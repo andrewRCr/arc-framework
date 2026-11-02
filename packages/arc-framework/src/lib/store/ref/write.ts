@@ -141,15 +141,21 @@ async function attemptRefBatch(context: RefBackendContext, input: BatchInput, ba
   const collision = checkRefBatchPaths(resolved.result.writes.filter((write) => write.mutation.action === "put")
     .map((write) => write.mutation.reference), context.registry);
   if (collision) return { status: "refused", refusal: collision };
-  return withRefLocks(context, [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...registryAnchorLockRefs(context, resolved.result), ...(resolved.result.retained?.length ? ["refs/arc/project/registry", ...resolved.result.retained.map(({ home }) => home.ref.replace("refs/arc/history/", "refs/arc/"))] : []), ...archiveLockRefs(resolved.result), ...archivedLockRefs(resolved.result), ...completedMoveLockRefs(resolved.result), ...retirementLockRefs(refWriteTargets(context, resolved.result))], () =>
-    commitLockedRefBatch(context, resolved.result, input.provenance, batchId, input.observations ?? []));
+  const anchor = await registryAnchorLockRefs(context, resolved.result);
+  if (anchor.status === "refused") return anchor;
+  const locks = [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...anchor.result, ...(resolved.result.retained?.length ? ["refs/arc/project/registry", ...resolved.result.retained.map(({ home }) => home.ref.replace("refs/arc/history/", "refs/arc/"))] : []), ...archiveLockRefs(resolved.result), ...archivedLockRefs(resolved.result), ...completedMoveLockRefs(resolved.result), ...retirementLockRefs(refWriteTargets(context, resolved.result))];
+  return withRefLocks(context, locks, () =>
+    commitLockedRefBatch(context, resolved.result, input.provenance, batchId, input.observations ?? [], new Set(locks)));
 }
 
 async function commitLockedRefBatch(context: RefBackendContext, resolved: ResolvedBatch,
-  provenance: BatchInput["provenance"], batchId: string, observations: readonly RecordObservation[]): Promise<StoreResult<BatchResult> | "layout-changed" | null> {
+  provenance: BatchInput["provenance"], batchId: string, observations: readonly RecordObservation[], locks: ReadonlySet<string>): Promise<StoreResult<BatchResult> | "layout-changed" | null> {
   for (;;) {
     const tips = await readRefTips(context, { includeHistory: true });
     if (ownerLocationsChanged(context, resolved, tips) || archiveBasisChanged(resolved, tips) || retainedBasisChanged(resolved.retained ?? [], resolved.tips, tips)) return null;
+    const anchor = await registryAnchorLockRefs(context, { ...resolved, tips });
+    if (anchor.status === "refused") return anchor;
+    if (anchor.result.some(ref => !locks.has(ref))) return null;
     const result = await commitRefWrites(context, { ...resolved, tips }, provenance, batchId, observations);
     if (result === "resolve") return null;
     if (result !== "retry") return result;

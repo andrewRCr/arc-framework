@@ -725,26 +725,14 @@ pull leaves writes and pull merges free of `lock-held` on the layout lock.
     - `[x]` **6.7.b The span rule where the lease is taken**
         - Keeper and fetch comments name the network span, sync bound, timeout error, and retry remedy.
 
-### `[ ]` **6.8 A write that retires a work ref takes the registry lock — § 8**
+### `[x]` **6.8 A write that retires a work ref takes the registry lock — § 8**
 
 - _Goal:_ A batch that retires a targeted live work ref holds the registry lock it writes under, so the lock
   invariant holds without serializing ordinary writes on the registry.
 
-- _Note:_ `write.ts` is shared with another unit's change; see `notes-storage-ref-hardening.md` § Coordination with
-  `store-operation-git-access`.
-
-    - `registryAnchorLockRefs` (`write-manifest.ts`) takes the registry lock when a targeted live work ref's owner has
-      a lineage transition record in the registry tree at the batch's resolved tips, or the batch creates one. It reads
-      that tree through `readRefTrees` only when some target is a live work ref, and `planRefRetirements`
-      (`write-retirement.ts`) reuses the read. A fault in that read classifies through 2.3's helper, since § 1.4's
-      search binds it.
-    - `commitLockedRefBatch` (`write.ts`) re-reads the tips it plans from after the locks are taken. When the
-      prediction over those tips needs the registry lock the batch does not hold, the attempt returns to
-      re-resolution, which takes it. A lineage record that appears after that re-read meets the admission check and
-      retries.
-    - Build `test-first` (one behavior at a time): another owner's resolves starting a retirement alone take the
-      registry lock; a write to a work item with no lineage record takes none; a lineage record landing between
-      resolution and the locked re-read sends the batch back to re-resolution, which takes the registry lock.
+- _Outcome:_ Registry prediction includes live work targets whose captured registry tree holds lineage, including
+  another owner's resolutions. The locked-tip recheck returns to resolution when an additional registry lock is
+  needed. Prediction and retirement share cached tree evidence and Missing classification; ordinary writes stay free.
 
 ### `[ ]` **6.9 The Windows publishing bursts check their recovery in both layouts — § 5.4**
 
