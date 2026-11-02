@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "content-tier-shards",
+  "claimId": "b643ce8ef0bddac9f63d8d86503fbd1c",
+  "createdAt": "2026-11-02T21:41:27.470Z",
+  "updatedAt": "2026-11-02T21:41:27.470Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Shard the integration content tier across the runner pool like test:integration",
+  "branch": "chore/content-tier-shards",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
