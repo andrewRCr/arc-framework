@@ -331,7 +331,9 @@ export function buildCreateNewCeremonyCommitMessage(name: string): string {
 
 /** The outcome of a `graduate` attempt — a rejection, or the relocated meta path + branch. */
 export type GraduateResult =
-  | { status: "rejected"; reason: string; refusal?: StoreRefusal; recovery?: LifecycleRollbackRecovery }
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; recovery?: LifecycleRollbackRecovery;
+      /** A successful linked placement retained after a later completion failure. */
+      worktreePath?: string; spawnLock?: SpawnLock }
   | {
       status: "graduation-recovery-required";
       reason: string;
@@ -377,13 +379,33 @@ export async function runGraduate(
   ctx: ExecuteTransitionContext,
   params: GraduateParams,
 ): Promise<GraduateResult> {
-  const result = usesOffBranchState(ctx.store) ? await runStoreGraduate(ctx, params) : await graduateInRepo(ctx, params);
-  // Both forms' rollbacks remove a spawned checkout without unlocking it, so the lock waits for the transition.
-  if (result.status !== "graduated" || params.inPlace === true || result.worktreePath === undefined) return result;
+  let retainedPath: string | undefined;
+  const apply = ctx.atomicGraduate;
+  const protectedCtx = apply === undefined ? ctx : {
+    ...ctx,
+    atomicGraduate: async (transaction: ValidatedGraduationTransaction) => {
+      const result = await apply(transaction);
+      if (result.status === "applied" && transaction.occupation.mode === "spawned") retainedPath = result.worktreePath;
+      return result;
+    },
+  };
+  let result: GraduateResult;
+  try {
+    result = usesOffBranchState(ctx.store) ? await runStoreGraduate(ctx, params) : await graduateInRepo(protectedCtx, params);
+  } catch (error) {
+    if (retainedPath === undefined) throw error;
+    result = { status: "rejected", reason: error instanceof Error ? error.message : String(error) };
+  }
+  if (result.status === "graduation-recovery-required") return result;
+  const worktreePath = result.worktreePath ?? retainedPath;
+  // A successful atomic application is beyond rollback, even when a later completion effect failed.
+  if (params.inPlace === true || worktreePath === undefined) return result;
   const spawnLock = ctx.exec === undefined
     ? { kind: "failed" as const, detail: "graduation ran without a Git executor" }
-    : await lockSpawnedCheckout(ctx.exec, result.worktreePath);
-  return { ...result, spawnLock };
+    : await lockSpawnedCheckout(ctx.exec, worktreePath);
+  return result.status === "rejected"
+    ? { ...result, reason: `graduation partially applied at ${worktreePath}: ${result.reason}`, worktreePath, spawnLock }
+    : { ...result, spawnLock };
 }
 
 async function graduateInRepo(ctx: ExecuteTransitionContext, params: GraduateParams): Promise<GraduateResult> {

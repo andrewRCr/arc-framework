@@ -664,6 +664,7 @@ async function graduate(
       "Graduation failed.",
     );
     if (result.status === "rejected") {
+      warnSpawnLock(result.worktreePath, result.spawnLock);
       p.log.error(result.reason);
       process.exitCode = 1;
       return;
@@ -745,6 +746,7 @@ async function graduate(
     "Graduation failed.",
   );
   if (result.status === "rejected") {
+    warnSpawnLock(result.worktreePath, result.spawnLock);
     p.log.error(result.reason);
     process.exitCode = 1;
     return;

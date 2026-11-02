@@ -18,11 +18,13 @@ import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 
 import { runColdStart, runCreateNew, runGraduate, resolveStartDispatch } from "../../src/commands/start.js";
-import { handleStart } from "../../src/handlers/start.js";
+import { handleStart, StartCommandInputSchema } from "../../src/handlers/start.js";
+import { runUserOpen } from "../../src/commands/user/open.js";
 import { parseMetaProjectionRecord, renderMetaFile } from "../../src/lib/active/meta-reader.js";
 import { resolveWorktreeLocation } from "../../src/lib/git/worktree-location.js";
 import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
-import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+import { lockSpawnedCheckout, PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { readWorktreeLock } from "../helpers/worktree-lock.js";
 import { createUserIOContext, readGitBlobBytes } from "../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../src/lib/paths.js";
@@ -625,6 +627,78 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(await readWorktreeLock(h.io.exec, wt)).toBe(PROJECTION_LOCK_REASON);
   });
 
+  it.each([false, true])("graduate: protects a retained placement after workspace failure, with lock failure %s", async (lockFails) => {
+    await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
+    const input = StartCommandInputSchema.parse({ name: "widget" });
+    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), name: input.name!, branch: "plan/widget" });
+    h.spawned.push(wt);
+    const notes = join(wt, ".arc/user", IDENTITY, "widget/SESSION-NOTES.md");
+    let denied = true;
+    const io: UserIOContext = {
+      ...h.io,
+      writeFile: async (...args) => {
+        if (denied && args[0] === notes) throw new Error("workspace write denied");
+        return h.io.writeFile(...args);
+      },
+      exec: async (command, args, options) => {
+        if (lockFails && denied && args[0] === "worktree" && args[1] === "lock") {
+          throw makeGitProcessError({ command, args, exitCode: 128, stderr: "lock denied" });
+        }
+        return h.io.exec(command, args, options);
+      },
+    };
+    const result = await runGraduate(buildExecutorContext({ cwd: h.repo, io, identity: IDENTITY, teamMode: false,
+      internalTemplateDir: getInternalTemplatePath() }), {
+      name: input.name!, cls: "Light", baseBranch: "main", locationTemplate: h.locationTemplate,
+      repo: basename(h.repo), spawningIdentity: IDENTITY, prepareTransaction: prepareTransaction(h, "widget", "spawned", wt),
+    }).catch((error: unknown) => ({ status: "unexpected-throw", reason: String(error) }));
+
+    expect(result).toMatchObject({ status: "rejected", worktreePath: wt, reason: expect.stringContaining("workspace write denied") });
+    expect(await pathExists(join(wt, ".arc/active/meta-widget.md"))).toBe(true);
+    expect(await readWorktreeMarker(wt)).toMatchObject({ kind: "present" });
+    if (lockFails) {
+      expect(result).toMatchObject({ spawnLock: { kind: "failed", detail: expect.stringContaining("lock denied") } });
+      expect(await lockSpawnedCheckout(h.io.exec, wt)).toEqual({ kind: "locked" });
+    } else expect(result).toMatchObject({ spawnLock: { kind: "locked" } });
+    expect(await readWorktreeLock(h.io.exec, wt)).toBe(PROJECTION_LOCK_REASON);
+    denied = false;
+    await runUserOpen({ cwd: wt, io: h.io, identity: IDENTITY, wuName: "widget", internalTemplateDir: getInternalTemplatePath(),
+      sessionNotesSeed: "Retained graduation notes.\n" });
+    await h.io.exec("git", ["-C", wt, "commit", "-m", "Finish retained graduation"]);
+    await expect(execFileAsync("git", ["worktree", "remove", wt], { cwd: h.repo })).rejects.toThrow();
+    expect(await readFile(notes, "utf8")).toBe("Retained graduation notes.\n");
+  });
+
+  it("graduate handler: reports a retained checkout and its foreign lock after a workspace failure", async () => {
+    await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
+    const remote = `${h.repo}-origin.git`;
+    h.cleanupPaths.push(remote);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await h.io.exec("git", ["remote", "add", "origin", remote]);
+    await h.io.exec("git", ["config", "arc.identity", IDENTITY]);
+    const config = join(h.repo, ".arc/system/arc-config.yml");
+    await writeFile(join(h.repo, ".arc/system/block-workspace.cjs"),
+      "const fs = require('node:fs');\nfs.mkdirSync('.arc/user/test-user', { recursive: true });\n"
+      + "fs.writeFileSync('.arc/user/test-user/widget', 'workspace blocked');\n");
+    await h.io.exec("git", ["add", ".arc/system/block-workspace.cjs"]);
+    const script = "node .arc/system/block-workspace.cjs && git worktree lock --reason provisioning-tool .";
+    await writeFile(config, `${await readFile(config, "utf8")}worktree.post_create: ${script}\n`);
+    await h.io.exec("git", ["commit", "-am", "Fail the post-placement workspace write"]);
+    await h.io.exec("git", ["push", "-u", "origin", "main"]);
+    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), name: "widget", branch: "plan/widget" });
+    h.spawned.push(wt);
+
+    const result = await runHandlerAt(h.repo, () => handleStart("widget", { yes: true },
+      makeInteractionContext({ noInput: true, yes: "compatibility" })))
+      .catch((error: unknown) => ({ exitCode: -1, stdout: "", stderr: String(error) }));
+
+    expect(result.exitCode, result.stdout + result.stderr).toBe(1);
+    expect(result.stdout + result.stderr).toContain(wt);
+    expect(result.stderr).toContain("provisioning-tool");
+    expect(await readWorktreeLock(h.io.exec, wt)).toBe("provisioning-tool");
+    expect(await pathExists(join(wt, ".arc/active/meta-widget.md"))).toBe(true);
+  });
+
   it("graduate --here: cuts the branch in the current checkout, no worktree spawned", async () => {
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
     const spawnWt = resolveWorktreeLocation({
@@ -647,7 +721,7 @@ describe("arc start dispatch — against real worktrees", () => {
       },
     );
 
-    expect(result.status).toBe("graduated");
+    expect(result.status, JSON.stringify(result)).toBe("graduated");
     // The stub relocated `backlog → active` (real `git mv`) in the current checkout.
     expect(await pathExists(join(h.repo, ".arc", "active", "meta-widget.md"))).toBe(true);
     expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", "widget", "meta-widget.md"))).toBe(false);
