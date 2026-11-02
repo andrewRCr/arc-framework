@@ -90,7 +90,7 @@ describe("Errand signal entry", () => {
       type: "render", surface: "errand-next", text: "Next execute-bound Errand: personal:11111111.",
     }]));
     expect(agenda.steps.at(-1)).toEqual({ type: "fragment", target: {
-      kind: "workflow", path: ".arc/system/workflows/arc/run-errand.md",
+      kind: "workflow", path: ".arc/system/workflows/arc/supplemental/run-errand.md",
     }, args: { mode: "launch", fromInbox: "personal:11111111", isolate: true } });
   });
 
@@ -169,7 +169,7 @@ describe("Errand signal entry", () => {
     const agenda = await compile(input);
     expect(agenda.orientation).toEqual({ shape: "subject", subject: { kind: "errand", key: "Fix a literal concern" } });
     expect(agenda.steps.at(-1)).toEqual({ type: "fragment", target: {
-      kind: "workflow", path: ".arc/system/workflows/arc/run-errand.md",
+      kind: "workflow", path: ".arc/system/workflows/arc/supplemental/run-errand.md",
     }, args: { mode: "launch", seed: "Fix a literal concern", isolate: true } });
     expect(agenda.steps.filter(step => step.type === "read").every(step => !step.path.includes("active/"))).toBe(true);
     expect(agenda.steps.filter(step => step.type === "exec")).toEqual([]);

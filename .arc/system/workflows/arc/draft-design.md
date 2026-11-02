@@ -32,9 +32,11 @@ start.
 
 ## Planning-entry gate
 
-**Grooming-entry skip.** A `--plan <stub>` grooming session enters already on a committable grooming branch —
-under full protection, session-init's signal-leaf relocate uses `chore/groom-<slug>` cut from the base. Skip this
-gate and continue to **Resolve depth & Class**. The gate still runs on every other entry.
+**Session-init planning entry:** `stub` identifies the selected backlog stub; `onGroomingBranch` reports whether
+this checkout is already on that stub's grooming branch.
+
+**Grooming-entry skip.** A `--plan` entry skips this gate only when `onGroomingBranch` is true, continuing to
+**Resolve depth & Class**. Every other `--plan` entry runs the gate below.
 
 Before drafting, run the mechanical preflight — it resolves whether a draft can be committed from the current
 context and routes so a draft never lands where it can't be committed:

@@ -377,7 +377,7 @@ rehearsals reach today's orientation except where the specification states a cha
   disappeared selections that refuse and recover after repair; other text remains a new concern after the flip.
   Fixtures bind their served envelope and entry store to the same backend mode.
 
-### `[ ]` **4.2 Compile the signal rows — § 5.4, § 12**
+### `[x]` **4.2 Compile the signal rows — § 5.4, § 12**
 
 - _Goal:_ `--errand` (queue head, seeded, bare), `--plan` (found, bare or not found), `--housekeep`, and `--context`
   each compile to their § 5.4 sequence on a notes-only prefix, and the workflows they enter own their entry.
@@ -399,16 +399,10 @@ rehearsals reach today's orientation except where the specification states a cha
           without work-unit artifacts. All signal rows restrict degraded output to checkout dependencies and suppress
           discovery surfaces; empty and refused queues retain checkout attention. Native entries preserve Git state.
 
-    - `[ ]` **4.2.d Hand the entries to their workflows**
-        - Point `compileErrandSignal` at the shipped `supplemental/run-errand.md` target and verify emitted workflow
-          paths against installed files in the native signal cases
-        - `run-errand.md`: Launch renders `arc errand open`'s `recommendedPromptText` and works from
-          `allocation.checkoutPath`; Resume consumes only the checkout session-init selected and no longer materializes;
-          its entry names the arguments it receives — `mode`, `seed`, `fromInbox`, `isolate`, and on resume `subject`
-          and `generation`
-        - `draft-design.md`: the grooming-entry skip applies only on a grooming branch, so `arc plan check` runs on
-          every other `--plan` entry; its entry names `stub` and `onGroomingBranch`
-        - Both copies; re-pin any test reading the changed text
+    - `[x]` **4.2.d Hand the entries to their workflows**
+        - Errand entries use recovery's canonical shipped workflow path, and native signal cases read emitted workflow
+          targets from fresh installs. Launch reports its exact allocation and passes adoption selectors unchanged;
+          Resume retains the selected checkout. Explicit Plan entry skips preflight only on its computed grooming flag.
 
 ### `[ ]` **4.3 Compile transient resumes and the contextless husk — § 5.4**
 
@@ -416,6 +410,8 @@ rehearsals reach today's orientation except where the specification states a cha
   contextless current husk orients on the husk and stops.
 
 - Export `transientWorkflow` (`lib/recover/locus-context.ts`)
+- Keep the owning workflow's grooming-resume entry distinct from fresh `--plan` admission: continue the selected
+  grooming session with `subject` and `generation`, preserving that shape without treating the set key as a stub
 - Build `test-first` (one behavior at a time), replacing the retired groom and housekeep dispatch pins:
     - `errand` and `partial-errand` enter `run-errand` with `mode: "resume"`, `groom` enters `draft-design`, and
       `housekeep` enters `drain-inbox`, each by `transientWorkflow`

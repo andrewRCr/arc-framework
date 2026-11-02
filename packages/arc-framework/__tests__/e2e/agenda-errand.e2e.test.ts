@@ -34,6 +34,11 @@ describe("agenda Errand entry", () => {
     expect(result.exitCode, result.stdout + result.stderr).toBe(0);
     const agenda: unknown = JSON.parse(result.stdout);
     assertSessionInitAgenda(agenda);
+    for (const step of agenda.steps) {
+      if (step.type === "fragment" && step.target.kind === "workflow") {
+        expect(await readFile(join(repository, step.target.path), "utf8")).toContain("# Workflow:");
+      }
+    }
     if (mode === "pick") {
       expect(agenda.steps.at(-1)).toMatchObject({ type: "offer", id: "errand:pick", choices: expect.arrayContaining([
         expect.objectContaining({ kind: "signal", value: "Captured concern" }),
@@ -41,7 +46,7 @@ describe("agenda Errand entry", () => {
     } else {
       expect(agenda.steps.at(-1), JSON.stringify(agenda.steps.filter(step => step.type === "render" && step.surface === "errand-next")))
         .toMatchObject({ type: "fragment", target: {
-        kind: "workflow", path: ".arc/system/workflows/arc/run-errand.md",
+        kind: "workflow", path: ".arc/system/workflows/arc/supplemental/run-errand.md",
       }, args: { mode: "launch", fromInbox: "Captured concern", isolate: mode === "seed" } });
     }
     expect(await readFile(inboxPath, "utf8")).toBe(content);

@@ -1,4 +1,5 @@
 /** Compile explicit Errand launch intent without allocating a checkout. */
+import { RUN_ERRAND_WORKFLOW_PATH } from "../../lib/recover/locus-context.js";
 import { SlugSchema } from "../../lib/kernel/index.js";
 import { basename } from "node:path";
 import { resolveArcPath } from "../../lib/layout/index.js";
@@ -23,7 +24,7 @@ export async function compileErrandSignal(input: AgendaCompileInput): Promise<Se
   const { entries, notes } = await readCaptures(input);
   const capture = await resolveErrandCapture(seed, entries, input.entry.store?.capabilities.stateOffBranch === true);
   const decision: AgendaStep = seed === null ? pickErrand(input, entries) : { type: "fragment", target: {
-    kind: "workflow", path: ".arc/system/workflows/arc/run-errand.md",
+    kind: "workflow", path: RUN_ERRAND_WORKFLOW_PATH,
   }, args: { mode: "launch", seed, isolate: input.signals.isolate === true,
     ...(capture === undefined ? {} : { fromInbox: capture }) } };
   return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, [
@@ -59,7 +60,7 @@ async function compileQueueHead(input: AgendaCompileInput, prefix: AgendaStep[])
   const result = await resolveErrandNext(input.entry);
   const key = result.nextOffer?.key ?? null;
   const tail: AgendaStep = result.state === "available" ? { type: "fragment", target: {
-    kind: "workflow", path: ".arc/system/workflows/arc/run-errand.md",
+    kind: "workflow", path: RUN_ERRAND_WORKFLOW_PATH,
   }, args: { mode: "launch", fromInbox: key, isolate: input.signals.isolate === true } }
     : { type: "gate", kind: "stop", autoProceed: false };
   return createSessionInitAgenda(input, { shape: "subject", subject: { kind: "errand", key } }, carryAgendaAnswers(input, [

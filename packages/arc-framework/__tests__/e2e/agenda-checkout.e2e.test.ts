@@ -1,6 +1,6 @@
 /** Native checkout-only signals emit entry plans without executing work. */
 import { join } from "node:path";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { assertSessionInitAgenda } from "../../src/commands/agenda/schema.js";
@@ -34,6 +34,11 @@ describe("agenda checkout-only entry", () => {
     expect(result.exitCode, result.stdout + result.stderr).toBe(0);
     const agenda: unknown = JSON.parse(result.stdout);
     assertSessionInitAgenda(agenda);
+    for (const step of agenda.steps) {
+      if (step.type === "fragment" && step.target.kind === "workflow") {
+        expect(await readFile(join(repository, step.target.path), "utf8")).toContain("# Workflow:");
+      }
+    }
     if (signal === "housekeep") {
       expect(agenda.orientation).toEqual({ shape: "subject", subject: { kind: "housekeep", key: null } });
       expect(agenda.steps.at(-1)).toEqual({ type: "fragment", target: {
