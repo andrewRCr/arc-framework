@@ -218,20 +218,10 @@ _Mode:_ `slice` through Phase 3 — closes on a plain resume driven end to end b
 - _Goal:_ Every worktree, dirty, base, and notes condition compiles to its § 6.2 render with CLI-composed text, a
   channel renders as behind only where Task 2.2 marks it unsynced, and the notes surfaces live in the cutover module.
 
-    - `[ ]` **2.5.a Compile the worktree and base surfaces**
-        - Today's templates for `worktree-diverged`, `local-ahead`, `no-upstream`, `detached-head`, `no-remote`, and
-          `dirty`, filled from the same fields; the compiler's own lines for `worktree-behind` and
-          `worktree-remote-unavailable`
-        - Export `composeBaseBranchSyncBehindText` (`lib/session-init/recommended-action.ts`)
-        - Build `test-first` (one behavior at a time):
-            - each worktree state renders its surface in table order
-            - `worktree-behind` renders only when unsynced
-            - `worktree-remote-unavailable` with `remoteEvidence` `unreachable` names `failureReason`; with
-              `pending-fetch` it says origin advanced to a commit not yet present locally
-            - `detached-head` is suppressed when the current husk renders
-            - `base-drift` renders `recommendedPromptText` verbatim on `surface`
-            - `stale-base` renders the slot's text on `surface`, else `composeBaseBranchSyncBehindText`'s when behind,
-              unsynced, and `not-checked-out`; `refreshRemedy` is text
+    - `[x]` **2.5.a Compile the worktree and base surfaces**
+        - Added ordered worktree/base/dirty rendering from probe facts, with path-specific unsynced guards and husk
+          suppression. Remote reachability and pending-fetch messages stay distinct; base text reuses the shared
+          composer and retains refresh remedies as text. Resume assembly shares one sync-state calculation.
 
     - `[ ]` **2.5.b Compile the notes surfaces in the cutover module**
         - Build `test-first` (one behavior at a time):

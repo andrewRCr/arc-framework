@@ -19,7 +19,7 @@ export function compileSupersededSync(input: AgendaCompileInput, channels: SyncC
 }
 
 /** Render the explanation when a reset question is no longer pending on this row. */
-export function renderSuperseded(input: AgendaCompileInput, channels: SyncChannels = "all"): AgendaStep | null {
+export function renderSuperseded(input: AgendaCompileInput, channels: SyncChannels = "all"): Extract<AgendaStep, { type: "render" }> | null {
   const facts = supersededFacts(input);
   if (facts === null || resetPending(input, channels)) return null;
   return { type: "render", surface: "superseded", text: composeSupersessionHead(facts.branch) };

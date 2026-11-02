@@ -174,6 +174,14 @@ describe("agenda work-unit resume", () => {
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: true });
   });
 
+  it("includes checkout-local attention in the shared ordered resume assembly", async () => {
+    const agenda = await compile(await input({ worktree: async () => worktreeSync({ state: "diverged", branch: "feat/work", ahead: 2, behind: 3 }),
+      dirty: async () => dirtyState({ state: "dirty", fileCount: 2 }) }));
+    const surfaces = agenda.steps.filter(step => step.type === "render");
+    expect(surfaces.map(step => step.surface)).toEqual(["header", "worktree-diverged", "dirty"]);
+    expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
+  });
+
   it("ends at automatic notes synchronization before reading context", async () => {
     const config = configSessionInit(); config.settings["session.init_pull.notes"] = "always";
     const value = await input({ config: async () => config,

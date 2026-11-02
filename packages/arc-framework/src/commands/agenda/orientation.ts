@@ -7,7 +7,7 @@ import { parseLifecycleMetaContent } from "../../lib/store/lifecycle-meta-conten
 import type { AgendaCompileInput } from "./compile-input.js";
 import { renderDegradedSlot, renderLocus } from "./render.js";
 import { renderAnswered } from "./progress.js";
-import { compileSyncState } from "./sync-state.js";
+import { compileSyncState, type AgendaSyncState } from "./sync-state.js";
 import type { AgendaStep } from "./schema.js";
 
 /** One surface may contain both its narration and standing remedy offers. */
@@ -35,7 +35,7 @@ export function orderOrientationSurfaces(surfaces: OrientationSurface[]): Agenda
 }
 
 /** Collect core resume surfaces and findings for the shared ordered assembly. */
-export function compileCoreOrientation(input: AgendaCompileInput, findings: Extract<AgendaStep, { type: "render" | "note" }>[]): OrientationSurface[] {
+export function compileCoreOrientation(input: AgendaCompileInput, findings: Extract<AgendaStep, { type: "render" | "note" }>[], sync: AgendaSyncState = compileSyncState(input)): OrientationSurface[] {
   const steps: AgendaStep[] = [renderHeader(input), ...publishedSurfaces(input), ...findings];
   const locus = renderLocus(input.envelope);
   if (locus !== null) steps.push(locus);
@@ -47,7 +47,7 @@ export function compileCoreOrientation(input: AgendaCompileInput, findings: Extr
   if (domain.ok) for (const text of domain.value.warnings) steps.push({ type: "note", surface: "domain-rules", text });
   const answered = renderAnswered(input);
   if (answered !== null) steps.push(answered);
-  steps.push(...compileSyncState(input).unsettled, ...compileUnconsumedSignals(input, { next: true }));
+  steps.push(...sync.unsettled, ...compileUnconsumedSignals(input, { next: true }));
   return steps.flatMap(step => step.type === "render" || step.type === "note" ? [{ id: step.surface, steps: [step] }] : []);
 }
 

@@ -487,7 +487,8 @@ function mapBaseBranchSyncWhenCheckedOut(
   }
 }
 
-function composeBaseBranchSyncBehindText(baseBranchSync: SessionBaseBranchStatus): string {
+/** Describe the stale local base without adding an execution question. */
+export function composeBaseBranchSyncBehindText(baseBranchSync: SessionBaseBranchStatus): string {
   const base = baseBranchSync.base;
   return (
     `Local base \`${base}\` is behind \`origin/${base}\` by ` +
