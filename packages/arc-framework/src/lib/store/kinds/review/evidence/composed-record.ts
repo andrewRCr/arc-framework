@@ -75,6 +75,11 @@ function producerSource(outcome: ReviewOutcome, workItem: OwnerIdentity): Approv
   }), durableRef: outcome.attemptId }), hostedResultId: sealed.hostedResultId };
 }
 
+function contextRefusal(evidence: readonly ReviewEvidence[], detail: string): StoreRefusalError {
+  return reviewEvidenceLineageRefusal(evidence, "context",
+    "Restore consistent approved-response source and target context for these records, then retry.", detail);
+}
+
 /** Compose one producer's approvals with command-compatible portable source coordinates. */
 export function composeReviewDispositionRecord(outcome: ReviewOutcome, evidence: readonly ReviewEvidence[], owner: OwnerIdentity): ApprovedDispositionRecord {
   const ordered = orderReviewEvidenceLineage(evidence);
@@ -82,6 +87,11 @@ export function composeReviewDispositionRecord(outcome: ReviewOutcome, evidence:
   const tail = ordered.at(-1);
   if (value === undefined || tail === undefined) throw new Error("Restore the approved-response lineage before reading it.");
   const binding = value.binding;
+  const mismatched = ordered.find(entry => entry.dispositionSet.targetId !== outcome.target.targetId
+    && entry.dispositionSet.findings.some(finding => finding.disposition === "fix"));
+  if (mismatched !== undefined) {
+    throw contextRefusal(ordered, `Fix target ${mismatched.dispositionSet.targetId} differs from outcome target ${outcome.target.targetId}`);
+  }
   try {
     return ApprovedDispositionRecordSchema.parse({ schemaVersion: 1, semanticsVersion: "review-advisory/v1",
       repositoryId: outcome.target.repositoryId, operationId: outcome.attemptId,
@@ -94,8 +104,6 @@ export function composeReviewDispositionRecord(outcome: ReviewOutcome, evidence:
     });
   } catch (error) {
     if (!(error instanceof z.ZodError)) throw error;
-    throw reviewEvidenceLineageRefusal(ordered, "context",
-      "Restore consistent approved-response source and target context for these records, then retry.",
-      error.issues.map(issue => issue.message).join("; "));
+    throw contextRefusal(ordered, error.issues.map(issue => issue.message).join("; "));
   }
 }
