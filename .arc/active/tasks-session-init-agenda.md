@@ -228,33 +228,16 @@ _Mode:_ `slice` through Phase 3 — closes on a plain resume driven end to end b
           exact compaction nudge markers. The store-sync renderer lives with permanent core orientation so removing
           legacy notes compilation retains the store's advisory surface.
 
-### `[ ]` **2.6 Compile the cleanup lists under their action limits — § 4.11, § 6.1, § 6.2, § 6.3, § 14.1**
+### `[x]` **2.6 Compile the cleanup lists under their action limits — § 4.11, § 6.1, § 6.2, § 6.3, § 14.1**
 
 - _Goal:_ Every cleanup list renders today's text from its reports and offers each removable report's own published
   remedy, while every blocked, owner-held, or manual-only entry stays text and nothing becomes automatic or gains a
   forbidden flag.
 
-- _Note:_ The worktree-lock change (`projection-substrate`) alters the remedies these lists carry; whichever change
-  lands second carries the other's wording in the shipped prose.
-
-- Build `test-first` (one behavior at a time):
-    - `husk` renders by `stamp.kind` and offers the composed `arc teardown <name> --husk <path>` for `current` and
-      `legacy`, run from `primaryAvailability.checkoutPath` and handing off; with that path null the command is text;
-      `manual-only` is its reason alone
-    - `retirements` offers an `actionable` teardown and a non-null successor remedy, the successor's `arc start` handing
-      off; candidates are text with no default; `blocked` is text with its reason
-    - `rename-moves` offers `remedy.argv` unchanged, run outside the source checkout, and is text when the session is in
-      it
-    - `stale-worktrees` offers a removable report's `teardown`, else its `actions`, and a removable husk's
-      `arc teardown <name>` or `--branch <ref>`; no plain `git worktree remove`, no `--force`
-    - a blocked report stays text though it carries a `teardown`, and external, errand-husk, linked-branch-husk,
-      `pre-store-husk`, and `outside` entries are text
-    - `missing-folders` renders each entry's remedy text and offers nothing, its argv-bearing teardown included
-    - `branch-orphans` offers a shipped orphan's `teardown` or `actions` and a merged orphan's published `git branch -D`;
-      `evidence-unavailable` and unmerged orphans are text
-    - on a linked checkout, `cleanup-residues` replaces both primary lists, offers a work-unit husk's published
-      `--husk` argv, and writes no marker
-    - every offer choice recompiles, except the husk teardown and a successor start, which hand off
+- _Outcome:_ Added report-specific cleanup rendering and standing choices, composed into the ordered resume. Published
+  teardown, move, and branch-delete arguments remain literal; blocked and owner-held remedies stay text. Current-husk
+  teardown runs from the resolved primary and hands off, as does a successor start. Linked residues replace the primary
+  lists, missing-folder repairs remain text-only, and absent sweeps provide no cleanup action.
 
 ### `[ ]` **2.7 Compile the reminders and in-flight advisories — § 2.4, § 6.2**
 

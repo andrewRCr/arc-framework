@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { createAgendaFixtureInput, frameWithRow, workUnitRow } from "../../helpers/agenda-fixtures.js";
 import { activeSessionInit, cleanCurrentWuReconcile, derivedFrameFromActive, configSessionInit, dirtyState, domainRulesSessionInit, sessionInitFixture, userSessionInit, worktreeSync, type SessionInitProbeOverrides } from "../../helpers/session-init-fixtures.js";
+import { StaleWorktreeSweepResultSchema } from "../../../src/lib/session-init/stale-worktree-sweep-schema.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { describeStorePull } from "../../../src/lib/session-init/store-user-pull.js";
 import { projectUserReferenceSessionResult } from "../../../src/lib/user-reference-reconcile.js";
@@ -186,6 +187,19 @@ describe("agenda work-unit resume", () => {
     const config = configSessionInit(); config.settings["session.init_load.notes"] = "manual";
     const agenda = await compile(await input({ config: async () => config, user: async () => userSessionInit({ loadNeeded: true }) }));
     expect(agenda.steps).toEqual(expect.arrayContaining([expect.objectContaining({ type: "render", surface: "notes-load-pending" })]));
+    expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
+  });
+
+  it("assembles cleanup attention as standing offers before the proceed gate", async () => {
+    const sweep = StaleWorktreeSweepResultSchema.parse({ remoteEvidence: "exact", missingFolders: [], renameMoves: [], retirements: [], warnings: [],
+      worktrees: [{ kind: "branched", branch: "feat/ended", worktreePath: "/repo/ended", decision: { action: "removable" },
+        teardown: { text: "arc teardown ended", argv: ["arc", "teardown", "ended"] } }],
+    });
+    const agenda = await compile(await input({ sweep: async () => sweep }, { next: true }));
+    expect(agenda.steps.filter(step => step.type === "render").map(step => step.surface)).toEqual(["header", "stale-worktrees"]);
+    const offer = agenda.steps.find(step => step.type === "offer");
+    expect(offer).toMatchObject({ ask: "orientation", choices: [{ kind: "actions", accepts: [], then: { kind: "recompile",
+      argv: ["arc", "agenda", "session-init", "--json"] } }] });
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
   });
 
