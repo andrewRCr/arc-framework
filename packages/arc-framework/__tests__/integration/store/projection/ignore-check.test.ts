@@ -164,7 +164,7 @@ it("fails closed, refusing every root with the remedy of running again, where an
   expect(checked).toMatchObject({ kind: "refused", reason: "guard-failed", remedy: expect.stringContaining("run the command again") });
 });
 
-it("makes one call where the last pass named every source, a core.excludesFile among them", async () => {
+it("makes one two-query guard attempt where the last pass named every source, a core.excludesFile among them", async () => {
   const cwd = await repository();
   await writeLines(join(cwd, ".git/info/exclude"), EXCLUDE_LINES.filter((line) => line !== ".arc/completed/"));
   const parent = await mkdtemp(join(tmpdir(), "arc-projection-ignore-check-excludes-"));
@@ -178,11 +178,12 @@ it("makes one call where the last pass named every source, a core.excludesFile a
   let calls = 0;
   const once: GitExecInput = async (args, input, options) => {
     if (args.includes("check-ignore")) calls += 1;
-    if (calls > 1) throw new Error("a second guard call");
+    if (calls > 2) throw new Error("a second guard attempt");
     return execInput(args, input, options);
   };
   const again = await checkIgnores({ guard: { root: cwd, identity, exec: once, fs }, records: first.records, reference: null, format: "sha1", readIgnoreRules: () => selection(cwd), ignoreRules: await selection(cwd), recordedGuard: first.basis });
   expect(again.kind).toBe("passed");
+  expect(calls).toBe(2);
 });
 
 it("reads again where an edit while the call read kept the file's size and modification time", async () => {

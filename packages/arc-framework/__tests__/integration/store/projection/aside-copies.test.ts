@@ -13,7 +13,7 @@ import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { readStat } from "../../../../src/lib/store/projection/change-detection.js";
 import type { AsideCopyRecord, RecordEntry } from "../../../../src/lib/store/projection/index-schema.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
-import { deleteAsideCopy } from "../../../../src/lib/store/projection/stampless.js";
+import { deleteAsideCopy, readStamplessFile } from "../../../../src/lib/store/projection/stampless.js";
 import { stageRecordFile } from "../../../../src/lib/store/projection/staging.js";
 import type { TakeInPort, TakeInRequest } from "../../../../src/lib/store/projection/take-in-port.js";
 
@@ -181,4 +181,22 @@ describe("an aside copy", () => {
     expect(bases).toEqual([{ kind: "stamp", stamp: stale }, { kind: "blob", blob: text.laid.base.blob }]);
     expect(text.entry.base.blob).not.toBe(text.laid.base.blob);
   });
+});
+
+
+it.each([false, true])("finalizes a missing stampless copy only for the installed inode, original restored %s", async (original) => {
+  const h = await swapped(".arc/user/andrew/scratch/two.txt", ["plain: text\n", "plain: refreshed\n"]);
+  const inProgress = { replaces: h.laid.base, copy: h.copy.name };
+  if (original) {
+    await rename(h.file, join(h.checkout, "installed-file"));
+    await rename(h.aside, h.file);
+  } else await rm(h.aside);
+  const result = await h.settle(refusing, { entry: { ...h.entry, inProgress } });
+  expect(result).toMatchObject({ kind: "dropped", entry: { copies: [], inProgress: original ? inProgress : null } });
+  if (!original) {
+    await writeFile(h.file, "plain: text\n");
+    const memo = { read: async () => { throw new Error("unexpected history read"); }, drop: () => {} };
+    expect(await readStamplessFile({ entry: result.entry, text: await readFile(h.file, "utf8"), mtimeNs: 0n, format: "sha1", memo }))
+      .toEqual({ status: "ok", result: { kind: "edit", base: h.entry.base } });
+  }
 });

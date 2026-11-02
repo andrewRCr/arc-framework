@@ -53,6 +53,7 @@ since no CLI process runs over a store before the flip (§ 1.5).
 - _Goal:_ The projection never writes into a root that no rule ignores: one Git call proves every projected root and the
   aside folder ignored, `.arc/user/*/` by `.gitignore` itself, and a refusal names the missing line and clears once it
   is restored.
+    - _Amended in:_ review-fix (A7).
 
     - `[x]` **1.2.a The call and its verdict**
 
@@ -589,3 +590,8 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
 - `[x]` A cached ignore pass proves the current guarded roots and captured Git case policy. An identity-only or
   core.ignoreCase-only change invalidates it; a fresh pass confirms that basis, refusal permits repaired retry,
   and an unchanged cached start adds no Git call (A6).
+
+- `[x]` A personal root ignored only by a global excludes file named as a regular ancestor `.gitignore` is refused;
+  repairing its worktree-relative rule permits retry and excludes its contents from packaging. Both query contexts
+  share captured case policy, snapshots and confirmation; a cached pass carries the worktree-context proof and an
+  unchanged start retains its two-call budget (A7).

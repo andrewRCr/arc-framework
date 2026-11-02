@@ -1,4 +1,4 @@
-/** One `git check-ignore` call proving every projected root and the aside folder ignored before the projection writes. */
+/** Git ignore proofs for every projected root, with personal rules also checked in worktree context before writes. */
 import { isAbsolute, join, parse, posix, resolve, sep } from "node:path";
 import type { GitExecInput } from "../../git/exec.js";
 import { isGitProcessError } from "../../git/process-error.js";
@@ -103,27 +103,27 @@ function sourcePath(root: string, source: string): string {
 }
 
 /**
- * Prove every projected root and the aside folder ignored with one Git call.
+ * Prove every root ignored, and personal roots protected by worktree rules independently of global excludes.
  * @param input - Checkout, identity, and the Git and filesystem boundaries.
  * @returns A pass with the ignore files it rests on, or a typed refusal.
  */
 export async function guardProjectionIgnores(input: ProjectionIgnoreGuardInput): Promise<ProjectionIgnoreVerdict> {
   const guarded = guardedProjectionRoots(input.identity);
-  let stdout: string;
   try {
-    stdout = await checkIgnore(input, guarded);
-  } catch (error) {
-    return guardFailed(guarded, error);
-  }
-  const matches = parseMatches(stdout, guarded);
-  if (matches === undefined) return guardFailed(guarded, new Error("git check-ignore did not answer every guarded path"));
-  try {
-    const ignored = await Promise.all(guarded.map((root, index) => isIgnoredAsRequired(root, matches[index], input.root)));
+    const matches = parseMatches(await checkIgnore(input, guarded), guarded);
+    const personal = guarded.filter((root) => root.file === ".gitignore");
+    const worktree = parseMatches(await checkIgnore({ ...input, excludesFile: "" }, personal), personal);
+    if (matches === undefined || worktree === undefined) throw new Error("git check-ignore did not answer every guarded path");
+    const ignored = await Promise.all(guarded.map(async (root, index) => {
+      const match = matches[index];
+      return match !== undefined && isIgnored(match) && (root.file !== ".gitignore"
+        || await isIgnoredAsRequired(root, worktree.find((each) => each.path === root.path), input.root));
+    }));
     const unignored = guarded.filter((_root, index) => !ignored[index]);
     if (unignored.length > 0) {
       return { kind: "refused", reason: "not-ignored", roots: unignored, remedy: notIgnoredRemedy(unignored) };
     }
-    return { kind: "passed", ignoreFiles: await ignoreFiles(input, matches) };
+    return { kind: "passed", ignoreFiles: await ignoreFiles(input, [...matches, ...worktree]) };
   } catch (error) {
     return guardFailed(guarded, error);
   }
@@ -151,7 +151,7 @@ function guardFailed(guarded: readonly GuardedRoot[], error: unknown): GuardFail
   };
 }
 
-/** Run the one call; exit status 1, which Git returns when it counts no path ignored, still carries every verdict. */
+/** Run one context's query; exit status 1 still carries every path's verdict. */
 async function checkIgnore(input: ProjectionIgnoreGuardInput, guarded: readonly GuardedRoot[]): Promise<string> {
   const args = [
     ...(input.excludesFile === undefined ? [] : ["-c", `core.excludesFile=${input.excludesFile}`]),

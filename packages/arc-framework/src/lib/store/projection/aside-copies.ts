@@ -12,7 +12,7 @@ import { readStat } from "./change-detection.js";
 import type { AsideCopyRecord, RecordEntry } from "./index-schema.js";
 import { gateRead, SYSTEM_READ_GATE, type ReadGateDependencies, type ReadGateVerdict } from "./read-gate.js";
 import { parseStampedFile } from "./stamp.js";
-import { deleteAsideCopy } from "./stampless.js";
+import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
 import type { TakeInBase, TakeInHeld, TakeInPort, TakeInResult } from "./take-in-port.js";
 
 /** What a copy's path holds now: nothing, a file's blob id, or something not a file, which is never read. */
@@ -168,7 +168,9 @@ export async function settleAsideCopy(input: AsideCopySettling): Promise<CopySet
     case "not-a-file": return { ...checked, path: input.path, copy: input.copy.name };
     case "empty": return { kind: "kept", entry: checked.entry, answer: "empty" };
     case "no-edit": return deleted(input, checked.entry);
-    case "gone": return { kind: "dropped", entry: withoutRecord(checked.entry, input.copy) };
+    case "gone": return { kind: "dropped", entry: await finalizeAsideCopy({
+      checkout: input.checkout, path: input.path, entry: checked.entry, copy: input.copy.name,
+    }) };
     case "unsettled": return { kind: "kept", entry: checked.entry, answer: "unsettled" };
     case "moved-on": return { kind: "moved-on", entry: checked.entry, path: input.path, copy: input.copy.name };
     case "sent": {
@@ -233,8 +235,4 @@ async function deleted(input: AsideCopySettling, entry: RecordEntry): Promise<Co
     if (stat?.type === "file" && stat.size === 0n) return { kind: "kept", entry, answer: "empty" };
   }
   return { kind: "deleted", entry: await deleteAsideCopy({ checkout, path, entry, copy: input.copy.name }) };
-}
-
-function withoutRecord(entry: RecordEntry, copy: AsideCopyRecord): RecordEntry {
-  return { ...entry, copies: entry.copies.filter((record) => record.name !== copy.name) };
 }

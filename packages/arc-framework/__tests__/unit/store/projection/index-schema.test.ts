@@ -25,7 +25,7 @@ function fullIndex(): ProjectionIndex {
     },
     withheldCopies: ["active/current/meta-alpha.md/0000.1-1-ab.n.aside"],
     tripwires: { refresh: [1.5, 2, 3, 4, 5, 6, 7, 8, 9] },
-    ignoreGuard: { roots: ["/repo/.arc/user/andrew/"], configuration: {
+    ignoreGuard: { personalRules: "worktree", roots: ["/repo/.arc/user/andrew/"], configuration: {
       path: "/repo/ignore", values: ["~/prior-ignore", "/repo/ignore"], ignoreCase: ["true", null],
     } },
     ignoreFiles: [
@@ -63,6 +63,15 @@ describe("the projection index", () => {
     const index = fullIndex();
     const decoded = decodeProjectionIndex(JSON.parse(encodeProjectionIndex(index)));
     expect(decoded.success && decoded.data).toEqual(index);
+  });
+
+  it("refuses a cached guard without worktree proof while leaving recovery entries intact", () => {
+    const json = JSON.parse(encodeProjectionIndex(fullIndex())) as Record<string, unknown>;
+    const guard = json["ignoreGuard"] as Record<string, unknown>;
+    delete guard["personalRules"];
+    const entries = JSON.stringify(json["entries"]);
+    expect(decodeProjectionIndex(json).success).toBe(false);
+    expect(JSON.stringify(json["entries"])).toBe(entries);
   });
 
   it.each([

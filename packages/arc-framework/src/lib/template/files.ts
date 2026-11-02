@@ -104,28 +104,28 @@ export async function writeArcManagedBlock(
     throw err;
   }
 
-  const lines = content.split("\n");
-
-  const startIdx = lines.indexOf(ARC_BLOCK_START);
-  const endIdx = lines.indexOf(ARC_BLOCK_END);
+  // Retain each line's ending so content outside the block stays byte-for-byte intact.
+  const lines = content.split(/(?<=\n)/u);
+  const marker = (line: string): string => line.replace(/\r?\n$/u, "");
+  const startIdx = lines.findIndex((line) => marker(line) === ARC_BLOCK_START);
+  const endIdx = lines.findIndex((line) => marker(line) === ARC_BLOCK_END);
 
   let result: string;
   if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
     // Replace existing block contents
-    const before = lines.slice(0, startIdx);
-    const after = lines.slice(endIdx + 1);
-    result = [...before, ...formatBlock(sorted).split("\n"), ...after].join("\n");
+    const ending = lines[startIdx]?.endsWith("\r\n") ? "\r\n" : "\n";
+    const block = formatBlock(sorted).replaceAll("\n", ending);
+    const terminator = ending;
+    result = lines.slice(0, startIdx).join("") + block + terminator + lines.slice(endIdx + 1).join("");
   } else {
     // Append new block — ensure blank line separation
-    const base = lines.join("\n");
+    const base = content;
     const separator = base.endsWith("\n\n") || base.endsWith("\n")
       ? (base.endsWith("\n\n") ? "" : "\n")
       : "\n\n";
     result = base + separator + formatBlock(sorted) + "\n";
+    result = result.replace(/\n{3,}/g, "\n\n").replace(/\n+$/, "\n");
   }
-
-  // Normalize trailing whitespace
-  result = result.replace(/\n{3,}/g, "\n\n").replace(/\n+$/, "\n");
 
   await writeFile(filePath, result);
 }

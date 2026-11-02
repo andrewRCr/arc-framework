@@ -43,10 +43,12 @@ export async function checkIgnores(input: IgnoreCheckInput): Promise<IgnoreCheck
   if (rules.kind === "invalid") return refuseEveryRoot(input.guard.identity, rules.remedy.text);
   const guard = { ...input.guard };
   const basis: IgnoreGuardBasis = {
+    personalRules: "worktree",
     roots: guardedProjectionRoots(guard.identity).map(({ path }) => `${guard.root}/${path}`),
     configuration: { path: rules.path, values: [...rules.values], ignoreCase: [...rules.ignoreCase] },
   };
-  if (input.recordedGuard !== null && sameValues(basis.roots, input.recordedGuard.roots)
+  if (input.recordedGuard !== null && sameValues([basis.personalRules], [input.recordedGuard.personalRules])
+    && sameValues(basis.roots, input.recordedGuard.roots)
     && sameSelection(basis.configuration, input.recordedGuard.configuration)
     && await compareIgnoreFiles(input.records, input.reference, input.format) === "unchanged") return { kind: "unchanged" };
   return refreshIgnores({ ...input, guard }, basis);

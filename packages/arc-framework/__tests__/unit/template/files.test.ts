@@ -5,6 +5,7 @@ import {
   copyWithRendering,
   writeArcManagedBlock,
   writeArcGitignoreBlock,
+  writeArcGitattributesBlock,
   writeArcIgnoreBlocks,
 } from "../../../src/lib/template/index.js";
 
@@ -337,4 +338,40 @@ describe("writeArcIgnoreBlocks", () => {
       "# end ARC", "",
     ].join("\n"));
   });
+});
+
+
+describe("CRLF managed blocks", () => {
+  it.each([".ignore", ".gitignore", ".gitattributes"])("replaces an edited %s block and preserves surrounding bytes", async (name) => {
+    const path = join("/repo", name);
+    const before = "# repository preamble\r\n\r\n\r\n\r\n";
+    const after = "\r\n# repository tail\r\n";
+    const start = "# ARC Framework (managed by arc cli)\r\n";
+    const end = "# end ARC\r\n";
+    const files = new Map([[path, before + start + "old-entry\r\n" + end + after]]);
+    const read = async (file: string) => {
+      const text = files.get(file);
+      if (text === undefined) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      return text;
+    };
+    const write = async (file: string, content: string) => { files.set(file, content); };
+    const update = () => name === ".gitattributes" ? writeArcGitattributesBlock(path, ["new-entry"], read, write)
+      : writeArcIgnoreBlocks("/repo", [], read, write);
+    await update();
+    const written = files.get(path);
+    expect(written?.startsWith(before)).toBe(true);
+    expect(written?.endsWith(end + after)).toBe(true);
+    expect(written).not.toContain("old-entry");
+    expect(written?.match(/# ARC Framework/g)).toHaveLength(1);
+    await update();
+    expect(files.get(path)).toBe(written);
+  });
+});
+
+
+it.each(["\n", "\r\n"])("terminates an existing managed block that ends at EOF, line ending %j", async (ending) => {
+  const content = ["# ARC Framework (managed by arc cli)", "entry", "# end ARC"].join(ending);
+  const write = vi.fn().mockResolvedValue(undefined);
+  await writeArcManagedBlock("ignore-file", ["entry"], async () => content, write);
+  expect(write).toHaveBeenCalledWith("ignore-file", content + ending);
 });

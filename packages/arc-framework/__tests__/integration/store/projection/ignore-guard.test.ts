@@ -3,6 +3,7 @@ import { lstat, mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/pr
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, expect, it } from "vitest";
+import { execa } from "execa";
 import { createTempRepoCore, removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { makeGitProcessError, type GitFailureEvidence } from "../../../helpers/git-exec-fake.js";
 import { createExecaGitExec, createExecaGitExecInput } from "../../../../src/lib/git/process-executor.js";
@@ -48,11 +49,11 @@ function counted(): { exec: GitExecInput; calls: () => number } {
   return { exec: async (args, input, options) => { calls += 1; return execInput(args, input, options); }, calls: () => calls };
 }
 
-it("passes in one call with every root ignored and the personal root ignored by .gitignore", async () => {
+it("passes in two queries with every root ignored and the personal root ignored by .gitignore", async () => {
   const cwd = await repository();
   const io = counted();
   expect(await guardProjectionIgnores({ root: cwd, identity, exec: io.exec, fs })).toMatchObject({ kind: "passed" });
-  expect(io.calls()).toBe(1);
+  expect(io.calls()).toBe(2);
 });
 
 it("returns info/exclude and each .gitignore on the path to every root and the aside folder, absent ones included", async () => {
@@ -169,4 +170,43 @@ it("refuses the personal root ignored only through a core.excludesFile named .gi
   expect(await guardProjectionIgnores({ root: cwd, identity, exec: execInput, fs })).toMatchObject({
     kind: "refused", reason: "not-ignored", roots: [{ path: ".arc/user/andrew/", line: ".arc/user/*/", file: ".gitignore" }],
   });
+});
+
+
+it("refuses a global-only pattern in a regular nested .gitignore and permits its worktree-relative repair", async () => {
+  const cwd = await repository({ gitignore: [] });
+  const personal = ".arc/user/andrew/sentinel.txt";
+  await writeLines(cwd, personal, ["personal sentinel"]);
+  await writeLines(cwd, ".arc/user/.gitignore", [".arc/user/*/"]);
+  await git("git", ["config", "core.excludesFile", ".arc/user/.gitignore"], { cwd });
+  await writeFile(join(cwd, "package.json"), JSON.stringify({ name: "ignore-proof-fixture", version: "1.0.0" }));
+  const packed = async () => {
+    const { stdout } = await execa("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], {
+      cwd, env: { npm_config_cache: join(cwd, "npm-cache") },
+    });
+    const packs = JSON.parse(stdout) as Array<{ files: Array<{ path: string }> }>;
+    return packs.flatMap((pack) => pack.files.map((file) => file.path));
+  };
+  expect(await packed()).toContain(personal);
+  expect(await guardProjectionIgnores({ root: cwd, identity, exec: execInput, fs })).toMatchObject({
+    kind: "refused", reason: "not-ignored", roots: [{ path: ".arc/user/andrew/", file: ".gitignore" }],
+  });
+  await writeLines(cwd, ".arc/user/.gitignore", ["*/"]);
+  expect(await guardProjectionIgnores({ root: cwd, identity, exec: execInput, fs })).toMatchObject({ kind: "passed" });
+  expect(await packed()).not.toContain(personal);
+}, 30_000);
+
+
+it("fails closed when the worktree-context query fails and permits retry", async () => {
+  const cwd = await repository();
+  let calls = 0;
+  const exec: GitExecInput = async (args, input, options) => {
+    calls++;
+    if (calls === 2) throw makeGitProcessError({ command: "git", args: [...args], exitCode: 128, stderr: "query failed" });
+    return execInput(args, input, options);
+  };
+  expect(await guardProjectionIgnores({ root: cwd, identity, exec, fs })).toMatchObject({
+    kind: "refused", reason: "guard-failed", paths: expect.arrayContaining([".arc/active/", ".arc/user/andrew/"]),
+  });
+  expect(await guardProjectionIgnores({ root: cwd, identity, exec, fs })).toMatchObject({ kind: "passed" });
 });

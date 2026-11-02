@@ -94,9 +94,19 @@ export interface AsideCopyDeletion {
  * @returns The entry as it stands once the copy is gone.
  */
 export async function deleteAsideCopy(input: AsideCopyDeletion): Promise<RecordEntry> {
-  const { entry } = input;
   // A copy that is a symbolic link is removed as itself, never followed.
   await rm(join(input.checkout, input.copy), { force: true });
+  return finalizeAsideCopy(input);
+}
+
+/**
+ * Finalize a removed or observed-missing copy without unlinking a path that may have reappeared. Clear replacement
+ * progress only where the named copy and the currently installed file identity establish completion.
+ * @param input - The removed copy, its original path and the current entry.
+ * @returns The entry without the copy record and, where complete, its replacement marker.
+ */
+export async function finalizeAsideCopy(input: AsideCopyDeletion): Promise<RecordEntry> {
+  const { entry } = input;
   const copies = entry.copies.filter((record) => record.name !== input.copy);
   if (entry.inProgress?.copy !== input.copy) return { ...entry, copies };
   const stat = await readStat(join(input.checkout, input.path));

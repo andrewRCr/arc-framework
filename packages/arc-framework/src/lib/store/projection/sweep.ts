@@ -19,7 +19,7 @@ import type { ProjectionLocation } from "./location.js";
 import { PROJECTION_ASIDE_ROOT } from "./paths.js";
 import { notAFileRemedy, type ReadGateDependencies } from "./read-gate.js";
 import type { Remedy } from "../refusal.js";
-import { deleteAsideCopy } from "./stampless.js";
+import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
 import type { TakeInPort } from "./take-in-port.js";
 
 /** What the sweep reads, run under the worktree's projection lock; its moves are the system's unless a test injects its own. */
@@ -261,7 +261,7 @@ async function sweepCopy(input: SweepInput, path: string, entry: RecordEntry, re
   const at = { copy: join(checkout, record.name), path: join(checkout, path) };
   const stat = await readStat(at.copy);
   // Moved back to its path, or never made after a stop.
-  if (stat === null) return { kind: "dropped", entry: { ...entry, copies: entry.copies.filter((each) => each.name !== record.name) } };
+  if (stat === null) return { kind: "dropped", entry: await finalizeAsideCopy({ checkout, path, entry, copy: record.name }) };
   const holding = await readPathHolding(at.path, input.format);
   if (stat.type === "symlink") {
     const deleted = await deleteAsideCopy({ checkout, path, entry, copy: record.name });

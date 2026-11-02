@@ -871,32 +871,38 @@ exclude file.
 
 #### 11.2 The guard
 
-The guard runs where those entries are written and before the projection writes into a root: one
-`git check-ignore -z -v --non-matching --no-index --stdin` over the roots and the aside folder refuses a path no rule
-ignores, and `.arc/user/*/` must match a rule whose source is `.gitignore` itself, since `npm pack` reads only
-`.gitignore`. `--no-index` judges the rules alone: without it Git skips a path its index holds entries under, so a root
-holding tracked files would read as not ignored; `-z` keeps a source path holding a colon, a Windows `core.excludesFile`
-among them, intact. A path a `!` pattern re-includes reads as not ignored: Git prints a directory path so re-included
-with an empty source, the case the guard's directory paths meet, and a file path with the `!` pattern itself, which it
-counts as a match (checked on Git 2.55). The refusal is typed and recoverable, naming the missing line, and the
-projection writes nothing into that root until it is repaired. A call that fails otherwise — any exit status but 1, a
-timeout, or a spawn failure — fails closed: a refusal of every root for the command, typed apart from a missing line,
-naming the failure and the remedy of running the command again.
+The guard runs where those entries are written and before the projection writes into a root (A7).
+`guardProjectionIgnores` runs `git check-ignore -z -v --non-matching --no-index --stdin` over the roots and aside folder
+with the captured excludes selection. It additionally checks the personal roots with `core.excludesFile=` and the same
+captured case policy. Each personal root must match a regular ancestor worktree `.gitignore` in that second query, since
+`npm pack` reads worktree rules rather than global excludes. A regular file named `.gitignore` selected as global
+excludes is insufficient: a pattern relative to the repository there may not match relative to its own directory. The
+first query still permits lifecycle roots ignored through global excludes. `--no-index` judges the rules alone: without
+it Git skips a path its index holds entries under, so a root holding tracked files would read as not ignored; `-z` keeps
+a source path holding a colon, a Windows `core.excludesFile` among them, intact. A path a `!` pattern re-includes reads
+as not ignored: Git prints a directory path so re-included with an empty source, the case the guard's directory paths
+meet, and a file path with the `!` pattern itself, which it counts as a match (checked on Git 2.55). The refusal is
+typed and recoverable, naming the missing line, and the projection writes nothing into that root until it is repaired. A
+call that fails otherwise — any exit status but 1, a timeout, or a spawn failure — fails closed: a refusal of every root
+for the command, typed apart from a missing line, naming the failure and the remedy of running the command again.
 
 Before a write into a root `checkIgnores` compares the actual guarded root set, the effective excludes source and
 complete ordered raw `core.excludesFile` and `core.ignoreCase` values with the last passing guard's basis before
-considering file snapshots (A6). The guarded roots belong to the pass itself, independently of the identity the index
-was projected under, so a changed identity cannot reuse another personal root's authorization.
-`readProjectionConfiguration` resolves an unset `core.excludesFile` to Git's default excludes path from the invocation
-environment; an explicit string, including an empty string, stays explicit. Any valueless excludes occurrence is
-invalid, including one before a later valid value, and refuses every root with a configuration-repair remedy. A
-valueless `core.ignoreCase` means true, as Git defines it; when unset the guard pins Git's false default. Every raw
-case-policy value stays in the comparison, so an earlier Git-invalid value forces a fresh guard and its refusal.
-Path expansion and source snapshots preserve traversal components so the filesystem follows a symlink before a
-following `..`.
+considering file snapshots (A6). The basis also requires `personalRules: "worktree"`, identifying the additional
+worktree-context proof (A7); a basis without that proof is never reusable. This unpublished index contract changes in
+place without a migration reader; development fixtures are regenerated, never by silently deleting recovery entries. The
+guarded roots belong to the pass itself, independently of the identity the index was projected under, so a changed
+identity cannot reuse another personal root's authorization. `readProjectionConfiguration` resolves an unset
+`core.excludesFile` to Git's default excludes path from the invocation environment; an explicit string, including an
+empty string, stays explicit. Any valueless excludes occurrence is invalid, including one before a later valid value,
+and refuses every root with a configuration-repair remedy. A valueless `core.ignoreCase` means true, as Git defines it;
+when unset the guard pins Git's false default. Every raw case-policy value stays in the comparison, so an earlier
+Git-invalid value forces a fresh guard and its refusal. Path expansion and source snapshots preserve traversal
+components so the filesystem follows a symlink before a following `..`.
 
 A newly run `guardProjectionIgnores` receives the captured excludes source and effective case-policy setting as
-command-local Git settings, so its verdict and snapshots describe the captured basis. Before accepting that pass,
+command-local Git settings, so its verdict and snapshots describe the captured basis. Both queries are inside the
+same before-and-after snapshot bracket, and a pass records the union of their sources (A7). Before accepting that pass,
 `checkIgnores` confirms the excludes selection and complete ordered case-policy values through another configuration
 read; any change or invalid selection refuses every root recoverably, for a retry with fresh settings. The passed
 result carries the guarded roots and configuration basis; `sweepAsideFolder` records it with its snapshots. This
@@ -1099,10 +1105,10 @@ verification dispatches (D13):
 - **Line endings.** CRLF is normalized to LF on read, before the blob id (§ 3.4).
 - **Git calls.** The projection makes two Git calls per command, started together with its stat walk — the store read,
   and one `git config --get-regexp` reading the `arc.*` keys and the object format (§ 15.3) — and the exclude writer and
-  the guard make one each, the guard only when an ignore file may have changed (§ 11.1, § 11.2). A full materialization
-  reads through the store's `list`, which the ref backend batches through `git cat-file --batch`
-  (`spec-storage-ref-backend.md` § 11.6), so the projection reads no blob from Git itself
-  (`spec-projection-worktrees.md` § 15.5).
+  the guard run only when their inputs may have changed. The exclude writer makes one call; a fresh guard makes two
+  queries and a confirming configuration read (§ 11.1, § 11.2; A7). A full materialization reads through the store's
+  `list`, which the ref backend batches through `git cat-file --batch` (`spec-storage-ref-backend.md` § 11.6), so the
+  projection reads no blob from Git itself (`spec-projection-worktrees.md` § 15.5).
 - **Read-only files** move aside and link in with the mode intact (`spec-projection-write-back.md` § 8.2).
 
 Hard links are assumed on every volume a worktree sits on: ext4, APFS, and NTFS have them, exFAT and FAT32 do not, and
@@ -1121,7 +1127,8 @@ A command's cost grows with what changed, never with how much state exists. Read
   started together with the stat walk. Run at once they cost what the store read costs alone, 41.7 ms against 41.6 ms on
   Windows, where one after the other took 64.8 ms (§ Spike 2). The projection's cost on Windows is one Git call's time,
   and on Linux it is noise beside the CLI's own start (about 280 ms for `--version`). The guard adds no call while no
-  ignore file may have changed (§ 11.2).
+  ignore input may have changed and the recorded basis carries the worktree-context proof. A fresh guard adds two
+  queries and a confirming configuration read (§ 11.2; A7).
 
 - **The one configuration read (A6).** `readProjectionConfiguration` runs `git config --null --get-regexp` with the
   expression `^(arc\.|user\.name$|extensions\.objectformat$|core\.(excludesfile|ignorecase)$)`. It prints each match as
@@ -1448,6 +1455,11 @@ _These considerations cover the design the three members build together; § 1.1 
     core.ignoreCase-only change invalidates it; a fresh pass confirms that basis, refusal permits repaired retry,
     and an unchanged cached start adds no Git call (A6).
 
+16. A personal root ignored only by a global excludes file named as a regular ancestor `.gitignore` is refused;
+    repairing its worktree-relative rule permits retry and excludes its contents from packaging. Both query contexts
+    share captured case policy, snapshots and confirmation; a cached pass carries the worktree-context proof and an
+    unchanged start retains its two-call budget (A7).
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -1471,5 +1483,8 @@ this design open.
 
 - **A6** — 2026-11-01 — design: bind ignore passes to roots and case policy. _Supersedes:_ § 11.2 ¶2; § 15.3 ¶2.
   _Trigger:_ IGNORE-002 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A7** — 2026-11-02 — design: prove worktree ignore context. _Supersedes:_ § 11.2 ¶1; § 15.3 guard budget.
+  _Trigger:_ COMPLETE2-IGNORE-001 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

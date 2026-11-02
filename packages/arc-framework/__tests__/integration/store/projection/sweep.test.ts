@@ -13,6 +13,7 @@ import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/s
 import type { ProjectionIndex, RecordEntry } from "../../../../src/lib/store/projection/index-schema.js";
 import { nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
 import { recordWriteBackSent } from "../../../../src/lib/store/projection/aside-copies.js";
+import { readStamplessFile } from "../../../../src/lib/store/projection/stampless.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import type { SwapHooks } from "../../../../src/lib/store/projection/swap.js";
 import { sweepAsideFolder, type SweepInput } from "../../../../src/lib/store/projection/sweep.js";
@@ -492,4 +493,31 @@ describe("the sweep's ignore guard", () => {
     expect(await readStat(staged)).not.toBeNull();
     expect(await readStat(join(left.checkout, PROJECTION_REFERENCE))).toEqual(reference);
   });
+});
+
+
+it("finishes an installed stampless replacement after copy unlink and detects a later old-text restore", async () => {
+  const left = await leftBy(null, { path: ".arc/user/andrew/scratch/two.txt", contents: ["plain: text\n", "plain: refreshed\n"] });
+  const before = await entryOnDisk(left.location, left.path);
+  const [copy] = before.copies;
+  if (copy === undefined) throw new Error("expected the swap's copy");
+  await rm(join(left.checkout, copy.name));
+  expect((await left.sweep(unreached)).swept).toMatchObject([{ outcome: { kind: "dropped" } }]);
+  const entry = await entryOnDisk(left.location, left.path);
+  expect(entry).toMatchObject({ copies: [], inProgress: null });
+  await writeFile(left.file, "plain: text\n");
+  const memo = { read: async () => { throw new Error("unexpected history read"); }, drop: () => {} };
+  expect(await readStamplessFile({ entry, text: await readFile(left.file, "utf8"), mtimeNs: 0n, format: "sha1", memo }))
+    .toEqual({ status: "ok", result: { kind: "edit", base: entry.base } });
+});
+
+it.each(["afterRecheck", "afterMove"] as const)("keeps stampless progress when the original inode remains after %s", async (stop) => {
+  const left = await leftBy(stop, { path: ".arc/user/andrew/scratch/two.txt", contents: ["plain: text\n", "plain: refreshed\n"] });
+  const before = await entryOnDisk(left.location, left.path);
+  const [copy] = before.copies;
+  if (copy === undefined) throw new Error("expected the first index write's copy record");
+  if (stop === "afterMove") await rename(join(left.checkout, copy.name), left.file);
+  await left.sweep(unreached);
+  expect(await entryOnDisk(left.location, left.path)).toMatchObject({ copies: [], inProgress: before.inProgress });
+  expect(await readFile(left.file, "utf8")).toBe("plain: text\n");
 });

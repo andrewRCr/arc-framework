@@ -117,6 +117,7 @@ const IgnoreRulesSelectionSchema = z.strictObject({
 
 /** The actual roots and captured configuration a passing guard proved, independently of projection settings. */
 const IgnoreGuardBasisSchema = z.strictObject({
+  personalRules: z.literal("worktree"),
   roots: z.array(z.string().min(1)).min(1), configuration: IgnoreRulesSelectionSchema,
 });
 

@@ -146,3 +146,29 @@ it("cannot authorize a linked .gitignore through a relative excludes selection n
   await rename(original, gitignore);
   expect((await h.check()).kind).toBe("passed");
 });
+
+
+it("refuses a global-only ancestor rule through the integrated check and permits repair", async () => {
+  const h = await fixture("");
+  await mkdir(join(h.cwd, ".arc/user"), { recursive: true });
+  await writeFile(join(h.cwd, ".arc/user/.gitignore"), ".arc/user/*/\n");
+  await h.git("git", ["config", "core.excludesFile", ".arc/user/.gitignore"], { cwd: h.cwd });
+  expect(await h.check()).toMatchObject({ kind: "refused", reason: "not-ignored", roots: [{ path: ".arc/user/andrew/" }] });
+  await writeFile(join(h.cwd, ".arc/user/.gitignore"), "*/\n");
+  const repaired = await h.check();
+  expect(repaired).toMatchObject({ kind: "passed", basis: { personalRules: "worktree" } });
+  const calls = h.calls();
+  expect(await h.check(repaired)).toEqual({ kind: "unchanged" });
+  expect(h.calls()).toBe(calls);
+});
+
+it("never reuses a basis missing the worktree-context proof", async () => {
+  const h = await fixture();
+  const first = await h.check();
+  if (first.kind !== "passed") throw new Error("expected a passing guard");
+  const basis = { ...first.basis };
+  Reflect.deleteProperty(basis, "personalRules");
+  const calls = h.calls();
+  expect(await h.check({ ...first, basis })).toMatchObject({ kind: "passed", basis: { personalRules: "worktree" } });
+  expect(h.calls()).toBeGreaterThan(calls);
+});

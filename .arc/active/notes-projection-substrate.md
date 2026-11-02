@@ -592,3 +592,25 @@ Superseded § 15.3 read:
 >   2.5 states, naming the remedy that sets `arc.identity`. An unchanged start makes this call once. A fresh ignore
 >   guard makes a confirming read before its pass is accepted, with the same invocation environment; this does not add a
 >   call to an unchanged cached check.
+
+## A7 — prove personal ignores in worktree context
+
+A relative `core.excludesFile` can name a regular ancestor `.gitignore` while applying its patterns relative to the
+repository, rather than to that file's directory. `isIgnoredAsRequired` checked the filename and file kind, which did
+not establish the worktree semantics `npm pack` needs. `guardProjectionIgnores` must retain the configured all-roots
+query and add a personal-roots query with global excludes disabled and the captured case policy unchanged.
+`checkIgnores` brackets both queries with source snapshots and confirms the configuration after them; its guard basis
+requires `personalRules: "worktree"` before reuse. Existing development index fixtures change in place, with no
+migration reader or deletion of recovery entries. An unchanged start still makes no guard or confirmation call.
+
+Superseded § 11.2 opening:
+
+> The guard runs where those entries are written and before the projection writes into a root: one
+> `git check-ignore -z -v --non-matching --no-index --stdin` over the roots and the aside folder refuses a path no rule
+> ignores, and `.arc/user/*/` must match a rule whose source is `.gitignore` itself, since `npm pack` reads only
+> `.gitignore`.
+
+The two-query guard replaces the single-query cost in the portability and no-change-budget sections. Its source
+union uses the same ancestor and matched-source snapshots; lifecycle roots may still rely on global excludes.
+The regression boundary includes refusal and repaired retry, package exclusion, valid nested worktree rules,
+captured case policy, cache-proof invalidation and the unchanged-start budget.
