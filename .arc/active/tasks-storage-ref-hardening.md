@@ -527,29 +527,24 @@ annotated commit.
   ordinary siblings and unsaved link skips retain their behavior. Native cases exercise both Git entry forms and
   successful continuation after moving the checkout or its personal-state entry out, including `git worktree move`.
 
-### `[ ]` **5.9 Fix the import review's reachable findings — § 11.1**
+### `[x]` **5.9 Fix the import review's reachable findings — § 11.1**
 
 - _Goal:_ Every finding 1.3 dispositioned as reachable is fixed, each with a case that fails before its fix.
 
-    - Subtasks are added at 1.3, one per finding or shared cause.
-    - Record each fix's SHA as it lands under `notes-storage-ref-hardening.md` § Import review fixes, with its finding
-      and task, including a fix that lands in the task 1.3 folded the finding into.
+- _Outcome:_ The approved dispositions required no separate corrective subtask here. H1 landed in Task 3.8 as
+  `9e2344e35d909873e62d5a4ce26df05cb8b43ccf`; its native refusal-and-restoration cases and fix SHA are retained, with
+  the finding and task recorded in `notes-storage-ref-hardening.md` § Import review fixes.
 
-### `[ ]` **5.10 Check the import fixes with a fresh pass — § 11.1**
+### `[x]` **5.10 Check the import fixes with a fresh pass — § 11.1**
 
 - _Goal:_ A fresh non-author evaluator confirms that each review finding's fix resolves it without a new reachable
   defect, closing the review's stop rule.
 
-    - Same mechanism and rubric as 1.2. The target is every landed commit `notes-storage-ref-hardening.md` § Import
-      review fixes records — 5.9's, and those in a task of Phases 3 to 5 that a finding folded into — and excludes
-      base merges. The review's findings are the correction scope.
-    - A finding folded into a Phase 6 task is checked the same way by the `6.R` parent 1.3 adds ahead of 6.10, and one
-      folded into a Phase 7 task by the `7.R` parent 1.3 adds at the end of Phase 7; the review's stop rule closes at
-      the last of these checks.
-    - A new finding takes 1.3's disposition. A reachable one takes a corrective parent of its own in the phase running
-      the check, ahead of that phase's verifier (`5.R` ahead of 5.13), records its fix's SHA, and is checked again the
-      same way.
-    - Keep the prompt and verbatim report under `~/dev/arc-evidence/storage-ref-hardening/import-review/`.
+- _Outcome:_ A fresh non-author check of `9e2344e35d909873e62d5a4ce26df05cb8b43ccf` at
+  `7065313f24c395455bdcbdfc28d9ee02ca7a5e90` returned no findings under `standard-review/v1`. The complete selected
+  source and test change and its current call chains were inspected; the original blocked trials supplied no dynamic
+  coverage of that path. The prompt, verbatim report, exact target, and hashes are retained as `fix-check-1.*` under
+  `~/dev/arc-evidence/storage-ref-hardening/import-review/`; this working check supplies no attested review.
 
 ### `[ ]` **5.11 Repair the state faults the trial found — § 11.1**
 
