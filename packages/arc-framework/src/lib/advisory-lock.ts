@@ -214,13 +214,14 @@ export async function acquireAdvisoryLock(
   const deadline = waitStartedAt + maxWaitMs;
   const acquisitionBudget = { now, deadline };
   let backoff = BACKOFF_INITIAL_MS;
+  let afterBackoff = false;
 
   for (;;) {
-    // A final create at the deadline observes releases during the last bounded sleep. If it fails, no further
-    // read, break or retry can extend the deadline, including the re-race after a freed or broken lock.
-    const observedAt = now();
-    if (observedAt > deadline) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
+    // Ordinary bounded backoff earns one last create even if its timer wakes late. Settling, reads and reclamation
+    // cannot earn that late attempt; a failed final create never starts more recovery.
+    const observedAt = observeAcquisitionAttempt(lockPath, maxWaitMs, acquisitionBudget, afterBackoff);
     const finalAttempt = observedAt >= deadline;
+    afterBackoff = false;
 
     try {
       const acquiredAt = now();
@@ -282,7 +283,10 @@ export async function acquireAdvisoryLock(
       options.onWait?.({ holder, waitedMs: Math.max(0, observedAt - waitStartedAt) });
     }
 
-    await sleep(Math.min(backoff, Math.max(0, deadline - now())));
+    const remaining = deadline - now();
+    if (remaining <= 0) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
+    await sleep(Math.min(backoff, remaining));
+    afterBackoff = true;
     backoff = Math.min(backoff * 2, BACKOFF_CAP_MS);
   }
 }
@@ -291,6 +295,15 @@ export async function acquireAdvisoryLock(
 function requireWaitBudget(lockPath: string, maxWaitMs: number): number {
   if (maxWaitMs <= 0) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
   return maxWaitMs;
+}
+
+/** A normal backoff may wake late; holder reads and reclamation cannot authorize a late acquisition. */
+function observeAcquisitionAttempt(
+  lockPath: string, maxWaitMs: number, budget: LockReadBudget, afterBackoff: boolean,
+): number {
+  const observedAt = budget.now();
+  if (observedAt > budget.deadline && !afterBackoff) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
+  return observedAt;
 }
 
 /** Optional acquisition and release primitives for an advisory critical section. */

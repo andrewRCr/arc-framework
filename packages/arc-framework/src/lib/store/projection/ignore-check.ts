@@ -5,7 +5,7 @@
 import type { ObjectFormat } from "./blob-id.js";
 import type { ConfiguredIgnoreRules } from "./configuration.js";
 import {
-  guardedProjectionRoots, guardProjectionIgnores, predictableIgnoreFiles, refuseEveryRoot, type ProjectionIgnoreGuardInput,
+  guardedProjectionRoots, guardProjectionIgnores, predictableIgnoreFiles, refuseEveryRoot, refuseIgnoreRead, type ProjectionIgnoreGuardInput,
   type ProjectionIgnoreVerdict,
 } from "./ignore-guard.js";
 import { compareIgnoreFiles, snapshotIgnoreFiles } from "./ignore-snapshot.js";
@@ -39,6 +39,15 @@ export interface IgnoreCheckInput {
  * @returns Whether the projection may write into each root.
  */
 export async function checkIgnores(input: IgnoreCheckInput): Promise<IgnoreCheck> {
+  try {
+    return await checkCapturedIgnores(input);
+  } catch (error) {
+    return refuseIgnoreRead(input.guard, error);
+  }
+}
+
+/** Compare the captured proof and bracket a fresh guard inside the caller's typed read-failure boundary. */
+async function checkCapturedIgnores(input: IgnoreCheckInput): Promise<IgnoreCheck> {
   const rules = input.ignoreRules;
   if (rules.kind === "invalid") return refuseEveryRoot(input.guard.identity, rules.remedy.text);
   const guard = { ...input.guard };
@@ -56,12 +65,7 @@ export async function checkIgnores(input: IgnoreCheckInput): Promise<IgnoreCheck
 
 /** Snapshot a guard bound to one basis, accepting it only while that basis still holds. */
 async function refreshIgnores(input: IgnoreCheckInput, basis: IgnoreGuardBasis): Promise<IgnoreCheck> {
-  let known: string[];
-  try {
-    known = await predictableIgnoreFiles(input.guard);
-  } catch (error) {
-    return refuseEveryRoot(input.guard.identity, error instanceof Error ? error.message : String(error));
-  }
+  let known = await predictableIgnoreFiles(input.guard);
   known = union(known, input.records?.map((record) => record.path) ?? []);
   const { configuration } = basis;
   const ignoreCase = configuration.ignoreCase.length === 0 ? "false" : configuration.ignoreCase.at(-1) ?? null;

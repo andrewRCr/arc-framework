@@ -131,7 +131,7 @@ export async function guardProjectionIgnores(input: ProjectionIgnoreGuardInput):
     }
     return { kind: "passed", ignoreFiles: await ignoreFiles(input, [...matches, ...worktree]) };
   } catch (error) {
-    return guardFailed(guarded, error);
+    return refuseIgnoreRead(input, error);
   }
 }
 
@@ -146,6 +146,19 @@ export type GuardFailedVerdict = Extract<ProjectionIgnoreVerdict, { reason: "gua
  */
 export function refuseEveryRoot(identity: Slug, failure: string): GuardFailedVerdict {
   return guardFailed(guardedProjectionRoots(identity), new Error(failure));
+}
+
+/** Return a typed all-root refusal for failed reads, with a specific repair for the required npm policy. */
+export function refuseIgnoreRead(
+  input: Pick<ProjectionIgnoreGuardInput, "root" | "identity">, error: unknown,
+): GuardFailedVerdict {
+  const refused = guardFailed(guardedProjectionRoots(input.identity), error);
+  if (typeof error === "object" && error !== null && "path" in error
+    && error.path === join(input.root, PERSONAL_NPM_IGNORE)) {
+    return { ...refused,
+      remedy: `Restore read access to ${PERSONAL_NPM_IGNORE} or repair the policy as a readable regular file, then retry the command.` };
+  }
+  return refused;
 }
 
 /** Fail closed: a call that did not answer refuses every root for the command, typed apart from a missing line. */

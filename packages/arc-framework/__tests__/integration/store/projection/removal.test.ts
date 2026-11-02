@@ -1,6 +1,6 @@
 /** Removing a projected file: the swap without the link, an edit taken in first, its entry kept until the file is gone. */
 import { readProjectionConfiguration } from "../../../../src/lib/store/projection/configuration.js";
-import { lstat, open, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createEditorHandles } from "../../../helpers/store/projection/editor-handles.js";
@@ -9,6 +9,7 @@ import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import type { GitDirectoryFileAccess } from "../../../../src/lib/git/directories.js";
 import { createExecaGitExec, createExecaGitExecInput } from "../../../../src/lib/git/process-executor.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { PERSONAL_NPM_IGNORE, PERSONAL_NPM_IGNORE_CONTENT } from "../../../../src/lib/personal-npm-ignore.js";
 import { guardReplacement } from "../../../../src/lib/store/projection/replace-guard.js";
 import { readReference } from "../../../../src/lib/store/projection/change-detection.js";
 import { sweepAsideFolder } from "../../../../src/lib/store/projection/sweep.js";
@@ -63,6 +64,8 @@ async function ignoreProjectedRoots(checkout: string): Promise<void> {
   const lines = [".arc/active/", ".arc/backlog/", ".arc/completed/", ".arc/system/.local/"];
   await writeFile(join(checkout, ".git/info/exclude"), lines.map((line) => `${line}\n`).join(""));
   await writeFile(join(checkout, ".gitignore"), ".arc/user/*/\n");
+  await mkdir(join(checkout, ".arc/user"), { recursive: true });
+  await writeFile(join(checkout, PERSONAL_NPM_IGNORE), PERSONAL_NPM_IGNORE_CONTENT);
 }
 
 /** The next command's sweep, with the index on disk, its writer another instance of this process. */

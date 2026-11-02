@@ -120,6 +120,40 @@ describe("acquireAdvisoryLock", () => {
     expect(JSON.parse(bytes)).toMatchObject({ pid: 2, token: handle.token });
     expect(clock).toBeLessThanOrEqual(200);
   });
+  it("observes a healthy release during the last bounded sleep even when its timer wakes late", async () => {
+    let clock = 0;
+    const memory = buildMemoryLockFs({ "/lock": holder(1, 0) });
+    const acquired = await acquireAdvisoryLock("/lock", {
+      ...memory, pid: 2, maxWaitMs: 200, now: () => clock, isProcessAlive: () => true,
+      sleep: async (ms) => {
+        const wake = clock + ms;
+        if (wake >= 180) {
+          clock = 180;
+          memory.files.delete("/lock");
+        }
+        clock = wake === 200 ? 201 : wake;
+      },
+    });
+    expect(clock).toBe(201);
+    expect(JSON.parse(memory.files.get("/lock")!)).toMatchObject({ pid: 2, token: acquired.token });
+  });
+  it("does not earn a final create from a holder read that outlasts the budget, and permits a fresh retry", async () => {
+    let clock = 0;
+    const memory = buildMemoryLockFs({ "/lock": holder(1, 0) });
+    const readFile = async (path: string) => {
+      clock = 220;
+      memory.files.delete(path);
+      throw enoent();
+    };
+    await expect(acquireAdvisoryLock("/lock", {
+      ...memory, readFile, pid: 2, maxWaitMs: 200, now: () => clock, isProcessAlive: () => true,
+      sleep: async (ms) => { clock += ms; },
+    })).rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
+    expect(clock).toBe(220);
+    expect(memory.files.size).toBe(0);
+    const retry = await acquireAdvisoryLock("/lock", { ...memory, pid: 2, maxWaitMs: 200, now: () => clock });
+    expect(JSON.parse(memory.files.get("/lock")!)).toMatchObject({ pid: 2, token: retry.token });
+  });
   it("times out instead of acquiring after stale-holder settling spends the remaining budget, then permits retry", async () => {
     let clock = 0;
     const memory = buildMemoryLockFs({ "/lock": JSON.stringify({ pid: 1, acquiredAt: 0 }) });

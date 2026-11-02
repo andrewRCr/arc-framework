@@ -10,6 +10,7 @@ import type { GitExec } from "../../../../src/lib/git/exec.js";
 import { slugifyIdentity } from "../../../../src/lib/git/identity.js";
 import { createExecaGitExec, createExecaGitExecInput } from "../../../../src/lib/git/process-executor.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { PERSONAL_NPM_IGNORE, PERSONAL_NPM_IGNORE_CONTENT } from "../../../../src/lib/personal-npm-ignore.js";
 import { guardProjectionIgnores } from "../../../../src/lib/store/projection/ignore-guard.js";
 import { checkIgnores } from "../../../../src/lib/store/projection/ignore-check.js";
 import {
@@ -33,6 +34,8 @@ async function repository(objectFormat?: "sha1" | "sha256"): Promise<string> {
   const cwd = await createTempRepoCore({ prefix: "arc-projection-config-", ...(objectFormat ? { objectFormat } : {}) });
   directories.push(cwd);
   await git(cwd, "config", "core.ignoreCase", "false");
+  await mkdir(join(cwd, ".arc/user"), { recursive: true });
+  await writeFile(join(cwd, PERSONAL_NPM_IGNORE), PERSONAL_NPM_IGNORE_CONTENT);
   return cwd;
 }
 

@@ -6,6 +6,7 @@ import { afterEach, expect, it } from "vitest";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { createExecaGitExec, createExecaGitExecInput } from "../../../../src/lib/git/process-executor.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { PERSONAL_NPM_IGNORE, PERSONAL_NPM_IGNORE_CONTENT } from "../../../../src/lib/personal-npm-ignore.js";
 import { readProjectionConfiguration } from "../../../../src/lib/store/projection/configuration.js";
 import { checkIgnores } from "../../../../src/lib/store/projection/ignore-check.js";
 import { guardProjectionIgnores } from "../../../../src/lib/store/projection/ignore-guard.js";
@@ -43,6 +44,8 @@ async function fixture(mode: "tilde" | "home-default" | "xdg-default" | "absolut
   const git = createExecaGitExec(undefined, environment);
   await git("git", ["init", "-q"], { cwd: root });
   await writeFile(join(root, ".gitignore"), ".arc/user/*/\n");
+  await mkdir(join(root, ".arc/user"), { recursive: true });
+  await writeFile(join(root, PERSONAL_NPM_IGNORE), PERSONAL_NPM_IGNORE_CONTENT);
   await writeFile(join(root, ".git/info/exclude"), ".arc/active/\n.arc/backlog/\n.arc/system/.local/\n");
   if (mode === "tilde" || mode === "absolute") {
     await git("git", ["config", "core.excludesFile", mode === "tilde" ? "~/link/../ignore" : source], { cwd: root });
