@@ -72,6 +72,48 @@ The default layout's burst failed the same way on Windows in hosted dispatch `41
 `store-operation-git-access`'s verification (2026-10-31): 13 `tracking-update-failed` notices, then the push
 `unreachable` at the deadline. It is the run spec § 5.4 means by a hosted Windows failure of the default-layout burst.
 
+### Hosted Windows tracking notice with successful publication
+
+Project-manager relay, 2026-11-01: normal `projection-substrate` CI run `41374431909`, head
+`b72db39947be6aeb9c98618f2d1bdb7ab4185bc8`, Windows shard 1, Git `2.56.0.windows.2`, failed the default-layout
+publishing burst. A retained intermediate pull reported `tracking-update-failed` for the personal tracking ref, while
+final publication reconciled successfully; the warning-free assertion failed. Evidence:
+`~/dev/arc-evidence/projection-substrate/windows-tracking-update-41374431909/README.md` and
+`ci-windows-1-failure.log`. The instrumented rerun did not reproduce it, and the original raw fetch streams were not
+preserved. The cause remains unknown; no new diagnostic hosted run was launched for this assessment.
+
+Neither Task 6.5 nor Task 6.9 is established as fixing this occurrence:
+
+- Task 6.5 (`e4c582683e`) suppresses a rejected row only when the failed-fetch observation proves its tracking value
+  moved off the reported old value and already holds the fetched tip or a descendant, including an applied deletion.
+  The original evidence lacks the row and tracking observation needed to establish that condition. Eventual successful
+  publication alone does not establish it at the earlier notice's classification.
+- Task 6.9 (`411f3c461d`) repairs observed stranded locks named by failed publication outcomes after all writers exit.
+  A successful publication retaining a pull notice has no such failure to repair: recovery returns it unchanged, and
+  `assertPublished` still rejects its notice. It does not cover this warning-only signature.
+
+This is an unresolved intermittent concern, not a demonstrated cure or a new diagnosis. Task 6.10's required normal
+qualification continues; this assessment adds no diagnostic hosted dispatch.
+
+### First-pull child failure during local qualification
+
+Task 6.10's store check at `411f3c461d`, run `b161b0ce676c4541bb59d23f21bac56d`, failed the terminal-false first-code
+choice in `store-ref-designation-states.test.ts` on WSL. The other five shards passed. The child has a 10-second
+process limit; the case failed after 10,694ms with no retained child-exit or signal details. A timeout is plausible,
+but its cause is unestablished. This is independent of the hosted Windows tracking-notice concern above.
+
+An isolated WSL run passed with console diagnostics suppressed. Corrected raw-stream capture on `m5-air-ac`, run
+`033ede2b02754842a93595eeb95283da`, then observed exit code 0 in 2,607ms, no signal, no kill, and empty stderr. Neither
+passing isolated run explains the original failure. Evidence is retained under
+`~/dev/arc-evidence/storage-ref-hardening/implementation/` as `task-6.10-store-history.json`,
+`task-6.10-store-full.log`, and `task-6.10-targeted-diagnostic-captured.log`.
+
+The Owner accepted this specific unresolved intermittent failure as an exception to the unknown-cause stop rule:
+retain failure-only child exit/signal/kill and output diagnostics, change no assertion or timeout, and retry the full
+store check once. A passing check permits normal CI and the remaining tasks; it establishes no fix. A recurrence
+stops with the captured details. A controlled native child failure validates the retained diagnostic path without
+attributing that controlled cause to the original failure.
+
 ## Verification at the final head
 
 SC 3, SC 8's Windows case, SC 9, and SC 12 take their evidence mid-change, and no gate at the final head takes it again:

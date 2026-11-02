@@ -752,6 +752,20 @@ pull leaves writes and pull merges free of `lock-held` on the layout lock.
 - _Goal:_ Phase 6's exit criterion holds: the store suites and the unit tests pass on Linux, and a dispatched
   portability pair passes the deadline-kill case and both layouts' publishing bursts on Windows.
 
+- _Note:_ First store feedback at `411f3c461d` (run `b161b0ce676c4541bb59d23f21bac56d`) failed the first code-choice
+  child case in `store-ref-designation-states.test.ts`, terminal false. Its 10-second child limit and 10,694ms case
+  duration suggest a timeout, but the retained error does not establish the cause. Segment and unit checks passed;
+  hosted qualification has not started. The verifier remains open at the unknown-cause stop boundary.
+
+- _Note:_ The focused diagnostic did not reproduce the failure. The WSL run passed with console capture suppressed;
+  corrected raw-stream capture on `m5-air-ac` (run `033ede2b02754842a93595eeb95283da`) observed a normal child exit in
+  2,607ms: exit code 0, no signal, not killed, empty stderr. Assertions and timeouts stayed unchanged; temporary
+  instrumentation was removed. The passing isolated runs do not establish the original failure's cause.
+
+- _Note:_ Owner accepted carrying this specific unresolved intermittent failure through one full store-check retry,
+  with assertions and timeouts unchanged and failure-only child diagnostics retained. A green retry permits normal
+  CI and task progression without claiming a fix; recurrence stops with the captured details.
+
     - Run `npx arc check run test:store` and `npx arc check segment`.
     - Dispatch `gh workflow run ci.yml --ref <branch> -f run_portability_pair=true` at the pushed head and record the
       run ID and its Windows results.
