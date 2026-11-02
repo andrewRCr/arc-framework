@@ -6,7 +6,7 @@ import { createReviewRepositoryHarness } from "../helpers/store/review-different
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { handleReviewPrePublication } from "../../src/handlers/review.js";
 import { attestCandidateWithReviewBoundary } from "../../src/handlers/lifecycle-delivery-review.js";
-import { createUserIOContext } from "../../src/lib/io-context.js";
+import { createRawGitExec, createUserIOContext } from "../../src/lib/io-context.js";
 import { collectGitCandidateSubject } from "../../src/lib/work-unit/git-candidate-subject.js";
 import { createCandidateAttestation } from "../../src/lib/work-unit/candidate-attestation.js";
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
@@ -16,7 +16,7 @@ import { readSubmissionBoundaryVersioned } from "../../src/lib/store/kinds/revie
 import { prepareNativePublicationClaim } from "../../src/lib/store/kinds/review/integration-boundary/publication.js";
 import { createReviewCompositionContext } from "../../src/scripts/review-gate/runtime/composition-context.js";
 import { readReviewReadinessBinding } from "../../src/scripts/review-gate/runtime/readiness-binding.js";
-import { createPrePublicationCompositionDependencies } from "../../src/scripts/review-gate/policy/pre-publication-composition.js";
+import { projectGitCandidateEffectiveTarget } from "../../src/lib/work-unit/git-candidate-effective-target.js";
 import { runPublish } from "../../src/lib/work-unit/verbs/publish.js";
 import { runReopen } from "../../src/lib/work-unit/verbs/reopen.js";
 import { buildStoreCurrentWuReconcile } from "../../src/lib/work-unit/store-current-wu-reconcile.js";
@@ -24,7 +24,7 @@ import type { ExecuteTransitionContext } from "../../src/lib/work-unit/lifecycle
 import type { CurrentWuReconcileHost } from "../../src/lib/work-unit/side-effects/discharge-dep-edges.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { resolveNativeExtraPassJudgment } from "../../src/scripts/review-gate/runtime/native-extra-pass.js";
-import { readCandidateRecord } from "../../src/lib/store/kinds/review/candidate/access.js";
+import { readCandidateRecord, readCandidateRecordVersioned } from "../../src/lib/store/kinds/review/candidate/access.js";
 
 it.each([{ accepted: false, keepPr: false }, { accepted: false, keepPr: true },
   { accepted: true, keepPr: false }, { accepted: true, keepPr: true }])("requires fresh readiness after native reopen with %j", async ({ accepted, keepPr }) => {
@@ -102,9 +102,13 @@ it.each([{ accepted: false, keepPr: false }, { accepted: false, keepPr: true },
   const params = { name: "example", candidateId: candidate.attestation.candidateId,
     candidateSubjectDigest: candidate.subject.subjectDigest, candidateCurrent: true, boundary: snapshot.boundary,
     refreshCandidateAuthorization: async () => {
-      const current = await createPrePublicationCompositionDependencies(invocation).readCandidate("example");
-      if (current.status !== "current") throw new Error("Expected the current Candidate");
-      return { candidateId: current.candidateId, candidateSubjectDigest: current.subjectDigest, candidateCurrent: true };
+      const checked = await readCandidateRecordVersioned(cwd, "example", { store: h.reference.store, owner: primary.reference.owner });
+      if (checked.record === null) throw new Error("Expected the checked Candidate");
+      const current = await projectGitCandidateEffectiveTarget({ cwd, name: "example", baseBranch: "main",
+        record: checked.record, exec, rawExec: createRawGitExec(cwd) });
+      if (current.state !== "current") throw new Error("Expected the current Candidate");
+      return { candidateId: checked.record.attestation.candidateId, candidateSubjectDigest: current.recognizedTarget.subject.subjectDigest,
+        candidateCurrent: current.convergenceVerification === "satisfied", candidateVersion: checked.version };
     }, readReadinessBinding: readBinding, readStandardLaneOwnerVersion: forbidden, claimPublicationBoundary: forbidden,
     preparePublicationClaim: (boundary: typeof snapshot.boundary) => {
       if (boundary?.schemaVersion !== 2) throw new Error("Expected a native claim");
