@@ -26,7 +26,7 @@ it("uses the linked work branch as the originating top without a projected meta"
   expect(await dependencies.resolveOriginatingTop(plan)).toBeNull();
 });
 
-it("derives lifecycle paths from the stored primary's projected location without reading a meta file", async ({ onTestFinished }) => {
+it("keeps native records outside the lifecycle group even when projected artifacts are present", async ({ onTestFinished }) => {
   const harness = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
   await harness.seedProject(projectId);
   const primary = await harness.seedMeta("example", { branch: null }, { kind: "active" }, {
@@ -45,10 +45,7 @@ it("derives lifecycle paths from the stored primary's projected location without
   const dependencies = createPreBindingDeliveryReviewTargetDependencies({ ...checkout, workItem: primary.reference.owner });
   const paths = await dependencies.resolveLifecyclePaths({ plan: deliveryStackPlanForWorkUnitFixture("example"),
     protectedBaseRef: "refs/heads/main", topRef: "refs/heads/opaque" });
-  expect(paths).toEqual([
-    ".arc/active/spec-example.md", ".arc/backlog/ROADMAP.md",
-    ".arc/system/.internal/candidates/example.boundary.json", ".arc/system/.internal/candidates/example.json",
-  ]);
+  expect(paths).toEqual([]);
   await expect(access(join(checkout.cwd, ".arc/active/meta-example.md"))).rejects.toMatchObject({ code: "ENOENT" });
 });
 
