@@ -1,4 +1,4 @@
-/** Session-init workflow contract for delivery-position narration. */
+/** Session-init probe-reference contract for passive delivery-position narration. */
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -8,20 +8,6 @@ import { describe, expect, it } from "vitest";
 import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
 
 const ROOT = join(import.meta.dirname, "..", "..", "..", "..");
-const WORKFLOWS = [
-  join(
-    ROOT,
-    "packages",
-    "arc-framework",
-    "arc",
-    "system",
-    "workflows",
-    "arc",
-    "session-lifecycle",
-    "session-init.template.md",
-  ),
-  join(ROOT, ".arc", "system", "workflows", "arc", "session-lifecycle", "session-init.md"),
-];
 const PROBE_REFERENCES = [
   join(
     ROOT,
@@ -47,15 +33,7 @@ const PROBE_REFERENCES = [
   ),
 ];
 
-describe("session-init delivery-position workflow", () => {
-  it.each(WORKFLOWS)("renders only the CLI-precomposed line in %s", async (path) => {
-    const content = await readFile(path, "utf8");
-
-    expect(content).toMatch(softWrappedProse("`deliveryPosition.value.line` verbatim exactly once"));
-    expect(content).toMatch(softWrappedProse("Do not re-read delivery state or derive coordinates, counts,"));
-    expect(content).toMatch(softWrappedProse("Omit an `ok + null` slot"));
-  });
-
+describe("session-init delivery-position probe reference", () => {
   it("keeps the package and installed probe reference byte-identical", async () => {
     const [packageReference, installedReference] = await Promise.all(
       PROBE_REFERENCES.map((path) => readFile(path, "utf8")),

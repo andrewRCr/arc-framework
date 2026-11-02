@@ -73,13 +73,12 @@ tree by then. Use targeted edits from the start.
 
 ## Template Counterparts
 
-11 files in the package use a `.template.md` suffix, stripped at init time. Two contain
+10 files in the package use a `.template.md` suffix, stripped at init time. One contains
 `<!-- arc:if -->` conditionals resolved during rendering:
 
-| Template file                   | Conditions           |
-| ------------------------------- | -------------------- |
-| `session-init.template.md`      | team.mode (2 blocks) |
-| `02_define-project.template.md` | pm.mode (10 blocks)  |
+| Template file                   | Conditions          |
+| ------------------------------- | ------------------- |
+| `02_define-project.template.md` | pm.mode (10 blocks) |
 
 **Editing template files:** When editing a workflow that has a `.template.md` counterpart,
 edit the template in the package source. The `.arc/` rendered copy reflects this project's
@@ -226,8 +225,6 @@ Configurable sets. The self-hosting configuration currently resolves 104 Framewo
   `system/workflows/arc/initial-setup/02_define-project.md` (Framework)
 - `system/workflows/arc/session-lifecycle/session-handoff.template.md` →
   `system/workflows/arc/session-lifecycle/session-handoff.md` (Framework)
-- `system/workflows/arc/session-lifecycle/session-init.template.md` →
-  `system/workflows/arc/session-lifecycle/session-init.md` (Framework)
 
 ### Summary
 
@@ -238,7 +235,7 @@ Configurable sets. The self-hosting configuration currently resolves 104 Framewo
 | Scaffolded     | 4     | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Self-hosting installed files:** 149. **Template counterparts:** 11. Conditional recipe arms change installed
+**Self-hosting installed files:** 149. **Template counterparts:** 10. Conditional recipe arms change installed
 membership: external PM adds its setup workflow, arc-in-git adds four planning files, and team mode adds the team
 coordination strategy.
 

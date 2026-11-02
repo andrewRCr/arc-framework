@@ -555,7 +555,7 @@
     "system/workflows/arc/session-lifecycle/session-init.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "f69ca53655180e21d0da22674c5680ff4ad99d8d9aebb0b9f1fee7d1408149d3"
+      "pristine_hash": "86e80117b2c4464511757d919b48a756b1f7a0091a7164791c68352b2db721a2"
     },
     "system/workflows/arc/session-lifecycle/session-loop.md": {
       "classification": "Framework",

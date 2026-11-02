@@ -50,13 +50,9 @@ describe("locus methodology contracts", () => {
     }
   });
 
-  it("keeps frame selection reader-owned across init, recovery, and handoff", async () => {
+  it("keeps frame selection reader-owned across recovery and handoff", async () => {
     for (const base of [packageArc, projectArc]) {
       const suffix = base === packageArc ? ".template.md" : ".md";
-      const init = await readFile(
-        resolve(base, `system/workflows/arc/session-lifecycle/session-init${suffix}`),
-        "utf8",
-      );
       const handoff = await readFile(
         resolve(base, `system/workflows/arc/session-lifecycle/session-handoff${suffix}`),
         "utf8",
@@ -65,23 +61,6 @@ describe("locus methodology contracts", () => {
         resolve(base, "system/workflows/arc/session-lifecycle/session-recover.md"),
         "utf8",
       );
-
-      expect(init).toMatch(softWrappedProse("required `derivedLocusState` slot is the sole session-frame"));
-      expect(init).toContain("Dispatch only on `derivedLocusState.value.entering`");
-      expect(init).toContain("with `derivedLocusState.value.active.context`");
-      expect(init).toContain("free-primary\" | \"unmanaged-checkout\" | \"retired");
-      expect(init).toMatch(
-        softWrappedProse("Never select a second frame from branch shape, metas, another worktree scan, or SESSION-NOTES"),
-      );
-      expect(init).toMatch(softWrappedProse("If the composite call itself fails, surface the failure and stop."));
-      expect(init).toContain(
-        "arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json",
-      );
-      expect(init).not.toContain("Probe failure fallback");
-      expect(init).not.toContain("`locusState.inFlightIdentities`");
-      expect(init).toMatch(softWrappedProse("whose subject is `groom` dispatches to"));
-      expect(init).toMatch(softWrappedProse("whose subject is `housekeep` dispatches to"));
-      expect(init).not.toContain("partial-housekeep");
 
       expect(handoff).toContain("dispatch only on `handoffLocus.value`");
       expect(handoff).toMatch(
@@ -134,12 +113,11 @@ describe("locus methodology contracts", () => {
     }
   });
 
-  it("preserves typed cleanup guidance without promising an unproduced Errand queue", async () => {
+  it("keeps init and probe guidance free of an unproduced Errand queue", async () => {
     for (const base of [packageArc, projectArc]) {
-      const suffix = base === packageArc ? ".template.md" : ".md";
       const [init, probeEnvelope] = await Promise.all([
         readFile(
-          resolve(base, `system/workflows/arc/session-lifecycle/session-init${suffix}`),
+          resolve(base, "system/workflows/arc/session-lifecycle/session-init.md"),
           "utf8",
         ),
         readFile(
@@ -148,10 +126,6 @@ describe("locus methodology contracts", () => {
         ),
       ]);
 
-      expect(init).toMatch(softWrappedProse("`currentHusk.ok == true` AND `currentHusk.value != null`"));
-      expect(init).toContain("`sweep.value.worktrees` non-empty");
-      expect(init).toContain("`orphanBranchSweep.value.orphans` non-empty");
-      expect(init).toMatch(softWrappedProse("render one combined section instead of the primary-only sections above"));
       for (const surface of [init, probeEnvelope]) {
         expect(surface).not.toContain("pendingExecuteBound");
         expect(surface).not.toContain("executeBoundDiagnostics");
@@ -211,63 +185,6 @@ describe("locus methodology contracts", () => {
     }
   });
 
-  it("keeps only Errand entry on the durable transient path", async () => {
-    for (const base of [packageArc, projectArc]) {
-      const suffix = base === packageArc ? ".template.md" : ".md";
-      const init = await readFile(
-        resolve(base, `system/workflows/arc/session-lifecycle/session-init${suffix}`),
-        "utf8",
-      );
-
-      expect(init).toContain("`--errand` — invoke `arc errand open`");
-      expect(init).toContain(
-        "`--housekeep` / `--plan` — run the selected workflow's write-context preflight",
-      );
-      expect(init).toMatch(softWrappedProse("do not create a durable transient role"));
-    }
-  });
-
-  it("starts the queued Errand through a typed offer without redefining continuation", async () => {
-    for (const base of [packageArc, projectArc]) {
-      const suffix = base === packageArc ? ".template.md" : ".md";
-      const [init, skill] = await Promise.all([
-        readFile(
-          resolve(base, `system/workflows/arc/session-lifecycle/session-init${suffix}`),
-          "utf8",
-        ),
-        readFile(resolve(base, "system/.internal/skills/arc-session/SKILL.md"), "utf8"),
-      ]);
-
-      expect(init).toContain("`--errand --next` — invoke `arc errand next --json`");
-      expect(init).toContain("`available / open-errand`");
-      expect(init).toContain("`empty / none`");
-      expect(init).toContain("`refused / stop`");
-      expect(init).toContain("`reason`, `remedy`, `retryCommand`, and `recommendedPromptText`");
-      expect(skill).toContain("Combined with a bare `--errand`");
-      expect(skill).toContain("`arc errand next --json`");
-      expect(skill).toMatch(softWrappedProse("terminal `nextOffer` continues to own sibling continuation"));
-    }
-  });
-
-  it("stops materialization unless the returned Errand generation and checkout are exact", async () => {
-    for (const base of [packageArc, projectArc]) {
-      const suffix = base === packageArc ? ".template.md" : ".md";
-      const init = (await readFile(
-        resolve(base, `system/workflows/arc/session-lifecycle/session-init${suffix}`),
-        "utf8",
-      )).replace(/\s+/gu, " ");
-
-      expect(init).toMatch(/If the result is refused or reports an error, render its diagnostic and stop\./u);
-      expect(init).toMatch(
-        /returned `identity\.key`, `identity\.claimId`, and `identity\.branch` exactly match the selected candidate/u,
-      );
-      expect(init).toMatch(/non-null `allocation`/u);
-      expect(init).toMatch(
-        /row's checkout path equals the returned `allocation\.checkoutPath` and its role subject carries the same claim ID/u,
-      );
-    }
-  });
-
   it("defines locus authority from checkout topology, markers, lifecycle, and identity", async () => {
     for (const base of [packageArc, projectArc]) {
       const briefing = await readFile(
@@ -284,14 +201,13 @@ describe("locus methodology contracts", () => {
 
   it("contains no retired locus mutation or liveness instructions", async () => {
     for (const base of [packageArc, projectArc]) {
-      const suffix = base === packageArc ? ".template.md" : ".md";
       const surfaces = await Promise.all([
         readFile(resolve(base, "system/workflows/arc/supplemental/run-errand.md"), "utf8"),
         readFile(resolve(base, "system/workflows/arc/work-unit-lifecycle/resume-work-unit.md"), "utf8"),
         readFile(resolve(base, "system/workflows/arc/session-lifecycle/session-init/probe-envelope.md"), "utf8"),
         readFile(resolve(base, "reference/strategies/arc/strategy-concurrent-work.md"), "utf8"),
         readFile(resolve(base, "reference/strategies/arc/strategy-work-organization.md"), "utf8"),
-        readFile(resolve(base, `system/workflows/arc/session-lifecycle/session-init${suffix}`), "utf8"),
+        readFile(resolve(base, "system/workflows/arc/session-lifecycle/session-init.md"), "utf8"),
       ]);
 
       for (const surface of surfaces) {

@@ -120,7 +120,7 @@
     "system/workflows/arc/session-lifecycle/session-handoff.template.md",
     "system/workflows/arc/session-lifecycle/session-init.contributor.md",
     "system/workflows/arc/session-lifecycle/session-init/probe-envelope.md",
-    "system/workflows/arc/session-lifecycle/session-init.template.md",
+    "system/workflows/arc/session-lifecycle/session-init.md",
     "system/workflows/arc/session-lifecycle/session-loop.md",
     "system/workflows/arc/session-lifecycle/session-recover.md",
     "system/workflows/arc/supplemental/integrate-external-content.md",

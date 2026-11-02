@@ -278,38 +278,26 @@ orientation surfaces, questions, and proceed prompt as today's workflow on the s
         - Recovery declares and invokes the method with verified audit anchors. Its checkout binding, missing-anchor
           stop, unlocatable-section stop, and pending-marker preservation remain in the recovery workflow.
 
-### `[ ]` **3.2 Replace `session-init` with the spine — § 9.1**
+### `[x]` **3.2 Replace `session-init` with the spine — § 9.1**
 
 - _Goal:_ `session-init.md` is a spine within ~13 KB that executes any agenda by step type and orients by
   `orientation.shape`, naming no probe slot, slot field, or arm condition, and ships as a plain file.
 
 - **Additional Context:** `strategy-workflow-authoring.md` (frontmatter, declarations, interlock markers)
 
-    - `[ ]` **3.2.a Author the spine**
-        - § 9.1 items 1–8 in package source: purpose and the four terms; output discipline; running the verb, its
-          failure the one fallback; each step type, with `read` loading `read-load-set`, `fragment` as the declared
-          methods' fire-point, recompile with § 3.2's elicitation insertion before `--` and leading-dash binding, one
-          argument per argv element, handoff, and marker writing; orientation by
-          shape; the SESSION-NOTES authority boundary and WORKING-MEMORY binding; mismatch handling with the
-          crash-recovery trigger
-        - Frontmatter declares `read-load-set` and keeps `session-state`; the other two methods join it with their own
-          tasks
+    - `[x]` **3.2.a Author the spine**
+        - Replaced probe and arm dispatch with typed step execution and shape-based orientation. Literal argv,
+          carried recompiles, failed-action continuation, read invalidation, handoff, marker timing, state authority,
+          mismatch recovery, and declared method fire-points remain bounded in the spine.
 
-    - `[ ]` **3.2.b Ship it as a plain file**
-        - Merge the base first: `manifest.json` has changed on `main` since this branch was cut
-        - Rename `session-init.template.md` to `session-init.md` in package source and its `init-recipe.json` entry;
-          the `pm.mode` render-engine arms leave with Step 4 and return as `discover-next-work`'s prose (Task 4.5)
-        - The `.arc/` copy, the manifest, and the package-sync strategy: its `arc:if` table row goes, the
-          template-counterpart list and count drop to 10, and "11 files … Two contain" becomes 10 and "One contains",
-          per `notes-session-init-agenda.md` § Shipping a file
-        - Re-pin in the same commit every test whose pinned text the spine changes, per
-          `notes-session-init-agenda.md` § Test pins: `review-gate-workflows` runs at the commit gate; pins of
-          Phase 1–2 behavior become compiler unit tests; pins of Phase 4 rows retire here, and the Phase 4 test that
-          replaces each is marked there
+    - `[x]` **3.2.b Ship it as a plain file**
+        - Renamed the package workflow and recipe entry, synced the Framework copy and manifest, and reduced the
+          template inventory to ten. The startup base merge supplied the prerequisite manifest changes. Retired
+          the replaced init prose pins while preserving the handoff and remaining probe-reference contracts.
 
-    - `[ ]` **3.2.c Check the budget**
-        - Measure the spine's bytes against ~13 KB, and the spine plus `read-load-set` against ~28% of the baseline
-          `session-init.md`, before the rehearsal
+    - `[x]` **3.2.c Check the budget**
+        - The spine is 11,315 bytes; with the 2,610-byte reading method it is 18.9% of the frozen
+          73,573-byte baseline workflow, inside both the ~13 KB spine budget and ~28% combined budget.
 
 ### `[ ]` **3.3 Shrink the `arc-session` skill to a hand-off — § 9.2**
 
