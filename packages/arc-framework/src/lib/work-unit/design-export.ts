@@ -21,7 +21,25 @@ interface DesignExportInput {
   trackDesignDocs: string;
   stageMatching?: boolean;
   exec: GitExec;
-  fs?: Pick<typeof filesystem, "readFile" | "mkdir" | "writeFile" | "rm">;
+  fs?: Pick<typeof filesystem, "readFile" | "mkdir" | "writeFile" | "rm" | "lstat">;
+}
+
+async function checkExportDestination(input: DesignExportInput, path: string,
+  fs: NonNullable<DesignExportInput["fs"]>): Promise<void> {
+  const parts = path.split("/");
+  let current = input.cwd;
+  for (const [index, part] of parts.entries()) {
+    current = join(current, part);
+    const entry = await fs.lstat(current).catch((error: unknown) => {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") return null;
+      throw error;
+    });
+    if (entry === null) return;
+    const expected = index === parts.length - 1 ? "regular file" : "real directory";
+    if (entry.isSymbolicLink() || (index === parts.length - 1 ? !entry.isFile() : !entry.isDirectory())) {
+      throw new Error(`Design export requires a ${expected} at ${current}. Repair this entry, then retry the operation.`);
+    }
+  }
 }
 
 // The stored specification's content, absent when none is stored; a conflicted one exports neither side.
@@ -48,6 +66,7 @@ export async function exportWorkUnitSpec(input: DesignExportInput): Promise<Desi
   if (content === null) return null;
   const path = resolveWorkUnitSpecExportPath(slug);
   const fs = input.fs ?? filesystem;
+  await checkExportDestination(input, path, fs);
   let prior: string | null;
   try { prior = await fs.readFile(join(input.cwd, path), "utf8"); }
   catch (error) {
@@ -59,6 +78,7 @@ export async function exportWorkUnitSpec(input: DesignExportInput): Promise<Desi
     return null;
   }
   await fs.mkdir(join(input.cwd, posix.dirname(path)), { recursive: true });
+  await checkExportDestination(input, path, fs);
   await fs.writeFile(join(input.cwd, path), content, "utf8");
   try { await input.exec("git", ["add", "--", path], { cwd: input.cwd }); }
   catch (error) {

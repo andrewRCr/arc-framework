@@ -1,5 +1,5 @@
 /** Stored designs export as one-way copies without changing their authoritative records. */
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
@@ -50,4 +50,33 @@ it.each([false, true])("restores the prior copy after staging fails, existing: %
   else await expect(readFile(path, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   expect(await exportWorkUnitSpec({ ...input, exec: async () => ({ stdout: "" }) })).toMatchObject({ overwritten: existing });
   expect(await readFile(path, "utf8")).toBe("# Stored design\n");
+});
+
+it.each([
+  ["leaf", false], ["leaf", true], ["parent", false], ["parent", true],
+] as const)("refuses a linked export %s, matching: %s, and exports after repair", async (kind, matching) => {
+  const h = createReviewHarness(), primary = await h.seedMeta("example"), content = "# Stored design\n";
+  await h.seed(recordReferences["work-item/spec"](primary.reference.owner), content);
+  const root = await mkdtemp(join(tmpdir(), "arc-design-linked-")), cwd = join(root, "checkout");
+  onTestFinished(() => rm(root, { recursive: true, force: true }));
+  const outside = join(root, "outside"), folder = join(cwd, ".arc/specs/example");
+  const target = join(outside, "spec-example.md"), destination = join(folder, "spec-example.md");
+  const original = matching ? content : "# Unrelated file\n";
+  await mkdir(outside, { recursive: true });
+  await writeFile(target, original);
+  const link = kind === "leaf" ? destination : folder;
+  await mkdir(kind === "leaf" ? folder : join(cwd, ".arc/specs"), { recursive: true });
+  await symlink(kind === "leaf" ? target : outside, link, kind === "leaf" ? "file" : "junction");
+  const input = { cwd, workUnit: "example", store: h.store, owner: primary.reference.owner,
+    trackDesignDocs: "specs", stageMatching: true, exec: async () => ({ stdout: "" }) };
+  const before = await h.store.version();
+  await expect(exportWorkUnitSpec(input)).rejects.toThrow(/design export.*repair.*retry/isu);
+  expect(await readFile(target, "utf8")).toBe(original);
+  expect((await lstat(link)).isSymbolicLink()).toBe(true);
+  expect(await h.store.version()).toEqual(before);
+  await unlink(link);
+  expect(await exportWorkUnitSpec(input)).toMatchObject({ path: ".arc/specs/example/spec-example.md", overwritten: false });
+  expect((await lstat(destination)).isFile()).toBe(true);
+  expect(await readFile(destination, "utf8")).toBe(content);
+  expect(await readFile(target, "utf8")).toBe(original);
 });
