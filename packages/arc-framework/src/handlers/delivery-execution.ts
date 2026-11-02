@@ -231,6 +231,8 @@ import { raiseNativeResolutionRefusal, resolveActiveWu } from "../lib/release/wu
 import { resolveTaskListCursor } from "../lib/task-list/cursor.js";
 import { bindDeliveryWorkItem, createDeliveryReviewFixEntry } from "./delivery-review-fix-entry.js";
 import { nativeRefusalText, rethrowNativeRefusal } from "../lib/store/native-refusal.js";
+import { isOffBranchStoreRefusal } from "../lib/store/refusal-error.js";
+import { refuseWithRemedy } from "./lifecycle-shared.js";
 import { readAncestry } from "../lib/work-unit/git-decomposition-object-readers.js";
 import {
   readCandidateRecord,
@@ -2004,21 +2006,35 @@ export async function handleDeliveryExecution(
   try {
     result = await deps.execute(command, request.data, interaction);
   } catch (error) {
-    emit(
-      deps,
-      command,
-      error instanceof GitCommonStateAccessError
-        ? operationalStateAccessRefusal(error)
-        : isOwnedDeliveryAuthorityCommand(command)
-          ? { status: "refused", reason: "execution-unavailable",
-              detail: boundedDeliveryFailureDetail(error, "Delivery execution is unavailable.") }
-          : refusedWithNativeText("execution-unavailable", error),
-      request.data,
-    );
+    emitExecutionFailure(deps, command, error, request.data);
     return;
   }
   const parsed = ResultSchema.safeParse(result);
   emit(deps, command, parsed.success ? parsed.data : invalidServiceResult(result), request.data);
+}
+
+function emitExecutionFailure(
+  deps: DeliveryExecutionHandlerDependencies,
+  command: DeliveryExecutionCommand,
+  error: unknown,
+  request: unknown,
+): void {
+  if (command === "review-fix-continue" && isOffBranchStoreRefusal(error)) {
+    refuseWithRemedy(error.refusal.condition, error.refusal.remedy, true, error.refusal);
+    deps.setExitCode(1);
+    return;
+  }
+  emit(
+    deps,
+    command,
+    error instanceof GitCommonStateAccessError
+      ? operationalStateAccessRefusal(error)
+      : isOwnedDeliveryAuthorityCommand(command)
+        ? { status: "refused", reason: "execution-unavailable",
+            detail: boundedDeliveryFailureDetail(error, "Delivery execution is unavailable.") }
+        : refusedWithNativeText("execution-unavailable", error),
+    request,
+  );
 }
 
 function emit(

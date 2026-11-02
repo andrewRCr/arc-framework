@@ -54,7 +54,7 @@ it("preserves a missing task's repair route and admits it after restoration", as
   const missing = await h.store.read({ reference: h.reference });
   if (missing.status !== "refused") throw new Error("Expected missing task");
   expect(await readAttestInput(h.ports, "example")).toMatchObject({ status: "rejected",
-    reason: missing.refusal.condition, remedy: missing.refusal.remedy });
+    reason: missing.refusal.condition, remedy: missing.refusal.remedy, refusal: missing.refusal });
   await h.seed(h.reference, closedTasks);
   expect(await readAttestInput(h.ports, "example")).toMatchObject({ status: "ready" });
 });
@@ -91,6 +91,8 @@ it.each(["meta", "task-list"] as const)("refuses conflicted stored %s authority 
   const refused = await readAttestInput(h.ports, "example");
   expect(refused).toMatchObject({ status: "rejected", reason: expect.stringContaining("unresolved conflicts"),
     remedy: { text: expect.stringContaining("Resolve the named conflict records") } });
+  if (kind === "task-list") expect(refused).toMatchObject({ refusal: { code: "record-malformed", class: "recoverable",
+    reference, rule: "attest.task-list-conflict", condition: expect.stringContaining(JSON.stringify(record.conflicts[0])) } });
   for (const conflictReference of record.conflicts) {
     expect(refused.status === "rejected" ? refused.reason : "").toContain(JSON.stringify(conflictReference));
     const conflict = lifecycleSuccess(await h.store.read({ reference: conflictReference }));

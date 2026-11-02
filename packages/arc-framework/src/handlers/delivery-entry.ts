@@ -28,6 +28,8 @@ import { unwrapReviewRecordResult } from "../lib/store/kinds/review/access-share
 import { createGitExec } from "../lib/io-context.js";
 import { raiseNativeResolutionRefusal, resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { nativeRefusalText } from "../lib/store/native-refusal.js";
+import { isOffBranchStoreRefusal } from "../lib/store/refusal-error.js";
+import { refuseWithRemedy } from "./lifecycle-shared.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 const InputSchema = z.union([
@@ -143,6 +145,11 @@ export async function handleDeliveryEntryInspect(
       ? result.data
       : { status: "refused", reason: "invalid-service-result" });
   } catch (error) {
+    if (isOffBranchStoreRefusal(error)) {
+      refuseWithRemedy(error.refusal.condition, error.refusal.remedy, true, error.refusal);
+      dependencies.setExitCode(1);
+      return;
+    }
     // A native store, project-identity, or owner refusal keeps its condition and remedy for the operator.
     const recommendedActionText = nativeRefusalText(error);
     emit(dependencies, { status: "refused", reason: "inspection-unavailable",

@@ -124,7 +124,7 @@ it("stages an already matching untracked copy at attestation", async () => {
   expect((await h.exec("git", ["show", `:${path}`], { cwd: h.cwd })).stdout).toBe("# Stored specification");
 }, 30_000);
 
-it.each(["review/integration-boundary", "review/candidate", "work-item/spec"] as const)(
+it.each(["review/integration-boundary", "review/candidate", "work-item/spec", "work-item/task-list"] as const)(
   "refuses through attestation's typed refusal when the %s read refuses, and attests once repaired", async kind => {
     const h = await fixture();
     // A ref read whose record objects are missing refuses in this shape, naming the record and no command.
@@ -135,9 +135,30 @@ it.each(["review/integration-boundary", "review/candidate", "work-item/spec"] as
     h.reference.store.read = async input => held && input.reference.kind === kind
       ? { status: "refused", refusal: { ...refusal, reference: input.reference } } : read(input);
     expect(await h.attest()).toMatchObject({ status: "rejected", reason: refusal.condition,
-      remedy: { invariant: refusal.condition, text: expect.stringContaining(refusal.remedy.text) } });
+      remedy: { invariant: refusal.condition, text: expect.stringContaining(refusal.remedy.text) },
+      refusal: { ...refusal, reference: recordReferences[kind](h.primary.reference.owner) } });
     expect(process.exitCode).toBe(1);
     held = false;
     process.exitCode = 0;
     expect(await h.attest()).toMatchObject({ status: "attested" });
   }, 30_000);
+
+it.each([undefined, "bound"] as const)("retains a task conflict's complete native refusal during repeated attestation, generation=%s", async generation => {
+  const h = await fixture({ generation, tracking: "none" });
+  expect(await h.attest()).toMatchObject({ status: "attested" });
+  const store = h.reference.store, reference = recordReferences["work-item/task-list"](h.primary.reference.owner);
+  const conflict = recordReferences["work-item/conflict-record"](h.primary.reference.owner, "task-conflict");
+  const version = lifecycleSuccess(await store.version()), read = store.read.bind(store);
+  let held = true;
+  store.read = async input => {
+    const result = await read(input);
+    return held && input.reference.kind === "work-item/task-list" && result.status === "ok"
+      ? { status: "ok", result: { ...result.result, conflicts: [conflict] } } : result;
+  };
+  expect(await h.attest()).toMatchObject({ status: "rejected", refusal: { code: "record-malformed", class: "recoverable",
+    reference, rule: "attest.task-list-conflict", condition: expect.stringContaining(JSON.stringify(conflict)),
+    remedy: { text: "Resolve the named conflict records, then retry." } } });
+  expect(lifecycleSuccess(await store.version())).toBe(version);
+  held = false; process.exitCode = 0;
+  expect(await h.attest()).toMatchObject({ status: "unchanged" });
+}, 30_000);

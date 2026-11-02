@@ -1012,7 +1012,8 @@ describe("delivery entry inspection over a native store refusal", () => {
     const input = { workUnitId: plan.workUnitId, entryMode: "integrating" } as const;
     const { dependencies: refusingDependencies, refusal, repair } = refusing(integrating(boundary), read);
 
-    await expect(inspectDeliveryEntry(input, refusingDependencies)).resolves.toEqual({
+    if (read === "readTaskList") await expect(inspectDeliveryEntry(input, refusingDependencies)).rejects.toBe(refusal);
+    else await expect(inspectDeliveryEntry(input, refusingDependencies)).resolves.toEqual({
       status: "refused",
       nextAction: "stop",
       reason: "evidence-unavailable",

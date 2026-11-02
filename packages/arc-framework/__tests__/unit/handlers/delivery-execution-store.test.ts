@@ -14,7 +14,18 @@ import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
 import { bindDeliveryWorkItem } from "../../../src/handlers/delivery-review-fix-entry.js";
 import { ReviewOwnerSelectionError } from "../../../src/lib/store/kinds/review/errors.js";
 import { nativeRefusalText } from "../../../src/lib/store/native-refusal.js";
+import { readStoredDeliveryEntryInput } from "../../../src/lib/store/delivery-entry-input.js";
 import type { ReviewInvocationContext } from "../../../src/scripts/review-gate/runtime/invocation.js";
+
+async function captureExecutionOutput(run: (write: (text: string) => void) => Promise<void>): Promise<unknown> {
+  let output = "";
+  const previousExitCode = process.exitCode;
+  const write = (text: string) => { output += text; };
+  const stdout = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { write(String(chunk)); return true; });
+  try { await run(write); }
+  finally { stdout.mockRestore(); process.exitCode = previousExitCode; }
+  return JSON.parse(output) as unknown;
+}
 
 async function fixture(state: "Active" | "Shipped", binding: string | null = "tasks-example.md", storedTasks = true,
   liveNamesake = false, checkoutBranch: string | null = "feat/example", identity = { configured: true }) {
@@ -42,14 +53,11 @@ async function fixture(state: "Active" | "Shipped", binding: string | null = "ta
   ] });
   onTestFinished(checkout.cleanup);
   await checkout.occupy(checkoutBranch, boundWorkUnitSubject(primary));
-  return { ...checkout, primary, seedTasks, run: async (store: Store = checkout.store) => {
-    let output = "";
-    await handleDeliveryExecution("review-fix-continue", { input: "-" }, undefined, {
+  return { ...checkout, primary, seedTasks, run: (store: Store = checkout.store) => captureExecutionOutput(write =>
+    handleDeliveryExecution("review-fix-continue", { input: "-" }, undefined, {
       readText: async () => JSON.stringify({ repository: "owner/repository" }),
-      write: text => { output += text; }, setExitCode: () => {},
-    }, { ...checkout, store });
-    return JSON.parse(output) as unknown;
-  } };
+      write, setExitCode: () => {},
+    }, { ...checkout, store })) };
 }
 it.each(["Active", "Shipped"] as const)("continues a %s work unit from its stored tasks without projected files", async state => {
   const h = await fixture(state);
@@ -89,7 +97,9 @@ it("refuses an unbound delivery's owner typed without arc.identity, naming how t
 it("refuses a missing metadata task binding without writes and continues after repair", async () => {
   const h = await fixture("Active", null);
   const version = lifecycleSuccess(await h.store.version());
-  expect(await h.run()).toMatchObject({ status: "refused", reason: "execution-unavailable" });
+  const missing = await readStoredDeliveryEntryInput(h.store, "example", h.primary.reference.owner);
+  if (missing.status !== "refused") throw new Error("Expected the missing task binding to refuse.");
+  expect(await h.run()).toMatchObject({ status: "rejected", reason: missing.refusal.condition, refusal: missing.refusal });
   expect(lifecycleSuccess(await h.store.version())).toBe(version);
   lifecycleSuccess(await h.store.write({ ...recordPut(h.primary, { content: writeMetaTaskList(h.primary.content, "tasks-example.md") }),
     provenance: { verb: "edit", lifecycleAction: "edit" } }));
@@ -98,7 +108,9 @@ it("refuses a missing metadata task binding without writes and continues after r
 it("refuses an archived owner with no task kind and continues after restoration", async () => {
   const h = await fixture("Shipped", "tasks-example.md", false);
   const version = lifecycleSuccess(await h.store.version());
-  expect(await h.run()).toMatchObject({ status: "refused", reason: "evidence-unavailable" });
+  const missing = await h.store.read({ reference: recordReferences["work-item/task-list"](h.primary.reference.owner) });
+  if (missing.status !== "refused") throw new Error("Expected the missing task list to refuse.");
+  expect(await h.run()).toMatchObject({ status: "rejected", reason: missing.refusal.condition, refusal: missing.refusal });
   expect(lifecycleSuccess(await h.store.version())).toBe(version);
   await h.seedTasks();
   expect(await h.run()).toMatchObject({ status: "idle", nextAction: "continue-work-unit" });
@@ -127,16 +139,12 @@ it("names a native refusal escaping execution with its own remedy, and emits the
   const refusal = nativeListingRefusal();
   const route = { status: "idle", nextAction: "continue-work-unit", recommendedActionText: "Continue the work unit." };
   const execute = vi.fn().mockRejectedValueOnce(refusal).mockResolvedValueOnce(route);
-  const run = async () => {
-    let output = "";
-    await handleDeliveryExecution("review-fix-continue", { input: "-" }, undefined, {
+  const run = () => captureExecutionOutput(write =>
+    handleDeliveryExecution("review-fix-continue", { input: "-" }, undefined, {
       readText: async () => JSON.stringify({ repository: "owner/repository" }), execute,
-      write: text => { output += text; }, setExitCode: () => {},
-    });
-    return JSON.parse(output) as unknown;
-  };
-  expect(await run()).toMatchObject({ status: "refused", reason: "execution-unavailable",
-    recommendedActionText: refusal.message });
+      write, setExitCode: () => {},
+    }));
+  expect(await run()).toMatchObject({ status: "rejected", reason: refusal.refusal.condition, refusal: refusal.refusal });
   expect(await run()).toMatchObject(route);
 });
 
@@ -149,8 +157,8 @@ it("names the store's refusal resolving the review-fix work unit's branch, and c
   // The occupancy resolver reads the claimed primary first; the branch read is the second.
   store.read = async input => refusing && input.reference.kind === "work-item/meta" && ++primaryReads % 2 === 0
     ? { status: "refused", refusal: { ...refusal, reference: input.reference } } : h.store.read(input);
-  expect(await h.run(store)).toMatchObject({ status: "refused", reason: "execution-unavailable",
-    recommendedActionText: `${refusal.condition} ${refusal.remedy.text}` });
+  expect(await h.run(store)).toMatchObject({ status: "rejected", reason: refusal.condition,
+    refusal: { ...refusal, reference: h.primary.reference } });
   refusing = false;
   expect(await h.run(store)).toMatchObject({ status: "idle", nextAction: "continue-work-unit" });
 });

@@ -48,9 +48,36 @@ it("refuses reopen with the store's refusal of the inspected task list, and perm
   const errors: string[] = [];
   vi.spyOn(terminal.log, "error").mockImplementation(message => { errors.push(String(message)); });
   expect(await permitDeliveryReopen({ cwd: root, identity: "test-user", io, store }, "example", settings)).toBe(false);
-  expect(errors).toEqual([`${refusal.condition} ${refusal.remedy.text}`]);
+  expect(errors).toEqual([`${refusal.code}: ${refusal.condition}\n${refusal.remedy.text}`]);
   expect(process.exitCode).toBe(1);
   refusing = false;
   process.exitCode = 0;
   expect(await permitDeliveryReopen({ cwd: root, identity: "test-user", io, store }, "example", settings)).toBe(true);
+});
+
+it("names a native task conflict through the public reopen permit and permits retry after repair", async () => {
+  const root = await createTempRepoCore({ prefix: "arc-reopen-store-conflict-", identity: "test-user" }); roots.push(root);
+  const exec = makeGitExec(root), h = createLifecycleHarness();
+  const primary = await h.seedMeta("example", { state: "Integrating", currentWorkflow: "integrate-work-unit", taskList: "tasks-example.md" });
+  const reference = recordReferences["work-item/task-list"](primary.reference.owner);
+  await h.seed(reference, "# Task List\n\n## **Phase 1:** Build\n\n### `[x]` **1.1 Build**\n");
+  await exec("git", ["commit", "--allow-empty", "-m", "Initialize checkout"]);
+  const io = createUserIOContext(); io.exec = exec;
+  const { settings } = await readConfigSettings(root);
+  const store = Object.create(h.store) as Store;
+  const conflict = recordReferences["work-item/conflict-record"](primary.reference.owner, "task-conflict");
+  let held = true;
+  store.read = async input => {
+    const result = await h.store.read(input);
+    return held && input.reference.kind === "work-item/task-list" && result.status === "ok"
+      ? { status: "ok", result: { ...result.result, conflicts: [conflict] } } : result;
+  };
+  const errors: string[] = [];
+  vi.spyOn(terminal.log, "error").mockImplementation(message => { errors.push(String(message)); });
+  const version = lifecycleSuccess(await store.version());
+  expect(await permitDeliveryReopen({ cwd: root, identity: "test-user", io, store }, "example", settings, primary)).toBe(false);
+  expect(errors).toEqual([`record-malformed: The task list has unresolved conflicts. Conflict records: ${JSON.stringify(conflict)}.\nResolve the named conflict records, then retry.`]);
+  expect(lifecycleSuccess(await store.version())).toBe(version);
+  held = false; process.exitCode = 0;
+  expect(await permitDeliveryReopen({ cwd: root, identity: "test-user", io, store }, "example", settings, primary)).toBe(true);
 });

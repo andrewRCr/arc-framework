@@ -690,6 +690,7 @@ export async function inspectDeliveryEntry(
   try {
     taskList = await dependencies.readTaskList();
   } catch (error) {
+    rethrowNativeRefusal(error);
     return refused("evidence-unavailable", error);
   }
   const [planResolution, authoring] = await Promise.all([

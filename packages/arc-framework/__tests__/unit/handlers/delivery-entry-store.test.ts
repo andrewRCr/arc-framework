@@ -45,7 +45,9 @@ it("refuses an absent metadata task binding without writes and inspects after re
 it("refuses a missing stored task list and reads it after restoration", async () => {
   const h = await fixture("tasks-example.md", false);
   const version = lifecycleSuccess(await h.store.version());
-  expect(await h.inspect()).toMatchObject({ status: "refused", reason: "evidence-unavailable" });
+  const missing = await h.store.read({ reference: recordReferences["work-item/task-list"](h.primary.reference.owner) });
+  if (missing.status !== "refused") throw new Error("Expected the missing task list to refuse.");
+  await expect(h.inspect()).rejects.toMatchObject({ offBranch: true, refusal: missing.refusal });
   expect(lifecycleSuccess(await h.store.version())).toBe(version);
   await h.seedTasks();
   expect(await h.inspect()).toMatchObject({ status: "not-applicable" });

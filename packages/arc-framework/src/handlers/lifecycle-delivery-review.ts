@@ -105,7 +105,7 @@ function refuseAttestationStateFailure(error: unknown, json: boolean): boolean {
     return true;
   }
   if (!(error instanceof StoreRefusalError) || !error.offBranch) return refuseProjectIdentityFailure(error, json);
-  refuseWithRemedy(error.refusal.condition, error.refusal.remedy, json);
+  refuseWithRemedy(error.refusal.condition, error.refusal.remedy, json, error.refusal);
   return true;
 }
 
@@ -252,7 +252,7 @@ async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestComma
     readArchivedMeta: async slug => (await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs })).get(slug),
   }, input.name, input.newRoot === true);
   if (subjectInput.status === "rejected") {
-    refuseWithRemedy(subjectInput.reason, subjectInput.remedy, input.json === true);
+    refuseWithRemedy(subjectInput.reason, subjectInput.remedy, input.json === true, subjectInput.refusal);
     return;
   }
   const { metaPath, meta, taskListPath, lastCompleted } = subjectInput;
@@ -807,7 +807,8 @@ export async function permitDeliveryReopen(
       const meta = parseMetaRecord(await base.io.readFile(materializeArcPath(base.cwd, metaPath)));
       taskListPath = resolveTaskListPath(metaPath, meta.taskList);
     }
-  } catch {
+  } catch (error) {
+    if (isOffBranchStoreRefusal(error)) { refuse(error.refusal.condition, error.refusal); return false; }
     refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
       + "the active metadata is unavailable.");
     return false;
@@ -827,7 +828,8 @@ export async function permitDeliveryReopen(
       baseBranch: settings["branch.base"],
       exec: base.io.exec,
     });
-  } catch {
+  } catch (error) {
+    if (isOffBranchStoreRefusal(error)) { refuse(error.refusal.condition, error.refusal); return false; }
     return refuseUnavailableDeliveryEvidence(target);
   }
   if (delivery.status !== "reopen-permitted") {

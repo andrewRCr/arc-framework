@@ -1,10 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   handleDeliveryEntryInspect,
   type DeliveryEntryInspectHandlerDependencies,
 } from "../../../src/handlers/delivery-entry.js";
 import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
+import { LifecycleCommandRefusalSchema } from "../../../src/handlers/lifecycle-shared.js";
+
+const previousExitCode = process.exitCode;
+afterEach(() => { vi.restoreAllMocks(); process.exitCode = previousExitCode; });
 
 function dependencies(result: unknown): DeliveryEntryInspectHandlerDependencies {
   return {
@@ -91,13 +95,18 @@ describe("delivery entry handler", () => {
     const route = { status: "not-applicable", nextAction: "continue-work-unit", recommendedActionText: "Continue." };
     const deps = dependencies(route);
     vi.mocked(deps.inspect).mockRejectedValueOnce(refusal);
+    let stdout = "";
+    vi.spyOn(process.stdout, "write").mockImplementation(chunk => { stdout += String(chunk); return true; });
     const emitted = async () => {
+      stdout = "";
       await handleDeliveryEntryInspect({ input: "-" }, undefined, deps);
-      return JSON.parse(vi.mocked(deps.write).mock.calls.at(-1)?.[0] as string) as unknown;
+      return JSON.parse(stdout || vi.mocked(deps.write).mock.calls.at(-1)?.[0] as string) as unknown;
     };
 
-    expect(await emitted()).toEqual({ schemaVersion: 1, command: "delivery entry inspect", status: "refused",
-      reason: "inspection-unavailable", recommendedActionText: refusal.message });
+    expect(LifecycleCommandRefusalSchema.parse(await emitted())).toMatchObject({ status: "rejected",
+      reason: refusal.refusal.condition, refusal: refusal.refusal,
+      remedy: { text: expect.stringContaining(refusal.refusal.remedy.text) } });
+    expect(process.exitCode).toBe(1);
     expect(await emitted()).toEqual({ schemaVersion: 1, command: "delivery entry inspect", ...route });
   });
 

@@ -1,4 +1,4 @@
-import { expect, it, onTestFinished } from "vitest";
+import { afterEach, expect, it, onTestFinished, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,6 +11,10 @@ import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import { createNativeReviewPerformanceFixture } from "../../fixtures/native-review-performance.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import type { OwnerIdentity } from "../../../src/lib/store/identity.js";
+import { handleDeliveryEntryInspect } from "../../../src/handlers/delivery-entry.js";
+
+const previousExitCode = process.exitCode;
+afterEach(() => { vi.restoreAllMocks(); process.exitCode = previousExitCode; });
 
 async function inspectionInput(store: Store, workItem: OwnerIdentity, onTestFinished: (cleanup: () => Promise<void>) => void) {
   const commonDir = await mkdtemp(join(tmpdir(), "arc-delivery-entry-"));
@@ -21,7 +25,7 @@ async function inspectionInput(store: Store, workItem: OwnerIdentity, onTestFini
 }
 const taskList = "# Task List\n\n## **Phase 1:** Build\n\n### `[x]` **1.1 Build feature**\n";
 
-it.each(["entry", "renewal", "reopen"] as const)("retains task-list conflict coordinates through %s and continues after repair", async kind => {
+it.each(["entry", "renewal", "reopen", "public-entry"] as const)("retains task-list conflict coordinates through %s and continues after repair", async kind => {
   const h = createLifecycleHarness(), primary = await h.seedMeta("example", { taskList: "tasks-example.md" });
   const reference = recordReferences["work-item/task-list"](primary.reference.owner);
   await h.seed(reference, taskList);
@@ -34,15 +38,27 @@ it.each(["entry", "renewal", "reopen"] as const)("retains task-list conflict coo
       ? { status: "ok", result: { ...result.result, conflicts: [conflict] } } : result;
   };
   const input = { ...await inspectionInput(store, primary.reference.owner, onTestFinished), workUnitId: "example" };
-  const run = () => kind === "entry" ? inspectRepositoryDeliveryEntry(input)
+  let output = "";
+  const write = (text: string) => { output += text; };
+  if (kind === "public-entry") vi.spyOn(process.stdout, "write").mockImplementation(chunk => { write(String(chunk)); return true; });
+  const publicEntry = async () => {
+    output = "";
+    await handleDeliveryEntryInspect({ input: "-" }, undefined, {
+      readText: async () => JSON.stringify({ entryMode: "integrating" }),
+      inspect: request => inspectRepositoryDeliveryEntry({ ...input,
+        request: DeliveryEntryInspectionRequestSchema.parse({ workUnitId: "example", ...request }) }),
+      write, setExitCode: code => { process.exitCode = code; },
+    });
+    return JSON.parse(output) as unknown;
+  };
+  const run = () => kind === "public-entry" ? publicEntry() : kind === "entry" ? inspectRepositoryDeliveryEntry(input)
     : kind === "renewal" ? inspectRepositoryDeliveryCandidateRenewal({ ...input, sourceBoundary: null })
     : inspectRepositoryDeliveryReopen(input);
-  if (kind === "renewal") {
-    await expect(run()).rejects.toMatchObject({ name: "StoreRefusalError", offBranch: true, refusal: { reference,
-      condition: expect.stringContaining(JSON.stringify(conflict)), remedy: { text: expect.stringMatching(/resolve/iu) } } });
-  } else {
-    expect(await run()).toMatchObject({ status: "refused", recommendedActionText: expect.stringContaining(JSON.stringify(conflict)) });
-  }
+  const refusal = { reference,
+    code: "record-malformed", class: "recoverable", rule: "delivery.task-list-conflict",
+    condition: expect.stringContaining(JSON.stringify(conflict)), remedy: { text: expect.stringMatching(/resolve/iu) } };
+  if (kind === "public-entry") expect(await run()).toMatchObject({ status: "rejected", refusal });
+  else await expect(run()).rejects.toMatchObject({ name: "StoreRefusalError", offBranch: true, refusal });
   conflicted = false;
   expect(await run()).toMatchObject({ status: kind === "reopen" ? "reopen-permitted" : "not-applicable" });
 });
@@ -72,21 +88,20 @@ it("names a missing stored task list's own remedy, and inspects once the task li
   const missing = await h.store.read({ reference });
   if (missing.status !== "refused") throw new Error("Expected the unstored task list to refuse.");
   const input = await inspectionInput(h.store, primary.reference.owner, onTestFinished);
-  expect(await inspectRepositoryDeliveryEntry(input)).toMatchObject({ status: "refused", reason: "evidence-unavailable",
-    recommendedActionText: `${missing.refusal.condition} ${missing.refusal.remedy.text}` });
+  await expect(inspectRepositoryDeliveryEntry(input)).rejects.toMatchObject({ offBranch: true, refusal: missing.refusal });
   await h.seed(reference, taskList);
   expect(await inspectRepositoryDeliveryEntry(input)).toMatchObject({ status: "not-applicable" });
 });
 
-it("names a refused review-response listing's own remedy, and inspects once the store is readable", async ({ onTestFinished }) => {
+it("retains a corrupt task-list index's own refusal, and inspects once the store is readable", async ({ onTestFinished }) => {
   const h = createLifecycleHarness();
   const primary = await h.seedMeta("example", { taskList: "tasks-example.md" });
   await h.seed(recordReferences["work-item/task-list"](primary.reference.owner), taskList);
   const input = await inspectionInput(h.store, primary.reference.owner, onTestFinished);
   h.store.state.corrupt = true;
-  expect(await inspectRepositoryDeliveryEntry(input)).toMatchObject({ status: "refused",
-    reason: "review-fix-response-unavailable",
-    recommendedActionText: expect.stringContaining("Rebuild the namespace index from a saved state.") });
+  const unreadable = await h.store.read({ reference: recordReferences["work-item/task-list"](primary.reference.owner) });
+  if (unreadable.status !== "refused") throw new Error("Expected the corrupt task-list index to refuse.");
+  await expect(inspectRepositoryDeliveryEntry(input)).rejects.toMatchObject({ offBranch: true, refusal: unreadable.refusal });
   h.store.state.corrupt = false;
   expect(await inspectRepositoryDeliveryEntry(input)).toMatchObject({ status: "not-applicable" });
 });

@@ -7,12 +7,12 @@ import { materializeArcPath } from "../layout/index.js";
 import { validateManagedPath, type ManagedPath } from "../kernel/index.js";
 import type { Store } from "./contract.js";
 import type { StoreRecord } from "./read.js";
-import type { Remedy } from "./refusal.js";
+import type { Remedy, StoreRefusal } from "./refusal.js";
 import { readWorkUnit, readLifecycleMetaFields, workUnitMetaPath } from "./lifecycle-write.js";
 import { checkAdvancingPause } from "./lifecycle-pause.js";
 import { lifecycleRecordPath } from "./lifecycle-record-path.js";
 import { recordReferences, type OwnerIdentity } from "./identity.js";
-import { describeRecordConflicts } from "./conflict-diagnostics.js";
+import { describeRecordConflicts, recordConflictRefusal } from "./conflict-diagnostics.js";
 import { resolveLastCompletedTask, resolveTaskListCursor } from "../task-list/cursor.js";
 import { attestArgv, attestNewRootArgv, spineRemedy } from "../../scripts/integration/spine-refusal.js";
 import type { RecordObservation } from "./write.js";
@@ -29,7 +29,8 @@ export interface AttestInputPorts {
 /** Exact input basis retained for the publication batch. */
 type AttestInputResult = { status: "ready"; primary?: StoreRecord; metaPath: ManagedPath; metaContent: string;
   meta: ParsedMetaRecord; lifecycle: "Active" | "Integrating" | "Shipped"; taskListPath: string; taskList: string;
-  taskListObservation?: RecordObservation; lastCompleted: string | null } | { status: "rejected"; reason: string; remedy: Remedy };
+  taskListObservation?: RecordObservation; lastCompleted: string | null } | {
+    status: "rejected"; reason: string; remedy: Remedy; refusal?: StoreRefusal };
 type Metadata = { primary?: StoreRecord; metaPath: ManagedPath; metaContent: string; meta: ParsedMetaRecord };
 type Rejected = Extract<AttestInputResult, { status: "rejected" }>;
 
@@ -72,9 +73,12 @@ async function readTasks(ports: AttestInputPorts, basis: Metadata, name: string,
     if (pause.status === "rejected") return { status: "rejected", reason: pause.reason,
       remedy: pause.remedy ?? pause.refusal?.remedy ?? { text: "Repair the pause fields, then retry." } };
     const task = await ports.store.read({ reference: recordReferences["work-item/task-list"](basis.primary.reference.owner) });
-    if (task.status === "refused") return { status: "rejected", reason: task.refusal.condition, remedy: task.refusal.remedy };
-    if (task.result.conflicts.length > 0) return reject(name, newRoot,
-      `Attestation task list has unresolved conflicts.${describeRecordConflicts(task.result.conflicts)}`, "Resolve the named conflict records, then retry attestation");
+    if (task.status === "refused") return { status: "rejected", reason: task.refusal.condition,
+      remedy: task.refusal.remedy, refusal: task.refusal };
+    if (task.result.conflicts.length > 0) {
+      const refusal = recordConflictRefusal(task.result, "The task list", "attest.task-list-conflict");
+      return { status: "rejected", reason: refusal.condition, remedy: refusal.remedy, refusal };
+    }
     const path = lifecycleRecordPath(basis.primary, task.result);
     if (path === null || basis.meta.taskList !== posix.basename(path)) return reject(name, newRoot,
       `\`arc attest\` requires a canonical task-list binding for \`${name}\`.`);
