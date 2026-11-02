@@ -239,27 +239,16 @@ _Mode:_ `slice` through Phase 3 — closes on a plain resume driven end to end b
   teardown runs from the resolved primary and hands off, as does a successor start. Linked residues replace the primary
   lists, missing-folder repairs remain text-only, and absent sweeps provide no cleanup action.
 
-### `[ ]` **2.7 Compile the reminders and in-flight advisories — § 2.4, § 6.2**
+### `[x]` **2.7 Compile the reminders and in-flight advisories — § 2.4, § 6.2**
 
 - _Goal:_ The reminder, in-flight work-unit, and concurrent-workload advisories render today's text for the rows that
   carry them, each once-per-day nudge carrying the marker path and value the agent writes after orienting, and a resume
   emits every Phase 2 surface in § 6.2's order.
 
-- _Note:_ `concurrent-workload` renders on Orient, cold-start's decline path included, and on `--start`; never on the
-  signal rows, `--context`, transient resumes, the contextless husk, or the held path. Tasks 4.1.c, 4.2.c, 4.3, 4.4.a,
-  4.5.a, and 4.6 test those rows.
-
-- Build `test-first` (one behavior at a time):
-    - `reminder` renders on a primary checkout when `errandSweep.value.stale` is non-empty and the nudge fires, with
-      its marker
-    - `in-flight-work-units` renders today's list, `stale` entries only when its nudge fires, with the marker, and
-      `mergeabilityGuidance` verbatim; its `actions` are text
-    - with only `stale` in-flight entries and no nudge, nothing renders, and no marker is attached
-    - `concurrent-workload` is a note omitting a zero class; on a work-unit resume the slot is absent and nothing
-      renders
-    - `pausedWork`, `inboundBackPressure`, `errandState`'s `resume`, `inFlight`, and `residue`, and other slots'
-      `warnings` arrays render nothing
-    - a resume carrying every Phase 2 surface emits them in § 6.2's order, the cutover module's in their places
+- _Outcome:_ Added rate-limited capture and completion-tail advisories, carrying markers only for reminders actually
+  rendered. Mergeability guidance and lifecycle remedies remain text. Discovery callers opt into the workload note,
+  which omits zero classes; dormant payloads and unrelated warnings stay silent. The resume assembler emits simultaneous
+  checkout, notes, cleanup, and reminder surfaces in the shared table order, with the applicable markers preserved.
 
 ## **Phase 3:** The spine and `read-load-set`
 

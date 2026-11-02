@@ -1,7 +1,10 @@
 /** Work-unit resumes compile context and stop at the appropriate session boundary. */
 import { describe, expect, it } from "vitest";
 import { createAgendaFixtureInput, frameWithRow, workUnitRow } from "../../helpers/agenda-fixtures.js";
-import { activeSessionInit, cleanCurrentWuReconcile, derivedFrameFromActive, configSessionInit, dirtyState, domainRulesSessionInit, sessionInitFixture, userSessionInit, worktreeSync, type SessionInitProbeOverrides } from "../../helpers/session-init-fixtures.js";
+import { activeSessionInit, baseDistance, baseBranchSync, errandStateResult, workUnitStateResult, cleanCurrentWuReconcile, derivedFrameFromActive, configSessionInit, dirtyState, domainRulesSessionInit, sessionInitFixture, userSessionInit, worktreeSync, type SessionInitProbeOverrides } from "../../helpers/session-init-fixtures.js";
+import { runErrandStalenessSweep } from "../../../src/lib/session-init/errand-staleness-sweep.js";
+import { projectRenameMoveRemedy } from "../../../src/lib/session-init/lifecycle-residue-sweep.js";
+import { missingRegistrationActions } from "../../../src/lib/session-init/missing-worktree-folders.js";
 import { StaleWorktreeSweepResultSchema } from "../../../src/lib/session-init/stale-worktree-sweep-schema.js";
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import { describeStorePull } from "../../../src/lib/session-init/store-user-pull.js";
@@ -201,6 +204,66 @@ describe("agenda work-unit resume", () => {
     expect(offer).toMatchObject({ ask: "orientation", choices: [{ kind: "actions", accepts: [], then: { kind: "recompile",
       argv: ["arc", "agenda", "session-init", "--json"] } }] });
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
+  });
+
+  it("orders simultaneous checkout, notes, cleanup and reminder surfaces", async () => {
+    const config = configSessionInit();
+    config.settings["session.init_pull.base"] = "manual"; config.settings["session.init_load.notes"] = "manual";
+    const moving = { path: "/repo/old-name", head: "a".repeat(40), branch: "feat/new-name", detached: false, primary: false, folderPresent: true };
+    const move = projectRenameMoveRemedy(moving, { kind: "present", marker: { spawnedByArc: true, wuName: "new-name",
+      createdFor: { kind: "work-unit", name: "new-name" }, spawningIdentity: "andrew", createdAt: "2026-06-01T00:00:00Z",
+      renameMovePending: { oldSlug: "old-name", newSlug: "new-name", branch: moving.branch, head: moving.head, from: moving.path, to: "/repo/new-name" },
+    } }, [moving]);
+    if (move === null) throw new Error("Expected a rename fixture");
+    const sweep = StaleWorktreeSweepResultSchema.parse({ remoteEvidence: "exact", warnings: [], renameMoves: [move],
+      retirements: [{ status: "blocked", worktreePath: "/repo/retired", subject: { slug: "retired", branch: "feat/retired" }, reason: "uncommitted" }],
+      worktrees: [{ kind: "branched", branch: "feat/ended", worktreePath: "/repo/ended", decision: { action: "removable" },
+        teardown: { text: "arc teardown ended", argv: ["arc", "teardown", "ended"] } }],
+      missingFolders: [{ worktreePath: "/repo/gone", branch: "feat/gone", outcome: "missing", actions: missingRegistrationActions("/repo/gone", { locked: false, workUnitName: "gone" }) }],
+    });
+    const nudge = { shouldNudge: true, markerPath: ".arc/user/andrew/.internal/reminder", today: "2026-06-01" };
+    const agenda = await compile(await input({ config: async () => config,
+      worktree: async () => worktreeSync({ branch: "feat/work", state: "diverged", ahead: 1, behind: 2 }),
+      dirty: async () => dirtyState({ state: "dirty", fileCount: 2 }),
+      baseDistance: async () => baseDistance({ verdict: "reconcile", state: "diverged", ahead: 1, behind: 2, register: { kind: "calm", text: "Base changed." } }),
+      baseBranchSync: async () => baseBranchSync({ state: "remote-ahead", behind: 2 }),
+      hooksPath: async () => runHooksPathSessionAdvisory({ cwd: "/repo", exec: async () => ({ stdout: "/missing" }), pathExists: () => false }),
+      partialPushMarker: async () => ({ markers: [{ machineId: "sibling", lastAttemptedCommit: "b".repeat(40), attemptTimestamp: "2026-06-01T00:00:00Z" }] }),
+      compactionAdvisory: async () => ({ historyCommitCount: 501, threshold: 500, shouldSuggest: true, nudge: { ...nudge, markerPath: ".arc/user/andrew/.internal/compact" } }),
+      user: async () => userSessionInit({ state: "conflict", refState: "diverged", contentRelation: "conflicting", summary: "Contested notes", detailLines: ["Inspect both entries."] }),
+      sweep: async () => sweep,
+      orphanBranchSweep: async () => ({ remoteEvidence: "exact", orphans: [{ branch: "fix/merged", merged: true, shippedWorkUnit: null,
+        actions: [{ text: "git branch -D fix/merged", argv: ["git", "branch", "-D", "fix/merged"] }] }] }),
+      retiredSubdirs: async () => ({ candidates: [SlugSchema.parse("shipped")] }),
+      errandSweep: async () => runErrandStalenessSweep({ entries: [{ key: "captured concern", created: "2026-05-01" }], thresholdDays: 1, now: "2026-06-01T00:00:00Z" }),
+      errandState: async () => errandStateResult({ nudge }),
+      workUnitState: async () => workUnitStateResult({ inFlight: { workUnits: [{ name: "other", branch: "feat/other", state: "stale", ageDays: 4,
+        behindBase: { status: "known", value: false, remoteEvidence: "exact" } }] }, nudge: { ...nudge, markerPath: ".arc/user/andrew/.internal/wu-reminder" } }),
+    }, { next: true }));
+    const surfaces = agenda.steps.filter(step => step.type === "render" || step.type === "note");
+    expect(surfaces.map(step => step.surface)).toEqual(["header", "worktree-diverged", "base-drift", "stale-base", "hooks-path",
+      "notes-lag", "notes-compaction", "notes-conflict", "dirty", "retirements", "rename-moves", "stale-worktrees", "missing-folders", "branch-orphans",
+      "retired-subdirs", "reminder", "in-flight-work-units"]);
+    expect(surfaces.flatMap(step => step.type === "render" && step.marker ? [step.marker.path] : [])).toEqual([
+      ".arc/user/andrew/.internal/compact", ".arc/user/andrew/.internal/reminder", ".arc/user/andrew/.internal/wu-reminder",
+    ]);
+    expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
+  });
+
+  it("keeps populated dormant store surfaces and unrelated warnings out of resume orientation", async () => {
+    const baseline = await compile(await input({ user: async () => describeStorePull({ status: "noop" }) }, {}, true));
+    const agenda = await compile(await input({ user: async () => describeStorePull({ status: "noop" }),
+      pausedWork: async () => ({ items: [{ slug: SlugSchema.parse("paused"), open: false, reason: "Wait for prerequisite",
+        waitsOn: { kind: "work-unit", slug: SlugSchema.parse("prerequisite") }, marks: ["resumable"],
+        actions: [{ text: "arc resume paused", argv: ["arc", "resume", "paused"] }] }] }),
+      inboundBackPressure: async () => ({ pendingCount: 11, oldestAgeDays: 31, countThreshold: 10, ageThresholdDays: 30,
+        actions: [{ text: "Owner 'andrew' should re-triage inbound work with arc inbox work." }] }),
+      errandState: async () => errandStateResult({ residue: [{ branch: "chore/leftover", slug: "leftover", reason: "no-record-or-meta" }], warnings: ["Errand warning"] }),
+      workUnitState: async () => workUnitStateResult({ warnings: ["Work-unit warning"] }),
+      sweep: async () => StaleWorktreeSweepResultSchema.parse({ remoteEvidence: "exact", warnings: ["Cleanup warning"], worktrees: [], missingFolders: [], renameMoves: [], retirements: [] }),
+    }, {}, true));
+    expect(agenda.steps.filter(step => step.type === "render" || step.type === "note")).toEqual(
+      baseline.steps.filter(step => step.type === "render" || step.type === "note"));
   });
 
   it("ends at automatic notes synchronization before reading context", async () => {
