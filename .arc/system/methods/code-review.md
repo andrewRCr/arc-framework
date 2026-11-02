@@ -135,10 +135,11 @@ Run `arc review lane read -`, deriving the request from `arc review lane read --
 its exact head as `memberHeadObjectId`; otherwise use the caller's Candidate or Errand subject. Follow a refusal's
 remedy. Recommend only stopping or a look `payload.nextLooks` admits: its `incremental` look when it names one, or a
 complete pass, which at `ceiling-decision` needs § Ceiling override. A `disabled` lane or a `refusal` admits no look;
-surface which. When `payload.lastLook` has `coverage: incremental`, use `payload.facts` for advisory
-judgment: recommend another complete pass while the trend reads `discovering` or [review-model's re-inspection
-test][re-inspection] holds; otherwise recommend stopping. Prefer a different source for a successor pass. State the
-recommendation, its reasons, and what would change it. A complete pass never replaces a required fix check.
+surface which. When `payload.lastLook` has `coverage: incremental`, the fix checks have converged: that ends fix
+checking and says nothing about code the fixes did not touch. Apply [review-model's successor passes][successor-passes]
+to `payload.facts`, weighing the last complete pass's critical and major count, the complete-pass series, and
+[the re-inspection test][re-inspection]. Prefer a different source for a successor pass. State the recommendation,
+its reasons, and what would change it. A complete pass never replaces a required fix check.
 
 Honor an existing decision for this exact successor across unchanged re-entry. Otherwise, when recommending stopping,
 use the [stop line][stop-line] before the next look is admitted. An unavailable stop is a disclosed limit, never a clean
@@ -201,9 +202,10 @@ admission authorization or the caller's stop, without requesting a pass.
 
 For the standard lane, run the schema-derived lane read with the same exact subject and member selector. Follow a
 refusal's remedy. From `payload.facts`, show `completePasses` against `ceiling` and `fixChecksSinceLastComplete` rounds.
-Recommend another complete pass or stopping with expected signal, cost, and what would change the recommendation. An
-incremental look that `payload.nextLooks` names runs outside the ceiling and needs no override.
-The ceiling bounds autonomous spending, not advice, and the recommendation grants no pass authority.
+Recommend another complete pass or stopping by [review-model's successor passes][successor-passes], with expected
+signal, cost, and what would change the recommendation. An incremental look that `payload.nextLooks` names runs outside
+the ceiling and needs no override. The ceiling bounds autonomous spending, not advice, and the recommendation grants no
+pass authority.
 
 Render the exact consequence and any supplied `terminusAction.offer.interactionText`, then stop. Only explicit
 approval of that consequence admits its one complete pass. Re-enter the caller's same target/lane or status scope with
@@ -406,6 +408,7 @@ coordinates cannot be recovered.
 [review-model]: review-model.md
 [convergence]: review-model.md#convergence-and-permission
 [re-inspection]: review-model.md#tags-and-the-re-inspection-test
+[successor-passes]: review-model.md#successor-passes
 [code-review-author]: code-review-author.md
 [code-review-frontline]: code-review-frontline.md
 [code-review-standard]: code-review-standard.md

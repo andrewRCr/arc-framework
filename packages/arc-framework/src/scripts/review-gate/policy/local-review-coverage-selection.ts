@@ -331,7 +331,9 @@ export async function confirmErrandFixResponseApplicability(
   }
 }
 
-function localCoverageInteractionText(incrementalOffered: boolean, facts: NextPassFacts): string {
+function localCoverageInteractionText(
+  incrementalOffered: boolean, facts: NextPassFacts, retrigger: StandardReviewObligationProjection["retrigger"],
+): string {
   const bounds = incrementalOffered
     ? "A local fix check is offered first to verify the approved fixes. "
       + "A local complete pass is also offered, subject to its ceiling, but does not replace the fix check. "
@@ -339,7 +341,7 @@ function localCoverageInteractionText(incrementalOffered: boolean, facts: NextPa
       + "Check why the approved response, subject lineage, or live base and target do not prove the fix-check chain. ";
   return bounds + "After the Owner approves a listed coverage admission, re-run `arc review local prepare`. "
     + "Only a complete pass counts toward the ceiling; fix checks run outside it. This choice grants no next-pass authority.\n"
-    + nextPassConsiderations(facts).map(text => `- ${text}`).join("\n") + "\n"
+    + nextPassConsiderations(facts, retrigger).map(text => `- ${text}`).join("\n") + "\n"
     + "Give an advisory recommendation for the admitted next step. "
     + "Decide on any successor complete pass only after fix checks converge. "
     + "What do you recommend, why, and what would change your recommendation?";
@@ -411,7 +413,7 @@ export function resolveLocalReviewCoverageSelection(input: {
   const action = LocalReviewCoverageSelectionActionSchema.parse({
     schemaVersion: 1, kind: "local-review-coverage-selection", sourceId: input.sourceId,
     target: input.target, pass: input.policy.payload.pass, completedPasses, consumedPass: true, choices,
-    interactionText: localCoverageInteractionText(correctionScope !== null, input.facts),
+    interactionText: localCoverageInteractionText(correctionScope !== null, input.facts, input.standardReview.retrigger),
   });
   if (input.coverageAdmission === undefined) return { state: "coverage-required", action };
   if (!choices.some(choice => canonicalize(choice) === canonicalize(input.coverageAdmission))) {

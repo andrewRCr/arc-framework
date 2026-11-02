@@ -310,7 +310,7 @@
     "system/methods/adversarial-review.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "af65f783952bdd143cd09876cbc32c1aae29c95a27a87d5e7e9b5fe194626461"
+      "pristine_hash": "99a09b4485f43683c95a1a09657d7da09c77cded8f4ad440a5d811b83b9ebc71"
     },
     "system/methods/classify-review-risk.md": {
       "classification": "Configurable",
@@ -710,7 +710,7 @@
     "system/methods/review-model.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "4466ed604130d158f790d6e6602ce37b48517c4a649bbdc0ba519392e2da06fa"
+      "pristine_hash": "0573887916264b16fe5e0e6d553a171e319ea2dd7e42f0c74aeebd9b1c4cac50"
     },
     "system/methods/planning-review.md": {
       "classification": "Configurable",
@@ -720,7 +720,7 @@
     "system/methods/code-review.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "44b6cecb6dfef75f2d538a7edadc69a2a3547143d23c980c3fe03e5efdd8ce5f"
+      "pristine_hash": "1edb0a16e34afe513c432fc764f6249a336bd3ed06daba4c359806f86175360e"
     },
     "system/methods/verification-review.md": {
       "classification": "Configurable",
