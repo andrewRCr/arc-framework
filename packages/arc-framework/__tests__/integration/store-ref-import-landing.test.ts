@@ -203,7 +203,7 @@ it("keeps no-remote import tips while origin is unreadable and finishes after re
   };
   const result = await h.migrate();
   expect(result).toMatchObject({ status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
-    condition: expect.stringContaining("origin"), remedy: { argv: ["arc", "store", "migrate", "--import"] } } });
+    condition: expect.stringContaining(h.origin), remedy: { argv: ["arc", "store", "migrate", "--import"] } } });
   if (result.status !== "refused" || result.refusal.code !== "move-unfinished") throw new Error("Expected origin access refusal");
   expect(result.refusal.remedy.text).toMatch(/(?:restore|access|reach).*origin/iu);
   const kept = `${keptPrefix}${transientSourceRef.slice("refs/arc/".length)}`;

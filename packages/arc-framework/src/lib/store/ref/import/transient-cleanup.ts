@@ -10,6 +10,7 @@ import { IMPORT_PUBLICATION_REF, unpublishedImportClaims } from "./transient-pub
 import { listRemoteRefs } from "../remote-listing.js";
 import { captureMoveRemote, migrationTransportTarget } from "../migrate-remote-target.js";
 import { MigrationRefusal } from "../migrate-refusal.js";
+import { importCommandFailure } from "./refusal.js";
 
 /** Kept tips live in the code repository until all licensed cleanup finishes. */
 export const IMPORT_KEPT_PREFIX = "refs/arc/tmp/migrate/import/kept/";
@@ -56,8 +57,7 @@ export async function retireImportRemote(context: RefBackendContext, report: Mig
     try { report.notices.push(...await retainedRemoteNotices(context, kept)); }
     catch (error) {
       if (!(error instanceof MigrationRefusal)) throw error;
-      return cleanupRefused(`Could not read origin's transient refs: ${error.message}`,
-        "Preserve the kept tips. Restore access to origin, then rerun arc store migrate --import to list its retained transient refs and finish cleanup.");
+      return importCommandFailure(error.refusal);
     }
     return dropKeptTips(context, kept);
   }
@@ -66,7 +66,7 @@ export async function retireImportRemote(context: RefBackendContext, report: Mig
   try { refused = await retireOriginRefs(context, kept); }
   catch (error) {
     if (!(error instanceof MigrationRefusal)) throw error;
-    refused = `Could not retire origin's transient refs: ${error.message}`;
+    return importCommandFailure(error.refusal);
   }
   return refused ? typeof refused === "string" ? cleanupRefused(refused) : cleanupRefused(refused.condition, refused.remedy) : dropKeptTips(context, kept);
 }
@@ -123,7 +123,8 @@ async function captureOrigin(context: RefBackendContext) {
 
 async function originTips(context: RefBackendContext, endpoint: string, refs: string[]): Promise<Map<string, string>> {
   const listed = await listRemoteRefs(context, await migrationTransportTarget(context, endpoint, "fetch"), refs);
-  if (listed.status === "unreachable") throw new MigrationRefusal(cleanupRefused(listed.condition).refusal);
+  if (listed.status === "unreachable") throw new MigrationRefusal(cleanupRefused(listed.condition,
+    "Preserve the kept tips. Restore access to origin, then rerun arc store migrate --import to list its retained transient refs and finish cleanup.").refusal);
   return listed.tips;
 }
 

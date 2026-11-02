@@ -487,24 +487,20 @@ annotated commit.
   its callback or transaction. Stale journals delete under their captured ref lease. The interrupted rebuild clears
   its journal and keepers while preserving origin's source copy, and existing kept-tip cleanup remains intact.
 
-### `[ ]` **5.6 A publisher refusal keeps its class through source retirement — § 11.2**
+### `[x]` **5.6 A publisher refusal keeps its class through source retirement — § 11.2**
 
 - _Goal:_ A refusal thrown while source retirement verifies the publisher or reads origin reaches the import's report
   with its own class, condition, and remedy, so a terminal refusal is never reported as recoverable `move-unfinished`.
 
-    - `retireImportRemote` (`import/transient-cleanup.ts`) catches a `MigrationRefusal` around `retireOriginRefs`,
-      which `fetchMigrationRemote` or `captureMoveRemote` throws inside `unpublishedImportClaims`, and in its
-      no-publisher arm. It flattens both through `cleanupRefused`, whose `move-unfinished` the command schema admits
-      only as recoverable.
-    - Each catch returns the thrown refusal: a store refusal through `storeFailure`, a command refusal with its own
-      code and class. Its remedy is wrapped by `importRetry`, so the retry reruns `arc store migrate --import`. Both
-      helpers are private to `import/finish.ts`, which imports `transient-cleanup.ts`, so they move into a module both
-      files import.
-    - `originTips`' refusal for an unreachable origin listing carries the restore-access-to-origin remedy itself, the
-      one the no-publisher arm's catch writes today, since both catches pass the thrown refusal through.
-    - Build `test-first` (one behavior at a time): a terminal refusal thrown during publisher verification stays
-      terminal with its remedy; a recoverable one stays recoverable; the no-publisher arm keeps the thrown class, and
-      an unreachable origin there keeps the restore-access remedy; each retry's argv is `arc store migrate --import`.
+- _Note:_ The initial verification fixture produced no imported claims; a real grooming claim now makes its
+  publication journal require the identity ref and reaches publisher verification after the normal push.
+  The native held-lock diagnostic reported `reference already exists`; the assertion names its failing ref and repair.
+  Broader feedback found two legacy expectations for the cleanup wrapper's condition; they now require the
+  producer's native origin-endpoint condition, retaining their lease-preservation and repaired-retry checks.
+
+- _Outcome:_ Publisher-verification and no-publisher origin refusals retain their own codes, classes, conditions,
+  and repair instructions through the shared import refusal module, with the import continuation added. Native
+  refusal-and-repair cases retain cleanup leases and journals until retry succeeds; origin access retains its remedy.
 
 ### `[ ]` **5.7 The batch path check runs once per ref — § 11.2**
 

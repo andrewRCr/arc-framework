@@ -651,7 +651,7 @@ it("keeps the cleanup lease when origin cannot be read with no state remote, and
   await h.git("git", ["push", "origin", `${sourceRef}:${sourceRef}`]);
   h.ports.migrateStep = async (step) => { if (step === "import.transient.local-delete") await rename(h.origin, `${h.origin}.offline`); };
   expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
-    condition: expect.stringContaining("Could not read origin's transient refs"), remedy: { argv: ["arc", "store", "migrate", "--import"] } } });
+    condition: expect.stringContaining(h.origin), remedy: { argv: ["arc", "store", "migrate", "--import"] } } });
   expect((await h.git("git", ["for-each-ref", "--format=%(objectname)", keptPrefix])).stdout.trim()).toBe(tip);
   h.ports.migrateStep = async () => {};
   await rename(`${h.origin}.offline`, h.origin);

@@ -3,11 +3,12 @@ import type { Store } from "../../contract.js";
 import type { MigrateReport, StoreMigrateResult } from "../../commands.js";
 import { migrateNoticeFromPull } from "../../commands.js";
 import type { RefBackendContext } from "../context.js";
-import type { StoreRefusal, Remedy } from "../../refusal.js";
+import type { Remedy } from "../../refusal.js";
 import type { PullOutcome } from "../../sync.js";
 import { consumePull } from "../../pull-consumption.js";
 import { projectPull } from "../../operational-sync-bindings.js";
 import { retireImportLocals, retireImportRemote } from "./transient-cleanup.js";
+import { importRetry, storeFailure } from "./refusal.js";
 
 /** A retry publishes the existing landing through the same store synchronization operation. */
 export async function publishImport(context: RefBackendContext, store: Store, report: MigrateReport): Promise<StoreMigrateResult> {
@@ -41,15 +42,6 @@ function appendImportPulls(report: MigrateReport, pulls: readonly PullOutcome[])
     report.notices.push({ condition: `Read source ${pull.remote} could not be synchronized: ${pull.failure.condition}`,
       remedy: { ...pull.failure.remedy, text: `For read source ${pull.remote}: ${pull.failure.remedy.text}` } });
   }
-}
-
-function importRetry(remedy: Remedy): Remedy {
-  return { text: `${remedy.text} Then rerun arc store migrate --import to publish its existing landing.`,
-    argv: ["arc", "store", "migrate", "--import"] };
-}
-
-function storeFailure(refusal: StoreRefusal): StoreMigrateResult {
-  return { status: "refused", refusal: { code: "store", refusal: { ...refusal, remedy: importRetry(refusal.remedy) } } };
 }
 
 function unfinished(condition: string, remedy: Remedy): StoreMigrateResult {
