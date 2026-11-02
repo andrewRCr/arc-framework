@@ -3,6 +3,8 @@
 import type { AgendaAnswers, AgendaSignals } from "./schema.js";
 import { AgendaCommandInputSchema, type AgendaCommandInput } from "./input.js";
 
+const DECISION_KEY_PATTERN = /^[^\s:+]+:[^\s:+]+(?::[^\s:+]+)?$/u;
+
 /** One actionable input refusal before session probing. */
 export interface AgendaRefusal {
   code: "invalid-input";
@@ -70,7 +72,8 @@ function parseDecisions(input: AgendaCommandInput): { ok: true; answers: AgendaA
     const separator = token.lastIndexOf("=");
     const key = token.slice(0, separator);
     const answer = token.slice(separator + 1);
-    if (separator <= 0 || (answer !== "accept" && answer !== "decline")) {
+    const validKey = key === "plan-stub:" || DECISION_KEY_PATTERN.test(key);
+    if (separator <= 0 || !validKey || (answer !== "accept" && answer !== "decline")) {
       return refused(["--answered"], "Use --answered <key>=accept or --answered <key>=decline.");
     }
     const previous = answered.get(key);
@@ -80,7 +83,7 @@ function parseDecisions(input: AgendaCommandInput): { ok: true; answers: AgendaA
     answered.set(key, answer);
   }
   for (const id of input.done ?? []) {
-    if (!/^[^\s:+]+:[^\s:+]+(?::[^\s:+]+)?$/u.test(id)) {
+    if (!DECISION_KEY_PATTERN.test(id)) {
       return refused(["--done"], "Use --done <surface>:<action>, optionally followed by :<operand>.");
     }
   }

@@ -42,6 +42,17 @@ describe("agenda invocation parsing", () => {
     "refuses malformed completed id %s", value => { refused({ done: [value] }, ["--done"]); },
   );
 
+  it.each(["garbage", " ", ":pull", "notes:", "notes:pull:", "notes:pull:one:two", "notes:pull+worktree:pull"])(
+    "refuses malformed answered key %s", key => { refused({ answered: [`${key}=accept`] }, ["--answered"]); },
+  );
+
+  it.each(["plan-stub:", "notes:pull", "branch-gone:resolved:example", "materialize:a%2Bb%3Ac", "plan-stub:a=b"])(
+    "preserves a valid individual answered key %s", key => {
+      expect(parseAgendaInput(input({ answered: [`${key}=decline`] })))
+        .toMatchObject({ ok: true, answers: { answered: { [key]: "decline" } } });
+    },
+  );
+
   it("accepts bare errand-next", () => {
     expect(parseAgendaInput(input({ errand: true, next: true }))).toEqual({
       ok: true, signals: { errand: true, next: true }, answers: { answered: {}, done: [] },
