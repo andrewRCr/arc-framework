@@ -84,8 +84,9 @@ execution closeout loads `verify-work-unit` without a strategic task-list slice.
 
 ### Probe pattern
 
-Session-init consumes ARC state through a **composite probe** rather than orchestrating individual file reads
-and subprocess calls:
+The CLI acquires ARC state through a **composite probe** shared by inspection and compiled session entry:
+`arc status --session-init --json` exposes the envelope, while `arc agenda session-init --json` compiles its results
+into executable steps.
 
 - **Non-destructive** — read-only, no mutations, no user prompts
 - **Harness-first** — agent-consumed via `--json`, not CLI-interactive
@@ -93,9 +94,9 @@ and subprocess calls:
   and active-meta-file resolution in a single envelope. Fans out to slot probes via `Promise.all`; each slot
   wraps into a typed `Probe<T>` union so one slot's failure doesn't invalidate the others
 
-Standalone probe commands (`arc user status`, `arc config status`, `arc active
-status`) share the same implementations and are available for debugging and CI. Session-init uses only the
-composite.
+Standalone probe commands (`arc user status`, `arc config status`, `arc active status`) share the same
+implementations and remain available for debugging and CI. The agenda compiler reads the shared composition;
+the executing session follows the agenda rather than interpreting probe slots.
 
 #### Remote access boundary
 
@@ -141,9 +142,9 @@ The same machinery underlies the session-handoff probe (`arc status --session-ha
 
 #### Handoff envelope fields
 
-The `arc status --session-handoff --json` envelope carries seven probe slots plus identity. Each slot
-wraps in the same `Probe<T>` discriminated union as session-init; per-slot failures surface in the error
-branch rather than rejecting the composite. Mirrors the session-init field table in `session-init.md`.
+The `arc status --session-handoff --json` envelope carries identity and typed probe slots. Each slot wraps in the
+same `Probe<T>` discriminated union as session-init; per-slot failures surface in the error branch rather than
+rejecting the composite. Shared session-entry slot shapes are served by `arc schema get session-init-envelope`.
 
 | Field            | Contents                                                                                                                                                                 |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -169,18 +170,18 @@ Consumer plans extending the probe envelope add a field by registering a slot. T
 
 - **Each slot is a typed `Probe<T>` union.** `ok: true` carries `value: T`; `ok: false` carries an error
   payload. One slot's failure surfaces in that slot only; sibling slots resolve independently.
-- **Slot resolvers are non-destructive.** Read-only, no mutations, no user prompts. Side effects (e.g.,
-  pulling notes) belong in the consuming workflow after the agent reads the probe — not inside the
-  resolver.
+- **Slot resolvers are non-destructive.** Read-only, no mutations, no user prompts. Side effects such as pulling
+  notes belong in explicit agenda actions or the consuming workflow after state acquisition, not in the resolver.
 - **Slots fan out via `Promise.all`.** The composite waits for all slots before returning the envelope;
   individual slot failures don't block the others.
 - **Mode-aware field selection.** A slot may participate in `--session-init`, `--session-handoff`, both,
   or neither. The mode flag (passed to the composite) selects which slots fire; resolvers themselves
   remain mode-agnostic.
 
-The same field-resolver machinery serves both modes. Adding a probe is structural extension — register
-the slot and declare the mode(s) it serves — not session-init workflow prose changes. Workflows consume
-the envelope uniformly.
+The same field-resolver machinery serves both modes. The agenda compiler is another reader of session-init
+composition, not another slot resolver. An extension registers its slot and modes, then adds the compiler handling
+that carries any new session-entry behavior into steps. The spine continues executing the same step vocabulary;
+other workflows consume their envelopes directly.
 
 ---
 
@@ -216,10 +217,10 @@ Each tier has established mechanisms for how content enters agent context:
 
 ### Session initialization (T1 + T2)
 
-The [session-init workflow][session-init] prescribes upfront loading of constitutional and state
-documents in a defined order. This is a bulk load — deterministic, ordered, and complete before
-work begins. The load order (general → specific) ensures each document is understood in the
-context of what came before.
+The [session-init workflow][session-init] executes a compiled agenda. Its `read` steps carry each path, read mode,
+group, and any task cursor; `read-load-set` executes them in manifest order, grouping independent reads together.
+The compiler selects universal and state-specific context for the entering row, so each session loads only its
+required context before reaching the emitted question or gate.
 
 ### Workflow-embedded directives (T3)
 
@@ -333,15 +334,10 @@ targets resolve via paths relative to the file's directory (`system/methods/`).
 
 ### Session-Init Consumption
 
-**Methods — no init read.** Method bodies (`.override` + `.default`) load at the direct workflow or method
-fire-point declared in that consumer's `arc.methods` frontmatter. Workflow declarations root the transitive graph;
-method declarations carry their own dependencies. Session-init does not inspect `override-active` — the agent-side
-compliance rule ([DEV-RULES.ARC][dev-rules-arc] § Method loading) plus declared fire-points make
-init-time override-presence surfacing unnecessary.
-
-**Agent-file active gate.** An `active` frontmatter flag applies to agent-specific files that session-init loads
-unconditionally: `grep -m 1 "^active:"` retrieves the flag without reading the body, and the body is read only when
-`active: true`. This gates consumption of a single known file's body.
+**Methods — at their reached fire-points.** Method bodies (`.override` + `.default`) load when the workflow or method
+body reaches their invocation. Workflow declarations root the transitive graph; methods carry their own dependencies.
+Session-init fires methods through its read rule and `fragment` steps. It does not scan `override-active`; the
+agent-side compliance rule ([DEV-RULES.ARC][dev-rules-arc] § Method loading) and direct fire-points govern consumption.
 
 ### Method Classification by Trigger
 

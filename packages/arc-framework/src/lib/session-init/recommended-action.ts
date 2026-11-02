@@ -3,8 +3,8 @@
  *
  * Pure helper: takes resolved worktree/user/dirty signals plus the relevant
  * `session.init_pull.*` policies and returns the action verb plus composed
- * prompt text per channel. The session-init workflow renders the strings
- * verbatim instead of re-deriving them from state×config conditionals.
+ * prompt text per channel. Entry compilation consumes these recommendations
+ * and carries their text instead of deriving state-by-policy decisions again.
  *
  * @module
  */
@@ -39,9 +39,9 @@ type SessionBaseDistanceStatus = BaseDistanceStatusResult | BaseDistanceSnapshot
 type SessionBaseBranchStatus = BaseBranchSyncStatusResult | BaseBranchSnapshotAnalysisResult;
 
 /**
- * Action verb the session-init workflow performs on a sync-pull channel.
+ * Recommended channel disposition consumed by entry compilation.
  *
- * - `pull` — fire the channel's pull immediately (notes-only `always` mode).
+ * - `pull` — recommend an automatic channel action when policy and evidence permit.
  * - `prompt` — issue the prompt; a non-empty `recommendedPromptText` accompanies.
  * - `surface` — surface the channel's state in orientation; do not prompt or pull.
  * - `skip` — channel is in a no-action state.
@@ -676,7 +676,7 @@ function composeCombinedPrompt(
  * Infer the per-channel recommended actions and the combined-prompt text.
  *
  * Pure: no IO, no side effects. Call sites supply resolved probe results;
- * this helper composes the workflow-renderable strings from them.
+ * this helper composes the entry-renderable strings from them.
  */
 export function inferSessionInitRecommendations(
   input: RecommendationInput,

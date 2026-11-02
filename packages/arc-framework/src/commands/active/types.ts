@@ -3,8 +3,7 @@
  *
  * The discriminated union on `mode` separates the full enumeration view
  * (per-WU state for general consumers) from the session-init-scoped
- * resolution shape (path / null / candidate list) consumed by the agent
- * harness to populate session-init.md Step 3 item 7.
+ * resolution shape (path / null / candidate list) used by composed entry reads.
  */
 
 import type { z } from "zod";
@@ -24,20 +23,7 @@ export type ActiveLayout = "full";
 /** Resolution state of the session-init-scoped probe. */
 export type ActiveSessionInitResolution = "none" | "single" | "multiple";
 
-/**
- * Resolved session type — drives session-init's per-type loadset (Step 3
- * items 9–10). Inferred from active state.
- *
- * - `planning` — between work units, or no task list yet.
- * - `execution` — task list present, regular task work.
- * - `integration` — lifecycle `State` is `Integrating`.
- *
- * `null` is reserved for two cases at the envelope:
- *
- * - `resolution: "multiple"` — agent must disambiguate before computing type.
- * - Orphan: no candidate (or candidate has empty State) and the current
- *   branch does not match the planning-branch pattern.
- */
+/** Resolved session phase carried by active-context projections. */
 export type SessionType = "planning" | "execution" | "prepublication" | "integration";
 
 /**
@@ -48,7 +34,7 @@ export type SessionType = "planning" | "execution" | "prepublication" | "integra
 export interface MetaFileCandidate {
   /** Path relative to cwd — e.g. `.arc/active/meta-foo.md`. */
   path: string;
-  /** Basename — e.g. `meta-foo.md`. Used by session-init's SESSION-NOTES-first precedence. */
+  /** Basename — e.g. `meta-foo.md` — identifying the candidate independently of its directory. */
   filename: string;
   branch: string | null;
   candidateId?: string | null;
@@ -79,12 +65,13 @@ export interface ActiveStatusResult {
 }
 
 /**
- * Session-init-scoped result — maps to session-init.md Step 3 item 7.
+ * Active-namespace resolution evidence for session entry.
  *
- * - `resolution === "none"`: no active work unit (`path` is `null`).
- * - `resolution === "single"`: one candidate resolved (`path` populated).
- * - `resolution === "multiple"`: agent applies SESSION-NOTES / branch / state
- *   precedence over `candidates` before prompting.
+ * - `none`: no resolved candidate path.
+ * - `single`: one candidate resolved and its path populated.
+ * - `multiple`: an unresolved candidate inventory.
+ *
+ * The composition layer owns the bound checkout and subject used for context.
  */
 export type ActiveSessionInitResult = z.infer<typeof ActiveSessionInitResultSchema>;
 

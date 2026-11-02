@@ -513,36 +513,23 @@ tier pass against the new text.
         - Removed template fill-time guidance, moved brief examples into the shipped setup step, and corrected
           rule paths. Shared footer/pointer cuts apply to filled copies; project-specific guidance is preserved.
 
-### `[ ]` **5.3 Retarget the remaining shipped readers — § 12**
+### `[x]` **5.3 Retarget the remaining shipped readers — § 12**
 
 - _Goal:_ Every § 12 reader not retargeted with its arm describes the agenda-driven session correctly in both copies,
   and no source comment cites a section the spine removed.
 
-- _Note:_ `run-errand.md` and `draft-design.md` moved with their arms (Task 4.2), `session-recover.md` with
-  `read-load-set` (Task 3.1), and `assess-parallel-fit.md` with `discover-next-work` (Task 4.5).
+    - `[x]` **5.3.a The loading-model readers**
+        - Retargeted probe composition, extension, loading, and method guidance to the agenda; removed the inactive
+          agent-file gate. Configuration documents distinguish entry settings from later operation-specific reads,
+          and domain diagnostics arrive as notes.
 
-    - `[ ]` **5.3.a The loading-model readers**
-        - `strategy-session-operations.md` § Probe pattern, § Extension contract, § Handoff envelope fields (its pointer
-          to the session-init field table points at `arc schema get session-init-envelope`), § Loading Mechanisms
-          § Session initialization, and § Session-Init Consumption, whose "Agent-file active gate" describes a load no
-          workflow performs and leaves with the rewrite
-        - `system/methods/README.md`'s loading model; `strategy-configurability-architecture.md`'s configuration
-          source; `reference/briefs/README.md`'s pointer
-        - `template-dev-rules.md`'s domain-rules warning, which now arrives as a `note`
+    - `[x]` **5.3.b The lifecycle and configuration readers**
+        - Updated the residual inbox backstop, handoff hint, inline sync policies, and ordinary contributor entry
+          in both copies; contributor notes use the per-work-unit path and configuration values remain intact.
 
-    - `[ ]` **5.3.b The lifecycle and configuration readers**
-        - `init-work-unit.md`'s inbox backstop reads the agenda's residual `inboxState`, keeping the fresh probe as the
-          fallback; `session-handoff.template.md`'s Next Task drops the graduated-lookup clause
-        - `arc-config.yml` in both copies: the four `session.init_pull` and `session.init_load` comments describe their
-          policies in place, and the base policy's `always` line drops "(refused on a dirty tree)"
-        - `AGENT-BRIEF.CONTRIBUTOR.md`: the ordinary path with the brief among the universal reads and the per-work-unit
-          session notes
-        - Re-pin any test reading the changed text
-
-    - `[ ]` **5.3.c The source comments**
-        - Rewrite the comments that cite session-init's removed steps to say what the code does:
-          `commands/active/types.ts`, `commands/active/status.ts`, `commands/status/types.ts`, `lib/load-set/types.ts`,
-          and `lib/session-init/recommended-action.ts`, with no workflow, step, or `§` reference
+    - `[x]` **5.3.c The source comments**
+        - Replaced retired-step citations and stale consumer descriptions across the five source modules;
+          comment-free TypeScript syntax is unchanged.
 
 ### `[ ]` **5.4 Measure the done-signal — Success Criteria 1–3**
 
