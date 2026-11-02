@@ -1,4 +1,4 @@
 @AGENTS.md
 
-Do not call `advisor` during deterministic ARC workflows (session init, handoff, commit ceremonies, task loop);
-reserve it for design forks or stuck debugging.
+Do not call `advisor` during deterministic ARC workflows (session init or recovery, handoff, commit ceremonies); reserve
+it for design forks, including in implementation, and stuck debugging.
