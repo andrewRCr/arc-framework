@@ -5,6 +5,7 @@ import { expect, it } from "vitest";
 import { repairCliFixture, repairCli } from "../helpers/repair-cli.js";
 import { readWorktreeLock } from "../helpers/worktree-lock.js";
 import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+import { quoteShellArgument } from "../../src/lib/release/commit-message-retry.js";
 
 const TIMEOUT_MS = 30_000;
 
@@ -52,5 +53,5 @@ it("keeps a lock another tool set on the spawned checkout first and warns naming
   const warning = opened.stderr.split("\n").find((line) => line.startsWith("warning: ")) ?? "";
   expect(warning, opened.stderr).toContain(path);
   expect(warning).toContain("provisioning-tool");
-  expect(warning).toContain(`git worktree unlock ${path}`);
+  expect(warning).toContain(`git worktree unlock ${quoteShellArgument(path)}`);
 }, TIMEOUT_MS);

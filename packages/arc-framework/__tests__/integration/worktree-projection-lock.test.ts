@@ -7,6 +7,7 @@ import { afterEach, expect, it } from "vitest";
 import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integration.js";
 import { readWorktreeLock } from "../helpers/worktree-lock.js";
 import { makeGitProcessError } from "../helpers/git-exec-fake.js";
+import { quoteShellArgument } from "../../src/lib/release/commit-message-retry.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import {
   lockSpawnedCheckout, passingProjectionRemovalSlots, PROJECTION_LOCK_REASON, removeWorktreeCheckout,
@@ -94,7 +95,7 @@ it("names a relock that fails in the failed result, with the remedy of locking t
   const beforeRetire = async () => { if (++retires === 2) await writeFile(join(h.path, "late-work.txt"), "arrived after the check\n"); };
   const failed = await removeWorktreeCheckout({ exec, checkoutPath: h.path, primaryWorktreePath: h.root, beforeRetire });
   expect(failed).toMatchObject({ kind: "failed", step: "remove" });
-  expect(failed.kind === "failed" ? failed.detail : "").toContain(`git worktree lock --reason "${PROJECTION_LOCK_REASON}" ${h.path}`);
+  expect(failed.kind === "failed" ? failed.detail : "").toContain(`git worktree lock --reason ${quoteShellArgument(PROJECTION_LOCK_REASON)} ${quoteShellArgument(h.path)}`);
   expect(await readWorktreeLock(h.exec, h.path)).toBeUndefined();
 });
 
