@@ -50,7 +50,8 @@ describe("checkout-only signal entry", () => {
     const unavailable = async (): Promise<never> => { throw new Error("Unused discovery probe denied"); };
     const { input } = await createSignalAgendaFixture(undefined, {
       dirty: async () => { throw new Error("Checkout dirty probe denied"); },
-      domainRules: unavailable, sweep: unavailable, workUnitState: unavailable,
+      domainRules: async () => { throw new Error("Domain inspection denied"); },
+      sweep: unavailable, workUnitState: unavailable,
       roster: async () => rosterResult({ entries: [{ worktreePath: "/wt/other", branch: "feat/other",
         metaFilePath: "/wt/other/.arc/active/meta-other.md", class: "Heavy" }] }),
     });
@@ -63,6 +64,7 @@ describe("checkout-only signal entry", () => {
     const surfaces = agenda.steps.filter(step => step.type === "render" || step.type === "note");
     expect(surfaces).toEqual(expect.arrayContaining([
       expect.objectContaining({ surface: "degraded-slot", text: expect.stringContaining("Checkout dirty probe denied") }),
+      expect.objectContaining({ surface: "degraded-slot", text: expect.stringContaining("Domain inspection denied") }),
     ]));
     expect(surfaces.some(step => step.text.includes("Unused discovery probe denied"))).toBe(false);
     expect(surfaces.filter(step => ["domain-rules", "concurrent-workload", "reminder", "in-flight-work-units",

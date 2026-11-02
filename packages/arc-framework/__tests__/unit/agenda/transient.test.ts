@@ -62,10 +62,10 @@ describe("transient session entry", () => {
   });
 
 
-  it("limits degradation to checkout dependencies and suppresses discovery workload", async () => {
+  it("keeps universal and checkout diagnostics while suppressing discovery workload", async () => {
     const { input } = await createTransientAgendaFixture("groom", {
       dirty: async () => { throw new Error("Checkout inspection denied"); },
-      domainRules: async () => { throw new Error("Unused domain inspection denied"); },
+      domainRules: async () => { throw new Error("Domain inspection denied"); },
       roster: async () => rosterResult({ entries: [{ worktreePath: "/wt/other", branch: "feat/other",
         metaFilePath: "/wt/other/.arc/active/meta-other.md", class: "Heavy" }] }),
     });
@@ -76,8 +76,8 @@ describe("transient session entry", () => {
     expect(surfaces.filter(step => step.surface === "concurrent-workload")).toEqual([]);
     expect(surfaces).toEqual(expect.arrayContaining([
       expect.objectContaining({ surface: "degraded-slot", text: expect.stringContaining("Checkout inspection denied") }),
+      expect.objectContaining({ surface: "degraded-slot", text: expect.stringContaining("Domain inspection denied") }),
     ]));
-    expect(surfaces.some(step => step.text.includes("Unused domain inspection denied"))).toBe(false);
   });
 
 });

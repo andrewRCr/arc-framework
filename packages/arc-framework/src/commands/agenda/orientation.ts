@@ -28,7 +28,8 @@ export const ORIENTATION_SURFACE_ORDER = [
   "materializable-work-units", "materializable-errands", "housekeep", "concurrent-workload",
 ] as const;
 const ORDER = new Map<string, number>(ORIENTATION_SURFACE_ORDER.map((id, index) => [id, index]));
-const RESUME_SLOTS = ["worktree", "dirty", "baseDistance", "baseBranchSync", "user", "config", "domainRules", "hooksPath",
+const UNIVERSAL_DIAGNOSTIC_SLOTS = ["config", "domainRules"] as const;
+const RESUME_SLOTS = ["worktree", "dirty", "baseDistance", "baseBranchSync", "user", ...UNIVERSAL_DIAGNOSTIC_SLOTS, "hooksPath",
   "currentWuReconcile", "userReferenceReconcile", "deliveryPosition", "currentHusk", "partialPushMarker", "compactionAdvisory",
   "retiredSubdirs", "sweep", "orphanBranchSweep", "errandSweep", "errandState", "workUnitState"] as const;
 
@@ -50,12 +51,12 @@ export function compileCheckoutSessionOrientation(input: AgendaCompileInput, cha
   const sync = compileSyncState(input, channels);
   const steps: AgendaStep[] = [renderHeader(input), ...publishedSurfaces(input)
     .filter(step => (step.type === "render" || step.type === "note") && (step.surface === "hooks-path" || step.surface === "store-sync")),
-  ...sync.unsettled, ...compileUnconsumedSignals(input, consumed)];
+  ...compileDomainRuleWarnings(input), ...sync.unsettled, ...compileUnconsumedSignals(input, consumed)];
   const locus = renderLocus(input.envelope);
   if (locus !== null) steps.push(locus);
   const answered = renderAnswered(input);
   if (answered !== null) steps.push(answered);
-  for (const name of ["worktree", "dirty", "baseDistance", "baseBranchSync", "user", "hooksPath",
+  for (const name of ["worktree", "dirty", "baseDistance", "baseBranchSync", "user", ...UNIVERSAL_DIAGNOSTIC_SLOTS, "hooksPath",
     "partialPushMarker", "compactionAdvisory", "retiredSubdirs"] as const) {
     const degraded = renderDegradedSlot(name, input.envelope[name]);
     if (degraded !== null) steps.push(degraded);
@@ -73,12 +74,16 @@ export function compileCoreOrientation(input: AgendaCompileInput, findings: Extr
     const degraded = renderDegradedSlot(name, input.envelope[name]);
     if (degraded !== null) steps.push(degraded);
   }
-  const domain = input.envelope.domainRules;
-  if (domain.ok) for (const text of domain.value.warnings) steps.push({ type: "note", surface: "domain-rules", text });
+  steps.push(...compileDomainRuleWarnings(input));
   const answered = renderAnswered(input);
   if (answered !== null) steps.push(answered);
   steps.push(...sync.unsettled, ...compileUnconsumedSignals(input, consumed));
   return steps.flatMap(step => step.type === "render" || step.type === "note" ? [{ id: step.surface, steps: [step] }] : []);
+}
+
+function compileDomainRuleWarnings(input: AgendaCompileInput): AgendaStep[] {
+  const domain = input.envelope.domainRules;
+  return domain.ok ? domain.value.warnings.map(text => ({ type: "note", surface: "domain-rules", text })) : [];
 }
 
 function renderHeader(input: AgendaCompileInput): AgendaStep {
