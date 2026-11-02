@@ -477,10 +477,16 @@ type DeliverySelectionResult = {
 } & ({ kind: "selected"; selected: DeliveryMemberSelection } | { kind: "empty" }
   | { kind: "failed"; error: unknown; context: FrontlineFailureContext; selecting: boolean });
 
+function savedScopeExamined(saved: ReviewTarget | undefined, targets: readonly (ReviewTarget | null)[]): boolean {
+  return saved === undefined || targets.some(target => target !== null && canonicalize(target) === canonicalize(saved));
+}
+
 async function selectDeliveryReviewMember(input: {
   targets: readonly PreBindingDeliveryReviewTarget[];
   repository: string;
   native: boolean;
+  scopeJudgmentTarget?: ReviewTarget;
+  onExamined(target: ReviewTarget): void;
   judgment: ReviewLaneJudgment | undefined;
   composeFrontline(target: ReviewPolicyTarget, exact: ReviewTarget, lineage: LaneSubjectLineage,
     judgment: ReviewLaneJudgment | undefined, state: LaneCompositionState): Promise<ReviewPolicyRequest>;
@@ -493,6 +499,7 @@ async function selectDeliveryReviewMember(input: {
   // Stored decisions select the member before caller grants bind to that one exact subject.
   for (const member of input.targets) {
     examinedTargets.push(member.target);
+    input.onExamined(member.target);
     const policyTarget = { repository: input.repository, pullRequest: null, headSha: member.target.headSha };
     const lineage: LaneSubjectLineage = { kind: "delivery-member", planId: member.vehicle.planId,
       deliverableId: member.vehicle.deliverableId, workUnitId: member.vehicle.workUnitId };
@@ -511,7 +518,8 @@ async function selectDeliveryReviewMember(input: {
   if (input.native) {
     try {
       selected.frontline = await input.composeFrontline(selected.policyTarget, selected.exactTarget,
-        selected.lineage, input.judgment, { ...laneState, advisories: [] });
+        selected.lineage, savedScopeExamined(input.scopeJudgmentTarget, examinedTargets)
+          ? input.judgment : withoutExtraPassGrants(input.judgment), { ...laneState, advisories: [] });
     } catch (error) {
       return { ...result, kind: "failed", error, context: [selected.policyTarget, selected.exactTarget,
         [selected.exactTarget.headSha], selected.lineage], selecting: false };
@@ -676,8 +684,13 @@ export async function composePrePublicationReviewRequest(
       : { progress: rawProgress, sameHeadCandidate: undefined };
     refusePendingLaneReview(progress, lane);
     if (progress.status === "unrecorded") state.advisories.push(unrecordedLaneAdvisory(lane));
+    const savedScopeCurrent = savedScopeExamined(input.scopeJudgmentTarget, [...examinedTargets, exactTarget]);
+    const boundFrontlineElsewhere = lane === "frontline" && input.frontlineCeilingHeadSha !== undefined
+      && input.frontlineCeilingHeadSha !== policyTarget.headSha;
+    const admittedJudgment = savedScopeCurrent && !boundFrontlineElsewhere
+      ? callerJudgment : withoutExtraPassGrants(callerJudgment);
     const judged = await composePrePublicationLaneJudgment({ candidate, lane, lineage, policyTarget, exactTarget, progress,
-      judgment: callerJudgment, dependencies });
+      judgment: admittedJudgment, dependencies });
     state.judgedPasses[lane] = judged.completedPasses;
     return { ...judged, rawProgress, progress, sameHeadCandidate };
   };
@@ -800,13 +813,14 @@ export async function composePrePublicationReviewRequest(
   if (deliveryTargets.status === "composed") {
     const selection = await selectDeliveryReviewMember({ targets: deliveryTargets.targets, repository: target.repository,
       native: dependencies.resolveExtraPassJudgment !== undefined, judgment: lanes.data.frontline,
+      scopeJudgmentTarget: input.scopeJudgmentTarget,
+      onExamined: target => { examinedTargets.push(target); },
       composeFrontline: (memberTarget, exact, lineage, judgment, state) => composeLane("frontline", memberTarget,
         exact, [exact.headSha], lineage, judgment, state) });
     advisories.push(...selection.advisories);
     Object.assign(laneState.terminalAttempts, selection.laneState.terminalAttempts);
     Object.assign(pendingSources, selection.laneState.pendingSources);
     Object.assign(judgedPasses, selection.laneState.judgedPasses);
-    examinedTargets.push(...selection.examinedTargets);
     if (selection.kind === "failed") return refuseFrontline(selection.error, selection.context, selection.selecting);
     if (selection.kind === "empty") return { status: "refused",
       reason: "The canonical delivery plan produced no private review members." };

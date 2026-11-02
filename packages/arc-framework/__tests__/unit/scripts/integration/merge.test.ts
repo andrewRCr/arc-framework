@@ -1074,14 +1074,21 @@ async function nativeLandingMerge(completed = false) {
   const meta = await h.seedMeta("example", { state: completed ? "Shipped" : "Integrating",
     currentWorkflow: completed ? null : "integrate-work-unit" },
     completed ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" }, links);
+  const uid = meta.reference.owner.type === "work-item" ? meta.reference.owner.uid : undefined;
+  if (uid === undefined) throw new Error("Expected work-item UID");
   const production = createIntegrationMergeDependencies({ cwd: "/unused", exec: scriptGitExec([]).exec,
     workUnit: "example", store: h.store, projectId: h.projectId, workItem: meta.reference.owner });
   const { value, state } = dependencies();
+  const readCheckpoint = value.readCheckpoint;
+  value.readCheckpoint = async (...args) => {
+    const checkpoint = await readCheckpoint(...args);
+    return checkpoint === null ? null : { ...checkpoint, nativeOwnership: { projectId, workItemUid: uid } };
+  };
   value.writeLandingCommit = production.writeLandingCommit;
   value.readMerged = async () => state.merged
     ? { merged: true, providerMergeId: oid("d") } : { merged: false, providerMergeId: null };
   value.mergePinned = async target => { state.merged = true; return { state: "merged", target, providerMergeId: oid("d") }; };
-  return { ...h, meta, projectId, links, value, state };
+  return { ...h, meta, projectId, links, value, state, production, uid };
 }
 
 it.each([false, true])("records the native landing commit with project identity and retained links (completed: %s)", async completed => {
@@ -1138,4 +1145,28 @@ it("keeps repository merge success free of native landing-link state", async () 
   const result = await mergeIntegration(request, value);
   expect(result.state).toBe("merged");
   expect(result).not.toHaveProperty("payload.landingLink");
+});
+
+it.each(["missing", "project", "generation"] as const)("refuses unmerged %s ownership before settlement or host mutation, then continues after repair", async fault => {
+  const h = await nativeLandingMerge();
+  const original = h.value.readCheckpoint;
+  h.value.readCheckpoint = async (...args) => {
+    const record = await original(...args);
+    if (record === null) throw new Error("Expected checkpoint");
+    return { ...record, nativeOwnership: fault === "missing" ? undefined : {
+      projectId: fault === "project" ? "123e4567-e89b-42d3-a456-426614174088" : h.projectId,
+      workItemUid: fault === "generation" ? "123e4567-e89b-42d3-a456-426614174077" : h.uid,
+    } };
+  };
+  h.value.validateCheckpointOwnership = h.production.validateCheckpointOwnership;
+  let effects = 0;
+  const settle = h.value.executeSettlement, hold = h.value.holdLock, release = h.value.releaseLock;
+  h.value.executeSettlement = async record => { effects++; return settle(record); };
+  h.value.holdLock = async target => { effects++; return hold(target); };
+  h.value.releaseLock = async target => { effects++; return release(target); };
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "blocked", reason: "operation-failed" });
+  expect(effects).toBe(0);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+  h.value.readCheckpoint = original;
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: { landingLink: { state: "written" } } });
 });

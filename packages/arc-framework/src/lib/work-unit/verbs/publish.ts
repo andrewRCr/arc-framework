@@ -155,6 +155,8 @@ export interface PublishParams {
   candidateId: string;
   /** Exact reviewable-subject digest the durable review boundary must have been written for. */
   candidateSubjectDigest: string;
+  /** Opaque Candidate version read before asynchronous subject projection, when native. */
+  candidateVersion?: string | null;
   /** Whether the managed Candidate lineage still matches the current reviewable subject. */
   candidateCurrent: boolean;
   /** Durable pre-publication boundary reduced from review evidence. */
@@ -164,6 +166,7 @@ export interface PublishParams {
     candidateId: string;
     candidateSubjectDigest: string;
     candidateCurrent: boolean;
+    candidateVersion?: string | null;
   }>;
   /** Re-read the live Candidate standard-lane owner before relying on saved readiness. */
   readStandardLaneOwnerVersion(): Promise<number>;

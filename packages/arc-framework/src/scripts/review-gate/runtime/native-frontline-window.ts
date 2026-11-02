@@ -1,7 +1,8 @@
 /** Immutable skip decisions close the selected vehicle's opening frontline window. */
+import type { ReviewLaneJudgment } from "../policy/review-policy-driver.js";
 import { resolveIdentity } from "../../../lib/git/identity.js";
 import { readCandidateRecord } from "../../../lib/store/kinds/review/candidate/access.js";
-import { ReviewDecisionSchema } from "../../../lib/store/kinds/review/decision/schema.js";
+import { ReviewDecisionSchema, type ReviewDecision } from "../../../lib/store/kinds/review/decision/schema.js";
 import { reviewDecisionKey } from "../../../lib/store/kinds/review/decision/key.js";
 import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "../core/lane-admission.js";
 import type { NativeReviewFactPorts } from "../core/ports.js";
@@ -60,36 +61,68 @@ export async function nativeFrontlineWindowSkipped(facts: NativeReviewFactPorts,
   }
   const listing = await facts.decisions.list();
   if (listing.status !== "complete") throw reviewFactListingError(listing);
+  const withdrawn = new Set(listing.records.flatMap(({ value }) => value.choice.kind === "withdrawal" ? [value.choice.decisionKey] : []));
   return listing.records.some(({ value }) => value.lane === "frontline" && value.choice.kind === "lane-skip"
+    && !withdrawn.has(reviewDecisionKey(value))
     && input.lineages.some(lineage => laneSubjectOwnerMatches(value.subject.lineage, lineage)));
 }
 
+async function approvedFixPassConsumed(facts: NativeReviewFactPorts, key: string): Promise<boolean> {
+  const outcomes = await facts.outcomes.list();
+  if (outcomes.status !== "complete") throw reviewFactListingError(outcomes);
+  return outcomes.records.some(({ value }) => value.admittedBy === key
+    && (value.outcome === "clean" || value.outcome === "findings"));
+}
+
+type ExtraPassChoice = Extract<ReviewDecision["choice"], { kind: "extra-pass" }>;
+type ApprovedFixChoice = ExtraPassChoice & { precondition: Extract<ExtraPassChoice["precondition"], { kind: "approved-fix" }> };
+
+function matchingApprovedFix(value: ReviewDecision, input: Parameters<typeof readNativeApprovedFixPassJudgment>[1]):
+  value is ReviewDecision & { choice: ApprovedFixChoice } {
+  const choice = value.choice;
+  return choice.kind === "extra-pass" && choice.precondition.kind === "approved-fix"
+    && value.lane === input.lane && choice.passCount === input.passCount
+    && laneSubjectOwnerMatches(value.subject.lineage, input.lineage)
+    && choice.precondition.repositoryId === input.repositoryId
+    && (input.producerId === undefined || choice.precondition.producerId === input.producerId);
+}
+
 /** Observe a live performed-fix grant that continues the current subject beyond its producer's original cap. */
-export async function nativeFrontlineCapContinues(facts: NativeReviewFactPorts, input: {
-  repositoryId: string; lineage: LaneSubjectLineage; producerId: string; passCount: number; headSha: string;
+export async function readNativeApprovedFixPassJudgment(facts: NativeReviewFactPorts, input: {
+  repositoryId: string; lineage: LaneSubjectLineage; lane: "frontline" | "standard"; producerId?: string; passCount: number; headSha: string;
   confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
-}): Promise<boolean> {
+}): Promise<ReviewLaneJudgment["ceilingOverride"]> {
   if (await facts.readProjectId() !== input.repositoryId) {
     throw new Error("Restore the review subject's project identity before reading its frontline continuation.");
   }
   const listing = await facts.decisions.list();
   if (listing.status !== "complete") throw reviewFactListingError(listing);
   for (const { value } of listing.records) {
-    if (value.lane !== "frontline" || value.choice.kind !== "extra-pass"
-      || value.choice.precondition.kind !== "approved-fix" || value.choice.passCount !== input.passCount
-      || !laneSubjectOwnerMatches(value.subject.lineage, input.lineage)) continue;
+    if (!matchingApprovedFix(value, input)) continue;
     const precondition = value.choice.precondition;
-    if (precondition.repositoryId !== input.repositoryId || precondition.producerId !== input.producerId) continue;
     const key = reviewDecisionKey(value);
     if (listing.records.some(({ value: other }) => other.choice.kind === "withdrawal" && other.choice.decisionKey === key)) continue;
     const approval = await facts.evidence.read(precondition.dispositionSetId);
     if (approval === null) throw new Error("Restore the approved fix response before retrying its frontline continuation.");
-    if (approval.value.successorDispositionSetId !== null || approval.value.performance === undefined) continue;
+    if (approval.value.successorDispositionSetId !== null || approval.value.performance === undefined
+      || approval.value.dispositionSet.producerId !== precondition.producerId) continue;
+    if (await approvedFixPassConsumed(facts, key)) continue;
     const fromHeadSha = approval.value.performance.producedHeadSha;
     if (fromHeadSha === input.headSha || await input.confirmResponseHeadContinuation?.({
-      repositoryId: input.repositoryId, lineage: input.lineage, producerId: input.producerId,
+      repositoryId: input.repositoryId, lineage: input.lineage, producerId: precondition.producerId,
       dispositionSetId: precondition.dispositionSetId, originatingHeadSha: precondition.originatingHeadSha,
-      fromHeadSha, toHeadSha: input.headSha })) return true;
+      fromHeadSha, toHeadSha: input.headSha })) return {
+        exhaustedPassCount: value.choice.passCount, nextPass: value.choice.passCount + 1,
+        conditionalPassAuthorizationId: key,
+      };
   }
-  return false;
+  return undefined;
+}
+
+/** Observe whether live performed-fix authority keeps the current frontline cap open. */
+export async function nativeFrontlineCapContinues(facts: NativeReviewFactPorts, input: {
+  repositoryId: string; lineage: LaneSubjectLineage; producerId: string; passCount: number; headSha: string;
+  confirmResponseHeadContinuation?: ConfirmResponseHeadContinuation;
+}): Promise<boolean> {
+  return await readNativeApprovedFixPassJudgment(facts, { ...input, lane: "frontline" }) !== undefined;
 }

@@ -2554,6 +2554,7 @@ describe("handleReviewPrePublication", () => {
       changeSet: undefined,
       lanes: { standard: { scopeMode: "chunked" } },
       frontlineCeilingHeadSha: undefined,
+      scopeJudgmentTarget: request.target,
     });
     expect(JSON.parse(String(resumed.write.mock.calls[0]?.[0]))).toMatchObject({
       locus: "candidate-publish-ready",

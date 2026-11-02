@@ -11,6 +11,7 @@ export interface ReviewPrePublicationJudgment {
   changeSet: unknown;
   lanes: unknown;
   frontlineCeilingHeadSha: string | undefined;
+  scopeJudgmentTarget?: ReviewTarget;
 }
 
 interface CallInput {
@@ -29,7 +30,7 @@ interface ReplayAccess {
 
 function replayJudgment(replay: PrePublicationReplayInput): ReviewPrePublicationJudgment {
   return { selfReview: replay.selfReview, changeSet: replay.changeSet, lanes: replay.lanes,
-    frontlineCeilingHeadSha: replay.frontlineCeilingHeadSha };
+    frontlineCeilingHeadSha: replay.frontlineCeilingHeadSha, scopeJudgmentTarget: replay.scopeJudgmentTarget };
 }
 
 /** Read caller sources and the selected strict replay contract with the existing request/execution error boundary. */
@@ -114,7 +115,9 @@ export function buildPrePublicationResumeCommand(input: {
   if (input.schemaVersion === 2) {
     const lanes = nativeReplayLanes(input.replayLanes, input.retainGrants === true);
     return `arc review pre-publication ${input.workUnit} --resume ${encodePrePublicationReplay({ ...common,
-      ...(lanes === undefined ? {} : { lanes }) }, 2)}`;
+      ...(lanes === undefined ? {} : { lanes }),
+      ...(input.retainGrants !== true || input.judgment.frontlineCeilingHeadSha === undefined ? {}
+        : { frontlineCeilingHeadSha: input.judgment.frontlineCeilingHeadSha }) }, 2)}`;
   }
   let replayLanes = input.replayLanes;
   let replayFrontlineCeilingHeadSha = input.judgment.frontlineCeilingHeadSha;

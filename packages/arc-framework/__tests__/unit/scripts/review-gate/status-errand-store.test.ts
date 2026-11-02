@@ -12,6 +12,7 @@ import { recordKey } from "../../../helpers/store/model.js";
 import { createReviewDecisionPort } from "../../../../src/lib/store/kinds/review/decision/access.js";
 import { reviewDecisionKey } from "../../../../src/lib/store/kinds/review/decision/key.js";
 import type { ReviewCeilingOverride, ReviewAdditionalPassAuthorization } from "../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import type { OwnerIdentity } from "../../../../src/lib/store/identity.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
 import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 
@@ -42,8 +43,8 @@ async function fixture(project = true, owner = "test-user") {
   const rawExec = scriptRawGitExec([]).exec;
   return { ...checkout, record, primary, moveHead: (value: string) => { branchHead = value; },
     run: (grant: { ceilingOverride?: ReviewCeilingOverride; additionalPassAuthorization?: ReviewAdditionalPassAuthorization } = {},
-      store: Store = checkout.store) => readErrandRoutedObligation({
-    ...checkout, store, projectId: createProjectIdentityReader(store), rawExec,
+      store: Store = checkout.store, workItem?: OwnerIdentity) => readErrandRoutedObligation({
+    ...checkout, store, ...(workItem === undefined ? {} : { workItem }), projectId: createProjectIdentityReader(store), rawExec,
     target: { repository: "owner/repository", headRef: branch, headSha: head }, pullRequest: 42,
     currentBaseOid: base, changeRequestCandidate: { baseRefName: "main", url: "https://github.com/owner/repository/pull/42" }, ...grant,
   }) };
@@ -147,4 +148,22 @@ it.each(["version", "list"] as const)("preserves a native %s refusal during Erra
   await expect(h.run({}, store)).rejects.toMatchObject({ name: "StoreRefusalError", offBranch: true, refusal });
   broken = false;
   expect(await h.run({}, store)).toMatchObject({ state: "review-required" });
+});
+
+it("refuses an injected different Errand generation before recording grants and continues with the selected owner", async () => {
+  const h = await fixture();
+  const foreign = TransientIdentityRecordSchema.parse({ ...h.record, slug: "elsewhere", claimId: "2".repeat(32), branch: "chore/elsewhere" });
+  if (foreign.kind !== "errand") throw new Error("Expected an Errand");
+  const other = await h.seedErrand(foreign);
+  const grant = { ceilingOverride: { target: { repository: "owner/repository", pullRequest: 42, headSha: head },
+    lane: "standard" as const, exhaustedPassCount: 0, nextPass: 1 } };
+  const before = lifecycleSuccess(await h.store.version());
+  expect(await h.run(grant, h.store, other.reference.owner)).toMatchObject({ state: "blocked",
+    detail: expect.stringContaining("generation") });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect(await h.run(grant, h.store, h.primary.reference.owner)).toMatchObject({ state: "review-required" });
+  const own = await createReviewDecisionPort(h.store, h.primary.reference.owner).list();
+  const foreignDecisions = await createReviewDecisionPort(h.store, other.reference.owner).list();
+  expect(own).toMatchObject({ status: "complete", records: [expect.anything()] });
+  expect(foreignDecisions).toMatchObject({ status: "complete", records: [] });
 });

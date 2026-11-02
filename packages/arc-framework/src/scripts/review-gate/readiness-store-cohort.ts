@@ -34,7 +34,7 @@ async function readDocuments(store: Store): Promise<{ documents: Document[]; fac
   return { documents, facts };
 }
 
-function coordinateFacts(coordinate: string, finalSlug: string, entries: readonly LifecycleEntry[],
+function coordinateFacts(coordinate: string, entries: readonly LifecycleEntry[],
   documents: readonly Document[]): ReviewReadinessFact[] {
   const name = coordinate.split("/").at(-1) ?? coordinate, path = `cohort/document:${name}`;
   const matches = documents.filter(document => document.record.reference.owner.name === name);
@@ -48,18 +48,20 @@ function coordinateFacts(coordinate: string, finalSlug: string, entries: readonl
   if (document === undefined) return [fact("missing-cohort-closeout", path, "The final cohort member requires its stored closeout document.")];
   if (document.record.placement?.kind !== "completed") return [fact("incomplete-cohort-closeout", path,
     "The final cohort member shipped but its coordination document remains planned.")];
-  return validCohortCloseout(document.record.content, finalSlug) ? []
+  const members = entries.filter(entry => entry.location === "completed"
+    && (entry.fields.cohort === coordinate || entry.fields.cohort?.startsWith(`${coordinate}/`) === true));
+  return members.some(member => validCohortCloseout(document.record.content, member.reference.owner.name)) ? []
     : [fact("malformed-cohort-closeout", path, "The cohort closeout section is malformed.")];
 }
 
 /** Check the work unit's cohort and its parent against current membership and completed documents. */
 export async function storedCohortReadinessFacts(store: Store, entries: readonly LifecycleEntry[],
-  cohort: string | null, finalSlug: string): Promise<ReviewReadinessFact[]> {
+  cohort: string | null): Promise<ReviewReadinessFact[]> {
   if (cohort === null) return [];
   const { documents, facts } = await readDocuments(store);
   if (facts.length > 0) return facts;
-  const result = coordinateFacts(cohort, finalSlug, entries, documents);
+  const result = coordinateFacts(cohort, entries, documents);
   const parent = cohort.includes("/") ? cohort.split("/")[0] : undefined;
-  if (parent !== undefined) result.push(...coordinateFacts(parent, finalSlug, entries, documents));
+  if (parent !== undefined) result.push(...coordinateFacts(parent, entries, documents));
   return result;
 }

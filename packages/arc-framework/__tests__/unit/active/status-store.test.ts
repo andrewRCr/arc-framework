@@ -36,3 +36,18 @@ it.each(["full", "session-init"] as const)("projects the stored Integrating Cand
       integrationBoundary: boundary, warnings: [] });
   }
 });
+
+it.each(["full", "session-init"] as const)("resumes execution with a retained Candidate in %s status", async mode => {
+  const h = createReviewHarness(), cwd = await mkdtemp(join(tmpdir(), "arc-active-reopened-store-"));
+  onTestFinished(async () => rm(cwd, { recursive: true, force: true }));
+  const primary = await h.seedMeta("example", { state: "Active", currentWorkflow: "process-task-loop", taskList: "tasks-example.md" });
+  await h.seedCandidate(primary.reference.owner, candidateFixture());
+  await writeWorktreeMarker(cwd, { spawnedByArc: false, createdFor: boundWorkUnitSubject(primary),
+    spawningIdentity: "andrew", createdAt: "2026-10-19T00:00:00.000Z" });
+  const git = scriptGitExec([{ match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [{ stdout: "feat/example" }] }]);
+  const options = { cwd, store: h.store, projectId: async () => "project", exec: git.exec,
+    projectCandidateTarget: async () => { throw new Error("Execution must not project historical Candidate authority"); } };
+  if (mode === "full") expect(await runActiveStatus(options)).toMatchObject({ candidates: [{ candidateId: null }], warnings: [] });
+  else expect(await runActiveSessionInitStatus(options)).toMatchObject({ resolution: "single", sessionType: "execution",
+    integrationBoundary: null, warnings: [] });
+});

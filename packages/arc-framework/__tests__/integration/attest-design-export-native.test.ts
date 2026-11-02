@@ -41,14 +41,30 @@ async function fixture(options: { complete?: boolean; tracking?: "none" | "specs
   const io = createUserIOContext(); io.exec = exec;
   const chunks: string[] = [];
   vi.spyOn(process.stdout, "write").mockImplementation(chunk => { chunks.push(String(chunk)); return true; });
-  return { ...h, cwd, exec, primary, attest: async () => {
+  return { ...h, cwd, exec, primary, attest: async (json = true) => {
     chunks.length = 0;
     await attestCandidateWithReviewBoundary({ cwd, identity: "test-user", io, store: h.reference.store,
       ...(options.generation === "bound" ? { workItem: primary.reference.owner } : {}) },
-      AttestCommandInputSchema.parse({ name: "example", json: true, newRoot: options.generation !== undefined }));
-    return JSON.parse(chunks.join("")) as unknown;
+      AttestCommandInputSchema.parse({ name: "example", json, newRoot: options.generation !== undefined }));
+    return json ? JSON.parse(chunks.join("")) as unknown : chunks.join("");
   } };
 }
+
+it.each([true, false])("reports replacement of a differing review copy on initial and unchanged attestation, json=%s", async json => {
+  const h = await fixture(), path = ".arc/specs/example/spec-example.md";
+  await mkdir(join(h.cwd, ".arc/specs/example"), { recursive: true });
+  for (const status of ["attested", "unchanged"]) {
+    await writeFile(join(h.cwd, path), "# Hand-edited review copy\n");
+    const result = await h.attest(json);
+    if (json) expect(AttestResultSchema.parse(result)).toMatchObject({ status, designExport: { path, overwritten: true } });
+    else expect(result).toContain(`Replaced design review copy: ${path}`);
+    expect(await readFile(join(h.cwd, path), "utf8")).toBe("# Stored specification\n");
+    expect((await h.exec("git", ["show", `:${path}`], { cwd: h.cwd })).stdout).toBe("# Stored specification");
+  }
+  const matching = await h.attest(json);
+  if (json) expect(AttestResultSchema.parse(matching)).not.toHaveProperty("designExport");
+  else expect(matching).not.toContain("Replaced design review copy:");
+}, 30_000);
 
 it.each(["branch", "bound"] as const)("attests the exact completed %s generation while a live work unit reuses its slug", async generation => {
   const h = await fixture({ generation, tracking: "none" });

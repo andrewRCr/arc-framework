@@ -1,6 +1,6 @@
 /** Emitted frontline forms consume the approved-fix decision already recorded on their native owner. */
 import { expect, it, onTestFinished } from "vitest";
-import { createNativeConditionalAdmissionFixture } from "../../../../fixtures/native-conditional-pass.js";
+import { createNativeConditionalFrontlineFixture, completeNativeConditionalFrontline, createNativeConditionalAdmissionFixture } from "../../../../fixtures/native-conditional-pass.js";
 import { createFrontlineFixture } from "../../../../fixtures/frontline-review.js";
 import { boundaryContinuation } from "../../../../fixtures/review-boundary.js";
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
@@ -15,8 +15,12 @@ import { resolveFrontlineCommand } from "../../../../../src/scripts/review-gate/
 import { FrontlineSourceRegistry } from "../../../../../src/scripts/review-gate/policy/frontline-source.js";
 import { settledFrontlineAdviceReader } from "../../../../../src/scripts/review-gate/policy/frontline-phase.js";
 import { confirmCurrentDispositionSet } from "../../../../../src/scripts/review-gate/hosts/local/disposition-record-store.js";
+import { readNativeApprovedFixPassJudgment } from "../../../../../src/scripts/review-gate/runtime/native-frontline-window.js";
+import { recordLaneAttempt } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { readLaneProgress, readLaneResponsePerformance } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { projectReviewPolicyAttempt } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { buildPrePublicationResumeCommand } from "../../../../../src/handlers/review-pre-publication-replay.js";
+import { decodePrePublicationReplayV2, replayTokenFromAction } from "../../../../../src/scripts/review-gate/policy/pre-publication-replay.js";
 import { createPrePublicationCompositionDependencies } from "../../../../../src/scripts/review-gate/policy/pre-publication-composition.js";
 
 it("admits the emitted frontline form past its configured ceiling through the existing approved-fix key", async () => {
@@ -36,11 +40,23 @@ it("admits the emitted frontline form past its configured ceiling through the ex
     changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary",
     assurance: { workContext: "work-unit", workClass: "Light" }, activity: { selfReview: true, frontlineReview: true } };
   const standardReview = projectStandardReviewObligation(resolveReviewRouting(routingFacts).decision);
+  const retry = buildPrePublicationResumeCommand({ workUnit: "example", candidateId: lineage.candidateId,
+    candidateSubjectDigest: canonicalDigest({ subject: 1 }), judgment: { selfReview: undefined,
+      changeSet: routingFacts, lanes: { frontline: { ceilingOverride: { exhaustedPassCount: 1, nextPass: 2,
+        conditionalPassAuthorizationId: h.authorizationId } } }, frontlineCeilingHeadSha: undefined },
+    replaySelfReview: undefined, replayLanes: { frontline: { ceilingOverride: { exhaustedPassCount: 1, nextPass: 2,
+      conditionalPassAuthorizationId: h.authorizationId } } }, currentFrontlineHeadSha: h.target.headSha,
+    frontlineCeilingOverrideApplied: false, schemaVersion: 2 });
+  const replay = decodePrePublicationReplayV2(replayTokenFromAction(retry, "example"));
+  expect(replay.lanes?.frontline?.ceilingOverride).toBeUndefined();
+  const restored = await composition.resolveExtraPassJudgment!({ repositoryId: h.target.repositoryId,
+    subject: { lineage, headSha: h.target.headSha, subjectDigest: canonicalDigest({ subject: 1 }) },
+    policyTarget, lane: "frontline", completedPasses: progress.completedPasses, judgment: replay.lanes?.frontline });
+  expect(restored?.ceilingOverride).toEqual({ exhaustedPassCount: 1, nextPass: 2, conditionalPassAuthorizationId: h.authorizationId });
   const frontline = await bindReviewPolicyEvidence({ schemaVersion: 1, target: policyTarget, lane: "frontline",
     frontlineActive: true, standardReview, completedPasses: progress.completedPasses,
     attempts: progress.attempts.map(projectReviewPolicyAttempt), ceilingOverride: { target: policyTarget, lane: "frontline",
-      exhaustedPassCount: progress.completedPasses, nextPass: progress.completedPasses + 1,
-      conditionalPassAuthorizationId: h.authorizationId } }, { stateOffBranch: true,
+      ...restored!.ceilingOverride } }, { stateOffBranch: true,
     sources: [h.f.outcome.source.sourceId], maxPasses: 1, resultReader, dispositionStore: dispositions,
     confirmTarget: async () => h.target, readResponsePerformance: result => readLaneResponsePerformance(h.operations, result) });
   const nextPassContext = await deriveReviewNextPassContext({ predecessor: null, completedPasses: 0, completePasses: 0,
@@ -78,4 +94,18 @@ it("admits the emitted frontline form past its configured ceiling through the ex
   expect(await resolveFrontlineCommand(resolveInput, dependencies)).toMatchObject({ state: "ready", payload: {
     admission: { operationId: ready.payload.admission?.operationId } } });
   expect(await h.f.input.decisions.list()).toEqual(before);
+});
+
+it.each(["unperformed", "withdrawn", "spent", "head", "lineage", "count"] as const)("does not reconstruct %s conditional authority", async fault => {
+  const h = await createNativeConditionalFrontlineFixture(fault !== "unperformed", 1);
+  onTestFinished(h.cleanup);
+  if (fault === "withdrawn") await h.f.input.decisions.create({ ...h.decision.value,
+    choice: { kind: "withdrawal", decisionKey: h.authorizationId } });
+  if (fault === "spent") {
+    await recordLaneAttempt(h.operations, h.pendingInput);
+    await completeNativeConditionalFrontline(h, "clean");
+  }
+  expect(await readNativeApprovedFixPassJudgment(h.operations.nativeFacts!, { lane: "frontline", repositoryId: h.target.repositoryId,
+    lineage: fault === "lineage" ? { kind: "candidate", candidateId: canonicalDigest({ foreign: true }) } : h.f.outcome.lineage,
+    passCount: fault === "count" ? 2 : 1, headSha: fault === "head" ? "9".repeat(40) : h.target.headSha })).toBeUndefined();
 });

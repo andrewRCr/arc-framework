@@ -1,5 +1,6 @@
 /** Positive Errand identity and exact-head lane progress for review status. */
 
+import { sameOwner } from "../../lib/store/identity.js";
 import { matchingOrdinaryErrand, readStoredStatusErrandSelection, type ErrandStatusSelection } from "./status-errand-selection.js";
 import { rethrowNativeRefusal } from "../../lib/store/native-refusal.js";
 import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationOptions } from "./runtime/invocation.js";
@@ -748,7 +749,10 @@ export async function readErrandRoutedObligation(options: ReviewInvocationInput 
       return blocked("The Errand identity's branch does not match the exact review head.");
     }
 
-    if (input.workItem === undefined && selected.workItem !== undefined) input.workItem = selected.workItem;
+    if (input.workItem !== undefined && selected.workItem !== undefined && !sameOwner(input.workItem, selected.workItem)) {
+      return blocked("The injected Errand generation differs from the selected claim. Resolve the selected Errand owner, then retry.");
+    }
+    if (selected.workItem !== undefined) input.workItem = selected.workItem;
     const { publisher, family } = createReviewCompositionContext({ ...input, exec });
     const repositoryId = await resolveRepositoryIdentity(publisher, undefined, input);
     const store = family.ports.inFlight;

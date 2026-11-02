@@ -1,9 +1,10 @@
 /** Durable landing traceability with a retryable result after the host has already merged. */
 import { z } from "zod";
 import type { Store } from "../../lib/store/contract.js";
-import type { OwnerIdentity } from "../../lib/store/identity.js";
+import { OwnerIdentitySchema, type OwnerIdentity } from "../../lib/store/identity.js";
 import { recordConflictRefusal } from "../../lib/store/conflict-diagnostics.js";
 import { mergeLifecycleLinks, readWorkUnit, recordPut } from "../../lib/store/lifecycle-write.js";
+import type { IntegrationCheckpointCompositionRecord } from "./checkpoint-store.js";
 import { SpineRemedySchema, spineRemedy } from "./spine-refusal.js";
 
 /** Native landing-link persistence is distinct from the host's completed merge. */
@@ -13,6 +14,15 @@ export const LandingLinkStateSchema = z.discriminatedUnion("state", [
 ]);
 /** Reported landing-link persistence outcome. */
 type LandingLinkState = z.infer<typeof LandingLinkStateSchema>;
+
+/** Resolve only the project and work-item generation retained by a native checkpoint. */
+export async function nativeCheckpointOwner(checkpoint: IntegrationCheckpointCompositionRecord,
+  projectId: () => Promise<string>): Promise<OwnerIdentity> {
+  const binding = checkpoint.nativeOwnership;
+  if (binding === undefined) throw new Error("The native checkpoint has no ownership binding. Recompose its checkpoint before retrying.");
+  if (await projectId() !== binding.projectId) throw new Error("The checkpoint project differs from this store. Restore its project identity, then retry.");
+  return OwnerIdentitySchema.parse({ type: "work-item", name: checkpoint.workUnit, uid: binding.workItemUid });
+}
 
 /** Add the host's merge commit to the current work item using its exact observed record version. */
 export async function writeWorkUnitLandingCommit(input: {

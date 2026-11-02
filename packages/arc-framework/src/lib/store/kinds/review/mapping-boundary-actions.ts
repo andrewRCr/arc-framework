@@ -16,10 +16,13 @@ function mapReplayCommand(command: string, workUnit: string): string {
   const callLanes = Object.fromEntries(Object.entries(judgments).map(([lane, judgment]) => [lane, {
     ...(judgment.scopeMode === undefined ? {} : { scopeMode: judgment.scopeMode }),
     ...(judgment.invocation === undefined ? {} : { invocation: judgment.invocation }),
-    ...(lane !== "frontline" || frontlineCeilingHeadSha !== undefined || judgment.ceilingOverride === undefined
+    ...(judgment.ceilingOverride === undefined || judgment.ceilingOverride.conditionalPassAuthorizationId !== undefined
       ? {} : { ceilingOverride: judgment.ceilingOverride }),
+    ...(judgment.additionalPassAuthorization === undefined ? {} : { additionalPassAuthorization: judgment.additionalPassAuthorization }),
   }]));
-  const token = encodePrePublicationReplayV2({ ...inputs, ...(lanes === undefined ? {} : { lanes: callLanes }) });
+  const token = encodePrePublicationReplayV2({ ...inputs,
+    ...(frontlineCeilingHeadSha === undefined ? {} : { frontlineCeilingHeadSha }),
+    ...(lanes === undefined ? {} : { lanes: callLanes }) });
   return `arc review pre-publication ${workUnit} --resume ${token}`;
 }
 

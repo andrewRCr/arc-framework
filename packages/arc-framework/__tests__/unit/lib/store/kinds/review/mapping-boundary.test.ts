@@ -73,10 +73,8 @@ it("re-encodes a saved token with its call inputs while storing its review judgm
   const mapped = IntegrationBoundaryLocusV2Schema.parse(JSON.parse(result.records.find(({ reference }) => reference.kind === "review/integration-boundary")!.contents[0]!));
   if (mapped.nextAction.kind !== "run-convergence-verification") throw new Error("Expected mapped convergence action");
   const command = mapped.nextAction.postAttestContinuation.nextAction.command;
-  expect(decodePrePublicationReplayV2(replayTokenFromAction(command, "example"))).toEqual({ candidateId: replay.candidateId,
-    candidateSubjectDigest: replay.candidateSubjectDigest, selfReview: replay.selfReview, changeSet: replay.changeSet,
-    lanes: { frontline: { scopeMode: "whole-target", invocation: { mode: "skip" } }, standard: {} } });
-  expect(result.records.filter(({ reference }) => reference.kind === "review/decision")).toHaveLength(2);
+  expect(decodePrePublicationReplayV2(replayTokenFromAction(command, "example"))).toEqual(replay);
+  expect(result.records.filter(({ reference }) => reference.kind === "review/decision")).toHaveLength(0);
   await assertReviewMapping(result);
 });
 

@@ -294,10 +294,12 @@ vi.mock("../../../src/lib/work-unit/verbs/publish.js", () => ({
 }));
 
 const mockReadCandidateRecord = vi.fn();
+const mockReadCandidateRecordVersioned = vi.fn();
 const mockReadRepositoryCandidateRecordRevision = vi.fn();
 const mockWriteCandidateRecord = vi.fn();
 vi.mock("../../../src/lib/store/kinds/review/candidate/access.js", () => ({
   readCandidateRecord: (...a: unknown[]) => mockReadCandidateRecord(...a),
+  readCandidateRecordVersioned: (...a: unknown[]) => mockReadCandidateRecordVersioned(...a),
   writeCandidateRecord: (...a: unknown[]) => mockWriteCandidateRecord(...a),
 }));
 vi.mock("../../../src/lib/store/kinds/review/candidate/history.js", () => ({
@@ -501,6 +503,7 @@ beforeEach(() => {
     reservation: null,
   };
   mockReadCandidateRecord.mockResolvedValue({ attestation: { candidateId } });
+  mockReadCandidateRecordVersioned.mockResolvedValue({ record: { attestation: { candidateId } }, version: "candidate-v1" });
   mockResolveRepositoryIdentity.mockResolvedValue("repository-id");
   mockReadLaneProgressOwner.mockResolvedValue(null);
   mockCollectGitCandidateSubject.mockResolvedValue({
@@ -1390,7 +1393,11 @@ describe("handlePublish", () => {
       name: "foo",
       lastCompleted: "Phase 7 — verification",
       nextAction: "open the PR",
+      candidateVersion: "candidate-v1",
     });
+    const params = mockRunPublish.mock.calls[0]?.[1] as import("../../../src/lib/work-unit/verbs/publish.js").PublishParams;
+    mockReadCandidateRecordVersioned.mockResolvedValueOnce({ record: { attestation: { candidateId: params.candidateId } }, version: "candidate-v2" });
+    expect(await params.refreshCandidateAuthorization()).toMatchObject({ candidateVersion: "candidate-v2" });
   });
 
   it("reports the unchanged durable publication resume point as JSON", async () => {

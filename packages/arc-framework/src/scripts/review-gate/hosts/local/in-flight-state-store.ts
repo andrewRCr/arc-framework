@@ -65,7 +65,10 @@ export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
     } catch (error) {
       throw malformedNativeInFlightRecord(name, error instanceof Error ? error.message : String(error));
     }
-    if (record.operationId !== record.state.operationId) throw new LocalOperationStateStoreError("operation-id-mismatch");
+    if (record.operationId !== record.state.operationId) throw malformedNativeInFlightRecord(name,
+      `envelope operation '${record.operationId}' differs from state operation '${record.state.operationId}'`);
+    if (name !== this.recordName(record.operationId)) throw malformedNativeInFlightRecord(name,
+      `its filename does not match operation '${record.operationId}'`);
     if (record.state.workItem.type !== "work-item" || record.state.workItem.uid !== this.uid) {
       throw malformedNativeInFlightRecord(name, "it names another work item");
     }
@@ -96,7 +99,6 @@ export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
   private async readRetainedRecord(operationId: string): Promise<ReviewInFlightRecord | null> {
     const name = this.recordName(operationId), raw = await this.input.publisher.read(location, name);
     const record = raw === null ? null : await this.parse(raw, name);
-    if (record !== null && record.operationId !== operationId) throw new LocalOperationStateStoreError("operation-id-mismatch");
     return record;
   }
 
@@ -120,7 +122,6 @@ export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
         if (!entry.name.startsWith(this.prefix)) continue;
         if (entry.kind !== "file") return { status: "incomplete", reason: "unexpected-in-flight-entry" };
         const record = await this.parse(entry.content, entry.name);
-        if (entry.name !== this.recordName(record.operationId)) return { status: "incomplete", reason: "operation-record-name-mismatch" };
         records.set(record.operationId, { version: record.version, state: composeReviewInFlightState(record.state) });
       }
       for (const outcome of outcomes) {

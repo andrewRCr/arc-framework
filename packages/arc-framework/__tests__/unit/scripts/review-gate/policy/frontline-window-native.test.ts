@@ -15,6 +15,7 @@ import { LaneAttemptSchema } from "../../../../../src/scripts/review-gate/core/o
 import { recordLaneAttempt } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { createReviewCompositionContext } from "../../../../../src/scripts/review-gate/runtime/composition-context.js";
 import { recordNativeFrontlineSkip } from "../../../../../src/scripts/review-gate/runtime/native-frontline-window.js";
+import { reviewDecisionKey } from "../../../../../src/lib/store/kinds/review/decision/key.js";
 import { publishNativeReviewApproval } from "../../../../../src/scripts/review-gate/runtime/native-review-approval.js";
 import { createPrePublicationCompositionDependencies } from "../../../../../src/scripts/review-gate/policy/pre-publication-composition.js";
 
@@ -22,7 +23,7 @@ import { createRepositoryReviewResultReader } from "../../../../../src/scripts/r
 import { resolveEvidenceBoundReviewPolicy, resolveEvidenceBoundReviewPolicyContinuation } from "../../../../../src/scripts/review-gate/policy/review-policy-evidence.js";
 import { ReviewPolicyCommandRequestSchema } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 
-it.each(["open", "skip", "clean", "settled-findings", "standard-recorded", "standard-pending"] as const)(
+it.each(["open", "skip", "withdrawn-skip", "withdrawn-then-skip", "withdrawn-skip-standard", "clean", "settled-findings", "standard-recorded", "standard-pending"] as const)(
   "reads an ancestor's %s window through the default native pre-publication adapter", async fact => {
     const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
     await h.seedProject(projectId);
@@ -35,8 +36,18 @@ it.each(["open", "skip", "clean", "settled-findings", "standard-recorded", "stan
     if (family.mode !== "stored" || family.ports.inFlight.nativeFacts === undefined) throw new Error("Expected native facts");
     const lineage = { kind: "candidate" as const, candidateId: original.attestation.candidateId };
     const target = createHostedHandleFixture({ repositoryId: projectId }).admission.reviewTarget;
-    if (fact === "skip") await recordNativeFrontlineSkip({ invocation, facts: family.ports.inFlight.nativeFacts,
+    if (["skip", "withdrawn-skip", "withdrawn-then-skip", "withdrawn-skip-standard"].includes(fact)) await recordNativeFrontlineSkip({ invocation, facts: family.ports.inFlight.nativeFacts,
       repositoryId: projectId, lineage, headSha: target.headSha, now: "2026-10-20T12:00:00Z" });
+    if (fact.startsWith("withdrawn")) {
+      const listing = await family.ports.decisions.list();
+      if (listing.status !== "complete") throw new Error("Expected complete decisions");
+      const skip = listing.records.find(({ value }) => value.choice.kind === "lane-skip")?.value;
+      if (skip === undefined) throw new Error("Expected the recorded skip");
+      await family.ports.decisions.create({ ...skip, choice: { kind: "withdrawal", decisionKey: reviewDecisionKey(skip) },
+        decidedAt: "2026-10-20T12:01:00Z" });
+      if (fact === "withdrawn-then-skip") await recordNativeFrontlineSkip({ invocation, facts: family.ports.inFlight.nativeFacts,
+        repositoryId: projectId, lineage, headSha: "e".repeat(40), now: "2026-10-20T12:02:00Z" });
+    }
     if (fact === "clean" || fact === "settled-findings") {
       const outcome = ReviewOutcomeSchema.parse(frontlineOutcome({ target, lineage,
         ...(fact === "settled-findings" ? { findings: [{ findingId: "deferred-finding", severity: "major",
@@ -47,9 +58,9 @@ it.each(["open", "skip", "clean", "settled-findings", "standard-recorded", "stan
           binding: { kind: "candidate", candidate: { workUnit: original.attestation.workUnit, candidateId: original.attestation.candidateId } } }],
         primary.reference.owner), now: () => "2026-10-20T12:01:00Z" });
     }
-    if (fact === "standard-recorded" || fact === "standard-pending") {
+    if (fact === "standard-recorded" || fact === "standard-pending" || fact === "withdrawn-skip-standard") {
       const outcome = ReviewOutcomeSchema.parse(JSON.parse(JSON.stringify(localOutcome({ target, lineage }))));
-      if (fact === "standard-recorded") await family.ports.outcomes.create(outcome);
+      if (fact !== "standard-pending") await family.ports.outcomes.create(outcome);
       else await recordLaneAttempt(family.ports.inFlight, { lane: "standard", repositoryId: projectId, lineage,
         headSha: target.headSha, attemptId: outcome.attemptId, logicalPass: 1, retryGeneration: 0, changeRequestId: null,
         sourceId: outcome.source.sourceId, outcome: "pending", consumedPass: false,
@@ -63,7 +74,7 @@ it.each(["open", "skip", "clean", "settled-findings", "standard-recorded", "stan
     const ancestors = await readRepositoryCandidateSupersessionChain({ ...invocation, workUnit: "example", record: current });
     expect(ancestors.map(ancestor => ancestor.candidateId)).toEqual([original.attestation.candidateId]);
     const dependencies = createPrePublicationCompositionDependencies(invocation);
-    expect(await dependencies.readSingletonFrontlinePhaseClosed!(current.attestation.candidateId, ancestors)).toBe(fact !== "open");
+    expect(await dependencies.readSingletonFrontlinePhaseClosed!(current.attestation.candidateId, ancestors)).toBe(fact !== "open" && fact !== "withdrawn-skip");
   });
 
 it.each(["direct", "continuation"] as const)("retains the native closed-window diagnostic through %s evidence binding", async route => {

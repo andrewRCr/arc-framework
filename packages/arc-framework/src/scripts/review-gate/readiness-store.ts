@@ -38,7 +38,7 @@ export async function evaluateStoredWorkUnitReadiness(request: WorkUnitRequest, 
   if (!manual) {
     const inventory = await readStoredLifecycleInventory(store);
     facts.push(...inventory.facts);
-    if (facts.length === 0) facts.push(...await storedCohortReadinessFacts(store, inventory.entries, fields.result.cohort, request.vehicle.slug));
+    if (facts.length === 0) facts.push(...await storedCohortReadinessFacts(store, inventory.entries, fields.result.cohort));
   }
   return facts;
 }

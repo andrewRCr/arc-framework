@@ -59,6 +59,7 @@ const PrePublicationReplayInputV2Schema = z.strictObject({
   candidateId: CanonicalDigestSchema.optional(), candidateSubjectDigest: CanonicalDigestSchema.optional(),
   selfReview: z.literal("settled").optional(), changeSet: z.json().optional(),
   lanes: ReplayCallLanesSchema.optional(), scopeJudgmentTarget: ReviewTargetSchema.optional(),
+  frontlineCeilingHeadSha: GitObjectIdSchema.optional(),
   attestationOrderingRecovery: AttestationOrderingRecoverySchema.optional(),
 }).refine((replay) => (replay.candidateId === undefined) === (replay.candidateSubjectDigest === undefined),
   "Candidate replay identity requires both Candidate ID and subject digest");

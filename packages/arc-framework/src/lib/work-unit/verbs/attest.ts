@@ -178,10 +178,13 @@ const AttestScopedRefusalResultSchema = z.strictObject({
   }
 });
 
+const AttestDesignExportSchema = z.strictObject({ path: z.string().trim().min(1), overwritten: z.boolean() });
+
 export const AttestResultSchema = z.union([
   z.strictObject({
     status: z.literal("attested"),
     operation: z.enum(["root", "re-root"]),
+    designExport: AttestDesignExportSchema.optional(),
     recordPath: z.string().trim().min(1).optional(),
     metaPath: z.string().trim().min(1),
     locus: PublishedIntegrationBoundaryLocusSchema,
@@ -189,6 +192,7 @@ export const AttestResultSchema = z.union([
   z.strictObject({
     status: z.literal("attested"),
     operation: z.literal("convergence"),
+    designExport: AttestDesignExportSchema.optional(),
     scope: AttestScopeSchema,
     verificationEvidenceRef: z.string().trim().min(1),
     recordPath: z.string().trim().min(1).optional(),
@@ -197,6 +201,7 @@ export const AttestResultSchema = z.union([
   }),
   z.strictObject({
     status: z.literal("unchanged"),
+    designExport: AttestDesignExportSchema.optional(),
     locus: PublishedIntegrationBoundaryLocusSchema,
   }),
   z.strictObject({

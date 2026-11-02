@@ -1,4 +1,5 @@
 /** Translate ended legacy attempts using their own immutable admission facts. */
+import { localAttemptMatchesState } from "../../../../scripts/review-gate/core/local-operation.js";
 import type { LaneProgressState } from "../../../../scripts/review-gate/core/operation-state-schema.js";
 import { mapHostedAttempt } from "./mapping-hosted.js";
 import { mapFrontlineAttempt } from "./mapping-frontline.js";
@@ -15,6 +16,7 @@ export function mapReviewAttempt(attempt: LaneAttempt, lane: LaneProgressState, 
   if (attempt.frontline !== undefined) return mapFrontlineAttempt(attempt, lane, endedAt, sources);
   if (attempt.local === undefined) throw new Error(`No local admission for ${attempt.attemptId}.`);
   const state = mappingLocalOperation(sources, attempt.local.operationId);
+  if (!localAttemptMatchesState(attempt, state)) throw new Error(`Local attempt does not match admission ${state.operationId}.`);
   const receipts = sources.receipts.flatMap((ledger) => ledger.receipts).filter((receipt) => receipt.requestId === state.requestId);
   if (receipts.length > 1) throw new Error(`Ambiguous receipts for ${state.requestId}.`);
   const receipt = receipts[0];

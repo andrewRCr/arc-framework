@@ -11,7 +11,7 @@ import {
 } from "../../lib/base-drift/current-adapters.js";
 import type { RawGitExec } from "../../lib/git/exec.js";
 import { createReviewCompositionContext } from "../review-gate/runtime/composition-context.js";
-import type { ReviewInvocationInput } from "../review-gate/runtime/invocation.js";
+import type { ReviewInvocationInput, ReviewInvocationContext } from "../review-gate/runtime/invocation.js";
 import { createStoreLifecycleStorage } from "../../lib/store/lifecycle-storage.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
@@ -123,7 +123,8 @@ import {
   type DeliveryClassifierCommand,
   type DeliveryDriftClassificationEvidence,
 } from "./checkpoint.js";
-import { persistIntegrationCheckpointComposition } from "./checkpoint-store.js";
+import { requireReviewWorkItem } from "../../lib/store/kinds/review/access-shared.js";
+import { persistIntegrationCheckpointComposition, type IntegrationCheckpointCompositionInput } from "./checkpoint-store.js";
 import { createLineageReviewComposer } from "./lineage-review-composition.js";
 import { composeCanonicalSettlementPlan } from "./settlement-plan.js";
 import { composeDeliveryCheckpointArm } from "./delivery-checkpoint.js";
@@ -1450,6 +1451,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
         throw new Error("An ARC identity is required to persist the integration checkpoint.");
       }
       const surfaces = createUserSurfaceResolver({ cwd: input.cwd, identity: resolvedIdentity });
+      const nativeOwnership = await checkpointNativeOwnership(input);
       const handle = await persistIntegrationCheckpointComposition(
         surfaces.workUnitRoot(SlugSchema.parse(workUnit)),
         {
@@ -1463,6 +1465,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
             headSha: statusSummary.changeRequest.headSha,
           },
           lifecycleVersion,
+          ...(nativeOwnership === undefined ? {} : { nativeOwnership }),
           settlementPlan,
           mergeMethod: ValidatedMergeMethodSchema.parse(mergeMethod),
         },
@@ -1470,4 +1473,14 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
       return { status: "created", handle };
     },
   };
+}
+
+async function checkpointNativeOwnership(input: ReviewInvocationContext):
+  Promise<IntegrationCheckpointCompositionInput["nativeOwnership"]> {
+  if (!input.store.capabilities.stateOffBranch) return undefined;
+  const owner = requireReviewWorkItem(input.workItem, "A native integration checkpoint");
+  if (owner.type !== "work-item" || owner.uid === undefined) {
+    throw new Error("Resolve the checkpoint's exact work-item UID, then retry.");
+  }
+  return { projectId: await input.projectId(), workItemUid: owner.uid };
 }

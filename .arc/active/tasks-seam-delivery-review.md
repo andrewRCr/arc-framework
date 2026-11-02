@@ -236,6 +236,8 @@ retires.
   snapshot's state version, beside the approved head, and merge compares those, so a write to any other record between
   checkpoint and merge no longer stales it, and a checkpoint written before the change invalidates as `head-mismatch`.
 
+    - _Amended in:_ review-fix (A39)
+
     - `[x]` **2.1.a The snapshot gives the meta record's version, and the checkpoint records it**
 
         - Added the snapshot's meta-version lookup over its listed records. Checkpoint persistence retains the exact
@@ -350,6 +352,8 @@ retires.
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
 
+    - _Amended in:_ review-fix (A39)
+
     - _Amended in:_ review-fix (A26)
     - _Amended in:_ review-fix (A31)
 
@@ -452,6 +456,8 @@ alone.
 - _Goal:_ A live work unit's every Candidate version maps whole, oldest first, and its boundary at its current content
   maps to version 2, keeping the publication state it holds today.
 
+    - _Amended in:_ review-fix (A38)
+
     - _Amended in:_ review-fix (A36)
 
 - _Outcome:_ Accepted Candidate versions retain complete source bytes and chronology; refused schemas or supersession
@@ -523,6 +529,8 @@ alone.
 ### `[x]` **3.8 The import's mapping** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds over this repository's review records on a freshly merged base.
+
+    - _Amended in:_ review-fix (A38)
 
     - _Amended in:_ review-fix (A36)
     - _Amended in:_ 6.2.R (A16)
@@ -1445,6 +1453,8 @@ prerequisites have landed, and every earlier task is independent of the remainin
   position from placement and lifecycle state, its artifact facts from the stored meta — and a landed merge writes the
   landing-commit link naming the project ID and the merge commit, a rerun writing it where the first write failed.
 
+    - _Amended in:_ review-fix (A39)
+
     - `[x]` **7.1.a The lifecycle read**
 
         - Native checkpoint and merge read current metadata through the store, deriving position and artifact facts
@@ -1533,6 +1543,8 @@ prerequisites have landed, and every earlier task is independent of the remainin
 ### `[x]` **7.7 Delivery and integration at the flip** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds on a freshly merged base.
+
+    - _Amended in:_ review-fix (A39)
 
     - _Amended in:_ review-fix (A37)
 

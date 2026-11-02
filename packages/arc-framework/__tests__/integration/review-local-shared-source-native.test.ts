@@ -14,7 +14,7 @@ import type { OwnerIdentity } from "../../src/lib/store/identity.js";
 import { projectCandidateReviewBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 
-async function fixture() {
+async function fixture(shared = true) {
   const h = await createReviewRepositoryHarness();
   onTestFinished(h.cleanup);
   const { cwd, exec } = h.native;
@@ -55,9 +55,10 @@ async function fixture() {
     expect(exits, output).toEqual([]);
     return JSON.parse(output) as { state: string };
   };
-  const prepared = LocalPrepareEnvelopeSchema.parse(await invoke(handleReviewLocalPrepare, { schemaVersion: 1,
+  const prepareRequest = { schemaVersion: 1,
     evaluatorIdentity: "independent-reviewer", routingFacts: { contentKind: "code-bearing", reviewRisk: "routine",
-      changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary" } }));
+      changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary" } };
+  const prepared = LocalPrepareEnvelopeSchema.parse(await invoke(handleReviewLocalPrepare, prepareRequest));
   if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
   const originalFamily = createReviewCompositionContext({ ...h.native, workItem: primary.reference.owner }).family;
   if (originalFamily.mode !== "stored") throw new Error("Expected stored review family");
@@ -68,13 +69,39 @@ async function fixture() {
   const secondFamily = createReviewCompositionContext({ ...h.native, workItem: sibling.reference.owner }).family;
   if (secondFamily.mode !== "stored") throw new Error("Expected stored sibling review family");
   const second = secondFamily.ports;
-  for (const { state } of snapshot.records) await second.inFlight.publishOperation({ ...state, workItem: sibling.reference.owner }, 0);
+  if (shared) for (const { state } of snapshot.records) await second.inFlight.publishOperation({ ...state, workItem: sibling.reference.owner }, 0);
   const request = (workItem: OwnerIdentity) => ({ schemaVersion: 1, operationId: prepared.payload.operationId,
     operationRef: bindNativeReviewOperationReference({ repositoryId, workItem, operationId: prepared.payload.operationId }) });
   const pins = () => git("for-each-ref", "--format=%(refname)", `refs/arc/review/local/${prepared.payload.operationId}`,
     `refs/arc/review/local-scope/${prepared.payload.operationId}/`);
-  return { ...h, git, invoke, prepared: prepared.payload, primary, sibling, original, second, request, pins };
+  return { ...h, git, invoke, prepared: prepared.payload, primary, sibling, original, second, request, pins,
+    prepareAgain: () => invoke(handleReviewLocalPrepare, prepareRequest) };
 }
+
+it.each([false, true])("releases unavailable execution only when its source has no other unfinished owner, shared=%s", async shared => {
+  const h = await fixture(shared), root = h.prepared.reviewerPayload.reviewRoot, pins = await h.pins();
+  expect(pins).not.toBe("");
+  expect(await h.invoke(handleReviewLocalAttest, { ...h.request(h.primary.reference.owner), result: {
+    status: "unavailable", result: null, evaluatorIdentity: h.prepared.request.evaluatorIdentity,
+    reviewRunId: "unavailable-review", applicabilityId: null, findings: [],
+  } })).toMatchObject({ state: "not-attestable" });
+  expect(await h.original.outcomes.read(h.prepared.operationId)).toBeNull();
+  if (shared) {
+    expect(await h.pins()).toBe(pins);
+    await expect(access(root)).resolves.toBeUndefined();
+    await h.invoke(handleReviewLocalCancel, h.request(h.primary.reference.owner));
+    expect(await h.pins()).toBe(pins);
+    await h.invoke(handleReviewLocalCancel, h.request(h.sibling.reference.owner), h.sibling.reference.owner);
+  } else {
+    expect(await h.pins()).toBe("");
+    await expect(access(root)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(LocalPrepareEnvelopeSchema.parse(await h.prepareAgain())).toMatchObject({ state: "ready" });
+    await expect(access(root)).resolves.toBeUndefined();
+    await h.invoke(handleReviewLocalCancel, h.request(h.primary.reference.owner));
+  }
+  await expect(access(root)).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await h.pins()).toBe("");
+}, 60_000);
 
 it.each(["cancel", "attest", "failed-attest"] as const)("retains another owner's source after %s and releases after final cancellation", async action => {
   const h = await fixture(), root = h.prepared.reviewerPayload.reviewRoot;

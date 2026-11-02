@@ -23,7 +23,7 @@ import {
   LaneSubjectLineageSchema,
   type LaneSubjectLineage,
 } from "./lane-admission.js";
-import type { LocalReviewState } from "./operation-state-schema.js";
+import type { LaneProgressState, LocalReviewState } from "./operation-state-schema.js";
 import type { ReviewOperationStateStore } from "./ports.js";
 import {
   ReviewScopeModeSchema,
@@ -262,4 +262,23 @@ export async function resolveLocalReviewAdmission(
     persistedVersion: persisted.version,
     persistedState: persisted.state,
   };
+}
+
+/** Compare the complete immutable local admission carried by a lane attempt and its producer. */
+export function localAttemptMatchesState(attempt: LaneProgressState["attempts"][number], state: LocalReviewState): boolean {
+  const local = attempt.local;
+  if (local === undefined) return false;
+  return attempt.attemptId === state.operationId
+    && attempt.logicalPass === state.logicalPass
+    && attempt.retryGeneration === state.retryGeneration
+    && attempt.sourceId === state.laneSourceId
+    && attempt.headSha === state.target.headSha
+    && local.requestId === state.requestId
+    && local.scopeMode === state.scopeMode
+    && canonicalize({ requestedCoverage: local.requestedCoverage,
+      ...(local.correctionScope === undefined ? {} : { correctionScope: local.correctionScope }) })
+      === canonicalize(state.coverageAdmission)
+    && canonicalize(local.target) === canonicalize(state.target)
+    && canonicalize(local.vehicle) === canonicalize(state.vehicle)
+    && canonicalize(local.deliveryAdmission ?? null) === canonicalize(state.deliveryAdmission ?? null);
 }

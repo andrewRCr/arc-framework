@@ -18,6 +18,7 @@ import type { ReviewResult } from "../../core/review-result.js";
 import type { ReviewOperationStateSnapshotRecord } from "../../core/ports.js";
 import type { LaneProgressState } from "../../core/operation-state-schema.js";
 import { projectHostedFinding } from "../../hosted/await.js";
+import { localAttemptMatchesState } from "../../core/local-operation.js";
 import { laneSubjectOwnerMatches } from "../../core/lane-admission.js";
 
 type LaneAttempt = LaneProgressState["attempts"][number];
@@ -101,23 +102,6 @@ function frontlineAdmissionMatches(
     && canonicalize(record.outcome.target) === canonicalize(admission.target);
 }
 
-function localAttemptMatchesState(attempt: LaneAttempt, state: LocalState): boolean {
-  const local = attempt.local;
-  if (local === undefined) return false;
-  return attempt.attemptId === state.operationId
-    && attempt.logicalPass === state.logicalPass
-    && attempt.retryGeneration === state.retryGeneration
-    && attempt.sourceId === state.laneSourceId
-    && attempt.headSha === state.target.headSha
-    && local.requestId === state.requestId
-    && local.scopeMode === state.scopeMode
-    && canonicalize({ requestedCoverage: local.requestedCoverage,
-      ...(local.correctionScope === undefined ? {} : { correctionScope: local.correctionScope }) })
-      === canonicalize(state.coverageAdmission)
-    && canonicalize(local.target) === canonicalize(state.target)
-    && canonicalize(local.vehicle) === canonicalize(state.vehicle)
-    && canonicalize(local.deliveryAdmission ?? null) === canonicalize(state.deliveryAdmission ?? null);
-}
 
 function localSourceMatchesState(
   source: ReturnType<typeof LocalReviewSourceSchema.parse>,

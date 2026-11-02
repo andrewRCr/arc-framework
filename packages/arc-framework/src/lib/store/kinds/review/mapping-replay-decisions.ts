@@ -26,25 +26,6 @@ function mapReplayChoices(boundary: IntegrationBoundaryLocus, replay: PrePublica
   terminusPassCount: () => number): ReviewDecision[] {
   const lanes = PrePublicationLaneJudgmentsSchema.parse(replay.lanes ?? {});
   const decisions: ReviewDecision[] = [];
-  const additional = lanes.standard?.additionalPassAuthorization;
-  if (additional !== undefined) decisions.push({ schemaVersion: 1,
-    subject: { lineage: { kind: "candidate", candidateId: replay.candidateId ?? boundary.candidateId },
-      headSha: additional.headSha, subjectDigest: replay.candidateSubjectDigest ?? null },
-    lane: "standard", choice: { kind: "extra-pass", passCount: additional.completedPasses,
-      precondition: { kind: "additional", precedingProducerId: additional.precedingProducerId,
-        targetBinding: { kind: "call-target" } } },
-    decidedBy: null, decidedAt: null, basis: null });
-  for (const lane of ["frontline", "standard"] as const) {
-    const ceiling = lanes[lane]?.ceilingOverride;
-    if (ceiling === undefined || ceiling.conditionalPassAuthorizationId !== undefined) continue;
-    if (lane === "frontline" && replay.frontlineCeilingHeadSha === undefined) continue;
-    decisions.push({ schemaVersion: 1,
-      subject: { lineage: { kind: "candidate", candidateId: replay.candidateId ?? boundary.candidateId },
-        headSha: lane === "frontline" ? replay.frontlineCeilingHeadSha ?? null : replay.scopeJudgmentTarget?.headSha ?? null,
-        subjectDigest: replay.candidateSubjectDigest ?? null },
-      lane, choice: { kind: "extra-pass", passCount: ceiling.exhaustedPassCount, precondition: { kind: "ceiling", targetBinding: { kind: "call-target" } } },
-      decidedBy: null, decidedAt: null, basis: null });
-  }
   if (boundary.terminus === null && lanes.standard?.terminus !== undefined) decisions.push({ schemaVersion: 1,
     subject: { lineage: { kind: "candidate", candidateId: boundary.candidateId }, headSha: null,
       subjectDigest: boundary.candidateSubjectDigest }, lane: "standard", choice: { kind: "terminus" },

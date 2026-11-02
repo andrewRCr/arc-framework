@@ -29,7 +29,10 @@ export function createActiveReviewAccess(input: ReviewInvocationInput): ActiveRe
     if (slug === undefined) throw new Error(`Cannot identify ${candidate.filename}`);
     const primary = unwrapReviewRecordResult(invocation.store, await readWorkUnit(invocation.store, slug, owner));
     const selected = primary.reference.owner;
-    const record = await readCandidateRecord(input.cwd, selected.name, { store: invocation.store, owner: selected });
+    const candidateAuthorityRequired = candidate.state === "Integrating"
+      || (candidate.state === "Active" && candidate.currentWorkflow === "prepare-work-unit");
+    const record = candidateAuthorityRequired
+      ? await readCandidateRecord(input.cwd, selected.name, { store: invocation.store, owner: selected }) : null;
     let branch = candidate.branch;
     if (candidate.state === "Integrating") {
       const linked = selectWorkBranchLink(primary, { repository: await invocation.projectId() });

@@ -458,8 +458,13 @@ each meta record's version; the snapshot gives that version by slug, so injected
 In-repo the version still derives from `HEAD`, an uncommitted edit moves nothing, and the checkpoint's verdicts are
 unchanged; what changes is what a later comparison reads.
 
-The checkpoint record keeps its `lifecycleVersion` field and schema (`IntegrationCheckpointCompositionRecordSchema`,
-`scripts/integration/checkpoint-store.ts`), the field now holding the version of the lifecycle record it attested. A
+The checkpoint record keeps its `lifecycleVersion` field (`IntegrationCheckpointCompositionRecordSchema`,
+`scripts/integration/checkpoint-store.ts`), the field now holding the version of the lifecycle record it attested. From
+the flip its immutable composition also binds `nativeOwnership: { projectId, workItemUid }` (A39). Native merge validates
+that project and exact work-item UID before settlement or a fresh merge, and native landing persistence uses only the
+bound owner, including an already-merged or recovered result. A reused slug cannot select another generation for the
+write. A missing or foreign binding authorizes no native landing write; it does not change the independently observed
+host result. Before the flip the checkpoint's emitted shape and digest input stay unchanged. A
 checkpoint written before this change holds `HEAD` there, which no meta record's version equals, so merge reads it as
 moved and refuses `head-mismatch`, whose remedy is to checkpoint again, rather than failing to parse it.
 
@@ -1835,24 +1840,28 @@ request on the host and in the commits that carried its records, and nothing rea
   where its boundary holds it, so the boundary's `terminus` takes as its subject the Candidate and subject digest the
   boundary was written for (`candidateId`, `candidateSubjectDigest`), with no head (§ 5.1), and a member's entry takes
   its member vehicle; each therefore keys as the live decision would (§ 5.1). The `--resume` token's judgments become
-  decisions with no decider, an extra pass the lineage has already used reading as spent (§ 5.5): an additional pass
-  becomes an `additional` extra pass; each ordinary extra pass records `targetBinding: { kind: "call-target" }`
-  because `PrePublicationReplayInputSchema` retains targetless lane judgments, not full grants (A16). Its
-  `scopeJudgmentTarget` is a `ReviewTarget`, which has no host repository coordinate or PR number; no mapper fills
-  these from a boundary, current checkout, or current PR. Such imported judgments retain their targetless binding and
-  remaining subject and ordinal reach, so replay needs no new decision. A ceiling override becomes a `ceiling` extra
-  pass unless it cites a conditional pass authorization (`conditionalPassAuthorizationId`), which maps to nothing,
-  since that authorization's `approved-fix` decision covers it, a frontline one decided on the head the token bound it to
-  (`frontlineCeilingHeadSha`). When that head is absent, the mapping writes no frontline ceiling decision and keeps
-  the `ceilingOverride` in the re-encoded version-two token as a call input (A35). Native re-entry records it at the
-  selected frontline head where it first applies. A terminus maps to nothing where the boundary carries one, and otherwise
-  becomes a terminus decision on the boundary's subject, as above, whose basis is the pass count the imported outcomes
-  give its Candidate, passes carried across its supersession chain included, as the token's terminus counts them today
-  (`readLaneProgress`'s inherited passes, `rg/policy/pre-publication-composition.ts`), so no one is asked to accept
-  again. Every other decision the mapping writes has a `null` basis (§ 5.1). The next action then carries the token
-  re-encoded with the call's own inputs alone (§ 9.3). The mapping decodes today's token through today's replay schema
-  and decoder (`PrePublicationReplayInputSchema`, `decodePrePublicationReplay`), which move out of `handlers/review.ts`
-  into a pure module the mapping and the review gate share, beside the replay schema and encoder from the flip, whose
+  decisions with no decider where their subject is established; ordinary extra-pass judgments whose selected subject the
+  mapping cannot establish stay call inputs until native re-entry selects it (A38). An extra pass the lineage has
+  already used reads as spent (§ 5.5). An additional pass becomes an `additional` extra pass; each ordinary extra pass
+  records `targetBinding: { kind: "call-target" }` because `PrePublicationReplayInputSchema` retains targetless lane
+  judgments, not full grants (A16). Its `scopeJudgmentTarget` is a `ReviewTarget`, which has no host repository
+  coordinate or PR number; no mapper fills these from a boundary, current checkout, or current PR. Such imported
+  judgments retain their targetless binding and remaining subject and ordinal reach, so replay needs no renewed
+  approval. A ceiling override becomes a `ceiling` extra pass unless it cites a conditional pass authorization
+  (`conditionalPassAuthorizationId`), which maps to nothing, since that authorization's `approved-fix` decision covers
+  it. Unresolved ordinary additional and ceiling grants remain in the re-encoded version-two token, with their original
+  Candidate, ordinal and predecessor restrictions; a bound frontline ceiling also retains `frontlineCeilingHeadSha`, so
+  another head receives no authority (A38). The headless frontline exception remains a call input (A35).
+  `mapReviewBoundaryAction` preserves these inputs; `composePrePublicationReviewRequest` records a retained grant only
+  after its selected subject and saved scope binding are valid, then later continuations cite the stored decision. A
+  terminus maps to nothing where the boundary carries one, and otherwise becomes a terminus decision on the boundary's
+  subject, as above, whose basis is the pass count the imported outcomes give its Candidate, passes carried across its
+  supersession chain included, as the token's terminus counts them today (`readLaneProgress`'s inherited passes,
+  `rg/policy/pre-publication-composition.ts`), so no one is asked to accept again. Every other decision the mapping
+  writes has a `null` basis (§ 5.1). The next action then carries the token re-encoded with the call's own inputs alone
+  (§ 9.3). The mapping decodes today's token through today's replay schema and decoder
+  (`PrePublicationReplayInputSchema`, `decodePrePublicationReplay`), which move out of `handlers/review.ts` into a pure
+  module the mapping and the review gate share, beside the replay schema and encoder from the flip, whose
   ordering-recovery `expectedBoundaryVersion` is a store version (§ 3.5) and which the replay from the flip decodes;
   `responseOperationId` stays as recorded, the attempt ID its result's outcome keeps, and `responseSource`'s durable
   part resolves from today's source reference to that result's outcome key, as an evidence record's does, a hosted one
@@ -1986,7 +1995,11 @@ gets its link, and where the host reports none (`providerMergeId` `null`) no lin
 landing-link state not written, naming the rerun. The link joins the work item's other links in one whole-value write
 (`LinksSchema`) against the version read. A link write that fails after the merge lands leaves the merge reported
 landed, its result's landing-link state not written, and names the rerun (§ 3.5), whose already-merged path writes the
-link.
+link. `nativeCheckpointOwner` takes the exact project and work-item UID from the immutable checkpoint (A39), rather than
+resolving today's holder of its slug. `writeWorkUnitLandingCommit` uses that UID; its read retains completed-history
+retry and same-UID rename behavior. A missing binding, another project, or an unavailable owner leaves the link not
+written while preserving the host result. An unmerged request validates the same native ownership before any settlement
+or host mutation.
 
 Under `with-integration` the work unit is archived when its merge lands, so the link is a write to a completed item: on
 a clone lacking that item's history ref, the write refuses `state-unresolvable` naming the refs it lacks, and the
@@ -2681,6 +2694,16 @@ spec's review copy until the candidate tail deletes it (§ 12.5).
     today's reader takes it. The coverage-notice requirement from Criterion 20 is unchanged. A live work unit holding
     committed Candidate versions but no current record leaves those versions behind.
 
+22. **Imported replay grants reach their selected delivery subject (A38).** Native re-entry from imported additional,
+    standard-ceiling and head-bound frontline-ceiling judgments admits their original one-pass authority without renewed
+    approval. Original subject, ordinal, head and saved-scope restrictions remain effective; foreign or stale bindings
+    record no usable authority.
+
+23. **Landing replay keeps its native owner (A39).** Fresh, already-merged and recovered landing writes use the
+    checkpoint-bound project and work-item UID. Replaying A’s retained merged checkpoint after B reuses its slug leaves
+    B unchanged and preserves the independently observed host result. The original archived owner’s retry, including
+    missing-history repair, remains available; foreign or absent native binding cannot authorize a landing write.
+
 ## Open Questions
 
 None blocks starting. The rest are expected contracts with stated availability, and none leaves design open: the ref
@@ -2807,5 +2830,11 @@ rewrite, and deletion pass (§ 11.2, § 12.6, § 14.3).
 
 - **A37** — 2026-11-01 — design: only the exact exported specification is evidence-neutral.
   _Supersedes:_ § 12.5 ¶4. _Trigger:_ AGG-F12 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A38** — 2026-11-01 — design: unbound replay grants wait for subject selection.
+  _Supersedes:_ § 11.2. _Trigger:_ AGG-F2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A39** — 2026-11-01 — design: native checkpoints bind landing writes to their project and work-item UID.
+  _Supersedes:_ § 3.2 ¶3; § 12.3 ¶2. _Trigger:_ AGG-F8 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

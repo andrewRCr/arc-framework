@@ -529,6 +529,7 @@ function mergeCoordinates(
 
 export interface IntegrationMergeDependencies {
   readCheckpoint(workUnit: string, handle: string): Promise<IntegrationCheckpointCompositionRecord | null>;
+  validateCheckpointOwnership?(record: IntegrationCheckpointCompositionRecord): Promise<void>;
   executeSettlement(record: IntegrationCheckpointCompositionRecord): Promise<SettlementExecutionResult>;
   readStatus(workUnit: string): Promise<{
     actualHead: string;
@@ -540,7 +541,7 @@ export interface IntegrationMergeDependencies {
     { merged: false; providerMergeId: null }
     | { merged: true; providerMergeId: string | null; /** Why exact confirmation named no merge commit. */ confirmationDetail?: string }
   >;
-  writeLandingCommit?(workUnit: string, sha: string): Promise<void>;
+  writeLandingCommit?(workUnit: string, sha: string, checkpoint: IntegrationCheckpointCompositionRecord): Promise<void>;
   refreshTarget(target: IntegrationMergeTarget): Promise<IntegrationMergeTarget>;
   releaseLock(target: IntegrationMergeTarget): Promise<{ state: string }>;
   holdLock(target?: IntegrationMergeTarget): Promise<{ state: string }>;
@@ -605,13 +606,15 @@ async function invalidated(
   });
 }
 
-async function completeMergedIntegration(request: IntegrationMergeRequest, approvedHead: string,
+async function completeMergedIntegration(request: IntegrationMergeRequest, checkpoint: IntegrationCheckpointCompositionRecord,
   target: IntegrationMergeTarget, providerMergeId: string | null,
   dependencies: IntegrationMergeDependencies, confirmationDetail?: string): Promise<IntegrationMergeResult> {
+  const writeLandingCommit = dependencies.writeLandingCommit?.bind(dependencies);
   const landingLink = await recordLandingLink({ workUnit: request.workUnit, checkpointHandle: request.checkpointHandle,
-    providerMergeId, write: dependencies.writeLandingCommit?.bind(dependencies), confirmationDetail });
+    providerMergeId, write: writeLandingCommit === undefined ? undefined
+      : (workUnit, sha) => writeLandingCommit(workUnit, sha, checkpoint), confirmationDetail });
   return IntegrationMergeResultSchema.parse({ schemaVersion: 1, mode: "integrate-merge", workUnit: request.workUnit,
-    state: "merged", nextAction: "complete", payload: { approvedHead, pullRequest: target.pullRequest, target, providerMergeId,
+    state: "merged", nextAction: "complete", payload: { approvedHead: checkpoint.approvedHead, pullRequest: target.pullRequest, target, providerMergeId,
       ...(landingLink === undefined ? {} : { landingLink }) } });
 }
 
@@ -641,8 +644,12 @@ export async function mergeIntegration(
     }
     target = IntegrationMergeTargetSchema.parse(checkpoint.target);
     const existing = await dependencies.readMerged(target);
-    if (existing.merged) return await completeMergedIntegration(request, checkpoint.approvedHead, target,
+    if (existing.merged) return await completeMergedIntegration(request, checkpoint, target,
       existing.providerMergeId, dependencies, existing.confirmationDetail);
+    try { await dependencies.validateCheckpointOwnership?.(checkpoint); }
+    catch (error) {
+      return mergeOperationRefusal(request.workUnit, error instanceof Error ? error.message : String(error));
+    }
     const settlement = await dependencies.executeSettlement(checkpoint);
     if (settlement.state === "invalidated") {
       return await invalidated(base, "settlement-invalidated", { settlement }, dependencies, target);
@@ -1059,12 +1066,12 @@ export async function mergeIntegration(
         payload: { target: merged.target, detail: mergedDetail },
       });
     }
-    return await completeMergedIntegration(request, checkpoint.approvedHead, merged.target, merged.providerMergeId, dependencies);
+    return await completeMergedIntegration(request, checkpoint, merged.target, merged.providerMergeId, dependencies);
   } catch (error) {
     if (target !== undefined) {
       try {
         const recovered = await dependencies.readMerged(target);
-        if (recovered.merged) return await completeMergedIntegration(request, checkpoint?.approvedHead ?? target.headSha,
+        if (recovered.merged && checkpoint !== null) return await completeMergedIntegration(request, checkpoint,
           target, recovered.providerMergeId, dependencies, recovered.confirmationDetail);
       } catch {
         // Without exact merged-state evidence the compensating lock remains the safe fallback.

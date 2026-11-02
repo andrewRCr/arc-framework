@@ -1,6 +1,6 @@
 /** Native delivery acknowledgment persists its Candidate and boundary without record effects. */
 import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
-import { expect, it, onTestFinished } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createReviewRepositoryHarness } from "../helpers/store/review-differential.js";
@@ -23,7 +23,7 @@ import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-stat
 import { renderDeliveryPlanSection } from "../../src/lib/delivery/task-list-render.js";
 import { recordReferences } from "../../src/lib/store/identity.js";
 
-it("acknowledges and replays a native delivery correction with no record paths or code commit", async () => {
+it.each(["none", "state", "boundary"] as const)("recovers and replays native delivery acknowledgment interrupted at %s", async interruption => {
   const h = await createReviewRepositoryHarness();
   onTestFinished(h.cleanup);
   const { cwd, exec } = h.native;
@@ -106,6 +106,23 @@ it("acknowledges and replays a native delivery correction with no record paths o
     expect(result).not.toHaveProperty("recordEffects");
     return result;
   };
+  if (interruption !== "none") {
+    const nativeStore = h.native.store;
+    if (nativeStore === undefined) throw new Error("Expected native Store");
+    const originalWrite = nativeStore.write.bind(nativeStore);
+    const fail = () => { throw new Error("Interrupted acknowledgment"); };
+    const fault = interruption === "state"
+      ? vi.spyOn(RepositoryDeliveryStateStore.prototype, "publish").mockImplementationOnce(fail)
+      : vi.spyOn(nativeStore, "write").mockImplementation(async input => {
+        if (input.reference.kind === "review/integration-boundary") return fail();
+        return originalWrite(input);
+      });
+    try {
+      expect((await dispatch()).result).toMatchObject({ status: "refused" });
+      expect((await readCandidateRecord(cwd, name, { store: h.reference.store, owner: primary.reference.owner }))?.transitions)
+        .toHaveLength(1);
+    } finally { fault.mockRestore(); }
+  }
   await invoke();
   const candidate = await readCandidateRecord(cwd, name, { store: h.reference.store, owner: primary.reference.owner });
   expect(candidate?.transitions).toMatchObject([{ transitionKind: "verification-response", newTarget: { revision: head } }]);

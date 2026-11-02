@@ -2,6 +2,7 @@
  * Natively, a delivery plan's re-entries keep the Owner judgments an earlier call carried: a terminus recorded on the
  * Candidate applies to the member a later call selects, and grants a scope refusal could not yet bind reach that member.
  */
+import { mapReviewBoundaryAction } from "../../../../../src/lib/store/kinds/review/mapping-boundary-actions.js";
 import { expect, it } from "vitest";
 
 import { buildPrePublicationResumeCommand } from "../../../../../src/handlers/review-pre-publication-replay.js";
@@ -31,7 +32,7 @@ async function deliveryFixture() {
     if (listing.status !== "complete") throw new Error(listing.reason);
     return listing.records.map(({ value }) => value);
   };
-  return { h, dependencies, listDecisions };
+  return { h, owner, dependencies, listDecisions };
 }
 
 it("applies a terminus recorded before self-review settled to the member its re-entry selects", async () => {
@@ -128,4 +129,29 @@ it("reports the member targets a delivery selection examined, through the refusi
     lanes: { frontline: { scopeMode: "whole-target" } } }, dependencies);
   expect(composed, JSON.stringify(composed)).toMatchObject({ status: "composed", request: { target: second.target },
     examinedTargets: [first.target, second.target] });
+});
+
+it.each(grants)("binds an imported $name to the selected delivery member", async ({ lane, field, nextPass, lanes }) => {
+  const { dependencies, listDecisions, owner } = await deliveryFixture();
+  const original = { candidateId: CANDIDATE_ID, candidateSubjectDigest: SUBJECT_DIGEST, selfReview: "settled" as const,
+    lanes: { ...lanes, frontline: { ...lanes.frontline, scopeMode: "whole-target" as const } },
+    scopeJudgmentTarget: first.target,
+    ...(lane === "frontline" ? { frontlineCeilingHeadSha: second.target.headSha } : {}) };
+  const token = Buffer.from(JSON.stringify(original)).toString("base64url");
+  const action = mapReviewBoundaryAction({ kind: "continue-pre-publication-review",
+    command: `arc review pre-publication example --resume ${token}`, interactionText: "Resume" }, "example", [],
+    { repositoryId: REPOSITORY, workItem: owner }) as { command: string };
+  const replay = decodePrePublicationReplay(replayTokenFromAction(action.command, "example"), 2);
+  const result = await composePrePublicationReviewRequest({ workUnit: "example", selfReview: replay.selfReview,
+    lanes: replay.lanes, scopeJudgmentTarget: replay.scopeJudgmentTarget, frontlineCeilingHeadSha: replay.frontlineCeilingHeadSha }, dependencies);
+  expect(result, JSON.stringify(result)).toMatchObject({ status: "composed", request: { target: second.target,
+    [lane]: { [field]: { nextPass, decisionKey: expect.stringMatching(/^sha256:/u) } } } });
+  expect(await listDecisions()).toMatchObject([{ lane, subject: { lineage: { kind: "delivery-member",
+    deliverableId: second.vehicle.deliverableId }, headSha: second.target.headSha } }]);
+  if (lane === "frontline") {
+    const { dependencies: foreign, listDecisions: foreignDecisions } = await deliveryFixture();
+    await composePrePublicationReviewRequest({ workUnit: "example", selfReview: replay.selfReview, lanes: replay.lanes,
+      scopeJudgmentTarget: replay.scopeJudgmentTarget, frontlineCeilingHeadSha: first.target.headSha }, foreign);
+    expect(await foreignDecisions()).toEqual([]);
+  }
 });

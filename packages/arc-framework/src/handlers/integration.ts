@@ -172,7 +172,7 @@ export async function handleIntegrationMerge(
     resolveRoot: () => resolveArcRoot(),
     merge: async (root, workUnit, checkpoint) => mergeIntegration(
       { schemaVersion: 1, workUnit, checkpointHandle: checkpoint },
-      createIntegrationMergeDependencies({ ...await resolveIntegrationReviewInvocation({ ...invocation, cwd: root, exec }, workUnit), workUnit }),
+      createIntegrationMergeDependencies({ ...invocation, cwd: root, exec, workUnit }),
     ),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },

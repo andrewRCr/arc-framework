@@ -415,6 +415,22 @@ describe("evidence-bound review policy", () => {
       payload: { pass: 2, scope: "chunked", sourceId: "delegated-agent", ceilingOverrideApplied: true } });
   });
 
+  it.each([false, true])("retains an unmarked whole-target local predecessor for a chunked additional pass (native=%s)", async native => {
+    const chunked = chunkedLocalAggregateResult({ clean: true });
+    const { deliveryAdmission: ignored, ...producer } = chunked;
+    void ignored;
+    const result = { ...producer, admission: { ...chunked.admission, scopeMode: "whole-target" as const } };
+    const request = { ...cleanRequest(result),
+      attempts: [{ sourceId: "delegated-agent", outcome: "clean" as const, reviewOperationId: result.producerId }],
+      scopeSelection: { mode: "chunked" as const, target: policyTarget },
+      additionalPassAuthorization: { target: policyTarget, lane: "standard" as const,
+        precedingProducerId: result.producerId, completedPasses: 1, nextPass: 2 } };
+    const evidence = { ...dependencies(result), sources: ["delegated-agent"], maxPasses: 1,
+      ...(native ? { stateOffBranch: true as const } : {}) };
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: false }, evidence))
+      .resolves.toMatchObject({ state: "ready", nextAction: "local-prepare", payload: { pass: 2, scope: "chunked" } });
+  });
+
   it("waits for the approved minor response before an elective successor pass", async () => {
     const result = findingsHostedResult(["minor"]);
     const record = approvedRecord(result, [{

@@ -1,6 +1,7 @@
 /** Repository-wide execution inventory used only to classify local source pins for cleanup. */
 import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import type { Store } from "../../../../lib/store/contract.js";
+import type { OwnerIdentity } from "../../../../lib/store/identity.js";
 import type { LocalSourceSweepDependencies } from "../../core/local-source-sweep.js";
 import { ReviewInFlightRecordSchema, composeReviewInFlightState, type ReviewInFlightRecord } from "../../core/in-flight-state-schema.js";
 import type { ReviewOperationState, LocalReviewState } from "../../core/operation-state-schema.js";
@@ -16,7 +17,7 @@ type RetainedOperation = { version: number; state: ReviewOperationState; ownerUi
 export async function createNativeLocalSourceSweepRecords(input: {
   publisher: GitCommonStatePublisher; store: Store; projectId: () => Promise<string>; operationIds: readonly string[];
 }): Promise<Required<Pick<LocalSourceSweepDependencies, "readOperation" | "isComplete">> & {
-  canRelease(operationId: string): Promise<boolean>;
+  canRelease(operationId: string, releasingOwner?: OwnerIdentity): Promise<boolean>;
 }> {
   const projectId = await input.projectId();
   const pinned = new Set(input.operationIds.map(nativeReviewInFlightOperationPart));
@@ -51,7 +52,8 @@ export async function createNativeLocalSourceSweepRecords(input: {
       return match === undefined ? { version: 0, state: null } : { version: match.version, state: match.state };
     },
     isComplete,
-    canRelease: async operationId => (await unfinished(operationId)).length === 0,
+    canRelease: async (operationId, releasingOwner) => (await unfinished(operationId)).every(match =>
+      releasingOwner?.type === "work-item" && releasingOwner.uid !== undefined && match.ownerUid === releasingOwner.uid),
   };
 }
 

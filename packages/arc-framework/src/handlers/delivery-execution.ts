@@ -4023,6 +4023,7 @@ async function executeDeliveryCommand(
         boundary: boundarySnapshot.boundary,
         candidateId: recorded.record.attestation.candidateId,
         sourceCandidateSubjectDigest: recorded.status === "already-recorded"
+          && boundarySnapshot.boundary.candidateSubjectDigest === recorded.transition.newTarget.subject.subjectDigest
           ? recorded.transition.newTarget.subject.subjectDigest
           : recorded.transition.oldTarget.subject.subjectDigest,
         candidateSubjectDigest: recorded.transition.newTarget.subject.subjectDigest,

@@ -7,6 +7,8 @@ import { createReviewDecisionPort } from "../../../../../src/lib/store/kinds/rev
 import { createReviewOutcomePort } from "../../../../../src/lib/store/kinds/review/outcome/access.js";
 import { createReviewEvidencePort } from "../../../../../src/lib/store/kinds/review/evidence/access.js";
 import { recordNativeFrontlineSkip } from "../../../../../src/scripts/review-gate/runtime/native-frontline-window.js";
+import { mapReviewBoundaryAction } from "../../../../../src/lib/store/kinds/review/mapping-boundary-actions.js";
+import { decodePrePublicationReplayV2, replayTokenFromAction } from "../../../../../src/scripts/review-gate/policy/pre-publication-replay.js";
 import { mapReviewReplayDecisions } from "../../../../../src/lib/store/kinds/review/mapping-replay-decisions.js";
 import { projectCandidateReviewBoundary, IntegrationBoundaryLocusSchema } from "../../../../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
@@ -268,16 +270,18 @@ it.each(["ceiling", "additional"] as const)("binds an imported targetless %s gra
     candidateId: lineage.candidateId, candidateSubjectDigest: h.input.subject.subjectDigest }), nextAction: {
       kind: "continue-pre-publication-review", command: `arc review pre-publication example --resume ${token}`, interactionText: "Resume review." } });
   const imported = mapReviewReplayDecisions(boundary, () => 0);
-  expect(imported).toHaveLength(1);
-  await h.input.facts.decisions.create(imported[0]!);
+  expect(imported).toEqual([]);
+  const action = mapReviewBoundaryAction(boundary.nextAction, "example", [], { repositoryId: h.input.repositoryId,
+    workItem: h.owner }) as { command: string };
+  const replay = decodePrePublicationReplayV2(replayTokenFromAction(action.command, "example"));
+  const first = await resolveNativeExtraPassJudgment({ ...h.input, judgment: replay.lanes?.standard });
   const before = await h.store.version();
-  const first = await resolveNativeExtraPassJudgment(h.input);
   expect(first.judgment).toHaveProperty(kind === "ceiling" ? "ceilingOverride" : "additionalPassAuthorization");
   expect(await resolveNativeExtraPassJudgment({ ...h.input,
     policyTarget: { ...h.input.policyTarget, repository: "Other/Project", pullRequest: null } })).toEqual(first);
   expect(await h.store.version()).toEqual(before);
   expect(await h.input.facts.decisions.list()).toMatchObject({ status: "complete", records: [{ value: {
-    choice: { precondition: { targetBinding: { kind: "call-target" } } }, decidedBy: null, decidedAt: null } }] });
+    choice: { precondition: { targetBinding: { kind: "call-target" } } }, decidedBy: h.input.actor, decidedAt: h.input.now } }] });
 });
 
 it.each(["head", "ordinal", "producer"] as const)("refuses an additional reference with mismatching %s", async invalid => {

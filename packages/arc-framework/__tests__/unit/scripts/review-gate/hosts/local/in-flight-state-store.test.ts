@@ -72,9 +72,10 @@ it.each(["unexpected-in-flight-entry", "operation-record-name-mismatch", "damage
     if (fault === "unexpected-in-flight-entry") await mkdir(other);
     else if (fault === "operation-record-name-mismatch") await rename(path, other);
     else await writeFile(path, "{");
-    expect(await h.operations.readOperationSnapshot()).toMatchObject(fault === "damaged-record"
-      ? { status: "unavailable", reason: expect.stringContaining(`Native execution record '${name}' is malformed:`) }
-      : { status: "incomplete", reason: fault });
+    expect(await h.operations.readOperationSnapshot()).toMatchObject(fault === "unexpected-in-flight-entry"
+      ? { status: "incomplete", reason: fault }
+      : { status: "unavailable", reason: expect.stringContaining(`Native execution record '${fault === "damaged-record"
+        ? name : nativeReviewInFlightRecordName(h.primary.reference.owner.uid, "other-operation")}' is malformed:`) });
     if (fault === "unexpected-in-flight-entry") await rm(other, { recursive: true });
     else if (fault === "operation-record-name-mismatch") await rename(other, path);
     else await writeFile(path, original);
@@ -258,6 +259,9 @@ it("raises an unreadable project ID reading the execution snapshot whole, and re
 it.each([
   ["unparseable", () => "{"],
   ["schema-invalid", () => JSON.stringify({ schemaVersion: 1 })],
+  ["envelope operation mismatch", (record: { operationId: string }) => JSON.stringify({ ...record, operationId: "other-operation" })],
+  ["filename operation mismatch", (record: { operationId: string; state: { operationId: string } }) => JSON.stringify({ ...record,
+    operationId: "other-operation", state: { ...record.state, operationId: "other-operation" } })],
   ["foreign work item", (record: { state: { workItem: { uid: string } } }) => JSON.stringify({ ...record,
     state: { ...record.state, workItem: { ...record.state.workItem, uid: "123e4567-e89b-42d3-a456-426614174777" } } })],
   ["foreign project", (record: { state: { repositoryId: string } }) => JSON.stringify({ ...record,
@@ -274,6 +278,7 @@ it.each([
     message: expect.stringMatching(new RegExp(`^Native execution record '${name}' is malformed: .+\\. Repair or remove it, then retry\\.$`, "su")) };
   await expect(h.operations.readOperation(h.lane.operationId)).rejects.toMatchObject(refusal);
   await expect(h.operations.publishOperation(h.lane, 1)).rejects.toMatchObject(refusal);
+  expect(await h.operations.readOperationSnapshot()).toMatchObject({ status: "unavailable", reason: refusal.message });
   await writeFile(path, original);
   expect(await h.operations.readOperation(h.lane.operationId)).toMatchObject({ version: 1, state: { operationId: h.lane.operationId } });
   expect(await h.operations.publishOperation(h.lane, 1)).toEqual({ version: 1 });

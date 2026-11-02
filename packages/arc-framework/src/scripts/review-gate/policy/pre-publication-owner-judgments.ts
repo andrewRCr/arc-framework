@@ -4,6 +4,9 @@ import { SlugSchema, type CanonicalDigest } from "../../../lib/kernel/index.js";
 import type { ReviewInFlightPort } from "../core/ports.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import type { ReviewInvocationInput } from "../runtime/invocation.js";
+import { readNativeApprovedFixPassJudgment } from "../runtime/native-frontline-window.js";
+import { createCandidateResponseHeadContinuationReader } from "../runtime/candidate-response-head-continuation.js";
+import { createReviewCompositionContext } from "../runtime/composition-context.js";
 import { resolveNativeInvocationExtraPassJudgment } from "../runtime/native-extra-pass.js";
 import { prepareNativeReviewTerminus, type PreparedNativeReviewTerminus } from "../runtime/native-terminus-write.js";
 import { resolveNativeReviewTerminus } from "../runtime/native-terminus.js";
@@ -48,7 +51,12 @@ export function createPrePublicationOwnerJudgments(input: ReviewInvocationInput,
       if (facts === undefined) throw new Error("Resolve the selected native review facts before reading extra-pass judgments.");
       const result = await resolveNativeInvocationExtraPassJudgment(input, facts, { ...context,
         repositoryId: context.repositoryId ?? await facts.readProjectId() });
-      return result.judgment;
+      if (context.judgment?.ceilingOverride !== undefined) return result.judgment;
+      const conditional = await readNativeApprovedFixPassJudgment(facts, { repositoryId: context.repositoryId ?? await facts.readProjectId(),
+        lane: context.lane, lineage: context.subject.lineage, passCount: context.completedPasses,
+        headSha: context.policyTarget.headSha, confirmResponseHeadContinuation: createCandidateResponseHeadContinuationReader({
+          ...input, operationStore: store, dispositionStore: createReviewCompositionContext(input).family.ports.dispositions }) });
+      return conditional === undefined ? result.judgment : { ...result.judgment, ceilingOverride: conditional };
     },
   }) };
 }

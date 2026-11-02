@@ -70,7 +70,7 @@ export function createLocalAttestDependencies(options: ReviewInvocationInput): L
       if (input.store.capabilities.stateOffBranch) {
         const retained = await createNativeLocalSourceSweepRecords({ publisher, store: input.store,
           projectId: input.projectId, operationIds: [operationId] });
-        if (!await retained.canRelease(operationId)) return;
+        if (!await retained.canRelease(operationId, input.workItem)) return;
       }
       await sweepAdapter.releaseWithinLock(operationId);
     },

@@ -4395,6 +4395,7 @@ function defaultPrePublicationDependencies(
       const composition = await composePrePublicationReviewRequest(
         {
           workUnit: input.name,
+          ...(judgment.scopeJudgmentTarget === undefined ? {} : { scopeJudgmentTarget: judgment.scopeJudgmentTarget }),
           ...(judgment.selfReview === undefined ? {} : { selfReview: judgment.selfReview }),
           ...(judgment.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
           ...(judgment.lanes === undefined ? {} : { lanes: judgment.lanes }),
@@ -4687,6 +4688,7 @@ export async function handleReviewPrePublication(
         changeSet: savedReplay.changeSet,
         lanes: savedReplay.lanes,
         frontlineCeilingHeadSha: savedReplay.frontlineCeilingHeadSha,
+        scopeJudgmentTarget: savedReplay.scopeJudgmentTarget,
       };
     }
     const beforeCompose = await dependencies.readCandidate(root, input.data.name);

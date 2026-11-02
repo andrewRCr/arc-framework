@@ -12,9 +12,11 @@ import { createReviewRepositoryHarness } from "../helpers/store/review-different
 import { lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import type { Store } from "../../src/lib/store/index.js";
+import { RecordReferenceSchema, sameOwner } from "../../src/lib/store/identity.js";
+import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { lackingEndedHistory } from "../helpers/store/ended-history.js";
 
-async function landed(archived = false) {
+async function landed(archived = false, binding = true) {
   const h = await createReviewRepositoryHarness();
   onTestFinished(h.cleanup);
   const { cwd, exec } = h.native;
@@ -40,9 +42,12 @@ async function landed(archived = false) {
   const meta = await h.reference.seedMeta("example", archived ? { state: "Shipped", branch: null, currentWorkflow: null }
     : { state: "Integrating", branch: null, currentWorkflow: "integrate-work-unit" },
   archived ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" }, links);
+  const uid = meta.reference.owner.type === "work-item" ? meta.reference.owner.uid : undefined;
+  if (uid === undefined) throw new Error("Expected native work-item UID");
   const surfaces = createUserSurfaceResolver({ cwd, identity: SlugSchema.parse("test-user") });
   const checkpoint = await persistIntegrationCheckpointComposition(surfaces.workUnitRoot(SlugSchema.parse("example")), {
     workUnit: "example", approvedHead: head, lifecycleVersion: meta.version,
+    ...(binding ? { nativeOwnership: { projectId, workItemUid: uid } } : {}),
     target: { repository: "owner/repo", pullRequest: 42, baseRef: "main", headRef: branch, headSha: head },
     settlementPlan: composeCanonicalSettlementPlan([]), mergeMethod: { schemaVersion: 1, mode: "review-merge-method-resolve",
       repository: "owner/repo", stackPosition: "non-delivery", state: "validated", nextAction: "use-method",
@@ -64,7 +69,7 @@ async function landed(archived = false) {
   const oldPath = process.env.PATH;
   process.env.PATH = `${bin}${delimiter}${oldPath ?? ""}`;
   onTestFinished(() => { if (oldPath === undefined) delete process.env.PATH; else process.env.PATH = oldPath; });
-  const run = async (store: Store = h.reference.store) => {
+  const run = async (store: Store = h.reference.store, readProjectId = h.reference.projectId, bindOwner = true) => {
     let output = "";
     const exits: number[] = [];
     const originalCwd = process.cwd();
@@ -72,12 +77,12 @@ async function landed(archived = false) {
       process.chdir(cwd);
       await handleIntegrationMerge("example", { checkpoint }, undefined, { resolveRoot: () => cwd,
         write: value => { output += value; }, setExitCode: value => exits.push(value) },
-      { store, projectId: h.reference.projectId, workItem: meta.reference.owner });
+      { store, projectId: readProjectId, ...(bindOwner ? { workItem: meta.reference.owner } : {}) });
     } finally { process.chdir(originalCwd); }
     expect(exits, output).toEqual([]);
     return IntegrationMergeResultSchema.parse(JSON.parse(output));
   };
-  return { h, git, projectId, head, mergeCommit, links, meta, checkpoint, host, run };
+  return { h, git, projectId, head, mergeCommit, links, meta, checkpoint, host, run, uid };
 }
 
 it("retains a landed merge through missing host identity and a failed link write, then saves the host commit on retry", async () => {
@@ -120,4 +125,37 @@ it("links an archived work unit's landing after pulling the history this clone l
     payload: { providerMergeId: mergeCommit, landingLink: { state: "written" } } });
   expect(lifecycleSuccess(await h.reference.store.read({ reference: meta.reference })).links).toEqual({ ...links,
     landingCommit: { repository: projectId, sha: mergeCommit } });
+}, 30_000);
+
+it("writes the retained completed generation after its slug is reused, including missing-history retry", async () => {
+  const { h, projectId, mergeCommit, links, meta, host, run } = await landed(true);
+  const newer = await h.reference.seedMeta("example", { state: "Integrating", branch: null, currentWorkflow: "integrate-work-unit" },
+    { kind: "active" }, links);
+  expect(sameOwner(newer.reference.owner, meta.reference.owner)).toBe(false);
+  await host(mergeCommit);
+  expect(await run(lackingEndedHistory(h.reference.store, meta.reference.owner), h.reference.projectId, false)).toMatchObject({ state: "merged",
+    payload: { landingLink: { state: "written" } } });
+  expect(lifecycleSuccess(await h.reference.store.read({ reference: meta.reference })).links).toEqual({ ...links,
+    landingCommit: { repository: projectId, sha: mergeCommit } });
+  expect(lifecycleSuccess(await h.reference.store.read({ reference: newer.reference }))).toEqual(newer);
+}, 30_000);
+
+it.each(["missing", "project"] as const)("preserves the landed host result without a link for %s checkpoint ownership", async fault => {
+  const { h, meta, host, mergeCommit, run } = await landed(false, fault !== "missing");
+  await host(mergeCommit);
+  expect(await run(h.reference.store, fault === "project" ? async () => "123e4567-e89b-42d3-a456-426614174088" : h.reference.projectId))
+    .toMatchObject({ state: "merged", payload: { landingLink: { state: "not-written", detail: expect.stringMatching(/project|binding/iu) } } });
+  expect(lifecycleSuccess(await h.reference.store.read({ reference: meta.reference }))).toEqual(meta);
+}, 30_000);
+
+it("retains the original UID after its work unit is renamed", async () => {
+  const { h, projectId, mergeCommit, meta, host, run } = await landed(true);
+  const reference = RecordReferenceSchema.parse({ ...meta.reference, owner: { ...meta.reference.owner, name: "renamed" } });
+  lifecycleSuccess(await h.reference.store.write({ ...recordPut(meta, { content: meta.content.replaceAll("example", "renamed") }),
+    reference, provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  await host(mergeCommit);
+  expect(await run(h.reference.store, h.reference.projectId, false)).toMatchObject({ state: "merged",
+    payload: { landingLink: { state: "written" } } });
+  expect(lifecycleSuccess(await h.reference.store.read({ reference })).links?.landingCommit)
+    .toEqual({ repository: projectId, sha: mergeCommit });
 }, 30_000);

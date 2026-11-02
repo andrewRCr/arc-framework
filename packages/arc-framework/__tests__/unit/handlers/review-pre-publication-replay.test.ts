@@ -28,8 +28,10 @@ it.each(choices)("emits only native call inputs while repository replay retains 
     judgment: { selfReview: "settled", changeSet: { code: true }, lanes: { frontline, standard }, frontlineCeilingHeadSha: undefined } });
   const repositoryToken = replayTokenFromAction(buildPrePublicationResumeCommand({ ...input, schemaVersion: 1 }), "example");
   expect(decodePrePublicationReplay(repositoryToken)).toMatchObject({ lanes, frontlineCeilingHeadSha: "b".repeat(40) });
-  expect(await readPrePublicationCall({ resume: repositoryToken }, { resolveRoot: () => "/native",
-    readText: async () => "", boundarySchemaVersion: () => 2 })).toMatchObject({ status: "failed", stage: "request" });
+  const imported = await readPrePublicationCall({ resume: repositoryToken }, { resolveRoot: () => "/native",
+    readText: async () => "", boundarySchemaVersion: () => 2 });
+  expect(imported).toMatchObject("terminus" in lanes.standard ? { status: "failed", stage: "request" }
+    : { status: "ready", replay: { lanes, frontlineCeilingHeadSha: "b".repeat(40) } });
 });
 
 it("keeps a native call's grants, never its terminus, when its scope refusal retains them", () => {

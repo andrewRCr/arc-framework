@@ -75,6 +75,7 @@ async function compositionFixture() {
 
 it("persists the exact stored meta version the checkpoint observed", async () => {
   const h = await compositionFixture();
+  await h.seedProject("123e4567-e89b-42d3-a456-426614174099");
   await h.seedCandidate(h.primary.reference.owner, candidateFixture());
   const dependencies = createIntegrationCheckpointDependencies(h.options);
   const lifecycle = await dependencies.readLifecycle("example");
@@ -91,6 +92,7 @@ it("persists the exact stored meta version the checkpoint observed", async () =>
   if (result.status !== "created") throw new Error("Expected the checkpoint handle");
   const surfaces = createUserSurfaceResolver({ cwd: h.cwd, identity: SlugSchema.parse("test-user") });
   const saved = await readIntegrationCheckpointComposition(surfaces.workUnitRoot(SlugSchema.parse("example")), "example", result.handle);
+  expect(saved?.nativeOwnership).toEqual({ projectId: "123e4567-e89b-42d3-a456-426614174099", workItemUid: h.primary.reference.owner.type === "work-item" ? h.primary.reference.owner.uid : undefined });
   expect(saved?.lifecycleVersion).toBe(lifecycleSuccess(await h.store.read({ reference: h.primary.reference })).version);
 });
 

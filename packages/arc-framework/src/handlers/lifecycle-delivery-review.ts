@@ -44,7 +44,6 @@ import {
   collectUnstagedReviewablePaths,
 } from "../lib/work-unit/git-candidate-subject.js";
 import {
-  readCandidateRecord,
   readCandidateRecordVersioned,
   writeCandidateRecord,
 } from "../lib/store/kinds/review/candidate/access.js";
@@ -333,6 +332,7 @@ async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestComma
     return;
   }
 
+  const designExport: { result: Awaited<ReturnType<typeof exportWorkUnitSpec>> } = { result: null };
   let result: Awaited<ReturnType<typeof runAttest>>;
   try {
     result = await runAttest({
@@ -407,7 +407,7 @@ async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestComma
             );
           }
         }
-        await exportWorkUnitSpec({ cwd: base.cwd, workUnit: publication.name, store: executor.store,
+        designExport.result = await exportWorkUnitSpec({ cwd: base.cwd, workUnit: publication.name, store: executor.store,
           owner: reviewInvocation.workItem, exec: base.io.exec, trackDesignDocs: settings["storage.track_design_docs"],
           stageMatching: true });
         const recordPath = boundarySchemaVersion === 2 ? null : await writeCandidateRecord(
@@ -521,6 +521,9 @@ async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestComma
     return;
   }
 
+  if ((result.status === "attested" || result.status === "unchanged") && designExport.result !== null) {
+    result = { ...result, designExport: designExport.result };
+  }
   if (result.status === "unchanged") {
     const currentBoundary = await readSubmissionBoundaryVersioned(base.cwd, input.name, { store: executor.store, owner: reviewInvocation.workItem });
     if (currentBoundary.boundary?.candidateId !== result.locus.candidateId
@@ -578,6 +581,7 @@ async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestComma
       `Candidate: ${result.locus.candidateId}`,
       `Locus:     ${result.locus.locus}`,
     ];
+    if (result.designExport?.overwritten === true) lines.push(`Replaced design review copy: ${result.designExport.path}`);
     if ("operation" in result && result.operation === "convergence") {
       lines.push(`Scope:     ${result.scope}`);
       lines.push(`Evidence:  ${result.verificationEvidenceRef}`);
@@ -630,7 +634,8 @@ async function publishCandidate(base: VerbBase, target: string, input: PublishOp
     store: executor.store, projectId: executor.projectId, ...(primary === undefined ? {} : { workItem: primary.reference.owner }) }, target);
   const rawGit = createRawGitExec(base.cwd);
   const readCandidateAuthorization = async () => {
-    const record = await readCandidateRecord(base.cwd, target, { store: executor.store, owner: reviewInvocation.workItem });
+    const snapshot = await readCandidateRecordVersioned(base.cwd, target, { store: executor.store, owner: reviewInvocation.workItem });
+    const record = snapshot.record;
     if (record === null) return null;
     const effective = await projectGitCandidateEffectiveTarget({
       cwd: base.cwd,
@@ -648,6 +653,7 @@ async function publishCandidate(base: VerbBase, target: string, input: PublishOp
     return {
       record,
       candidateId: record.attestation.candidateId,
+      candidateVersion: snapshot.version,
       candidateSubjectDigest,
       candidateCurrent: effective.state === "current"
         && effective.convergenceVerification === "satisfied",
@@ -702,6 +708,7 @@ async function publishCandidate(base: VerbBase, target: string, input: PublishOp
         candidateId: candidate.candidateId,
         candidateSubjectDigest: candidate.candidateSubjectDigest,
         candidateCurrent: candidate.candidateCurrent,
+        candidateVersion: candidate.candidateVersion,
         boundary,
         refreshCandidateAuthorization: async () => {
           const refreshed = await readCandidateAuthorization();

@@ -861,6 +861,23 @@ independent knowledge and are re-checked at source-grounding.
   resumable operation onto [AIP-151][aip-151]'s handle with `done`, progress, and result. No controlled study isolates
   call count or schema discoverability against agent cost, so efficiency claims want ARC's own measurement.
 
+## A38 — Defer imported grants until subject selection
+
+The approved import correction extends the existing retained-call pattern: the mapping has no authoritative delivery
+member coordinates, so it cannot turn every saved ordinary judgment into a Candidate decision. The superseded § 11.2
+statement was “The `--resume` token's judgments become decisions with no decider.” Retain unbound grants and the
+frontline head restriction until the consuming native call selects and validates its subject; do not infer a member
+from a head or broaden a recorded decision's reach. Criterion 22 covers the imported-to-native continuation.
+
+## A39 — Bind landing persistence to checkpoint ownership
+
+The superseded § 3.2 statement was “The checkpoint record keeps its `lifecycleVersion` field and schema.” Native landing
+persistence adds a mutation to the already-merged path, which runs before live status comparison. A slug can be reused,
+so the immutable composition binds project ID and UID; the direct UID read supplies the canonical record and its version.
+Checkpoint creation keeps exact selection. Merge setup does not eagerly resolve the slug: read the retained checkpoint
+and observe its target first, then validate native ownership before any unmerged settlement. A merged result preserves
+its host truth even when exact-owner link persistence cannot finish. Criterion 23 covers reuse, history repair and retry.
+
 ---
 
 [github-reviews]: https://docs.github.com/en/rest/pulls/reviews

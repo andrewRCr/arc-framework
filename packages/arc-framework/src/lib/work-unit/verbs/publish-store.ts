@@ -44,7 +44,8 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
   if (reconciled.status !== "ready") return reconciled;
   const applied = reconciled.reconcile;
   const refreshed = await params.refreshCandidateAuthorization();
-  if (refreshed.candidateId !== params.candidateId || !refreshed.candidateCurrent) return reject("Reconcile invalidated the Candidate; re-attest it.");
+  const refreshFailure = refreshedCandidateFailure(params, refreshed);
+  if (refreshFailure !== null) return reject(refreshFailure);
   const current = await inspectPublication(ctx, { ...params, ...refreshed, reference: facts.primary.reference }, reject);
   if (current.status !== "ready") return current;
   const { branch, primary } = current;
@@ -62,6 +63,15 @@ export async function runStorePublish(ctx: ExecuteTransitionContext & CurrentWuR
   const outcome = await executeTransition(ctx, { verb: "publish", slug: params.name,
     inputs: { storeTransition: { primary, additionalWrites: [claim], observations: [current.candidateObservation] }, softFields: { nextAction: params.nextAction ?? boundary.nextAction.interactionText } } });
   return outcome.status === "ok" ? { status: "published", outcome, metaPath, reconcile: applied, boundary } : outcome.status === "rejected" ? reject(outcome.message, outcome.refusal, outcome.remedy) : reject(outcome.message);
+}
+
+function refreshedCandidateFailure(params: Pick<PublishParams, "candidateId">,
+  refreshed: Awaited<ReturnType<PublishParams["refreshCandidateAuthorization"]>>): string | null {
+  if (typeof refreshed.candidateVersion !== "string") {
+    return "The checked Candidate version is unavailable. Re-enter publication through the lifecycle command.";
+  }
+  return refreshed.candidateId !== params.candidateId || !refreshed.candidateCurrent
+    ? "Reconcile invalidated the Candidate; re-attest it." : null;
 }
 
 /** Send a publication whose readiness no longer holds back to pre-publication review. */
@@ -131,6 +141,9 @@ async function inspectPublication(ctx: ExecuteTransitionContext & { store: Store
   const candidate = await readPublicationCandidate(ctx.store, read.result);
   if (candidate.status === "refused") return reject(candidate.refusal.condition, candidate.refusal);
   if (!params.candidateCurrent || candidate.result?.candidateId !== params.candidateId) return reject("The current Candidate identity is absent or stale; re-attest it.");
+  if (params.candidateVersion !== undefined && params.candidateVersion !== candidate.result.observation.expected?.version) {
+    return reject("The Candidate changed after its checked version was read. Recompute Candidate authorization, then retry.");
+  }
   if (meta.state === "Integrating" && meta.currentWorkflow === "integrate-work-unit") {
     return resumeIntegratingPublication(params, branch, reject);
   }

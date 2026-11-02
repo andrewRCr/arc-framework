@@ -632,10 +632,12 @@ async function deliveryCommand(h: Awaited<ReturnType<typeof fixture>>, owner: Ow
   const dependencies = nativeDeliveryCompositionDependencies({ store: h.store, owner, repository: DELIVERY_REPOSITORY,
     actor: h.identity, now: "2026-11-01T12:00:00Z", members, candidate: { candidateId: current.candidateId,
       subjectDigest: current.subjectDigest, headSha: current.headSha } });
-  const compose = async (_root: string, input: { name: string }, judgment: { selfReview?: "settled"; lanes?: unknown }) =>
+  const compose = async (_root: string, input: { name: string }, judgment: { selfReview?: "settled"; lanes?: unknown; frontlineCeilingHeadSha?: string; scopeJudgmentTarget?: import("../../../src/scripts/review-gate/core/gate-contract-v2-schema.js").ReviewTarget }) =>
     composePrePublicationReviewRequest({ workUnit: input.name,
       ...(judgment.selfReview === undefined ? {} : { selfReview: judgment.selfReview }),
-      ...(judgment.lanes === undefined ? {} : { lanes: judgment.lanes }) }, dependencies);
+      ...(judgment.lanes === undefined ? {} : { lanes: judgment.lanes }),
+      ...(judgment.frontlineCeilingHeadSha === undefined ? {} : { frontlineCeilingHeadSha: judgment.frontlineCeilingHeadSha }),
+      ...(judgment.scopeJudgmentTarget === undefined ? {} : { scopeJudgmentTarget: judgment.scopeJudgmentTarget }) }, dependencies);
   const decisions = createReviewDecisionPort(h.store, owner);
   const listDecisions = async () => {
     const listing = await decisions.list();
@@ -667,15 +669,24 @@ it("follows a delivery plan's scope remedy to readiness when its re-entry select
   expect(decisions).toHaveLength(2);
 });
 
-it("refuses a delivery scope judgment whose member target moved before its remedy re-entered", async () => {
+it.each(["ceiling", "additional", "frontline"] as const)("refuses a moved delivery scope before recording a retained %s grant", async kind => {
   const h = await fixture(), owner = await h.seedCandidate();
   let members = [first, second];
-  const { compose } = await deliveryCommand(h, owner, () => members);
-  const refused = await h.run(true, { frontline: { scopeMode: "chunked" } }, undefined, { compose });
+  const { compose, listDecisions } = await deliveryCommand(h, owner, () => members);
+  const standard = kind === "frontline" ? {} : kind === "ceiling" ? { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } }
+    : { additionalPassAuthorization: { headSha: second.target.headSha, precedingProducerId: "previous",
+      completedPasses: 2, nextPass: 3 } };
+  const refused = await h.run(true, { frontline: { scopeMode: "chunked",
+    ...(kind === "frontline" ? { ceilingOverride: { exhaustedPassCount: 1, nextPass: 2 } } : {}) }, standard }, undefined, { compose });
   expect(refused, JSON.stringify(refused)).toMatchObject({ error: { code: "scope-judgment-required" } });
   members = [deliveryMember(DELIVERY_REPOSITORY, "1", "2", "6"), second];
   expect(await h.run(false, {}, remedyToken(refused), { compose })).toMatchObject({ error: { code: "invalid-input",
     message: "The saved scope judgment no longer matches the current exact review target." } });
+  expect(await listDecisions()).toEqual([]);
+  members = [first, second];
+  await h.run(false, {}, remedyToken(refused), { compose });
+  expect(await listDecisions()).toMatchObject([{ lane: kind === "frontline" ? "frontline" : "standard", subject: { headSha: second.target.headSha },
+    choice: { kind: "extra-pass", precondition: { kind: kind === "frontline" ? "ceiling" : kind } } }]);
 });
 
 it("asks a fresh scope judgment for a later member's mismatch after an earlier member's confirmed one", async () => {

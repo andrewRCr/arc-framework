@@ -156,6 +156,8 @@ export interface PrePublicationCompositionInput {
   lanes?: unknown;
   /** Exact frontline head to which a caller-carried one-pass ceiling approval remains bound. */
   frontlineCeilingHeadSha?: string;
+  /** Saved target that must remain among the examined members before call grants bind. */
+  scopeJudgmentTarget?: ReviewTarget;
 }
 
 export type PrePublicationComposition =

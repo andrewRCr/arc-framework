@@ -1,9 +1,10 @@
 /** Production boundaries for the exact-checkpoint integration merge. */
 
-import { writeWorkUnitLandingCommit } from "./landing-link.js";
+import { nativeCheckpointOwner, writeWorkUnitLandingCommit } from "./landing-link.js";
 import { readStoredLifecycleSummary } from "./lifecycle-record.js";
 import { z } from "zod";
 
+import { resolveNamedReviewWorkUnitInvocation } from "../review-gate/runtime/review-work-unit.js";
 import { resolveReviewInvocation, type ReviewInvocationInput } from "../review-gate/runtime/invocation.js";
 import { createStoreLifecycleStorage } from "../../lib/store/lifecycle-storage.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
@@ -271,8 +272,18 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
   });
 
   return {
-    ...(input.store.capabilities.stateOffBranch ? { writeLandingCommit: (workUnit: string, sha: string) =>
-      writeWorkUnitLandingCommit({ store: input.store, projectId: input.projectId, workUnit, owner: input.workItem, sha }) } : {}),
+    ...(input.store.capabilities.stateOffBranch ? {
+      validateCheckpointOwnership: async checkpoint => {
+        const owner = await nativeCheckpointOwner(checkpoint, input.projectId);
+        const selected = await resolveNamedReviewWorkUnitInvocation(input, checkpoint.workUnit);
+        if (selected.workItem?.type !== "work-item" || owner.type !== "work-item" || selected.workItem.uid !== owner.uid) {
+          throw new Error("The selected work-item generation differs from the checkpoint. Recompose its checkpoint, then retry.");
+        }
+        input.workItem = selected.workItem;
+      },
+      writeLandingCommit: async (workUnit, sha, checkpoint) => writeWorkUnitLandingCommit({ store: input.store,
+        projectId: input.projectId, workUnit, owner: await nativeCheckpointOwner(checkpoint, input.projectId), sha }),
+    } : {}),
     readCheckpoint: async (workUnit, handle) => {
       const identity = await resolveIdentity({ exec: input.exec });
       if (identity === null) throw new Error("An ARC identity is required to read the integration checkpoint.");

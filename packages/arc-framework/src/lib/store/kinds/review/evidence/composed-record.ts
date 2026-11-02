@@ -34,8 +34,11 @@ export function orderReviewEvidenceLineage(evidence: readonly ReviewEvidence[]):
     seen.add(id);
     ordered.push(current);
     if (current.successorDispositionSetId === null) break;
-    current = records.get(current.successorDispositionSetId);
-    if (current === undefined) throw reviewEvidenceLineageRefusal(evidence, "successor", "Restore the missing approved-response successor.");
+    const successor = records.get(current.successorDispositionSetId);
+    if (successor === undefined) throw reviewEvidenceLineageRefusal(evidence, "successor", "Restore the missing approved-response successor.");
+    if (successor.predecessorDispositionSetId !== id) throw reviewEvidenceLineageRefusal(evidence, "predecessor",
+      "Restore reciprocal predecessor and successor links in the approved-response lineage, then retry.");
+    current = successor;
   }
   if (ordered.length !== evidence.length) throw reviewEvidenceLineageRefusal(evidence, "connected",
     "Restore every connected approved response before reading the lineage.");

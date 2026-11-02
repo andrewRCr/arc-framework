@@ -2,6 +2,7 @@
 import { createReviewHarness } from "../../../../../helpers/store/review-harness.js";
 import { createReviewDecisionPort } from "../../../../../../src/lib/store/kinds/review/decision/access.js";
 import { prepareNativeReviewTerminus } from "../../../../../../src/scripts/review-gate/runtime/native-terminus-write.js";
+import { decodePrePublicationReplayV2, replayTokenFromAction } from "../../../../../../src/scripts/review-gate/policy/pre-publication-replay.js";
 import { expect, it } from "vitest";
 import { createReviewTarget } from "../../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { canonicalDigest } from "../../../../../../src/lib/kernel/index.js";
@@ -107,11 +108,9 @@ it("imports a replay's additional logical pass with its recorded head and produc
       interactionText: "Resume review." } }));
   const result = mapReviewRecords(input);
   const decisions = result.records.filter(({ reference }) => reference.kind === "review/decision");
-  expect(decisions).toHaveLength(1);
-  expect(JSON.parse(decisions[0]!.contents[0]!)).toEqual({ schemaVersion: 1,
-    subject: { lineage: { kind: "candidate", candidateId: boundary.candidateId }, headSha: "b".repeat(40),
-      subjectDigest: boundary.candidateSubjectDigest }, lane: "standard", choice: { kind: "extra-pass", passCount: 2,
-      precondition: { kind: "additional", precedingProducerId: "producer-2", targetBinding: { kind: "call-target" } } }, decidedBy: null, decidedAt: null, basis: null });
+  expect(decisions).toEqual([]);
+  const mapped = JSON.parse(result.records.find(({ reference }) => reference.kind === "review/integration-boundary")!.contents[0]!);
+  expect(decodePrePublicationReplayV2(replayTokenFromAction(mapped.nextAction.command, "example"))).toEqual(replay);
   await assertReviewMapping(result);
 });
 
@@ -125,12 +124,9 @@ it.each(["frontline", "standard"] as const)("imports a %s ceiling with only its 
       interactionText: "Resume review." } }));
   const result = mapReviewRecords(input);
   const decisions = result.records.filter(({ reference }) => reference.kind === "review/decision");
-  expect(decisions).toHaveLength(1);
-  expect(JSON.parse(decisions[0]!.contents[0]!)).toEqual({ schemaVersion: 1,
-    subject: { lineage: { kind: "candidate", candidateId: boundary.candidateId },
-      headSha: lane === "frontline" ? replay.frontlineCeilingHeadSha : null, subjectDigest: null },
-    lane, choice: { kind: "extra-pass", passCount: 2, precondition: { kind: "ceiling", targetBinding: { kind: "call-target" } } },
-    decidedBy: null, decidedAt: null, basis: null });
+  expect(decisions).toEqual([]);
+  const mapped = JSON.parse(result.records.find(({ reference }) => reference.kind === "review/integration-boundary")!.contents[0]!);
+  expect(decodePrePublicationReplayV2(replayTokenFromAction(mapped.nextAction.command, "example"))).toMatchObject(replay);
   await assertReviewMapping(result);
 });
 
@@ -237,11 +233,15 @@ it.each(["response", "post-attestation", "both", "convergence"])("recovers saved
         ...(location === "response" ? {} : { postAttestContinuation: continuation }) }));
   const result = mapReviewRecords(input);
   const decisions = result.records.filter(({ reference }) => reference.kind === "review/decision");
-  expect(decisions).toHaveLength(1);
-  expect(JSON.parse(decisions[0]!.contents[0]!)).toMatchObject({ choice: { kind: "extra-pass", passCount: 2,
-    precondition: { kind: "additional", precedingProducerId: "producer-2", targetBinding: { kind: "call-target" } } } });
+  expect(decisions).toEqual([]);
   const boundaryRecord = result.records.find(({ reference }) => reference.kind === "review/integration-boundary")!;
   expect(result.listing.find(({ records }) => records.some((reference) => reference.kind === "review/integration-boundary"))?.records)
-    .toEqual([decisions[0]!.reference, boundaryRecord.reference]);
+    .toEqual([boundaryRecord.reference]);
+  const encoded = JSON.parse(boundaryRecord.contents[0]!);
+  const action = location === "convergence" ? encoded.nextAction.postAttestContinuation.nextAction
+    : location === "post-attestation" ? encoded.postAttestContinuation.nextAction : encoded.nextAction;
+  expect(decodePrePublicationReplayV2(replayTokenFromAction(action.resumeCommand ?? action.command, "example")))
+    .toMatchObject({ lanes: { standard: { additionalPassAuthorization: { headSha: "b".repeat(40),
+      precedingProducerId: "producer-2", completedPasses: 2, nextPass: 3 } } } });
   await assertReviewMapping(result);
 });

@@ -86,18 +86,18 @@ function lastEligibleAttempt(request: ReviewPassProgressInput): ReviewAttempt | 
 function validateTerminalPassProgress(
   request: ReviewPassProgressInput,
   context: z.RefinementCtx,
+  deferPredecessorScope = false,
 ): void {
   const lastAttempt = lastEligibleAttempt(request);
   if (lastAttempt === undefined) return;
   const terminalOutcome = lastAttempt.outcome === "clean"
     || lastAttempt.outcome === "findings";
-  const predecessorFromAnotherScope = verifiedAdditionalPassPredecessor(request) !== undefined
-    && sourceDiagnostic(lastAttempt.sourceId, request.lane, request.scopeSelection?.mode ?? "whole-target",
-      request.target.pullRequest)?.code === "source-scope-ineligible";
-  if (terminalOutcome
-    && !predecessorFromAnotherScope
-    && request.scopeSelection?.mode === "chunked"
-    && lastAttempt.chunkSeriesComplete !== true) {
+  const predecessorScopeIndependent = verifiedAdditionalPassPredecessor(request) !== undefined
+    || (deferPredecessorScope && terminalOutcome && "reviewOperationId" in lastAttempt && request.additionalPassAuthorization !== undefined
+      && lastAttempt.reviewOperationId === request.additionalPassAuthorization.precedingProducerId);
+  const incompleteAggregate = lastAttempt.chunkSeriesComplete === false
+    || (!predecessorScopeIndependent && request.scopeSelection?.mode === "chunked" && lastAttempt.chunkSeriesComplete !== true);
+  if (terminalOutcome && incompleteAggregate) {
     context.addIssue({
       code: "custom",
       message: "chunked terminal attempt requires one complete aggregate producer",
@@ -105,7 +105,7 @@ function validateTerminalPassProgress(
     });
   }
   const completedTerminalPass = terminalOutcome
-    && (predecessorFromAnotherScope
+    && (predecessorScopeIndependent
       || request.scopeSelection?.mode !== "chunked" || lastAttempt.chunkSeriesComplete === true);
   if (completedTerminalPass && request.completedPasses === 0) {
     context.addIssue({
@@ -220,8 +220,9 @@ function validatePolicyCommandInput(
     terminus?: unknown;
   },
   context: z.RefinementCtx,
+  deferPredecessorScope = false,
 ): void {
-  validateTerminalPassProgress(request, context);
+  validateTerminalPassProgress(request, context, deferPredecessorScope);
   if (request.lane === "standard" && request.invocation?.mode === "skip") {
     context.addIssue({
       code: "custom",
@@ -247,14 +248,14 @@ function validatePolicyCommandInput(
 
 export const ReviewPolicyCommandRequestSchema = z.strictObject({
   ...ReviewPolicyRequestBaseShape,
-}).superRefine(validatePolicyCommandInput).readonly();
+}).superRefine((request, context) => { validatePolicyCommandInput(request, context, true); }).readonly();
 export type ReviewPolicyCommandRequest = z.infer<typeof ReviewPolicyCommandRequestSchema>;
 
 /** Authority-bound policy input; native termini are supplied only by the owning composition. */
 export const ReviewPolicyBoundRequestSchema = z.strictObject({
   ...ReviewPolicyRequestBaseShape,
   terminus: ResolvedOwnerAcceptedReviewTerminusSchema.optional(),
-}).superRefine(validatePolicyCommandInput).readonly();
+}).superRefine((request, context) => { validatePolicyCommandInput(request, context, true); }).readonly();
 export type ReviewPolicyBoundRequest = z.infer<typeof ReviewPolicyBoundRequestSchema>;
 
 /**

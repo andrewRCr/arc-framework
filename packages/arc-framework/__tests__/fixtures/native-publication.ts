@@ -9,7 +9,7 @@ import { boundaryV2Fixture } from "./review-boundary.js";
 import { createReviewCompositionContext } from "../../src/scripts/review-gate/runtime/composition-context.js";
 import { readReviewReadinessBinding } from "../../src/scripts/review-gate/runtime/readiness-binding.js";
 import { readWorkUnit } from "../../src/lib/store/lifecycle-write.js";
-import { readCandidateRecord } from "../../src/lib/store/kinds/review/candidate/access.js";
+import { readCandidateRecord, readCandidateRecordVersioned } from "../../src/lib/store/kinds/review/candidate/access.js";
 import { readSubmissionBoundaryVersioned, writeSubmissionBoundary } from "../../src/lib/store/kinds/review/integration-boundary/access.js";
 import { prepareNativePublicationClaim } from "../../src/lib/store/kinds/review/integration-boundary/publication.js";
 import { IntegrationBoundaryLocusV2Schema, type IntegrationBoundaryLocusV2 } from "../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
@@ -40,7 +40,11 @@ export async function nativePublicationParameters(h: ReturnType<typeof createRev
   }
   const snapshot = owner === undefined ? null : await readSubmissionBoundaryVersioned(checkout.cwd, "example", { store: h.store, owner });
   return { name: "example", candidateId, candidateSubjectDigest, candidateCurrent: true, boundary, readReadinessBinding,
-    refreshCandidateAuthorization: async () => { await check(); return { candidateId, candidateSubjectDigest, candidateCurrent: true }; },
+    refreshCandidateAuthorization: async () => {
+      const checked = owner === undefined ? null : await readCandidateRecordVersioned(checkout.cwd, "example", { store: h.store, owner });
+      await check();
+      return { candidateId, candidateSubjectDigest, candidateCurrent: true, candidateVersion: checked?.version ?? null };
+    },
     readStandardLaneOwnerVersion: forbidden, claimPublicationBoundary: forbidden,
     preparePublicationClaim: async (claim: IntegrationBoundaryLocusV2) => {
       await check();

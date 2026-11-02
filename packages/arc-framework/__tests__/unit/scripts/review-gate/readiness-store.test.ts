@@ -102,6 +102,42 @@ it("accepts completed cohorts with authored closeout after the final member arch
   expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
 });
 
+it.each(["group", "parent/group"])("keeps an earlier member ready after %s closes through another completed member", async cohort => {
+  const h = await fixture({ state: "Shipped", cohort });
+  const other = await h.seedMeta("other", { state: "Integrating", currentWorkflow: "integrate-work-unit", cohort });
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+  lifecycleSuccess(await h.store.write({ ...recordPut(other, { content: makeMetaFixture("other", { state: "Shipped", currentWorkflow: null, cohort }),
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }),
+    provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  lifecycleSuccess(await batchLifecycleWrites(h.store, h.cohorts.map(record => recordPut(record, {
+    content: record.content + closeout.replace("`example`", "`other`"),
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+  })), { verb: "archive", lifecycleAction: "archive" }));
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+  // The second member's independent publication metadata is not needed to establish shared closeout validity.
+  const { storedCohortReadinessFacts } = await import("../../../../src/scripts/review-gate/readiness-store-cohort.js");
+  const { listLifecycleIndex } = await import("../../../../src/lib/store/lifecycle-index.js");
+  const listing = lifecycleSuccess(await listLifecycleIndex(h.store));
+  if (listing.status !== "complete") throw new Error("Expected complete lifecycle inventory");
+  expect(await storedCohortReadinessFacts(h.store, listing.index.entries(), cohort)).toEqual([]);
+});
+
+it("refuses a completed closeout naming a completed nonmember and accepts it after correction", async () => {
+  const h = await fixture({ state: "Shipped", cohort: "group" });
+  await h.seedMeta("foreign", { state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const cohort = h.cohorts[0]!;
+  lifecycleSuccess(await h.store.write({ ...recordPut(cohort, { content: cohort.content + closeout.replace("`example`", "`foreign`"),
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }),
+    provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid",
+    payload: { facts: expect.arrayContaining([expect.objectContaining({ code: "malformed-cohort-closeout" })]) } });
+  const current = lifecycleSuccess(await h.store.read({ reference: cohort.reference }));
+  lifecycleSuccess(await h.store.write({ ...recordPut(current, { content: cohort.content + closeout }),
+    provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+});
+
 it("refuses a planned cohort with no open holding", async () => {
   const h = await fixture({ state: "Shipped", cohort: "group" });
   expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "invalid",

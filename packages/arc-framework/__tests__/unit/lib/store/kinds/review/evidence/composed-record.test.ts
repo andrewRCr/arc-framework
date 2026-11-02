@@ -20,6 +20,38 @@ const owner = OwnerIdentitySchema.parse({ type: "work-item", name: "example",
   uid: "14bc6336-193b-4d7a-9380-1b4ca79a714b" });
 
 describe("composed approved disposition records", () => {
+  it.each(["keyed", "index"] as const)("attributes a nonreciprocal successor in a %s read and continues after repair", async mode => {
+    const h = await storedLocalApproval(), prior = (await h.evidence.read(h.original.currentDispositionSetId))!;
+    const { dispositionSetId: ignored, ...fields } = prior.value.dispositionSet;
+    void ignored;
+    const dispositionSet = createDispositionSet({ ...fields, proposedBy: "successor-proposer" });
+    const approved = approveDispositionState({ proposed: proposeDispositionSet(dispositionSet), approvedBy: "andrew",
+      approvedAt: "2026-09-09T21:00:00Z" });
+    const successor = { ...prior.value, dispositionSet, approval: approved.approval,
+      predecessorDispositionSetId: prior.value.dispositionSet.dispositionSetId };
+    lifecycleSuccess(await h.harness.store.batch({ writes: [
+      h.evidence.prepareAdvance({ ...prior.value, successorDispositionSetId: dispositionSet.dispositionSetId }, prior.version),
+      h.evidence.prepareCreate(successor),
+    ], provenance: { verb: "review", lifecycleAction: "edit" } }));
+    const list = h.harness.store.list.bind(h.harness.store), wrongPredecessor = canonicalDigest({ wrong: "predecessor" });
+    h.harness.store.list = async input => {
+      const result = await list(input);
+      if (input.kind !== "review/evidence" || result.status !== "ok" || result.result.status !== "complete") return result;
+      return { status: "ok", result: { ...result.result, records: result.result.records.map(record =>
+        record.reference.key !== dispositionSet.dispositionSetId ? record : { ...record,
+          content: JSON.stringify({ ...successor, predecessorDispositionSetId: wrongPredecessor }) }) } };
+    };
+    const read = () => mode === "keyed" ? h.evidence.readDispositionRecord(h.original.operationId) : h.evidence.listDispositionRecords();
+    const error: unknown = await read().catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(StoreRefusalError);
+    expect(error).toMatchObject({ offBranch: true, refusal: { code: "record-malformed", rule: "review.evidence.predecessor" } });
+    for (const key of [h.original.operationId, prior.value.dispositionSet.dispositionSetId,
+      dispositionSet.dispositionSetId, wrongPredecessor]) expect((error as Error).message).toContain(key);
+    h.harness.store.list = list;
+    const repaired = await read();
+    expect(mode === "keyed" ? repaired : (repaired as unknown[])[0]).toMatchObject({ currentDispositionSetId: dispositionSet.dispositionSetId });
+  });
+
   it.each(["roots", "successor", "outcome"] as const)("attributes a broken %s lineage to its producer and record keys", async fault => {
     const h = await storedLocalApproval();
     const prior = (await h.evidence.read(h.original.currentDispositionSetId))!;

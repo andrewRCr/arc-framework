@@ -83,8 +83,9 @@ describe("store publish", () => {
     const original = raw.content, corrupt = () => { raw.content = original.replace(/^# Metadata:.*$/mu, "No metadata heading"); };
     const params = { ...base, preparePublicationClaim: async (claim: IntegrationBoundaryLocusV2) => { claims++; return base.preparePublicationClaim(claim); },
       refreshCandidateAuthorization: async () => {
+        const checked = await base.refreshCandidateAuthorization();
         if (when === "refreshed" && once) { once = false; corrupt(); }
-        return { candidateId, candidateSubjectDigest, candidateCurrent: true };
+        return checked;
       } };
     const version = lifecycleSuccess(await h.store.version());
     if (when === "initial") corrupt();
@@ -222,8 +223,7 @@ it.each(["legacy-candidate", "branch"])("refuses a primary $0 race at the public
   expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).fields).toMatchObject({ state: "Active" });
   const freshId = candidateId;
   const fresh = { ...(await parameters(h, async () => {})), candidateId: freshId,
-    boundary: { ...params.boundary, candidateId: freshId },
-    refreshCandidateAuthorization: async () => ({ candidateId: freshId, candidateSubjectDigest, candidateCurrent: true }) };
+    boundary: { ...params.boundary, candidateId: freshId } };
   expect(await runPublish(context(h.store), fresh)).toMatchObject({ status: "published",
     boundary: { nextAction: { command: `git push -u origin ${change === "branch" ? "feat/renewed" : "feat/example"}` } } });
 });

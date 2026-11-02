@@ -40,6 +40,32 @@ it.each(["missing", "duplicate"] as const)("refuses a %s joined local operation 
   await assertReviewMapping(mapReviewRecords(input));
 });
 
+it.each(["scope", "coverage", "vehicle", "request", "pass", "head"] as const)(
+  "attributes a mismatching local admission %s and maps after repair", async fault => {
+    const h = await createLocalMappingFixture();
+    await h.conclude("clean");
+    const input = h.input();
+    const lane = input.gate.find(source => kind(source) === "lane-progress")!;
+    const original = lane.bytes;
+    const envelope = JSON.parse(new TextDecoder().decode(original)) as { state: import("../../../../../../src/scripts/review-gate/core/operation-state-schema.js").LaneProgressState };
+    const attempt = envelope.state.attempts[0]!;
+    if (attempt.local === undefined) throw new Error("Expected local admission");
+    if (fault === "scope") attempt.local.scopeMode = "chunked";
+    else if (fault === "coverage") {
+      attempt.local.requestedCoverage = "incremental";
+      attempt.local.effectiveCoverage = "incremental";
+      attempt.local.correctionScope = { schemaVersion: 1, predecessorProducerId: "previous", predecessorHeadSha: "a".repeat(40),
+        basisHeadSha: "a".repeat(40), headSha: attempt.headSha, requiredFindings: [] };
+    } else if (fault === "vehicle") attempt.local.vehicle.identity = "different-errand";
+    else if (fault === "request") attempt.local.requestId = canonicalDigest({ another: "request" });
+    else if (fault === "pass") attempt.retryGeneration += 1;
+    else attempt.headSha = "9".repeat(40);
+    lane.bytes = bytes(envelope);
+    refuses(input, lane.path, /Local attempt does not match admission/u, laneJoins);
+    lane.bytes = original;
+    await assertReviewMapping(mapReviewRecords(input));
+  });
+
 it.each(["missing", "duplicate"] as const)("refuses a %s joined frontline outcome and maps after repair", async fault => {
   const { input } = await createFrontlineMappingFixture(), original = [...input.gate];
   const outcome = input.gate.find(source => source.path.includes("/outcomes/"))!;
@@ -165,6 +191,41 @@ it("refuses a consumed authorization with no matching admission and maps after r
   grant.admissionId = "unavailable-admission";
   lane.bytes = bytes(damaged);
   refuses(input, lane.path, /Consumed admission unavailable-admission is unavailable/u, "the review outcomes it cites");
+  lane.bytes = original;
+  await assertReviewMapping(mapReviewRecords(input));
+});
+
+it("refuses a contradictory joined delivery admission and maps after restoring its original snapshot", async () => {
+  const { createLocalReviewPreparationFixture, createDeliveryLocalReviewAdmission } = await import("../../../../../fixtures/local-review-preparation.js");
+  const { prepareLocalReview } = await import("../../../../../../src/scripts/review-gate/runtime/local-prepare.js");
+  const { createReviewReceipt } = await import("../../../../../../src/scripts/review-gate/core/gate-contract-v2.js");
+  const { recordLocalReceiptConclusion } = await import("../../../../../../src/scripts/review-gate/lane-progress.js");
+  const f = createLocalReviewPreparationFixture();
+  const prepared = await prepareLocalReview({ schemaVersion: 1, evaluatorIdentity: "evaluator-1",
+    deliveryAdmission: createDeliveryLocalReviewAdmission(f.memberTarget.headSha),
+    routingFacts: { contentKind: "code-bearing", reviewRisk: "routine", changeDeterminacy: "ordinary", ownership: "self", surfaceAuthority: "ordinary" },
+    }, f.dependencies);
+  const state = f.published();
+  if (prepared.state !== "ready" || state?.kind !== "local-review") throw new Error(JSON.stringify(prepared));
+  const receipt = createReviewReceipt({ target: state.target, requirement: state.requirement, request: state.request,
+    applicabilityId: null, reviewRunId: "run-delivery", evaluatorIdentity: state.request.evaluatorIdentity,
+    attestingRuntimeIdentity: state.attestation.runtimeIdentity, attestationMechanism: state.attestation.mechanism,
+    providerEventIdentity: null, result: "clean", findings: [] });
+  await recordLocalReceiptConclusion(f.dependencies.operationStore, { state, receipt, now: f.dependencies.now() });
+  const input: ReviewMappingInput = { projectId: state.repositoryId, candidates: [], workItems: [{ kind: "work-unit",
+    slug: "review-surface-binding", uid: "123e4567-e89b-42d3-a456-426614174001", live: true }],
+    gate: [...f.operations.values()].map(({ state, version }) => mappingOperation(state, version)).concat([{
+      path: "arc/review-gate/evidence/receipts-v2.json", bytes: bytes({ schemaVersion: 2,
+        semanticsVersion: "review-gate/v2", repositoryId: state.repositoryId, ledgerVersion: 1, receipts: [receipt] }),
+    }]) };
+  const lane = input.gate.find(source => kind(source) === "lane-progress")!, original = lane.bytes;
+  const envelope = JSON.parse(new TextDecoder().decode(original)) as {
+    state: import("../../../../../../src/scripts/review-gate/core/operation-state-schema.js").LaneProgressState };
+  const admission = envelope.state.attempts[0]?.local?.deliveryAdmission;
+  if (admission === undefined) throw new Error("Expected delivery admission");
+  admission.statusTarget.headRef = "delivery/other-branch";
+  lane.bytes = bytes(envelope);
+  refuses(input, lane.path, /Local attempt does not match admission/u, laneJoins);
   lane.bytes = original;
   await assertReviewMapping(mapReviewRecords(input));
 });

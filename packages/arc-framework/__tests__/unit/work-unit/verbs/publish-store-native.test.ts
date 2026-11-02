@@ -60,7 +60,8 @@ async function fixture() {
     setPhase: forbidden, relocateArtifacts: forbidden, reconcileBranch: forbidden, reconcileWorkUnitWorktree: forbidden,
     writeSoftFields: forbidden, writeBranchField: forbidden, writeDesignField: forbidden, writeCurrentWorkflowField: forbidden };
   const params = { name: "example", candidateId, candidateSubjectDigest, candidateCurrent: true, boundary,
-    refreshCandidateAuthorization: () => Promise.resolve({ candidateId, candidateSubjectDigest, candidateCurrent: true }),
+    refreshCandidateAuthorization: async () => ({ candidateId, candidateSubjectDigest, candidateCurrent: true,
+      candidateVersion: (await readCandidateRecordVersioned(checkout.cwd, "example", { store: h.store, owner: primary.reference.owner })).version }),
     readReadinessBinding, readStandardLaneOwnerVersion: forbidden, claimPublicationBoundary: forbidden,
     preparePublicationClaim: (claim: IntegrationBoundaryLocusV2) => prepareNativePublicationClaim({ store: h.store,
       cwd: checkout.cwd, owner: primary.reference.owner, boundary: claim, expectedVersion: snapshot.version, readReadinessBinding }) };
@@ -391,5 +392,24 @@ it.each(["terminus", "selection", "lane-skip"] as const)("publishes after a %s i
     await createReviewDecisionPort(h.store, owner).create(kind === "terminus" ? decision
       : { ...decision, lane: "frontline", basis: null, choice: { kind: "lane-skip" } });
   }
+  expect(await runPublish(h.ctx, h.params)).toMatchObject({ status: "published" });
+});
+
+it("refuses a Candidate write during asynchronous authorization projection and publishes with a fresh checked version", async () => {
+  const h = await fixture();
+  const current = await readCandidateRecordVersioned(h.cwd, "example", { store: h.store, owner: h.primary.reference.owner });
+  if (current.record === null || current.version === null) throw new Error("Expected Candidate");
+  const record = current.record;
+  const result = await runPublish(h.ctx, { ...h.params, refreshCandidateAuthorization: async () => {
+    const checked = await h.params.refreshCandidateAuthorization();
+    const selection = { ...candidateRecordFixture().reviewSelection, candidateId: h.params.candidateId };
+    const changed = CandidateManagedRecordV1Schema.parse({ ...record, transitions: [...record.transitions, selection] });
+    await writeCandidateRecord(h.cwd, "example", changed, current.version, { store: h.store, owner: h.primary.reference.owner });
+    return checked;
+  } });
+  expect(result).toMatchObject({ status: "rejected", reason: expect.stringMatching(/Candidate.*(changed|version)/iu) });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.primary.reference })).fields).toMatchObject({ state: "Active" });
+  expect((await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner: h.primary.reference.owner })).boundary)
+    .toMatchObject({ locus: "candidate-publish-ready" });
   expect(await runPublish(h.ctx, h.params)).toMatchObject({ status: "published" });
 });
