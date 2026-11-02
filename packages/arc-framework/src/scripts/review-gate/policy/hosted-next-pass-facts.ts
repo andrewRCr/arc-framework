@@ -7,6 +7,7 @@ import { readReviewLaneHistory } from "../runtime/lane-history.js";
 import { deriveNextPassFacts } from "./next-pass-facts.js";
 import { nextPassConsiderations } from "./next-pass-offer-text.js";
 import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
+import type { ReviewRetrigger } from "./routing-schema.js";
 import type { HostedReservationDischarge } from "./hosted-reservation-support.js";
 
 /** Add the shared observations before requesting advisory judgment; this layer owns no status route. */
@@ -18,17 +19,19 @@ export async function groundHostedCoverageOffer(discharge: HostedReservationDisc
   readonly nextPassContext: ReviewNextPassContext;
   readonly ceiling: number;
   readonly exec: RawGitExec;
+  readonly retrigger: ReviewRetrigger;
 }): Promise<HostedReservationDischarge> {
   const action = discharge.coverageSelectionAction;
   if (action === undefined) return discharge;
-  const lineage = input.lineage;
+  const { retrigger, ...laneInput } = input;
+  const lineage = laneInput.lineage;
   if (lineage?.kind !== "delivery-member") throw new Error("A hosted coverage offer requires a delivery-member lane owner.");
-  const history = await readReviewLaneHistory({ ...input, lineage, repositoryId: input.target.repositoryId,
-    headSha: input.target.headSha,
+  const history = await readReviewLaneHistory({ ...laneInput, lineage, repositoryId: laneInput.target.repositoryId,
+    headSha: laneInput.target.headSha,
     // Delivery members have independent lane owners, without Candidate supersession inheritance.
     resolveSupersessionAncestors: () => Promise.resolve([]) });
-  const facts = await deriveNextPassFacts({ ...input, ...history });
-  return { ...discharge, coverageSelectionAction: { ...action, interactionText: [action.interactionText, ...nextPassConsiderations(facts),
+  const facts = await deriveNextPassFacts({ ...laneInput, ...history });
+  return { ...discharge, coverageSelectionAction: { ...action, interactionText: [action.interactionText, ...nextPassConsiderations(facts, retrigger),
     "Recommend the admitted next step. Consider a successor complete pass only after fix checks converge.",
     "What do you recommend, why, and what would change your recommendation?"].join("\n\n") } };
 }

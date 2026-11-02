@@ -91,8 +91,29 @@ by its named complete-pass admission. A fix check neither spends nor inherits it
 Recommend a fix check, and another round, whenever the last look's approved fixes include a material one. Decline only
 on the fixes' own merits: minor-only repairs, or an accepted re-entry or pending rewrite that will supersede them.
 A following pass, approved or under the cap, is never a reason to decline. Where the subject requires a successor after
-any fix, run the look that its policy names. Converge the rounds before launching the successor pass; the re-inspection
-test decides whether a complete pass follows, never whether it replaces them.
+any fix, run the look that its policy names. Converge the rounds before launching the successor pass. Converged rounds
+end fix checking; § Successor passes decides whether a complete pass follows, and a complete pass never replaces them.
+
+### Successor passes
+
+A review's bar is a complete pass that finds no critical or major finding. Until one does, the engineering
+recommendation once the rounds converge is another complete pass. A fix check reads its repairs, so its convergence
+shows the repairs hold and says nothing about what the complete pass missed elsewhere. The last complete pass's own
+critical and major count is the best evidence of that, as in inspection re-review criteria and capture-recapture
+estimates: a pass that found many likely missed more. Read the complete passes' counts in sequence for what the next
+may find. A falling series expects little; a high or flat one says the defects come from the change itself, so apply
+§ Shared causes and say whether splitting the change or reworking its design would serve better than another pass.
+
+Recommend on engineering grounds first, beside the last complete pass's critical and major count, then name any cost,
+time, or ceiling constraint separately for the Owner to weigh. Use your own judgment within this default: you may
+recommend stopping before a complete pass converges, with a reason specific to the change, such as a single local
+correction at the end of a series that has fallen to it. Say what the reason is. No such reason stands where the
+re-inspection test holds. The Owner may stop for any reason, and may set the stop ahead, such as one more complete pass
+and then stop. That decision ends this default: follow it, report the count beside it, and do not recommend or re-ask
+for a pass it rules out. The stop accepts the residual risk and is never convergence.
+
+Under `incremental`, a proved converged fix-check chain closes the lane by policy, so no successor is decided; a further
+complete pass runs only as an additional one the Owner directs.
 
 ### Tags and the re-inspection test
 
@@ -101,10 +122,10 @@ A fix's tag describes what it implies: **local correction** corrects an existing
 display order, and recommendations; severity still decides materiality. In code review tags are advisory notes outside
 the approved set's identity. Planning review retains its tagged folds in its own pass record.
 
-Recommend another complete pass when the changes make the last complete assessment cease to hold, especially when
-new design reaches beyond a repair's locus, or a repair changed a rule that sites outside its fix range also
-implement. Otherwise the response check verifies the rework where it stands. State a cost-and-signal rationale,
-including at the cap, and obtain the separate approval before invoking a pass.
+The re-inspection test holds when the changes make the last complete assessment cease to hold, especially when new
+design reaches beyond a repair's locus, or a repair changed a rule that sites outside its fix range also implement.
+Then another complete pass is due however little the last one found. State a cost-and-signal rationale, including at
+the cap, and obtain the separate approval before invoking a pass.
 
 ### Cadence and records
 
@@ -122,17 +143,18 @@ approval authority.
 Once a lane has two or more looks, report its material trend: the critical and major findings at each look, each
 complete pass followed by its fix checks (for example `Pass 1 of 3: 6 → 2`), or one line when no look found a critical
 or major finding. Give one reading, and say in a sentence or two where the review stands and where what remains comes
-from. Origins, tags, and change signals inform the reading and stay out of the report. Each reading points to a
-decision:
+from. The reading compares complete passes; fix checks show only whether repairs hold. Origins, tags, and change
+signals inform the reading and stay out of the report. Each reading points to a decision:
 
 - **`baseline`** — the first look has no trend yet; decide the fixes and their check from that look's own signal. A
   report shows no Trend for it.
-- **`converging`** — material findings come from earlier folds, adjacent repair code, or siblings of a known defect
-  class; counts fall or stay flat, and fixes are mostly local corrections. This supports stopping once fix checks
-  converge.
-- **`discovering`** — new material defect classes keep appearing in code or text earlier looks already read, rather
-  than coming from folds. This supports another complete pass after fix checks. It takes precedence over `converging`
-  wherever both readings fit.
+- **`converging`** — across complete passes, material counts fall, findings come from earlier folds, adjacent repair
+  code, or siblings of a known defect class, and fixes are mostly local corrections; or a first complete pass found few,
+  and its fix checks converged. This expects the next complete pass to find little, and supports stopping once one finds
+  no critical or major finding.
+- **`discovering`** — a complete pass finds new material defect classes in code or text earlier looks already read,
+  rather than in folds, or a first complete pass finds many. This supports another complete pass after fix checks,
+  however they converge. It takes precedence over `converging` wherever both readings fit.
 - **`sustained non-convergence`** — most material findings originate in earlier new-design folds and need new design
   again. Stop for the Owner's decision: planning review offers the stage's re-entry or shaping route; code review asks
   whether the spec needs `amend-design`. Another round must not silently become design authoring.

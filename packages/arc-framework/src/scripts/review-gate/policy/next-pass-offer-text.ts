@@ -1,5 +1,6 @@
 /** Advisory considerations rendered from the shared computed next-pass facts. */
 import type { NextPassFacts } from "./next-pass-facts-schema.js";
+import type { ReviewRetrigger } from "./routing-schema.js";
 
 type Size = NextPassFacts["rangeSize"]["target"];
 function sizeText(size: Size | null): string {
@@ -83,8 +84,28 @@ function changeSignalText(facts: NextPassFacts): string {
   return [...noted, ...(quiet === 0 ? [] : [`no signal fired after ${rounds}`])].join("; ");
 }
 
+/**
+ * Name the latest complete pass's critical and major count, then what it informs. Under `full-final`, another complete
+ * pass is the default until one finds none, since a converged fix check shows only that its repairs hold; other
+ * policies close the lane on a converged fix-check chain, so a further complete pass is the Owner's to direct.
+ */
+function successorDefaultText(facts: NextPassFacts, retrigger: ReviewRetrigger): string {
+  const last = trendLooks(facts).filter(look => look.coverage === "complete").at(-1);
+  if (last?.materialCount === 0) return `Complete pass ${String(last.pass)} found none, which meets the review's bar.`;
+  const found = last === undefined || last.materialCount === null ? ""
+    : `Complete pass ${String(last.pass)} found ${String(last.materialCount)}. `;
+  const repairs = `${found}Fix checks show whether repairs hold, not what a complete pass missed`;
+  if (retrigger !== "full-final") {
+    return `${repairs}. This lane's policy closes it once the fix-check chain converges; a further complete pass runs `
+      + "only if the Owner directs one.";
+  }
+  return `${repairs}, so until a complete pass finds no critical or major finding, another complete pass after `
+    + "fix checks converge is the default. Recommending a stop before then needs a reason specific to this change. "
+    + "An Owner's decision on where review stops ends this default.";
+}
+
 /** Render each observation with its limits and the decision it can inform. */
-export function nextPassConsiderations(facts: NextPassFacts): readonly string[] {
+export function nextPassConsiderations(facts: NextPassFacts, retrigger: ReviewRetrigger): readonly string[] {
   const checks = facts.fixChecksSinceLastComplete.map((look, index) => `round ${index + 1}: ${look.outcome}`).join(", ");
   return [
     `Complete passes: ${facts.completePasses} of ${facts.ceiling}. A complete pass spends this budget; a fix check does not. `
@@ -99,8 +120,7 @@ export function nextPassConsiderations(facts: NextPassFacts): readonly string[] 
     ...(facts.fixRounds.length === 0 ? [] : [`Change signals after fixes: ${changeSignalText(facts)}. `
       + "Paths changed outside the cited files are a heuristic for new design, and new files may introduce it too; "
       + "either favors a complete pass after fix checks converge, and their absence alone does not establish local correction."]),
-    `Critical and major findings: ${criticalMajorText(facts)}. `
-      + "New defect classes still appearing in previously read code favor another complete pass after fix checks converge. "
-      + "No new defect classes and only local corrections favor stopping; falling counts alone do not establish that. Prefer a different source for a successor pass.",
+    `Critical and major findings: ${criticalMajorText(facts)}. ${successorDefaultText(facts, retrigger)}`
+      + (retrigger === "full-final" ? " Prefer a different source for a successor pass." : ""),
   ];
 }
