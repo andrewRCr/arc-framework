@@ -1,9 +1,10 @@
 /** Isolated registry acquisition before a remote can publish this clone's project. */
 
+import { RefGitLockError, refGitLockRefusal } from "./git-lock.js";
 import { parseFetchPorcelain, type FetchOutcome } from "../../git/fetch.js";
 import { normalizeGitRejection, isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
 import { PASSIVE_REMOTE_INTERACTION } from "../../git/remote-ref-reader.js";
-import { updateRefTransaction } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import type { PullOutcome } from "../sync.js";
 import type { Remedy, StoreResult, StoreRefusal } from "../refusal.js";
 import { quoteShellArgument } from "../../release/commit-message-retry.js";
@@ -62,7 +63,7 @@ export async function checkRefDesignationProject(context: RefBackendContext, rem
     const cleanup = refSyncCleanupContext(context);
     // Cleanup cannot replace the candidate decision; the next entry clears any retained temporary tips.
     for (const [ref, expected] of observed) {
-      await updateRefTransaction(cleanup, [{ ref, delete: true, expected }], { cwd: cleanup.checkoutRoot }).catch(() => undefined);
+      await updateStoreRefTransaction(cleanup, [{ ref, delete: true, expected }], { cwd: cleanup.checkoutRoot }).catch(() => undefined);
     }
   }
 }
@@ -86,9 +87,13 @@ async function clearProjectCheck(context: RefBackendContext, prefix: string): Pr
       if (!tips.size) return;
       subject = [...tips.keys()].join(", ");
       const changes = [...tips].map(([ref, expected]) => ({ ref, delete: true as const, expected }));
-      if ((await updateRefTransaction(context, changes, { cwd: context.checkoutRoot })).status === "committed") return;
+      if ((await updateStoreRefTransaction(context, changes, { cwd: context.checkoutRoot })).status === "committed") return;
     }
   } catch (error) {
+    if (error instanceof RefGitLockError) {
+      const refusal = refGitLockRefusal(error);
+      return projectReadFailure(refusal.condition, refusal.remedy);
+    }
     if (!isGitProcessError(error) || !isCompletedGitFailure(error)) throw error;
     return projectReadFailure(`Could not clear stale candidate refs ${subject}: ${error.message}`);
   }

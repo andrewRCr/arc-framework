@@ -10,7 +10,7 @@ import { MigrationRefusal } from "./migrate-refusal.js";
 import { FORWARDING_REF, readForwardingRecord, type ForwardingRecord } from "./forwarding-record.js";
 import { readRefRegistryPresence } from "./designation-presence.js";
 import { readRefRepository } from "./repository.js";
-import { updateRefTransaction } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import { captureComparisonWitness, sameComparisonSource, withComparisonWitness,
   type ComparisonSource, type ComparisonWitness } from "./comparison-witness.js";
 import { isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
@@ -167,7 +167,7 @@ Promise<"applied" | "already-absent" | "superseded" | "unbound"> {
     const current = (await readSyncRefs(physical, due.trackingRef)).get(due.trackingRef);
     if (!current) return "already-absent" as const;
     if (current !== due.tip) return "superseded" as const;
-    const outcome = await updateRefTransaction(physical, [{ ref: due.trackingRef, delete: true, expected: due.tip }], { cwd: physical.checkoutRoot });
+    const outcome = await updateStoreRefTransaction(physical, [{ ref: due.trackingRef, delete: true, expected: due.tip }], { cwd: physical.checkoutRoot });
     if (outcome.status === "committed") return "applied" as const;
     return outcome.refs[0]?.actual === null ? "already-absent" as const : "superseded" as const;
   });

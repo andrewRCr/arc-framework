@@ -1,10 +1,11 @@
 /** Compare-and-swap publication acknowledgments without overwriting another fetch. */
 
 import type { PushOutcome } from "../../git/push.js";
-import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
+import type { RefChange } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefPushListing } from "./push-listing.js";
-import { RefFetchKeeperLockError, rethrowRefFetchKeeperLock } from "./fetch-keeper-lock.js";
+import { RefGitLockError } from "./git-lock.js";
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
 import { withComparisonWitness, type ComparisonWitness } from "./comparison-witness.js";
 import { RefSyncDeadlineError } from "./sync-deadline.js";
@@ -33,7 +34,7 @@ export async function recordPushTracking(context: RefBackendContext, remote: str
   catch (error) {
     const acceptedRefs = outcome.refs.filter(row => row.status === "ok").map(({ ref }) => ref);
     if (error instanceof RefSyncDeadlineError) throw new RefPushTrackingDeadlineError(acceptedRefs, error);
-    const lock = error instanceof RefFetchKeeperLockError ? error.lock
+    const lock = error instanceof RefGitLockError ? error.lock
       : error instanceof AdvisoryLockTimeoutError && error.phase === "acquire" ? error.lockPath : null;
     if (!lock) throw error;
     throw new RefPushTrackingLockError(lock, acceptedRefs, error);
@@ -51,7 +52,6 @@ async function acknowledgePushRefs(context: RefBackendContext, remote: string, l
     const expected = listing.tracking.get(row.ref) ?? null;
     const update: RefChange | null = change.next !== null ? { ref, next: change.next, expected }
       : expected !== null ? { ref, delete: true, expected } : null;
-    if (update) await updateRefTransaction(context, [update], { cwd: context.checkoutRoot })
-      .catch((error: unknown) => rethrowRefFetchKeeperLock(context, [ref], error));
+    if (update) await updateStoreRefTransaction(context, [update], { cwd: context.checkoutRoot });
   }
 }

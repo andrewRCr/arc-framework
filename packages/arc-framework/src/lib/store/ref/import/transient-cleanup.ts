@@ -1,7 +1,8 @@
 /** Restartable retirement of re-homed identity refs, leased to retained source tips. */
 import type { RefBackendContext } from "../context.js";
 import type { MigrateReport, StoreMigrateResult } from "../../commands.js";
-import { updateRefTransaction, type RefChange } from "../../../git/ref-transaction.js";
+import type { RefChange } from "../../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "../ref-transaction.js";
 import { pushRefs } from "../../../git/push.js";
 import { classifyPushOutcome } from "../../../git/push-classification.js";
 import { readSyncRefs } from "../sync-graph.js";
@@ -21,7 +22,7 @@ export async function keepImportTransients(context: RefBackendContext, tips: Rea
   const kept = new Map([...tips].map(([ref, next]) => [keptRef(ref), next]));
   const changes: RefChange[] = [...[...kept].map(([ref, next]) => ({ ref, next, expected: held.get(ref) ?? null })),
     ...[...held].filter(([ref]) => !kept.has(ref)).map(([ref, expected]) => ({ ref, expected, delete: true as const }))];
-  if (changes.length && (await updateRefTransaction(context, changes, { cwd: context.checkoutRoot })).status !== "committed") {
+  if (changes.length && (await updateStoreRefTransaction(context, changes, { cwd: context.checkoutRoot })).status !== "committed") {
     throw new Error("The import's retained transient tips changed during its build");
   }
 }
@@ -44,7 +45,7 @@ export async function retireImportLocals(context: RefBackendContext): Promise<St
     if (actual !== undefined && actual !== expected) return cleanupRefused(`${source} advanced after the import read it.`);
     if (actual !== undefined) changes.push({ ref: source, expected, delete: true });
   }
-  if (changes.length && (await updateRefTransaction(context, changes, { cwd: context.checkoutRoot })).status !== "committed") {
+  if (changes.length && (await updateStoreRefTransaction(context, changes, { cwd: context.checkoutRoot })).status !== "committed") {
     return cleanupRefused("Transient identity refs changed during their local deletion.");
   }
 }
@@ -97,7 +98,7 @@ async function dropKeptTips(context: RefBackendContext, kept: ReadonlyMap<string
   const publication = (await readSyncRefs(context, IMPORT_PUBLICATION_REF)).get(IMPORT_PUBLICATION_REF);
   const changes = [...kept, ...publication ? [[IMPORT_PUBLICATION_REF, publication] as const] : []]
     .map(([ref, expected]) => ({ ref, expected, delete: true as const }));
-  if ((await updateRefTransaction(context, changes, { cwd: context.checkoutRoot })).status !== "committed") {
+  if ((await updateStoreRefTransaction(context, changes, { cwd: context.checkoutRoot })).status !== "committed") {
     return cleanupRefused("The import's retained transient tips changed during cleanup.");
   }
 }

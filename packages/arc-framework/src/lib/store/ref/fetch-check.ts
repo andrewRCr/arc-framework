@@ -1,7 +1,7 @@
 /** Interpret failed tracking updates by graph evidence rather than localized Git messages. */
 
 import type { FetchOutcome, FetchRefOutcome } from "../../git/fetch.js";
-import { updateRefTransaction } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import type { PullNotice } from "../sync.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
@@ -9,7 +9,6 @@ import { readSyncRefs } from "./sync-graph.js";
 import { fetchedRefIsAncestor, unavailableFetchGraphNotice } from "./fetch-graph.js";
 import { refFetchRewriteRemedy } from "./fetch-remedy.js";
 import { checkSeenRefFetch, type RefFetchBasis } from "./fetch-seen.js";
-import { rethrowRefFetchKeeperLock } from "./fetch-keeper-lock.js";
 
 /** A failed fast-forward update is a local tracking failure; other rejected updates are rewrites. */
 export async function checkRefFetchUpdates(context: RefBackendContext, remote: RefRemoteDesignation,
@@ -23,8 +22,8 @@ export async function checkRefFetchUpdates(context: RefBackendContext, remote: R
     const prefix = `refs/arc-remotes/${remote.name}/`;
     if (!row.ref.startsWith(prefix)) continue;
     if (row.ref === `${prefix}project/moved`) {
-      await updateRefTransaction(context, [{ ref: row.ref, next: row.next, expected: /^0+$/u.test(row.old) ? null : row.old }],
-        { cwd: context.checkoutRoot }).catch((error: unknown) => rethrowRefFetchKeeperLock(context, [row.ref], error));
+      await updateStoreRefTransaction(context, [{ ref: row.ref, next: row.next, expected: /^0+$/u.test(row.old) ? null : row.old }],
+        { cwd: context.checkoutRoot });
       continue;
     }
     notices.push(await rejectedFetchNotice(context, remote, designation, row, basis));

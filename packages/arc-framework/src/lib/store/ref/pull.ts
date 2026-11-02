@@ -21,7 +21,7 @@ import { EffectiveTransportError } from "./effective-transport.js";
 import { refTransportTargetFailure } from "./object-fault.js";
 import { localFetchObjectFailure } from "./fetch-local-loss.js";
 import { releaseEndedRefKeepers } from "./fetch-seen-ended.js";
-import { RefFetchKeeperLockError } from "./fetch-keeper-lock.js";
+import { RefGitLockError, refGitLockRefusal } from "./git-lock.js";
 import { RefFetchIncompleteError } from "./fetch-completeness.js";
 import { withLifecycleEvidence } from "./sync-lifecycle-evidence.js";
 import { readSyncRefs } from "./sync-graph.js";
@@ -35,8 +35,7 @@ export async function pullRefStore(context: RefBackendContext, input: PullInput 
   onMerged?: (remote: string, incoming: ReadonlyMap<string, string>) => void, onApplied?: RefMergeOptions["onApplied"], resolution?: RefDesignationResolution): Promise<StoreResult<PullResult>> {
   try { return await withRefSyncDeadline(context, "pull", (scoped) => pullRefStoreOnce(scoped, input, onMerged, onApplied, new Map(), resolution)); }
   catch (error) {
-    if (error instanceof RefFetchKeeperLockError) return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lock,
-      condition: error.message, remedy: { text: `Wait for the Git writer holding ${error.lock} to finish. If the lock is stale, remove it after confirming no writer is active, then retry.` } } };
+    if (error instanceof RefGitLockError) return { status: "refused", refusal: refGitLockRefusal(error) };
     if (error instanceof RefSyncDeadlineError) return { status: "refused", refusal: { code: "unreachable", class: "recoverable",
       cause: "timeout", condition: `${error.message} Earlier ref merges remain applied.`, remedy: refSyncDeadlineRemedy(context.syncDeadline?.operation ?? "pull") } };
     // A nested pull shares the publisher's deadline and its lock-recovery boundary.

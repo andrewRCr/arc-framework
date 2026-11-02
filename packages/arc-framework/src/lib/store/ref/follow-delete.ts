@@ -14,7 +14,7 @@ import { beginCopyJournal, confirmCopyJournal, copyJournalKey, recoverCopyReport
 import { MigrationRefusal } from "./migrate-refusal.js";
 import { migrationTransportRefusal } from "./migrate-remote-target.js";
 import { appendCopiedFollowRefs, appendFollowReadRefs } from "./follow-report.js";
-import { updateRefTransaction } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import { captureComparisonWitness, withComparisonWitness, type ComparisonWitness } from "./comparison-witness.js";
 
 /** A delete never starts until both remotes and the complete re-copy have been observed in this round. */
@@ -92,7 +92,7 @@ async function retainLaterFollow(code: RefBackendContext, recorded: RecordedFoll
     const current = (await readSyncRefs(physical, witness.ref)).get(witness.ref) ?? null;
     if (current === tip || current !== witness.expected) return;
     await fetchLayoutObjects(physical, code.repository?.commonDir ?? code.checkoutRoot, new Map([[FORWARDING_REF, tip]]));
-    await updateRefTransaction(physical, [{ ref: witness.ref, next: tip, expected: witness.expected }], { cwd: physical.checkoutRoot });
+    await updateStoreRefTransaction(physical, [{ ref: witness.ref, next: tip, expected: witness.expected }], { cwd: physical.checkoutRoot });
   });
   await appendCopiedFollowRefs(code, recorded, report);
   appendFollowReadRefs(report, recorded.record.destination, destination);

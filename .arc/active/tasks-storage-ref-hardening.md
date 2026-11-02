@@ -643,48 +643,26 @@ pull leaves writes and pull merges free of `lock-held` on the layout lock.
         - Real `reference-transaction` hooks hold both layouts at `prepared` past signal expiry. Git then commits,
           leaves no native ref lock, and permits a fresh pull. The store suite joins the dispatched portability set.
 
-### `[ ]` **6.2 A held Git ref lock refuses `lock-held` at every transaction site — § 5.2, § 5.3, § 8, § 12**
+### `[x]` **6.2 A held Git ref lock refuses `lock-held` at every transaction site — § 5.2, § 5.3, § 8, § 12**
 
 - _Goal:_ Wherever a ref transaction fails because a Git ref lock is held, the caller receives `lock-held` naming the
   lock file and its age, with a remedy that can clear it, except at the designation check's temporary candidate refs,
   where clearing them before a check gives one remote's failed outcome carrying that condition and remedy and removing
   them after it reports nothing; the store never removes the file.
 
-- _Note:_ `write.ts`, `pull.ts`, `push.ts`, and `backend.ts` are shared with another unit's change; see
-  `notes-storage-ref-hardening.md` § Coordination with `store-operation-git-access`.
+- _Note:_ 6.2.b feedback correction: the listing's new lock-refusal catch raised cognitive complexity above the
+  project limit. The bound listing now catches around a separate captured-listing function; public lock and retry
+  cases retain the same behavior.
 
-    - `[ ]` **6.2.a The transaction wrapper and its lock error**
-        - One store-level wrapper around `updateRefTransaction` serves every transaction in `lib/store/ref/`; no
-          direct call remains outside it (26 call sites in 16 files today), which a search confirms. On a completed
-          Git failure with every ref still at its expected value, it `lstat`s each candidate through `context.fs` in
-          `context.repository.gitDir ?? commonDir`: each ref's `<ref>.lock`, `reftable/tables.list.lock`, and
-          `packed-refs.lock` when the transaction deletes a ref. A lock found throws one typed lock error with its
-          path and age from `mtimeMs`; none found rethrows as today. A failure the deadline canceled, the read-back's
-          included, stays a canceled error.
-        - `StoreFileAccess.lstat` (`lib/store/ports.ts`) adds `mtimeMs` to its result type; test fakes gain it.
-        - `rethrowRefFetchKeeperLock` (`fetch-keeper-lock.ts`) becomes this classification and gains the
-          `packed-refs.lock` case; `RefPushTrackingLockError` (`push-tracking.ts`) keeps the receiver's accepted refs
-          and takes the wrapper's lock.
-        - Build `test-first` (one behavior at a time): a planted `<ref>.lock`, `packed-refs.lock` held during a deletion
-          in the files format, and `tables.list.lock` in reftable each yield the lock error with path and age; no lock
-          rethrows, and a stale `packed-refs.lock` beside a failed update is not named; a canceled read-back stays
-          canceled; a files-format deletion lock in the keeper path is typed. Through `withRefSyncDeadline` over the
-          default ports, as 6.1.a's cases run, the `lstat` result reaches the caller whole, `mtimeMs` included: a
-          property case that already holds today and guards it (spec § 12).
+    - `[x]` **6.2.a The transaction wrapper and its lock error**
+        - All 26 store transaction sites use `updateStoreRefTransaction`. Shared native lock evidence includes per-ref,
+          reftable, and deletion-only packed-ref locks, with age from the complete `lstat` result. Lost races, canceled
+          calls, failed read-backs, and unrelated Git failures retain their existing outcomes.
 
-    - `[ ]` **6.2.b The `lock-held` mappings and remedies**
-        - `refBatchFailure` (writes), `pullRefStore` and `pushRefStore` (merges, withdrawals, keepers, tracking), and
-          `withMigrationLock` (the import) map the lock error to `lock-held`; `listBoundRecords` (`list`) and
-          `refReadOperations` (`version`, over `refStateVersion`'s bare result) gain the mapping, since both save the
-          version token.
-        - `clearProjectCheck` (`designation-project.ts`) keeps its one-remote failed outcome and takes the lock's
-          condition and remedy. The removal of a check's candidate refs in `checkRefDesignationProject`'s `finally`
-          keeps discarding its failure, since it cannot replace the check's result; the next check's `clearProjectCheck`
-          clears a ref it leaves, or reports the lock.
-        - A lock older than `REF_SYNC_DEADLINE_MS` takes the stale remedy — remove the file once no Git process runs in
-          that repository; a younger one the held remedy — retry first.
-        - Build `test-first` (one behavior at a time): one case per mapping site; a stale and a held lock by `mtime`;
-          once a stale lock's file is removed as its remedy says, the refused write retries and succeeds.
+    - `[x]` **6.2.b The `lock-held` mappings and remedies**
+        - Writes, pull, push, import, list, and version report the lock path and age with stale-removal or held-retry
+          guidance. Accepted receiver updates survive acknowledgment failures; candidate checks preserve per-remote
+          failures and suppress post-decision cleanup failures. Native repair cases retain successful continuation.
 
 ### `[ ]` **6.3 `tracking-update-failed` names the lock it found — § 5.3**
 

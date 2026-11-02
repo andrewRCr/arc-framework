@@ -1,6 +1,7 @@
 /** Gather the import privately and expose its complete destination through one ref transaction. */
 import type { RefBackendContext } from "../context.js";
-import { updateRefTransaction, type RefTransactionOutcome } from "../../../git/ref-transaction.js";
+import type { RefTransactionOutcome } from "../../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "../ref-transaction.js";
 import { readSyncRefs } from "../sync-graph.js";
 import { IMPORT_KEPT_PREFIX, importTransientDeletes } from "./transient-cleanup.js";
 import { readRefRepository } from "../repository.js";
@@ -14,7 +15,7 @@ export async function landImportRefs(context: RefBackendContext, refs: ReadonlyM
   transients: ReadonlyMap<string, string>): Promise<ImportLandingOutcome> {
   const gathered = new Map([...refs].map(([ref, next]) => [`refs/arc/tmp/migrate/import/${ref.slice("refs/arc/".length)}`, next]));
   const held = new Map([...await readSyncRefs(context, "refs/arc/tmp/migrate/import/")].filter(([ref]) => !ref.startsWith(IMPORT_KEPT_PREFIX)));
-  const gathering = await updateRefTransaction(context, [
+  const gathering = await updateStoreRefTransaction(context, [
     ...[...gathered].map(([ref, next]) => ({ ref, next, expected: held.get(ref) ?? null })),
     ...[...held].filter(([ref]) => !gathered.has(ref)).map(([ref, expected]) => ({ ref, expected, delete: true as const })),
   ], { cwd: context.checkoutRoot });
@@ -28,7 +29,7 @@ export async function landImportRefs(context: RefBackendContext, refs: ReadonlyM
       if ([...await readSyncRefs(current, "refs/arc/")].some(([ref]) => isStateRef(ref))) return { status: "occupied" };
     }
     const changes = [...gathered].map(([ref, expected]) => ({ ref, expected, delete: true as const }));
-    const landed = await updateRefTransaction(context, trial ? changes : [
+    const landed = await updateStoreRefTransaction(context, trial ? changes : [
       ...[...refs].map(([ref, next]) => ({ ref, next, expected: null })), ...changes,
       ...(context.repository?.gitDir ? [] : importTransientDeletes(transients)),
     ], { cwd: context.checkoutRoot });

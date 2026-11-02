@@ -1,5 +1,5 @@
 /** Accepted receiver updates remain explicit when the local acknowledgment hits a native Git lock. */
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, utimes, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
@@ -8,6 +8,7 @@ import { createRefTestRepository } from "../helpers/store/ref-plant.js";
 import { createRefSyncCheckout } from "../helpers/store/ref-sync.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { createRefClock } from "../helpers/store/ref-clock.js";
 import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 
 it.each([
@@ -27,13 +28,16 @@ it.each([
   const lock = join(directory, format === "files" ? `${tracking}.lock` : "reftable/tables.list.lock");
   const accepted = (await checkout.git(["rev-parse", home.ref])).stdout.trim();
   let locked = false;
-  const store = createRefStore({ ...ports,
+  const clock = createRefClock(new Date("2026-01-01T00:00:00Z"), 0);
+  const store = createRefStore({ ...ports, ...clock,
     execInput: (args, input, options) => ports.execInput(args.map(arg =>
       arg.replace(/^(reftable\.lockTimeout|core\.filesRefLockTimeout)=5000$/u, "$1=0")), input, options),
     exec: async (command, args, options) => {
       const result = await ports.exec(command, args, options);
       if (!locked && args.includes("push") && args.includes("--porcelain")) {
         locked = true; await mkdir(dirname(lock), { recursive: true }); await writeFile(lock, "Held after receiver acceptance\n");
+        const then = new Date(clock.at().getTime() - 300_000);
+        await utimes(lock, then, then);
       }
       return result;
     },
@@ -46,6 +50,8 @@ it.each([
       condition: expect.stringMatching(/receiver accepted/iu), remedy: { text: expect.stringMatching(/retry|reconcil/iu) } } });
     if (result.status !== "refused") throw new Error("Expected a local acknowledgment lock refusal");
     expect(result.refusal.condition).toContain(home.ref);
+    expect(result.refusal.condition).toContain("300000ms");
+    expect(result.refusal.remedy.text).toMatch(/remove.*no Git process/iu);
     expect((await remote("git", ["rev-parse", home.ref])).stdout.trim()).toBe(accepted);
     expect((await remote("git", ["show", `${home.ref}:${home.path}`])).stdout).toBe("Receiver accepted state.");
     expect((await checkout.git(["for-each-ref", "--format=%(refname)", tracking])).stdout).toBe("");

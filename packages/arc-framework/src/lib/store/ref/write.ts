@@ -1,5 +1,6 @@
 /** Validated local mutations resolved onto state refs before object construction. */
 
+import { RefGitLockError, refGitLockRefusal } from "./git-lock.js";
 import { malformedStoreInput } from "../malformed-input.js";
 import { storeDirectoryVanished, writeRefRepository } from "./repository.js";
 import { BatchInputSchema, WriteInputSchema, type Mutation, type BatchInput, type BatchResult, type WriteInput, type WriteResult, type RecordObservation } from "../write.js";
@@ -71,6 +72,7 @@ export async function batchRefRecords(context: RefBackendContext, input: BatchIn
 }
 
 function refBatchFailure(error: unknown): StoreResult<never> {
+  if (error instanceof RefGitLockError) return { status: "refused", refusal: refGitLockRefusal(error) };
   if (error instanceof RefSyncLabelError) return { status: "refused", refusal: error.refusal };
   if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
   return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,

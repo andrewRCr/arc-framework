@@ -17,7 +17,8 @@ import { readSyncHistoryQuarters, prepareSyncHistoryFastForward, prepareSyncHist
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { observeSyncEndedConflicts } from "./sync-ended-conflicts.js";
 import { commitRefTree } from "./write-commits.js";
-import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
+import type { RefChange } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import { isGitProcessError } from "../../git/process-error.js";
 import { readBatchObjects } from "./batch-read.js";
 import { refObjectFault } from "./object-fault.js";
@@ -106,7 +107,7 @@ async function mergeCapturedSyncRef(context: RefBackendContext, local: ReadonlyM
         changes.push({ ref: options.targetRef?.(quarter.ref) ?? quarter.ref, next, expected: quarter.tip });
         refreshed.push({ ref: quarter.ref, before: quarter.tip, after: next });
       }
-      return updateRefTransaction(physical, changes, { cwd: context.checkoutRoot });
+      return updateStoreRefTransaction(physical, changes, { cwd: context.checkoutRoot });
     }, options.commitMode);
     if (committed.status === "layout-changed" || committed.result.status === "lost-race") return { status: "restart" };
     await options.onApplied?.(context, ref, current, publishedTip, applied);

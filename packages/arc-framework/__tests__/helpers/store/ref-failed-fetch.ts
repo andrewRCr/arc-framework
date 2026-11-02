@@ -62,7 +62,7 @@ export function failedFetchFixture(input: {
       return { stdout: Buffer.from(stdout), stderr: new Uint8Array() };
     },
     fs: { lstat: async path => {
-      if (path === gitDir) return { isDirectory: () => true } as Awaited<ReturnType<RefStorePorts["fs"]["lstat"]>>;
+      if (path === gitDir) return { mtimeMs: 0, isDirectory: () => true } as Awaited<ReturnType<RefStorePorts["fs"]["lstat"]>>;
       throw absent(path);
     }, readFile: async path => { throw absent(path); }, readBytes: unexpected, writeBytes: unexpected,
     readdir: unexpected, mkdir: unexpected, writeFile: unexpected, exclusiveCreate: unexpected, unlink: unexpected,

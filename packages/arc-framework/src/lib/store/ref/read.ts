@@ -1,5 +1,6 @@
 /** Batched live record reads and family listings over captured local state refs. */
 
+import { RefGitLockError, refGitLockRefusal } from "./git-lock.js";
 import { projectRefTreeEntry } from "./entry-path.js";
 import { restartOnVanishedStore } from "./repository.js";
 import type { ReadPlacement } from "../placement.js";
@@ -166,6 +167,14 @@ export async function listRefRecords(context: RefBackendContext, input: ListInpu
 
 /** List an admitted family from the repository its operation bound. */
 async function listBoundRecords(context: RefBackendContext, input: ListInput): Promise<StoreResult<ListingOutcome>> {
+  try { return await listCapturedRecords(context, input); }
+  catch (error) {
+    if (error instanceof RefGitLockError) return { status: "refused", refusal: refGitLockRefusal(error) };
+    throw error;
+  }
+}
+
+async function listCapturedRecords(context: RefBackendContext, input: ListInput): Promise<StoreResult<ListingOutcome>> {
   const identity = await listingIdentity(context, input.family);
   const captured = await readRefTips(context);
   const resolved = await resolveRefListInput(context, input, captured);

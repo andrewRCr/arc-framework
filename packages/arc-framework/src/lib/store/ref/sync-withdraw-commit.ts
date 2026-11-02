@@ -15,7 +15,8 @@ import { withRefLocks } from "./write-locks.js";
 import { commitRefStep } from "./commit-step.js";
 import { readObjectFormat } from "./manifest.js";
 import { writeRefTree } from "./tree-write.js";
-import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
+import type { RefChange } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import type { PullNotice } from "../sync.js";
 import { refObjectFault } from "./object-fault.js";
 import { isArchiveRef } from "./archive-read.js";
@@ -78,7 +79,7 @@ async function commitWithdrawal(context: RefBackendContext, basis: WithdrawalBas
       changes.push({ ref: options.targetRef?.(destination) ?? destination, next: stdout.trim(), expected: state.get(destination) ?? null });
       if (destination !== ref && parent) changes.push({ ref: options.targetRef?.(ref) ?? ref, delete: true, expected: parent });
     }
-    return { applied: changes, transaction: await updateRefTransaction(physical, changes, { cwd: context.checkoutRoot }) };
+    return { applied: changes, transaction: await updateStoreRefTransaction(physical, changes, { cwd: context.checkoutRoot }) };
   }, options.commitMode);
   if (committed.status === "layout-changed" || committed.result.transaction.status === "lost-race") return { status: "restart" };
   const notices: PullNotice[] = [{ kind: "end-withdrawn", item: end.owner,

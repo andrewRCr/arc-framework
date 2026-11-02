@@ -1,12 +1,13 @@
 /** State publication from captured source tips after an initial reconciliation. */
 
+import { RefGitLockError, refGitLockRefusal } from "./git-lock.js";
 import { AdvisoryLockTimeoutError } from "../../advisory-lock.js";
 import { isGitProcessError } from "../../git/process-error.js";
 import { classifyPushOutcome, type PushClassification } from "../../git/push-classification.js";
 import type { FamilyId } from "../catalog.js";
 import { statePushFamilies, statePushStates, refMovementFamilies, successfulStatePublishes } from "./push-families.js";
 import type { PushInput, PushResult, PublishOutcome } from "../sync.js";
-import type { StoreResult } from "../refusal.js";
+import type { StoreResult, StoreRefusal } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation, type RefDesignation, type RefRemoteDesignation } from "./designation.js";
 import { resolveRefDesignation, type RefDesignationResolution } from "./designation-first.js";
@@ -28,9 +29,8 @@ import { captureComparisonWitness, sameComparisonSource, type ComparisonWitness 
 export async function pushRefStore(context: RefBackendContext, input: PushInput = {}): Promise<StoreResult<PushResult>> {
   try { return await withRefSyncDeadline(context, "push", (scoped) => publishWithCapturedCarry(scoped, input)); }
   catch (error) {
-    if (error instanceof RefPushTrackingLockError) return { status: "refused", refusal: { code: "lock-held", class: "recoverable",
-      lock: error.lock, condition: error.message,
-      remedy: { text: "Wait for the local Git writer to release its tracking lock, then retry the push to reconcile the receiver's accepted updates. If the lock is stale, remove it after confirming no writer is active." } } };
+    if (error instanceof RefPushTrackingLockError) return { status: "refused", refusal: pushTrackingLockRefusal(error) };
+    if (error instanceof RefGitLockError) return { status: "refused", refusal: refGitLockRefusal(error) };
     if (error instanceof RefPushTrackingDeadlineError) return { status: "refused", refusal: { code: "unreachable", class: "recoverable",
       cause: "timeout", condition: error.message, remedy: refSyncDeadlineRemedy("push") } };
     if (error instanceof RefSyncDeadlineError) return { status: "refused", refusal: { code: "unreachable", class: "recoverable",
@@ -40,6 +40,15 @@ export async function pushRefStore(context: RefBackendContext, input: PushInput 
       condition: `The lock remained held for ${error.waitedMs}ms.`,
       remedy: { text: "Wait for the holder to finish or release its lock, then retry the push." } } };
   }
+}
+
+function pushTrackingLockRefusal(error: RefPushTrackingLockError): Extract<StoreRefusal, { code: "lock-held" }> {
+  const native = error.cause instanceof RefGitLockError ? refGitLockRefusal(error.cause) : undefined;
+  return { code: "lock-held", class: "recoverable", lock: error.lock,
+    condition: [error.message, native?.condition].filter(Boolean).join(" "),
+    remedy: { text: native
+      ? `${native.remedy.text} Retry the push to reconcile the receiver's accepted updates.`
+      : "Wait for the local Git writer to release its tracking lock, then retry the push to reconcile the receiver's accepted updates. If the lock is stale, remove it after confirming no writer is active." } };
 }
 
 async function publishWithCapturedCarry(context: RefBackendContext, input: PushInput): Promise<StoreResult<PushResult>> {

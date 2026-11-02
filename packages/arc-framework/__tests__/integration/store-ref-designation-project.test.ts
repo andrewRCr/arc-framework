@@ -1,6 +1,6 @@
 /** Project identity checks before automatic state designation. */
 
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { mkdir, unlink, utimes, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { plantRef } from "../helpers/store/ref-plant.js";
 import { createRefSyncCheckout } from "../helpers/store/ref-sync.js";
@@ -357,17 +357,20 @@ it.each(["pull", "push", "setting"] as const)("reports a locked stale designatio
   const lock = join(h.b.root, ".git", format === "reftable" ? "reftable/tables.list.lock" : `${temporary}.lock`);
   await mkdir(dirname(lock), { recursive: true });
   await writeFile(lock, "Held stale designation ref\n");
-  const ports = immediateRefWrites(h.b.ports), store = createRefStore(ports);
+  const clock = createRefClock(new Date("2026-01-01T00:00:00Z"), 0);
+  const then = new Date(clock.at().getTime() - 300_000);
+  await utimes(lock, then, then);
+  const ports = immediateRefWrites({ ...h.b.ports, ...clock }), store = createRefStore(ports);
   const invoke = async () => operation === "setting"
     ? (await invokeStoreRemote(["origin", "push"], { cwd: h.b.root, ports })).result : store[operation]();
   try {
     const result = await invoke();
     if (operation === "setting") expect(result).toMatchObject({ status: "refused", refusal: { code: "store", refusal: {
-      code: "refused", condition: expect.stringContaining(temporary), remedy: { text: expect.stringContaining("temporary ref lock") },
+      code: "refused", condition: expect.stringContaining(lock), remedy: { text: expect.stringMatching(/remove.*no Git process/iu) },
     } } });
     else expect(result).toMatchObject({ status: "ok", result: { pulls: [expect.objectContaining({ role: "candidate", status: "failed",
-      failure: { code: "refused", class: "terminal", message: expect.stringContaining(temporary),
-        condition: expect.stringContaining(temporary), remedy: { text: expect.stringContaining("temporary ref lock") } },
+      failure: { code: "refused", class: "terminal", message: expect.stringContaining("300000ms"),
+        condition: expect.stringContaining(lock), remedy: { text: expect.stringMatching(/remove.*no Git process/iu) } },
     })] } });
     expect((await h.b.git(["rev-parse", ref])).stdout.trim()).toBe(before);
     expect((await h.b.git(["rev-parse", temporary])).stdout.trim()).toBe(before);

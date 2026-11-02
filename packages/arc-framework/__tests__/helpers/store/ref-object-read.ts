@@ -124,7 +124,7 @@ export function refObjectReadFixture(options: {
       if (path === join(gitDir, "config")) return "";
       throw missing(path);
     }, lstat: async path => {
-      if (path === gitDir) return { isDirectory: () => true } as Awaited<ReturnType<RefStorePorts["fs"]["lstat"]>>;
+      if (path === gitDir) return { mtimeMs: 0, isDirectory: () => true } as Awaited<ReturnType<RefStorePorts["fs"]["lstat"]>>;
       throw missing(path);
     }, readBytes: unexpected, writeBytes: unexpected, readdir: unexpected, mkdir: unexpected,
     writeFile: unexpected, exclusiveCreate: unexpected, unlink: unexpected, realpath: unexpected,
