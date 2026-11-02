@@ -606,8 +606,11 @@ locates a destination from the candidate's `worktreePath`, else from its own wor
 means the branch is free: recent-branch candidates carry none, `main-fallback` carries only `baseBranch`, the roster is
 empty before the flip when no checkout holds a meta, and team mode filters other identities' checkouts out of it.
 
-- A **free** destination, checked out in no worktree, becomes the actions `git fetch origin <branch>` (only when the
-  branch has no local ref) and `git switch <branch>`, with a recompile `then`.
+- A **free** destination, checked out in no worktree, becomes the actions `git fetch origin -- <branch>` (only when the
+  branch has no local ref) and `git switch -- <branch>`, with a recompile `then`. A literal short branch name `-` is
+  held instead: a sole `resolved` or `main-fallback` destination emits no offer, while an ambiguous `surface` menu
+  carries a bare manual-recovery choice for it. The held render explains that Git treats `-` as checkout history and
+  requires manual recovery of the literal branch; other candidates and published recommendation text remain. (A2)
 - A destination **checked out elsewhere** is never switched to; it takes the **held path**.
 - The **held path** — taken by a destination checked out elsewhere, a declined, deferred, or surface-only recovery, an
   answered recovery question (§ 4.6), a switch the session continued past after it failed (§ 4.2), an absent or failed
@@ -1378,6 +1381,10 @@ compiler compiles both arms from whichever the probe's readers return.
     `--flag=value` for a leading-dash answer, and the resulting invocation preserves both the literal answer and any
     leading-dash positional seed. The served choice description and spine state the same rule. (A1)
 
+16. **Literal recovery operands.** Every composed recovery fetch and switch separates the branch operand with `--`.
+    A literal `-` never produces an executable recovery action: sole resolved and base-fallback destinations stay
+    held with manual guidance; ambiguous menus retain a bare manual choice alongside their other candidates. (A2)
+
 ## Open Questions
 
 None blocks starting. The per-group read budget's value, the surface ids' spelling, and the compiler's module split are
@@ -1387,3 +1394,5 @@ implementation detail.
 
 - **A1** — 2026-11-01 — design: insert literal elicited options before `--`.
   _Supersedes:_ § 3.2 offer ¶1; § 4.5 ¶1. _Trigger:_ 1.3.c must-stop. _Work:_ 1.R. _Revalidated:_ 1.R.b.
+- **A2** — 2026-11-01 — design: preserve Git branch operands and hold the checkout-history alias.
+  _Supersedes:_ § 5.3 free rule. _Trigger:_ 4.1.c must-stop. _Work:_ 4.R. _Revalidated:_ pending → 4.7.

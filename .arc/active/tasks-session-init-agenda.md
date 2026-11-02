@@ -336,6 +336,7 @@ rehearsals reach today's orientation except where the specification states a cha
 - _Goal:_ Each recovery kind compiles to its § 5.3 steps: a free destination switches by a composed fetch and switch and
   recompiles, and every other outcome — a destination checked out elsewhere, a declined, deferred, surface-only,
   answered, or failed recovery, or an absent recovery slot — takes the held path to a `gate stop`.
+    - _Amended in:_ 4.R (A2)
 
     - `[x]` **4.1.a Locate destinations**
         - Added a read-bound destination resolver over exact switch candidates and the base fallback. Candidate
@@ -355,6 +356,20 @@ rehearsals reach today's orientation except where the specification states a cha
 - _Outcome:_ Shared read grouping and orientation assembly now serve both resume and held recovery. Native CLI
   coverage checks the composed fetch/switch plan while preserving the current checkout and code refs; ordinary
   resume coverage exercises the same shared assembly.
+
+### `[ ]` **4.R Preserve literal recovery branch operands**
+
+- _Goal:_ Apply A2 to recovery composition: separate branch operands with `--`, hold the checkout-history alias `-`
+  with manual guidance, and preserve the remaining recovery choices and schema.
+
+- Build `test-first` (one behavior at a time):
+    - `resolveRecoveryDestinations` composes delimited fetch and switch argv for ordinary and option-looking branch
+      names; a literal `-` carries no executable action
+    - `compileRecoveryDecision` holds sole resolved and main-fallback aliases without an offer, while a mixed surface
+      menu retains a bare manual-recovery choice and the other candidates' ordinary dispositions
+    - `renderBranchGone` retains published text and adds explicit manual guidance for the alias on every held path
+    - Real producer fixtures cover normal names, `--dry-run`, and `-`; native CLI coverage verifies the planned argv
+      and unchanged checkout and code refs, with the alias fixture preserving a distinct previous checkout
 
 ### `[ ]` **4.2 Compile the signal rows — § 5.4, § 12**
 
@@ -724,3 +739,6 @@ tier pass against the new text.
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
 - `[ ]` Ready for integration
+
+- `[ ]` Recovery fetch and switch argv put `--` before the branch operand; a literal `-` has no executable action,
+  remains held with manual guidance when sole, and appears as a bare manual choice in an ambiguous menu (A2)

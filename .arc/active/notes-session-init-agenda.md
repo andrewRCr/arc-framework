@@ -378,3 +378,30 @@ Closure: reconstruction run `6f82cb4928534ea1ae66c098eecc53cf` retained 15 passi
 After `appendAgendaOption` inserted before `--`, run `9d9e68fc918245bc9eda7083a927bef5` passed all 78 agenda unit
 cases, including those three, and focused TypeScript lint passed. The served `elicit.recompile` description carries
 the same insertion and leading-dash binding rule. Criterion 15's spine obligation remains with Task 3.2.a.
+
+## A2 — Literal recovery branch operands
+
+Superseded § 5.3 statement:
+
+> A **free** destination, checked out in no worktree, becomes the actions `git fetch origin <branch>` (only when the
+> branch has no local ref) and `git switch <branch>`, with a recompile `then`.
+
+`parseLiveMembership` retains the short name from each live `refs/heads/` record, and
+`analyzeRecentRemoteBranchesSnapshot` and `runBranchGoneRecovery` pass eligible recent branch names through to
+`resolveCascade`. Thus option-looking names and the literal `-` reach recovery composition through production data.
+Native Git accepts `git fetch origin -- --dry-run` and `git switch -- --dry-run` for that literal branch. However,
+`git switch -- -` selects the previous checkout even when `refs/heads/-` exists. The retained native trace in
+`~/dev/arc-evidence/session-init-agenda/rehearsals/git-recovery-operand-evidence.json` records Git 2.55.0 selecting
+`previous` rather than the requested literal branch. `git-switch` documents that alias independently.
+
+The correction delimits every composed branch operand and holds only the literal alias for manual recovery. It
+adds no branch-name validator, schema field, or change to other candidates. The propagation sweep covers § 5.3,
+criteria 5, 7, and 14, Task 4.1, and the upcoming 4.7 fixture/rehearsal verifier: existing general criteria remain
+applicable, 4.1 points forward to 4.R, and 4.7 closes the amended contract. Other rows and published actions are
+unaffected.
+
+The A2 author check covers the written delta, surrounding recovery rules, revision task, and producer paths named
+above. Reader independence and binding completeness hold: the body defines the exception and observable behavior;
+no obligation lives only in this note. Grounding-only task audit resolves all named symbols and test seams. The
+post-settle coherence read retains the common held path and per-candidate dispositions with this explicit exception.
+Independent review is omitted at the amendment's determinate correction depth.
