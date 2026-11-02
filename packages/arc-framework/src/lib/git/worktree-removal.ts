@@ -1,6 +1,7 @@
 /** Read-only removal authorization and projection-aware checkout retirement. */
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
+import { quoteShellArgument } from "../release/commit-message-retry.js";
 import type { Remedy } from "../store/refusal.js";
 import type { GitExec } from "./exec.js";
 import { readWorktreeMarker, type WorktreeMarkerReadResult } from "./worktree-marker.js";
@@ -114,7 +115,7 @@ async function relock(
     return failed;
   } catch (error) {
     return { ...failed, detail: `${failed.detail}; locking the checkout again failed too (${message(error)}): `
-      + `lock it with git worktree lock --reason "${PROJECTION_LOCK_REASON}" ${options.checkoutPath}` };
+      + `lock it with git worktree lock --reason ${quoteShellArgument(PROJECTION_LOCK_REASON)} ${quoteShellArgument(options.checkoutPath)}` };
   }
 }
 /** Persist a retained checkout before its caller touches its marker. */
@@ -151,9 +152,9 @@ export function describeSpawnLock(checkoutPath: string, lock: SpawnLock): string
   switch (lock.kind) {
     case "locked": return null;
     case "kept": return `${checkoutPath} was already locked by another tool${lock.lockReason === null ? "" : ` (${lock.lockReason})`}; `
-      + `ARC left that lock, so its exits refuse this checkout until that tool's owner runs git worktree unlock ${checkoutPath}`;
+      + `ARC left that lock, so its exits refuse this checkout until that tool's owner runs git worktree unlock ${quoteShellArgument(checkoutPath)}`;
     case "failed": return `could not lock ${checkoutPath}: ${lock.detail}; `
-      + `lock it with git worktree lock --reason "${PROJECTION_LOCK_REASON}" ${checkoutPath}`;
+      + `lock it with git worktree lock --reason ${quoteShellArgument(PROJECTION_LOCK_REASON)} ${quoteShellArgument(checkoutPath)}`;
   }
 }
 

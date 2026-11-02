@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GitExec } from "../../../src/lib/git/exec.js";
-import { checkWorktreeRemoval, clearMissingWorktreeRegistrations, removeWorktreeCheckout, releaseWorktreeCheckout, passingProjectionRemovalSlots, PROJECTION_LOCK_REASON } from "../../../src/lib/git/worktree-removal.js";
+import { checkWorktreeRemoval, clearMissingWorktreeRegistrations, describeSpawnLock, removeWorktreeCheckout, releaseWorktreeCheckout, passingProjectionRemovalSlots, PROJECTION_LOCK_REASON } from "../../../src/lib/git/worktree-removal.js";
 
 function fixture(options: { present?: boolean; lock?: string | null; status?: string; fail?: string } = {}) {
   let registered = true;
@@ -53,6 +53,16 @@ describe("checkout removal authorization", () => {
 });
 
 describe("physical removal", () => {
+  it("preserves a literal path in a failed relock's repair command", async () => {
+    const checkoutPath = "/tmp/alice's checkout";
+    const exec: GitExec = async (_command, args) => {
+      if (args[1] === "list") return { stdout: `worktree ${checkoutPath}\0HEAD abc\0branch refs/heads/topic\0locked ${PROJECTION_LOCK_REASON}\0\0` };
+      if (args[1] === "remove" || args[1] === "lock") throw new Error("permission denied");
+      return { stdout: "" };
+    };
+    const result = await removeWorktreeCheckout({ exec, checkoutPath, primaryWorktreePath: "/tmp", folderExists: async () => true });
+    expect(result).toMatchObject({ kind: "failed", detail: expect.stringContaining("'/tmp/alice'\"'\"'s checkout'") });
+  });
   it("persists and removes a clean checkout", async () => {
     const f = fixture(); expect(await removeWorktreeCheckout(f)).toEqual({ kind: "removed" }); expect(f.state()).toEqual({ registered: false, persisted: true, unlocked: false });
   });
@@ -64,6 +74,18 @@ describe("physical removal", () => {
   });
   it.each(["persist", "unlock", "remove"])("reports a failure at %s", async (fail) => {
     expect(await removeWorktreeCheckout(fixture({ fail, lock: PROJECTION_LOCK_REASON }))).toMatchObject({ kind: "failed", step: fail });
+  });
+});
+
+describe("spawn lock recovery commands", () => {
+  it("quotes a literal checkout path when the spawn lock fails", () => {
+    expect(describeSpawnLock("/tmp/alice's checkout", { kind: "failed", detail: "permission denied" }))
+      .toContain("'/tmp/alice'\"'\"'s checkout'");
+  });
+
+  it("quotes a literal checkout path when another tool owns its lock", () => {
+    expect(describeSpawnLock("/tmp/alice's checkout", { kind: "kept", lockReason: "owner" }))
+      .toContain("git worktree unlock '/tmp/alice'\"'\"'s checkout'");
   });
 });
 

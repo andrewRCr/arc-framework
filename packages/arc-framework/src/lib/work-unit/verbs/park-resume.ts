@@ -655,19 +655,12 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
   };
 
   const roadmapHandler = ctx.executor.sideEffects?.["reconcile-roadmap"];
-  const transition = resumeTransitionExecutor(ctx.executor);
-  const { deferredRoadmap } = transition;
-  const outcome = await executeTransition(transition.executor, { verb: "resume", slug: name, inputs });
-  if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
-
-  const worktreePath = transition.spawnedPath();
-  const exec = ctx.executor.exec;
-  const spawnLock = worktreePath === undefined ? undefined : exec === undefined
-    ? { kind: "failed" as const, detail: "resume ran without a Git executor" }
-    : await lockSpawnedCheckout(exec, worktreePath);
-  const spawned = {
-    ...(worktreePath === undefined ? {} : { worktreePath }),
-    ...(spawnLock === undefined ? {} : { spawnLock }),
+  const { outcome, spawned, deferredRoadmap } = await runProtectedResumeTransition(ctx.executor, name, inputs);
+  if (outcome.status !== "ok") return {
+    status: "rejected",
+    reason: spawned.worktreePath === undefined ? outcome.message
+      : `resume partially applied at ${spawned.worktreePath}: ${outcome.message}`,
+    ...spawned,
   };
 
   // Remove the tracked-branch pointer-record and prune the emptied parked dir.
@@ -726,6 +719,38 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
 }
 
 type RoadmapEffect = Parameters<NonNullable<NonNullable<ExecuteTransitionContext["sideEffects"]>["reconcile-roadmap"]>>[0];
+
+interface ProtectedResumeTransition {
+  outcome: Extract<TransitionOutcome, { status: "ok" }> | { status: "failed"; message: string };
+  spawned: { worktreePath?: string; spawnLock?: SpawnLock };
+  deferredRoadmap: RoadmapEffect[];
+}
+
+/** Protect a successful placement after both returned finalization failures and thrown post-spawn effects. */
+async function runProtectedResumeTransition(
+  executor: ExecuteTransitionContext, slug: string, inputs: TransitionInputs,
+): Promise<ProtectedResumeTransition> {
+  const transition = resumeTransitionExecutor(executor);
+  let outcome: ProtectedResumeTransition["outcome"];
+  try {
+    const result = await executeTransition(transition.executor, { verb: "resume", slug, inputs });
+    outcome = result.status === "ok" ? result : { status: "failed", message: result.message };
+  } catch (error) {
+    if (transition.spawnedPath() === undefined) throw error;
+    outcome = { status: "failed", message: error instanceof Error ? error.message : String(error) };
+  }
+  const worktreePath = transition.spawnedPath();
+  const spawnLock = worktreePath === undefined ? undefined : executor.exec === undefined
+    ? { kind: "failed" as const, detail: "resume ran without a Git executor" }
+    : await lockSpawnedCheckout(executor.exec, worktreePath);
+  return {
+    outcome, deferredRoadmap: transition.deferredRoadmap,
+    spawned: {
+      ...(worktreePath === undefined ? {} : { worktreePath }),
+      ...(spawnLock === undefined ? {} : { spawnLock }),
+    },
+  };
+}
 
 /**
  * The executor a resume's transition runs through: ROADMAP reconciliation waits until the pointer-record is gone, and

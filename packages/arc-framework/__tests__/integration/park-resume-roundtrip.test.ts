@@ -40,7 +40,7 @@ import { listParkedSlugs } from "../../src/lib/work-unit/lifecycle-resolver.js";
 import type { UserIOContext } from "../../src/commands/user/types.js";
 import { createTempRepo, cleanupTempDir, makeGitExec, removeGitBackedDir } from "../helpers/integration.js";
 import { readWorktreeLock } from "../helpers/worktree-lock.js";
-import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+import { lockSpawnedCheckout, PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -340,6 +340,44 @@ describe("park@Active → resume round-trip — against real worktrees", () => {
       expect(await readWorktreeLock(makeGitExec(h.repo), resumeWt)).toBe(PROJECTION_LOCK_REASON);
       expect(result).toMatchObject({ spawnLock: { kind: "locked" } });
     }
+  });
+
+  it.each([
+    ["branch", false], ["stage", false], ["workspace", false], ["branch", true],
+  ] as const)("protects a retained spawn after %s fails, with lock failure %s", async (failure, lockFails) => {
+    await parkAndShip(h);
+    const resumeWt = resolveWorktreeLocation({
+      template: h.locationTemplate, repo: basename(h.repo), name: SLUG, branch: BRANCH,
+    });
+    h.spawned.push(resumeWt);
+    const executor = executorFor(h);
+    if (failure === "branch") executor.writeBranchField = async () => { throw new Error("branch field denied"); };
+    if (failure === "stage") executor.stageMeta = async () => { throw new Error("staging denied"); };
+    if (failure === "workspace") executor.sideEffects = {
+      ...executor.sideEffects, "user-workspace": async () => { throw new Error("workspace denied"); },
+    };
+    if (lockFails) executor.exec = async (command, args, options) => {
+      if (args[0] === "worktree" && args[1] === "lock") throw new Error("lock denied");
+      return h.io.exec(command, args, options);
+    };
+
+    const result = await runResume({ executor, fs: parkResumeFs(h.io) }, {
+      name: SLUG, locationTemplate: h.locationTemplate, repo: basename(h.repo), spawningIdentity: IDENTITY,
+    });
+
+    expect(result).toMatchObject({ status: "rejected", worktreePath: resumeWt, reason: expect.stringContaining("denied") });
+    expect(await pathExists(join(resumeWt, ACTIVE_REL))).toBe(true);
+    expect(await pathExists(join(h.repo, POINTER_REL))).toBe(true);
+    if (lockFails) {
+      expect(result).toMatchObject({ spawnLock: { kind: "failed", detail: expect.stringContaining("lock denied") } });
+      expect(await lockSpawnedCheckout(makeGitExec(h.repo), resumeWt)).toEqual({ kind: "locked" });
+    } else expect(result).toMatchObject({ spawnLock: { kind: "locked" } });
+    const notes = join(resumeWt, ".arc/user/test-user/SESSION-NOTES.md");
+    await mkdir(dirname(notes), { recursive: true });
+    await writeFile(notes, "Retained after the failed resume.\n");
+    await expect(execFileAsync("git", ["worktree", "remove", resumeWt], { cwd: h.repo })).rejects.toThrow();
+    expect(await readWorktreeLock(makeGitExec(h.repo), resumeWt)).toBe(PROJECTION_LOCK_REASON);
+    expect(await readFile(notes, "utf8")).toBe("Retained after the failed resume.\n");
   });
 
   it("round-trip (--here): resume defers the checkout; commit then checkout re-attaches with no orphan", async () => {
