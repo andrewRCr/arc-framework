@@ -4,6 +4,7 @@ import { compileCheckoutOrientation } from "./checkout.js";
 import { compileSyncState } from "./sync-state.js";
 import { compileResumeContext } from "./context.js";
 import { createSessionInitAgenda } from "./document.js";
+import { compileNotesOrientation } from "./notes.js";
 import { compileSyncPrefix } from "./prefix.js";
 import { carryAgendaAnswers } from "./progress.js";
 import { canAutoProceed, compileCoreOrientation, orderOrientationSurfaces } from "./orientation.js";
@@ -17,7 +18,7 @@ export async function compileWorkUnitResume(input: AgendaCompileInput): Promise<
   const reads = context.steps.filter(step => step.type === "read");
   const findings = context.steps.filter(step => step.type === "render" || step.type === "note");
   const sync = compileSyncState(input);
-  const orientation = orderOrientationSurfaces([...compileCoreOrientation(input, findings, sync), ...compileCheckoutOrientation(input, sync)]);
+  const orientation = orderOrientationSurfaces([...compileCoreOrientation(input, findings, sync), ...compileCheckoutOrientation(input, sync), ...compileNotesOrientation(input, sync)]);
   const steps = [...prefix, ...reads, ...orientation];
   return createSessionInitAgenda(input, { shape: "work-state" }, carryAgendaAnswers(input, [
     ...steps, { type: "gate", kind: "proceed", autoProceed: canAutoProceed(input, steps, context.metaContent) },

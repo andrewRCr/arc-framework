@@ -213,7 +213,7 @@ _Mode:_ `slice` through Phase 3 — closes on a plain resume driven end to end b
   isolation and store notices. The proceed gate checks compiler surfaces, offers, cleanliness and parsed meta blockers;
   the native adapter exercises the full read/residual/gate path.
 
-### `[ ]` **2.5 Compile the checkout-local and notes surfaces — § 5.5, § 6.2, § 7.1**
+### `[x]` **2.5 Compile the checkout-local and notes surfaces — § 5.5, § 6.2, § 7.1**
 
 - _Goal:_ Every worktree, dirty, base, and notes condition compiles to its § 6.2 render with CLI-composed text, a
   channel renders as behind only where Task 2.2 marks it unsynced, and the notes surfaces live in the cutover module.
@@ -223,14 +223,10 @@ _Mode:_ `slice` through Phase 3 — closes on a plain resume driven end to end b
           suppression. Remote reachability and pending-fetch messages stay distinct; base text reuses the shared
           composer and retains refresh remedies as text. Resume assembly shares one sync-state calculation.
 
-    - `[ ]` **2.5.b Compile the notes surfaces in the cutover module**
-        - Build `test-first` (one behavior at a time):
-            - under `manual`, `notes-load-pending` and `retired-subdirs` render
-            - a declined `notes:load` under `prompt` renders `notes-load-pending` or `retired-subdirs`
-            - a declined pull leaves the reconcile to the `retired-subdirs` render
-            - `notes-lag`, `notes-compaction` (with its nudge marker), `notes-reconciling`, `notes-conflict`,
-              `local-ahead-notes`, `notes-behind` (unsynced only), `notes-remote-unavailable`, and `notes-drift` by
-              register each render as § 6.2 gives, with no pull offered
+    - `[x]` **2.5.b Compile the notes surfaces in the cutover module**
+        - Added notes status, drift, lag, pending-load, and retired-subdir renders, preserving unsynced decisions and
+          exact compaction nudge markers. The store-sync renderer lives with permanent core orientation so removing
+          legacy notes compilation retains the store's advisory surface.
 
 ### `[ ]` **2.6 Compile the cleanup lists under their action limits — § 4.11, § 6.1, § 6.2, § 6.3, § 14.1**
 

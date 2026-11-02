@@ -2,7 +2,7 @@
 
 import { quoteShellArgument } from "../../lib/release/commit-message-retry.js";
 import type { SessionAction } from "../../lib/session-init/actions.js";
-import { renderStoreSync } from "./notes.js";
+import { pullResultNotices } from "../../lib/store/operational-sync.js";
 import { parseLifecycleMetaContent } from "../../lib/store/lifecycle-meta-content.js";
 import type { AgendaCompileInput } from "./compile-input.js";
 import { renderDegradedSlot, renderLocus } from "./render.js";
@@ -100,4 +100,15 @@ export function canAutoProceed(input: AgendaCompileInput, steps: AgendaStep[], m
   if (!meta.success || meta.data.blockers !== null) return false;
   return !steps.some(step => step.type === "offer"
     || ((step.type === "render" || step.type === "note") && step.surface !== "header" && step.surface !== "answered"));
+}
+
+function renderStoreSync(input: AgendaCompileInput): AgendaStep | null {
+  const slot = input.envelope.user;
+  if (!slot.ok || slot.value === null || !("status" in slot.value)) return null;
+  const value = slot.value;
+  const quiet = (value.status === "noop" || value.status === "no-remote")
+    && pullResultNotices(value).length === 0 && (value.advisories?.length ?? 0) === 0;
+  if (quiet) return null;
+  const text = [value.summary, ...(value.actions?.map(action => action.text) ?? [])].join("\n");
+  return { type: "note", surface: "store-sync", text };
 }

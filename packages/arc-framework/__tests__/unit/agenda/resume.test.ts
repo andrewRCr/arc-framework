@@ -182,6 +182,13 @@ describe("agenda work-unit resume", () => {
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
   });
 
+  it("includes pending notes attention in resume orientation", async () => {
+    const config = configSessionInit(); config.settings["session.init_load.notes"] = "manual";
+    const agenda = await compile(await input({ config: async () => config, user: async () => userSessionInit({ loadNeeded: true }) }));
+    expect(agenda.steps).toEqual(expect.arrayContaining([expect.objectContaining({ type: "render", surface: "notes-load-pending" })]));
+    expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "proceed", autoProceed: false });
+  });
+
   it("ends at automatic notes synchronization before reading context", async () => {
     const config = configSessionInit(); config.settings["session.init_pull.notes"] = "always";
     const value = await input({ config: async () => config,
