@@ -1410,6 +1410,6 @@ implementation detail.
 - **A1** — 2026-11-01 — design: insert literal elicited options before `--`.
   _Supersedes:_ § 3.2 offer ¶1; § 4.5 ¶1. _Trigger:_ 1.3.c must-stop. _Work:_ 1.R. _Revalidated:_ 1.R.b.
 - **A2** — 2026-11-01 — design: preserve Git branch operands and hold the checkout-history alias.
-  _Supersedes:_ § 5.3 free rule. _Trigger:_ 4.1.c must-stop. _Work:_ 4.R. _Revalidated:_ pending → 4.7.
+  _Supersedes:_ § 5.3 free rule. _Trigger:_ 4.1.c must-stop. _Work:_ 4.R. _Revalidated:_ 4.7.
 - **A3** — 2026-11-02 — design: use backend capture keys for Errand entry. _Supersedes:_
-  § 5.4 Errand rows. _Trigger:_ 4.2.c must-stop. _Work:_ 4.R2. _Revalidated:_ pending → 4.7.
+  § 5.4 Errand rows. _Trigger:_ 4.2.c must-stop. _Work:_ 4.R2. _Revalidated:_ 4.7.

@@ -457,20 +457,15 @@ rehearsals reach today's orientation except where the specification states a cha
   and carries accepted entry into a work-unit resume or answered entry into Orient. The workflow ships on fresh
   installs; nonterminal workflow fragments return to the agenda. The interim refusal and its test allowance are gone.
 
-### `[ ]` **4.7 Verify every arm across fixtures and rehearsals** — validate exit criterion at segment scope
+### `[x]` **4.7 Verify every arm across fixtures and rehearsals** — validate exit criterion at segment scope
 
 - _Goal:_ Evidence that every row and branch-gone kind compiles as specified, the verb still writes nothing, and the
   arms reach today's orientation.
 
-    - Run the compiler's unit suite over the fixture probe values: every § 5.4 row and § 5.3 kind, the held path, the
-      bare `--errand` declines with and without `--isolate`, the `--plan` decline, and an unresolved `--start`
-    - Re-run Task 1.5.d's no-write proof over Phase 4's new reads: the errand queue, the inbox, the stub lookup, the
-      lifecycle resolver, and the worktree list
-    - Rehearse on kit installs from this branch, each against today's workflow on the same fixture, and record them
-      beside Task 3.4's: `--plan` over a backlog stub, `--errand` with a queued and a flagged capture, branch-gone
-      after deleting the remote branch, Orient discovery with a remote-only work unit, and `--context` from a work-unit
-      checkout
-    - Run `arc check segment`
+- _Outcome:_ All compiler rows and recovery kinds retain their specified boundaries, including literal recovery
+  operands and backend capture selectors. Native Orient, queued Errand, Plan, and Start inspection preserves files,
+  refs, and personal state. Six matched kit comparisons reach their specified entry questions; Context and picker
+  differences follow the settled rows. Raw transcripts and instruction-adherence limits are recorded in the notes.
 
 ## **Phase 5:** Removals, the cheap tier, and propagation
 

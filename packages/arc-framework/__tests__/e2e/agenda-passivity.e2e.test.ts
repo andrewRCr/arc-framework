@@ -62,6 +62,9 @@ it("creates and deletes both temporary-ref families while preserving inspected s
   traceDirectory = await mkdtemp(join(tmpdir(), "arc-agenda-passive-trace-"));
   const initialized = await runArcNoTty(["--no-input", "init", "--name", "agenda", "--identity", "test-user", "--tools", ""], repository);
   expect(initialized.exitCode, initialized.stdout + initialized.stderr).toBe(0);
+  const stubbed = await runArcNoTty(["--no-input", "stub", "passive-target", "--commitment", "planned",
+    "--priority", "P3", "--class", "Light"], repository);
+  expect(stubbed.exitCode, stubbed.stdout + stubbed.stderr).toBe(0);
   await git(repository, ["add", "."]);
   await git(repository, ["commit", "-m", "chore: initialize fixture"]);
   await git(repository, ["init", "--bare", "--initial-branch=main", origin]);
@@ -82,16 +85,31 @@ it("creates and deletes both temporary-ref families while preserving inspected s
     head: await git(repository!, ["rev-parse", "HEAD"]),
     personal: await directorySnapshot(join(repository!, ".arc", "user")),
   });
+  await writeFile(join(repository, ".arc/user/test-user/USER-INBOX.md"),
+    "# User Inbox\n\n## Errand\n\n### `[ ]` **Queued passive concern**\n\n- Inspect a sample.\n\n---\n");
+  const queueInput = join(traceDirectory, "queue.json");
+  await writeFile(queueInput, JSON.stringify({ schemaVersion: 1, orderedTitles: ["Queued passive concern"] }));
+  const queued = await runArcNoTty(["user", "inbox-mark-execute-bound", queueInput], repository);
+  expect(queued.exitCode, queued.stdout + queued.stderr).toBe(0);
   const before = await snapshot();
   const tracePath = join(traceDirectory, "git.jsonl");
   await writeFile(tracePath, "");
-  const result = await runArcNoTty(["agenda", "session-init", "--json"], repository,
-    { env: { GIT_TRACE2_EVENT: tracePath, FORCE_COLOR: undefined } });
-  expect(result.stderr).toBe("");
-  expect(result.exitCode, result.stdout + result.stderr).toBe(0);
-  const output: unknown = JSON.parse(result.stdout);
-  assertSessionInitAgenda(output);
-  expect(await snapshot()).toEqual(before);
+  for (const signals of [[], ["--errand", "--next"], ["--plan", "passive-target"], ["--start", "passive-target"]]) {
+    const result = await runArcNoTty(["agenda", "session-init", "--json", ...signals], repository,
+      { env: { GIT_TRACE2_EVENT: tracePath, FORCE_COLOR: undefined } });
+    expect(result.stderr).toBe("");
+    expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+    const output: unknown = JSON.parse(result.stdout);
+    assertSessionInitAgenda(output);
+    if (signals.includes("--errand")) expect(output.steps).toContainEqual(expect.objectContaining({
+      type: "fragment", args: { mode: "launch", fromInbox: "Queued passive concern", isolate: false },
+    }));
+    if (signals.includes("--plan")) expect(output.steps).toContainEqual(expect.objectContaining({
+      type: "fragment", args: { stub: "passive-target", onGroomingBranch: false },
+    }));
+    if (signals.includes("--start")) expect(output.steps.at(-1)).toEqual({ type: "gate", kind: "launch", autoProceed: false });
+    expect(await snapshot(), `Inspection changed state for ${JSON.stringify(signals)}`).toEqual(before);
+  }
   const events = (await readFile(tracePath, "utf8")).trim().split("\n").filter(Boolean)
     .map(line => JSON.parse(line) as GitTraceEvent);
   const completed = new Set(events.filter(event => event.event === "exit" && event.code === 0).map(event => event.sid));

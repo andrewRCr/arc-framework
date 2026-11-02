@@ -474,3 +474,32 @@ advisor consultation supported this factoring over reusing human status output o
 An unresolved Start retains its invocation intent in the agenda but compiles continuation commands as if that signal
 were absent, preventing a recompile loop. Its diagnostic also withholds automatic proceed on an otherwise clean
 `--next` resume.
+
+## Remaining-arm rehearsals
+
+The branch kit `2026-11-02T105957` packed the qualified working tree subsequently committed as `face641aa4`.
+Its first install commit found 19 broken links; the same documented sandbox fill used for baseline supplied seven
+missing targets, and the retry committed with hooks enabled and pushed to its local bare origin. Twelve fresh Claude
+sessions compared six matched fixtures against the frozen baseline install: Plan, queued Errand, flagged-capture
+Errand, branch-gone, remote-only Orient, and Context. Every run exited successfully, retained its original HEAD, and
+left the tracked tree clean. `~/dev/arc-evidence/session-init-agenda/rehearsals/arms/` holds fixture producers, probes,
+agendas, complete transcripts, final responses, metadata, and `comparison.json`.
+
+Plan reaches the same missing-framing question after the planning-entry check. Queued Errand selects the same exact
+capture and requests missing target details before overlap or open. Branch-gone holds at recovery direction because
+`main` is occupied by the primary; the compiled menu names that checkout. Both Orient runs discover `remote-pilot`;
+the compiled menu supplies the specified spawned and in-place routes. The baseline bare Errand picker also exposed
+the unflagged queue head, while the compiled picker contains only the flagged capture, elicitation, and decline.
+The baseline ignored the undefined `--context` signal and resumed its work unit; the compiled Context row reads no
+work-unit artifacts and emits only checkout surfaces, as specified in § 5.4.
+
+These outcomes do not establish perfect model adherence: the Plan and queued-Errand spine runs emitted two read-group
+progress lines, and remote Orient emitted one. The queued-Errand final response put its queue announcement above the
+header. The complete transcripts retain these deviations. The amendment entry gate returns design holds: the stated
+row outcomes remain produced; the specified Context and picker changes and these presentation limits are explicit.
+
+The fixture batch also passes the full agenda unit set and native Start, cold-start, and passive-inspection cases.
+The native proof snapshots each Orient, queued Errand, Plan, and Start invocation against the same real inbox, errand,
+lifecycle, stub, and worktree fixture, including both temporary-ref families. The operand matrix retains delimited
+branch names and the held literal alias, while real-store capture/adoption fixtures retain qualified keys and their
+refusal boundaries. These checks close A2 and A3 at Task 4.7.
