@@ -637,6 +637,11 @@
       "layer": "core",
       "pristine_hash": "dba7b9251cffeb666a1dbc43f8b8ff5e7324dd13441de6a8ca86836ac74ada89"
     },
+    "system/workflows/arc/work-unit-lifecycle/in-flight-scope-check.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "d0074b9738240668349f2e6c734f03ef2c4a30900e3891f35bd9898a884ff7d6"
+    },
     "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md": {
       "classification": "Framework",
       "layer": "core",

@@ -14,7 +14,7 @@ arc:
 **Signature:** `arc-session [arguments]` → `arc agenda session-init --json [arguments]`.
 
 The **agenda** is the CLI's compiled instruction list. A **step** is one instruction in that list. This workflow is
-its **spine**, executing the closed step vocabulary. A **fragment** loads a named method or an owning workflow.
+its **spine**, executing the closed step vocabulary. A **fragment** loads a named method or an existing workflow.
 
 **Output discipline:** Between tool calls and the final orientation, generate text only for problems, blockers,
 mismatches, judgment calls the user cannot infer from the tool stream, and flow-control pivots they need to track.
@@ -62,8 +62,10 @@ fragment. An agenda ending at an `exec` or an immediate offer emits no orientati
   `.arc/system/methods/<name>.md`, apply its default/override rule, and follow it with `args`. Carry its report and
   question into orientation; its question becomes the terminal gate's question. A method omitted as already followed
   retains its earlier report and question when the agenda's `answered` note names it.
-- **`fragment`, workflow target:** Emit the buffered orientation, then load and follow the exact `target.path` with
-  `args`. That workflow now owns the session; report what its entry actually establishes, never a premature success.
+- **`fragment`, workflow target:** Load and follow the exact `target.path` with `args`. If more agenda steps follow,
+  retain its report and continue at the next step, without emitting orientation yet. At a final workflow fragment,
+  emit buffered orientation before entering it; that workflow now owns the session. Report what its entry actually
+  establishes, never a premature success.
 - **`render`:** Buffer its `text` verbatim as a conditional top-level orientation section, at the step's place.
 - **`note`:** Buffer its `text` verbatim as an advisory line, at the step's place.
 - **`gate`:** Emit orientation, then follow the gate rule below.

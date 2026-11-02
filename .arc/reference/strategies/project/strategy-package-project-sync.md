@@ -157,7 +157,7 @@ arc-in-git files are annotated explicitly.
 ### Framework files (must match between copies)
 
 Framework is the default classification: every resolved recipe path not listed in the classifier's Scaffolded or
-Configurable sets. The self-hosting configuration currently resolves 104 Framework files. Membership is derived from
+Configurable sets. The self-hosting configuration currently resolves 105 Framework files. Membership is derived from
 `init-recipe.json` plus `classification.ts`; the generated self-hosting manifest is the reviewable inventory, and
 `framework-sync.test.ts` verifies each installed Framework file against rendered package source.
 
@@ -233,12 +233,12 @@ Configurable sets. The self-hosting configuration currently resolves 104 Framewo
 
 | Classification | Count | Update Behavior                                       |
 | -------------- | ----- | ----------------------------------------------------- |
-| Framework      | 104   | Wholesale replaced. No conflicts.                     |
+| Framework      | 105   | Wholesale replaced. No conflicts.                     |
 | Configurable   | 44    | Three-way merge. Conflicts expected in user sections. |
 | Scaffolded     | 4     | Skip. Project-owned after init.                       |
 | Project-owned  | 0     | Ignore. User-created, not in template.                |
 
-**Self-hosting installed files:** 152. **Template counterparts:** 10. Conditional recipe arms change installed
+**Self-hosting installed files:** 153. **Template counterparts:** 10. Conditional recipe arms change installed
 membership: external PM adds its setup workflow, arc-in-git adds four planning files, and team mode adds the team
 coordination strategy.
 

@@ -446,25 +446,16 @@ rehearsals reach today's orientation except where the specification states a cha
           advisory dependency owns multi-candidate weighing. Shipped both Configurable methods, retargeted the advisory
           caller, and registered the declaration, install inventories and both fresh-init method lists.
 
-### `[ ]` **4.6 Compile cold-start and retire the interim refusal — § 5.7**
+### `[x]` **4.6 Compile cold-start and retire the interim refusal — § 5.7**
 
 - _Goal:_ An unmanaged linked checkout with a branch enters the advisory `in-flight-scope-check` and a
   `cold-start:scaffold` offer that shows the seed's resolved disposition; its accept starts the work unit here and
   recompiles without the seed, and a decline or an answered offer compiles Orient. With this last row compiled, the
   `row-not-compiled` refusal is gone.
 
-- _Note:_ `in-flight-scope-check.md` ships with this task, declaring `assess-parallel-fit`, which Task 4.5 shipped;
-  see `notes-session-init-agenda.md` § Shipping a file.
-
-- Delete the `row-not-compiled` refusal and its tests
-- Build `test-first` (one behavior at a time):
-    - the row runs no prefix before its decline
-    - the offer's text gives the seed's disposition as `parseSpecInput` classifies it: an issue reference becomes the
-      meta's `Origin`, and any other seed passes through
-    - accept runs `arc start --here --from <seed>`, or bare `arc start --here`, and recompiles without the seed
-    - decline compiles the Orient steps, `concurrent-workload` included; an answered offer compiles Orient without the
-      scope check
-    - after a successful start, the recompile is a work-unit resume
+- _Outcome:_ Cold-start now emits the advisory workflow and immediate scaffold offer, renders parsed seed disposition,
+  and carries accepted entry into a work-unit resume or answered entry into Orient. The workflow ships on fresh
+  installs; nonterminal workflow fragments return to the agenda. The interim refusal and its test allowance are gone.
 
 ### `[ ]` **4.7 Verify every arm across fixtures and rehearsals** — validate exit criterion at segment scope
 

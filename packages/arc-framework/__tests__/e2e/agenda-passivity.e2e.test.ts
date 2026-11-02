@@ -5,6 +5,7 @@ import { mkdtemp, readdir, readFile, readlink, writeFile } from "node:fs/promise
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
+import { assertSessionInitAgenda } from "../../src/commands/agenda/schema.js";
 import { makeGitExecInput, makeNotesTreeCommit } from "../helpers/integration.js";
 import { cleanupTempDir, createTempRepo, git, removeGitBackedDir, runArcNoTty } from "./helpers.js";
 
@@ -87,8 +88,9 @@ it("creates and deletes both temporary-ref families while preserving inspected s
   const result = await runArcNoTty(["agenda", "session-init", "--json"], repository,
     { env: { GIT_TRACE2_EVENT: tracePath, FORCE_COLOR: undefined } });
   expect(result.stderr).toBe("");
-  const output = JSON.parse(result.stdout) as { mode?: string; code?: string };
-  expect(output.mode === "agenda" || output.code === "row-not-compiled", result.stdout).toBe(true);
+  expect(result.exitCode, result.stdout + result.stderr).toBe(0);
+  const output: unknown = JSON.parse(result.stdout);
+  assertSessionInitAgenda(output);
   expect(await snapshot()).toEqual(before);
   const events = (await readFile(tracePath, "utf8")).trim().split("\n").filter(Boolean)
     .map(line => JSON.parse(line) as GitTraceEvent);

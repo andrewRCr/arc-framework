@@ -3,9 +3,9 @@
 import type { AgendaAnswers, AgendaSignals } from "./schema.js";
 import { AgendaCommandInputSchema, type AgendaCommandInput } from "./input.js";
 
-/** One actionable input refusal, or an arm not compiled by the current implementation. */
+/** One actionable input refusal before session probing. */
 export interface AgendaRefusal {
-  code: "invalid-input" | "row-not-compiled";
+  code: "invalid-input";
   flags: string[];
   row: string | null;
   remedy: string;

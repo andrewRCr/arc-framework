@@ -1,5 +1,6 @@
 /** Compile session entry decisions into an asserted agenda or an actionable refusal. */
 
+import { compileColdStart } from "./cold-start.js";
 import { compileOrient } from "./orient.js";
 import { compileStartSignal } from "./signal-start.js";
 import { compileCurrentHusk } from "./husk.js";
@@ -16,28 +17,30 @@ import type { AgendaRefusal } from "./parse.js";
 import { type AgendaStep, type SessionInitAgenda } from "./schema.js";
 import { renderDegradedSlot, renderLocus } from "./render.js";
 
-/** A compiled agenda or a row whose implementation is not available yet. */
+/** A compiled agenda or an actionable input refusal. */
 export type AgendaCompileResult = { ok: true; agenda: SessionInitAgenda } | { ok: false; refusal: AgendaRefusal };
 
 /** Compile the next session boundary from the current probe and recorded decisions. */
 export async function compileSessionInitAgenda(input: AgendaCompileInput): Promise<AgendaCompileResult> {
   const row = resolveAgendaRow(input.envelope, input.signals);
-  if (row === "stop") return { ok: true, agenda: compileStop(input) };
-  if (row === "branch-gone") return { ok: true, agenda: await compileBranchGone(input) };
-  if (row === "context") return { ok: true, agenda: await compileContextSignal(input) };
-  if (row === "housekeep") return { ok: true, agenda: await compileHousekeepSignal(input) };
-  if (row === "plan") return { ok: true, agenda: await compilePlanSignal(input) };
-  if (row === "errand") return { ok: true, agenda: await compileErrandSignal(input) };
-  if (row === "start") return compileStartEntry(input);
-  if (row === "orient") return { ok: true, agenda: await compileOrient(input) };
-  if (row === "current-husk") return { ok: true, agenda: await compileCurrentHusk(input) };
-  if (row === "transient") return { ok: true, agenda: await compileTransientResume(input) };
-  if (row === "work-unit") return { ok: true, agenda: await compileWorkUnitResume(input) };
-  return { ok: false, refusal: {
-    code: "row-not-compiled", flags: [], row,
-    remedy: `This invocation selects the ${row} row, which is not compiled yet. `
-      + "Follow session-init.md from the base branch for this session, or start the arm from another checkout.",
-  } };
+  switch (row) {
+    case "stop": return { ok: true, agenda: compileStop(input) };
+    case "branch-gone": return { ok: true, agenda: await compileBranchGone(input) };
+    case "context": return { ok: true, agenda: await compileContextSignal(input) };
+    case "housekeep": return { ok: true, agenda: await compileHousekeepSignal(input) };
+    case "plan": return { ok: true, agenda: await compilePlanSignal(input) };
+    case "errand": return { ok: true, agenda: await compileErrandSignal(input) };
+    case "cold-start": return { ok: true, agenda: await compileColdStart(input) };
+    case "orient": return { ok: true, agenda: await compileOrient(input) };
+    case "current-husk": return { ok: true, agenda: await compileCurrentHusk(input) };
+    case "transient": return { ok: true, agenda: await compileTransientResume(input) };
+    case "work-unit": return { ok: true, agenda: await compileWorkUnitResume(input) };
+    case "start": return compileStartEntry(input);
+    default: {
+      const unreachable: never = row;
+      throw new Error(`Unexpected session entry row: ${String(unreachable)}`);
+    }
+  }
 }
 
 async function compileStartEntry(input: AgendaCompileInput): Promise<AgendaCompileResult> {
