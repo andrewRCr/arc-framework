@@ -443,7 +443,13 @@ describe.each(["default", "separate"] as const)("Errand import in %s", (layout) 
     const head = (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim();
     const boundary = layout === "default" ? "import.land" : "import.transient.local-delete";
     h.ports.migrateStep = async (step) => { if (step === boundary) await h.git("git", ["update-ref", sourceRef, head, tip]); };
-    expect(await h.migrate()).toMatchObject({ status: "refused" });
+    const result = await h.migrate();
+    expect(result).toMatchObject({ status: "refused" });
+    if (layout === "default") expect(result).toMatchObject({ status: "refused", refusal: { code: "import-refused", class: "recoverable",
+      report: { notices: expect.arrayContaining([expect.objectContaining({
+        condition: expect.stringContaining(`transient-source delete lease for ${sourceRef}`),
+        remedy: expect.objectContaining({ argv: ["arc", "store", "migrate", "--import"] }),
+      })]) } } });
     expect((await h.git("git", ["rev-parse", sourceRef])).stdout.trim()).toBe(head);
     if (layout === "default") expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/work/"])).stdout).toBe("");
     await h.git("git", ["update-ref", sourceRef, tip, head]);

@@ -1,14 +1,17 @@
 /** Gather the import privately and expose its complete destination through one ref transaction. */
 import type { RefBackendContext } from "../context.js";
-import { updateRefTransaction } from "../../../git/ref-transaction.js";
+import { updateRefTransaction, type RefTransactionOutcome } from "../../../git/ref-transaction.js";
 import { readSyncRefs } from "../sync-graph.js";
 import { IMPORT_KEPT_PREFIX, importTransientDeletes } from "./transient-cleanup.js";
 import { readRefRepository } from "../repository.js";
 import { isStateRef } from "../manifest.js";
 
+/** Distinguish a changed destination layout or occupied store from the transaction's lost ref expectations. */
+export type ImportLandingOutcome = RefTransactionOutcome | { status: "layout-mismatch" } | { status: "occupied" };
+
 /** Rebuild private gathering refs on a retry, or drop the same build for a trial. */
 export async function landImportRefs(context: RefBackendContext, refs: ReadonlyMap<string, string>, trial: boolean,
-  transients: ReadonlyMap<string, string>): Promise<boolean> {
+  transients: ReadonlyMap<string, string>): Promise<ImportLandingOutcome> {
   const gathered = new Map([...refs].map(([ref, next]) => [`refs/arc/tmp/migrate/import/${ref.slice("refs/arc/".length)}`, next]));
   const held = new Map([...await readSyncRefs(context, "refs/arc/tmp/migrate/import/")].filter(([ref]) => !ref.startsWith(IMPORT_KEPT_PREFIX)));
   const gathering = await updateRefTransaction(context, [
@@ -21,14 +24,14 @@ export async function landImportRefs(context: RefBackendContext, refs: ReadonlyM
   try {
     if (!trial) {
       const current = await readRefRepository(context.repository?.source ?? context);
-      if (current.repository?.gitDir !== context.repository?.gitDir
-        || [...await readSyncRefs(current, "refs/arc/")].some(([ref]) => isStateRef(ref))) return false;
+      if (current.repository?.gitDir !== context.repository?.gitDir) return { status: "layout-mismatch" };
+      if ([...await readSyncRefs(current, "refs/arc/")].some(([ref]) => isStateRef(ref))) return { status: "occupied" };
     }
     const changes = [...gathered].map(([ref, expected]) => ({ ref, expected, delete: true as const }));
     const landed = await updateRefTransaction(context, trial ? changes : [
       ...[...refs].map(([ref, next]) => ({ ref, next, expected: null })), ...changes,
       ...(context.repository?.gitDir ? [] : importTransientDeletes(transients)),
     ], { cwd: context.checkoutRoot });
-    return landed.status === "committed";
+    return landed;
   } finally { await release(); }
 }

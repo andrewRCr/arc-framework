@@ -466,20 +466,18 @@ annotated commit.
   dates and ordering their ties by object ID. Each unavailable date emits an informational notice through the shared
   carrier. Native imports preserve workspace records and verify both the tie-break and readable-date precedence.
 
-### `[ ]` **5.4 A lost transient-source delete lease is its own recoverable condition — § 11.2**
+### `[x]` **5.4 A lost transient-source delete lease is its own recoverable condition — § 11.2**
 
 - _Goal:_ A lost default-layout transient-source delete lease is reported as itself, recoverably, instead of as a change
   to the import's private gathering refs.
 
-    - `landImportRefs` (`import/land.ts`) returns its cause: a layout mismatch, present state refs, or the refs its
-      landing transaction lost (`RefTransactionOutcome`'s `refs`). Present state refs never reach the
-      changed-gathering-refs notice: `landingRace` (`import/entry.ts`) first runs the destination check
-      (`inspectImportDestination`), which refuses them or publishes this import's own earlier landing, and keeps running
-      it first. When that check neither refuses nor publishes, a lost `importTransientDeletes` expectation is reported
-      as its own recoverable condition, and a layout mismatch or any other lost ref keeps today's notice.
-    - Build `test-first` (one behavior at a time): a lost transient-source lease yields its own recoverable condition,
-      and retrying the import as its remedy says lands it; a layout mismatch keeps the changed-gathering-refs notice; a
-      landing whose registry identity matches still publishes.
+- _Note:_ The new lease assertion needed a nested partial matcher for the remedy's additional text; lint also
+  removed the obsolete `projectId` binding after landing context was passed intact to race handling.
+
+- _Outcome:_ Landing retains layout, occupancy, and lost-ref causes. Destination inspection still runs first;
+  a lost transient-source delete expectation reports its ref and lease values with a recoverable import retry.
+  Layout changes and other lost refs keep the private-gathering notice, while matching destination identities
+  continue publication. Native races verify each route and successful repair or publication.
 
 ### `[ ]` **5.5 A stale publication journal is dropped when no kept tips remain — § 11.2**
 
