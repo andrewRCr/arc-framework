@@ -1,5 +1,5 @@
 /** Cache authorization stays bound to the guarded roots and native Git matching semantics. */
-import { appendFile, lstat, mkdir, readFile, realpath, rename, symlink, writeFile } from "node:fs/promises";
+import { appendFile, lstat, mkdir, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { createTempRepoCore, removeGitBackedDirs } from "../../../helpers/temp-repo.js";
@@ -25,6 +25,8 @@ async function fixture(pattern = ".arc/user/*/\n") {
   await mkdir(join(cwd, ".git/info"), { recursive: true });
   await writeFile(join(cwd, ".git/info/exclude"), ".arc/active/\n.arc/backlog/\n.arc/completed/\n.arc/system/.local/\n");
   await writeFile(join(cwd, ".gitignore"), pattern);
+  await mkdir(join(cwd, ".arc/user"), { recursive: true });
+  await writeFile(join(cwd, ".arc/user/.npmignore"), "*\n");
   let configurationReads = 0;
   const selection = async () => {
     configurationReads++;
@@ -156,7 +158,7 @@ it("refuses a global-only ancestor rule through the integrated check and permits
   expect(await h.check()).toMatchObject({ kind: "refused", reason: "not-ignored", roots: [{ path: ".arc/user/andrew/" }] });
   await writeFile(join(h.cwd, ".arc/user/.gitignore"), "*/\n");
   const repaired = await h.check();
-  expect(repaired).toMatchObject({ kind: "passed", basis: { personalRules: "worktree" } });
+  expect(repaired).toMatchObject({ kind: "passed", basis: { personalRules: "worktree-and-npm" } });
   const calls = h.calls();
   expect(await h.check(repaired)).toEqual({ kind: "unchanged" });
   expect(h.calls()).toBe(calls);
@@ -169,6 +171,62 @@ it("never reuses a basis missing the worktree-context proof", async () => {
   const basis = { ...first.basis };
   Reflect.deleteProperty(basis, "personalRules");
   const calls = h.calls();
-  expect(await h.check({ ...first, basis })).toMatchObject({ kind: "passed", basis: { personalRules: "worktree" } });
+  expect(await h.check({ ...first, basis })).toMatchObject({ kind: "passed", basis: { personalRules: "worktree-and-npm" } });
   expect(h.calls()).toBeGreaterThan(calls);
+});
+
+it.each(["removed", "conflict", "symlink", "directory"])("invalidates a passing npm policy when %s, then permits repaired retry", async (change) => {
+  const h = await fixture();
+  const first = await h.check();
+  if (first.kind !== "passed") throw new Error("expected passing npm policy");
+  expect(await h.check(first)).toEqual({ kind: "unchanged" });
+  const path = join(h.cwd, ".arc/user/.npmignore");
+  if (change === "conflict") await writeFile(path, "!\n");
+  else {
+    await rm(path);
+    if (change === "directory") await mkdir(path);
+    if (change === "symlink") {
+      const saved = join(h.cwd, "saved-npm-policy");
+      await writeFile(saved, "*\n");
+      await symlink(saved, path);
+    }
+  }
+  expect(await h.check(first)).toMatchObject({ kind: "refused" });
+  await rm(path, { force: true, recursive: true });
+  await writeFile(path, "*\n");
+  expect((await h.check(first)).kind).not.toBe("refused");
+  expect(await h.check()).toMatchObject({ kind: "passed" });
+});
+it("requires a fresh guard for an older Git-only proof", async () => {
+  const h = await fixture();
+  const first = await h.check();
+  if (first.kind !== "passed") throw new Error("expected passing npm policy");
+  const calls = h.calls();
+  const old = { ...first, basis: { ...first.basis, personalRules: "worktree" } };
+  expect(await h.check(old)).toMatchObject({ kind: "passed", basis: { personalRules: "worktree-and-npm" } });
+  expect(h.calls()).toBeGreaterThan(calls);
+});
+it("refuses a policy edited inside the guard's snapshot bracket and allows repaired retry", async () => {
+  const h = await fixture();
+  let edited = false;
+  const exec: GitExecInput = async (...args) => {
+    const result = await h.native(...args);
+    if (!edited) { edited = true; await writeFile(join(h.cwd, ".arc/user/.npmignore"), "!\n"); }
+    return result;
+  };
+  expect(await h.check(null, { exec })).toMatchObject({ kind: "refused" });
+  await writeFile(join(h.cwd, ".arc/user/.npmignore"), "*\n");
+  expect(await h.check()).toMatchObject({ kind: "passed" });
+});
+
+it("refuses even accepted npm contents that keep changing inside the snapshot bracket, then permits stable retry", async () => {
+  const h = await fixture();
+  let changes = 0;
+  const exec: GitExecInput = async (...args) => {
+    const result = await h.native(...args);
+    await writeFile(join(h.cwd, ".arc/user/.npmignore"), `# generation ${++changes}\n*\n`);
+    return result;
+  };
+  expect(await h.check(null, { exec })).toMatchObject({ kind: "refused", failure: expect.stringContaining("kept changing") });
+  expect(await h.check()).toMatchObject({ kind: "passed" });
 });

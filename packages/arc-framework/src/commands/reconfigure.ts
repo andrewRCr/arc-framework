@@ -28,7 +28,7 @@ import {
   refuseUnsafePlanWrites,
   writeManifest,
 } from "../lib/manifest/index.js";
-import { writeArcIgnoreBlocks, ensureDir } from "../lib/template/index.js";
+import { preflightIgnoreFiles, writeArcIgnoreBlocks, ensureDir } from "../lib/template/index.js";
 import { getFrameworkVersion } from "../lib/version.js";
 import { UserFacingError, manifestMissingError } from "../lib/errors.js";
 import { atomicWriteJson } from "../lib/fs.js";
@@ -222,6 +222,8 @@ export async function runReconfigure(
     };
   }
 
+  await preflightIgnoreFiles(cwd, io.readFile, io);
+
   const originalRemovals = [...plan.removals];
 
   // Resolve removals interactively if callback provided
@@ -262,7 +264,7 @@ export async function runReconfigure(
   );
   await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
 
-  await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile);
+  await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile, io);
 
   // Write updated manifest with NEW install_config and pristine store
   await ensureDir(internalDir, io.mkdir);

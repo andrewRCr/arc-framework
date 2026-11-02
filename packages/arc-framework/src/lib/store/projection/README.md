@@ -13,14 +13,14 @@ in one Git call and one write.
 `ignore-guard.ts` proves every projected root and the aside folder ignored with `git check-ignore -z -v --non-matching
 --no-index --stdin`. The first query uses the captured excludes selection for all roots; the second checks personal
 roots with global excludes disabled and the same captured case policy. Each personal root must match a regular ancestor
-worktree `.gitignore` in that second query, since `npm pack` reads worktree rules. A relative excludes setting naming
+worktree `.gitignore` in that second query; npm exclusion has its own policy proof. A relative excludes setting naming
 that file cannot supply the worktree proof. `--no-index` judges the rules alone, so a root holding tracked files still
 reads as ignored; a path re-included by a `!` pattern reads as not ignored. A refusal names each path and the line that
 would ignore it; a call that fails otherwise refuses every root, typed apart, with the remedy of running the command
 again. A pass returns the union of both queries' source files — `info/exclude` in the common Git directory, every
-`.gitignore` on the path to each guarded root, present or not, and every other file a match names — so a caller can skip
-the guard while none changes. `predictableIgnoreFiles` names the first two kinds, which every pass rests on whatever the
-queries answer.
+`.gitignore` on the path to each guarded root, present or not, the personal npm policy, and every file a match names —
+so a caller can skip the guard while none changes. `predictableIgnoreFiles` names the predictable Git sources and npm
+policy, which every pass rests on whatever the queries answer.
 
 `index-schema.ts` is the strict schema of the index each projected worktree keeps about its copy. Per path it holds the
 record reference the file was read with, its stat, the blob id last written there, its base, its marks, and the aside
@@ -50,7 +50,7 @@ edits. A dangling or looping link reads as absent. Git's guard decides which sou
 
 `ignore-check.ts` runs the guard before a command's first write into a root when a source may have changed or the
 guarded roots, effective excludes path, ordered excludes values or ordered case-policy values differ. Reuse also
-requires `personalRules: "worktree"`, recording the additional worktree-context proof. Its pass records the actual roots
+requires `personalRules: "worktree-and-npm"`, recording both personal-state proofs. Its pass records the actual roots
 independently of the index's projection identity. The command's configuration read supplies the rules; a fresh guard
 pins the captured excludes path and effective case setting, then confirms all raw values before returning its basis for
 the sweep to record beside the snapshots. A pass reads every source before both queries — the predictable ones and each
@@ -93,6 +93,14 @@ the checkout. `history` is read through a memo the command holds, one whole answ
 drops it. Where `history` refuses `state-unresolvable`, recovery pulls nothing and chooses between the index's version
 and the content taken in alone: a kept copy where it shares a non-blank line with the file, a version the write landed,
 being the older base, and otherwise the index's version.
+
+`guardProjectionIgnores` also requires a regular `.arc/user/.npmignore` containing only blank/comment lines and at
+least one literal `*` line. Managed ignore setup creates it exclusively when absent, retains accepted contents and
+refuses conflicts without overwriting them. The policy participates in the existing type/content snapshot bracket;
+its removal or change invalidates the cache. An opaque proof identity invalidates older Git-only passes without
+clearing the index's recovery entries. Protection covers Git ignore-aware capture and npm's normal project-root walk,
+including root npm overrides and `main`/`bin` entries. Other packagers, separate package roots and edits after the last
+check are outside that guarantee. Command start invokes no npm process and interprets no package manifest.
 
 `taken-in.ts` records what a persisted write-back took in — a write that landed, whether or not the store's merge filed
 conflicts or an entry was refused beside it — with the stamp it read, and leaves the record as it was after any other

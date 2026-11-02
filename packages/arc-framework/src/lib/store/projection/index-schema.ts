@@ -117,7 +117,8 @@ const IgnoreRulesSelectionSchema = z.strictObject({
 
 /** The actual roots and captured configuration a passing guard proved, independently of projection settings. */
 const IgnoreGuardBasisSchema = z.strictObject({
-  personalRules: z.literal("worktree"),
+  // An opaque proof identity: older proofs invalidate the cache without discarding recovery entries.
+  personalRules: z.string().min(1),
   roots: z.array(z.string().min(1)).min(1), configuration: IgnoreRulesSelectionSchema,
 });
 

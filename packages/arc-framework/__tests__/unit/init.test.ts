@@ -1,3 +1,4 @@
+import { virtualIgnoreSetup } from "../helpers/ignore-setup.js";
 /**
  * Unit tests for init command orchestration.
  *
@@ -452,14 +453,18 @@ function mockIO(
     ...files,
   };
   const written: Record<string, string> = {};
+  const virtualFiles = new Map(Object.entries(allFiles));
+  const ignoreIO = virtualIgnoreSetup(virtualFiles);
   return {
+    lstat: ignoreIO.lstat,
     writeEditorDocuments: async () => ({ ok: true, documents: [] }),
     readFile: vi.fn(async (path: string) => {
-      if (path in allFiles) return allFiles[path]!;
+      if (virtualFiles.has(path)) return virtualFiles.get(path)!;
       throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
     }),
     writeFile: vi.fn(async (path: string, content: string) => {
       written[path] = content;
+      virtualFiles.set(path, content);
     }),
     mkdir: vi.fn(async () => undefined),
     access: vi.fn(async (path: string) => {
@@ -474,8 +479,8 @@ function mockIO(
     // Init lock primitives — default virtual behavior is "lock always free":
     // create resolves, release resolves. Contention tests override
     // exclusiveCreate to reject with an EEXIST error.
-    exclusiveCreate: vi.fn(async () => undefined),
-    removeFile: vi.fn(async () => undefined),
+    exclusiveCreate: vi.fn(ignoreIO.exclusiveCreate),
+    removeFile: vi.fn(async (path: string) => { virtualFiles.delete(path); }),
     _written: written,
   } as IOContext & { _written: Record<string, string> };
 }

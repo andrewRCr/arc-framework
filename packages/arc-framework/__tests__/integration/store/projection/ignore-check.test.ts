@@ -112,6 +112,7 @@ async function repository(): Promise<string> {
   directories.push(cwd);
   await writeLines(join(cwd, ".git/info/exclude"), EXCLUDE_LINES);
   await writeLines(join(cwd, ".gitignore"), [".arc/user/*/"]);
+  await writeLines(join(cwd, ".arc/user/.npmignore"), ["*"]);
   return cwd;
 }
 

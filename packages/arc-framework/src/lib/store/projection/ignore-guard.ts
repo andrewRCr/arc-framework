@@ -7,6 +7,7 @@ import type { Slug } from "../../kernel/index.js";
 import { isProjectedLifecyclePath, projectedRootPaths, projectedRootPatterns } from "../../layout/index.js";
 import { PROJECTION_ASIDE_ROOT, PROJECTION_LOCAL_ROOT } from "./paths.js";
 import { readStat } from "./change-detection.js";
+import { PERSONAL_NPM_IGNORE, readPersonalNpmIgnore } from "../../personal-npm-ignore.js";
 
 /** Where the line that would ignore a root belongs. */
 export type IgnoreLineFile = "info/exclude" | ".gitignore";
@@ -84,7 +85,8 @@ function ancestorGitignores(path: string): string[] {
 export async function predictableIgnoreFiles(input: ProjectionIgnoreGuardInput): Promise<string[]> {
   const { commonDir } = await readGitDirectories(input.root, input.fs);
   const named = guardedProjectionRoots(input.identity).flatMap((root) => ancestorGitignores(root.path));
-  return [...new Set([join(commonDir, "info", "exclude"), ...named.map((path) => resolve(input.root, path))])];
+  return [...new Set([join(commonDir, "info", "exclude"), join(input.root, PERSONAL_NPM_IGNORE),
+    ...named.map((path) => resolve(input.root, path))])];
 }
 
 /** The ignore files a pass rests on: the predictable ones and each match's source. */
@@ -122,6 +124,10 @@ export async function guardProjectionIgnores(input: ProjectionIgnoreGuardInput):
     const unignored = guarded.filter((_root, index) => !ignored[index]);
     if (unignored.length > 0) {
       return { kind: "refused", reason: "not-ignored", roots: unignored, remedy: notIgnoredRemedy(unignored) };
+    }
+    if (await readPersonalNpmIgnore(input.root) !== "accepted") {
+      return { ...refuseEveryRoot(input.identity, `The personal npm policy ${PERSONAL_NPM_IGNORE} is absent or invalid`),
+        remedy: `Replace ${PERSONAL_NPM_IGNORE} with a regular file containing only blank/comment lines and at least one literal * line, then retry the command.` };
     }
     return { kind: "passed", ignoreFiles: await ignoreFiles(input, [...matches, ...worktree]) };
   } catch (error) {
@@ -176,8 +182,8 @@ function isIgnored(match: CheckIgnoreMatch): boolean {
 
 /**
  * A root whose line belongs in `.gitignore` passes only on a rule from a `.gitignore` inside the repository — the
- * root's or one nested on the path to it, which Git names by a repository-relative path — since `npm pack` reads only
- * those; an excludes file named `.gitignore` outside the repository does not count.
+ * root's or one nested on the path to it, which Git names by a repository-relative path. An excludes file named
+ * `.gitignore` outside the repository does not count; npm exclusion is proved separately.
  */
 async function isIgnoredAsRequired(root: GuardedRoot, match: CheckIgnoreMatch | undefined, checkout: string): Promise<boolean> {
   if (match === undefined || !isIgnored(match)) return false;

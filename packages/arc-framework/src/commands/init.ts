@@ -9,7 +9,7 @@
 import { preparePersonalIdentitySetup, type PersonalIdentitySetupOptions } from "../lib/personal-identity-setup.js";
 import { join, dirname, relative, sep } from "node:path";
 import {
-  ensureDir, writeArcIgnoreBlocks,
+  ensureDir, writeArcIgnoreBlocks, preflightIgnoreFiles,
   renderTokens, renderConditionals, renderConfigOverrides,
 } from "../lib/template/index.js";
 import { CROSS_WU_INSTANCE_FILES, configureGitIntegration, runPostInitSetup } from "../lib/setup.js";
@@ -254,6 +254,8 @@ export async function runInit(
       throw occupiedPathsError(occupied, "init");
     }
 
+    await preflightIgnoreFiles(cwd, io.readFile, io);
+
     for (const { templatePath, outputRelPath, renderedContent } of renderedFiles) {
       const destPath = join(arcDir, outputRelPath);
       const classification = classifyFile(templatePath);
@@ -306,7 +308,7 @@ export async function runInit(
     );
     await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
 
-    await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile);
+    await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile, io);
 
     // Set role — init is always the maintainer (contributors use arc join)
     await io.exec("git", ["config", "--local", "arc.role", "maintainer"]);

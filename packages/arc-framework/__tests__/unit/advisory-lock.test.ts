@@ -120,6 +120,41 @@ describe("acquireAdvisoryLock", () => {
     expect(JSON.parse(bytes)).toMatchObject({ pid: 2, token: handle.token });
     expect(clock).toBeLessThanOrEqual(200);
   });
+  it("times out instead of acquiring after stale-holder settling spends the remaining budget, then permits retry", async () => {
+    let clock = 0;
+    const memory = buildMemoryLockFs({ "/lock": JSON.stringify({ pid: 1, acquiredAt: 0 }) });
+    const options = { ...memory, pid: 2, maxWaitMs: 200, now: () => clock, isProcessAlive: () => true,
+      sleep: async (ms: number) => {
+        clock += ms;
+        if (clock >= 150 && memory.files.has("/lock")) memory.files.set("/lock", "malformed");
+      },
+    };
+    await expect(acquireAdvisoryLock("/lock", options)).rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
+    expect(clock).toBeLessThanOrEqual(200);
+    expect(memory.files.get("/lock")).toBe("malformed");
+    expect(memory.files.has("/lock.break")).toBe(false);
+    memory.files.delete("/lock");
+    const retry = await acquireAdvisoryLock("/lock", options);
+    expect(retry.pid).toBe(2);
+    expect(clock).toBeLessThanOrEqual(200);
+  });
+  it.each(["main-reread", "break-holder"])("bounds settling the %s during serialized reclamation", async (phase) => {
+    let clock = 0;
+    const memory = buildMemoryLockFs({ "/lock": JSON.stringify({ pid: 1, acquiredAt: 0 }) });
+    if (phase === "break-holder") memory.files.set("/lock.break", "malformed");
+    const options = { ...memory, pid: 2, maxWaitMs: 200, now: () => clock,
+      isProcessAlive: () => clock < 150,
+      readFile: async (path: string) => phase === "main-reread" && path === "/lock" && memory.files.has("/lock.break")
+        ? "malformed" : memory.readFile(path),
+      sleep: async (ms: number) => { clock += ms; },
+    };
+    await expect(acquireAdvisoryLock("/lock", options)).rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
+    expect(clock).toBeLessThanOrEqual(200);
+    expect(JSON.parse(memory.files.get("/lock")!)).toMatchObject({ pid: 1 });
+    memory.files.delete("/lock");
+    memory.files.delete("/lock.break");
+    expect((await acquireAdvisoryLock("/lock", options)).pid).toBe(2);
+  });
   let dir: string;
   let lockPath: string;
 

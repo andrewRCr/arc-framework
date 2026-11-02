@@ -6,7 +6,7 @@
 import { readProjectionConfiguration } from "../../../../src/lib/store/projection/configuration.js";
 import { randomBytes } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat, open, readdir, readFile, realpath, rename, rm, writeFile, type FileHandle } from "node:fs/promises";
+import { lstat, mkdir, open, readdir, readFile, realpath, rename, rm, writeFile, type FileHandle } from "node:fs/promises";
 import { join } from "node:path";
 import { Worker } from "node:worker_threads";
 import type { createReferenceFixture } from "../reference-fixture.js";
@@ -388,6 +388,8 @@ export async function ignoreProjectedRoots(checkout: string): Promise<void> {
   const lines = [".arc/active/", ".arc/backlog/", ".arc/completed/", ".arc/system/.local/"];
   await writeFile(join(checkout, ".git/info/exclude"), lines.map((line) => `${line}\n`).join(""));
   await writeFile(join(checkout, ".gitignore"), ".arc/user/*/\n");
+  await mkdir(join(checkout, ".arc/user"), { recursive: true });
+  await writeFile(join(checkout, ".arc/user/.npmignore"), "*\n");
 }
 
 /** Store the record's next version, longer than any save before it, and stage it for the path. */

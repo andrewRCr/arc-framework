@@ -49,6 +49,8 @@ async function leftBy(
   const hooks = hooksFor(prepared);
   await writeFile(join(prepared.seeded.checkout, ".git/info/exclude"), EXCLUDE_LINES.map((line) => `${line}\n`).join(""));
   await writeFile(join(prepared.seeded.checkout, ".gitignore"), ".arc/user/*/\n");
+  await mkdir(join(prepared.seeded.checkout, ".arc/user"), { recursive: true });
+  await writeFile(join(prepared.seeded.checkout, ".arc/user/.npmignore"), "*\n");
   const stopping: SwapHooks = stop === null ? hooks : { ...hooks, [stop]: async (path: string) => {
     await hooks[stop]?.(path);
     throw new Stop(`stopped ${stop}`);
@@ -520,4 +522,29 @@ it.each(["afterRecheck", "afterMove"] as const)("keeps stampless progress when t
   await left.sweep(unreached);
   expect(await entryOnDisk(left.location, left.path)).toMatchObject({ copies: [], inProgress: before.inProgress });
   expect(await readFile(left.file, "utf8")).toBe("plain: text\n");
+});
+
+it("retains recovery copies from a Git-only cached proof while npm policy is missing, then resumes after repair", async () => {
+  const left = await leftBy("afterMove");
+  const original = await indexOnDisk(left.location);
+  const entry = original.entries[left.path];
+  if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("expected recovery copy");
+  const copy = entry.copies[0].name;
+  const bytes = await readFile(join(left.checkout, copy));
+  const primed = await left.sweep(unreached, { index: original, writer: SWAP_WRITER });
+  if (primed.ignores.kind !== "passed" || primed.index === null || primed.index.ignoreGuard === null) throw new Error("expected current proof");
+  const old = { ...primed.index, ignoreGuard: { ...primed.index.ignoreGuard, personalRules: "worktree" } };
+  await writeProjectionIndex(left.location, old);
+  const reloaded = await indexOnDisk(left.location);
+  expect(reloaded.entries[left.path]).toEqual(old.entries[left.path]);
+  const policy = join(left.checkout, ".arc/user/.npmignore");
+  await rm(policy);
+  const refused = await left.sweep(unreached, { index: reloaded });
+  expect(refused.ignores.kind).toBe("refused");
+  expect(await readFile(join(left.checkout, copy))).toEqual(bytes);
+  if (refused.index === null) throw new Error("expected retained recovery index");
+  expect(refused.index.entries[left.path]?.kind).toBe("record");
+  await writeFile(policy, "*\n");
+  const retried = await left.sweep(noEdit, { index: refused.index });
+  expect(retried.ignores.kind).toBe("passed");
 });

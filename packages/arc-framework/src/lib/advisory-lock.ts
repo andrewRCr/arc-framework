@@ -212,12 +212,14 @@ export async function acquireAdvisoryLock(
 
   const waitStartedAt = now();
   const deadline = waitStartedAt + maxWaitMs;
+  const acquisitionBudget = { now, deadline };
   let backoff = BACKOFF_INITIAL_MS;
 
   for (;;) {
     // A final create at the deadline observes releases during the last bounded sleep. If it fails, no further
     // read, break or retry can extend the deadline, including the re-race after a freed or broken lock.
     const observedAt = now();
+    if (observedAt > deadline) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
     const finalAttempt = observedAt >= deadline;
 
     try {
@@ -242,7 +244,7 @@ export async function acquireAdvisoryLock(
     }
 
     if (finalAttempt) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
-    const holder = await readHolderSettled(readFile, sleep, lockPath);
+    const holder = await readHolderSettled(readFile, sleep, lockPath, acquisitionBudget);
     if (holder === "absent") {
       // Freed between our failed create and the read — retry the create at once.
       continue;
@@ -274,6 +276,7 @@ export async function acquireAdvisoryLock(
         breakLockTtlMs,
         processScope,
         processInstance,
+        acquisitionBudget,
       });
     } else {
       options.onWait?.({ holder, waitedMs: Math.max(0, observedAt - waitStartedAt) });
@@ -438,16 +441,19 @@ interface SerializedBreakContext {
   breakLockTtlMs: number;
   processScope?: string;
   processInstance?: string;
+  acquisitionBudget?: LockReadBudget;
 }
 
 async function attemptSerializedBreak(context: SerializedBreakContext): Promise<void> {
+  if (budgetSpent(context.acquisitionBudget)) return;
   const breakHandle = await tryAcquireBreakLock(context);
   if (!breakHandle) return;
 
   try {
-    const currentHolder = await readHolderSettled(context.readFile, context.sleep, context.lockPath);
+    const currentHolder = await readHolderSettled(context.readFile, context.sleep, context.lockPath, context.acquisitionBudget);
     if (
-      isSameBreakTarget(context.observedHolder, currentHolder)
+      !budgetSpent(context.acquisitionBudget)
+      && isSameBreakTarget(context.observedHolder, currentHolder)
       && isMainLockBreakable(
         currentHolder,
         context.isProcessAlive,
@@ -476,9 +482,11 @@ type BreakLockContext = Pick<
   | "pid"
   | "token"
   | "breakLockTtlMs"
+  | "acquisitionBudget"
 >;
 
 async function tryAcquireBreakLock(context: BreakLockContext): Promise<AdvisoryLockHandle | null> {
+  if (budgetSpent(context.acquisitionBudget)) return null;
   const breakToken = `${context.token}:break`;
   try {
     await context.exclusiveCreate(
@@ -490,8 +498,9 @@ async function tryAcquireBreakLock(context: BreakLockContext): Promise<AdvisoryL
     if (!isEexistError(err)) throw err;
   }
 
-  const holder = await readHolderSettled(context.readFile, context.sleep, context.breakLockPath);
-  if (isBreakLockBreakable(holder, context.isProcessAlive, context.now, context.breakLockTtlMs)) {
+  const holder = await readHolderSettled(context.readFile, context.sleep, context.breakLockPath, context.acquisitionBudget);
+  if (!budgetSpent(context.acquisitionBudget)
+    && isBreakLockBreakable(holder, context.isProcessAlive, context.now, context.breakLockTtlMs)) {
     await tolerantRemove(context.removeFile, context.breakLockPath);
   }
   return null;
@@ -791,6 +800,12 @@ async function readHolder(
   catch (error) { return classifyAdvisoryLockRead({ error }); }
 }
 
+interface LockReadBudget { now: () => number; deadline: number }
+
+function budgetSpent(budget: LockReadBudget | undefined): boolean {
+  return budget !== undefined && budget.now() >= budget.deadline;
+}
+
 /**
  * Read the holder, tolerating a create that opens the lockfile before writing it.
  * The default create links a complete record into place, but an injected create
@@ -800,17 +815,22 @@ async function readHolder(
  * partially-written live holder is never broken mid-write, while a genuinely
  * abandoned husk stays corrupt across the retries. A settled result — a parsed
  * holder, `absent`, or `unreadable` — returns at once.
+ * Acquisition supplies its remaining deadline; other consumers retain their own settling policy.
  * The injected `sleep` keeps the read-back deterministic under test.
  */
 async function readHolderSettled(
   readFile: (path: string) => Promise<string>,
   sleep: (ms: number) => Promise<void>,
   lockPath: string,
+  budget?: LockReadBudget,
 ): Promise<AdvisoryLockHolder | "absent" | "corrupt" | "unreadable"> {
   for (let attempt = 0; attempt < EMPTY_READBACK_ATTEMPTS; attempt++) {
+    // An unsettled record is never evidence for reclaim once acquisition's remaining budget is spent.
+    if (budgetSpent(budget)) return "unreadable";
     const holder = await readHolder(readFile, lockPath);
     if (holder !== "empty" && holder !== "corrupt") return holder;
-    await sleep(EMPTY_READBACK_DELAY_MS);
+    await sleep(budget === undefined ? EMPTY_READBACK_DELAY_MS : Math.min(EMPTY_READBACK_DELAY_MS,
+      Math.max(0, budget.deadline - budget.now())));
   }
   return "corrupt";
 }

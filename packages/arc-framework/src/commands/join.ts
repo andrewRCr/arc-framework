@@ -8,7 +8,7 @@
 
 import { preparePersonalIdentitySetup, type PersonalIdentitySetupOptions } from "../lib/personal-identity-setup.js";
 import { join } from "node:path";
-import { writeArcIgnoreBlocks } from "../lib/template/index.js";
+import { writeArcIgnoreBlocks, preflightIgnoreFiles } from "../lib/template/index.js";
 import { configureGitIntegration, runPostInitSetup } from "../lib/setup.js";
 import {
   generateSkills,
@@ -90,6 +90,8 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
     });
   }
 
+  await preflightIgnoreFiles(cwd, io.readFile, io);
+
   const preparedIdentity = identityResult === null ? null : await preparePersonalIdentitySetup({
     ...options, identity: identityResult, command: "join",
   });
@@ -119,7 +121,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
   );
   await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
 
-  await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile);
+  await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile, io);
 
   // User directory and session templates
   await runPostInitSetup({
@@ -192,6 +194,8 @@ export async function runJoinReconfigure(
     });
   }
 
+  await preflightIgnoreFiles(cwd, io.readFile, io);
+
   // Update role in git config
   await io.exec("git", ["config", "--local", "arc.role", prompts.role]);
 
@@ -220,7 +224,7 @@ export async function runJoinReconfigure(
   await writeSkillOutputs(skillResult, cwd, io.mkdir, io.writeFile);
 
   // Update the ignore blocks with the new skill directories
-  await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile);
+  await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile, io);
 
   // Persist new tool selection
   if (prompts.tools.length > 0) {

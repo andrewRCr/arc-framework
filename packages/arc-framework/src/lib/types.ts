@@ -7,6 +7,7 @@
 
 import type { ReadFileFn, WriteFileFn, MkdirFn } from "./template/index.js";
 import type { GitExec } from "./git/index.js";
+import type { IgnoreSetupIO } from "./template/ignore-files.js";
 
 // --- Core I/O ---
 
@@ -16,7 +17,7 @@ export interface ReadIO {
 }
 
 /** Full I/O for commands that write files and run git. */
-export interface CoreIO extends ReadIO {
+export interface CoreIO extends ReadIO, IgnoreSetupIO {
   writeFile: WriteFileFn;
   mkdir: MkdirFn;
   exec: GitExec;

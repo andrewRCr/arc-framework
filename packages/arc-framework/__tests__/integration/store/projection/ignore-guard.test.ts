@@ -26,6 +26,7 @@ async function repository(options: { exclude?: readonly string[]; gitignore?: re
   directories.push(cwd);
   await writeLines(cwd, ".git/info/exclude", options.exclude ?? EXCLUDE_LINES);
   await writeLines(cwd, ".gitignore", options.gitignore ?? [".arc/user/*/"]);
+  await writeLines(cwd, ".arc/user/.npmignore", ["*"]);
   return cwd;
 }
 
@@ -60,7 +61,7 @@ it("returns info/exclude and each .gitignore on the path to every root and the a
   const cwd = await repository();
   const verdict = await guardProjectionIgnores({ root: cwd, identity, exec: execInput, fs });
   expect(verdict.kind === "passed" ? [...verdict.ignoreFiles].sort() : verdict).toEqual([
-    ".git/info/exclude", ".gitignore", ".arc/.gitignore", ".arc/user/.gitignore", ".arc/system/.gitignore",
+    ".git/info/exclude", ".arc/user/.npmignore", ".gitignore", ".arc/.gitignore", ".arc/user/.gitignore", ".arc/system/.gitignore",
     ".arc/system/.local/.gitignore",
   ].map((path) => join(cwd, path)).sort());
 });
@@ -187,7 +188,7 @@ it("refuses a global-only pattern in a regular nested .gitignore and permits its
     const packs = JSON.parse(stdout) as Array<{ files: Array<{ path: string }> }>;
     return packs.flatMap((pack) => pack.files.map((file) => file.path));
   };
-  expect(await packed()).toContain(personal);
+  expect(await packed()).not.toContain(personal);
   expect(await guardProjectionIgnores({ root: cwd, identity, exec: execInput, fs })).toMatchObject({
     kind: "refused", reason: "not-ignored", roots: [{ path: ".arc/user/andrew/", file: ".gitignore" }],
   });

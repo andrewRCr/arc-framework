@@ -158,6 +158,8 @@ Criteria test that part._
 7. **Dark until the flip** but for three pieces that need no store: the worktree lock, ARC's managed block in the root
    `.ignore`, and this repository's `.gitignore` no longer ignoring `.ignore` (§ 1.4).
 
+   _Amended by A8:_ The npm personal-state policy in § 11.3 also runs live before the flip.
+
 ## Non-Goals
 
 _Editable in place until activation, then frozen; changes after that append: `Amended YYYY-MM-DD — <delta> — <prompt>`_
@@ -302,7 +304,7 @@ so the removal function runs its Git part alone, as `seam-lifecycle` builds it b
 which `projection-write-back` builds, and the removal slots, which `projection-worktrees` builds (§ 1.1), so they stay
 dark with them.
 
-Three pieces carry no store dependency and run live before the flip:
+The following pieces carry no store dependency and run live before the flip (A8):
 
 - **The worktree lock** (§ 12.1). D17 does not key the lock on the capability, and today's gitignored `SESSION-NOTES.md`
   already needs it. It lands last in the first member, after the seam has moved every removal and move of a work item's
@@ -310,6 +312,7 @@ Three pieces carry no store dependency and run live before the flip:
 - **ARC's managed `.ignore` block** (§ 11.3), in every repository whose `arc init` (with `--reconfigure`), `join`, or
   `update` writes it.
 - **This repository's `.gitignore` no longer ignoring `.ignore`** (§ 11.5).
+- **The npm personal-state policy** (§ 11.3), installed beside the managed ignore blocks by those same verbs (A8).
 
 The `MACHINE_LOCAL_PATHS` entries (§ 12.9) are data no code acts on before the flip, so they land with their chunk.
 
@@ -874,8 +877,8 @@ exclude file.
 The guard runs where those entries are written and before the projection writes into a root (A7).
 `guardProjectionIgnores` runs `git check-ignore -z -v --non-matching --no-index --stdin` over the roots and aside folder
 with the captured excludes selection. It additionally checks the personal roots with `core.excludesFile=` and the same
-captured case policy. Each personal root must match a regular ancestor worktree `.gitignore` in that second query, since
-`npm pack` reads worktree rules rather than global excludes. A regular file named `.gitignore` selected as global
+captured case policy. Each personal root must match a regular ancestor worktree `.gitignore` in that second query
+(A8), independently of the npm proof below. A regular file named `.gitignore` selected as global
 excludes is insufficient: a pattern relative to the repository there may not match relative to its own directory. The
 first query still permits lifecycle roots ignored through global excludes. `--no-index` judges the rules alone: without
 it Git skips a path its index holds entries under, so a root holding tracked files would read as not ignored; `-z` keeps
@@ -888,17 +891,19 @@ for the command, typed apart from a missing line, naming the failure and the rem
 
 Before a write into a root `checkIgnores` compares the actual guarded root set, the effective excludes source and
 complete ordered raw `core.excludesFile` and `core.ignoreCase` values with the last passing guard's basis before
-considering file snapshots (A6). The basis also requires `personalRules: "worktree"`, identifying the additional
-worktree-context proof (A7); a basis without that proof is never reusable. This unpublished index contract changes in
-place without a migration reader; development fixtures are regenerated, never by silently deleting recovery entries. The
-guarded roots belong to the pass itself, independently of the identity the index was projected under, so a changed
-identity cannot reuse another personal root's authorization. `readProjectionConfiguration` resolves an unset
-`core.excludesFile` to Git's default excludes path from the invocation environment; an explicit string, including an
-empty string, stays explicit. Any valueless excludes occurrence is invalid, including one before a later valid value,
-and refuses every root with a configuration-repair remedy. A valueless `core.ignoreCase` means true, as Git defines it;
-when unset the guard pins Git's false default. Every raw case-policy value stays in the comparison, so an earlier
-Git-invalid value forces a fresh guard and its refusal. Path expansion and source snapshots preserve traversal
-components so the filesystem follows a symlink before a following `..`.
+considering file snapshots (A6). The basis also requires `personalRules: "worktree-and-npm"`, identifying the additional
+worktree-context and npm proofs (A8); a basis without that exact proof is never reusable. The proof discriminator is an
+opaque nonempty string: an older value triggers a fresh guard without clearing the index's recovery entries. This
+unpublished index contract changes in place without a migration reader; development fixtures are regenerated, never by
+silently deleting recovery entries. The guarded roots belong to the pass itself, independently of the identity the index
+was projected under, so a changed identity cannot reuse another personal root's authorization.
+`readProjectionConfiguration` resolves an unset `core.excludesFile` to Git's default excludes path from the invocation
+environment; an explicit string, including an empty string, stays explicit. Any valueless excludes occurrence is
+invalid, including one before a later valid value, and refuses every root with a configuration-repair remedy. A
+valueless `core.ignoreCase` means true, as Git defines it; when unset the guard pins Git's false default. Every raw
+case-policy value stays in the comparison, so an earlier Git-invalid value forces a fresh guard and its refusal. Path
+expansion and source snapshots preserve traversal components so the filesystem follows a symlink before a following
+`..`.
 
 A newly run `guardProjectionIgnores` receives the captured excludes source and effective case-policy setting as
 command-local Git settings, so its verdict and snapshots describe the captured basis. Both queries are inside the
@@ -910,10 +915,19 @@ confirmation runs only with a fresh guard; an unchanged cached pass adds no call
 an ignore-file edit after the guard's final snapshot, a configuration edit after its last observation is seen on the
 next command.
 
-The index records each source file's existence, stat, and blob id: `.git/info/exclude`, each ancestor `.gitignore`, and
-each match source, including the effective excludes file where it supplies a match. File snapshots before and after
-Git's guard must agree. Every snapshot takes § 3.3's smudge rule, including one just recorded, so publication cannot
-hide a same-tick change after the snapshot (A2).
+The guard also requires a regular `.arc/user/.npmignore` accepted by `isPersonalNpmIgnore` (A8). Its contents consist
+only of blank lines, comment lines beginning with `#`, and one or more literal `*` lines; no negations or other patterns
+are accepted. `guardProjectionIgnores` refuses missing, linked, non-regular, unreadable or conflicting policy with a
+repair/retry remedy before any projected-root write. The fixed policy excludes every identity subtree during npm's
+normal project-root walk, including root `.npmignore` and `package.json` `files` overrides, descendant negations and
+`main`/`bin` entries. Other packagers, separate package roots and edits after the last check are outside this guarantee.
+No npm process or package manifest interpretation runs at command start.
+
+The index records each source file's existence, type, stat, and blob id: `.git/info/exclude`, each ancestor
+`.gitignore`, and each match source, including the effective excludes file where it supplies a match, plus the npm
+policy (A8). File snapshots before and after the combined guard must agree; absence or a type/content change invalidates
+its pass. Every snapshot takes § 3.3's smudge rule, including one just recorded, so publication cannot hide a same-tick
+change after the snapshot (A2).
 
 A command's first writes come before any refresh: the sweep links aside copies back before write-back reads a file
 (§ 5.4), and write-back's read-back swaps in the edits that landed (`spec-projection-write-back.md` § 7.1). So the sweep
@@ -930,6 +944,13 @@ re-including all four projected roots makes them searchable there (D13). It nega
 lines stay; the file is tracked. It lands live before the flip in every repository the verbs run in (§ 1.4), where it
 changes only what search finds: the three shared roots are tracked and no rule ignores them, and `.arc/user/*/`, the one
 root ignored before the flip, becomes searchable as it will be from the flip.
+
+`writeArcIgnoreBlocks` also installs `.arc/user/.npmignore` before the flip (A8), through the existing exclusive-create
+primitive when absent. It retains an accepted regular file byte-for-byte and refuses conflicting content without
+overwriting it. The shared setup preflights the combined `.gitignore`, `.ignore` and npm policy paths before writing any
+member, refusing symbolic-link components, multiply-linked write targets and cross-target file aliases with a
+repair/retry remedy. The policy is repository-local configuration, not an identity's personal record; Git may track it
+while `.arc/user/*/` stays ignored. A preflight does not eliminate edits racing after its final observation.
 
 #### 11.5 This repository's ignore files
 
@@ -1127,8 +1148,8 @@ A command's cost grows with what changed, never with how much state exists. Read
   started together with the stat walk. Run at once they cost what the store read costs alone, 41.7 ms against 41.6 ms on
   Windows, where one after the other took 64.8 ms (§ Spike 2). The projection's cost on Windows is one Git call's time,
   and on Linux it is noise beside the CLI's own start (about 280 ms for `--version`). The guard adds no call while no
-  ignore input may have changed and the recorded basis carries the worktree-context proof. A fresh guard adds two
-  queries and a confirming configuration read (§ 11.2; A7).
+  ignore input may have changed and the recorded basis carries both worktree-context and npm proofs (A8). A fresh guard
+  adds two queries and a confirming configuration read (§ 11.2; A7).
 
 - **The one configuration read (A6).** `readProjectionConfiguration` runs `git config --null --get-regexp` with the
   expression `^(arc\.|user\.name$|extensions\.objectformat$|core\.(excludesfile|ignorecase)$)`. It prints each match as
@@ -1377,10 +1398,11 @@ _These considerations cover the design the three members build together; § 1.1 
   content and enforce the authority rules however the edit arrives (`spec-projection-write-back.md` § 7). Write-back
   sets its provenance itself, never from the file (`spec-projection-write-back.md` § 7.4), and the serialization rules
   refuse binary content, oversized records, `.env` files, and private keys (`spec-projection-write-back.md` § 7.5).
-- **Ignore integrity.** The guard keeps every projected path ignored, `.arc/user/*/` in `.gitignore` itself, so no
-  packaging tool ships personal state (§ 11.2), and a routed check's worktree capture (`createWorktreeSnapshot`,
-  `lib/checks/tree.ts`), which stages through Git's ignore rules and never reads `.ignore`, copies no projected state
-  and nothing in the aside folder, ARC's managed `.ignore` block written or not (§ 11.3).
+- **Ignore integrity (A8).** The guard keeps projected paths ignored by Git and requires the fixed npm personal-state
+  policy (§ 11.2–11.3), protecting personal files in npm's normal project-root walk. Other packagers, separate package
+  roots and edits after the last check are outside that guarantee. A routed check's worktree capture
+  (`createWorktreeSnapshot`, `lib/checks/tree.ts`), which stages through Git's ignore rules and never reads `.ignore`,
+  copies no projected state and nothing in the aside folder, ARC's managed `.ignore` block written or not (§ 11.3).
 - **Performance.** The no-change budget is 10 ms on Linux and 60 ms on Windows, with three tripwires measured in place
   (`spec-projection-worktrees.md` § 15.3, § 15.4).
 - **Testing.** Unit and integration tests over the reference backend with real repositories and worktrees, on Linux and
@@ -1393,9 +1415,9 @@ _These considerations cover the design the three members build together; § 1.1 
   and release steps', a start that cannot take its lock — is tested both refusing and succeeding once its condition is
   repaired.
 - **Rollout.** Dark until the flip but for the worktree lock, ARC's managed `.ignore` block, and this repository's
-  `.gitignore` line (§ 1.4). The lock lands last in the first member, after both seam members (§ 12.5), and this
-  repository's existing worktrees take it as they are respawned, `storage-cutover` locking any left (§ 12.7).
-  `storage-cutover` runs the first full materialization at the flip.
+  `.gitignore` line, plus the npm personal-state policy (A8; § 1.4). The lock lands last in the first member, after both
+  seam members (§ 12.5), and this repository's existing worktrees take it as they are respawned, `storage-cutover`
+  locking any left (§ 12.7). `storage-cutover` runs the first full materialization at the flip.
 - **User-facing impact.** From the flip, files under `.arc/` are a working copy of the store, saved at the next `arc`
   command or by `arc save`. Protected files say so where they are read (`spec-projection-write-back.md` § 8.2);
   conflicts show in the file, or as a notice line resolved by `arc save --resolve` (`spec-projection-write-back.md`
@@ -1460,6 +1482,13 @@ _These considerations cover the design the three members build together; § 1.1 
     share captured case policy, snapshots and confirmation; a cached pass carries the worktree-context proof and an
     unchanged start retains its two-call budget (A7).
 
+    _Amended by A8:_ Criterion 17 supplies the independent npm proof and the boundary of this packaging guarantee.
+
+17. The npm personal-state policy is installed live, retained when accepted and refused without overwrite when
+    conflicting. The guard refuses absent, linked or invalid policy, invalidates cached Git-only proofs and policy
+    changes without clearing recovery entries, and permits repaired retries. npm root overrides, child negations and
+    main/bin entries exclude personal files while retaining a publishable control (A8).
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -1486,5 +1515,8 @@ this design open.
 
 - **A7** — 2026-11-02 — design: prove worktree ignore context. _Supersedes:_ § 11.2 ¶1; § 15.3 guard budget.
   _Trigger:_ COMPLETE2-IGNORE-001 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A8** — 2026-11-02 — design: prove npm exclusion. _Supersedes:_ Goal 7; § 1.4; § 11.2–11.3; § 15.3; § Cross-cutting
+  Considerations ¶3. _Trigger:_ COMPLETE3-IGNORE-002 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

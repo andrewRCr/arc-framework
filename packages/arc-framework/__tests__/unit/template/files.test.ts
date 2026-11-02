@@ -1,3 +1,4 @@
+import { virtualIgnoreSetup } from "../../helpers/ignore-setup.js";
 import { join } from "node:path";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
@@ -293,6 +294,7 @@ describe("writeArcIgnoreBlocks", () => {
     const files = new Map(Object.entries(initial));
     return {
       files,
+      ...virtualIgnoreSetup(files),
       readFile: async (path: string) => {
         const content = files.get(path);
         if (content === undefined) throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
@@ -304,7 +306,7 @@ describe("writeArcIgnoreBlocks", () => {
 
   it("gives an absent .ignore the block re-including the four projected roots", async () => {
     const io = memoryFiles();
-    await writeArcIgnoreBlocks("/repo", [], io.readFile, io.writeFile);
+    await writeArcIgnoreBlocks("/repo", [], io.readFile, io.writeFile, io);
     expect(io.files.get(join("/repo", ".ignore"))).toBe([
       "# ARC Framework (managed by arc cli)",
       "!.arc/active/", "!.arc/backlog/", "!.arc/completed/", "!.arc/user/*/",
@@ -315,7 +317,7 @@ describe("writeArcIgnoreBlocks", () => {
   it("keeps a .ignore's own lines, and a second write leaves the file unchanged", async () => {
     const path = join("/repo", ".ignore");
     const io = memoryFiles({ [path]: "# local search\npackages/arc-framework/dist/\n" });
-    await writeArcIgnoreBlocks("/repo", [], io.readFile, io.writeFile);
+    await writeArcIgnoreBlocks("/repo", [], io.readFile, io.writeFile, io);
     const written = io.files.get(path);
     expect(written).toBe([
       "# local search", "packages/arc-framework/dist/", "",
@@ -323,13 +325,13 @@ describe("writeArcIgnoreBlocks", () => {
       "!.arc/active/", "!.arc/backlog/", "!.arc/completed/", "!.arc/user/*/",
       "# end ARC", "",
     ].join("\n"));
-    await writeArcIgnoreBlocks("/repo", [], io.readFile, io.writeFile);
+    await writeArcIgnoreBlocks("/repo", [], io.readFile, io.writeFile, io);
     expect(io.files.get(path)).toBe(written);
   });
 
   it("writes .gitignore's block with ARC's machine-local files, every personal root, and the skill directories", async () => {
     const io = memoryFiles({ [join("/repo", ".gitignore")]: "node_modules/\n" });
-    await writeArcIgnoreBlocks("/repo", [".claude/skills/arc-session/"], io.readFile, io.writeFile);
+    await writeArcIgnoreBlocks("/repo", [".claude/skills/arc-session/"], io.readFile, io.writeFile, io);
     expect(io.files.get(join("/repo", ".gitignore"))).toBe([
       "node_modules/", "",
       "# ARC Framework (managed by arc cli)",
@@ -356,7 +358,7 @@ describe("CRLF managed blocks", () => {
     };
     const write = async (file: string, content: string) => { files.set(file, content); };
     const update = () => name === ".gitattributes" ? writeArcGitattributesBlock(path, ["new-entry"], read, write)
-      : writeArcIgnoreBlocks("/repo", [], read, write);
+      : writeArcIgnoreBlocks("/repo", [], read, write, virtualIgnoreSetup(files));
     await update();
     const written = files.get(path);
     expect(written?.startsWith(before)).toBe(true);

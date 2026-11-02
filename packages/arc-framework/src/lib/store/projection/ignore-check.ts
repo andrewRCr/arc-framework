@@ -43,7 +43,7 @@ export async function checkIgnores(input: IgnoreCheckInput): Promise<IgnoreCheck
   if (rules.kind === "invalid") return refuseEveryRoot(input.guard.identity, rules.remedy.text);
   const guard = { ...input.guard };
   const basis: IgnoreGuardBasis = {
-    personalRules: "worktree",
+    personalRules: "worktree-and-npm",
     roots: guardedProjectionRoots(guard.identity).map(({ path }) => `${guard.root}/${path}`),
     configuration: { path: rules.path, values: [...rules.values], ignoreCase: [...rules.ignoreCase] },
   };

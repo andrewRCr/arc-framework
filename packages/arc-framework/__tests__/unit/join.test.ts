@@ -1,3 +1,4 @@
+import { virtualIgnoreSetup } from "../helpers/ignore-setup.js";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { runJoin, runJoinReconfigure, buildPostJoinMessage } from "../../src/commands/join.js";
 import type {
@@ -33,6 +34,7 @@ function mockIO(files: Record<string, string> = {}): JoinIOContext {
   const store = new Map(Object.entries(files));
 
   return {
+    ...virtualIgnoreSetup(store),
     writeEditorDocuments: async () => ({ ok: true, documents: [] }),
     readFile: vi.fn(async (path: string) => {
       const content = store.get(path);
@@ -294,6 +296,7 @@ describe("runJoinReconfigure", () => {
     addSkillFiles(store, ".claude/skills");
 
     io = {
+      ...virtualIgnoreSetup(store),
       readFile: vi.fn(async (path: string) => {
         const content = store.get(path);
         if (content === undefined) {

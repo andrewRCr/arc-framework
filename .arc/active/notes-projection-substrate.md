@@ -614,3 +614,27 @@ The two-query guard replaces the single-query cost in the portability and no-cha
 union uses the same ancestor and matched-source snapshots; lifecycle roots may still rely on global excludes.
 The regression boundary includes refusal and repaired retry, package exclusion, valid nested worktree rules,
 captured case policy, cache-proof invalidation and the unchanged-start budget.
+
+## A8 — prove npm exclusion independently of Git
+
+**Evidence and decision.** `guardProjectionIgnores` accepts worktree Git rules while ordinary npm root `.npmignore` or
+`package.json` `files` rules include personal files. Eighteen native `npm pack --dry-run --json --ignore-scripts` cases
+support a strict nested `.arc/user/.npmignore` containing `*`, including child negations and `main`/`bin` targets, with
+`public.txt` retained. This is a bounded proof of npm's normal project-root walk; other packagers, separate package
+roots and edits after the last check are explicitly outside the guarantee. The policy composes existing managed setup,
+exclusive creation and ignore snapshots; no package interpreter, new dependency or npm process runs at command start.
+
+**Superseded statements.** Goal 7 names only the worktree lock, root `.ignore` and this repository's `.gitignore` change
+as live exceptions. § 11.2 says personal roots require worktree rules “since `npm pack` reads worktree rules rather than
+global excludes”; its cache basis requires `personalRules: "worktree"`. Cross-cutting Considerations' Ignore integrity
+claims “no packaging tool ships personal state”. A8 adds the live policy exception, a distinct npm proof and an opaque
+proof discriminator, and bounds that packaging claim. Original Goal 7 and passed criteria remain preserved, with a
+forward amendment and new criteria. Criterion 17 bounds criterion 16's packaging clause while retaining its Git proof;
+no corrective task parent exists at this review site.
+
+**Propagation.** § 1.4, § 11.2–11.3, § 15.3, Ignore integrity and Rollout now carry the policy and boundary; the module
+reference and all five setup callers must agree. The root `.gitignore` continues to ignore identity directories while
+allowing the container policy. The unpublished proof value changes in place: an old proof forces a fresh guard without
+removing or migrating recovery entries. Policy absence, type and content share the existing before/after bracket and
+smudge discipline. Medium-depth author checks cover this footprint and affected Phase 1/2 tests; independent amendment
+review was declined, while the independent code fix check was approved separately.

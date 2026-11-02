@@ -8,6 +8,7 @@
 import { join } from "node:path";
 import { PROJECTED_PERSONAL_PATTERN, projectedRootPatterns } from "../layout/index.js";
 import { renderTokens, renderConditionals } from "./render.js";
+import { prepareIgnoreFiles, type IgnoreSetupIO } from "./ignore-files.js";
 
 /** Mkdir function signature matching fs.mkdir. */
 export type MkdirFn = (
@@ -179,12 +180,14 @@ export async function writeArcIgnoreBlocks(
   skillEntries: readonly string[],
   readFile: ReadFileFn,
   writeFile: WriteFileFn,
+  io: IgnoreSetupIO = {},
 ): Promise<void> {
+  await prepareIgnoreFiles(cwd, readFile, io);
   await writeArcGitignoreBlock(join(cwd, ".gitignore"), [...ARC_GITIGNORE_ENTRIES, ...skillEntries], readFile, writeFile);
   await writeArcManagedBlock(join(cwd, ".ignore"), arcSearchIgnoreEntries(), readFile, writeFile);
 }
 
-/** Machine-local files and every identity's personal root, which Git and `npm pack` both skip. */
+/** Machine-local files and every identity's personal root, excluded from Git. */
 const ARC_GITIGNORE_ENTRIES = [
   ".arc/system/.internal/pristine.json",
   ".arc/system/.internal/worktree-marker.json",

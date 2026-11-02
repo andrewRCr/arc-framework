@@ -595,3 +595,8 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
   repairing its worktree-relative rule permits retry and excludes its contents from packaging. Both query contexts
   share captured case policy, snapshots and confirmation; a cached pass carries the worktree-context proof and an
   unchanged start retains its two-call budget (A7).
+
+- `[x]` The npm personal-state policy is installed live, preserves accepted contents and refuses conflicts without
+  overwriting. Missing, linked, invalid or changed policy and a Git-only cached proof force refusal or revalidation
+  without clearing recovery entries; repair permits retry. Native npm root overrides, child negations and main/bin
+  entries exclude personal files while retaining a publishable control (A8).
