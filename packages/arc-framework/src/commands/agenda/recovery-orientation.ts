@@ -10,6 +10,9 @@ export function renderBranchGone(input: AgendaCompileInput, destinations: readon
     + "Re-run branch-gone recovery or pick a branch manually before sync, commit, or push."];
   const recovery = input.envelope.recovery;
   if (recovery?.ok && recovery.value.recommendedPromptText !== "") lines.push(recovery.value.recommendedPromptText);
+  if (destinations.some(destination => destination.branch === "-")) {
+    lines.push("Git treats `-` as checkout history; recover the literal branch `-` manually.");
+  }
   for (const destination of destinations) if (destination.kind === "elsewhere") {
     lines.push(`Continue recovery in checkout \`${destination.checkoutPath}\`.`);
   }

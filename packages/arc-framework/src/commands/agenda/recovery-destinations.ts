@@ -13,6 +13,7 @@ export type RecoveryDestination = { branch: string } & (
   | { kind: "free"; actions: ExecutableAction[] }
   | { kind: "elsewhere"; checkoutPath: string }
   | { kind: "unavailable" }
+  | { kind: "manual" }
 );
 
 /** Locate the exact switch destinations that the recovery evidence permits. */
@@ -28,6 +29,7 @@ export async function resolveRecoveryDestinations(
   return Promise.all(switches.map(async (candidate): Promise<RecoveryDestination> => {
     const checkoutPath = candidate.worktreePath ?? worktrees?.paths.get(candidate.branch);
     if (checkoutPath !== undefined) return { branch: candidate.branch, kind: "elsewhere", checkoutPath };
+    if (candidate.branch === "-") return { branch: candidate.branch, kind: "manual" };
     if (worktrees?.ok !== true) return { branch: candidate.branch, kind: "unavailable" };
     return compileFreeDestination(candidate.branch, read);
   }));
@@ -43,7 +45,7 @@ async function compileFreeDestination(branch: string, read: AgendaReadPort): Pro
     hasLocalRef = false;
   }
   const actions: ExecutableAction[] = [];
-  if (!hasLocalRef) actions.push({ argv: ["git", "fetch", "origin", branch], text: `git fetch origin ${branch}` });
-  actions.push({ argv: ["git", "switch", branch], text: `git switch ${branch}` });
+  if (!hasLocalRef) actions.push({ argv: ["git", "fetch", "origin", "--", branch], text: `git fetch origin -- ${branch}` });
+  actions.push({ argv: ["git", "switch", "--", branch], text: `git switch -- ${branch}` });
   return { branch, kind: "free", actions };
 }

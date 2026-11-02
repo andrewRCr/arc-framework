@@ -357,19 +357,15 @@ rehearsals reach today's orientation except where the specification states a cha
   coverage checks the composed fetch/switch plan while preserving the current checkout and code refs; ordinary
   resume coverage exercises the same shared assembly.
 
-### `[ ]` **4.R Preserve literal recovery branch operands**
+### `[x]` **4.R Preserve literal recovery branch operands**
 
 - _Goal:_ Apply A2 to recovery composition: separate branch operands with `--`, hold the checkout-history alias `-`
   with manual guidance, and preserve the remaining recovery choices and schema.
 
-- Build `test-first` (one behavior at a time):
-    - `resolveRecoveryDestinations` composes delimited fetch and switch argv for ordinary and option-looking branch
-      names; a literal `-` carries no executable action
-    - `compileRecoveryDecision` holds sole resolved and main-fallback aliases without an offer, while a mixed surface
-      menu retains a bare manual-recovery choice and the other candidates' ordinary dispositions
-    - `renderBranchGone` retains published text and adds explicit manual guidance for the alias on every held path
-    - Real producer fixtures cover normal names, `--dry-run`, and `-`; native CLI coverage verifies the planned argv
-      and unchanged checkout and code refs, with the alias fixture preserving a distinct previous checkout
+- _Outcome:_ Recovery fetch and switch argv now delimit branch names with `--`. Literal `-` destinations remain
+  manual, with no sole-destination offer and a bare choice in ambiguous menus; held guidance preserves published
+  text and occupied-checkout guidance. Real producer fixtures and native Git scenarios cover ordinary, option-looking,
+  and alias names while preserving checkout, previous-checkout history, and code refs.
 
 ### `[ ]` **4.2 Compile the signal rows — § 5.4, § 12**
 

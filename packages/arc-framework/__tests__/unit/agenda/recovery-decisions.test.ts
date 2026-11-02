@@ -17,7 +17,7 @@ describe("recovery recommendation dispatch", () => {
       remoteEvidence: "exact", candidate }, { state: "dirty", fileCount: 0 }));
     const decision = compileRecoveryDecision({ recovery, signals: {}, answers: { answered: {}, done: [] },
       destinations: [{ branch: candidate.branch, kind: "free", actions: [
-        { argv: ["git", "switch", candidate.branch], text: `git switch ${candidate.branch}` },
+        { argv: ["git", "switch", "--", candidate.branch], text: `git switch -- ${candidate.branch}` },
       ] }] });
     expect(decision).toMatchObject({ type: "offer", id: "branch-gone:resolved", ask: "now",
       text: recovery.recommendedPromptText, choices: [expect.objectContaining({ kind: "actions" }),
@@ -28,7 +28,7 @@ describe("recovery recommendation dispatch", () => {
     const recovery = SessionInitRecoveryValueSchema.parse(inferBranchGoneRecovery({ kind: "resolved",
       remoteEvidence: "exact", candidate }, { state: "clean", fileCount: 0 }));
     expect(compileRecoveryDecision({ recovery, signals: {}, answers, destinations: [
-      { branch: candidate.branch, kind: "free", actions: [{ argv: ["git", "switch", candidate.branch], text: "Switch" }] },
+      { branch: candidate.branch, kind: "free", actions: [{ argv: ["git", "switch", "--", candidate.branch], text: "Switch" }] },
     ] })).toBeNull();
   });
 
@@ -46,7 +46,7 @@ describe("recovery recommendation dispatch", () => {
       remoteEvidence: "exact", candidate }, { state: "dirty", fileCount: 1 }));
     expect(compileRecoveryDecision({ recovery, signals: {},
       answers: { answered: { "branch-gone:pending": "accept" }, done: [] }, destinations: [
-        { branch: candidate.branch, kind: "free", actions: [{ argv: ["git", "switch", candidate.branch], text: "Switch" }] },
+        { branch: candidate.branch, kind: "free", actions: [{ argv: ["git", "switch", "--", candidate.branch], text: "Switch" }] },
       ] })).toMatchObject({ type: "offer", id: "branch-gone:resolved", ask: "now" });
   });
 

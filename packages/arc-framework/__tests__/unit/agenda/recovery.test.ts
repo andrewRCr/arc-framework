@@ -19,7 +19,7 @@ describe("branch-gone recovery agenda", () => {
   it("switches a free resolved destination and carries its execution into the recompile", async () => {
     const agenda = await compile(await input({ kind: "resolved", remoteEvidence: "exact", candidate }));
     expect(agenda.steps).toEqual([{ type: "exec", id: "branch-gone:resolved", actions: [
-      { argv: ["git", "switch", candidate.branch], text: `git switch ${candidate.branch}` },
+      { argv: ["git", "switch", "--", candidate.branch], text: `git switch -- ${candidate.branch}` },
     ], then: { kind: "recompile", argv: ["arc", "agenda", "session-init", "--json", "--done", "branch-gone:resolved"] } }]);
   });
 
@@ -32,7 +32,7 @@ describe("branch-gone recovery agenda", () => {
       text: value.envelope.recovery?.ok ? value.envelope.recovery.value.recommendedPromptText : "invalid fixture",
       choices: [
         { kind: "actions", label: `Switch to ${candidate.branch}`, accepts: ["branch-gone:resolved"], actions: [
-          { argv: ["git", "switch", candidate.branch], text: `git switch ${candidate.branch}` },
+          { argv: ["git", "switch", "--", candidate.branch], text: `git switch -- ${candidate.branch}` },
         ], then: { kind: "recompile", argv: ["arc", "agenda", "session-init", "--json", "--answered", "branch-gone:resolved=accept"] } },
         { kind: "bare", label: "Stay here", decline: true },
       ],
@@ -98,7 +98,7 @@ describe("branch-gone recovery agenda", () => {
     if (offer?.type !== "offer") throw new Error("Expected a recovery offer");
     expect(offer.choices).toEqual([
       ...branches.map(branch => ({ kind: "actions", label: `Switch to ${branch}`, accepts: ["branch-gone:surface"],
-        actions: [{ argv: ["git", "switch", branch], text: `git switch ${branch}` }],
+        actions: [{ argv: ["git", "switch", "--", branch], text: `git switch -- ${branch}` }],
         then: { kind: "recompile", argv: ["arc", "agenda", "session-init", "--json", "--answered", "branch-gone:surface=accept"] },
       })),
       { kind: "bare", label: "Stay here", decline: true },
@@ -111,7 +111,7 @@ describe("branch-gone recovery agenda", () => {
     expect(agenda.steps).toEqual(expect.arrayContaining([expect.objectContaining({
       type: "offer", id: "branch-gone:main-fallback", ask: "now", choices: [
         { kind: "actions", label: "Switch to main", accepts: ["branch-gone:main-fallback"], actions: [
-          { argv: ["git", "switch", "main"], text: "git switch main" },
+          { argv: ["git", "switch", "--", "main"], text: "git switch -- main" },
         ], then: { kind: "recompile", argv: ["arc", "agenda", "session-init", "--json", "--answered", "branch-gone:main-fallback=accept"] } },
         { kind: "bare", label: "Stay here", decline: true },
       ],

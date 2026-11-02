@@ -34,7 +34,7 @@ describe("recovery destinations", () => {
   ] satisfies { input: CascadeResolution; branches: string[] }[])("locates only permitted switch branches for $input.kind", async ({ input, branches }) => {
     const destinations = await resolveRecoveryDestinations(recovery(input), readPort());
     expect(destinations).toEqual(branches.map(branch => ({ branch, kind: "free", actions: [
-      { argv: ["git", "switch", branch], text: `git switch ${branch}` },
+      { argv: ["git", "switch", "--", branch], text: `git switch -- ${branch}` },
     ] })));
   });
 
@@ -63,15 +63,30 @@ describe("recovery destinations", () => {
       { ...candidate, branch: "feat/local" }] });
     expect(await resolveRecoveryDestinations(value, readPort({}, [candidate.branch]))).toEqual([
       { branch: candidate.branch, kind: "free", actions: [
-        { argv: ["git", "fetch", "origin", candidate.branch], text: `git fetch origin ${candidate.branch}` },
-        { argv: ["git", "switch", candidate.branch], text: `git switch ${candidate.branch}` },
+        { argv: ["git", "fetch", "origin", "--", candidate.branch], text: `git fetch origin -- ${candidate.branch}` },
+        { argv: ["git", "switch", "--", candidate.branch], text: `git switch -- ${candidate.branch}` },
       ] },
       { branch: "feat/local", kind: "free", actions: [
-        { argv: ["git", "switch", "feat/local"], text: "git switch feat/local" },
+        { argv: ["git", "switch", "--", "feat/local"], text: "git switch -- feat/local" },
       ] },
     ]);
   });
 
+
+  it.each([false, true])("preserves an option-looking branch operand with local ref missing: %s", async missing => {
+    const branch = "--dry-run";
+    const value = recovery({ kind: "resolved", remoteEvidence: "exact", candidate: { ...candidate, branch } });
+    const destinations = await resolveRecoveryDestinations(value, readPort({}, missing ? [branch] : []));
+    expect(destinations).toEqual([{ branch, kind: "free", actions: [
+      ...(missing ? [{ argv: ["git", "fetch", "origin", "--", branch], text: "git fetch origin -- --dry-run" }] : []),
+      { argv: ["git", "switch", "--", branch], text: "git switch -- --dry-run" },
+    ] }]);
+  });
+
+  it("keeps the checkout-history alias out of executable destinations", async () => {
+    const value = recovery({ kind: "resolved", remoteEvidence: "exact", candidate: { ...candidate, branch: "-" } });
+    expect(await resolveRecoveryDestinations(value, readPort())).toEqual([{ branch: "-", kind: "manual" }]);
+  });
 
   it("holds when a local ref cannot be inspected", async () => {
     const read = readPort();

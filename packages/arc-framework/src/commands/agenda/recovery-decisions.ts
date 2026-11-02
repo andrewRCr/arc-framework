@@ -17,6 +17,8 @@ export function compileRecoveryDecision(input: RecoveryDecisionInput): AgendaSte
   if (recovery === null) return null;
   const id = agendaQuestionKey("branch-gone", recovery.kind);
   if (input.answers.done.includes(id) || input.answers.answered[id] !== undefined) return null;
+  if ((recovery.kind === "resolved" && recovery.candidate.proposedAction === "switch" && recovery.candidate.branch === "-")
+    || (recovery.kind === "main-fallback" && recovery.baseBranch === "-")) return null;
   if (recovery.kind === "resolved" && recovery.candidate.proposedAction === "switch"
     && recovery.recommendedAction === "switch") {
     const destination = input.destinations.find(value => value.branch === recovery.candidate.branch);
@@ -52,7 +54,8 @@ function candidateChoice(input: RecoveryDecisionInput, candidate: CascadeCandida
 }
 
 function switchChoice(input: RecoveryDecisionInput, destination: RecoveryDestination | undefined, id: string): OfferChoice | null {
-  if (destination === undefined || destination.kind === "unavailable") return null;
+  if (destination?.branch === "-") return { kind: "bare", label: "Recover the literal branch - manually" };
+  if (destination === undefined || destination.kind === "unavailable" || destination.kind === "manual") return null;
   return destination.kind === "free"
     ? { kind: "actions", label: `Switch to ${destination.branch}`, accepts: [id], actions: destination.actions, then: recompile(input) }
     : { kind: "bare", label: `Continue in checkout ${destination.checkoutPath}` };
