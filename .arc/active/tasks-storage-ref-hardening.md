@@ -782,7 +782,7 @@ decomposition naming settled.
 _Exit criterion:_ Each § 7 and § 10 defect, and each § 9 defect Phases 3 and 6 do not fix, has a case that failed
 before its fix and passes after it in the store suites.
 
-### `[ ]` **7.1 A lost history destination retries within a bound — § 7**
+### `[x]` **7.1 A lost history destination retries within a bound — § 7**
 
 - _Goal:_ An outside writer that moves a history destination once is absorbed by the retry, and one that moves it on
   three consecutive attempts refuses with the repair remedy, however each move is found.
@@ -790,29 +790,18 @@ before its fix and passes after it in the store suites.
 - _Note:_ `write.ts` is shared with another unit's change; see `notes-storage-ref-hardening.md` § Coordination with
   `store-operation-git-access`.
 
-    - `publishRefBatchChanges` (`write-publication.ts`) retries a lost history destination from the tip read like any
-      other lost ref; `checkRefHistoryDestinations` still refuses a destination that is not an ancestor.
-    - The admission check (`refAdmissionBasisChanged`) returns a retry that names the history refs it found moved and
-      the values it read for them, the transaction one that names the history refs it lost, and a history destination
-      appearing or disappearing (`ownerLocationsChanged`) counts as a loss. `executeRefBatch` (`write.ts`) keeps the
-      count of consecutive attempts that lose one, so it carries across re-resolution. The third consecutive loss
-      refuses with `historyDestinationFailure`.
-    - Each move counts once. The count keeps each history destination at the value the last attempt saw: its tip
-      read, the value the admission check read where it found that destination moved, or the lost race's `actual`
-      where its transaction lost on that destination. An attempt or a re-resolution counts a loss only when a
-      destination differs from that value. The checks at `write.ts:149` that return to re-resolution
-      (`ownerLocationsChanged`, `archiveBasisChanged`, `retainedBasisChanged`) compare with the resolution's tips, so
-      they can find again a move an earlier attempt counted through its admission check or its transaction; a
-      re-resolution that finds only such a move neither counts nor resets the count, and any other attempt that loses
-      none resets it. A return that compares no tips — a renamed owner's `"resolve"` (`write-build.ts`) or 6.8's
-      registry-lock prediction — loses nothing itself; the re-resolution it starts counts only a destination that
-      differs from its kept value, and otherwise resets the count.
-    - Build `test-first` (one behavior at a time): rewrite `__tests__/integration/store-ref-history-destination.test.ts`
-      so one ancestor move is absorbed; three consecutive moves refuse, once each through the admission check, the
-      transaction, and a re-resolution; a destination created before an attempt's admission check counts once, though
-      the re-resolution finds it again; a writer that creates or deletes the destination during three attempts'
-      transactions is refused at the third, the re-detections between them leaving the count unchanged; an ordinary
-      lost ref between them resets the count.
+- _Note:_ 7.1 feedback correction: lint rejected the expanded locked loop's complexity. One locked attempt now has a
+  separate typed scope from the loop that retries it; the loss counter remains owned by the public write call.
+
+- _Note:_ 7.1 capture-accounting correction: a comparison-free restart could capture a third destination move and
+  then publish without another retry. The prepared capture now reports to the counter before publication; later
+  observations in that attempt still consume only one loss.
+
+- _Outcome:_ One public write tracks observed destination values, absence included, across admission, transactions,
+  and re-resolution. Fresh captures reach the counter before publication; re-detection preserves the streak, ordinary
+  losses reset it, and a comparison-free restart resets only when its capture finds no new move. Shared proposal
+  preparation identifies exact destinations without duplicating policy. The third losing attempt keeps the repair
+  refusal; nonancestor history still refuses immediately. Native cases also cover atomic batches and successful repair.
 
 ### `[ ]` **7.2 Withdrawal conflict placements read the captured tips — § 9**
 

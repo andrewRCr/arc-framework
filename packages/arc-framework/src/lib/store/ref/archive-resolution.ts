@@ -65,11 +65,11 @@ export function archivedLockRefs(batch: ResolvedBatch): string[] {
 }
 
 /** Re-resolve when the locked history or quarter capture differs from the validated basis. */
-export function archiveBasisChanged(batch: ResolvedBatch, tips: ReadonlyMap<string, string>): boolean {
-  if (!batch.archived?.length) return false;
+export function changedArchiveBasisRefs(batch: ResolvedBatch, tips: ReadonlyMap<string, string>): string[] {
+  if (!batch.archived?.length) return [];
   const histories = batch.archived.map(({ liveRef }) => liveRef.replace("refs/arc/", "refs/arc/history/"));
   const quarters = [...new Set([...batch.tips.keys(), ...tips.keys()])].filter(isArchiveRef);
-  return [...histories, ...quarters].some((ref) => tips.get(ref) !== batch.tips.get(ref));
+  return [...histories, ...quarters].filter((ref) => tips.get(ref) !== batch.tips.get(ref));
 }
 
 function missingArchivedHistory(reference: RecordReference, history: string): StoreRefusal {

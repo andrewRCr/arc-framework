@@ -30,7 +30,7 @@ export async function checkRefHistoryDestinations(context: RefBackendContext, ti
   return undefined;
 }
 
-/** A stray or changed destination cannot be retried as though its held lock still protected the captured tip. */
+/** Nonancestor destinations and repeated outside changes require explicit history repair. */
 export function historyDestinationFailure(history: string, condition: string): StoreRefusal {
   return { code: "namespace-corrupt", class: "terminal", namespace: history, condition,
     remedy: { text: `Repair ${history} so its tip is an ancestor of the live tip, or remove it if it is a stray ref, then retry the write.` } };

@@ -123,6 +123,33 @@ burst cases, including both prepared-hook deadline cases and both twenty-publish
 `task-6.10-ci-windows-*.log` files beside the original failure. These passing results permit continuation under the
 accepted exception; they establish no cause or fix for the original failure.
 
+## History-destination retry evidence
+
+Task 7.1 keeps the counter at the public write call and observes destination values at preparation, admission, and
+transaction read-back. An attempt consumes at most one loss even when its read and transaction see different moves.
+Exact destinations come from the normal proposal preparation, reused against coherent captured tips only when an
+early basis change needs that evidence. Each replay has private groups, quarter plans, and a private blob stage;
+normal success paths retain their Git calls. Preparation can invoke registered parsers and identity/label ports, so
+this is not a claim of callback-free probing. A speculative refusal or resolution request preserves the basis retry.
+
+The native counterexample for capture accounting used two outside history transaction losses and a second owner's
+genuine Store-produced rename. Its companion forced comparison-free re-resolution without changing its record version.
+A third history move in the new capture then published without invoking the old counter. The fix observes that
+prepared capture before publication, while the attempt's marker prevents later observations consuming another loss.
+
+Fail-first evidence under `~/dev/arc-evidence/storage-ref-hardening/implementation/` includes the one-move,
+transaction-bound, admission-bound, resolution-bound, and resolution-capture red logs. The transaction bound's valid
+run is `task-7.1-transaction-bound-red-valid.log`; its earlier fixture-parser failure is not evidence of the behavior.
+Narrow controls cover re-detection resetting or double-counting, ordinary-race resets, exact destination selection,
+multi-destination batches, comparison-free resets, and once-per-attempt accounting. Every control was restored.
+
+`task-7.1-native-regression.log` records the restored implementation's 144 passing native cases across twelve suites,
+including all eighteen history cases plus archive, retirement, rename, anchors, reopen, and batch regressions. The
+multi-destination case's first setup incorrectly retained single-write provenance in its batch; that input refusal is
+not race evidence. Its corrected initial run is `task-7.1-multiple-destinations-initial-valid.log`. Lint's loop-complexity
+failure led to the typed attempt extraction recorded on the task; the restored code passes file lint. Hosted evidence
+at the final implementation head is still due during verification.
+
 ## Verification at the final head
 
 SC 3, SC 8's Windows case, SC 9, and SC 12 take their evidence mid-change, and no gate at the final head takes it again:
