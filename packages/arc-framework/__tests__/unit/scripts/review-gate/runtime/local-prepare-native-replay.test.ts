@@ -16,9 +16,16 @@ import { parseNativeReviewOperationReference } from "../../../../../src/scripts/
 import { createLocalReviewSource } from "../../../../../src/scripts/review-gate/core/local-review-source.js";
 import { bindNativeReviewPorts } from "../../../../helpers/store/native-review-ports.js";
 import { createNativeLocalPassJudgmentResolver } from "../../../../../src/scripts/review-gate/runtime/native-local-pass-judgments.js";
+import { createLocalPrepareDependencies } from "../../../../../src/scripts/review-gate/runtime/local-prepare-composition.js";
+import { candidateFixture } from "../../../../helpers/store/tracked-write-fixture.js";
+import type { CandidateManagedRecordV1 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
+import { localOutcome } from "../../../../fixtures/review-outcome.js";
+import { ReviewOutcomeSchema } from "../../../../../src/lib/store/kinds/review/outcome/schema.js";
+import { scriptGitExec, scriptRawGitExec } from "../../../../helpers/git-exec-fake.js";
+import type { GitExec } from "../../../../../src/lib/git/exec.js";
 
-async function completedReview(result: "clean" | "findings" = "clean") {
-  const h = await nativeLocalReview();
+async function completedReview(result: "clean" | "findings" = "clean", candidate?: CandidateManagedRecordV1) {
+  const h = await nativeLocalReview(undefined, candidate);
   onTestFinished(h.cleanup);
   const state = h.state;
   const receipt = createReviewReceipt({ target: state.target, requirement: state.requirement, request: state.request,
@@ -36,6 +43,46 @@ async function completedReview(result: "clean" | "findings" = "clean") {
       ownership: "self", surfaceAuthority: "ordinary" }, policyJudgment: { scopeMode: "whole-target" } };
   return { h, state, dependencies, request };
 }
+
+it("drops an exhausted singleton input before real policy validation and matches an omitted-input continuation", async () => {
+  const { h, state, dependencies, request } = await completedReview("clean", candidateFixture());
+  if (state.vehicle.kind !== "work-unit") throw new Error("Expected a singleton work-unit producer");
+  await h.outcomes.create(ReviewOutcomeSchema.parse(localOutcome({ target: state.target, lineage: state.lineage,
+    vehicle: state.vehicle, logicalPass: 2 })));
+  const { targetId: ignored, ...coordinates } = state.target;
+  void ignored;
+  const target = createReviewTarget({ ...coordinates, headSha: "e".repeat(40), headTree: "f".repeat(40) });
+  const scripted = scriptGitExec([
+    { match: ["rev-parse", "HEAD"], responses: [{ stdout: target.headSha }] },
+    { match: ["config", "--get", "remote.origin.url"], responses: [{ stdout: "https://github.com/owner/repository.git" }] },
+    { match: ["config", "--get-all", "arc.frontlineSources"], responses: [{ failure: { exitCode: 1 } }] },
+    { match: ["check-ref-format", "--branch", "main"], responses: [{ stdout: "" }] },
+    { match: ["rev-parse", "--verify", "refs/heads/main^{commit}"], responses: [{ stdout: target.headSha }] },
+    { match: ["ls-remote", "--heads", "origin", "refs/heads/main"], responses: [{ stdout: "" }] },
+    { command: "gh", match: { prefix: ["pr", "list"] }, responses: [{ stdout: "[]" }] },
+    { match: ["merge-base", "--is-ancestor", state.target.headSha, target.headSha], responses: [{ stdout: "" }] },
+  ]).exec;
+  const exec: GitExec = (command, args, options) => command === "gh" || args[0] === "ls-remote"
+    || args[0] === "check-ref-format" || args[0] === "merge-base" || args[0] === "config" && args[1] !== "--null"
+    || args[0] === "rev-parse" && args[1] !== "--git-common-dir" && args[1] !== "--abbrev-ref"
+    ? scripted(command, args, options) : h.exec(command, args, options);
+  const input = { ...h, exec, rawGit: scriptRawGitExec([]).exec, workItem: h.primary.reference.owner };
+  const deriveTarget = async () => target;
+  const actual = { ...dependencies, deriveTarget, readCurrentHeadSha: async () => target.headSha,
+    validatePolicyAdmission: createLocalPrepareDependencies(input).validatePolicyAdmission,
+    resolvePassJudgments: createNativeLocalPassJudgmentResolver({ input, operationStore: h.operations,
+      subjects: dependencies, deriveTarget, validateDeliveryAdmission: dependencies.validateDeliveryAdmission }) };
+  const { policyJudgment: removed, ...baseline } = request;
+  void removed;
+  const version = await h.store.version(), decisions = await h.operations.nativeFacts?.decisions.list();
+  const omitted = await prepareLocalReview(baseline, actual).then(() => null, (error: unknown) => error);
+  expect(omitted).toMatchObject({ name: "ReviewDriverAdmissionError", state: "approval-required" });
+  await expect(prepareLocalReview({ ...baseline, policyJudgment: { additionalPassAuthorization: {
+    headSha: state.target.headSha, precedingProducerId: state.operationId, completedPasses: 1, nextPass: 2 } } }, actual))
+    .rejects.toMatchObject({ name: "ReviewDriverAdmissionError", state: "approval-required" });
+  expect(await h.operations.nativeFacts?.decisions.list()).toEqual(decisions);
+  expect(await h.store.version()).toEqual(version);
+});
 
 it("prepares the same ended native review without its execution or source descriptor", async () => {
   const { h, state, dependencies, request } = await completedReview();

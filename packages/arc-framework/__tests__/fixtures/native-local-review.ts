@@ -11,8 +11,9 @@ import { NativeReviewInFlightStateStore } from "../../src/scripts/review-gate/ho
 import { RepositoryLocalReviewSourceStore } from "../../src/scripts/review-gate/hosts/local/source-store.js";
 
 import type { DeliveryLocalReviewAdmission } from "../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
+import type { CandidateManagedRecordV1 } from "../../src/lib/work-unit/candidate-attestation.js";
 
-export async function nativeLocalReview(deliveryAdmission?: DeliveryLocalReviewAdmission) {
+export async function nativeLocalReview(deliveryAdmission?: DeliveryLocalReviewAdmission, candidate?: CandidateManagedRecordV1) {
   const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
   await h.seedProject(projectId);
   const primary = await h.seedMeta(deliveryAdmission?.vehicle.workUnitId ?? "example"), checkout = await createReviewCheckout(h);
@@ -24,6 +25,17 @@ export async function nativeLocalReview(deliveryAdmission?: DeliveryLocalReviewA
     const operations = new NativeReviewInFlightStateStore({ publisher, workItem: primary.reference.owner,
       outcomes, evidence, decisions, projectId: h.projectId });
     const prepared = createLocalReviewPreparationFixture({ repositoryId: projectId });
+    if (candidate !== undefined) {
+      await h.seedCandidate(primary.reference.owner, candidate);
+      const vehicle = { kind: "work-unit" as const, identity: "example" };
+      const resolveAuthority = prepared.dependencies.resolveAuthority;
+      prepared.dependencies.resolveAuthority = async (...args) => {
+        const resolved = await resolveAuthority(...args);
+        return { ...resolved, authority: { ...resolved.authority, vehicle } };
+      };
+      prepared.dependencies.resolveVehicle = async () => ({ vehicle, authorIdentity: "author-1", member: null });
+      prepared.dependencies.resolveLineage = async () => ({ kind: "candidate", candidateId: candidate.attestation.candidateId });
+    }
     prepared.dependencies.operationStore = operations;
     prepared.dependencies.sourceStore = new RepositoryLocalReviewSourceStore(publisher);
     const result = await prepareLocalReview({ schemaVersion: 1, evaluatorIdentity: "evaluator-1",

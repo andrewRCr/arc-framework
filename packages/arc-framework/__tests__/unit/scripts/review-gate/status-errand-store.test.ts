@@ -15,6 +15,11 @@ import type { ReviewCeilingOverride, ReviewAdditionalPassAuthorization } from ".
 import type { OwnerIdentity } from "../../../../src/lib/store/identity.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
 import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
+import { localOutcome } from "../../../fixtures/review-outcome.js";
+import { createReviewOutcomePort } from "../../../../src/lib/store/kinds/review/outcome/access.js";
+import { ReviewOutcomeSchema } from "../../../../src/lib/store/kinds/review/outcome/schema.js";
+import { createReviewTarget } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../../../src/scripts/review-gate/policy/standard-review.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const head = "a".repeat(40), branch = "chore/repair";
@@ -31,6 +36,7 @@ async function fixture(project = true, owner = "test-user") {
   let branchHead = head;
   const checkout = await createReviewCheckout(h, { script: [
     { match: ["merge-base", "--all", head, base], responses: [{ stdout: base }] },
+    ...[base, head].map(revision => ({ match: ["merge-base", "--is-ancestor", base, revision], responses: [{ stdout: "" }] })),
     ...[head, base].map(revision => ({ match: ["rev-parse", "--verify", `${revision}^{tree}`], responses: [{ stdout: "c".repeat(40) }] })),
     { match: ["rev-parse", "--verify", "--end-of-options", `refs/remotes/origin/${branch}^{commit}`],
       responses: [() => ({ stdout: branchHead })] },
@@ -49,6 +55,29 @@ async function fixture(project = true, owner = "test-user") {
     currentBaseOid: base, changeRequestCandidate: { baseRefName: "main", url: "https://github.com/owner/repository/pull/42" }, ...grant,
   }) };
 }
+
+it("drops a spent keyless additional-pass input on native Errand re-entry without renewing authority", async () => {
+  const h = await fixture();
+  const target = createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "change-set",
+    repositoryId: projectId, baseRef: "main", diffBaseSha: base, diffBaseTree: "c".repeat(40), headSha: head, headTree: "c".repeat(40) });
+  const outcomes = createReviewOutcomePort(h.store, h.primary.reference.owner);
+  const producers = [];
+  for (let logicalPass = 1; logicalPass <= 3; logicalPass++) {
+    const value = localOutcome({ target, logicalPass, lineage: { kind: "head-bound", vehicleKind: "errand",
+      vehicleIdentity: h.record.claimId, headSha: head }, vehicle: { kind: "errand", identity: h.record.slug, claimId: h.record.claimId } });
+    const outcome = ReviewOutcomeSchema.parse({ ...value, local: { ...value.local, rubricIdentity: STANDARD_REVIEW_RUBRIC_IDENTITY } });
+    await outcomes.create(outcome);
+    producers.push(outcome);
+  }
+  const decisions = createReviewDecisionPort(h.store, h.primary.reference.owner);
+  const before = await decisions.list(), version = lifecycleSuccess(await h.store.version());
+  const spent = await h.run({ additionalPassAuthorization: { target: { repository: "owner/repository", pullRequest: 42, headSha: head },
+    lane: "standard", precedingProducerId: producers[1]!.attemptId, completedPasses: 2, nextPass: 3 } });
+  expect(spent, JSON.stringify(spent)).toMatchObject({ state: "settled" });
+  expect(await h.run()).toEqual(spent);
+  expect(await decisions.list()).toEqual(before);
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
+});
 
 it.each(["ceiling", "additional"] as const)("records a native %s grant before the unrecorded-lane return and relays its key", async kind => {
   const h = await fixture();

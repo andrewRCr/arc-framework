@@ -105,5 +105,5 @@ function projectLocalPassJudgments(request: LocalPrepareRequest, input: NativeEx
   void ceilingOverride; void additionalPassAuthorization;
   const judgment = { ...retained, ...(ceiling === undefined ? {} : { ceilingOverride: projectReviewCeilingJudgment(ceiling) }),
     ...(additional === undefined ? {} : { additionalPassAuthorization: projectReviewAdditionalPassJudgment(additional) }) };
-  return { ...request, ...(Object.keys(judgment).length === 0 ? {} : { policyJudgment: judgment }) };
+  return { ...request, policyJudgment: Object.keys(judgment).length === 0 ? undefined : judgment };
 }

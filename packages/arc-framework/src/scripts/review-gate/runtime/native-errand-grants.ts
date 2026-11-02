@@ -28,7 +28,7 @@ export async function readErrandStatusPassGrants(input: ReviewInvocationInput & 
     completedPasses: progress.status === "recorded" ? progress.completedPasses : 0,
     policyTarget: { repository: input.target.repository, pullRequest: input.pullRequest, headSha: input.target.headSha },
     currentBaseRef: input.changeRequestCandidate?.baseRefName });
-  return { progress, grants: { ceilingOverride: input.ceilingOverride,
+  return { progress, grants: input.operationStore.stateOffBranch === true ? resolved : { ceilingOverride: input.ceilingOverride,
     additionalPassAuthorization: input.additionalPassAuthorization, ...resolved } };
 }
 
