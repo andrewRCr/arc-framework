@@ -856,16 +856,15 @@ before its fix and passes after it in the store suites.
   state publishes. Public native cases in both layouts exercise all three reason classes and carry out their repairs;
   see `notes-storage-ref-hardening.md` § Push exclusion refusal evidence.
 
-### `[ ]` **7.4 Quarter provenance attributes a restored primary — § 9**
+### `[x]` **7.4 Quarter provenance attributes a restored primary — § 9**
 
 - _Goal:_ A reopen or quarter move that restores a removed completed primary in a single-put batch attributes the
   quarter change to the restoring mutation instead of throwing an internal error.
 
-    - `quarterCommitReference` (`quarter-provenance.ts`) handles `folderHoldsRecord` matching neither snapshot; reached
-      from `write-reopen.ts`, `write-completed.ts`, and `write-archive.ts`.
-    - Build `test-first` (one behavior at a time): reproduce the throw first, since the path is traced but not yet run;
-      then the restoring reopen and the restoring quarter move each record the quarter change against the restoring
-      mutation.
+- _Outcome:_ Quarter provenance preserves its existing physical-record priority, then attributes an unmatched
+  metadata-only primary removal to the actual restoring put. Both layouts reproduce the internal error for reopen
+  and quarter moves and retain mixed-owner attribution; see `notes-storage-ref-hardening.md` § Restored-primary
+  quarter provenance evidence.
 
 ### `[ ]` **7.5 Decomposition names a verbatim companion by its stored name — § 10**
 

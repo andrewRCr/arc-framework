@@ -358,6 +358,36 @@ failure exclusion, double ends, listing growth, batch-object loss, and ancestry 
 all 11 selected checks, including both source and test type checks (`task-7.3-increment.log`). Related feedback and
 commit checks are retained separately as `task-7.3-related.log` and the ordinary hook records.
 
+## Restored-primary quarter provenance evidence
+
+Task 7.4 uses public production-store writes and native trees in both layouts. A completed primary is removed while
+its folder metadata survives, then restored by a single expected-absence put that reopens it or moves its quarter.
+The four original cases fail at `quarterCommitReference`'s internal no-mutation error. Their initial setup used a
+hand-edit verb that cannot remove a primary; that authority refusal is retained separately and supplies no fail-first
+evidence. Lifecycle-authorized archive provenance reaches the intended error without changing the write guards.
+
+Astra's bounded advice (`quarter_provenance_advisor`, first consultation for this task) compared treating retained
+metadata as an ordinary record witness with a fallback after the existing selector. The fallback preserves existing
+batch attribution: only when no physical candidate matches, select the first actual primary put whose same-owner
+folder retains primary metadata. Resolution targets do not become fallback candidates. Existing decoded folders,
+UID-aware identity comparison, and primary-role equivalence supply the evidence; no extra Git read or process is added.
+Source inspection confirmed those identity and acquisition properties before implementing the advice.
+
+The mixed-owner guard puts the restored owner first and an existing companion owner second. Both layouts keep the
+second owner's quarter provenance. A temporary control that counted primary metadata as a physical record selected
+the wrong first owner in both cases; the exact fallback source was restored before regression checks. The repaired
+six cases and the existing quarter provenance, archive, completed-write, reopen, and provenance suites passed together
+(75 cases across six suites). Evidence under `~/dev/arc-evidence/storage-ref-hardening/implementation/`:
+
+- `task-7.4-setup-authority-refusal.log`: initial fixture authority refusal, not the regression witness.
+- `task-7.4-restored-primary-red.log`: all four intended internal-error failures, run
+  `b84943386cb541ac96203c38d1bc6f16`.
+- `task-7.4-priority-baseline.log`: existing attribution passes before the fix in both layouts.
+- `task-7.4-priority-control-red.log`: wrong-owner assertions fail under the narrow temporary control, run
+  `67befcba9b434fbdbb4b1abb7d7474b6`; its retained pool history confirms command exit 1.
+- `task-7.4-restored-primary-green.log` and `task-7.4-quarter-regression.log`: restored source passes all six new cases
+  and the broader regression selection.
+
 ## Verification at the final head
 
 SC 3, SC 8's Windows case, SC 9, and SC 12 take their evidence mid-change, and no gate at the final head takes it again:
