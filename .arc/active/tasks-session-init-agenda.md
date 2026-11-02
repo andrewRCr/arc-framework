@@ -479,25 +479,18 @@ _Exit criterion:_ No shipped file or source comment references a removed file or
 every copy § 11 assigns it and every § 12 reader in both copies; `framework-sync`, link validation, and the integration
 tier pass against the new text.
 
-### `[ ]` **5.1 Remove the contributor variant and the envelope reference — § 10**
+### `[x]` **5.1 Remove the contributor variant and the envelope reference — § 10**
 
 - _Goal:_ Neither `session-init.contributor.md` nor `probe-envelope.md` remains in either copy or the recipe, no shipped
   file references them, and the `inboxState` routable-count note reads from the served envelope schema.
 
-- _Note:_ See `notes-session-init-agenda.md` § Shipping a file and § Test pins.
+    - `[x]` **5.1.a Remove the contributor variant**
+        - Removed both copies and their recipe/manifest membership; contributor sessions use the ordinary entry
+          with their brief among universal reads.
 
-    - `[ ]` **5.1.a Remove the contributor variant**
-        - The file and its recipe entry; contributors take the ordinary path, with `AGENT-BRIEF.CONTRIBUTOR` among the
-          universal reads (Task 2.3)
-
-    - `[ ]` **5.1.b Remove the envelope reference**
-        - Both copies and the recipe entry; the `inboxState` routable-count note `init-work-unit.md` relies on moves into
-          `.describe()` on those fields, which `arc schema get session-init-envelope` serves. The text carries no `§`,
-          which `lint:arc:section-refs` refuses in `src`, and no `.arc/` path
-        - `locus-methodology-contracts.test.ts`'s pin of that note reads the served schema; its pins of the removed
-          file's absence retire
-        - The delivery-position workflow test's pins of `probe-envelope.md` text retire, since
-          `session-init-delivery-position-readonly.test.ts` covers the probe's passivity
+    - `[x]` **5.1.b Remove the envelope reference**
+        - Removed both copies and inventory entries; served count descriptions carry routing and execution
+          exclusions. The count pin now reads production JSON Schema; reference-only pins were retired.
 
 ### `[ ]` **5.2 Cut the always-loaded cheap tier — § 11**
 

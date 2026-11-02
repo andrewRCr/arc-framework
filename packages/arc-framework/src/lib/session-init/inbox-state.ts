@@ -37,8 +37,12 @@ export type InboxSurvivor = z.infer<typeof InboxSurvivorSchema>;
 /** Runtime authority for the inbox-state advisory result. */
 export const InboxStateResultSchema = z
   .object({
-    routableCount: z.number().int().nonnegative(),
-    executeBoundCount: z.number().int().nonnegative(),
+    routableCount: z.number().int().nonnegative().describe(
+      "Counts routable (well-formed, non-held) personal inbox entries, excluding entries already execute-bound or queued.",
+    ),
+    executeBoundCount: z.number().int().nonnegative().describe(
+      "Counts execution-bound personal inbox entries identified by disposition or queue membership, excluded from routableCount.",
+    ),
     housekeepNeeded: z.boolean(),
     survivors: z.array(InboxSurvivorSchema).optional(),
     actions: SessionActionsSchema.optional(),

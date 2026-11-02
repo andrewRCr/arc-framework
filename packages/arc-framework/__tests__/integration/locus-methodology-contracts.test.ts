@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { softWrappedProse } from "../helpers/soft-wrapped-prose.js";
+import { createProductionSchemaRegistry } from "../../src/production-schema-registry.js";
+import { lookupKernelSchema } from "../../src/lib/kernel/schema/generate.js";
 
 const root = resolve(import.meta.dirname, "../../../..");
 const packageArc = resolve(root, "packages/arc-framework/arc");
@@ -113,26 +115,22 @@ describe("locus methodology contracts", () => {
     }
   });
 
-  it("keeps init and probe guidance free of an unproduced Errand queue", async () => {
+  it("keeps init guidance free of an unproduced Errand queue", async () => {
     for (const base of [packageArc, projectArc]) {
-      const [init, probeEnvelope] = await Promise.all([
-        readFile(
-          resolve(base, "system/workflows/arc/session-lifecycle/session-init.md"),
-          "utf8",
-        ),
-        readFile(
-          resolve(base, "system/workflows/arc/session-lifecycle/session-init/probe-envelope.md"),
-          "utf8",
-        ),
-      ]);
-
-      for (const surface of [init, probeEnvelope]) {
-        expect(surface).not.toContain("pendingExecuteBound");
-        expect(surface).not.toContain("executeBoundDiagnostics");
-      }
-      expect(probeEnvelope).toMatch(softWrappedProse("counts routable (well-formed, non-held) `USER-INBOX` entries"));
-      expect(probeEnvelope).not.toContain("non-execute-bound");
+      const init = await readFile(resolve(base, "system/workflows/arc/session-lifecycle/session-init.md"), "utf8");
+      expect(init).not.toContain("pendingExecuteBound");
+      expect(init).not.toContain("executeBoundDiagnostics");
     }
+  });
+
+  it("publishes routable inbox counts in the served envelope schema", () => {
+    const servedSchema = lookupKernelSchema(createProductionSchemaRegistry(), "session-init-envelope");
+    expect(servedSchema.status).toBe("found");
+    if (servedSchema.status !== "found") throw Error("Missing envelope schema");
+    const text = JSON.stringify(servedSchema.schema);
+    expect(text).toContain("routable (well-formed, non-held) personal inbox entries");
+    expect(text).toContain("excluding entries already execute-bound or queued");
+    expect(text).toContain("execution-bound personal inbox entries identified by disposition or queue membership");
   });
 
   it("binds a returned sibling offer to its inbox capture", async () => {
@@ -204,7 +202,6 @@ describe("locus methodology contracts", () => {
       const surfaces = await Promise.all([
         readFile(resolve(base, "system/workflows/arc/supplemental/run-errand.md"), "utf8"),
         readFile(resolve(base, "system/workflows/arc/work-unit-lifecycle/resume-work-unit.md"), "utf8"),
-        readFile(resolve(base, "system/workflows/arc/session-lifecycle/session-init/probe-envelope.md"), "utf8"),
         readFile(resolve(base, "reference/strategies/arc/strategy-concurrent-work.md"), "utf8"),
         readFile(resolve(base, "reference/strategies/arc/strategy-work-organization.md"), "utf8"),
         readFile(resolve(base, "system/workflows/arc/session-lifecycle/session-init.md"), "utf8"),

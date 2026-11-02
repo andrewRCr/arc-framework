@@ -542,16 +542,6 @@
       "layer": "core",
       "pristine_hash": "8a5bbffd59cdc52e694d0293fc51751a966ba8c9b8684ea647c52170c1177e51"
     },
-    "system/workflows/arc/session-lifecycle/session-init.contributor.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "946a0bf813ca126247275a0ce8af00ac9652763396a7cab60f2250ca6e5c7815"
-    },
-    "system/workflows/arc/session-lifecycle/session-init/probe-envelope.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "3886df1b8714ce7ce14855bf223a116cff5ba0b0d49274b5ec99bc0c975700d1"
-    },
     "system/workflows/arc/session-lifecycle/session-init.md": {
       "classification": "Framework",
       "layer": "core",
