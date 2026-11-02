@@ -249,6 +249,49 @@ async function completedHostedPass(workUnit = false) {
   return { ...h, additionalPassAuthorization };
 }
 
+it("refuses a completed indexed owner's fresh pass after slug reuse and admits it after selected-owner repair", async () => {
+  const h = await completedHostedPass(true), store = h.store;
+  lifecycleSuccess(await store.write({ action: "put", reference: h.primary.reference, expected: h.primary.version,
+    content: h.primary.content, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+    provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  const replacement = await h.seedMeta("example", { branch: null }, { kind: "active" }, {
+    branches: [{ repository: projectId, ref: branch, linkedAs: "adopted", excluded: [] }],
+  });
+  const decisions = async (owner: OwnerIdentity) => {
+    const result = await createReviewDecisionPort(store, owner).list();
+    if (result.status !== "complete") throw new Error(result.reason);
+    return result.records;
+  };
+  const request = { ...h.request, additionalPassAuthorization: h.additionalPassAuthorization };
+  const snapshot = { version: lifecycleSuccess(await store.version()), index: await h.index.read(projectId, h.request),
+    dispatches: h.dispatchedRequests() };
+  expect(await h.runRequest(request)).toMatchObject({ error: { code: "invalid-input" } });
+  expect(lifecycleSuccess(await store.version())).toBe(snapshot.version);
+  expect(await decisions(h.primary.reference.owner)).toEqual([]);
+  expect(await decisions(replacement.reference.owner)).toEqual([]);
+  expect(await h.index.read(projectId, h.request)).toEqual(snapshot.index);
+  expect(h.dispatchedRequests()).toBe(snapshot.dispatches);
+  lifecycleSuccess(await store.write({ action: "put", reference: replacement.reference, expected: replacement.version,
+    content: replacement.content, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+    provenance: { verb: "archive", lifecycleAction: "archive" } }));
+  const original = lifecycleSuccess(await store.read({ reference: h.primary.reference }));
+  lifecycleSuccess(await store.write({ action: "put", reference: original.reference, expected: original.version,
+    content: original.content, placement: { kind: "active" }, provenance: { verb: "restore", lifecycleAction: "edit" } }));
+  expect(await h.runRequest(request)).toMatchObject({ state: "requested", handle: { admission: { logicalPass: 2 } } });
+  expect(await decisions(h.primary.reference.owner)).toHaveLength(1);
+  expect(await decisions(replacement.reference.owner)).toEqual([]);
+});
+
+it("normalizes a former-name locator before a completed index admits the same owner's next pass", async () => {
+  const h = await completedHostedPass(true);
+  const raw = HostedRequestResultSchema.parse(await h.runRequest({ ...h.request,
+    additionalPassAuthorization: h.additionalPassAuthorization },
+  { workItem: { ...h.primary.reference.owner, name: SlugSchema.parse("former-example") } }));
+  expect(raw.state).toBe("requested");
+  if (raw.state !== "requested" || raw.operationRef === undefined) throw new Error(JSON.stringify(raw));
+  expect(parseNativeReviewOperationReference(raw.operationRef).workItem).toEqual(h.primary.reference.owner);
+});
+
 it.each([false, true])("records a hosted additional grant with the active identity and relays its reference (work unit: %s)", async workUnit => {
   const h = await completedHostedPass(workUnit);
   const request = { ...h.request, additionalPassAuthorization: h.additionalPassAuthorization };

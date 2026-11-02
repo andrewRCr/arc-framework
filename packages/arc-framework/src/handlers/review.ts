@@ -1,5 +1,4 @@
 /** Machine-readable review workflow handlers. */
-import { nativeReplayLanes } from "./review-pre-publication-replay.js";
 import { requireReviewWorkItem } from "../lib/store/kinds/review/access-shared.js";
 import { persistPrePublicationOutcome, persistPrePublicationTerminusDecision, type PrePublicationPersistenceAccess } from "./review-pre-publication-persistence.js";
 import { readReviewReadinessBinding } from "../scripts/review-gate/runtime/readiness-binding.js";
@@ -18,14 +17,14 @@ import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInv
 import { resolveHostedAwaitInvocation, resolveHostedRequestInvocation, retainHostedRequestReference, retainHostedAwaitReference,
   hostedRequestIndexWorkItem } from "../scripts/review-gate/runtime/hosted-invocation.js";
 import { resolveReviewSourceInvocation } from "../scripts/review-gate/runtime/source-invocation.js";
-import { retainReviewOperationReference, reviewContinuationRequestError, resolveReviewOperationInvocation } from "../scripts/review-gate/runtime/continuation-invocation.js";
+import { retainReviewOperationReference, reviewContinuationRequestError, resolveReviewOperationInvocation, ReviewContinuationReferenceError } from "../scripts/review-gate/runtime/continuation-invocation.js";
 import { resolveNativeOwnerlessReviewPolicy } from "../scripts/review-gate/runtime/review-policy-context.js";
 import { resolveLocalReviewInvocation, resolveLocalReviewResumeInvocation, resolveLocalReviewAttestInvocation, resolveLocalReviewCancelInvocation, resolveReviewPolicyInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
 import { resolveReduceInvocation } from "../scripts/review-gate/runtime/reduce-invocation.js";
 import { resolveFrontlineRunInvocation } from "../scripts/review-gate/runtime/frontline-invocation.js";
 import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
 import { readReviewLane } from "../scripts/review-gate/runtime/lane-read-composition.js";
-import { buildPrePublicationResumeCommand, readPrePublicationCall, scopeJudgmentTargetExamined,
+import { buildPrePublicationResumeCommand, readPrePublicationCall, scopeJudgmentTargetExamined, prePublicationJudgmentMatchesSaved,
   type ReviewPrePublicationJudgment } from "./review-pre-publication-replay.js";
 import { reviewDiscoverableCommandInputSchema } from "./review-request-schema.js";
 import { confirmReviewCorrectionLeg } from "../scripts/review-gate/policy/review-next-pass.js";
@@ -34,6 +33,7 @@ import { readResolveNextPassContext, readHostedErrandNextPassContext } from "./r
 import { createNativeMemberTerminusBindings } from "../scripts/review-gate/runtime/native-member-terminus.js";
 import { persistNativeTerminusBoundary, persistNativeTerminusDecision } from "../scripts/review-gate/runtime/native-terminus-persistence.js";
 import { composeNativePolicyGrants } from "../scripts/review-gate/runtime/native-policy-grants.js";
+import { nativeSavedCandidateGrantMatches } from "../scripts/review-gate/runtime/native-saved-grants.js";
 import { resolveEvidenceBoundReviewPolicyContinuation } from "../scripts/review-gate/policy/review-policy-evidence.js";
 import type { ApprovedDispositionRecordReader, ReviewOperationStateStore, ReviewFactPut } from "../scripts/review-gate/core/ports.js";
 import type { EvidenceBoundReviewPolicyDependencies } from "../scripts/review-gate/policy/review-policy-evidence.js";
@@ -3428,7 +3428,13 @@ async function readHostedRequestContext(input: ReviewInvocationInput & {
   const replay = await readDurableHostedRequestReplay({ owner, invocation: context,
     store: context.family.ports.inFlight, repositoryId: input.repositoryId, request: input.request,
     root: input.cwd, exec: input.exec });
-  return { ...context, replay };
+  if (replay !== null || owner?.workItem === undefined) return { ...context, replay };
+  const fresh = await resolveHostedRequestInvocation(input, input.request, null);
+  if (fresh.workItem === undefined || !sameOwner(fresh.workItem, owner.workItem)) {
+    throw new ReviewContinuationReferenceError("the completed or missing reserved request belongs to another work item; "
+      + "restore its originating work item or select the intended review target", "arc review hosted request");
+  }
+  return { ...createReviewCompositionContext(fresh), replay };
 }
 
 class HostedRequestOwnerCollision extends Error {}
@@ -4233,6 +4239,7 @@ export interface ReviewPrePublicationHandlerDependencies extends PrePublicationP
   readRootGitHead(root: string): Promise<string>;
   readCandidate(root: string, workUnit: string): Promise<CandidateRead>;
   readBoundary(root: string, workUnit: string): Promise<VersionedSubmissionBoundary>;
+  savedCandidateGrantMatches(root: string, input: Parameters<typeof nativeSavedCandidateGrantMatches>[1]): Promise<boolean>;
   compose(
     root: string,
     input: z.infer<typeof ReviewPrePublicationInputSchema>,
@@ -4323,10 +4330,11 @@ function acceptedSingletonFrontlineSkip(
     && envelope.nextAction.kind !== "run-self-review";
 }
 
-function prePublicationStandardLaneAccess(exec: GitExec, invocationFor: (root: string) => ReviewInvocationContext): Pick<
-  ReviewPrePublicationHandlerDependencies, "readStandardLaneOwnerVersion" | "readReadinessBinding" | "withStandardLaneLock"
+function prePublicationReviewAccess(exec: GitExec, invocationFor: (root: string) => ReviewInvocationContext): Pick<
+  ReviewPrePublicationHandlerDependencies, "readStandardLaneOwnerVersion" | "readReadinessBinding" | "withStandardLaneLock" | "savedCandidateGrantMatches"
 > {
   return {
+    savedCandidateGrantMatches: (root, input) => nativeSavedCandidateGrantMatches({ ...invocationFor(root), cwd: root, exec }, input),
     readStandardLaneOwnerVersion: async (root, candidateId, headSha) => {
       const { publisher, family } = createReviewCompositionContext({ ...invocationFor(root), cwd: root, exec });
       const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocationFor(root));
@@ -4386,7 +4394,7 @@ function defaultPrePublicationDependencies(
       boundarySnapshots.set(workUnit, snapshot);
       return snapshot;
     },
-    ...prePublicationStandardLaneAccess(exec, selectedInvocationFor),
+    ...prePublicationReviewAccess(exec, selectedInvocationFor),
     compose: async (root, input, judgment) => {
       const snapshot = boundarySnapshots.get(input.name)
         ?? await readSubmissionBoundaryVersioned(root, input.name, { store: recordStoreFor(root), owner: selectedInvocationFor(root).workItem });
@@ -4700,6 +4708,16 @@ export async function handleReviewPrePublication(
       emitAdvancedReplayRefusal("The saved pre-publication judgment belongs to a different Candidate or Candidate subject.");
       return;
     }
+    if (!plainReentry && savedReplay !== null && pendingBoundary !== null && pending !== undefined
+      && beforeCompose.status === "current" && beforeCompose.candidateId === pendingBoundary.candidateId
+      && beforeCompose.subjectDigest === pendingBoundary.candidateSubjectDigest
+      && !await prePublicationJudgmentMatchesSaved(callerJudgment, savedReplay, replaySchemaVersion,
+        savedReplay.scopeJudgmentTarget?.kind === "delivery-member" ? undefined : (lane, grant) =>
+          dependencies.savedCandidateGrantMatches(root, { workUnit: input.data.name, lane, judgment: grant, candidateId: beforeCompose.candidateId,
+            subjectDigest: beforeCompose.subjectDigest, headSha: currentRootHead }))) {
+      emitJudgmentMismatch(pending.nextAction.command);
+      return;
+    }
     const progressBeforeCompose = beforeCompose.status === "current"
       ? await readPrePublicationProgress(dependencies, root, beforeCompose.candidateId, currentRootHead)
       : null;
@@ -4718,8 +4736,8 @@ export async function handleReviewPrePublication(
       }
       if (composition.scopeMismatch !== undefined) {
         const mismatch = composition.scopeMismatch;
-        if (replayInput?.scopeJudgmentTarget !== undefined && !scopeJudgmentTargetExamined(
-          composition.examinedTargets ?? [mismatch.target], replayInput.scopeJudgmentTarget)) {
+        if (judgment.scopeJudgmentTarget !== undefined && !scopeJudgmentTargetExamined(
+          composition.examinedTargets ?? [mismatch.target], judgment.scopeJudgmentTarget)) {
           emitAdvancedReplayRefusal("The saved scope judgment no longer matches the current exact review target.");
           return;
         }
@@ -4787,32 +4805,9 @@ export async function handleReviewPrePublication(
         : composition.code === "candidate-unexplained-delta" ? composition.code : undefined);
       return;
     }
-    if (replayInput?.scopeJudgmentTarget !== undefined && !scopeJudgmentTargetExamined(
-      composition.examinedTargets ?? [composition.request.target], replayInput.scopeJudgmentTarget)) {
+    if (judgment.scopeJudgmentTarget !== undefined && !scopeJudgmentTargetExamined(
+      composition.examinedTargets ?? [composition.request.target], judgment.scopeJudgmentTarget)) {
       emitAdvancedReplayRefusal("The saved scope judgment no longer matches the current exact review target.");
-      return;
-    }
-    const callerReplayLanes = replaySchemaVersion === 2
-      ? nativeReplayLanes(callerJudgment.lanes, false) : callerJudgment.lanes;
-    if (!plainReentry && savedReplay !== null && pendingBoundary !== null && pending !== undefined
-      && composition.request.candidateId === pendingBoundary.candidateId
-      && composition.request.candidate.subjectDigest === pendingBoundary.candidateSubjectDigest
-      && canonicalize({
-        ...(callerJudgment.selfReview === undefined ? {} : { selfReview: callerJudgment.selfReview }),
-        ...(callerJudgment.changeSet === undefined ? {} : { changeSet: callerJudgment.changeSet }),
-        ...(callerReplayLanes === undefined ? {} : { lanes: callerReplayLanes }),
-        ...(callerJudgment.frontlineCeilingHeadSha === undefined
-          ? {}
-          : { frontlineCeilingHeadSha: callerJudgment.frontlineCeilingHeadSha }),
-      }) !== canonicalize({
-        ...(savedReplay.selfReview === undefined ? {} : { selfReview: savedReplay.selfReview }),
-        ...(savedReplay.changeSet === undefined ? {} : { changeSet: savedReplay.changeSet }),
-        ...(savedReplay.lanes === undefined ? {} : { lanes: savedReplay.lanes }),
-        ...(savedReplay.frontlineCeilingHeadSha === undefined
-          ? {}
-          : { frontlineCeilingHeadSha: savedReplay.frontlineCeilingHeadSha }),
-      })) {
-      emitJudgmentMismatch(pending.nextAction.command);
       return;
     }
     if (orderingRecovery === undefined
@@ -4868,7 +4863,7 @@ export async function handleReviewPrePublication(
           judgment,
           replaySelfReview: composition.request.selfReview === "settled" ? "settled" : judgment.selfReview,
           replayLanes: judgment.lanes,
-          scopeJudgmentTarget: replayInput?.scopeJudgmentTarget,
+          scopeJudgmentTarget: judgment.scopeJudgmentTarget,
           currentFrontlineHeadSha,
           frontlineCeilingOverrideApplied: false,
         }),
@@ -4907,7 +4902,7 @@ export async function handleReviewPrePublication(
         judgment,
         replaySelfReview,
         replayLanes,
-        scopeJudgmentTarget: replayInput?.scopeJudgmentTarget,
+        scopeJudgmentTarget: judgment.scopeJudgmentTarget,
         currentFrontlineHeadSha,
         frontlineCeilingOverrideApplied,
       });

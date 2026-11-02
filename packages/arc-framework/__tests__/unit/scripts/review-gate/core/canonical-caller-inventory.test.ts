@@ -98,6 +98,7 @@ describe("review-gate canonical serializer inventory", () => {
       "runtime/native-conditional-admission.ts",
       "runtime/native-conditional-pass.ts",
       "runtime/native-conditional-withdrawal.ts",
+      "runtime/native-extra-pass.ts",
       "runtime/native-frontline-retry-authority.ts",
       "runtime/native-hosted-settlement.ts",
       "runtime/native-local-pass-judgments.ts",

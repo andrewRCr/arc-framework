@@ -98,6 +98,46 @@ export function nativeReplayLanes(input: unknown, retainGrants: boolean): PrePub
   return Object.keys(lanes).length === 0 ? undefined : lanes;
 }
 
+type RecordedGrantMatch = (lane: "frontline" | "standard", judgment: unknown) => Promise<boolean>;
+
+async function nativeLaneGrantsMatch(lane: "frontline" | "standard", supplied: ReplayLaneJudgment | undefined,
+  retained: ReplayLaneJudgment | undefined, recordedGrant?: RecordedGrantMatch): Promise<boolean> {
+  for (const field of ["ceilingOverride", "additionalPassAuthorization"] as const) {
+    const value = supplied?.[field];
+    if (value === undefined) continue;
+    const prior = retained?.[field];
+    if (prior === undefined) {
+      if (!await recordedGrant?.(lane, { [field]: value })) return false;
+    } else if (canonicalize(value) !== canonicalize(prior)) return false;
+  }
+  return true;
+}
+
+/** Require explicit inputs to retain saved authority while comparing native routing in its normalized form. */
+export async function prePublicationJudgmentMatchesSaved(caller: ReviewPrePublicationJudgment,
+  saved: PrePublicationReplayInput, schemaVersion: 1 | 2, recordedGrant?: RecordedGrantMatch): Promise<boolean> {
+  const projection = (value: Pick<ReviewPrePublicationJudgment, "selfReview" | "changeSet" | "lanes" | "frontlineCeilingHeadSha">) => {
+    const lanes = schemaVersion === 2 ? nativeReplayLanes(value.lanes, false) : value.lanes;
+    return { ...(value.selfReview === undefined ? {} : { selfReview: value.selfReview }),
+      ...(value.changeSet === undefined ? {} : { changeSet: value.changeSet }),
+      ...(lanes === undefined ? {} : { lanes }),
+      ...(schemaVersion === 2 || value.frontlineCeilingHeadSha === undefined ? {}
+        : { frontlineCeilingHeadSha: value.frontlineCeilingHeadSha }) };
+  };
+  if (canonicalize(projection(caller)) !== canonicalize(projection({ ...saved, selfReview: saved.selfReview,
+    changeSet: saved.changeSet, lanes: saved.lanes, frontlineCeilingHeadSha: saved.frontlineCeilingHeadSha }))) return false;
+  if (schemaVersion === 1) return true;
+  if (caller.frontlineCeilingHeadSha !== undefined && caller.frontlineCeilingHeadSha !== saved.frontlineCeilingHeadSha) return false;
+  if (caller.scopeJudgmentTarget !== undefined
+    && canonicalize(caller.scopeJudgmentTarget) !== canonicalize(saved.scopeJudgmentTarget ?? null)) return false;
+  const supplied = PrePublicationLaneJudgmentsSchema.parse(caller.lanes ?? {});
+  const retained = PrePublicationLaneJudgmentsSchema.parse(saved.lanes ?? {});
+  for (const lane of ["frontline", "standard"] as const) {
+    if (!await nativeLaneGrantsMatch(lane, supplied[lane], retained[lane], recordedGrant)) return false;
+  }
+  return true;
+}
+
 /**
  * Emit an exact continuation, retaining decisions only in the repository replay contract. A native continuation keeps
  * the call's ceiling-override and additional-pass grants only when `retainGrants` says no subject has recorded them.

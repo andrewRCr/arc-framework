@@ -207,6 +207,11 @@ it.each(["same", "scope", "invocation"] as const)("compares native post-attest c
   const lanes = { frontline: { scopeMode: "whole-target" as const, invocation: { mode: "skip" as const } },
     standard: { terminus: { mode: "owner-accepted" as const }, ceilingOverride: { exhaustedPassCount: 0, nextPass: 1 } } };
   expect(await h.run(true, lanes)).toMatchObject({ locus: "candidate-publish-ready" });
+  const recorded = await createReviewDecisionPort(h.store, owner).list();
+  if (recorded.status !== "complete") throw new Error(recorded.reason);
+  expect(recorded.records).toEqual(expect.arrayContaining([expect.objectContaining({ value: expect.objectContaining({
+    choice: { kind: "extra-pass", passCount: 0, precondition: { kind: "ceiling", targetBinding: { kind: "call-target" } } },
+  }) })]));
   const snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
   const ready = snapshot.boundary;
   if (ready?.schemaVersion !== 2 || ready.candidateSubjectDigest === null) throw new Error("Expected native readiness");
@@ -648,6 +653,126 @@ async function deliveryCommand(h: Awaited<ReturnType<typeof fixture>>, owner: Ow
 }
 
 const remedyToken = (output: unknown) => (output as { remedy: { argv: string[] } }).remedy.argv[5] ?? "";
+
+async function savePendingReplay(h: Awaited<ReturnType<typeof fixture>>, owner: OwnerIdentity, token: string) {
+  const replay = decodePrePublicationReplayV2(token);
+  if (replay.candidateId === undefined || replay.candidateSubjectDigest === undefined) throw new Error("Expected Candidate binding");
+  const snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  await writeSubmissionBoundary(h.cwd, projectCandidateReviewResumeBoundary({ workUnit: "example",
+    candidateId: replay.candidateId, candidateSubjectDigest: replay.candidateSubjectDigest, reservation: null, terminus: null,
+    postAttestContinuation: { reviewedHead: "a".repeat(40), nextAction: { kind: "continue-pre-publication-review",
+      command: `arc review pre-publication example --resume ${token}`, interactionText: "Resume review." } } }, 2),
+  snapshot.version, { store: h.store, owner });
+}
+
+it.each(["count", "absent", "withdrawn", "head", "digest", "reference"] as const)(
+  "refuses a stripped saved grant whose recorded authority has a different %s", async fault => {
+    const h = await fixture(), owner = await h.seedCandidate();
+    const lanes = { frontline: { scopeMode: "whole-target" as const, invocation: { mode: "skip" as const } },
+      standard: { terminus: { mode: "owner-accepted" as const }, ceilingOverride: { exhaustedPassCount: 0, nextPass: 1 } } };
+    expect(await h.run(true, lanes)).toMatchObject({ locus: "candidate-publish-ready" });
+    const snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+    if (snapshot.boundary?.candidateSubjectDigest === null || snapshot.boundary === null) throw new Error("Expected Candidate");
+    await savePendingReplay(h, owner, encodePrePublicationReplayV2({ candidateId: snapshot.boundary.candidateId,
+      candidateSubjectDigest: snapshot.boundary.candidateSubjectDigest, selfReview: "settled", lanes: { frontline: lanes.frontline } }));
+    const port = createReviewDecisionPort(h.store, owner), listing = await port.list();
+    if (listing.status !== "complete") throw new Error(listing.reason);
+    const grant = listing.records.find(({ value }) => value.choice.kind === "extra-pass");
+    if (grant === undefined) throw new Error("Expected stored ordinary grant");
+    if (fault === "withdrawn") await port.create({ schemaVersion: 1, subject: grant.value.subject, lane: "standard",
+      choice: { kind: "withdrawal", decisionKey: reviewDecisionKey(grant.value) }, decidedBy: "test-user",
+      decidedAt: "2027-01-01T00:00:00Z", basis: null });
+    if (fault === "head" || fault === "digest") await port.create({ ...grant.value, subject: { ...grant.value.subject,
+      ...(fault === "head" ? { headSha: "9".repeat(40) } : { subjectDigest: canonicalDigest({ other: "subject" }) }) },
+      decidedAt: "2027-01-01T00:00:00Z" });
+    const list = h.store.list.bind(h.store);
+    if (fault === "absent") h.store.list = async input => {
+      const result = await list(input);
+      if (input.kind !== "review/decision" || result.status !== "ok" || result.result.status !== "complete") return result;
+      return { status: "ok", result: { ...result.result,
+        records: result.result.records.filter(record => record.reference.key !== grant.reference.key) } };
+    };
+    const supplied = { ...lanes, standard: { ...lanes.standard, ceilingOverride: fault === "count"
+      ? { exhaustedPassCount: 1, nextPass: 2 } : { ...lanes.standard.ceilingOverride,
+        ...(fault === "reference" ? { decisionKey: canonicalDigest({ missing: "grant" }) } : {}) } } };
+    const version = await h.store.version();
+    const boundary = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+    expect(await h.run(true, supplied)).toMatchObject({ error: { code: "post-attest-judgment-mismatch" } });
+    expect(await h.store.version()).toEqual(version);
+    expect(await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).toEqual(boundary);
+    h.store.list = list;
+  });
+
+it.each(["grant", "empty"] as const)("resumes the exact imported saved token with a %s lane and reuses its authority", async mode => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const { compose, listDecisions } = await deliveryCommand(h, owner, () => [first, second]);
+  const refused = await h.run(true, { frontline: { scopeMode: "chunked" },
+    standard: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } } }, undefined, { compose });
+  const replay = decodePrePublicationReplayV2(remedyToken(refused));
+  const token = mode === "grant" ? remedyToken(refused) : encodePrePublicationReplayV2({ ...replay,
+    lanes: { ...replay.lanes, standard: {} } });
+  await savePendingReplay(h, owner, token);
+  expect(await listDecisions()).toEqual([]);
+  const result = await h.run(false, {}, token, { compose });
+  expect(result, JSON.stringify(result)).not.toHaveProperty("error");
+  const decisions = await listDecisions();
+  expect(decisions).toHaveLength(mode === "grant" ? 1 : 0);
+  if (mode === "grant") expect(decisions).toMatchObject([{ subject: { headSha: second.target.headSha },
+    choice: { kind: "extra-pass", precondition: { kind: "ceiling" } } }]);
+  else {
+    const command = (result as { nextAction: { command: string } }).nextAction.command;
+    expect(decodePrePublicationReplayV2(command.split(" --resume ")[1] ?? "")).toMatchObject({ scopeJudgmentTarget: first.target });
+  }
+  expect(await h.run(false, {}, token, { compose })).not.toHaveProperty("error");
+  expect(await listDecisions()).toEqual(decisions);
+  expect(await h.run(false, {}, undefined, { compose })).not.toHaveProperty("error");
+  expect(await listDecisions()).toEqual(decisions);
+});
+
+it.each(["count", "producer", "head", "added", "scope"] as const)("refuses changed explicit saved %s judgment before effects", async fault => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const { compose, listDecisions } = await deliveryCommand(h, owner, () => [first, second]);
+  const additional = { headSha: second.target.headSha, precedingProducerId: "previous", completedPasses: 2, nextPass: 3 };
+  const refused = await h.run(true, { frontline: { scopeMode: "chunked" }, standard: fault === "producer" || fault === "head"
+    ? { additionalPassAuthorization: additional } : { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } } }, undefined, { compose });
+  const replay = decodePrePublicationReplayV2(remedyToken(refused));
+  const saved = fault === "added" ? { ...replay, lanes: { ...replay.lanes, standard: { scopeMode: "whole-target" as const } } } : replay;
+  await savePendingReplay(h, owner, encodePrePublicationReplayV2(saved));
+  const changed = fault === "scope" ? { ...saved, scopeJudgmentTarget: second.target }
+    : { ...saved, lanes: { ...saved.lanes, standard: fault === "producer" || fault === "head"
+      ? { additionalPassAuthorization: { ...additional,
+        ...(fault === "producer" ? { precedingProducerId: "another-producer" } : { headSha: "6".repeat(40) }) } }
+      : { ...saved.lanes?.standard, ceilingOverride: { exhaustedPassCount: fault === "count" ? 3 : 2,
+        nextPass: fault === "count" ? 4 : 3 } } } };
+  const version = await h.store.version();
+  const boundary = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  expect(await h.run(false, {}, encodePrePublicationReplayV2(changed), { compose }))
+    .toMatchObject({ error: { code: "post-attest-judgment-mismatch" } });
+  expect(await h.store.version()).toEqual(version);
+  expect(await listDecisions()).toEqual([]);
+  expect(await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).toEqual(boundary);
+  expect(await h.run(false, {}, encodePrePublicationReplayV2(saved), { compose })).not.toHaveProperty("error");
+});
+
+it("refuses a stale saved scope on plain entry without replacing its deferred inputs and resumes after repair", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  let members = [first, second];
+  const { compose, listDecisions } = await deliveryCommand(h, owner, () => members);
+  const refused = await h.run(true, { frontline: { scopeMode: "chunked" },
+    standard: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } } }, undefined, { compose });
+  await savePendingReplay(h, owner, remedyToken(refused));
+  members = [deliveryMember(DELIVERY_REPOSITORY, "1", "2", "6"), second];
+  const version = await h.store.version();
+  const boundary = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  expect(await h.run(false, {}, undefined, { compose })).toMatchObject({ error: { code: "invalid-input",
+    message: "The saved scope judgment no longer matches the current exact review target." } });
+  expect(await h.store.version()).toEqual(version);
+  expect(await listDecisions()).toEqual([]);
+  expect(await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).toEqual(boundary);
+  members = [first, second];
+  expect(await h.run(false, {}, undefined, { compose })).toMatchObject({ locus: "candidate-publish-ready" });
+  expect(await listDecisions()).toHaveLength(1);
+});
 
 it("follows a delivery plan's scope remedy to readiness when its re-entry selects another member", async () => {
   const h = await fixture(), owner = await h.seedCandidate();

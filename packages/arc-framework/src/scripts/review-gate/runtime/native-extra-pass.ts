@@ -9,6 +9,7 @@ import type { ReviewLaneJudgment } from "../policy/review-policy-driver.js";
 import { requestedExtraPasses, refuseExtraPass, type ExtraPassChoice, type RequestedExtraPass } from "./native-extra-pass-input.js";
 import type { ReviewPolicyRequest, ReviewCeilingOverride, ReviewAdditionalPassAuthorization } from "../policy/review-policy-driver.js";
 import type { NativeReviewFactPorts } from "../core/ports.js";
+import { canonicalize } from "../../../lib/kernel/index.js";
 
 export interface NativeExtraPassInput {
   facts: Pick<NativeReviewFactPorts, "decisions" | "readProjectId">;
@@ -59,6 +60,29 @@ export async function resolveNativeExtraPassJudgment(input: NativeExtraPassInput
 /** Require each supplied ordinary decision reference to name the live grant of its kind within this invocation's reach. */
 export async function validateNativeExtraPassReferences(input: NativeExtraPassInput): Promise<void> {
   await validateExtraPassReferences(input, await readExtraPassDecisions(input), requestedExtraPasses(input));
+}
+
+/** Compare replayed ordinary inputs with exact existing live authority without recording or renewing a grant. */
+export async function recordedNativeExtraPassJudgmentMatches(input: NativeExtraPassInput): Promise<boolean> {
+  const decisions = await readExtraPassDecisions(input);
+  let requests: RequestedExtraPass[];
+  try { requests = requestedExtraPasses(input); }
+  catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "invalid-input") return false;
+    throw error;
+  }
+  const live = liveExtraPasses(decisions, input);
+  return requests.length > 0 && requests.every(request => live.some(value =>
+    canonicalize(value.subject) === canonicalize(input.subject)
+    && value.choice.kind === "extra-pass" && ordinaryChoiceMatches(value.choice, request.choice)
+    && (request.decisionKey === undefined || request.decisionKey === reviewDecisionKey(value))));
+}
+
+function ordinaryChoiceMatches(left: ExtraPassChoice, right: ExtraPassChoice): boolean {
+  if (left.precondition.kind === "approved-fix" || right.precondition.kind === "approved-fix"
+    || left.passCount !== right.passCount || left.precondition.kind !== right.precondition.kind) return false;
+  return right.precondition.kind !== "additional" || left.precondition.kind === "additional"
+    && left.precondition.precedingProducerId === right.precondition.precedingProducerId;
 }
 
 async function readExtraPassDecisions(input: NativeExtraPassInput): Promise<ReviewDecision[]> {
