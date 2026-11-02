@@ -3,14 +3,20 @@
   "slug": "content-tier-shards",
   "claimId": "b643ce8ef0bddac9f63d8d86503fbd1c",
   "createdAt": "2026-11-02T21:41:27.470Z",
-  "updatedAt": "2026-11-02T21:41:27.470Z",
+  "updatedAt": "2026-11-02T22:27:11.569Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Shard the integration content tier across the runner pool like test:integration",
   "branch": "chore/content-tier-shards",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/content-tier-shards",
+    "headSha": "4bffd5daa7f5f054f09014361a2690506c9c792d"
+  }
 }
