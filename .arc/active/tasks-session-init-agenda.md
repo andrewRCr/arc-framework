@@ -186,50 +186,22 @@ _Mode:_ `slice` through Phase 3 — closes on a plain resume driven end to end b
   earlier declines and followed methods. Prefix channels prune recorded decisions before combining or constructing
   steps; shared sync state reports unsettled accepts/runs and supplies per-action unsynced facts to orientation.
 
-### `[ ]` **2.3 Compile a resume's reads and session-notes fields — § 4.3, § 4.9, § 5.1, § 5.6**
+### `[x]` **2.3 Compile a resume's reads and session-notes fields — § 4.3, § 4.9, § 5.1, § 5.6**
 
 - _Goal:_ A resume reads the universal set and the rest of its load set in manifest order, in groups under the
   per-group budget, emitting only files that exist and carrying the task cursor, with the Session Type override and
   the freshness note decided by the compiler from SESSION-NOTES itself.
 
-    - `[ ]` **2.3.a Compile the reads**
-        - Universal reads in `resolveLoadSetManifest`'s order, `AGENT-BRIEF.CONTRIBUTOR` for the `contributor` role, and
-          WORKING-MEMORY after the meta and SESSION-NOTES on a resume; existence and size come from the read port
-        - The per-group budget is a constant in the compiler, not a configuration key
-        - Build `test-first` (one behavior at a time):
-            - the resume's reads follow the manifest: meta, SESSION-NOTES, WORKING-MEMORY, the workflow, and on task
-              work the task list before `process-task-loop`, then the cohort document
-            - groups keep each group's estimated size under the budget and never decrease; a read larger than the
-              budget forms its own group
-            - the task-list read is skipped in planning and when `taskCursor` is `missing` or `no-open-task`, and
-              carries `cursor` when `found`
-            - a malformed cursor or failed cursor probe skips the read with a `task-cursor` note
-            - a null workflow on a selected role is a mismatch `note`
-            - an absent expected file becomes a `missing-file` note; an absent WORKING-MEMORY emits nothing
-            - an absent SESSION-NOTES the notes channel cannot restore becomes a `notes-history` render of the
-              CLI-run `git log --oneline -10`
+    - `[x]` **2.3.a Compile the reads**
+        - Added manifest-order reads with a fixed 48 KiB group budget and isolated oversized documents. Reads retain
+          strategic cursor authority and contributor context; missing files, unavailable cursors, absent notes and
+          unresolved workflows produce the specified diagnostics or history while absent working memory stays quiet.
 
-    - `[ ]` **2.3.b Read the session-notes fields**
-        - `extractField` (`lib/store/kinds/meta/line-reading.ts`) over `stripHtmlComments` (`lib/user-sync/parser.ts`)
-          output, `[none]` read as absent and inline code removed by `stripInlineCode`, matching what
-          `foldImportSession` reads
-        - The override recomposes through `resolveLoadSetManifest` from the context's paths, `workingMemoryPath` from
-          the existing load set's identity-global entry, `resolvePlanningStage` over the meta's `Current Workflow`,
-          and the execution stage `projectWorkUnitStage` (`lib/locus/subject-meta.ts`) derives, exported or with its
-          execution branch inlined
-        - Freshness reads go through the read port: resolving the abbreviated hash to a commit, the commits since it,
-          and whether the meta changed in that range
-        - _Note:_ See `notes-session-init-agenda.md` § Carried context — the flip's field reader.
-        - Build `test-first` (one behavior at a time):
-            - a `planning` or `execution` override on a `planning` or `execution` session recomposes the load set, so
-              the reads match it
-            - an override of `prepublication` or `integration`, or over one, is ignored with a
-              `session-type-override` warning note
-            - an abbreviated hash that resolves to HEAD emits nothing
-            - a differing hash emits one `freshness-gap` note with the commits since it and whether the meta changed
-            - an absent hash emits the note saying there is no handoff baseline
-            - a hash that no longer resolves emits the note saying the baseline is unreachable, never an error
-            - the fields are read after any pull, from the recompiled state
+    - `[x]` **2.3.b Read the session-notes fields**
+        - Added semantic session-field decoding through the storage owner using the shared field grammar. Valid
+          overrides reproject the manifest and stages while retaining the global memory path; reserved/invalid
+          overrides warn. Freshness resolves abbreviated commits and reports history/meta changes, absent baselines
+          and unreachable baselines from current reads.
 
 ### `[ ]` **2.4 Compile the core orientation and auto-proceed — § 2.3, § 4.10, § 5.1, § 6.2**
 
