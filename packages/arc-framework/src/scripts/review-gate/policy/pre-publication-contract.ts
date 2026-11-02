@@ -78,6 +78,24 @@ export type OwnerTerminusAuthorityRead =
   | { status: "authorized"; ownerIdentity: string }
   | { status: "refused"; reason: string };
 
+/** Exact selected context shared by grant comparison and ordinary composition. */
+export interface PrePublicationGrantContext {
+  repositoryId?: string;
+  subject: { lineage: LaneSubjectLineage; headSha: string; subjectDigest: CanonicalDigest | null };
+  policyTarget: ReviewPolicyTarget;
+  lane: ReviewLane;
+  completedPasses: number;
+  judgment?: ReviewLaneJudgment;
+}
+
+/** Ephemeral comparisons for explicit grants removed from a native saved continuation. */
+export interface PrePublicationSavedGrantChecks {
+  candidateId: CanonicalDigest;
+  subjectDigest: CanonicalDigest;
+  rootHeadSha: string;
+  checks: readonly { lane: ReviewLane; judgment: ReviewLaneJudgment }[];
+}
+
 /** Repository reads the composition needs, each owned by its production binder. */
 export interface PrePublicationCompositionDependencies {
   /** Selected backend context; this is absent from caller-owned lane judgments. */
@@ -101,10 +119,8 @@ export interface PrePublicationCompositionDependencies {
     carriedBoundary?: PublishedIntegrationBoundaryLocus;
     subject: { lineage: LaneSubjectLineage; headSha: string; subjectDigest: CanonicalDigest | null };
   }): Promise<NativeOwnerAcceptedReviewTerminus | undefined>;
-  resolveExtraPassJudgment?(input: {
-    repositoryId?: string; subject: { lineage: LaneSubjectLineage; headSha: string; subjectDigest: CanonicalDigest | null };
-    policyTarget: ReviewPolicyTarget; lane: ReviewLane; completedPasses: number; judgment?: ReviewLaneJudgment;
-  }): Promise<ReviewLaneJudgment | undefined>;
+  resolveExtraPassJudgment?(input: PrePublicationGrantContext): Promise<ReviewLaneJudgment | undefined>;
+  recordedGrantMatches?(input: PrePublicationGrantContext): Promise<boolean>;
   readLaneProgress(
     lane: ReviewLane,
     headSha: string,
@@ -158,6 +174,8 @@ export interface PrePublicationCompositionInput {
   frontlineCeilingHeadSha?: string;
   /** Saved target that must remain among the examined members before call grants bind. */
   scopeJudgmentTarget?: ReviewTarget;
+  /** Internal handler checks; never serialized into call-input continuations. */
+  savedGrantChecks?: PrePublicationSavedGrantChecks;
 }
 
 export type PrePublicationComposition =
@@ -175,6 +193,9 @@ export type PrePublicationComposition =
   | {
     status: "refused";
     reason: string;
+    /** Explicit native inputs failed read-only comparison before either lane recorded grants. */
+    savedJudgmentMismatch?: true;
+    savedScopeMismatch?: true;
     code?: Extract<ReviewPrePublicationRefusalCode, "candidate-unexplained-delta" | "scope-judgment-required">;
     scopeMismatch?: {
       lane: ReviewLane;

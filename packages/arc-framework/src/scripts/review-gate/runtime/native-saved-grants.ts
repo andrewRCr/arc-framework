@@ -1,31 +1,21 @@
-/** Verify old singleton call inputs against the selected owner's exact stored authority without writes. */
-import type { CanonicalDigest } from "../../../lib/kernel/index.js";
-import { readLaneProgress } from "../lane-progress.js";
-import { ReviewLaneJudgmentSchema } from "../policy/review-policy-driver.js";
-import { createReviewCompositionContext } from "./composition-context.js";
+/** Compare replayed grants against the selected subject's prepared progress without recording authority. */
+import { canonicalize } from "../../../lib/kernel/index.js";
+import type { NativeReviewFactPorts } from "../core/ports.js";
+import type { PrePublicationGrantContext } from "../policy/pre-publication-contract.js";
+import type { ConfirmResponseHeadContinuation } from "../core/response-head-continuation.js";
+import { readNativeApprovedFixPassJudgment } from "./native-frontline-window.js";
 import { recordedNativeExtraPassJudgmentMatches } from "./native-extra-pass.js";
-import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
-import { createPrePublicationCompositionDependencies } from "../policy/pre-publication-composition.js";
 
-/** Match only exact singleton authority; an unbound delivery subject cannot be inferred from a Candidate. */
-export async function nativeSavedCandidateGrantMatches(invocation: ReviewInvocationInput, input: {
-  workUnit: string; candidateId: CanonicalDigest; subjectDigest: CanonicalDigest; headSha: string;
-  lane: "frontline" | "standard"; judgment: unknown;
-}): Promise<boolean> {
-  const bound = { ...invocation, ...resolveReviewInvocation(invocation) };
-  const { family } = createReviewCompositionContext(bound);
-  const store = family.ports.inFlight;
-  if (store.nativeFacts === undefined) return false;
-  const composition = createPrePublicationCompositionDependencies(bound);
-  if ((await composition.readDeliveryReviewTargets(input.workUnit)).status !== "absent") return false;
-  const target = await composition.resolveTarget(input.headSha);
-  if (target.status !== "resolved") return false;
-  const repositoryId = await bound.projectId();
-  const lineage = { kind: "candidate" as const, candidateId: input.candidateId };
-  const progress = await readLaneProgress(store, { lane: input.lane, repositoryId, lineage, headSha: input.headSha });
-  return recordedNativeExtraPassJudgmentMatches({ facts: store.nativeFacts, repositoryId, lane: input.lane,
-    subject: { lineage, headSha: input.headSha, subjectDigest: input.subjectDigest },
-    completedPasses: progress.status === "recorded" ? progress.completedPasses : 0,
-    policyTarget: target.target,
-    judgment: ReviewLaneJudgmentSchema.parse(input.judgment) });
+/** Use the existing ordinary and approved-fix readers with the same context as the selected lane. */
+export async function nativeSavedGrantMatches(facts: NativeReviewFactPorts, context: PrePublicationGrantContext,
+  confirmResponseHeadContinuation: ConfirmResponseHeadContinuation): Promise<boolean> {
+  const repositoryId = context.repositoryId ?? await facts.readProjectId();
+  const supplied = context.judgment?.ceilingOverride;
+  if (supplied?.conditionalPassAuthorizationId === undefined) {
+    return recordedNativeExtraPassJudgmentMatches({ ...context, facts, repositoryId });
+  }
+  const conditional = await readNativeApprovedFixPassJudgment(facts, { repositoryId, lane: context.lane,
+    lineage: context.subject.lineage, headSha: context.policyTarget.headSha, passCount: context.completedPasses,
+    confirmResponseHeadContinuation });
+  return conditional !== undefined && canonicalize(conditional) === canonicalize(supplied);
 }

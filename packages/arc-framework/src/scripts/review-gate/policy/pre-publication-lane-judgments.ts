@@ -7,7 +7,20 @@ import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { LaneProgressProjection } from "../lane-progress.js";
 import type { ReviewLaneJudgment, ReviewPolicyCommandRequest, ReviewPolicyBoundRequest } from "./review-policy-driver.js";
-import type { CandidateRead, PrePublicationCompositionDependencies, ReviewLane, ReviewPolicyTarget } from "./pre-publication-contract.js";
+import type { CandidateRead, PrePublicationCompositionDependencies, PrePublicationGrantContext, ReviewLane, ReviewPolicyTarget } from "./pre-publication-contract.js";
+
+/** Derive the exact grant subject and effective count from the lane's prepared repository facts. */
+export function prePublicationGrantContext(input: {
+  candidate: Extract<CandidateRead, { status: "current" }>; lane: ReviewLane; lineage?: LaneSubjectLineage;
+  policyTarget: ReviewPolicyTarget; exactTarget: ReviewTarget | null; progress: LaneProgressProjection;
+}): PrePublicationGrantContext {
+  const { candidate, lane, policyTarget, exactTarget, progress } = input;
+  const lineage = input.lineage ?? { kind: "candidate" as const, candidateId: candidate.candidateId };
+  return { repositoryId: exactTarget?.repositoryId, lane, policyTarget,
+    completedPasses: progress.status === "recorded" ? progress.completedPasses : 0,
+    subject: { lineage, headSha: policyTarget.headSha,
+      subjectDigest: lineage.kind === "candidate" ? candidate.subjectDigest : exactTarget?.targetId ?? null } };
+}
 
 /** Bind native grants to their actual Candidate subject or review target without changing caller routing inputs. */
 export async function composePrePublicationLaneJudgment(input: {
@@ -19,16 +32,13 @@ export async function composePrePublicationLaneJudgment(input: {
   invocation: ReviewLaneJudgment["invocation"]; frontlinePhaseClosed?: true; terminus?: NativeOwnerAcceptedReviewTerminus;
   extraPassAuthority: Pick<ReviewPolicyCommandRequest, "ceilingOverride" | "additionalPassAuthorization">;
 }> {
-  const { candidate, lane, lineage, policyTarget, exactTarget, progress, dependencies } = input;
-  const completedPasses = progress.status === "recorded" ? progress.completedPasses : 0;
-  const currentLineage = lineage ?? { kind: "candidate" as const, candidateId: candidate.candidateId };
-  const subject = { lineage: currentLineage, headSha: policyTarget.headSha,
-    subjectDigest: currentLineage.kind === "candidate" ? candidate.subjectDigest : exactTarget?.targetId ?? null };
+  const { candidate, lane, lineage, policyTarget, dependencies } = input;
+  const context = prePublicationGrantContext(input);
+  const { completedPasses, subject } = context;
+  const currentLineage = subject.lineage;
   const terminus = lane === "standard" ? await resolveLaneTerminus(candidate, subject, dependencies) : undefined;
   const judgment = dependencies.resolveExtraPassJudgment === undefined ? input.judgment
-    : await dependencies.resolveExtraPassJudgment({ repositoryId: exactTarget?.repositoryId,
-      subject,
-      policyTarget, lane, completedPasses, judgment: input.judgment });
+    : await dependencies.resolveExtraPassJudgment({ ...context, judgment: input.judgment });
   const closed = lane === "frontline" && lineage?.kind === "candidate"
     && dependencies.readSingletonFrontlinePhaseClosed !== undefined
     && await dependencies.readSingletonFrontlinePhaseClosed(lineage.candidateId, candidate.supersessionAncestors ?? [], policyTarget.headSha);

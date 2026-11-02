@@ -9,7 +9,7 @@ import type { ReviewResult } from "../../../src/scripts/review-gate/core/review-
 import type { LaneProgressProjection } from "../../../src/scripts/review-gate/lane-progress.js";
 import type { PreBindingDeliveryReviewTarget } from "../../../src/scripts/review-gate/policy/pre-publication-delivery-targets.js";
 import type { PrePublicationCompositionDependencies, ReviewLane } from "../../../src/scripts/review-gate/policy/pre-publication-request.js";
-import { resolveNativeExtraPassJudgment } from "../../../src/scripts/review-gate/runtime/native-extra-pass.js";
+import { recordedNativeExtraPassJudgmentMatches, resolveNativeExtraPassJudgment } from "../../../src/scripts/review-gate/runtime/native-extra-pass.js";
 import { resolveNativeReviewTerminus } from "../../../src/scripts/review-gate/runtime/native-terminus.js";
 import { prepareNativeReviewTerminus } from "../../../src/scripts/review-gate/runtime/native-terminus-write.js";
 
@@ -83,6 +83,8 @@ export function nativeDeliveryCompositionDependencies(input: {
       : { status: "recorded", completedPasses: 2, completePasses: 2, attempts: [] },
     readLanePolicy: async (lane: ReviewLane) => lane === "frontline"
       ? { sources: ["coderabbit-cli"], maxPasses: 2 } : { sources: ["codex-pr"], maxPasses: 2 },
+    recordedGrantMatches: context => recordedNativeExtraPassJudgmentMatches({ ...context, facts,
+      repositoryId: context.repositoryId ?? repository }),
     resolveExtraPassJudgment: async context => (await resolveNativeExtraPassJudgment({ ...context, facts,
       repositoryId: context.repositoryId ?? repository, actor: input.actor, now: input.now })).judgment,
     resolveNativeTerminus: async context => resolveNativeReviewTerminus({ facts, ...context }),

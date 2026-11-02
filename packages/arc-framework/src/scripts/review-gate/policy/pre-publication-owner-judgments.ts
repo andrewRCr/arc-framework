@@ -8,6 +8,7 @@ import { readNativeApprovedFixPassJudgment } from "../runtime/native-frontline-w
 import { createCandidateResponseHeadContinuationReader } from "../runtime/candidate-response-head-continuation.js";
 import { createReviewCompositionContext } from "../runtime/composition-context.js";
 import { resolveNativeInvocationExtraPassJudgment } from "../runtime/native-extra-pass.js";
+import { nativeSavedGrantMatches } from "../runtime/native-saved-grants.js";
 import { prepareNativeReviewTerminus, type PreparedNativeReviewTerminus } from "../runtime/native-terminus-write.js";
 import { resolveNativeReviewTerminus } from "../runtime/native-terminus.js";
 import type { ReviewLaneJudgment, ReviewPolicyBoundRequest } from "./review-policy-driver.js";
@@ -16,7 +17,7 @@ import type { OwnerTerminusAuthorityRead, ReviewLane, PrePublicationCompositionD
 
 /** Preserve Owner-only terminus authorization while recording ordinary judgments under the active identity. */
 export function createPrePublicationOwnerJudgments(input: ReviewInvocationInput, store: ReviewInFlightPort):
-  Pick<PrePublicationCompositionDependencies, "readOwnerTerminusAuthority" | "resolveExtraPassJudgment" | "resolveNativeTerminus" | "prepareNativeTerminusDecision"> {
+  Pick<PrePublicationCompositionDependencies, "readOwnerTerminusAuthority" | "resolveExtraPassJudgment" | "recordedGrantMatches" | "resolveNativeTerminus" | "prepareNativeTerminusDecision"> {
   return { readOwnerTerminusAuthority: async workUnit => {
     const name = SlugSchema.parse(workUnit);
     let live: Awaited<ReturnType<typeof readLocalReviewLiveContext>>;
@@ -36,6 +37,12 @@ export function createPrePublicationOwnerJudgments(input: ReviewInvocationInput,
     }
     return { status: "authorized", ownerIdentity: live.context.workUnit.owner };
   }, ...(input.store?.capabilities.stateOffBranch !== true ? {} : {
+    recordedGrantMatches: async context => {
+      const facts = store.nativeFacts;
+      if (facts === undefined) throw new Error("Resolve the selected native review facts before comparing extra-pass judgments.");
+      return nativeSavedGrantMatches(facts, context, createCandidateResponseHeadContinuationReader({
+        ...input, operationStore: store, dispositionStore: createReviewCompositionContext(input).family.ports.dispositions }));
+    },
     prepareNativeTerminusDecision: async context => {
       const facts = store.nativeFacts;
       if (facts === undefined) throw new Error("Resolve the selected native review facts before recording its terminus.");

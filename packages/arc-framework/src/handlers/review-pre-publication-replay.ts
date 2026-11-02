@@ -1,5 +1,8 @@
 /** Select pre-publication replay codecs and preserve only the selected backend's call inputs. */
+import { spineRemedy } from "../scripts/integration/spine-refusal.js";
+import { ReviewCommandErrorEnvelopeSchema } from "../scripts/review-gate/core/review-command-envelope.js";
 import { canonicalize, type CanonicalDigest } from "../lib/kernel/index.js";
+import type { PrePublicationSavedGrantChecks, PrePublicationCompositionInput } from "../scripts/review-gate/policy/pre-publication-contract.js";
 import type { ReviewTarget } from "../scripts/review-gate/core/gate-contract-v2-schema.js";
 import { PrePublicationLaneJudgmentsSchema, consumeFrontlineCeilingOverride } from "../scripts/review-gate/policy/pre-publication-request.js";
 import { decodePrePublicationReplay, encodePrePublicationReplay, type PrePublicationReplayInput,
@@ -12,6 +15,8 @@ export interface ReviewPrePublicationJudgment {
   lanes: unknown;
   frontlineCeilingHeadSha: string | undefined;
   scopeJudgmentTarget?: ReviewTarget;
+  /** Internal read-only checks, excluded from every persisted replay projection. */
+  savedGrantChecks?: PrePublicationSavedGrantChecks;
 }
 
 interface CallInput {
@@ -138,6 +143,31 @@ export async function prePublicationJudgmentMatchesSaved(caller: ReviewPrePublic
   return true;
 }
 
+/** Defer stripped-grant comparison until composition has selected its exact subject and progress. */
+export async function prepareSavedPrePublicationJudgment(caller: ReviewPrePublicationJudgment,
+  saved: PrePublicationReplayInput, schemaVersion: 1 | 2, judgment: ReviewPrePublicationJudgment,
+  binding: Omit<PrePublicationSavedGrantChecks, "checks">): Promise<ReviewPrePublicationJudgment | null> {
+  const checks: PrePublicationSavedGrantChecks["checks"][number][] = [];
+  const matches = await prePublicationJudgmentMatchesSaved(caller, saved, schemaVersion, (lane, grant) => {
+    const parsed = PrePublicationLaneJudgmentsSchema.parse({ [lane]: grant })[lane];
+    if (parsed === undefined) return Promise.resolve(false);
+    checks.push({ lane, judgment: parsed });
+    return Promise.resolve(true);
+  });
+  return !matches ? null : checks.length === 0 ? judgment : { ...judgment, savedGrantChecks: { ...binding, checks } };
+}
+
+/** Project only composition inputs; internal checks never enter a replay token. */
+export function prePublicationCompositionInput(workUnit: string, judgment: ReviewPrePublicationJudgment): PrePublicationCompositionInput {
+  return { workUnit,
+    ...(judgment.scopeJudgmentTarget === undefined ? {} : { scopeJudgmentTarget: judgment.scopeJudgmentTarget }),
+    ...(judgment.selfReview === undefined ? {} : { selfReview: judgment.selfReview }),
+    ...(judgment.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
+    ...(judgment.lanes === undefined ? {} : { lanes: judgment.lanes }),
+    ...(judgment.frontlineCeilingHeadSha === undefined ? {} : { frontlineCeilingHeadSha: judgment.frontlineCeilingHeadSha }),
+    ...(judgment.savedGrantChecks === undefined ? {} : { savedGrantChecks: judgment.savedGrantChecks }) };
+}
+
 /**
  * Emit an exact continuation, retaining decisions only in the repository replay contract. A native continuation keeps
  * the call's ceiling-override and additional-pass grants only when `retainGrants` says no subject has recorded them.
@@ -170,4 +200,20 @@ export function buildPrePublicationResumeCommand(input: {
     ...(replayLanes === undefined ? {} : { lanes: replayLanes }),
     ...(replayFrontlineCeilingHeadSha === undefined ? {} : { frontlineCeilingHeadSha: replayFrontlineCeilingHeadSha }) }, 1);
   return `arc review pre-publication ${input.workUnit} --resume ${resume}`;
+}
+
+/** Preserve the saved command as the remedy when explicit post-attestation judgment differs. */
+export function postAttestJudgmentMismatch(command: string): ReturnType<typeof ReviewCommandErrorEnvelopeSchema.parse> {
+  const message = "The explicit Owner judgment differs from the pending post-attest continuation for this Candidate and head.";
+  return ReviewCommandErrorEnvelopeSchema.parse({
+    schemaVersion: 1,
+    mode: "review-pre-publication",
+    diagnostics: [{ code: "post-attest-judgment-mismatch", message }],
+    error: { code: "post-attest-judgment-mismatch", message },
+    remedy: spineRemedy(
+      "The pending continuation retains the recorded Owner judgment.",
+      "Run the saved resume command",
+      command.split(" "),
+    ),
+  });
 }

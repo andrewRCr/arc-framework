@@ -24,7 +24,7 @@ import { resolveReduceInvocation } from "../scripts/review-gate/runtime/reduce-i
 import { resolveFrontlineRunInvocation } from "../scripts/review-gate/runtime/frontline-invocation.js";
 import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
 import { readReviewLane } from "../scripts/review-gate/runtime/lane-read-composition.js";
-import { buildPrePublicationResumeCommand, readPrePublicationCall, scopeJudgmentTargetExamined, prePublicationJudgmentMatchesSaved,
+import { buildPrePublicationResumeCommand, readPrePublicationCall, scopeJudgmentTargetExamined, prepareSavedPrePublicationJudgment, prePublicationCompositionInput, postAttestJudgmentMismatch,
   type ReviewPrePublicationJudgment } from "./review-pre-publication-replay.js";
 import { reviewDiscoverableCommandInputSchema } from "./review-request-schema.js";
 import { confirmReviewCorrectionLeg } from "../scripts/review-gate/policy/review-next-pass.js";
@@ -33,7 +33,6 @@ import { readResolveNextPassContext, readHostedErrandNextPassContext } from "./r
 import { createNativeMemberTerminusBindings } from "../scripts/review-gate/runtime/native-member-terminus.js";
 import { persistNativeTerminusBoundary, persistNativeTerminusDecision } from "../scripts/review-gate/runtime/native-terminus-persistence.js";
 import { composeNativePolicyGrants } from "../scripts/review-gate/runtime/native-policy-grants.js";
-import { nativeSavedCandidateGrantMatches } from "../scripts/review-gate/runtime/native-saved-grants.js";
 import { resolveEvidenceBoundReviewPolicyContinuation } from "../scripts/review-gate/policy/review-policy-evidence.js";
 import type { ApprovedDispositionRecordReader, ReviewOperationStateStore, ReviewFactPut } from "../scripts/review-gate/core/ports.js";
 import type { EvidenceBoundReviewPolicyDependencies } from "../scripts/review-gate/policy/review-policy-evidence.js";
@@ -4239,7 +4238,6 @@ export interface ReviewPrePublicationHandlerDependencies extends PrePublicationP
   readRootGitHead(root: string): Promise<string>;
   readCandidate(root: string, workUnit: string): Promise<CandidateRead>;
   readBoundary(root: string, workUnit: string): Promise<VersionedSubmissionBoundary>;
-  savedCandidateGrantMatches(root: string, input: Parameters<typeof nativeSavedCandidateGrantMatches>[1]): Promise<boolean>;
   compose(
     root: string,
     input: z.infer<typeof ReviewPrePublicationInputSchema>,
@@ -4331,10 +4329,9 @@ function acceptedSingletonFrontlineSkip(
 }
 
 function prePublicationReviewAccess(exec: GitExec, invocationFor: (root: string) => ReviewInvocationContext): Pick<
-  ReviewPrePublicationHandlerDependencies, "readStandardLaneOwnerVersion" | "readReadinessBinding" | "withStandardLaneLock" | "savedCandidateGrantMatches"
+  ReviewPrePublicationHandlerDependencies, "readStandardLaneOwnerVersion" | "readReadinessBinding" | "withStandardLaneLock"
 > {
   return {
-    savedCandidateGrantMatches: (root, input) => nativeSavedCandidateGrantMatches({ ...invocationFor(root), cwd: root, exec }, input),
     readStandardLaneOwnerVersion: async (root, candidateId, headSha) => {
       const { publisher, family } = createReviewCompositionContext({ ...invocationFor(root), cwd: root, exec });
       const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocationFor(root));
@@ -4402,16 +4399,7 @@ function defaultPrePublicationDependencies(
       const compositionDependencies = bindPrePublicationCarriedTerminus(
         createPrePublicationCompositionDependencies({ ...selectedInvocationFor(root), cwd: root, exec }), snapshot.boundary);
       const composition = await composePrePublicationReviewRequest(
-        {
-          workUnit: input.name,
-          ...(judgment.scopeJudgmentTarget === undefined ? {} : { scopeJudgmentTarget: judgment.scopeJudgmentTarget }),
-          ...(judgment.selfReview === undefined ? {} : { selfReview: judgment.selfReview }),
-          ...(judgment.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
-          ...(judgment.lanes === undefined ? {} : { lanes: judgment.lanes }),
-          ...(judgment.frontlineCeilingHeadSha === undefined
-            ? {}
-            : { frontlineCeilingHeadSha: judgment.frontlineCeilingHeadSha }),
-        },
+        prePublicationCompositionInput(input.name, judgment),
         compositionDependencies,
       );
       const existing = snapshot.boundary;
@@ -4577,18 +4565,7 @@ export async function handleReviewPrePublication(
   };
 
   const emitJudgmentMismatch = (command: string): void => {
-    const message = "The explicit Owner judgment differs from the pending post-attest continuation for this Candidate and head.";
-    const refusal = ReviewCommandErrorEnvelopeSchema.parse({
-      schemaVersion: 1,
-      mode: "review-pre-publication",
-      diagnostics: [{ code: "post-attest-judgment-mismatch", message }],
-      error: { code: "post-attest-judgment-mismatch", message },
-      remedy: spineRemedy(
-        "The pending continuation retains the recorded Owner judgment.",
-        "Run the saved resume command",
-        command.split(" "),
-      ),
-    });
+    const refusal = postAttestJudgmentMismatch(command);
     dependencies.write(`${JSON.stringify(refusal)}\n`);
     dependencies.setExitCode(1);
   };
@@ -4710,13 +4687,11 @@ export async function handleReviewPrePublication(
     }
     if (!plainReentry && savedReplay !== null && pendingBoundary !== null && pending !== undefined
       && beforeCompose.status === "current" && beforeCompose.candidateId === pendingBoundary.candidateId
-      && beforeCompose.subjectDigest === pendingBoundary.candidateSubjectDigest
-      && !await prePublicationJudgmentMatchesSaved(callerJudgment, savedReplay, replaySchemaVersion,
-        savedReplay.scopeJudgmentTarget?.kind === "delivery-member" ? undefined : (lane, grant) =>
-          dependencies.savedCandidateGrantMatches(root, { workUnit: input.data.name, lane, judgment: grant, candidateId: beforeCompose.candidateId,
-            subjectDigest: beforeCompose.subjectDigest, headSha: currentRootHead }))) {
-      emitJudgmentMismatch(pending.nextAction.command);
-      return;
+      && beforeCompose.subjectDigest === pendingBoundary.candidateSubjectDigest) {
+      const checked = await prepareSavedPrePublicationJudgment(callerJudgment, savedReplay, replaySchemaVersion, judgment, {
+        candidateId: beforeCompose.candidateId, subjectDigest: beforeCompose.subjectDigest, rootHeadSha: currentRootHead });
+      if (checked === null) { emitJudgmentMismatch(pending.nextAction.command); return; }
+      judgment = checked;
     }
     const progressBeforeCompose = beforeCompose.status === "current"
       ? await readPrePublicationProgress(dependencies, root, beforeCompose.candidateId, currentRootHead)
@@ -4730,6 +4705,11 @@ export async function handleReviewPrePublication(
       composition = await dependencies.compose(root, input.data, judgment);
     }
     if (composition.status === "refused") {
+      if (composition.savedJudgmentMismatch && pending !== undefined) { emitJudgmentMismatch(pending.nextAction.command); return; }
+      if (composition.savedScopeMismatch) {
+        emitAdvancedReplayRefusal("The saved scope judgment no longer matches the current exact review target.");
+        return;
+      }
       if (composition.pendingReview !== undefined) {
         emitPendingReviewRefusal(composition.pendingReview);
         return;

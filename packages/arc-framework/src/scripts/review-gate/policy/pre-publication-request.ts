@@ -4,13 +4,13 @@ import { projectPrePublicationTerminus, preparePrePublicationTerminusDecision } 
 import { composePrePublicationLaneJudgment, withoutExtraPassGrants, applyPrePublicationExtraPassJudgment } from "./pre-publication-lane-judgments.js";
 import { deriveReviewNextPassContextFromAttempts, latestCompletedLaneAttempt } from "./review-next-pass.js";
 
+import { createPrePublicationLanePreparation, PendingLaneReviewError, PrePublicationReplayMismatchError } from "./pre-publication-lane-preparation.js";
 import { z } from "zod";
 import { canonicalize, type CanonicalDigest } from "../../../lib/kernel/canonical/canonical-json.js";
 
 import { currentApprovedDispositionNode } from "../core/advisory-records.js";
 import { validateApprovedDispositionRecordForResult } from
   "../core/review-result-disposition.js";
-import type { CandidateSupersessionAncestor } from "../../../lib/work-unit/candidate-attestation.js";
 import type { ReviewMethodActivity, ReviewAssuranceInput } from "./assurance-schema.js";
 
 import type { LanePolicyAttempt, LaneProgressProjection } from "../lane-progress.js";
@@ -48,7 +48,7 @@ import type { StandardReviewReservationV1 } from "./integration-boundary-locus.j
 import type { ReviewResult } from "../core/review-result.js";
 
 import type {
-  ReviewLane, ReviewPolicyTarget, CandidateRead, PrePublicationCompositionDependencies,
+  ReviewLane, ReviewPolicyTarget, PrePublicationCompositionDependencies,
   PrePublicationCompositionInput, PrePublicationComposition,
 } from "./pre-publication-contract.js";
 export type {
@@ -203,6 +203,10 @@ function rejectedRoutingAdvisory(paths: readonly string[]): string {
 }
 
 function evidenceCompositionRefusal(error: unknown): PrePublicationComposition {
+  if (error instanceof PrePublicationReplayMismatchError) {
+    return { status: "refused", reason: error.message,
+      ...(error.kind === "scope" ? { savedScopeMismatch: true as const } : { savedJudgmentMismatch: true as const }) };
+  }
   if (error instanceof PendingLaneReviewError) {
     return {
       status: "refused",
@@ -224,29 +228,6 @@ function evidenceCompositionRefusal(error: unknown): PrePublicationComposition {
     };
   }
   throw error;
-}
-
-class PendingLaneReviewError extends Error {
-  constructor(readonly pending: NonNullable<Extract<PrePublicationComposition, { status: "refused" }>["pendingReview"]>) {
-    super(`review operation ${pending.operationId} is still in progress`);
-  }
-}
-
-function refusePendingLaneReview(progress: LaneProgressProjection, lane: ReviewLane): void {
-  if (progress.status !== "recorded") return;
-  const pending = progress.attempts.find((attempt) => attempt.outcome === "pending");
-  if (pending === undefined) return;
-  const handle = pending.hosted?.handle;
-  throw new PendingLaneReviewError({
-    lane,
-    operationId: pending.attemptId,
-    sourceId: pending.sourceId,
-    kind: pending.local !== undefined ? "local"
-      : pending.hosted !== undefined ? "hosted" : "frontline",
-    request: pending.local !== undefined
-      ? { schemaVersion: 1, operationId: pending.attemptId }
-      : handle ? { schemaVersion: 1, handle } : null,
-  });
 }
 
 async function applicableHistoricalAttempt(input: {
@@ -274,34 +255,6 @@ async function applicableHistoricalAttempt(input: {
     input.workUnit, prior, exactTarget, lineage, input.policyTarget,
   );
   return applicability === "applicable" ? historical : undefined;
-}
-
-/** Keep an old-base terminal at the same head available for exact applicability proof. */
-function separateSameHeadTerminals(
-  progress: LaneProgressProjection,
-  target: ReviewTarget | null,
-): {
-  progress: LaneProgressProjection;
-  sameHeadCandidate?: LanePolicyAttempt & { headSha: string };
-} {
-  if (progress.status !== "recorded" || target === null) return { progress };
-  const stale = progress.attempts.filter((attempt) => {
-    if (attempt.outcome !== "clean" && attempt.outcome !== "settled-findings") return false;
-    const producerTarget = attempt.hosted?.reviewTarget ?? attempt.local?.target;
-    return producerTarget !== undefined
-      && producerTarget.headSha === target.headSha
-      && canonicalize(producerTarget) !== canonicalize(target);
-  });
-  if (stale.length === 0) return { progress };
-  const retained = progress.attempts.filter((attempt) => !stale.includes(attempt));
-  const latest = [...stale].sort((left, right) => right.logicalPass - left.logicalPass)[0];
-  return {
-    progress: { ...progress, attempts: retained },
-    ...(retained.length === 0 && latest !== undefined
-      && stale.filter((attempt) => attempt.logicalPass === latest.logicalPass).length === 1
-      ? { sameHeadCandidate: { ...latest, headSha: target.headSha } }
-      : {}),
-  };
 }
 
 function policyAttempts(
@@ -402,29 +355,6 @@ export function projectPendingResponseSource(
   }) };
 }
 
-function readComposedLaneProgress(
-  dependencies: PrePublicationCompositionDependencies,
-  lane: ReviewLane,
-  headSha: string,
-  lineageHeadShas: readonly string[],
-  lineage?: LaneSubjectLineage,
-  supersessionAncestors: readonly CandidateSupersessionAncestor[] = [],
-): Promise<LaneProgressProjection> {
-  return lineage === undefined
-    ? dependencies.readLaneProgress(lane, headSha, lineageHeadShas)
-    : supersessionAncestors.length === 0
-      ? dependencies.readLaneProgress(lane, headSha, lineageHeadShas, lineage)
-      : dependencies.readLaneProgress(lane, headSha, lineageHeadShas, lineage, supersessionAncestors);
-}
-
-function candidateAncestorsForLineage(
-  candidate: CandidateRead,
-  lineage?: LaneSubjectLineage,
-): readonly CandidateSupersessionAncestor[] {
-  return lineage?.kind === "candidate" && candidate.status === "current"
-    ? candidate.supersessionAncestors ?? [] : [];
-}
-
 /**
  * Compose the routing input from the caller's change-set facts and the repository's own two facts.
  *
@@ -487,6 +417,7 @@ async function selectDeliveryReviewMember(input: {
   native: boolean;
   scopeJudgmentTarget?: ReviewTarget;
   onExamined(target: ReviewTarget): void;
+  beforeSelected(target: ReviewPolicyTarget, exact: ReviewTarget, heads: readonly string[], lineage: LaneSubjectLineage): Promise<void>;
   judgment: ReviewLaneJudgment | undefined;
   composeFrontline(target: ReviewPolicyTarget, exact: ReviewTarget, lineage: LaneSubjectLineage,
     judgment: ReviewLaneJudgment | undefined, state: LaneCompositionState): Promise<ReviewPolicyRequest>;
@@ -517,6 +448,7 @@ async function selectDeliveryReviewMember(input: {
   if (selected === null) return { ...result, kind: "empty" };
   if (input.native) {
     try {
+      await input.beforeSelected(selected.policyTarget, selected.exactTarget, [selected.exactTarget.headSha], selected.lineage);
       selected.frontline = await input.composeFrontline(selected.policyTarget, selected.exactTarget,
         selected.lineage, savedScopeExamined(input.scopeJudgmentTarget, examinedTargets)
           ? input.judgment : withoutExtraPassGrants(input.judgment), { ...laneState, advisories: [] });
@@ -666,6 +598,7 @@ export async function composePrePublicationReviewRequest(
   const examinedTargets: ReviewTarget[] = [];
   const withExaminedTargets = (composition: PrePublicationComposition): PrePublicationComposition =>
     examinedTargets.length === 0 ? composition : { ...composition, examinedTargets: [...examinedTargets] };
+  const preparation = createPrePublicationLanePreparation(input, candidate, dependencies, examinedTargets);
   const judgeLane = async (
     lane: ReviewLane,
     policyTarget: ReviewPolicyTarget,
@@ -675,14 +608,8 @@ export async function composePrePublicationReviewRequest(
     callerJudgment = lanes.data[lane],
     state = laneState,
   ) => {
-    const rawProgress = await readComposedLaneProgress(
-      dependencies, lane, policyTarget.headSha, lineageHeadShas, lineage,
-      candidateAncestorsForLineage(candidate, lineage),
-    );
-    const { progress, sameHeadCandidate } = lane === "standard"
-      ? separateSameHeadTerminals(rawProgress, exactTarget)
-      : { progress: rawProgress, sameHeadCandidate: undefined };
-    refusePendingLaneReview(progress, lane);
+    const { rawProgress, progress, sameHeadCandidate } = await preparation.prepare(
+      lane, policyTarget, exactTarget, lineageHeadShas, lineage);
     if (progress.status === "unrecorded") state.advisories.push(unrecordedLaneAdvisory(lane));
     const savedScopeCurrent = savedScopeExamined(input.scopeJudgmentTarget, [...examinedTargets, exactTarget]);
     const boundFrontlineElsewhere = lane === "frontline" && input.frontlineCeilingHeadSha !== undefined
@@ -813,7 +740,7 @@ export async function composePrePublicationReviewRequest(
   if (deliveryTargets.status === "composed") {
     const selection = await selectDeliveryReviewMember({ targets: deliveryTargets.targets, repository: target.repository,
       native: dependencies.resolveExtraPassJudgment !== undefined, judgment: lanes.data.frontline,
-      scopeJudgmentTarget: input.scopeJudgmentTarget,
+      scopeJudgmentTarget: input.scopeJudgmentTarget, beforeSelected: preparation.verify,
       onExamined: target => { examinedTargets.push(target); },
       composeFrontline: (memberTarget, exact, lineage, judgment, state) => composeLane("frontline", memberTarget,
         exact, [exact.headSha], lineage, judgment, state) });
@@ -853,6 +780,7 @@ export async function composePrePublicationReviewRequest(
     policyLineage = [immutable.target.headSha];
     selectedLineage = { kind: "candidate", candidateId: candidate.candidateId };
     try {
+      await preparation.verify(policyTarget, exactTarget, policyLineage, selectedLineage);
       frontline = withCeilingOverride(
         "frontline",
         policyTarget,
@@ -868,6 +796,7 @@ export async function composePrePublicationReviewRequest(
     selectedLineage = { kind: "candidate", candidateId: candidate.candidateId };
     let singletonFrontline: Awaited<ReturnType<typeof composeLane>>;
     try {
+      await preparation.verify(policyTarget, exactTarget, policyLineage, selectedLineage);
       singletonFrontline = await composeLane("frontline", policyTarget, exactTarget, policyLineage, selectedLineage);
     } catch (error) {
       return refuseFrontline(error, [policyTarget, exactTarget, policyLineage, selectedLineage]);

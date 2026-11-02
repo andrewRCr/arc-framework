@@ -36,6 +36,14 @@ import { createHostedHandleFixture } from "../../fixtures/hosted-review.js";
 import { reviewDecisionKey } from "../../../src/lib/store/kinds/review/decision/key.js";
 import { mapReviewReplayDecisions } from "../../../src/lib/store/kinds/review/mapping-replay-decisions.js";
 import { prepareNativeReviewTerminus } from "../../../src/scripts/review-gate/runtime/native-terminus-write.js";
+import { buildPrePublicationResumeCommand } from "../../../src/handlers/review-pre-publication-replay.js";
+import { resolveNativeExtraPassJudgment } from "../../../src/scripts/review-gate/runtime/native-extra-pass.js";
+import { createReviewEvidencePort } from "../../../src/lib/store/kinds/review/evidence/access.js";
+import { performedEvidenceFixture } from "../../fixtures/review-evidence.js";
+import { composeReviewDispositionRecord } from "../../../src/lib/store/kinds/review/evidence/composed-record.js";
+import { publishNativeReviewApproval } from "../../../src/scripts/review-gate/runtime/native-review-approval.js";
+import { publishNativeConditionalPass } from "../../../src/scripts/review-gate/runtime/native-conditional-pass.js";
+import { publishNativeReviewPerformance } from "../../../src/scripts/review-gate/runtime/native-review-performance.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 
@@ -63,10 +71,10 @@ it("requires owner selection before reading readiness and continues after the bo
   expect(await h.store.version()).toEqual(version);
   expect(await h.run()).toMatchObject({ nextAction: { kind: "run-self-review" } });
 });
-async function fixture(project = true) {
+async function fixture(project = true, head = "a".repeat(40)) {
   const h = createReviewHarness();
   if (project) await h.seedProject(projectId);
-  const head = "a".repeat(40), base = "b".repeat(40), branch = "topic/opaque";
+  const base = "b".repeat(40), branch = "topic/opaque";
   const checkout = await createReviewCheckout(h, { script: [
     { match: ["rev-parse", "HEAD"], responses: [{ stdout: head }] },
     { match: ["rev-parse", "--verify", "HEAD^{commit}"], responses: [{ stdout: head }] },
@@ -125,7 +133,7 @@ async function fixture(project = true) {
     { ...checkout, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
   };
-  return { ...checkout, seedCandidate, seedMeta: h.seedMeta,
+  return { ...checkout, head, seedCandidate, seedMeta: h.seedMeta,
     run: (settled = false, lanes: unknown = { frontline: { invocation: { mode: "skip" } } }, resume?: string,
       overrides?: Parameters<typeof handleReviewPrePublication>[2]) => invoke(
       resume === undefined ? settled ? { selfReview: "settled", lanes: "lanes.json" } : {} : { resume }, lanes, overrides),
@@ -637,8 +645,9 @@ async function deliveryCommand(h: Awaited<ReturnType<typeof fixture>>, owner: Ow
   const dependencies = nativeDeliveryCompositionDependencies({ store: h.store, owner, repository: DELIVERY_REPOSITORY,
     actor: h.identity, now: "2026-11-01T12:00:00Z", members, candidate: { candidateId: current.candidateId,
       subjectDigest: current.subjectDigest, headSha: current.headSha } });
-  const compose = async (_root: string, input: { name: string }, judgment: { selfReview?: "settled"; lanes?: unknown; frontlineCeilingHeadSha?: string; scopeJudgmentTarget?: import("../../../src/scripts/review-gate/core/gate-contract-v2-schema.js").ReviewTarget }) =>
+  const compose = async (_root: string, input: { name: string }, judgment: { savedGrantChecks?: import("../../../src/scripts/review-gate/policy/pre-publication-contract.js").PrePublicationSavedGrantChecks; selfReview?: "settled"; lanes?: unknown; frontlineCeilingHeadSha?: string; scopeJudgmentTarget?: import("../../../src/scripts/review-gate/core/gate-contract-v2-schema.js").ReviewTarget }) =>
     composePrePublicationReviewRequest({ workUnit: input.name,
+      ...(judgment.savedGrantChecks === undefined ? {} : { savedGrantChecks: judgment.savedGrantChecks }),
       ...(judgment.selfReview === undefined ? {} : { selfReview: judgment.selfReview }),
       ...(judgment.lanes === undefined ? {} : { lanes: judgment.lanes }),
       ...(judgment.frontlineCeilingHeadSha === undefined ? {} : { frontlineCeilingHeadSha: judgment.frontlineCeilingHeadSha }),
@@ -660,7 +669,7 @@ async function savePendingReplay(h: Awaited<ReturnType<typeof fixture>>, owner: 
   const snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
   await writeSubmissionBoundary(h.cwd, projectCandidateReviewResumeBoundary({ workUnit: "example",
     candidateId: replay.candidateId, candidateSubjectDigest: replay.candidateSubjectDigest, reservation: null, terminus: null,
-    postAttestContinuation: { reviewedHead: "a".repeat(40), nextAction: { kind: "continue-pre-publication-review",
+    postAttestContinuation: { reviewedHead: h.head, nextAction: { kind: "continue-pre-publication-review",
       command: `arc review pre-publication example --resume ${token}`, interactionText: "Resume review." } } }, 2),
   snapshot.version, { store: h.store, owner });
 }
@@ -998,4 +1007,153 @@ it("drops a native terminus when an approved fix advances the private Candidate 
   if (listing.status !== "complete" || after.status !== "complete") throw new Error("Expected complete decisions");
   expect(after.records.filter(record => record.value.choice.kind === "terminus"))
     .toEqual(listing.records.filter(record => record.value.choice.kind === "terminus"));
+});
+
+
+it("reuses a current Candidate grant at the inherited pass count through explicit retry", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const original = await readCandidateRecordVersioned(h.cwd, "example", { store: h.store, owner });
+  if (original.record === null) throw new Error("Expected original Candidate");
+  const composition = createPrePublicationCompositionDependencies({ ...h, workItem: owner });
+  const immutable = await composition.deriveImmutableTarget(h.head);
+  if (immutable.status !== "resolved") throw new Error(immutable.reason);
+  const { family } = createReviewCompositionContext({ ...h, workItem: owner });
+  const facts = family.ports.inFlight.nativeFacts;
+  if (facts === undefined) throw new Error("Expected native facts");
+  for (const logicalPass of [1, 2]) await facts.outcomes.create(ReviewOutcomeSchema.parse(localOutcome({
+    target: immutable.target, lineage: { kind: "candidate", candidateId: original.record.attestation.candidateId },
+    logicalPass, vehicle: { kind: "work-unit", identity: "example" } })));
+  const current = { ...original.record, attestation: createCandidateAttestation({ ...original.record.attestation,
+    subject: original.record.subject, attestedAt: "2026-10-20T12:00:00Z", supersedes: original.record.attestation.candidateId }) };
+  await writeCandidateRecord(h.cwd, "example", current, original.version, { store: h.store, owner });
+  const lineage = { kind: "candidate" as const, candidateId: current.attestation.candidateId };
+  const ceiling = { exhaustedPassCount: 2, nextPass: 3 };
+  await resolveNativeExtraPassJudgment({ facts, repositoryId: projectId, lane: "standard", actor: "test-user", now: "2026-10-20T13:00:00Z",
+    subject: { lineage, headSha: h.head, subjectDigest: current.subject.subjectDigest }, completedPasses: 2,
+    policyTarget: { repository: "owner/repository", pullRequest: null, headSha: h.head }, judgment: { ceilingOverride: ceiling } });
+  const lanes = { frontline: { invocation: { mode: "skip" as const } } };
+  await savePendingReplay(h, owner, encodePrePublicationReplayV2({ candidateId: lineage.candidateId,
+    candidateSubjectDigest: current.subject.subjectDigest, selfReview: "settled", lanes }));
+  await recordNativeFrontlineSkip({ invocation: { ...h, workItem: owner }, facts, lineage, repositoryId: projectId,
+    headSha: h.head, targetDigest: current.subject.subjectDigest, now: "2026-10-20T13:01:00Z" });
+  const before = await h.store.version(), decisions = await facts.decisions.list();
+  const boundary = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  expect(await h.run(true, { ...lanes, standard: { ceilingOverride: { exhaustedPassCount: 0, nextPass: 1 } } }))
+    .toMatchObject({ error: { code: "post-attest-judgment-mismatch" } });
+  expect(await h.store.version()).toEqual(before);
+  expect(await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).toEqual(boundary);
+  const retry = await h.run(true, { ...lanes, standard: { ceilingOverride: ceiling } });
+  expect(retry, JSON.stringify(retry)).not.toHaveProperty("error");
+  expect(await facts.decisions.list()).toEqual(decisions);
+});
+
+it("reuses performed conditional authority through explicit retry without ordinary replacement", async () => {
+  const h = await fixture(true, "e".repeat(40)), owner = await h.seedCandidate();
+  const current = await readCandidateRecord(h.cwd, "example", { store: h.store, owner });
+  if (current === null) throw new Error("Expected Candidate");
+  const outcomes = createReviewOutcomePort(h.store, owner), evidence = createReviewEvidencePort(h.store, owner);
+  const decisions = createReviewDecisionPort(h.store, owner);
+  const outcome = ReviewOutcomeSchema.parse(localOutcome({ target: createHostedHandleFixture({ repositoryId: projectId }).admission.reviewTarget,
+    lineage: { kind: "candidate", candidateId: current.attestation.candidateId },
+    logicalPass: 2, outcome: "findings", findings: [{ findingId: "finding-1", severity: "major", locus: "src/main.ts:1",
+      evidenceUrlOrId: "finding:1", sourceOrdinal: 1 }], vehicle: { kind: "work-unit", identity: "example" } }));
+  await outcomes.create(ReviewOutcomeSchema.parse(localOutcome({ target: outcome.target, lineage: outcome.lineage,
+    logicalPass: 1, vehicle: { kind: "work-unit", identity: "example" } })));
+  await outcomes.create(outcome);
+  const { value } = performedEvidenceFixture("candidate", outcome);
+  if (value.performance === undefined) throw new Error("Expected performance");
+  const input = { outcomes, evidence, decisions, readProjectId: h.projectId,
+    record: composeReviewDispositionRecord(outcome, [{ ...value, performance: undefined }], owner),
+    now: () => "2026-10-20T12:01:00Z" };
+  await publishNativeReviewApproval(input);
+  const decision = await publishNativeConditionalPass({ ...input, capture: { lane: "standard", repositoryId: projectId,
+    headSha: outcome.target.headSha, lineage: outcome.lineage, producerId: outcome.attemptId,
+    dispositionSetId: value.dispositionSet.dispositionSetId, authorizedBy: value.approval.approvedBy,
+    exhaustedPassCount: 2, nextPass: 3, now: "2026-10-20T13:00:00Z" } });
+  const authorizationId = reviewDecisionKey(decision.value);
+  const lanes = { frontline: { invocation: { mode: "skip" as const } } };
+  const save = () => savePendingReplay(h, owner, encodePrePublicationReplayV2({ candidateId: current.attestation.candidateId,
+    candidateSubjectDigest: current.subject.subjectDigest, selfReview: "settled", lanes }));
+  await save();
+  const supplied = { ...lanes, standard: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3,
+    conditionalPassAuthorizationId: authorizationId } } };
+  const before = await h.store.version(), boundary = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  expect(await h.run(true, supplied)).toMatchObject({ error: { code: "post-attest-judgment-mismatch" } });
+  expect(await h.store.version()).toEqual(before);
+  expect(await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).toEqual(boundary);
+  await publishNativeReviewPerformance({ ...input, record: composeReviewDispositionRecord(outcome, [value], owner), performance: value.performance });
+  const { family } = createReviewCompositionContext({ ...h, workItem: owner });
+  if (family.ports.inFlight.nativeFacts === undefined) throw new Error("Expected native facts");
+  await recordNativeFrontlineSkip({ invocation: { ...h, workItem: owner }, facts: family.ports.inFlight.nativeFacts,
+    lineage: outcome.lineage, repositoryId: projectId, headSha: h.head, targetDigest: current.subject.subjectDigest,
+    now: "2026-10-20T13:01:00Z" });
+  const recorded = await decisions.list();
+  for (const ceilingOverride of [{ ...supplied.standard.ceilingOverride, exhaustedPassCount: 1, nextPass: 2 },
+    { ...supplied.standard.ceilingOverride, conditionalPassAuthorizationId: canonicalDigest({ foreign: "conditional" }) }]) {
+    const version = await h.store.version(), snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+    expect(await h.run(true, { ...lanes, standard: { ceilingOverride } }))
+      .toMatchObject({ error: { code: "post-attest-judgment-mismatch" } });
+    expect(await h.store.version()).toEqual(version);
+    expect(await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).toEqual(snapshot);
+    expect(await decisions.list()).toEqual(recorded);
+  }
+  const retry = await h.run(true, supplied);
+  expect(retry, JSON.stringify(retry)).not.toHaveProperty("error");
+  expect(await decisions.list()).toEqual(recorded);
+});
+
+it.each(["ceiling", "additional"] as const)("reuses the selected member's stripped %s grant with an earlier examined scope", async kind => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const { compose, listDecisions } = await deliveryCommand(h, owner, () => [first, second]);
+  const standard = kind === "ceiling" ? { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } }
+    : { additionalPassAuthorization: { headSha: second.target.headSha, precedingProducerId: "previous", completedPasses: 2, nextPass: 3 } };
+  const initial = await h.run(true, { frontline: { scopeMode: "chunked" }, standard }, undefined, { compose });
+  const retained = decodePrePublicationReplayV2(remedyToken(initial));
+  const bound = await h.run(false, {}, remedyToken(initial), { compose });
+  expect(bound, JSON.stringify(bound)).not.toHaveProperty("error");
+  const decisions = await listDecisions();
+  expect(decisions).toMatchObject([{ subject: { headSha: second.target.headSha }, choice: { precondition: { kind } } }]);
+  const judgment = { selfReview: retained.selfReview, changeSet: retained.changeSet, lanes: retained.lanes,
+    frontlineCeilingHeadSha: retained.frontlineCeilingHeadSha, scopeJudgmentTarget: retained.scopeJudgmentTarget };
+  const command = kind === "additional" ? (bound as { nextAction: { command: string } }).nextAction.command
+    : buildPrePublicationResumeCommand({ schemaVersion: 2, workUnit: "example", candidateId: retained.candidateId!,
+      candidateSubjectDigest: retained.candidateSubjectDigest!, judgment, replaySelfReview: retained.selfReview,
+      replayLanes: retained.lanes, scopeJudgmentTarget: retained.scopeJudgmentTarget, currentFrontlineHeadSha: h.head,
+      frontlineCeilingOverrideApplied: false });
+  const token = replayTokenFromAction(command, "example"), stripped = decodePrePublicationReplayV2(token);
+  expect(stripped.scopeJudgmentTarget).toEqual(first.target);
+  expect(stripped.lanes?.standard).toBeUndefined();
+  await savePendingReplay(h, owner, token);
+  const before = await h.store.version(), boundary = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  const bad = { ...retained.lanes, standard: kind === "ceiling"
+    ? { ceilingOverride: { exhaustedPassCount: 1, nextPass: 2 } }
+    : { additionalPassAuthorization: { ...standard.additionalPassAuthorization!, precedingProducerId: "wrong" } } };
+  expect(await h.run(true, bad, undefined, { compose })).toMatchObject({ error: { code: "post-attest-judgment-mismatch" } });
+  expect(await h.store.version()).toEqual(before);
+  expect(await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).toEqual(boundary);
+  const retry = await h.run(true, retained.lanes, undefined, { compose });
+  expect(retry, JSON.stringify(retry)).not.toHaveProperty("error");
+  expect(await listDecisions()).toEqual(decisions);
+});
+
+it("compares both lanes before a retained frontline grant can write", async () => {
+  const h = await fixture(), owner = await h.seedCandidate();
+  const current = await readCandidateRecord(h.cwd, "example", { store: h.store, owner });
+  if (current === null) throw new Error("Expected Candidate");
+  const lanes = { frontline: { invocation: { mode: "skip" as const }, ceilingOverride: { exhaustedPassCount: 0, nextPass: 1 } } };
+  await savePendingReplay(h, owner, encodePrePublicationReplayV2({ candidateId: current.attestation.candidateId,
+    candidateSubjectDigest: current.subject.subjectDigest, selfReview: "settled", lanes }));
+  const port = createReviewDecisionPort(h.store, owner), decisions = await port.list(), version = await h.store.version();
+  const boundary = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+  const refused = await h.run(true, { ...lanes, standard: { ceilingOverride: { exhaustedPassCount: 0, nextPass: 1 } } });
+  expect(await port.list()).toEqual(decisions);
+  expect(await h.store.version()).toEqual(version);
+  expect(await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).toEqual(boundary);
+  expect(refused).toMatchObject({ error: { code: "post-attest-judgment-mismatch" } });
+  const retry = await h.run(true, lanes);
+  expect(retry, JSON.stringify(retry)).not.toHaveProperty("error");
+  const after = await port.list();
+  if (after.status !== "complete") throw new Error(after.reason);
+  expect(after.records.filter(({ value }) => value.choice.kind === "extra-pass"))
+    .toMatchObject([{ value: { lane: "frontline", choice: { kind: "extra-pass", passCount: 0 } } }]);
 });
