@@ -11,13 +11,14 @@
 - **Design:** `spec-session-init-agenda.md`
 - **Task List:** `tasks-session-init-agenda.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:aa5899d1b2d26a9559cb7574d39e762cc563bb4806094c45ddab32df844e3c03`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 5.5 — Verify the shipped surface; reconciled main before verification
-- **Next Task:** Task 6.1 — Complete verification (line ~554 in `tasks-session-init-agenda.md`)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 6.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Load `verify-work-unit.md` and follow it for Task 6.1 in a fresh session.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

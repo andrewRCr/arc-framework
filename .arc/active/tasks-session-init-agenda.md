@@ -551,69 +551,74 @@ tier pass against the new text.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Forced merge gate (19 checks), 474 focused agenda cases, and hosted CI run `41535656407` at
+  `fb60176f0c` pass. The CI run used no diagnostic inputs and covers the full integration, E2E, and store tiers.
+- _Success criteria:_ All 19 met. Exact-digest evidence, measurement/rehearsal qualifications, the independent pass's
+  three approved fixes, and its clean bounded fix check are recorded in `notes-session-init-agenda.md`.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The baseline is recorded by both instruments from a kit install of the unchanged base before any shipped-text
+- `[x]` The baseline is recorded by both instruments from a kit install of the unchanged base before any shipped-text
   commit
 
-- `[ ]` On a plain resume, Orient, and `--start`, the spine plus `read-load-set` plus the entered arm's method is at most
+- `[x]` On a plain resume, Orient, and `--start`, the spine plus `read-load-set` plus the entered arm's method is at most
   ~28% of the baseline `session-init.md` by both instruments
 
-- `[ ]` On a kit install entering Orient, the load before the first user-facing line less an empty session's is at most
+- `[x]` On a kit install entering Orient, the load before the first user-facing line less an empty session's is at most
   ~60% of the baseline's
 
-- `[ ]` `arc agenda session-init --json` validates against `arc schema get session-init-agenda`, refuses each invalid
+- `[x]` `arc agenda session-init --json` validates against `arc schema get session-init-agenda`, refuses each invalid
   flag combination with a typed error, and before the flip leaves files, refs, notes, and markers as found apart from
   `FETCH_HEAD`, with both temporary refs deleted
 
-- `[ ]` Each § 5.4 row and § 5.3 kind compiles to its specified steps and `orientation` over fixture probe values,
+- `[x]` Each § 5.4 row and § 5.3 kind compiles to its specified steps and `orientation` over fixture probe values,
   including the held path, the bare `--errand` declines with and without `--isolate`, the `--plan` decline, and an
   unresolved `--start`
 
-- `[ ]` Each § 6 surface compiles to its mapped step with CLI-composed text, and a failed slot yields its degraded-slot
+- `[x]` Each § 6 surface compiles to its mapped step with CLI-composed text, and a failed slot yields its degraded-slot
   render and no action
 
-- `[ ]` No surface whose rule withholds automatic execution compiles to an `exec`, no withheld or owner-held remedy
+- `[x]` No surface whose rule withholds automatic execution compiles to an `exec`, no withheld or owner-held remedy
   compiles to an action, and every action argv is published or compiler-composed
 
-- `[ ]` Every sync `exec` and sync choice recompiles, every `exec` ends its agenda, a combined offer replaces two, the
+- `[x]` Every sync `exec` and sync choice recompiles, every `exec` ends its agenda, a combined offer replaces two, the
   user-reference apply follows the sync steps, and every recompile argv carries the signals, answers, and done ids its
   position implies, so no answered offer, done `exec`, or followed method fragment recurs
 
-- `[ ]` `session-init.md` is within ~13 KB, names no probe slot, slot field, or arm condition, and ships without the
+- `[x]` `session-init.md` is within ~13 KB, names no probe slot, slot field, or arm condition, and ships without the
   `.template.md` suffix
 
-- `[ ]` `read-load-set`, `assess-start-readiness`, and `discover-next-work` are declared in the spine, carried in
+- `[x]` `read-load-set`, `assess-start-readiness`, and `discover-next-work` are declared in the spine, carried in
   `init-recipe.json` and `CONFIGURABLE_FILES`, and present on a fresh `arc init`; `assess-parallel-fit.md` and
   `in-flight-scope-check.md` ship; `session-recover.md` fires `read-load-set` and keeps its stop rules
 
-- `[ ]` `session-init.contributor.md` and `probe-envelope.md` are gone from both copies and the recipe, no shipped file
+- `[x]` `session-init.contributor.md` and `probe-envelope.md` are gone from both copies and the recipe, no shipped file
   references them, and the `inboxState` routable-count note appears in the served envelope schema
 
-- `[ ]` Each § 11 change lands in every copy § 11 assigns it, and every destination of moved text has an install
+- `[x]` Each § 11 change lands in every copy § 11 assigns it, and every destination of moved text has an install
   disposition
 
-- `[ ]` Each § 12 reader is retargeted, and every wording-pin test passes against the new text
+- `[x]` Each § 12 reader is retargeted, and every wording-pin test passes against the new text
 
-- `[ ]` The plain resume, `--plan`, `--errand`, branch-gone, Orient discovery, and `--context` rehearsals each start
+- `[x]` The plain resume, `--plan`, `--errand`, branch-gone, Orient discovery, and `--context` rehearsals each start
   from a kit install and reach today's orientation surfaces, questions, and actions except where the specification
   states a change
 
-- `[ ]` Elicited `errand` and `plan` options are inserted before any `--` delimiter, with `--flag=value` for a
+- `[x]` Elicited `errand` and `plan` options are inserted before any `--` delimiter, with `--flag=value` for a
   leading-dash answer; both the literal answer and leading-dash positional seed survive parsing, and the served
   description and spine state that rule (A1)
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
-- `[ ]` Recovery fetch and switch argv put `--` before the branch operand; a literal `-` has no executable action,
+- `[x]` Recovery fetch and switch argv put `--` before the branch operand; a literal `-` has no executable action,
   remains held with manual guidance when sole, and appears as a bare manual choice in an ambiguous menu (A2)
 
-- `[ ]` Before the flip, Errand capture titles retain selection and adoption; after it, flagged personal picker labels
+- `[x]` Before the flip, Errand capture titles retain selection and adoption; after it, flagged personal picker labels
   include title and ID, choices carry qualified IDs, and personal/project ID seeds retain adoption refusal checks.
   Other text remains a new concern, including a flagged title; the agenda schema is unchanged (A3)

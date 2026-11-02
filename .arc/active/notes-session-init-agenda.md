@@ -2,19 +2,35 @@
 
 ## Contents
 
-- Today's workflow, step by step
-- Surface census
-- Sizing and measurement
-- The always-loaded cut audit
-- Who the expected contracts are
-- Neighbouring work
-- Inbound items
-- Strategy fit
-- Coordination pointers
-- Plain-resume rehearsal
-- Test pins
-- Shipping a file
-- Carried context
+**Design and coordination**
+
+- [Today's workflow, step by step](#todays-workflow-step-by-step)
+- [Surface census](#surface-census)
+- [The always-loaded cut audit](#the-always-loaded-cut-audit)
+- [Who the expected contracts are](#who-the-expected-contracts-are)
+- [Neighbouring work](#neighbouring-work)
+- [Inbound items](#inbound-items)
+- [Strategy fit](#strategy-fit)
+- [Coordination pointers](#coordination-pointers)
+- [Carried context](#carried-context)
+
+**Measurement and verification**
+
+- [Sizing and measurement](#sizing-and-measurement)
+- [Plain-resume rehearsal](#plain-resume-rehearsal)
+- [Remaining-arm rehearsals](#remaining-arm-rehearsals)
+- [Shipped-surface verification](#shipped-surface-verification)
+- [Work-unit verification](#work-unit-verification)
+
+**Implementation decisions**
+
+- [Test pins](#test-pins)
+- [Shipping a file](#shipping-a-file)
+- [A1 — Literal elicitation](#a1--literal-elicitation)
+- [A2 — Literal recovery branch operands](#a2--literal-recovery-branch-operands)
+- [A3 — Backend capture selectors](#a3--backend-capture-selectors)
+- [Grooming resume entry](#grooming-resume-entry)
+- [Start lifecycle selection](#start-lifecycle-selection)
 
 ## Today's workflow, step by step
 
@@ -113,7 +129,7 @@ fields (`teardown.text` and `argv`, `remedy.text`, typed reasons) already exist.
 The real-session instrument uses `claude --ax-screen-reader` plus the identical `--append-system-prompt` value recorded
 in `real-context-summary.json` for all three controls. That instruction suppresses intermediate assistant prose.
 Each value is the first `/context` report after the first completed turn and **includes the first response**; the
-result-side measurement must use the same rule. The harness reports rounded token estimates, so the net values below
+result-side measurement uses the same rule. The harness reports rounded token estimates, so the net values below
 are approximate rather than exact usage counters.
 
 | Real session                           | Context report | Less empty |
@@ -333,10 +349,10 @@ missing derivation needs changing. They are retained as empirical limitations, n
 
 ## Test pins
 
-Where each pin runs decides when it must move. `framework-sync`, `review-gate-workflows`, and `pr-lifecycle` run at the
-commit gate (`ARC_CONTRACT_SUITES`), so their pins move in the same commit as the text they pin, and the two copies of
-every Framework file stay equal on every commit. The integration-tier pins run in CI and move in the task that changes
-their text. `lint:arc:section-refs` refuses `§` anywhere in `src` and `__tests__`, so a replacement test or a
+The implementation moved pins with the text they cover. `framework-sync`, `review-gate-workflows`, and `pr-lifecycle`
+run at the commit gate (`ARC_CONTRACT_SUITES`), so their pins move in the same commit as the text they pin, and the two
+copies of every Framework file stay equal on every commit. The integration-tier pins run in CI and move in the task that
+changes their text. `lint:arc:section-refs` refuses `§` anywhere in `src` and `__tests__`, so a replacement test or a
 `.describe()` string names behavior, not a section.
 
 | Pin                                                  | What it pins                                    | Disposition                              |
@@ -367,7 +383,7 @@ loader falls back to the plain path on its own. No test pins `session-recover.md
 ## Shipping a file
 
 Adding, renaming, or removing a shipped file — the three methods, the spine's dropped `.template.md` suffix,
-`assess-parallel-fit.md` and `in-flight-scope-check.md`, the two removals — touches one set of records in the same
+`assess-parallel-fit.md` and `in-flight-scope-check.md`, the two removals — updated one set of records in the same
 commit, because `framework-sync.test.ts` pins them to the recipe at the commit gate:
 
 - the `init-recipe.json` `include_files` entry;
@@ -409,7 +425,7 @@ The settled § 3.2 text said: “runs its `recompile` argv with `--<signal> <ans
 signal.” Section 4.5 likewise allowed only “an `elicit` choice's appended answer.” These statements are superseded by
 insertion before any `--` delimiter, with `--flag=value` binding for a leading-dash answer.
 
-The pending `buildAgendaArgv` preserves a leading-dash seed after `--`; its private `appendValue` already binds
+At detection, `buildAgendaArgv` preserved a leading-dash seed after `--`; its private `appendValue` already bound
 leading-dash option values with `=`. The detecting `parseNonRepeatedOptions` regression reconstructs the registered
 non-repeatable option grammar from `cli.ts` and passes the carried argv plus the elicited concern to Commander.
 Appending that option after the delimiter fails with too many positional arguments. Focused run
@@ -417,8 +433,8 @@ Appending that option after the delimiter fails with too many positional argumen
 `Command.parseOptions` consumes every remaining argument as literal operands once it sees `--`, corroborating the
 observed failure. Inserting the signal before that delimiter preserves both operands and option interpretation.
 
-The bounded propagation covers § 3.2, § 4.5, § 9.1, appended criterion 15, corrective parent 1.R, open Task 1.3.c,
-future Task 3.2.a, and the completed schema's description via its additive amendment pointer. Shape, cardinalities,
+The bounded propagation covered § 3.2, § 4.5, § 9.1, appended criterion 15, corrective parent 1.R, Tasks 1.3.c and
+3.2.a, and the completed schema's description via its additive amendment pointer. Shape, cardinalities,
 question keys, recorded decisions, and the baseline measurements are unaffected. No delivery plan is bound.
 
 Author review covers reader independence, binding completeness, coherence, and source grounding over this footprint;
@@ -429,7 +445,7 @@ command shape and requires no new planning segment.
 Closure: reconstruction run `6f82cb4928534ea1ae66c098eecc53cf` retained 15 passing cases and three delimiter failures.
 After `appendAgendaOption` inserted before `--`, run `9d9e68fc918245bc9eda7083a927bef5` passed all 78 agenda unit
 cases, including those three, and focused TypeScript lint passed. The served `elicit.recompile` description carries
-the same insertion and leading-dash binding rule. Criterion 15's spine obligation remains with Task 3.2.a.
+the same insertion and leading-dash binding rule. Task 3.2.a subsequently carried that rule into the spine.
 
 ## A2 — Literal recovery branch operands
 
@@ -448,7 +464,7 @@ Native Git accepts `git fetch origin -- --dry-run` and `git switch -- --dry-run`
 
 The correction delimits every composed branch operand and holds only the literal alias for manual recovery. It
 adds no branch-name validator, schema field, or change to other candidates. The propagation sweep covers § 5.3,
-criteria 5, 7, and 14, Task 4.1, and the upcoming 4.7 fixture/rehearsal verifier: existing general criteria remain
+criteria 5, 7, and 14, Task 4.1, and the 4.7 fixture/rehearsal verifier: existing general criteria remain
 applicable, 4.1 points forward to 4.R, and 4.7 closes the amended contract. Other rows and published actions are
 unaffected.
 
@@ -480,7 +496,7 @@ since selection; other text is a new concern after the flip. No title-to-ID fall
 introduced. Reader independence and binding completeness require no information unique to this note.
 
 The propagation sweep covers § 5.4's rows and compile-time resolution paragraph, criterion 5, appended criterion 17,
-completed Task 4.2.a, revision 4.R2, Task 4.2.d's workflow handoff, and the upcoming 4.7 fixture/rehearsal verifier.
+completed Task 4.2.a, revision 4.R2, Task 4.2.d's workflow handoff, and the 4.7 fixture/rehearsal verifier.
 The rows and paragraph fold into A3, 4.2.a takes an additive pointer, and 4.R2 carries the correction. Existing
 criteria 5, 7, and 14 and the 4.2.d argument shape are unaffected and remain applicable. Queue-head selection already
 carries qualified keys through `resolveQueueExecutionOffer` and is unaffected. The schema, prefix, Plan and other
@@ -582,3 +598,218 @@ becomes twice that limit instead of 15 seconds. This branch predated the fix; it
 failure mode. Reconciliation with main `255b75b43257fd1a61001ea76fad9a9bb6d988db` brings that fix into the branch.
 Any recurrence after this merge is new evidence rather than a continuation of the pre-fix timeout.
 Whole-suite E2E and hosted CI remain outside this execution boundary and have not run.
+
+## Work-unit verification
+
+The initial independent subject was private snapshot `da8bedd089bc14b8917eb7879f40c117ddf90f69`, following the main
+merge at `68fd8dee6c172e9fae5a11a1726e5f60a3930dc7`. The repaired-source author report below pins snapshot
+`85afb3e6ba7fac7a1804d42ced6cc26fa8622d65`, whose implementation is the pushed head
+`fb60176f0c7aade524b8cdcc854711250bbc9ca0`. Later evidence-only edits preserve every criterion digest. This report
+covers the author walk before Candidate attestation.
+
+The repaired-source author walk resolves all 19 criteria, with hosted qualification at the exact pushed repair head. The
+earlier measurement and rehearsal limitations remain part of the evidence rather than claims of perfect executor
+adherence.
+
+### Criteria report
+
+```yaml
+criteria-slice: Success Criteria
+span:
+  diff:
+    kind: change-set
+    baseRef: main
+    diffBaseSha: 50245297742df93f945ba2f1f92cd6d928c93102
+    headSha: 85afb3e6ba7fac7a1804d42ced6cc26fa8622d65
+  reachability: 9190225ff560dd7a9f905a0366893080cf8ec6c9
+  boundary-order-deviation: null
+criteria:
+  - locus: Success Criteria > 1
+    criterion-digest: sha256:f6354dd5d93eb3cda272e549b9fa332e542784579063a3ce7aa029a9f24dc59e
+    evidence: >-
+      Baseline metadata and raw controlled/itemized evidence; eaf54487d4 packages tree equals base 279aa8ebf9 before
+      shipped edits. Matched kit link-fill accommodation disclosed.
+    state: "[x]"
+  - locus: Success Criteria > 2
+    criterion-digest: sha256:bdb244916f54f6fa3367069286f5b36f9ee44f888459c33da9b7ea43ec6b9c79
+    evidence: >-
+      Raw itemized summaries: resume 17.25%, Orient 20.14%, Start 20.96%; controlled context reports approximately
+      18.15%, 21.78%, 22.44%. All below 28%.
+    state: "[x]"
+  - locus: Success Criteria > 3
+    criterion-digest: sha256:e1d53691cdfc7571ed48df2957e071dcd5e5092e0d90ea15c9a149c8c42302fc
+    evidence: >-
+      Raw itemized 24708/51801=47.70%; controlled context net 33400/61000 approximately 54.75%. Matched
+      first-response inclusion, rounding, and kit link fills disclosed.
+    state: "[x]"
+  - locus: Success Criteria > 4
+    criterion-digest: sha256:6dc851b623e2c2a9d54c0624d40e04d036f7d687edd2a3d95064da305f6df813
+    evidence: >-
+      Native CLI refuses each reproduced malformed answer key with invalid-input and --answered; unit cases retain
+      bare Plan, encoded values and final-equals splitting. The schema and passivity evidence still applies.
+    state: "[x]"
+  - locus: Success Criteria > 5
+    criterion-digest: sha256:040dbaec8d060a14632713888e9b410de4d15e95faf1889acd05a3ac3c0a5c29
+    evidence: >-
+      The complete row fixture suite passes, including husk unused-next guidance with its stop gate retained. The
+      bounded independent fix check supports closure of F2.
+    state: "[x]"
+  - locus: Success Criteria > 6
+    criterion-digest: sha256:9de61fcd1952bcb7dea59d7e0c5320e2b22570119bac0d4738b66ded952ec5c0
+    evidence: >-
+      All nine affected entry/resume kinds retain both universal failure diagnostics and each domain-rule warning
+      once; ordinary resume output is preserved. The bounded independent fix check supports closure of F1.
+    state: "[x]"
+  - locus: Success Criteria > 7
+    criterion-digest: sha256:ee41cd0aab3d35ccb5be5bc5574ac6b1c8532224cc713ef81772bb94479325bf
+    evidence: >-
+      Cleanup/recovery source and fixture tests preserve blocked/manual/owner-held boundaries, offers, exact
+      published argv and native operand proof.
+    state: "[x]"
+  - locus: Success Criteria > 8
+    criterion-digest: sha256:e12bcfd62c7fa9e34a4cdbd908f4ec733ef0a40ed1ac865b792d0fdfad8f98c4
+    evidence: >-
+      prefix, notes, sync-state, sync-steps, progress and cardinality tests plus source trace cover terminal execs,
+      combined offers, reference order and carried answers/done/methods.
+    state: "[x]"
+  - locus: Success Criteria > 9
+    criterion-digest: sha256:b180802363b407ad93e2b51806930cc3c3130a53f468d8dc3155d5a92a516daa
+    evidence: >-
+      Packaged plain spine is 11527 bytes; step vocabulary and four orientation shapes drive it; recipe installs
+      plain session-init.md.
+    state: "[x]"
+  - locus: Success Criteria > 10
+    criterion-digest: sha256:69e2dff6daefbffcb2fd722589c4c16f2a2a1798977af8a0d592fbf7d06fceba
+    evidence: >-
+      Recipe/classifier/manifest and init integration tests install declared reading/readiness/discovery methods
+      plus assess-parallel-fit and in-flight-scope-check; recovery retains both anchor stops.
+    state: "[x]"
+  - locus: Success Criteria > 11
+    criterion-digest: sha256:566e8ccb3746374fe4b29a245e2fdd122e800de08e632aac787adff6a25cc6c5
+    evidence: >-
+      Removed files absent in source/instance/recipe; current shipped content has no obsolete references;
+      inbox-state field descriptions preserve routable-count guidance.
+    state: "[x]"
+  - locus: Success Criteria > 12
+    criterion-digest: sha256:bf979ec8baa923631b5c4602dacb9ed69ff85c5ae736189be7a4004570f8b12b
+    evidence: >-
+      Complete cheap-tier and two-copy diffs plus recipe inspection match specified surfaces and install
+      dispositions; repository-filled template differences preserved.
+    state: "[x]"
+  - locus: Success Criteria > 13
+    criterion-digest: sha256:803787c30081582cd0d8cafd7587c405bd12fa0c90375c5bcdf7c8d424791b75
+    evidence: >-
+      Complete propagation census, current-source search, contract tests and historical full integration evidence
+      support reader retargeting; fresh gate results remain separately reported.
+    state: "[x]"
+  - locus: Success Criteria > 14
+    criterion-digest: sha256:59e14fccc6dc1d80fca661d73191593df7115200a84f60570285abbf99f1b69a
+    evidence: >-
+      Matched kit resume and twelve remaining-arm transcripts reach recorded entry/orientation outcomes; retained
+      progress/failure-stop deviations limit adherence claims.
+    state: "[x]"
+  - locus: Success Criteria > 15
+    criterion-digest: sha256:78029ed86b1ea09eba6d955c148fe1ca452f99cb3e0e7b7e0204e2c8865b65ac
+    evidence: >-
+      argv tests, schema description and spine agree on insertion before delimiter and leading-dash equals binding;
+      direct Commander execution preserves both literals.
+    state: "[x]"
+  - locus: Success Criteria > 16
+    criterion-digest: sha256:5593b9f1ac7e795d091c38cf2074ed0f1542f562232da3a19ee68e48905a962c
+    evidence: >-
+      Forced local merge gate at fb60176f0c passes 19 checks, including six store shards for 320 reached suites.
+      Hosted CI run 41535656407 succeeds at exactly that pushed head without diagnostic inputs: build, both Node
+      unit matrices, lint/type checks, integration, E2E, full store, and Linux concurrency portability.
+    state: "[x]"
+  - locus: Success Criteria > 17
+    criterion-digest: sha256:6e3400fca90dcb0c0f525a97a0a95374806d40ee0e68fea7e2323786a1b6f82f
+    evidence: >-
+      Implementation verification is complete and ready for Candidate preparation under verify-work-unit. Private
+      review, convergence, publication, and integration authorization remain their own boundaries. No live
+      deployment or merge safety is claimed.
+    state: "[x]"
+  - locus: Success Criteria > 18
+    criterion-digest: sha256:c9903eb527a39b620db9f35c19308459164bf7aabd981d2f6736c01ae1c7aa43
+    evidence: >-
+      Delimited recovery actions and literal alias held/manual choices match recovery source, native operand matrix
+      and A2 evidence.
+    state: "[x]"
+  - locus: Success Criteria > 19
+    criterion-digest: sha256:940c05dd07cc9f43660f0fccd70c3edb4dd95ced200865b099d59d5d48e36238
+    evidence: >-
+      Backend capture fixtures and actual adoption planner preserve pre-flip titles, post-flip IDs and existing
+      refusal/recovery behavior, matching A3.
+    state: "[x]"
+summary:
+  met: 19
+  superseded: 0
+  unresolved: 0
+```
+
+### Attention and independent review
+
+The resolver returned `consider-chunks` for 15,669 changed lines across 191 files, then `scope-selected` for the exact
+snapshot target `sha256:ee06e681018e6af7704f71afe891d2d8927782243b34d3204b5440c3ff2a9f72`. Five bounded scopes
+cover contract/adapters (49 files, 3,056 lines), context/synchronization (25, 2,171), routes (47, 3,614), shipped
+methodology/install contracts (65, 4,168), and planning/evidence (5, 2,660). Each changed file occurs once; changed
+cross-scope declarations are explicitly external to their consumers. The dedicated seam/aggregate call inspected
+schema-to-spine execution, answer carrying, workflow arguments, install wiring, and measurement/source binding.
+
+**Pass 1 of 2:** one major, two minor findings. Primary source checks and read-only executable reproductions support
+all three. The design already requires their outcomes; the amendment entry gate returns the task arm, whose review
+finding path writes no amendment record. Complete-set approval authorized these local corrections, focused verification,
+commit, and push:
+
+- **F1 — major:** preserve domain-rule warnings and configuration/domain-rule failure renders in the shared checkout
+  orientation helper and its signal, Start, and transient consumers. Update the tests that currently pin silence.
+- **F2 — minor:** declare the contextless husk's consumed signals explicitly, retaining its stop while reporting unused
+  `--next`. The caller sweep found no additional incorrect default consumer.
+- **F3 — minor:** refuse malformed individual answered keys while retaining bare Plan's generated `plan-stub:`, literal
+  encoded operands, and splitting at the final equals sign. Completed-ID validation is already separate.
+
+The approved corrections are implemented. Red run `d003fd47277848a18b8fa9f1585dbf44` produced 40 behavioral failures
+across the five selected regression files; green run `568990bc0d114b8794e89cd6d5520af0` passes all 474 agenda cases.
+Focused TypeScript lint passes. The valid-key controls preserve bare Plan, encoded selectors, and final-equals
+splitting.
+
+The approved fixes are committed as `52f60b8eb2`, `c9f6c3873b`, and `fb60176f0c` and pushed. The approved independent
+fix check, round 1 since pass 1, reports no findings over `68fd8dee6c..fb60176f0c`; primary source checks support its
+closure of F1–F3. Fix checking has converged. The complete pass found one major and two minors; this bounded check is
+not a second complete pass, and no successor complete pass is authorized. Exact prompts and reports remain
+content-addressed in the personal workspace's `adversarial-review/` directory:
+
+- contract prompt: `1e580ee7df0949288bf2b69f52f07294c4b8603d7b265ff15746330df935cd67.md`
+  Report: `f932b88c16c37cbea6140c319855010187eb2d658ccc370d8e54f585d9689b1e.md`
+- context prompt: `900115cc9907e7447cbcac648437690b9ec890f1834765d5eec1b1d689c7901c.md`
+  Report: `13f58817c9bb6159d2c33361146f141b020a4258ce609831afabed5511a7b860.md`
+- routes prompt: `b630867eb76479fcc8f9edbc72e916a368973e6c5c175f526b6d847acf28739a.md`
+  Report: `b2907c403914d243c6778d6bc6b70f0f04f9461c7d891a038fe9e0f46052df2d.md`
+- methodology prompt: `b4bbe2e0162a31a6edd6967f272b396d00b1424bc8e0fe3cf4a2e33d1ba68b4d.md`
+  Report: `0bacecae90588440699a3042cbe58b2365c45b8474cee0696b81ddbae7d21c26.md`
+- evidence prompt: `8f0491341c43b8fa6b6bc59c3630cf9f339c9eb890d90db8c2718c7b586aa4a7.md`
+  Report: `60ec932a692efb08755569b51258ead444f46b466b6e969509ee71fd568c7442.md`
+- aggregate prompt: `dbf30657f776395ad1a654d0bf1f8cdbadf8b21a38bc67ebc6f43c86469d93dc.md`
+  Report: `3b8f232120e3ff263e8db9f3109eef7b388cd2a28046147d4f63a8b27e44ec94.md`
+
+The repaired-source resolver returned `scope-selected` for 15,954 lines across 192 files at target
+`sha256:ca642e8f04d58bfaa8b5a38f3d74e1a2a7e577e046aee5f0931e8e01c51732b9`. The unchanged contract boundaries now
+include the diagnostic regression file in context: contract/adapters (49 files, 3,070 lines), context/sync (26, 2,237),
+routes (47, 3,624), methodology/install (65, 4,168), and planning/evidence (5, 2,855). The original complete pass and
+seam evidence cover unchanged material; the independent fix check closes the bounded repair span.
+
+- Fix-check prompt: `ffbc78529c3ee5f20e32d40b8dc0923431f7486aa6ad1d7cb4eeb4b22c50dbd9.md`
+  Report: `8e99eaab132a8807e02986cfc6c4ee065c3766465bc4586b924845de45add195.md`
+
+### Current checks
+
+The post-merge `new-head` request initially encountered a sandbox write refusal before its routed checks executed.
+The explicit retry passed both type checks, TypeScript lint, the full unit request, and ARC contract tests. The merge
+gate passed its build and other local checks; a long line introduced during notes cleanup failed Markdown lint and
+was corrected. Its routed checks initially failed source snapshot acquisition before execution. Their one explicit
+retry with stable source passed all seven requests, including all six store shards covering 320 reached suites.
+The repaired source passes a fresh forced merge gate: 19 requests pass, including all six store shards for 320 reached
+suites; four CI-only requests defer to hosted CI. Repair increment checks and all commit/push hooks pass. Native CLI
+probes refuse all four reported malformed answer forms. Hosted CI run `41535656407` passed at pushed head
+`fb60176f0c7aade524b8cdcc854711250bbc9ca0` without diagnostic inputs. It qualifies build, both Node unit matrices,
+lint/type checks, all integration and E2E shards, all six full-store shards, and Linux concurrency portability. The
+optional Windows/macOS pair and Git-floor jobs were not requested. No deployment or merge authorization is claimed.
