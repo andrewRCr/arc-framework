@@ -57,12 +57,21 @@ async function markUncommittedUpdates(context: RefBackendContext, remote: string
   fetched: Extract<FetchOutcome, { status: "refs" }>, basis: RefFetchBasis): Promise<void> {
   const prefix = `refs/arc-remotes/${remote}/`, current = await readSyncRefs(context, prefix);
   for (const row of fetched.refs) {
-    if (!row.ref.startsWith(prefix) || row.flag === "!" || row.flag === "=") continue;
-    const actual = current.get(row.ref);
-    if (/^0+$/u.test(row.next)) { if (actual) row.flag = "!"; continue; }
-    if (await trackingContainsFetchedTip(context, basis, row, actual)) continue;
-    row.flag = "!";
+    if (!row.ref.startsWith(prefix) || row.flag === "=") continue;
+    await markRefFetchUpdate(context, basis, row, current.get(row.ref));
   }
+}
+
+async function markRefFetchUpdate(context: RefBackendContext, basis: RefFetchBasis,
+  row: FetchRefOutcome, actual: string | undefined): Promise<void> {
+  const previous = /^0+$/u.test(row.old) ? undefined : row.old;
+  if (row.flag === "!" && actual === previous) return;
+  if (/^0+$/u.test(row.next)) { row.flag = actual ? "!" : "-"; return; }
+  if (await trackingContainsFetchedTip(context, basis, row, actual)) {
+    if (row.flag === "!") row.flag = " ";
+    return;
+  }
+  row.flag = "!";
 }
 
 async function trackingContainsFetchedTip(context: RefBackendContext, basis: RefFetchBasis,

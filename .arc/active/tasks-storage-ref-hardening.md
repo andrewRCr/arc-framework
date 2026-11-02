@@ -682,18 +682,14 @@ pull leaves writes and pull merges free of `lock-held` on the layout lock.
   while excluded refs retain the lock notice's condition and remedy, including a pending end whose notice was dropped.
   Native files-format cases cover atomic batch retention and repaired retries, and skip below Git 2.53.0.
 
-### `[ ]` **6.5 A lock-failed `!` row counts as applied when its tracking ref holds the fetched tip — § 9**
+### `[x]` **6.5 A lock-failed `!` row counts as applied when its tracking ref holds the fetched tip — § 9**
 
 - _Goal:_ A ref whose tracking ref a sibling's fetch already advanced past the fetched tip raises no
   `tracking-update-failed` notice, so 6.4's exclusion refuses only a ref that cannot publish.
 
-    - `markUncommittedUpdates` (`fetch-check.ts`) also checks a `!` row when its tracking ref has moved off the row's old
-      value; a tracking ref holding the fetched tip, itself or a descendant, makes the row applied, as
-      `trackingContainsFetchedTip` does for an applied row. A rejected rewrite leaves the tracking ref at its old value
-      and keeps its refusal.
-    - Build `test-first` (one behavior at a time), handing `checkRefFetchUpdates` a failed fetch's `!` rows directly
-      since Git's marking varies by version and format: a tracking ref moved to a descendant raises no notice; a
-      rewrite to an ancestor stays `history-diverged`.
+- _Outcome:_ Rejected rows are reclassified only after tracking moves off the old value and proves the fetched update
+  applied, including deletion; unchanged tracking preserves ancestor-rewrite refusals. Both layouts exercise public
+  Store calls with producer-verified `!` rows that change only the failed row's flag, keeping native OIDs and failure.
 
 ### `[ ]` **6.6 A zero wait is one attempt, and expiry refuses before the port — § 6.3, § 12**
 
