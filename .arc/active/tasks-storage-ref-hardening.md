@@ -570,6 +570,10 @@ annotated commit.
 - _Note:_ It runs once this branch holds the review family's import mapping; until then the loop waits here, since
   tasks run in document order. See `notes-storage-ref-hardening.md` § Coordination with `seam-delivery-review`.
 
+- _Note:_ **Owner, 2026-11-01:** Execution is reordered: run Tasks 6.1 through 7.5 before this task. Once
+  `seam-delivery-review` merges and this unit merges base, return to 5.12 and 5.13, then execute Phase 8. This overrides
+  the document-order wait above. Stop if a Phase 6 or 7 task depends on the import fixes or the review mapping.
+
     - Run the trial exactly as 5.13 does — no review in flight, notes saved on approval right before a fresh copy — and
       keep its report beside the copy.
     - Verify each refusal and blocking notice against source, then present the complete disposition set for approval,
