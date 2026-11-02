@@ -9,6 +9,8 @@ import { createReferenceFixture } from "../reference-fixture.js";
 import { seedProjection } from "./seeded-projection.js";
 import { recordLandedCopy } from "./take-in-recording.js";
 import { recordWriteBackSent } from "../../../../src/lib/store/projection/aside-copies.js";
+import type { RecordReference } from "../../../../src/lib/store/identity.js";
+import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { readReference, readStat } from "../../../../src/lib/store/projection/change-detection.js";
 import { guardReplacement } from "../../../../src/lib/store/projection/replace-guard.js";
@@ -29,6 +31,7 @@ export const deferring: TakeInPort = async (request) => ({ answer: "deferred", e
 /** What a prepared swap holds the file to. */
 export interface PrepareSwapOptions {
   readonly path?: string;
+  readonly reference?: RecordReference;
   /** The record's content as laid, then as stored next. */
   readonly contents?: readonly [string, string];
   /** Whether the file, and the version staged for it, are read-only, as a protected file is. */
@@ -47,10 +50,12 @@ export async function prepareSwap(options: PrepareSwapOptions = {}) {
   const contents = options.contents ?? ["# Cohort: one\n\nBody.\n", "# Cohort: one\n\nBody, refreshed.\n"];
   const readOnly = options.readOnly ?? false;
   const fixture = createReferenceFixture();
-  const reference = fixture.reference("cohort/document", "one");
+  const reference = options.reference ?? fixture.reference("cohort/document", "one");
+  if (reference.owner.type === "person") fixture.identity(reference.owner.name);
   const put = await fixture.store.write({ action: "put", reference, content: contents[0], expected: null, provenance: PROVENANCE });
   if (put.status !== "ok") throw new Error("the fixture write was refused");
-  const seeded = await seedProjection({ store: fixture.store, files: [{ reference, path }] });
+  const seeded = await seedProjection({ store: fixture.store, files: [{ reference, path }],
+    ...(reference.owner.type === "person" ? { identity: SlugSchema.parse(reference.owner.name) } : {}) });
   const laid = seeded.index.entries[path];
   if (laid?.kind !== "record") throw new Error("expected the file's record entry");
   const next = await fixture.store.write({ action: "put", reference, content: contents[1], expected: laid.base.version, provenance: PROVENANCE });

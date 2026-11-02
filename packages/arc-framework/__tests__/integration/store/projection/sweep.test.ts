@@ -1,6 +1,6 @@
 /** The sweep over a seeded projection: the copies and staged files a stopped or exited writer left, taken over. */
 import { readProjectionConfiguration } from "../../../../src/lib/store/projection/configuration.js";
-import { copyFile, lstat, mkdir, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { copyFile, lstat, mkdir, readFile, realpath, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { landingCopies, prepareSwap, SWAP_PATH, SWAP_WRITER, type PrepareSwapOptions } from "../../../helpers/store/projection/swap-fixture.js";
@@ -17,6 +17,7 @@ import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js
 import type { SwapHooks } from "../../../../src/lib/store/projection/swap.js";
 import { sweepAsideFolder, type SweepInput } from "../../../../src/lib/store/projection/sweep.js";
 import type { TakeInPort } from "../../../../src/lib/store/projection/take-in-port.js";
+import { RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -406,6 +407,54 @@ describe("the sweep with no usable index", () => {
 
 describe("the sweep's ignore guard", () => {
   const exclude = (lines: readonly string[]) => lines.map((line) => `${line}\n`).join("");
+
+  it.each([
+    ["recorded", "fresh"], ["recorded", "cached"], ["recorded", "partial-refusal"],
+    ["unrecorded", "fresh"], ["unrecorded", "cached"], ["unrecorded", "partial-refusal"],
+    ["no-index", "fresh"], ["no-index", "partial-refusal"],
+  ] as const)("keeps %s personal copies outside a %s guard's roots, then permits authorized recovery", async (mode, verdict) => {
+    const path = ".arc/user/andrew/USER-INBOX.md";
+    const reference = RecordReferenceSchema.parse({ kind: "personal/inbox", owner: { type: "person", name: "andrew" } });
+    const left = await leftBy("afterMove", { path, reference, contents: [
+      "# User Inbox\n\n## Errand\n", "# User Inbox\n\n## Errand\n\n## Work Unit\n",
+    ] });
+    const original = await indexOnDisk(left.location);
+    const entry = original.entries[path];
+    if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("expected personal copy");
+    const copy = entry.copies[0].name;
+    const saved = renderStampedFile({ content: "# User Inbox\n\n## Errand\n\nPrivate saved edit.\n", stamp: entry.base.blob });
+    await writeFile(join(left.checkout, copy), saved);
+    await writeFile(join(left.checkout, ".gitignore"), verdict === "partial-refusal" ? "" : ".arc/user/alice/\n");
+    const oldTime = new Date("2000-01-01T00:00:00Z");
+    await utimes(join(left.checkout, ".gitignore"), oldTime, oldTime);
+    await utimes(join(left.checkout, ".git/info/exclude"), oldTime, oldTime);
+    const guard = { root: left.checkout, identity: SlugSchema.parse("alice"), exec: execInput, fs: gitFs };
+    let index: ProjectionIndex | null = mode === "no-index" ? null : mode === "unrecorded"
+      ? { ...original, entries: { ...original.entries, [path]: { ...entry, copies: [] } } } : original;
+    if (verdict === "cached") {
+      const primed = await left.sweep(unreached, { guard, index, writer: SWAP_WRITER });
+      expect(primed.ignores.kind).toBe("passed");
+      index = primed.index;
+    }
+
+    const refused = await left.sweep(unreached, { guard, index });
+    expect(refused.ignores.kind).toBe(verdict === "partial-refusal" ? "refused" : verdict === "cached" ? "unchanged" : "passed");
+    expect(await readStat(left.file)).toBeNull();
+    expect(await readFile(join(left.checkout, copy), "utf8")).toBe(saved);
+    expect(refused.left).toMatchObject([{ path, copy, reason: "root-not-authorized", remedy: { text: expect.stringContaining(path) } }]);
+
+    await writeFile(join(left.checkout, ".gitignore"), ".arc/user/*/\n");
+    const retried = await left.sweep(unreached, { index: refused.index });
+    expect(retried.ignores.kind).toBe("passed");
+    if (mode === "unrecorded") {
+      expect(retried.left).toEqual([{ path, copy, reason: "unrecorded" }]);
+      expect(await readFile(join(left.checkout, copy), "utf8")).toBe(saved);
+    } else {
+      expect(await readFile(left.file, "utf8")).toBe(saved);
+      expect(await readStat(join(left.checkout, copy))).toBeNull();
+      await createExecaGitExec()("git", ["check-ignore", "--no-index", path], { cwd: left.checkout });
+    }
+  });
 
   it("refuses a root whose ignore line was removed since the guard passed, linking nothing back there until it returns", async () => {
     const left = await leftBy("afterMove");

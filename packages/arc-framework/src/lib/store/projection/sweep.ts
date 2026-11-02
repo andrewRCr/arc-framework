@@ -10,7 +10,7 @@ import { hasPathMovedOn, readPathHolding, settleAsideCopy, type CopySettlement }
 import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import { checkIgnores, type IgnoreCheck } from "./ignore-check.js";
-import type { ProjectionIgnoreGuardInput } from "./ignore-guard.js";
+import { guardedProjectionRoots, type ProjectionIgnoreGuardInput } from "./ignore-guard.js";
 import type { ConfiguredIgnoreRules } from "./configuration.js";
 import { readReference, readStat } from "./change-detection.js";
 import { commitProjectionIndex } from "./index-file.js";
@@ -53,8 +53,8 @@ export type SweptCopy =
 export interface LeftCopy {
   readonly path: string;
   readonly copy: string;
-  /** Written from another process scope; with no record of it; or, with no usable index, holding an edit. */
-  readonly reason: "other-scope" | "unrecorded" | "withheld" | "not-a-file";
+  /** Why the copy remains untouched, including a destination outside the command's authorized roots. */
+  readonly reason: "other-scope" | "unrecorded" | "withheld" | "not-a-file" | "root-not-authorized";
   readonly remedy?: Remedy;
 }
 
@@ -79,12 +79,13 @@ export interface SweepResult {
  */
 export async function sweepAsideFolder(input: SweepInput): Promise<SweepResult> {
   const reference = await readReference(input.checkout);
+  const guarded = guardedProjectionRoots(input.guard.identity).map(({ path }) => path);
   const ignores = await checkIgnores({
     guard: input.guard, records: input.index?.ignoreFiles ?? null, reference, format: input.format,
     ignoreRules: input.ignoreRules, readIgnoreRules: input.readIgnoreRules,
     recordedGuard: input.index?.ignoreGuard ?? null,
   });
-  const writable = writableUnder(ignores);
+  const writable = writableUnder(ignores, guarded);
   // A refusal of the aside folder, as a failed call refuses every root, leaves the sweep nothing it may write.
   if (!writable(`${PROJECTION_ASIDE_ROOT}/`)) return { ignores, index: input.index, swept: [], left: [], withheld: [], copies: [] };
   const judges: SweepJudges = { writerOf: judgeWriters(input), writable };
@@ -118,11 +119,19 @@ interface SweepJudges {
   readonly writable: (path: string) => boolean;
 }
 
-/** Whether a path lies outside every root a refusal names. */
-function writableUnder(ignores: IgnoreCheck): (path: string) => boolean {
-  if (ignores.kind !== "refused") return () => true;
-  const refused = ignores.reason === "guard-failed" ? ignores.paths : ignores.roots.map((root) => root.path);
-  return (path) => !refused.some((root) => path.startsWith(root));
+/** Only proved roots may be written; a passing current-identity guard never authorizes another personal root. */
+function writableUnder(ignores: IgnoreCheck, guarded: readonly string[]): (path: string) => boolean {
+  const refused = ignores.kind !== "refused" ? []
+    : ignores.reason === "guard-failed" ? ignores.paths : ignores.roots.map((root) => root.path);
+  const authorized = guarded.filter((root) => !refused.includes(root));
+  return (path) => authorized.some((root) => path.startsWith(root));
+}
+
+/** Retain an unproved destination's copy with the route back to ordinary recovery. */
+function unauthorizedCopy(path: string, copy: string): LeftCopy {
+  return { path, copy, reason: "root-not-authorized", remedy: {
+    text: `Recovery did not touch ${copy}: ${path} is outside the authorized roots. Restore the root's ignore rule and, for a personal path, run with that ARC identity before retrying.`,
+  } };
 }
 
 /** Each copy the index records, in each entry's record order, taken over where its writer has exited. */
@@ -153,8 +162,9 @@ function recordsToTake(
   const taking: { path: string; copy: string }[] = [];
   const left: LeftCopy[] = [];
   for (const [path, entry] of Object.entries(index.entries)) {
-    if (entry.kind !== "record" || !writable(path)) continue;
+    if (entry.kind !== "record") continue;
     for (const record of entry.copies.filter((copy) => !index.withheldCopies.includes(copy.name))) {
+      if (!writable(path)) { left.push(unauthorizedCopy(path, record.name)); continue; }
       const writer = writerOf(record.name);
       if (writer === "other-scope") left.push({ path, copy: record.name, reason: "other-scope" });
       if (writer === "exited") taking.push({ path, copy: record.name });
@@ -176,7 +186,8 @@ async function takeOverUnrecorded(
   const left: LeftCopy[] = [];
   for (const location of found) {
     const named = parseAsideFile(location);
-    if (named?.role !== "aside" || !writable(named.path) || recorded.has(location) || index.withheldCopies.includes(location)) continue;
+    if (named?.role !== "aside" || recorded.has(location) || index.withheldCopies.includes(location)) continue;
+    if (!writable(named.path)) { left.push(unauthorizedCopy(named.path, location)); continue; }
     const writer = writerOf(location);
     if (writer === "other-scope") left.push({ path: named.path, copy: location, reason: "other-scope" });
     if (writer === "exited" && !await deleteIfUnedited(input, location, named)) {
@@ -197,7 +208,8 @@ async function sweepWithoutIndex(
   const withheld: string[] = [];
   for (const location of found) {
     const named = parseAsideFile(location);
-    if (named?.role !== "aside" || !writable(named.path)) continue;
+    if (named?.role !== "aside") continue;
+    if (!writable(named.path)) { left.push(unauthorizedCopy(named.path, location)); continue; }
     const writer = writerOf(location);
     if (writer === "other-scope") left.push({ path: named.path, copy: location, reason: "other-scope" });
     if (writer !== "exited" || await returnWithoutIndex(input, location, named)) continue;
