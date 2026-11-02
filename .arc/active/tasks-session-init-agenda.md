@@ -331,47 +331,30 @@ _Exit criterion:_ Each § 5.4 row and § 5.3 kind emits its specified steps and 
 the `row-not-compiled` refusal is gone, and the `--plan`, `--errand`, branch-gone, Orient-discovery, and `--context`
 rehearsals reach today's orientation except where the specification states a change.
 
-### `[ ]` **4.1 Compile branch-gone recovery — § 5.3**
+### `[x]` **4.1 Compile branch-gone recovery — § 5.3**
 
 - _Goal:_ Each recovery kind compiles to its § 5.3 steps: a free destination switches by a composed fetch and switch and
   recompiles, and every other outcome — a destination checked out elsewhere, a declined, deferred, surface-only,
   answered, or failed recovery, or an absent recovery slot — takes the held path to a `gate stop`.
 
-    - `[ ]` **4.1.a Locate destinations**
-        - The local-ref check is `git rev-parse --verify --quiet refs/heads/<branch>` through the read port
-        - Build `test-first` (one behavior at a time):
-            - a destination is a `switch` candidate of a `resolved` or `surface` result, or `main-fallback`'s
-              `baseBranch`; `pending` and `unproven` candidates are not
-            - a destination is located by its `worktreePath`, else by `resolveWorktreePathsByBranchResult`; a missing
-              `worktreePath` never means free
-            - a failed worktree-path read (`ok: false`) takes the held path
-            - a free destination compiles `git fetch origin <branch>` only without a local ref, then `git switch
-              <branch>`, recompiling
-            - a destination checked out elsewhere takes the held path
+    - `[x]` **4.1.a Locate destinations**
+        - Added a read-bound destination resolver over exact switch candidates and the base fallback. Candidate
+          checkout paths take precedence; absent paths require Git's worktree registry. Occupied or unreadable
+          destinations remain held. Only a confirmed missing local ref adds a fetch before the literal switch.
 
-    - `[ ]` **4.1.b Compile each kind**
-        - The compiler dispatches on the recommendation's action rather than reading dirtiness again, since a failed
-          `dirty` slot already counts as dirty
-        - Build `test-first` (one behavior at a time):
-            - `resolved` `switch` on a clean tree is an `exec` (id `branch-gone:resolved`); on a dirty tree an offer
-              whose elsewhere case is a bare choice to continue there
-            - `resolved` `removable` offers the published `arc teardown <name>` and recompiles, recording nothing
-            - `resolved` `external` and `unproven` take the held path
-            - `surface` offers a choice per candidate by its action
-            - `main-fallback` offers the base as a destination
-            - `pending` offers the published refresh `arc active in-flight --json`, not its candidates; a refresh that
-              changes the kind changes the question key, and one left `pending` finds its question answered
+    - `[x]` **4.1.b Compile each kind**
+        - Added recommendation-driven decisions for free switches, occupied destinations, published teardowns,
+          per-candidate menus, the base fallback, and pending refresh. Recompiles retain the kind-specific question
+          and execution state; surface-only and recorded decisions stay held, and teardowns record nothing.
 
-    - `[ ]` **4.1.c Compile the held path**
-        - Build `test-first` (one behavior at a time):
-            - the held path skips every sync step, reads the universal set and, for a selected work unit, its load set
-              as a resume does, and ends `gate stop`
-            - the `branch-gone` render carries the recommendation's text, each elsewhere destination's "Continue
-              recovery in checkout `<path>`.", and each `missingFolders` remedy, the same after any recompile
-            - with no `recovery` value, the render is today's line alone, and a failed slot also renders degraded
-            - orientation follows the entering row: `subject` on a transient row, else `work-state`
-            - on a row that would otherwise be Orient, the held path runs no `discover-next-work` and offers no route
-            - the held path emits no `unconsumed-signal` or `concurrent-workload` note
+    - `[x]` **4.1.c Compile the held path**
+        - Held recovery reads universal or selected work-unit context, conserves recovery and remedy text, shares
+          ordered orientation surfaces, and stops. Transients use subject orientation; absent notes use history when
+          no load is offered. Missing probes degrade locally; unused intent and discovery workload remain quiet.
+
+- _Outcome:_ Shared read grouping and orientation assembly now serve both resume and held recovery. Native CLI
+  coverage checks the composed fetch/switch plan while preserving the current checkout and code refs; ordinary
+  resume coverage exercises the same shared assembly.
 
 ### `[ ]` **4.2 Compile the signal rows — § 5.4, § 12**
 

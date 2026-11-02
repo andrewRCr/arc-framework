@@ -5,7 +5,7 @@ import { resolveLoadSetManifest, type LoadSetSessionType } from "../../lib/load-
 import { readSessionNotesFields } from "../../lib/store/session-notes-fields.js";
 import { parseLifecycleMetaContent } from "../../lib/store/lifecycle-meta-content.js";
 import type { AgendaCompileInput } from "./compile-input.js";
-import { compileResumeReads, selectedAgendaContext, type AgendaResumeReadContext } from "./reads.js";
+import { compileResumeReads, selectedAgendaContext, type AgendaResumeReadContext, type AgendaReadOptions } from "./reads.js";
 import type { AgendaStep } from "./schema.js";
 
 type Note = Extract<AgendaStep, { type: "note" }>;
@@ -27,7 +27,7 @@ export function resolveAgendaSessionType(current: LoadSetSessionType | null, aut
 }
 
 /** Read current session fields before compiling their effective context. */
-export async function compileResumeContext(input: AgendaCompileInput): Promise<AgendaResumeContext> {
+export async function compileResumeContext(input: AgendaCompileInput, options: AgendaReadOptions = {}): Promise<AgendaResumeContext> {
   const context = selectedAgendaContext(input);
   if (context === null) return { steps: [], metaContent: null };
   const metaContent = await optionalContent(input, context.metaPath);
@@ -37,7 +37,7 @@ export async function compileResumeContext(input: AgendaCompileInput): Promise<A
   const override = resolveAgendaSessionType(context.sessionType, authored);
   const effective = override.warning === null && authored !== null
     ? overriddenContext(input, override.sessionType, metaContent ?? "") : context;
-  const steps = await compileResumeReads(input, effective);
+  const steps = await compileResumeReads(input, effective, options);
   if (override.warning !== null) steps.push(override.warning);
   const freshness = await compileHandoffFreshness(input, notes.commitAtHandoff, context.metaPath);
   if (freshness !== null) steps.push(freshness);

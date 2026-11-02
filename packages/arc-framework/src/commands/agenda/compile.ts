@@ -1,6 +1,7 @@
 /** Compile session entry decisions into an asserted agenda or an actionable refusal. */
 
 import { createSessionInitAgenda } from "./document.js";
+import { compileBranchGone } from "./recovery.js";
 import { compileWorkUnitResume } from "./resume.js";
 import { resolveAgendaRow } from "./row.js";
 import type { AgendaCompileInput } from "./compile-input.js";
@@ -15,6 +16,7 @@ export type AgendaCompileResult = { ok: true; agenda: SessionInitAgenda } | { ok
 export async function compileSessionInitAgenda(input: AgendaCompileInput): Promise<AgendaCompileResult> {
   const row = resolveAgendaRow(input.envelope, input.signals);
   if (row === "stop") return { ok: true, agenda: compileStop(input) };
+  if (row === "branch-gone") return { ok: true, agenda: await compileBranchGone(input) };
   if (row === "work-unit") return { ok: true, agenda: await compileWorkUnitResume(input) };
   return { ok: false, refusal: {
     code: "row-not-compiled", flags: [], row,

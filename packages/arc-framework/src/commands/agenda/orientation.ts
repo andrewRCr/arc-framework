@@ -1,5 +1,9 @@
 /** Ordered orientation surfaces and compiler-known automatic-proceed constraints. */
 
+import { compileAdvisoryOrientation } from "./advisories.js";
+import { compileCheckoutOrientation } from "./checkout.js";
+import { compileCleanupOrientation } from "./cleanup.js";
+import { compileNotesOrientation } from "./notes.js";
 import { quoteShellArgument } from "../../lib/release/commit-message-retry.js";
 import type { SessionAction } from "../../lib/session-init/actions.js";
 import { pullResultNotices } from "../../lib/store/operational-sync.js";
@@ -32,6 +36,12 @@ const RESUME_SLOTS = ["worktree", "dirty", "baseDistance", "baseBranchSync", "us
 export function orderOrientationSurfaces(surfaces: OrientationSurface[]): AgendaStep[] {
   return [...surfaces].sort((left, right) => (ORDER.get(left.id) ?? ORDER.size) - (ORDER.get(right.id) ?? ORDER.size))
     .flatMap(surface => surface.steps);
+}
+
+/** Compile the shared orientation surfaces without selecting synchronization or a terminal gate. */
+export function compileSessionOrientation(input: AgendaCompileInput, findings: Extract<AgendaStep, { type: "render" | "note" }>[], sync: AgendaSyncState = compileSyncState(input)): OrientationSurface[] {
+  return [...compileCoreOrientation(input, findings, sync), ...compileCheckoutOrientation(input, sync),
+    ...compileNotesOrientation(input, sync), ...compileCleanupOrientation(input), ...compileAdvisoryOrientation(input)];
 }
 
 /** Collect core resume surfaces and findings for the shared ordered assembly. */
