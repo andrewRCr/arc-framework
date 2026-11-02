@@ -97,12 +97,13 @@ end fix checking; § Successor passes decides whether a complete pass follows, a
 ### Successor passes
 
 A review's bar is a complete pass that finds no critical or major finding. Until one does, the engineering
-recommendation once the rounds converge is another complete pass. A fix check reads its repairs, so its convergence
-shows the repairs hold and says nothing about what the complete pass missed elsewhere. The last complete pass's own
-critical and major count is the best evidence of that, as in inspection re-review criteria and capture-recapture
-estimates: a pass that found many likely missed more. Read the complete passes' counts in sequence for what the next
-may find. A falling series expects little; a high or flat one says the defects come from the change itself, so apply
-§ Shared causes and say whether splitting the change or reworking its design would serve better than another pass.
+recommendation once the rounds converge is another complete pass. A fix check reads only its repairs, so its convergence
+speaks to them alone, and a material finding it deferred can still mark a repair incomplete. It says nothing about what
+the complete pass missed elsewhere. The last complete pass's own critical and major count is the best evidence of that,
+as in inspection re-review criteria and capture-recapture estimates: a pass that found many likely missed more. Read the
+complete passes' counts in sequence for what the next may find. A falling series expects little; a high or flat one says
+the defects come from the change itself, so apply § Shared causes and say whether splitting the change or reworking its
+design would serve better than another pass.
 
 Recommend on engineering grounds first, beside the last complete pass's critical and major count, then name any cost,
 time, or ceiling constraint separately for the Owner to weigh. Use your own judgment within this default: you may

@@ -91,7 +91,12 @@ function changeSignalText(facts: NextPassFacts): string {
  */
 function successorDefaultText(facts: NextPassFacts, retrigger: ReviewRetrigger): string {
   const last = trendLooks(facts).filter(look => look.coverage === "complete").at(-1);
-  if (last?.materialCount === 0) return `Complete pass ${String(last.pass)} found none, which meets the review's bar.`;
+  if (last?.materialCount === 0) {
+    const met = `Complete pass ${String(last.pass)} found none, which meets the review's bar.`;
+    return retrigger === "full-final"
+      ? `${met} If later repairs make that assessment cease to hold, another complete pass is due under the re-inspection test.`
+      : met;
+  }
   const found = last === undefined || last.materialCount === null ? ""
     : `Complete pass ${String(last.pass)} found ${String(last.materialCount)}. `;
   const repairs = `${found}Fix checks show whether repairs hold, not what a complete pass missed`;
@@ -107,6 +112,8 @@ function successorDefaultText(facts: NextPassFacts, retrigger: ReviewRetrigger):
 /** Render each observation with its limits and the decision it can inform. */
 export function nextPassConsiderations(facts: NextPassFacts, retrigger: ReviewRetrigger): readonly string[] {
   const checks = facts.fixChecksSinceLastComplete.map((look, index) => `round ${index + 1}: ${look.outcome}`).join(", ");
+  const followingPass = retrigger === "full-final" ? "a complete pass after fix checks converge"
+    : "an additional complete pass the Owner directs once fix checks converge";
   return [
     `Complete passes: ${facts.completePasses} of ${facts.ceiling}. A complete pass spends this budget; a fix check does not. `
       + "A tight budget favors verifying repairs in a fix check, preserving complete passes for a successor look when the defect signal justifies one. "
@@ -114,12 +121,12 @@ export function nextPassConsiderations(facts: NextPassFacts, retrigger: ReviewRe
     `Fix checks since the last complete pass: ${facts.fixChecksSinceLastComplete.length}${checks === "" ? "" : ` (${checks})`}. `
       + "Their results show repair convergence; material fixes remaining favor another fix check before a successor pass is considered.",
     `Fix range: ${sizeText(facts.rangeSize.fix)}; target: ${sizeText(facts.rangeSize.target)}. `
-      + "When the chain is proven, a smaller fix range favors a fix check; a broad range supports considering a complete pass after fix checks converge.",
+      + `When the chain is proven, a smaller fix range favors a fix check; a broad range supports considering ${followingPass}.`,
     `Correction chain: ${facts.chainProven ? "proven" : "unproven"}. A proven chain gives the fix check its exact scope; `
       + "an unproven chain admits only a complete pass and calls for checking why.",
     ...(facts.fixRounds.length === 0 ? [] : [`Change signals after fixes: ${changeSignalText(facts)}. `
       + "Paths changed outside the cited files are a heuristic for new design, and new files may introduce it too; "
-      + "either favors a complete pass after fix checks converge, and their absence alone does not establish local correction."]),
+      + `either favors ${followingPass}, and their absence alone does not establish local correction.`]),
     `Critical and major findings: ${criticalMajorText(facts)}. ${successorDefaultText(facts, retrigger)}`
       + (retrigger === "full-final" ? " Prefer a different source for a successor pass." : ""),
   ];

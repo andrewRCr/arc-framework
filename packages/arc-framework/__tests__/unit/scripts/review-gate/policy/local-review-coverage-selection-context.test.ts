@@ -135,7 +135,8 @@ it("keeps another complete pass the default when fix checks converge after a hig
   expect(text).toContain("Prefer a different source for a successor pass.");
   expect(text).not.toMatch(/favou?r stopping/u);
   const met = fullFinalConsiderations({ ...facts, materialTrend: [{ ...complete!, materialCount: 0 }] }).join("\n");
-  expect(met).toContain("Complete pass 1 found none, which meets the review's bar.");
+  expect(met).toContain("Complete pass 1 found none, which meets the review's bar. If later repairs make that "
+    + "assessment cease to hold, another complete pass is due under the re-inspection test.");
   expect(met).not.toContain("is the default");
 });
 
@@ -149,6 +150,14 @@ it("names an incremental lane's closure on converged fix checks instead of a suc
     + "the Owner directs one.");
   expect(text).not.toContain("is the default");
   expect(text).not.toContain("Prefer a different source");
+  expect(text).toContain("a broad range supports considering an additional complete pass the Owner directs once fix "
+    + "checks converge.");
+  expect(text).toContain("either favors an additional complete pass the Owner directs once fix checks converge");
+  expect(text).not.toContain("a complete pass after fix checks converge");
+  const met = nextPassConsiderations({ ...facts, materialTrend: [{ ...complete!, materialCount: 0 }] }, "incremental")
+    .join("\n");
+  expect(met).toContain("Complete pass 1 found none, which meets the review's bar.");
+  expect(met).not.toContain("re-inspection test");
   const offered = resolveLocalReviewCoverageSelection({ ...input("unconverged"),
     standardReview: { ...standardReview, retrigger: "incremental" as const } });
   if (offered.state !== "coverage-required") throw new Error("expected coverage offer");
