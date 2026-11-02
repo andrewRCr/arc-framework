@@ -632,6 +632,10 @@ pull leaves writes and pull merges free of `lock-held` on the layout lock.
 - _Note:_ `sync-deadline.ts` and `ref-transaction.ts` carry deadline behavior another unit's change relies on; see
   `notes-storage-ref-hardening.md` § Coordination with `store-operation-git-access`.
 
+- _Note:_ 6.6 feedback correction: the older queued-stdin and acknowledgment deadline fixtures still expected an
+  admitted transaction to be canceled. They now exercise cancellable read-back after a native transaction refusal,
+  preserving partial-merge notices, accepted receiver state, and retry coverage under 6.1.a's required behavior.
+
     - `[x]` **6.1.a The uninterruptible option**
         - Native ref updates carry `uninterruptible` through deadline and operation wrappers. An aborted deadline
           refuses admission through the default port; a live signal permits completion past its clock end, while
@@ -691,50 +695,35 @@ pull leaves writes and pull merges free of `lock-held` on the layout lock.
   applied, including deletion; unchanged tracking preserves ancestor-rewrite refusals. Both layouts exercise public
   Store calls with producer-verified `!` rows that change only the failed row's flag, keeping native OIDs and failure.
 
-### `[ ]` **6.6 A zero wait is one attempt, and expiry refuses before the port — § 6.3, § 12**
+### `[x]` **6.6 A zero wait is one attempt, and expiry refuses before the port — § 6.3, § 12**
 
 - _Goal:_ A zero-wait advisory lock request acquires a free lock in one attempt, an expired deadline refuses before
   any lock port call, and no wrapper raises a lock wait.
 
-- _Note:_ `sync-deadline.ts` carries deadline behavior another unit's change relies on; see
-  `notes-storage-ref-hardening.md` § Coordination with `store-operation-git-access`.
+- _Outcome:_ Free zero-wait locks acquire once and held locks refuse after one attempt; their release keeps the normal
+  cleanup budget. Deadline binding refuses before admission on signal or clock expiry and preserves or lowers waits.
+  Public Store cases over default ports cover both layouts, unchanged pending state, and successful fresh retries.
 
-    - `acquireAdvisoryLock` (`lib/advisory-lock.ts`) attempts once before its deadline test.
-    - `bindDeadline` refuses before calling the lock port once `refSyncDeadlineExpired` holds — the deadline's signal
-      aborted or its end reached — whatever wait was asked, with `RefSyncDeadlineError` naming the lock's ref; it
-      passes zero as zero and lowers any other wait to the time remaining. 6.1.a's signal-only expiry covers only the
-      uninterruptible launch.
-    - `createRefLockFactory` (`lib/store/default-ports.ts`) releases a lock taken with a zero wait under
-      `DEFAULT_MAX_WAIT_MS`.
-    - Build `test-first` (one behavior at a time): a zero wait acquires a free lock; a zero wait on a held lock fails
-      after one attempt; an expired deadline refuses without a port call; through `withRefSyncDeadline` over the default
-      ports, which applies `bindDeadline`, a wait reaches the port lowered, and zero as zero, a property case that
-      already holds today (spec § 12); a zero-wait lock releases past a busy `.break` lock.
-
-### `[ ]` **6.7 The comparison scope never waits for the keeper lease under the layout lock — § 6.1, § 6.2, § 12**
+### `[x]` **6.7 The comparison scope never waits for the keeper lease under the layout lock — § 6.1, § 6.2, § 12**
 
 - _Goal:_ A push that overlaps another checkout's pull on the same remote never holds the layout lock while waiting
   for that remote's keeper lease, and the keeper lease is the one lock other than the move lock held across a network
   call.
 
-    - `[ ]` **6.7.a The comparison scope's lease dance**
-        - `withComparisonScope` (`comparison-witness.ts`) takes the lease with a zero wait under the layout lock; if
-          another holds it, it releases the layout lock, waits for the lease alone, releases it, and tries again. The
-          operation always runs under both locks.
-        - The retry is bounded by the remaining sync deadline, or, for a caller with none — follow's scopes in
-          `follow-delete.ts` and `follow-candidates.ts` — by `REF_SYNC_DEADLINE_MS` from its first attempt, whose
-          expiry throws `AdvisoryLockTimeoutError` that `withMigrationLock` maps to `lock-held`.
-        - Build `test-first` (one behavior at a time): a held lease releases the layout lock while waiting; a write and
-          a pull merge started during that wait do not refuse `lock-held`; the operation runs under both locks; a
-          deadline-free caller's expiry maps to `lock-held`; through `withRefSyncDeadline` over the default ports, as
-          6.1.a's cases run, the keeper lease is taken through `context.lock`, a property case that already holds today
-          (spec § 12).
+- _Note:_ 6.7.a is pulled forward with 6.6: its explicit zero-wait keeper request supplies the public Store path that
+  verifies zero is preserved through deadline and operation wrappers over the default lock port. The lease dance
+  remains bounded and executes only under both locks.
 
-    - `[ ]` **6.7.b The span rule where the lease is taken**
-        - `withRefFetchKeepers` (`fetch-seen.ts`) and `fetchRefPatterns` (`fetch.ts`) document the lease as held across
-          the remote's fetch, bounded by the sync deadline, and a sibling that outwaits its remaining deadline ending
-          with `RefSyncDeadlineError` and `refSyncDeadlineRemedy`'s retry remedy. The change is documentation only, so
-          it has no case.
+- _Note:_ 6.7.a feedback correction: a mutable admission marker lets lint distinguish acquisition contention from a
+  callback's failure. Callback and cleanup failures propagate without restarting the operation.
+
+    - `[x]` **6.7.a The comparison scope's lease dance**
+        - Comparison admission probes the keeper lease once under layout, then releases layout before waiting alone
+          and retrying. Both locks cover the operation; sync and deadline-free follow retries retain one total bound.
+          Native contention permits sibling writes and pull merges, and an expired follow resumes after repair.
+
+    - `[x]` **6.7.b The span rule where the lease is taken**
+        - Keeper and fetch comments name the network span, sync bound, timeout error, and retry remedy.
 
 ### `[ ]` **6.8 A write that retires a work ref takes the registry lock — § 8**
 

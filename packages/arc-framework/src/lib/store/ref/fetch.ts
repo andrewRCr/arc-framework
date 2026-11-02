@@ -38,6 +38,9 @@ export async function fetchRefHistories(context: RefBackendContext, remote: RefR
     remote.role === "read" ? null : await context.identity(), signal);
 }
 
+/** Hold the keeper lease across basis capture, the remote fetch, and release, bounded by the sync deadline.
+ * A sibling outwaiting its remaining deadline receives RefSyncDeadlineError with refSyncDeadlineRemedy's retry remedy.
+ */
 async function fetchRefPatterns(context: RefBackendContext, remote: RefRemoteDesignation, designation: RefDesignation,
   patterns: readonly string[], identity: string | null, signal?: AbortSignal): Promise<RefFetchOutcome> {
   const negotiation = await refFetchNegotiation(context, identity);

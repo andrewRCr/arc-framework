@@ -2,7 +2,8 @@
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation, type RefRemoteDesignation } from "./designation.js";
 import { EffectiveTransportError, readNamedTransport, readRemoteTransports, resolveLiteralTransport } from "./effective-transport.js";
-import { withRefFetchKeepers } from "./fetch-seen.js";
+import { AdvisoryLockTimeoutError, DEFAULT_MAX_WAIT_MS } from "../../advisory-lock.js";
+import { REF_SYNC_DEADLINE_MS, RefSyncDeadlineError } from "./sync-deadline.js";
 import { readRefRepository } from "./repository.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { withRefLocks } from "./write-locks.js";
@@ -51,10 +52,41 @@ export async function withComparisonWitness<T>(context: RefBackendContext, witne
 async function withComparisonScope<T>(context: RefBackendContext, remote: string,
   operation: (physical: RefBackendContext) => Promise<T>, keepers = true): Promise<T> {
   const source = context.repository?.source ?? context;
-  return withRefLocks(source, ["layout"], async () => {
-    const physical = await readRefRepository(source);
-    return keepers ? withRefFetchKeepers(physical, remote, () => operation(physical)) : operation(physical);
-  });
+  if (!keepers) return withRefLocks(source, ["layout"], async () => operation(await readRefRepository(source)));
+  const lease = `refs/arc/tmp/seen/${remote}`, end = source.syncDeadline?.end ?? source.clock().getTime() + REF_SYNC_DEADLINE_MS;
+  let contended: AdvisoryLockTimeoutError | undefined;
+  for (;;) {
+    const remaining = comparisonWaitRemaining(source, lease, end, contended);
+    const attempt = await withRefLocks(source, ["layout"], async () => {
+      const physical = await readRefRepository(source);
+      const admission = { operationStarted: false };
+      try {
+        const value = await withRefLocks(physical, [lease], () => { admission.operationStarted = true; return operation(physical); }, 0);
+        return { status: "done" as const, value };
+      } catch (error) {
+        if (!admission.operationStarted && error instanceof AdvisoryLockTimeoutError && error.phase === "acquire") return { status: "busy" as const, error };
+        throw error;
+      }
+    }, Math.min(DEFAULT_MAX_WAIT_MS, remaining));
+    if (attempt.status === "done") return attempt.value;
+    contended = attempt.error;
+    const waitMs = comparisonWaitRemaining(source, lease, end, contended);
+    try { await withRefLocks(source, [lease], async () => {}, source.syncDeadline ? REF_SYNC_DEADLINE_MS : waitMs); }
+    catch (error) {
+      if (source.syncDeadline && error instanceof AdvisoryLockTimeoutError && error.phase === "acquire") {
+        throw new RefSyncDeadlineError(error.lockPath, { cause: error });
+      }
+      throw error;
+    }
+  }
+}
+
+function comparisonWaitRemaining(context: RefBackendContext, lease: string, end: number,
+  contended: AdvisoryLockTimeoutError | undefined): number {
+  const remaining = end - context.clock().getTime();
+  if (context.syncDeadline && (context.syncDeadline.signal.aborted || remaining <= 0)) throw new RefSyncDeadlineError(lease);
+  if (remaining <= 0) throw new AdvisoryLockTimeoutError(contended?.lockPath ?? lease, REF_SYNC_DEADLINE_MS);
+  return remaining;
 }
 
 async function readComparisonSource(physical: RefBackendContext, expected: NamedSource,

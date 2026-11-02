@@ -18,7 +18,9 @@ export interface RefFetchBasis { tracking: Map<string, string>; seen: Map<string
 /**
  * Every checkout of the clone shares one remote's keepers, and a pull releases those whose tracking ref survived its
  * fetch, so a sibling's basis, fetch, and release must not interleave with it: one pull's release would drop a keeper
- * the other's pruning fetch still needs. A sibling holds the lock for at most its own sync deadline.
+ * the other's pruning fetch still needs. This lease spans the remote fetch and is bounded by the sync deadline.
+ * A sibling that outwaits its remaining deadline ends with RefSyncDeadlineError and refSyncDeadlineRemedy's retry
+ * remedy; the keeper lease and move lock are the only locks held across network calls.
  */
 export async function withRefFetchKeepers<T>(context: RefBackendContext, remote: string, operation: () => Promise<T>): Promise<T> {
   return withRefLocks(context, [`refs/arc/tmp/seen/${remote}`], operation, REF_SYNC_DEADLINE_MS);

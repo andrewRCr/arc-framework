@@ -47,7 +47,8 @@ function bindDeadline(context: RefBackendContext, deadline: NonNullable<RefBacke
   const repository = context.repository ? { ...context.repository, source: bindDeadline(context.repository.source, deadline) } : undefined;
   return { ...context, repository, syncDeadline: deadline,
     lock: async (ref, waitMs) => {
-      const requested = waitMs ?? DEFAULT_MAX_WAIT_MS, remaining = Math.max(0, deadline.end - context.clock().getTime());
+      const requested = waitMs ?? DEFAULT_MAX_WAIT_MS, remaining = deadline.end - context.clock().getTime();
+      if (deadline.signal.aborted || remaining <= 0) throw new RefSyncDeadlineError(ref);
       try { return await context.lock(ref, Math.min(requested, remaining)); }
       catch (error) {
         if (remaining < requested && error instanceof AdvisoryLockTimeoutError && error.phase === "acquire") {

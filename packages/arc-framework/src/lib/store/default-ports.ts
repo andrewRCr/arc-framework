@@ -9,7 +9,7 @@ import type { GitExec, GitExecInput } from "../git/exec.js";
 import { GitProcessError } from "../git/process-error.js";
 import { createExecaGitExec, createExecaGitExecInput, createExecaRawGitExec } from "../git/process-executor.js";
 import { createGitFloorGate, gateGitExecutors, type GitFloorGate } from "../git/version-floor.js";
-import { acquireAdvisoryLock, releaseAdvisoryLock, withAdvisoryLock } from "../advisory-lock.js";
+import { acquireAdvisoryLock, releaseAdvisoryLock, withAdvisoryLock, DEFAULT_MAX_WAIT_MS } from "../advisory-lock.js";
 import { readGitDirectories } from "../git/directories.js";
 import { withTrackedWriteLock } from "./tracked-lock.js";
 import type { RefStorePorts, StorePorts } from "./ports.js";
@@ -92,7 +92,7 @@ export function createRefLockFactory(input: Pick<RefStorePorts, "checkoutRoot" |
       exclusiveCreate: (path: string, content: string) => input.fs.exclusiveCreate(path, content),
       readFile: (path: string) => input.fs.readFile(path), removeFile: (path: string) => input.fs.unlink(path) };
     const handle = await acquireAdvisoryLock(path, options);
-    return () => releaseAdvisoryLock(handle, options);
+    return () => releaseAdvisoryLock(handle, waitMs === 0 ? { ...options, maxWaitMs: DEFAULT_MAX_WAIT_MS } : options);
   };
 }
 /** Select the only remote the interim state publishers serve.

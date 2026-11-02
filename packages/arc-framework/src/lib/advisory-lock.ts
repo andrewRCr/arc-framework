@@ -213,15 +213,17 @@ export async function acquireAdvisoryLock(
   const waitStartedAt = now();
   const deadline = waitStartedAt + maxWaitMs;
   let backoff = BACKOFF_INITIAL_MS;
+  let firstAttempt = maxWaitMs >= 0;
 
   for (;;) {
     // One deadline guards every contention path — break, back-off, and the
     // re-race after a freed/broken lock alike — so an unclearable lockfile times
-    // out instead of spinning. The first iteration is always within the wait.
+    // out instead of spinning. Nonnegative waits admit their first create.
     const observedAt = now();
-    if (observedAt >= deadline) {
+    if (!firstAttempt && observedAt >= deadline) {
       throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
     }
+    firstAttempt = false;
 
     try {
       const acquiredAt = now();
@@ -244,6 +246,7 @@ export async function acquireAdvisoryLock(
       if (!isEexistError(err)) throw err;
     }
 
+    if (now() >= deadline) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
     const holder = await readHolderSettled(readFile, sleep, lockPath);
     if (holder === "absent") {
       // Freed between our failed create and the read — retry the create at once.
