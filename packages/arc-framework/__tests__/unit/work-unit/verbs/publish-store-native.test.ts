@@ -25,7 +25,8 @@ import { createReviewDecisionPort } from "../../../../src/lib/store/kinds/review
 import { reviewDecisionKey } from "../../../../src/lib/store/kinds/review/decision/key.js";
 import { recordLaneAttempt } from "../../../../src/scripts/review-gate/lane-progress.js";
 import { candidateRecordFixture } from "../../../fixtures/review-candidate.js";
-import { CandidateManagedRecordV1Schema } from "../../../../src/lib/work-unit/candidate-attestation.js";
+import { CandidateManagedRecordV1Schema, createCandidateSubjectSnapshot, createCandidateVerificationResponseEvidence } from "../../../../src/lib/work-unit/candidate-attestation.js";
+import { canonicalDigest } from "../../../../src/lib/kernel/index.js";
 import { readCandidateRecordVersioned, writeCandidateRecord } from "../../../../src/lib/store/kinds/review/candidate/access.js";
 import { runPublish } from "../../../../src/lib/work-unit/verbs/publish.js";
 import { buildStoreCurrentWuReconcile } from "../../../../src/lib/work-unit/store-current-wu-reconcile.js";
@@ -202,13 +203,15 @@ it("reports a work-item selection refusal from claim preparation with its own re
   expect(await runPublish(h.ctx, h.params)).toMatchObject({ status: "published" });
 });
 
-async function defaultAccess(h: Awaited<ReturnType<typeof fixture>>) {
+async function defaultAccess(h: Awaited<ReturnType<typeof fixture>>, readReadinessBinding?: typeof h.params.readReadinessBinding) {
   const invocation = { store: h.store, projectId: h.projectId, workItem: h.primary.reference.owner };
   const review = await openPublicationReviewContext({ ...h, exec: h.exec, invocation, candidateId: h.params.candidateId });
   const snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner: h.primary.reference.owner });
   if (snapshot.boundary === null) throw new Error("Missing publication boundary");
+  const checked = await h.params.refreshCandidateAuthorization();
   return { review, access: createPublicationBoundaryAccess({ ...h, exec: h.exec, invocation,
-    snapshot: { ...snapshot, boundary: snapshot.boundary }, ...review }) };
+    snapshot: { ...snapshot, boundary: snapshot.boundary }, ...review, candidateVersion: checked.candidateVersion,
+    ...(readReadinessBinding === undefined ? {} : { readReadinessBinding }) }) };
 }
 it("publishes through the lifecycle's default native progress and claim ports", async () => {
   const h = await fixture(), { review, access } = await defaultAccess(h);
@@ -356,6 +359,61 @@ async function interruptedPublication() {
   if (stored.boundary?.schemaVersion !== 2) throw new Error("Expected the durable publication claim");
   return { h, boundary: stored.boundary, params: await refreshedParameters(h, stored.boundary) };
 }
+
+it.each([["readiness", "persistUnchanged"], ["readiness", "claimPublicationBoundary"],
+  ["prepared", "persistUnchanged"], ["prepared", "claimPublicationBoundary"]] as const)(
+  "refuses a Candidate change during %s through %s, then retries", async (phase, writer) => {
+    const { h } = await interruptedPublication(), params = await recordReady(h), owner = h.primary.reference.owner;
+    const checked = await readCandidateRecordVersioned(h.cwd, "example", { store: h.store, owner });
+    if (checked.record === null) throw new Error("Expected Candidate");
+    const subject = createCandidateSubjectSnapshot([{ ...checked.record.subject.entries[0]!, digest: canonicalDigest({ changed: true }) }]);
+    const response = createCandidateVerificationResponseEvidence({ candidateId: h.params.candidateId,
+      oldTarget: { revision: checked.record.attestation.baseRevision, subject: checked.record.subject },
+      newTarget: { revision: "b".repeat(40), subject }, authorityRef: canonicalDigest({ authorization: "renewal" }),
+      verifiedBy: "andrew", verifiedAt: "2026-10-20T13:00:00Z", applicability: "full",
+      verificationEvidenceRefs: ["verification://renewal"], implementationChanged: true });
+    const advanced = CandidateManagedRecordV1Schema.parse({ ...checked.record, transitions: [response] });
+    let moved = false, afterMove: Awaited<ReturnType<typeof h.store.version>> | undefined;
+    const move = async () => {
+      if (moved) return;
+      moved = true;
+      await writeCandidateRecord(h.cwd, "example", advanced, checked.version, { store: h.store, owner });
+      afterMove = await h.store.version();
+    };
+    const readReadinessBinding = async () => {
+      if (phase === "readiness") await move();
+      return h.params.readReadinessBinding();
+    };
+    const { access } = await defaultAccess(h, readReadinessBinding);
+    const resumed = await runPublish(h.ctx, { ...params, candidateVersion: checked.version, readReadinessBinding });
+    if (resumed.status !== "unchanged") throw new Error(JSON.stringify(resumed));
+    const write = h.store.write.bind(h.store), batch = h.store.batch.bind(h.store);
+    if (phase === "prepared") {
+      h.store.write = async input => {
+        if (input.reference.kind === "review/integration-boundary") await move();
+        return write(input);
+      };
+      h.store.batch = async input => { await move(); return batch(input); };
+    }
+    const persist = () => writer === "persistUnchanged" ? access.persistUnchanged(resumed.boundary)
+      : access.ports.claimPublicationBoundary(resumed.boundary);
+    await expect(persist()).rejects.toMatchObject({ refusal: { code: "version-conflict" } });
+    expect(await h.store.version()).toEqual(afterMove);
+    expect((await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).boundary)
+      .toEqual(params.boundary);
+    h.store.write = write; h.store.batch = batch;
+    const ready = IntegrationBoundaryLocusV2Schema.parse({ ...params.boundary, candidateSubjectDigest: subject.subjectDigest });
+    const snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+    await writeSubmissionBoundary(h.cwd, ready, snapshot.version, { store: h.store, owner });
+    const fresh = await readCandidateRecordVersioned(h.cwd, "example", { store: h.store, owner });
+    const retry = await runPublish(h.ctx, { ...params, boundary: ready, candidateVersion: fresh.version,
+      candidateSubjectDigest: subject.subjectDigest });
+    if (retry.status !== "unchanged") throw new Error(JSON.stringify(retry));
+    const renewed = await defaultAccess(h);
+    await renewed.access.persistUnchanged(retry.boundary);
+    expect((await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner })).boundary)
+      .toMatchObject({ locus: "publication-pending", candidateSubjectDigest: subject.subjectDigest });
+});
 it("reports an unreadable readiness listing resuming an Integrating publication as the store's refusal, and resumes once readable",
   async () => {
     const { h, boundary, params } = await interruptedPublication(), before = await h.store.version();

@@ -692,7 +692,8 @@ async function publishCandidate(base: VerbBase, target: string, input: PublishOp
     return;
   }
   const boundaryAccess = createPublicationBoundaryAccess({ cwd: base.cwd, exec: base.io.exec, invocation: reviewInvocation,
-    snapshot: { ...boundarySnapshot, boundary }, readStandardLaneOwnerVersion, readReadinessBinding });
+    snapshot: { ...boundarySnapshot, boundary }, readStandardLaneOwnerVersion, readReadinessBinding,
+    candidateVersion: candidate.candidateVersion });
   const result = await withRepositoryReviewOperationLock(
     base.io.exec, base.cwd,
     laneContinuationOperationId({

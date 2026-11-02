@@ -42,7 +42,11 @@ export async function resolveNativeExtraPassJudgment(input: NativeExtraPassInput
     && input.ceilingOverride?.conditionalPassAuthorizationId === undefined
     ? live.find(value => value.choice.kind === "extra-pass" && value.choice.precondition.kind === "ceiling") : undefined;
   const additional = live.find(value => value.choice.kind === "extra-pass" && value.choice.precondition.kind === "additional");
-  const judgment = { ...input.judgment, ...(ceiling?.choice.kind !== "extra-pass" ? {} : {
+  const { ceilingOverride: carriedCeiling, additionalPassAuthorization: carriedAdditional, ...routing } = input.judgment ?? {};
+  void carriedAdditional;
+  const judgment = { ...routing,
+    ...(carriedCeiling?.conditionalPassAuthorizationId === undefined ? {} : { ceilingOverride: carriedCeiling }),
+    ...(ceiling?.choice.kind !== "extra-pass" ? {} : {
     ceilingOverride: { exhaustedPassCount: ceiling.choice.passCount, nextPass: ceiling.choice.passCount + 1, decisionKey: reviewDecisionKey(ceiling) },
   }), ...(additional?.choice.kind !== "extra-pass" || additional.choice.precondition.kind !== "additional"
     || additional.subject.headSha === null ? {} : { additionalPassAuthorization: {

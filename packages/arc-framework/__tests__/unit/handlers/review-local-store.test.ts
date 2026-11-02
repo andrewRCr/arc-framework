@@ -35,6 +35,9 @@ import { publishNativeReviewApproval } from "../../../src/scripts/review-gate/ru
 import { publishNativeReviewPerformance } from "../../../src/scripts/review-gate/runtime/native-review-performance.js";
 import { readLaneProgressOwner } from "../../../src/scripts/review-gate/lane-progress.js";
 import { livePredecessorReviewAttempt } from "../../../src/scripts/review-gate/lane-progress-supersession.js";
+import { createLocalPrepareDependencies } from "../../../src/scripts/review-gate/runtime/local-prepare-composition.js";
+import { resolveLocalReviewInvocation } from "../../../src/scripts/review-gate/runtime/local-review-invocation.js";
+import { LocalPrepareRequestSchema } from "../../../src/scripts/review-gate/runtime/local-prepare.js";
 
 interface ContinuationOverride { operationRef?: string; workItem?: OwnerIdentity; store?: Store }
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -196,11 +199,11 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
       write: text => { output += text; }, setExitCode: () => {} },
     undefined, { ...checkout, store: override?.store ?? checkout.store, workItem: override?.workItem, projectId: createProjectIdentityReader(checkout.store) });
     return JSON.parse(output) as unknown;
-  }, run: async (input: unknown = request) => {
+  }, run: async (input: unknown = request, workItem?: OwnerIdentity) => {
     let output = "";
     await handleReviewLocalPrepare("-", { resolveRoot: () => checkout.cwd,
       readText: async () => JSON.stringify(input), write: text => { output += text; }, setExitCode: () => {} },
-    undefined, { ...checkout, rawGit, projectId: createProjectIdentityReader(checkout.store) });
+    undefined, { ...checkout, rawGit, workItem, projectId: createProjectIdentityReader(checkout.store) });
     const result = JSON.parse(output) as unknown;
     const prepared = LocalPrepareEnvelopeSchema.safeParse(result);
     if (prepared.success && prepared.data.state === "ready" && prepared.data.payload.operationRef !== undefined) {
@@ -213,6 +216,37 @@ it.each(["work-unit", "errand"] as const)("selects the actual stored %s before r
   const h = await fixture(true, vehicle);
   const result = await h.run();
   expect(result, JSON.stringify(result)).toMatchObject({ mode: "review-local-prepare", state: "exempt", nextAction: "none" });
+});
+
+it.each(["work-unit", "errand"] as const)("refuses a foreign owner before local %s grants and retries the selected owner", async vehicle => {
+  const h = await fixture(true, vehicle, false), other = await h.seedMeta("elsewhere");
+  const before = lifecycleSuccess(await h.store.version());
+  const request = { ...h.request, policyJudgment: { ceilingOverride: { exhaustedPassCount: 0, nextPass: 1 } } };
+  const result = await h.run(request, other.reference.owner);
+  expect(result, JSON.stringify(result)).toMatchObject({ error: { code: "invalid-input", message: expect.stringMatching(/owner|work item/iu) } });
+  expect(lifecycleSuccess(await h.store.version())).toEqual(before);
+  expect(await createReviewDecisionPort(h.store, other.reference.owner).list()).toMatchObject({ status: "complete", records: [] });
+  const retry = LocalPrepareEnvelopeSchema.parse(await h.run());
+  if (retry.state !== "ready" || retry.payload.operationRef === undefined) throw new Error(JSON.stringify(retry));
+  const owner = parseNativeReviewOperationReference(retry.payload.operationRef).workItem;
+  expect(await createReviewDecisionPort(h.store, owner).list()).toMatchObject({ status: "complete", records: [] });
+});
+
+it("checks a cached local subject before a dependency-builder grant write and retries the matching owner", async () => {
+  const h = await fixture(true, "errand", false), other = await h.seedMeta("elsewhere");
+  const selected = await resolveLocalReviewInvocation(h);
+  if (selected.workItem === undefined) throw new Error("Expected the current Errand owner");
+  const request = LocalPrepareRequestSchema.parse({ ...h.request, policyJudgment: { ceilingOverride: { exhaustedPassCount: 0, nextPass: 1 } } });
+  const before = await h.store.version();
+  const wrong = createLocalPrepareDependencies({ ...selected, workItem: other.reference.owner });
+  await expect(wrong.resolvePassJudgments!(request)).rejects.toThrow(/owner|work item/iu);
+  expect(await h.store.version()).toEqual(before);
+  expect(await createReviewDecisionPort(h.store, other.reference.owner).list()).toMatchObject({ status: "complete", records: [] });
+  const correct = createLocalPrepareDependencies(selected);
+  expect(await correct.resolvePassJudgments!(request)).toMatchObject({ policyJudgment: { ceilingOverride: {
+    exhaustedPassCount: 0, nextPass: 1, decisionKey: expect.any(String) } } });
+  expect(await createReviewDecisionPort(h.store, selected.workItem).list()).toMatchObject({ status: "complete", records: [{ value: {
+    subject: { lineage: { vehicleIdentity: h.claimId } }, choice: { kind: "extra-pass" } } }] });
 });
 it("keeps the vehicle refusal and completes exempt preparation after marker repair", async () => {
   const h = await fixture();

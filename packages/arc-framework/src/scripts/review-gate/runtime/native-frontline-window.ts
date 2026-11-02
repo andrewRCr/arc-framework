@@ -62,9 +62,15 @@ export async function nativeFrontlineWindowSkipped(facts: NativeReviewFactPorts,
   const listing = await facts.decisions.list();
   if (listing.status !== "complete") throw reviewFactListingError(listing);
   const withdrawn = new Set(listing.records.flatMap(({ value }) => value.choice.kind === "withdrawal" ? [value.choice.decisionKey] : []));
-  return listing.records.some(({ value }) => value.lane === "frontline" && value.choice.kind === "lane-skip"
-    && !withdrawn.has(reviewDecisionKey(value))
-    && input.lineages.some(lineage => laneSubjectOwnerMatches(value.subject.lineage, lineage)));
+  const latest = listing.records.map(({ value }) => value).filter(value => value.lane === "frontline"
+    && value.choice.kind === "lane-skip"
+    && input.lineages.some(lineage => laneSubjectOwnerMatches(value.subject.lineage, lineage))).sort((left, right) => {
+      const a = left.decidedAt === null ? Number.NEGATIVE_INFINITY : Date.parse(left.decidedAt);
+      const b = right.decidedAt === null ? Number.NEGATIVE_INFINITY : Date.parse(right.decidedAt);
+      if (a !== b) return a < b ? 1 : -1;
+      return reviewDecisionKey(right).localeCompare(reviewDecisionKey(left));
+    })[0];
+  return latest !== undefined && !withdrawn.has(reviewDecisionKey(latest));
 }
 
 async function approvedFixPassConsumed(facts: NativeReviewFactPorts, key: string): Promise<boolean> {

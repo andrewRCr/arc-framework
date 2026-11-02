@@ -689,6 +689,42 @@ it.each(["ceiling", "additional", "frontline"] as const)("refuses a moved delive
     choice: { kind: "extra-pass", precondition: { kind: kind === "frontline" ? "ceiling" : kind } } }]);
 });
 
+it.each((["resume", "saved"] as const).flatMap(route => (["candidate", "digest"] as const).flatMap(binding =>
+  (["ceiling", "additional", "frontline"] as const).map(kind => ({ route, binding, kind })))))(
+  "checks $route replay $binding before recording a retained $kind grant", async ({ route, binding, kind }) => {
+    const h = await fixture(), owner = await h.seedCandidate();
+    const { compose, listDecisions } = await deliveryCommand(h, owner, () => [first, second]);
+    const standard = kind === "frontline" ? {} : kind === "ceiling" ? { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } }
+      : { additionalPassAuthorization: { headSha: second.target.headSha, precedingProducerId: "previous", completedPasses: 2, nextPass: 3 } };
+    const refused = await h.run(true, { frontline: { scopeMode: "chunked",
+      ...(kind === "frontline" ? { ceilingOverride: { exhaustedPassCount: 1, nextPass: 2 } } : {}) }, standard }, undefined, { compose });
+    const matching = decodePrePublicationReplayV2(remedyToken(refused));
+    const mismatching = { ...matching, [binding === "candidate" ? "candidateId" : "candidateSubjectDigest"]: canonicalDigest({ foreign: binding }) };
+    const save = async (token: string) => {
+      const snapshot = await readSubmissionBoundaryVersioned(h.cwd, "example", { store: h.store, owner });
+      if (snapshot.boundary === null || matching.candidateId === undefined || matching.candidateSubjectDigest === undefined) {
+        throw new Error("Expected the original Candidate replay");
+      }
+      await writeSubmissionBoundary(h.cwd, projectCandidateReviewResumeBoundary({ workUnit: "example", candidateId: matching.candidateId,
+        candidateSubjectDigest: matching.candidateSubjectDigest, reservation: null, terminus: null, postAttestContinuation: {
+          reviewedHead: "a".repeat(40), nextAction: { kind: "continue-pre-publication-review",
+            command: `arc review pre-publication example --resume ${token}`, interactionText: "Resume review." } } }, 2), snapshot.version,
+      { store: h.store, owner });
+    };
+    const wrongToken = encodePrePublicationReplayV2(mismatching);
+    if (route === "saved") await save(wrongToken);
+    const before = await h.store.version();
+    const result = await h.run(false, {}, route === "resume" ? wrongToken : undefined, { compose });
+    expect(result, JSON.stringify(result)).toMatchObject({ error: { code: "invalid-input", message: expect.stringMatching(/Candidate/iu) } });
+    expect(await h.store.version()).toEqual(before);
+    expect(await listDecisions()).toEqual([]);
+    const matchingToken = encodePrePublicationReplayV2(matching);
+    if (route === "saved") await save(matchingToken);
+    await h.run(false, {}, route === "resume" ? matchingToken : undefined, { compose });
+    expect(await listDecisions()).toMatchObject([{ lane: kind === "frontline" ? "frontline" : "standard",
+      subject: { headSha: second.target.headSha }, choice: { kind: "extra-pass", precondition: { kind: kind === "frontline" ? "ceiling" : kind } } }]);
+  });
+
 it("asks a fresh scope judgment for a later member's mismatch after an earlier member's confirmed one", async () => {
   const h = await fixture();
   await h.seedCandidate();

@@ -1,6 +1,6 @@
 /** Invocation-bound review records consumed by delivery correction. */
 import { createReviewCompositionContext, type ReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
-import type { ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
+import { resolveReviewInvocation, type ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
 import { resolveReviewPolicyInvocation } from "../scripts/review-gate/runtime/local-review-invocation.js";
 import { resolveReviewSourceInvocation } from "../scripts/review-gate/runtime/source-invocation.js";
 import { canonicalize, type CanonicalDigest } from "../lib/kernel/index.js";
@@ -25,10 +25,15 @@ export interface DeliveryLocalReviewResponse {
   };
 }
 
-/** Open the delivery invocation's review record access only when a consumer needs it. */
+/** Retain an already selected delivery owner, discovering the current owner only when none is bound. */
 export function createDeliveryReviewRecordContext(input: ReviewInvocationInput): () => Promise<ReviewCompositionContext> {
   let context: Promise<ReviewCompositionContext> | undefined;
-  return () => context ??= resolveReviewPolicyInvocation(input).then(createReviewCompositionContext);
+  const open = async () => {
+    const invocation = input.workItem === undefined ? await resolveReviewPolicyInvocation(input) : resolveReviewInvocation(input);
+    if (invocation.store.capabilities.stateOffBranch) await invocation.projectId();
+    return createReviewCompositionContext({ ...input, ...invocation });
+  };
+  return () => context ??= open();
 }
 
 /** Validate a local member response against its admitted producer before publishing performance. */

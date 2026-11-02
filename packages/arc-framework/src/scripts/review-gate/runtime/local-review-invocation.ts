@@ -8,7 +8,7 @@ import { LocalResumeCommandError, LocalResumeRequestSchema } from "./local-resum
 import { LocalCancelCommandError, LocalCancelRequestSchema } from "./local-cancel-command.js";
 import { resolveReviewOperationInvocation } from "./continuation-invocation.js";
 import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationContext } from "./invocation.js";
-import { readLocalReviewLiveContext, type ResolvedLocalReviewLiveContext } from "../hosts/local/live-context.js";
+import { readLocalReviewLiveContext, corroborateLocalReviewOwner, type ResolvedLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { resolveLocalReviewVehicle } from "../hosts/local/review-authority.js";
 
 /** Invocation authority with the production selection retained for the command's subsequent checks. */
@@ -22,18 +22,18 @@ export async function resolveReviewPolicyInvocation(options: ReviewInvocationInp
   const input = { ...options, ...resolveReviewInvocation(options, references) };
   if (!input.store.capabilities.stateOffBranch) return input;
   await input.projectId();
-  if (input.workItem !== undefined) return input;
   const live = await readLocalReviewLiveContext(input);
-  return { ...input, ...(live.workItem === undefined ? {} : { workItem: live.workItem }) };
+  return { ...input, workItem: corroborateLocalReviewOwner(input.workItem, live) };
 }
 
-/** Resolve the existing local vehicle, retaining its exact primary while preserving an already bound owner. */
+/** Resolve the current local vehicle and corroborate any bound owner before native fact access. */
 export async function resolveLocalReviewInvocation(options: LocalReviewInvocationInput): Promise<LocalReviewInvocationInput> {
   const input = { ...options, ...resolveReviewInvocation(options) };
-  if (!input.store.capabilities.stateOffBranch || input.workItem !== undefined) return input;
+  if (!input.store.capabilities.stateOffBranch) return input;
   const live = await readLocalReviewLiveContext(input);
+  const workItem = corroborateLocalReviewOwner(input.workItem, live);
   await resolveLocalReviewVehicle({}, { readLiveContext: () => Promise.resolve(live.context) });
-  return { ...input, ...(live.workItem === undefined ? {} : { workItem: live.workItem }), localLiveContext: Promise.resolve(live) };
+  return { ...input, workItem, localLiveContext: Promise.resolve(live) };
 }
 
 async function requireLocalReviewOperation(input: LocalReviewInvocationInput, operationId: string,

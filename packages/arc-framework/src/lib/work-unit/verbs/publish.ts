@@ -175,7 +175,7 @@ export interface PublishParams {
   /** Prepare the native publication claim for the lifecycle transition's atomic batch. */
   preparePublicationClaim?(boundary: IntegrationBoundaryLocusV2): Promise<Mutation>;
   /** Version-check and persist the exact publication claim before lifecycle mutation begins. */
-  claimPublicationBoundary(boundary: IntegrationBoundaryLocus): Promise<void>;
+  claimPublicationBoundary(boundary: PublishedIntegrationBoundaryLocus): Promise<void>;
   /** Explicit authority to retain advisory-only reconcile findings while entering review. */
   allowAdvisories?: boolean;
 }

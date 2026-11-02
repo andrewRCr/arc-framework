@@ -406,7 +406,7 @@ describe("runPublish — the set-phase-only move", () => {
 
   it("preserves the Owner-accepted conclusion in the publication claim", async () => {
     const { ctx } = buildCtx([ACTIVE]);
-    let claimed: IntegrationBoundaryLocus | null = null;
+    let claimed: PublishParams["boundary"] | null = null;
     const boundary = CandidatePublishReadyBoundarySchema.parse({
       ...BASE.boundary,
       terminus: OWNER_ACCEPTED_TERMINUS,

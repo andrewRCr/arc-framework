@@ -44,7 +44,7 @@ function ceilingRequest(input: NativeExtraPassInput): RequestedExtraPass | undef
       && full.conditionalPassAuthorizationId !== targetless.conditionalPassAuthorizationId)) refuseExtraPass("Ceiling grant references disagree.");
     return;
   }
-  if ((value.exhaustedPassCount !== input.completedPasses && !(key !== undefined && value.exhaustedPassCount + 1 === input.completedPasses))
+  if ((value.exhaustedPassCount !== input.completedPasses && value.exhaustedPassCount + 1 !== input.completedPasses)
     || value.nextPass !== value.exhaustedPassCount + 1) refuseExtraPass("Bind the ceiling judgment to the current completed logical count and its next pass.");
   return { choice: { kind: "extra-pass", passCount: value.exhaustedPassCount,
     precondition: { kind: "ceiling", targetBinding: binding(full) } }, ...(key === undefined ? {} : { decisionKey: key }) };
@@ -60,8 +60,14 @@ function additionalRequest(input: NativeExtraPassInput): RequestedExtraPass | un
   const key = referenceKey(full, targetless), value = full ?? targetless;
   if (value === undefined) return;
   const headSha = full?.target.headSha ?? targetless?.headSha;
-  if (input.lane !== "standard" || headSha !== input.subject.headSha || value.completedPasses !== input.completedPasses
-    || value.nextPass !== value.completedPasses + 1) refuseExtraPass("Bind the additional judgment to the current standard-lane head, logical count and next pass.");
+  if (input.lane !== "standard" || value.nextPass !== value.completedPasses + 1) {
+    refuseExtraPass("Bind the additional judgment to the current standard-lane head, logical count and next pass.");
+  }
+  // A replayed call cannot renew an additional pass that recorded progress has already consumed.
+  if (key === undefined && value.completedPasses < input.completedPasses) return;
+  if (headSha !== input.subject.headSha || value.completedPasses !== input.completedPasses) {
+    refuseExtraPass("Bind the additional judgment to the current standard-lane head, logical count and next pass.");
+  }
   return { choice: { kind: "extra-pass", passCount: value.completedPasses,
     precondition: { kind: "additional", precedingProducerId: value.precedingProducerId, targetBinding: binding(full) } },
     ...(key === undefined ? {} : { decisionKey: key }) };

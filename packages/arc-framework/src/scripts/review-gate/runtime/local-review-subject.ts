@@ -4,7 +4,7 @@ import type { CandidateManagedRecordV1, CandidateSupersessionAncestor } from "..
 import { LaneSubjectLineageSchema } from "../core/lane-admission.js";
 import { resolveLocalReviewVehicle } from "../hosts/local/review-authority.js";
 import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
-import type { ResolvedLocalReviewLiveContext } from "../hosts/local/live-context.js";
+import { corroborateLocalReviewOwner, type ResolvedLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { readLocalWorkUnitBoundary } from "./local-reserved-obligation.js";
 import type { LocalPrepareDependencies } from "./local-prepare.js";
 
@@ -21,11 +21,16 @@ export function createLocalReviewSubjectResolver(input: ReviewInvocationInput & 
   readonly readLive: () => Promise<ResolvedLocalReviewLiveContext>;
 }): Pick<LocalPrepareDependencies, "resolveVehicle" | "resolveLineage" | "resolveSupersessionAncestors"> {
   const memberLookup = new RepositoryDeliveryMemberLookup(input);
+  const readLive = async () => {
+    const live = await input.readLive();
+    if (input.store?.capabilities.stateOffBranch) corroborateLocalReviewOwner(input.workItem, live);
+    return live;
+  };
   return {
     resolveVehicle: (memberHeadObjectId, deliveryAdmission) => resolveLocalReviewVehicle({
       ...(memberHeadObjectId === undefined ? {} : { memberHeadObjectId }),
       ...(deliveryAdmission === undefined ? {} : { deliveryAdmission }),
-    }, { readLiveContext: async () => (await input.readLive()).context, memberLookup }),
+    }, { readLiveContext: async () => (await readLive()).context, memberLookup }),
     resolveLineage: async (vehicle, headSha, deliveryAdmission, member) => {
       if (vehicle.kind === "delivery-member") {
         if (member === undefined) {
@@ -46,7 +51,7 @@ export function createLocalReviewSubjectResolver(input: ReviewInvocationInput & 
           candidateId: boundary.candidateId,
         });
       }
-      const claim = (await input.readLive()).context.errand;
+      const claim = (await readLive()).context.errand;
       if (claim?.identity !== vehicle.identity || claim.claimId !== vehicle.claimId) {
         throw new Error("Errand claim authority is unavailable for local review");
       }

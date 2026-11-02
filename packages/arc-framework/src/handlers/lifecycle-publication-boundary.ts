@@ -13,6 +13,7 @@ import { readReviewReadinessBinding } from "../scripts/review-gate/runtime/readi
 import { prepareNativePublicationClaim } from "../lib/store/kinds/review/integration-boundary/publication.js";
 import { unwrapReviewRecordResult } from "../lib/store/kinds/review/access-shared.js";
 import type { IntegrationBoundaryLocusV2 } from "../scripts/review-gate/policy/integration-boundary-locus-v2.js";
+import { recordReferences, RecordVersionSchema } from "../lib/store/identity.js";
 
 interface PublicationReviewInput {
   cwd: string;
@@ -50,6 +51,8 @@ interface PublicationBoundaryInput {
   snapshot: Awaited<ReturnType<typeof readSubmissionBoundaryVersioned>> & { boundary: PublishedIntegrationBoundaryLocus };
   readStandardLaneOwnerVersion: () => Promise<number>;
   readReadinessBinding?: () => Promise<ReviewReadinessBinding>;
+  /** Candidate version checked before asynchronous subject authorization. */
+  candidateVersion?: string | null;
 }
 
 interface PublicationBoundaryAccess {
@@ -70,8 +73,13 @@ export function createPublicationBoundaryAccess(input: PublicationBoundaryInput)
   const persist = async (next: PublishedIntegrationBoundaryLocus) => {
     if (input.invocation.store.capabilities.stateOffBranch) {
       if (next.schemaVersion !== 2) throw new Error("Native publication requires a version-two boundary.");
+      if (input.invocation.workItem === undefined || typeof input.candidateVersion !== "string") {
+        throw new Error("The checked Candidate version is unavailable. Recompute Candidate authorization, then retry publication.");
+      }
       const mutation = await prepareNative(next);
-      unwrapReviewRecordResult(input.invocation.store, await input.invocation.store.write({ ...mutation,
+      unwrapReviewRecordResult(input.invocation.store, await input.invocation.store.batch({ writes: [mutation],
+        observations: [{ reference: recordReferences["review/candidate"](input.invocation.workItem),
+          expected: { version: RecordVersionSchema.parse(input.candidateVersion), conflicts: [] } }],
         provenance: { verb: "publish", lifecycleAction: "publish" } }));
       return;
     }

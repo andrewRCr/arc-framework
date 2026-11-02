@@ -23,7 +23,7 @@ import { createRepositoryReviewResultReader } from "../../../../../src/scripts/r
 import { resolveEvidenceBoundReviewPolicy, resolveEvidenceBoundReviewPolicyContinuation } from "../../../../../src/scripts/review-gate/policy/review-policy-evidence.js";
 import { ReviewPolicyCommandRequestSchema } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 
-it.each(["open", "skip", "withdrawn-skip", "withdrawn-then-skip", "withdrawn-skip-standard", "clean", "settled-findings", "standard-recorded", "standard-pending"] as const)(
+it.each(["open", "skip", "withdrawn-skip", "withdrawn-superseding-skip", "withdrawn-then-skip", "withdrawn-skip-standard", "clean", "settled-findings", "standard-recorded", "standard-pending"] as const)(
   "reads an ancestor's %s window through the default native pre-publication adapter", async fact => {
     const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
     await h.seedProject(projectId);
@@ -36,12 +36,15 @@ it.each(["open", "skip", "withdrawn-skip", "withdrawn-then-skip", "withdrawn-ski
     if (family.mode !== "stored" || family.ports.inFlight.nativeFacts === undefined) throw new Error("Expected native facts");
     const lineage = { kind: "candidate" as const, candidateId: original.attestation.candidateId };
     const target = createHostedHandleFixture({ repositoryId: projectId }).admission.reviewTarget;
-    if (["skip", "withdrawn-skip", "withdrawn-then-skip", "withdrawn-skip-standard"].includes(fact)) await recordNativeFrontlineSkip({ invocation, facts: family.ports.inFlight.nativeFacts,
+    if (["skip", "withdrawn-skip", "withdrawn-superseding-skip", "withdrawn-then-skip", "withdrawn-skip-standard"].includes(fact)) await recordNativeFrontlineSkip({ invocation, facts: family.ports.inFlight.nativeFacts,
       repositoryId: projectId, lineage, headSha: target.headSha, now: "2026-10-20T12:00:00Z" });
+    if (fact === "withdrawn-superseding-skip") await recordNativeFrontlineSkip({ invocation, facts: family.ports.inFlight.nativeFacts,
+      repositoryId: projectId, lineage, headSha: "f".repeat(40), now: "2026-10-20T12:00:30Z" });
     if (fact.startsWith("withdrawn")) {
       const listing = await family.ports.decisions.list();
       if (listing.status !== "complete") throw new Error("Expected complete decisions");
-      const skip = listing.records.find(({ value }) => value.choice.kind === "lane-skip")?.value;
+      const skip = listing.records.find(({ value }) => value.choice.kind === "lane-skip"
+        && (fact !== "withdrawn-superseding-skip" || value.subject.headSha === "f".repeat(40)))?.value;
       if (skip === undefined) throw new Error("Expected the recorded skip");
       await family.ports.decisions.create({ ...skip, choice: { kind: "withdrawal", decisionKey: reviewDecisionKey(skip) },
         decidedAt: "2026-10-20T12:01:00Z" });
@@ -74,7 +77,8 @@ it.each(["open", "skip", "withdrawn-skip", "withdrawn-then-skip", "withdrawn-ski
     const ancestors = await readRepositoryCandidateSupersessionChain({ ...invocation, workUnit: "example", record: current });
     expect(ancestors.map(ancestor => ancestor.candidateId)).toEqual([original.attestation.candidateId]);
     const dependencies = createPrePublicationCompositionDependencies(invocation);
-    expect(await dependencies.readSingletonFrontlinePhaseClosed!(current.attestation.candidateId, ancestors)).toBe(fact !== "open" && fact !== "withdrawn-skip");
+    expect(await dependencies.readSingletonFrontlinePhaseClosed!(current.attestation.candidateId, ancestors)).toBe(
+      fact !== "open" && fact !== "withdrawn-skip" && fact !== "withdrawn-superseding-skip");
   });
 
 it.each(["direct", "continuation"] as const)("retains the native closed-window diagnostic through %s evidence binding", async route => {

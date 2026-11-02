@@ -284,6 +284,34 @@ it.each(["ceiling", "additional"] as const)("binds an imported targetless %s gra
     choice: { precondition: { targetBinding: { kind: "call-target" } } }, decidedBy: h.input.actor, decidedAt: h.input.now } }] });
 });
 
+it.each(["ceiling", "frontline", "additional", "additional-new-head"] as const)("continues an imported completed %s grant without renewing it", async kind => {
+  const h = await fixture();
+  const lane: "frontline" | "standard" = kind === "frontline" ? "frontline" : "standard";
+  const additional = kind.startsWith("additional");
+  const judgment = additional ? { additionalPassAuthorization: { headSha: h.input.subject.headSha,
+    precedingProducerId: "producer-1", completedPasses: 2, nextPass: 3 } } : { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3 } };
+  const token = Buffer.from(JSON.stringify({ lanes: { [lane]: judgment } })).toString("base64url");
+  const action = mapReviewBoundaryAction({ kind: "continue-pre-publication-review",
+    command: `arc review pre-publication example --resume ${token}`, interactionText: "Resume review." }, "example", [],
+  { repositoryId: h.input.repositoryId, workItem: h.owner }) as { command: string };
+  const replay = decodePrePublicationReplayV2(replayTokenFromAction(action.command, "example"));
+  const input = { ...h.input, lane, completedPasses: 3, judgment: replay.lanes?.[lane],
+    ...(kind === "additional-new-head" ? { subject: { ...h.input.subject, headSha: "b".repeat(40) },
+      policyTarget: { ...h.input.policyTarget, headSha: "b".repeat(40) } } : {}) };
+  const before = await h.store.version();
+  const resolved = await resolveNativeExtraPassJudgment(input);
+  if (additional) {
+    expect(resolved).toEqual({});
+    expect(await h.store.version()).toEqual(before);
+  } else {
+    expect(resolved).toMatchObject({ judgment: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3, decisionKey: expect.any(String) } } });
+    expect(await h.input.facts.decisions.list()).toMatchObject({ status: "complete", records: [{ value: { choice: { passCount: 2 } } }] });
+    const recorded = await h.store.version();
+    await expect(resolveNativeExtraPassJudgment({ ...input, completedPasses: 4 })).rejects.toThrow(/count|reach/iu);
+    expect(await h.store.version()).toEqual(recorded);
+  }
+});
+
 it.each(["head", "ordinal", "producer"] as const)("refuses an additional reference with mismatching %s", async invalid => {
   const h = await fixture(), first = await resolveNativeExtraPassJudgment({ ...h.input, ...fullGrant("additional", h.input.policyTarget) });
   const value = first.judgment?.additionalPassAuthorization;

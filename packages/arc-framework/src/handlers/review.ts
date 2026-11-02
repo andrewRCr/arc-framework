@@ -4692,6 +4692,13 @@ export async function handleReviewPrePublication(
       };
     }
     const beforeCompose = await dependencies.readCandidate(root, input.data.name);
+    if (replaySchemaVersion === 2 && beforeCompose.status === "current"
+      && [replayInput, savedReplay, savedReplay === null ? null : pendingBoundary].some(retained =>
+        retained?.candidateId !== undefined && (retained.candidateId !== beforeCompose.candidateId
+          || retained.candidateSubjectDigest !== beforeCompose.subjectDigest))) {
+      emitAdvancedReplayRefusal("The saved pre-publication judgment belongs to a different Candidate or Candidate subject.");
+      return;
+    }
     const progressBeforeCompose = beforeCompose.status === "current"
       ? await readPrePublicationProgress(dependencies, root, beforeCompose.candidateId, currentRootHead)
       : null;

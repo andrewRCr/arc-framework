@@ -3,7 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { OwnerIdentity } from "../../../../lib/store/identity.js";
+import { sameOwner, type OwnerIdentity } from "../../../../lib/store/identity.js";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import { readReviewWorkUnitByRef } from "../../../../lib/store/review-work-unit.js";
 import type { ReviewInvocationInput } from "../../runtime/invocation.js";
@@ -29,6 +29,15 @@ export interface ResolvedLocalReviewLiveContext {
   workItem?: OwnerIdentity;
   /** Exact native claim retained for consumers with a narrower lifecycle filter. */
   errandRecord?: ReviewCheckoutErrand;
+}
+
+/** Corroborate a current-checkout binding by generation and retain the selected owner's current name. */
+export function corroborateLocalReviewOwner(bound: OwnerIdentity | undefined, live: ResolvedLocalReviewLiveContext): OwnerIdentity | undefined {
+  if (bound !== undefined && (live.workItem === undefined || !sameOwner(bound, live.workItem))) {
+    throw Object.assign(new Error("The bound review work item does not match the current checkout owner. Re-enter from the owning checkout and retry."),
+      { code: "invalid-input" });
+  }
+  return live.workItem;
 }
 
 /**

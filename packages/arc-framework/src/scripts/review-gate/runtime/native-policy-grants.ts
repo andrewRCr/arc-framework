@@ -10,7 +10,7 @@ import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { ReviewInFlightPort, ReviewResultReader } from "../core/ports.js";
 import { deriveLocalReviewTarget } from "../hosts/local/repository-target.js";
-import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
+import { readLocalReviewLiveContext, corroborateLocalReviewOwner } from "../hosts/local/live-context.js";
 import { readLaneProgress, readCandidateInheritedLaneProgress } from "../lane-progress.js";
 import type { ReviewPolicyCommandRequest, ReviewPolicyBoundRequest } from "../policy/review-policy-driver.js";
 import type { ReviewInvocationInput } from "./invocation.js";
@@ -26,6 +26,7 @@ export function projectNativePolicyGrants<Request extends Pick<ReviewPolicyComma
   incremental: boolean): Request {
   const ceiling = resolved.judgment?.ceilingOverride, additional = resolved.judgment?.additionalPassAuthorization;
   return { ...request,
+    ...(additional === undefined && request.additionalPassAuthorization !== undefined ? { additionalPassAuthorization: undefined } : {}),
     ...(ceiling === undefined || (incremental && request.ceilingOverride === undefined) ? {} : {
       ceilingOverride: { ...ceiling, target: request.target, lane: request.lane } }),
     ...(additional === undefined || (incremental && request.additionalPassAuthorization === undefined) ? {} : {
@@ -89,6 +90,7 @@ export async function composeNativePolicyGrants(input: ReviewInvocationInput & {
   const target = await deriveLocalReviewTarget({ ...input, repositoryId, baseRef: input.baseBranch });
   if (target.headSha !== request.target.headSha) throw new Error("Restore the requested review head in the owning checkout and retry.");
   const live = await readLocalReviewLiveContext(input);
+  input = { ...input, workItem: corroborateLocalReviewOwner(input.workItem, live) };
   const workUnit = live.context.workUnit?.identity ?? input.workItem?.name;
   const candidate = workUnit === undefined ? null : await readCandidateRecord(input.cwd, workUnit, { ...input, owner: input.workItem });
   const terminal = request.attempts.at(-1);

@@ -6,12 +6,16 @@ import { mapReviewBoundaryAction } from "../../../../../src/lib/store/kinds/revi
 import { expect, it } from "vitest";
 
 import { buildPrePublicationResumeCommand } from "../../../../../src/handlers/review-pre-publication-replay.js";
-import type { CanonicalDigest } from "../../../../../src/lib/kernel/index.js";
+import { canonicalDigest, type CanonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { createReviewDecisionPort } from "../../../../../src/lib/store/kinds/review/decision/access.js";
 import { composePrePublicationReviewRequest } from "../../../../../src/scripts/review-gate/policy/pre-publication-request.js";
 import { decodePrePublicationReplay, replayTokenFromAction } from "../../../../../src/scripts/review-gate/policy/pre-publication-replay.js";
-import { deliveryMember, nativeDeliveryCompositionDependencies } from "../../../../helpers/store/native-delivery-composition.js";
+import { deliveryMember, nativeDeliveryCompositionDependencies, cleanFrontlineResult } from "../../../../helpers/store/native-delivery-composition.js";
 import { createReviewHarness } from "../../../../helpers/store/review-harness.js";
+import { createReviewRequirement } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/review-result.js";
+import { resolveReviewPolicy } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
+import { createLocalReviewAdmission } from "../../../../../src/scripts/review-gate/core/local-operation.js";
 
 const HEAD = "a".repeat(40);
 const REPOSITORY = "arc-framework/example";
@@ -154,4 +158,67 @@ it.each(grants)("binds an imported $name to the selected delivery member", async
       scopeJudgmentTarget: replay.scopeJudgmentTarget, frontlineCeilingHeadSha: first.target.headSha }, foreign);
     expect(await foreignDecisions()).toEqual([]);
   }
+});
+
+async function completedGrantFixture(lane: "frontline" | "standard", logicalPass: number) {
+  const fixture = await deliveryFixture(), { dependencies } = fixture;
+  const baseline = await composePrePublicationReviewRequest({ workUnit: "example", selfReview: "settled" }, dependencies);
+  if (baseline.status !== "composed") throw new Error(JSON.stringify(baseline));
+  const lineage = { kind: "delivery-member" as const, planId: second.vehicle.planId,
+    deliverableId: second.vehicle.deliverableId, workUnitId: second.vehicle.workUnitId };
+  const requirement = createReviewRequirement({ target: second.target, projection: baseline.request.standard.standardReview,
+    acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }], initialAdmission: "automatic" });
+  if (requirement === null) throw new Error("Expected a standard obligation");
+  const vehicle = { kind: "delivery-member" as const, identity: second.vehicle.deliverableId };
+  const admission = createLocalReviewAdmission({ target: second.target, requirement, lineage, logicalPass, retryGeneration: 0,
+    authority: { vehicle, authorIdentity: "andrew", evaluatorIdentity: "reviewer", attestationRuntimeKind: "arc-cli",
+      runtimeIdentity: "arc-cli/1.0.0", attestationMechanism: "local-attestation" }, laneSourceId: "delegated-agent",
+    policyBindingDigest: canonicalDigest({ policy: "terminal" }), requestMechanism: "local-attestation",
+    coverageAdmission: { requestedCoverage: "complete" } });
+  const frontline = cleanFrontlineResult(REPOSITORY, second);
+  const result: ReviewResult = lane === "frontline" && frontline.kind === "frontline"
+    ? { ...frontline, admission: { ...frontline.admission, logicalPass }, outcome: { ...frontline.outcome, pass: logicalPass, maxPasses: 1 } }
+    : { kind: "attested-local", producerId: admission.operationId, repositoryId: REPOSITORY, target: second.target,
+      sourceIdentity: admission.carrier.request.evaluatorIdentity, originalOutcome: "clean", findings: [], resultDigest: canonicalDigest({ terminal: logicalPass }),
+      admission: { lineage, logicalPass, retryGeneration: 0, requestedCoverage: "complete", effectiveCoverage: "complete",
+        scopeMode: "whole-target", policyVersion: requirement.policyVersion }, vehicle,
+      receiptRef: "receipt:completed-standard", localSourceRef: canonicalDigest({ source: "terminal" }),
+      requirement, request: admission.carrier.request };
+  return { ...fixture, dependencies: { ...dependencies,
+    readLanePolicy: async (selected: "frontline" | "standard") => ({ sources: selected === "frontline" ? ["coderabbit-cli"] : ["delegated-agent"],
+      maxPasses: selected === "frontline" && lane === "frontline" ? 1 : 2 }),
+    readLaneProgress: async (...args: Parameters<typeof dependencies.readLaneProgress>) => args[0] === lane && args[1] === second.target.headSha
+      ? { status: "recorded" as const, completedPasses: logicalPass, completePasses: logicalPass, attempts: [{ attemptId: result.producerId,
+        logicalPass, sourceId: lane === "frontline" ? "coderabbit-cli" : "delegated-agent", outcome: "clean" as const }] } : dependencies.readLaneProgress(...args),
+    resultReader: { readResult: async (producerId: string) => {
+      const value = producerId === result.producerId ? result : await dependencies.resultReader.readResult(producerId);
+      return lane === "frontline" && value.kind === "frontline" ? { ...value, outcome: { ...value.outcome, maxPasses: 1 } } : value;
+    } },
+  } };
+}
+
+it.each(grants)("continues a completed imported $name without authorizing another pass", async ({ lane, field, nextPass, lanes }) => {
+  const { h, owner, dependencies, listDecisions } = await completedGrantFixture(lane, nextPass);
+  const token = Buffer.from(JSON.stringify({ candidateId: CANDIDATE_ID, candidateSubjectDigest: SUBJECT_DIGEST,
+    selfReview: "settled", lanes, ...(lane === "frontline" ? { frontlineCeilingHeadSha: second.target.headSha } : {}) })).toString("base64url");
+  const action = mapReviewBoundaryAction({ kind: "continue-pre-publication-review",
+    command: `arc review pre-publication example --resume ${token}`, interactionText: "Resume review." }, "example", [],
+  { repositoryId: REPOSITORY, workItem: owner }) as { command: string };
+  const replay = decodePrePublicationReplay(replayTokenFromAction(action.command, "example"), 2);
+  const input = { workUnit: "example", selfReview: replay.selfReview, lanes: replay.lanes, frontlineCeilingHeadSha: replay.frontlineCeilingHeadSha };
+  const resumed = await composePrePublicationReviewRequest(input, dependencies);
+  expect(resumed, JSON.stringify(resumed)).toMatchObject({ status: "composed" });
+  if (resumed.status !== "composed") return;
+  const request = resumed.request[lane];
+  expect(resolveReviewPolicy(request), JSON.stringify(request)).toMatchObject({ state: "pass-complete", nextAction: "none" });
+  if (field === "additionalPassAuthorization") {
+    expect(request.additionalPassAuthorization).toBeUndefined();
+    expect(await listDecisions()).toEqual([]);
+  } else expect(await listDecisions()).toMatchObject([{ lane, choice: { kind: "extra-pass", passCount: nextPass - 1 } }]);
+  const next = resolveReviewPolicy({ ...request, attempts: [], verifiedTerminalSignal: undefined });
+  expect(next.state).not.toBe("ready");
+  const before = await h.store.version();
+  const retry = await composePrePublicationReviewRequest(input, dependencies);
+  expect(retry).toMatchObject({ status: "composed" });
+  expect(await h.store.version()).toEqual(before);
 });
