@@ -1,6 +1,7 @@
 /** Compile session entry decisions into an asserted agenda or an actionable refusal. */
 
 import { createSessionInitAgenda } from "./document.js";
+import { compilePlanSignal } from "./signal-plan.js";
 import { compileErrandSignal } from "./signal-errand.js";
 import { compileBranchGone } from "./recovery.js";
 import { compileWorkUnitResume } from "./resume.js";
@@ -18,6 +19,7 @@ export async function compileSessionInitAgenda(input: AgendaCompileInput): Promi
   const row = resolveAgendaRow(input.envelope, input.signals);
   if (row === "stop") return { ok: true, agenda: compileStop(input) };
   if (row === "branch-gone") return { ok: true, agenda: await compileBranchGone(input) };
+  if (row === "plan") return { ok: true, agenda: await compilePlanSignal(input) };
   if (row === "errand") return { ok: true, agenda: await compileErrandSignal(input) };
   if (row === "work-unit") return { ok: true, agenda: await compileWorkUnitResume(input) };
   return { ok: false, refusal: {

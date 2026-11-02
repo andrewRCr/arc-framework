@@ -377,14 +377,10 @@ rehearsals reach today's orientation except where the specification states a cha
           and queue-head entries now compile on the notes-only prefix, with checkout framing and literal recompiles.
           Failed inbox reads retain elicitation and recover after repair; native cases preserve inbox, checkout, and refs.
 
-    - `[ ]` **4.2.b Compile the `--plan` rows**
-        - Build `test-first` (one behavior at a time), replacing the retired `--plan` entry pins:
-            - a stub `resolveBacklogStub` finds enters `draft-design` with `stub` and `onGroomingBranch`, true only on
-              `chore/groom-<stub>`
-            - bare or not found offers `plan-stub:<value>` with an `elicit` choice carrying the unmatched value and a
-              decline that clears the signal; a bare `--plan`'s key is `plan-stub:` with an empty operand
-            - a failed lookup compiles as not found, its text naming the lookup and message
-            - an answer still not found is asked again under its own key
+    - `[x]` **4.2.b Compile the `--plan` rows**
+        - Added selected-store and filesystem stub lookup, canonical subject orientation, and the exact grooming-branch
+          skip. Bare, missing, and failed lookups offer literal elicitation or decline; new unmatched values get their
+          own keys and real refusals retain their messages. Native cases preserve checkout and refs across all outcomes.
 
     - `[ ]` **4.2.c Compile `--housekeep` and `--context`**
         - Build `test-first` (one behavior at a time), replacing the retired `--housekeep` entry pins:
@@ -396,6 +392,8 @@ rehearsals reach today's orientation except where the specification states a cha
             - a signal row renders degraded lines only for the slots its checkout renders draw on
 
     - `[ ]` **4.2.d Hand the entries to their workflows**
+        - Point `compileErrandSignal` at the shipped `supplemental/run-errand.md` target and verify emitted workflow
+          paths against installed files in the native signal cases
         - `run-errand.md`: Launch renders `arc errand open`'s `recommendedPromptText` and works from
           `allocation.checkoutPath`; Resume consumes only the checkout session-init selected and no longer materializes;
           its entry names the arguments it receives — `mode`, `seed`, `fromInbox`, `isolate`, and on resume `subject`
