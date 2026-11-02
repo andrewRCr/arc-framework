@@ -25,11 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - id: lane-trusted-checkout
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.workflow_sha }}
           persist-credentials: false
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '24'
           cache: npm
@@ -72,7 +72,7 @@ jobs:
       # Pull-request content is inert classification data; no command executes from this checkout.
       # It lives under the root `.cache`, which the build inventory excludes, so the trusted build stays qualified.
       - id: lane-data
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: ${{ steps.lane-target.outputs.head_repository }}
           ref: ${{ steps.lane-target.outputs.head_sha }}
