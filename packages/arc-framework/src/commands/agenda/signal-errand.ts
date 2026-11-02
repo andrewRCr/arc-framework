@@ -64,6 +64,6 @@ async function compileQueueHead(input: AgendaCompileInput, prefix: AgendaStep[])
     : { type: "gate", kind: "stop", autoProceed: false };
   return createSessionInitAgenda(input, { shape: "subject", subject: { kind: "errand", key } }, carryAgendaAnswers(input, [
     ...prefix, ...await compileUniversalReads(input), { type: "render", surface: "errand-next", text: result.recommendedPromptText },
-    ...(result.state === "available" ? orderOrientationSurfaces(compileCheckoutSessionOrientation(input, "notes", { next: true })) : []), tail,
+    ...orderOrientationSurfaces(compileCheckoutSessionOrientation(input, "notes", { next: true })), tail,
   ]));
 }

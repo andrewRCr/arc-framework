@@ -394,14 +394,10 @@ rehearsals reach today's orientation except where the specification states a cha
           skip. Bare, missing, and failed lookups offer literal elicitation or decline; new unmatched values get their
           own keys and real refusals retain their messages. Native cases preserve checkout and refs across all outcomes.
 
-    - `[ ]` **4.2.c Compile `--housekeep` and `--context`**
-        - Build `test-first` (one behavior at a time), replacing the retired `--housekeep` entry pins:
-            - `--housekeep` enters `drain-inbox` with no arguments, orientation `subject` with `key: null`
-            - `--context` reads the universal set, renders the checkout surfaces, and stops with orientation
-              `checkout`, emitting no work-unit artifact or surface on a work-unit checkout
-            - the signal rows emit the checkout renders and no discovery route, reminder, `concurrent-workload`, or
-              work-unit surface
-            - a signal row renders degraded lines only for the slots its checkout renders draw on
+    - `[x]` **4.2.c Compile `--housekeep` and `--context`**
+        - Housekeep enters its installed workflow without arguments; context loads universal checkout context and stops
+          without work-unit artifacts. All signal rows restrict degraded output to checkout dependencies and suppress
+          discovery surfaces; empty and refused queues retain checkout attention. Native entries preserve Git state.
 
     - `[ ]` **4.2.d Hand the entries to their workflows**
         - Point `compileErrandSignal` at the shipped `supplemental/run-errand.md` target and verify emitted workflow

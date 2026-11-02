@@ -18,6 +18,22 @@ async function compile(input: AgendaCompileInput) {
 }
 
 describe("Errand signal entry", () => {
+  it.each([false, true])("keeps checkout attention on an empty or refused queue: refused=%s", async refused => {
+    const { input, inbox } = await createSignalAgendaFixture(undefined, {
+      dirty: async () => dirtyState({ state: "dirty", fileCount: 3 }),
+    });
+    if (refused) inbox.fixture.store.read = async () => { throw new Error("Queue read denied"); };
+    input.signals = { errand: true, next: true };
+    const agenda = await compile(input);
+    const surfaces = agenda.steps.filter(step => step.type === "render" || step.type === "note");
+    expect(surfaces).toEqual(expect.arrayContaining([
+      expect.objectContaining({ surface: "header" }), expect.objectContaining({ surface: "dirty" }),
+    ]));
+    expect(surfaces.findIndex(step => step.surface === "errand-next"))
+      .toBeLessThan(surfaces.findIndex(step => step.surface === "header"));
+    expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "stop", autoProceed: false });
+  });
+
   it("retains operational notes sync attention as checkout context", async () => {
     const pull = describeStorePull({ status: "pulled", advisories: [{ condition: "A move remains unfinished.",
       remedy: { text: "Finish the move.", argv: ["arc", "store", "migrate"] } }] });
@@ -82,7 +98,8 @@ describe("Errand signal entry", () => {
     const { input } = await createSignalAgendaFixture();
     input.signals = { errand: true, next: true };
     const agenda = await compile(input);
-    expect(agenda.steps.at(-2)).toMatchObject({ type: "render", surface: "errand-next", text: "No execute-bound Errand is queued." });
+    expect(agenda.steps.find(step => step.type === "render" && step.surface === "errand-next"))
+      .toMatchObject({ type: "render", surface: "errand-next", text: "No execute-bound Errand is queued." });
     expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "stop", autoProceed: false });
     expect(agenda.steps.filter(step => step.type === "offer" || step.type === "fragment")).toEqual([]);
   });
