@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "successor-pass-yield",
+  "claimId": "c299418d21d5203d48f0f26397f8f387",
+  "createdAt": "2026-11-02T19:49:15.392Z",
+  "updatedAt": "2026-11-02T19:49:15.392Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Recommend another complete pass until one finds no critical or major finding",
+  "branch": "chore/successor-pass-yield",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
