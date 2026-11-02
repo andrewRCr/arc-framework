@@ -10,6 +10,8 @@ import {
 import type { LocusAllocationPlan } from "../../../src/lib/locus/allocator.js";
 import type { WorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 import type { LocusIdentityV1 } from "../../../src/lib/locus/schema/identity.js";
+import { openOrdinaryErrandWithDisposition, type OpenOrdinaryErrandOptions } from "../../../src/lib/errand/open.js";
+import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
 
 const CLAIM_ID = "a".repeat(32);
 const BRANCH = "chore/demo";
@@ -64,6 +66,7 @@ function harness(overrides: Partial<ProvisionTransientLocusDependencies> = {}) {
   const events: string[] = [];
   let marker: Awaited<ReturnType<ProvisionTransientLocusDependencies["readMarker"]>> = { kind: "absent" };
   let creationCount = 0;
+  let worktreePresent = false;
   const dependencies: ProvisionTransientLocusDependencies = {
     withOperationLock: async (_cwd, operation) => {
       events.push("lock");
@@ -76,6 +79,7 @@ function harness(overrides: Partial<ProvisionTransientLocusDependencies> = {}) {
     createLinkedWorktree: async () => {
       events.push("create-worktree");
       creationCount += 1;
+      if (creationCount === 1) worktreePresent = true;
       return creationCount === 1
         ? {
             kind: "created",
@@ -148,6 +152,7 @@ function harness(overrides: Partial<ProvisionTransientLocusDependencies> = {}) {
     rollbackPrimary: async () => ({ kind: "rolled-back" }),
     rollbackSpawned: async () => {
       events.push("rollback-worktree");
+      worktreePresent = false;
       return { kind: "rolled-back" };
     },
     lockSpawnedCheckout: async () => {
@@ -156,10 +161,83 @@ function harness(overrides: Partial<ProvisionTransientLocusDependencies> = {}) {
     },
     ...overrides,
   };
-  return { dependencies, events, marker: () => marker };
+  return { dependencies, events, marker: () => marker, hasWorktree: () => worktreePresent };
 }
 
 describe("provisionTransientLocus", () => {
+  it("keeps retained checkout evidence on an existing Errand claim through failure and repaired replay", async () => {
+    let denied = true;
+    let record: OrdinaryErrandRecord | null = null;
+    const test = harness({ lockSpawnedCheckout: async () => denied
+      ? { kind: "failed", detail: "lock denied" } : { kind: "locked" } });
+    const row: Awaited<ReturnType<OpenOrdinaryErrandOptions["dependencies"]["readFrame"]>>["roster"][number] = {
+      kind: "free-primary", subject: null,
+      checkout: { folderPresent: true, path: "/repo", head: HEAD, branch: "main", detached: false, primary: true },
+      markerGeneration: null, parentCheckoutPath: null, origin: null, identity: null, context: null,
+      lifecycleLocation: null, diagnostics: [],
+    };
+    const request: OpenOrdinaryErrandOptions = {
+      slug: "demo", intent: "repair output", protection: "full", base: "main",
+      isolation: "require-isolation", createdAt: "2026-07-20T00:00:00.000Z",
+      identityName: "andrew", locationTemplate: "../{name}", repo: "arc-framework",
+      dependencies: {
+        mintClaimId: () => CLAIM_ID,
+        readFrame: async () => ({ roster: [row], entering: { kind: "selected", row },
+          primaryAvailability: { kind: "free", checkoutPath: "/repo" },
+          identityDiscovery: { kind: "complete", identities: [], diagnostics: [] }, active: null }),
+        readIdentity: async () => ({ kind: "ready", record }),
+        recoverOpen: async () => ({ kind: "ready", expectedBranchHead: HEAD }),
+        claim: async (value) => { record = value; return { kind: "applied", record: value }; },
+        rollbackClaim: async () => { throw new Error("A retained checkout must keep its claim"); },
+        provision: (input) => provisionTransientLocus({ ...input, dependencies: test.dependencies }),
+      },
+    };
+    const first = await openOrdinaryErrandWithDisposition(request);
+    expect(first).toMatchObject({ result: { outcome: "error", error: { code: "locus.errand-open.provision" } },
+      rollbackDisposition: "retained-or-unknown" });
+    const originalClaim = record;
+    const marker = test.marker();
+    expect(marker).toMatchObject({ kind: "present", marker: { provisioning: "ready" } });
+    const retry = await openOrdinaryErrandWithDisposition(request);
+    expect(retry).toMatchObject({ result: { outcome: "error", error: { code: "locus.errand-open.provision" } },
+      rollbackDisposition: "retained-or-unknown" });
+    expect(record).toEqual(originalClaim);
+    expect(test.marker()).toEqual(marker);
+    expect(test.hasWorktree()).toBe(true);
+    denied = false;
+    expect(await openOrdinaryErrandWithDisposition(request)).toMatchObject({ result: { outcome: "idempotent",
+      allocation: { kind: "spawned", checkoutPath: WORKTREE_PATH } }, rollbackDisposition: "not-required" });
+    expect(record).toEqual(originalClaim);
+    expect(test.marker()).toEqual(marker);
+  });
+
+  it.each(["returned", "thrown"])("retains a ready checkout after a %s lock failure and permits repaired replay", async (failure) => {
+    let denied = true;
+    const test = harness({ lockSpawnedCheckout: async () => {
+      if (denied) {
+        if (failure === "thrown") throw new Error("lock denied");
+        return { kind: "failed", detail: "lock denied" };
+      }
+      return { kind: "locked" };
+    } });
+    const result = await provisionTransientLocus(options(test.dependencies));
+    expect(result).toMatchObject({ kind: "error", evidence: { kind: "marker-residue", checkoutPath: WORKTREE_PATH } });
+    if (result.kind !== "error") return;
+    const marker = test.marker();
+    expect(marker).toMatchObject({ kind: "present", marker: { provisioning: "ready" } });
+    if (marker.kind !== "present") throw new Error("Missing retained ready marker");
+    expect(result.evidence).toEqual({ kind: "marker-residue", checkoutPath: WORKTREE_PATH, markerBytes: marker.bytes });
+    expect(result.error.message).toContain("lock denied");
+    expect(result.error.message).toContain("git worktree lock --reason");
+    expect(test.hasWorktree()).toBe(true);
+    denied = false;
+    expect(await provisionTransientLocus(options(test.dependencies))).toMatchObject({
+      kind: "provisioned", receipt: { disposition: "idempotent", lock: { kind: "locked" } },
+    });
+    expect(test.marker()).toEqual(marker);
+    expect(test.hasWorktree()).toBe(true);
+  });
+
   it("publishes a spawned checkout through its ready marker without durable record state", async () => {
     const test = harness();
 

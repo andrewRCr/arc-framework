@@ -40,7 +40,9 @@ async function fixture(ports?: LocusPorts, productionOccupancy = false) {
     if (args.join(" ") === "rev-parse --show-toplevel") return { stdout: root };
     if (args.join(" ") === "rev-parse --git-common-dir") return { stdout: root };
     if (args[0] === "worktree" && args[1] === "list") return { stdout: worktreePorcelainZ(`worktree ${root}\nHEAD ${"a".repeat(40)}\nbranch refs/heads/person\n`) };
-    mutations.push([...args]); throw new Error(`Unexpected physical mutation: ${args.join(" ")}`);
+    mutations.push([...args]);
+    if (args[0] === "worktree" && args[1] === "lock") return { stdout: "" };
+    throw new Error(`Unexpected physical mutation: ${args.join(" ")}`);
   };
   const io = { ...createUserIOContext(), exec };
   const ctx = buildExecutorContext({ cwd: root, io, store: h.store, locusPorts: ports, identity: "starter", teamMode: false, internalTemplateDir: getInternalTemplatePath() });

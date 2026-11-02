@@ -1,11 +1,19 @@
 /** An isolated Errand's checkout takes the projection's lock through the actual CLI, or keeps another tool's. */
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, it } from "vitest";
-import { repairCliFixture, repairCli } from "../helpers/repair-cli.js";
+import { expect, it, vi } from "vitest";
+import { repairCliFixture, repairCli, withRepairStore } from "../helpers/repair-cli.js";
 import { readWorktreeLock } from "../helpers/worktree-lock.js";
-import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+import { lockSpawnedCheckout, PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
 import { quoteShellArgument } from "../../src/lib/release/commit-message-retry.js";
+import * as ioModule from "../../src/lib/io-context.js";
+import { handleErrandOpen } from "../../src/handlers/errand.js";
+import { ErrandOperationResultSchema } from "../../src/lib/errand/operation-result.js";
+import { scanRegisteredWorktrees } from "../../src/lib/git/worktree-roster.js";
+import { readWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
+import { makeInteractionContext } from "../helpers/interaction-context.js";
+import { runHandlerAt } from "../helpers/handler.js";
 
 const TIMEOUT_MS = 30_000;
 
@@ -54,4 +62,45 @@ it("keeps a lock another tool set on the spawned checkout first and warns naming
   expect(warning, opened.stderr).toContain(path);
   expect(warning).toContain("provisioning-tool");
   expect(warning).toContain(`git worktree unlock ${quoteShellArgument(path)}`);
+}, TIMEOUT_MS);
+
+it("refuses successful open after sole lock failure, retains its claim and ready marker, and allows repaired replay", async () => {
+  const f = await fixture();
+  const slug = "lock-failed";
+  const original = ioModule.createUserIOContext;
+  const factory = vi.spyOn(ioModule, "createUserIOContext").mockImplementation(() => {
+    const io = original();
+    return { ...io, exec: async (command, args, options) => {
+      if (args[0] === "worktree" && args[1] === "lock") {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "lock denied" });
+      }
+      return io.exec(command, args, options);
+    } };
+  });
+  const open = () => withRepairStore(f.h.context.store, () => runHandlerAt(f.cwd, () =>
+    handleErrandOpen(slug, { isolate: true, intent: "Retain failed protection", json: true },
+      makeInteractionContext({ noInput: true, yes: "compatibility" })),
+  ));
+  let failed;
+  try { failed = await open(); }
+  finally { factory.mockRestore(); }
+  const result = ErrandOperationResultSchema.parse(JSON.parse(failed.stdout));
+  expect(failed.exitCode, failed.stdout + failed.stderr).toBe(1);
+  expect(result).toMatchObject({ outcome: "error", error: { code: "locus.errand-open.provision" } });
+  expect(failed.stdout).toContain("lock denied");
+  expect(failed.stdout).toContain("git worktree lock --reason");
+  const roster = await scanRegisteredWorktrees(f.exec);
+  if (!roster.ok) throw new Error(roster.message);
+  const checkout = roster.worktrees.find((row) => !row.primary);
+  if (checkout === undefined) throw new Error("The placed checkout was not retained");
+  const marker = await readWorktreeMarker(checkout.path);
+  expect(marker).toMatchObject({ kind: "present", marker: { provisioning: "ready" } });
+  expect(await readWorktreeLock(f.exec, checkout.path)).toBeUndefined();
+  expect(await lockSpawnedCheckout(f.exec, checkout.path)).toEqual({ kind: "locked" });
+  const replay = await open();
+  const replayed = ErrandOperationResultSchema.parse(JSON.parse(replay.stdout));
+  expect(replay.exitCode, replay.stdout + replay.stderr).toBe(0);
+  expect(replayed).toMatchObject({ outcome: "idempotent", allocation: { kind: "spawned", checkoutPath: checkout.path } });
+  expect(await readWorktreeMarker(checkout.path)).toEqual(marker);
+  expect(await readWorktreeLock(f.exec, checkout.path)).toBe(PROJECTION_LOCK_REASON);
 }, TIMEOUT_MS);

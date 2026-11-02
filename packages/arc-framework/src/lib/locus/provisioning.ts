@@ -4,7 +4,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import type { LinkedWorktreeCreationReceipt } from "../git/linked-worktree.js";
 import type { WorktreeMarker } from "../git/worktree-marker.js";
-import type { SpawnLock } from "../git/worktree-removal.js";
+import { describeSpawnLock, type SpawnLock } from "../git/worktree-removal.js";
 import type { ProvisioningAuthority } from "./provisioning-authority.js";
 import { resolveProvisioningAuthority } from "./provisioning-authority.js";
 import {
@@ -121,9 +121,21 @@ async function provisionSpawned(
   }
   if (marker.kind === "refused") return refused(marker.reason, marker.evidence);
   // Every rollback above removes the checkout without unlocking it, so the lock is the spawn's last step.
+  return completeSpawn(options, { checkoutPath, rosterHead: roster.head, creation: created, marker: marker.value });
+}
+
+async function completeSpawn(
+  options: ProvisionTransientLocusOptions, spawn: Omit<SpawnState, "lock">,
+): Promise<ProvisionTransientLocusResult> {
+  const { checkoutPath, marker } = spawn;
   const lock = await lockSpawn(options, checkoutPath);
-  const spawn: SpawnState = { checkoutPath, rosterHead: roster.head, creation: created, marker: marker.value, lock };
-  return provisioned(options, spawn, null);
+  if (lock.kind === "failed") return {
+    kind: "error",
+    error: new Error(`checkout retained: ${describeSpawnLock(checkoutPath, lock)}`
+      + " After locking it, retry this Errand open from its original launch checkout."),
+    evidence: { kind: "marker-residue", checkoutPath, markerBytes: marker.bytes },
+  };
+  return provisioned(options, { ...spawn, lock }, null);
 }
 
 async function lockSpawn(options: ProvisionTransientLocusOptions, checkoutPath: string): Promise<SpawnLock> {

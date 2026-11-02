@@ -42,7 +42,7 @@
 
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
 import {
-  checkRetiringCheckout, describeRemovalRefusal, lockSpawnedCheckout, type SpawnLock, type WorktreeRemovalOptions,
+  checkRetiringCheckout, describeRemovalRefusal, describeSpawnLock, lockSpawnedCheckout, type SpawnLock, type WorktreeRemovalOptions,
 } from "../../git/worktree-removal.js";
 import type { WorktreeMarkerReadResult } from "../../git/worktree-marker.js";
 
@@ -703,7 +703,7 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
     ? outcome
     : { ...outcome, advisories };
 
-  return {
+  return resumeCompletion({
     status: "resumed",
     outcome: completedOutcome,
     ...spawned,
@@ -715,7 +715,16 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
     }),
     branch,
     inPlaceCheckoutPending: params.inPlace === true,
+  });
+}
+
+function resumeCompletion(result: Extract<ResumeResult, { status: "resumed" }>): ResumeResult {
+  if (result.worktreePath !== undefined && result.spawnLock?.kind === "failed") return {
+    status: "rejected", worktreePath: result.worktreePath, spawnLock: result.spawnLock,
+    reason: `checkout retained: ${describeSpawnLock(result.worktreePath, result.spawnLock) ?? result.spawnLock.detail}`
+      + " After locking it, continue work in the retained checkout; the placement has already applied.",
   };
+  return result;
 }
 
 type RoadmapEffect = Parameters<NonNullable<NonNullable<ExecuteTransitionContext["sideEffects"]>["reconcile-roadmap"]>>[0];

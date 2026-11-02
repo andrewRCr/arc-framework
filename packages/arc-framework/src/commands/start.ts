@@ -43,7 +43,7 @@ import {
 } from "../lib/active/current-workflow-consistency.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
-import { lockSpawnedCheckout, type SpawnLock } from "../lib/git/worktree-removal.js";
+import { describeSpawnLock, lockSpawnedCheckout, type SpawnLock } from "../lib/git/worktree-removal.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import { resolveArcPath } from "../lib/layout/index.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
@@ -404,9 +404,15 @@ export async function runGraduate(
   const spawnLock = ctx.exec === undefined
     ? { kind: "failed" as const, detail: "graduation ran without a Git executor" }
     : await lockSpawnedCheckout(ctx.exec, worktreePath);
-  return result.status === "rejected"
-    ? { ...result, reason: `graduation partially applied at ${worktreePath}: ${result.reason}`, worktreePath, spawnLock }
-    : { ...result, spawnLock };
+  if (result.status === "rejected") return {
+    ...result, reason: `graduation partially applied at ${worktreePath}: ${result.reason}`, worktreePath, spawnLock,
+  };
+  if (spawnLock.kind === "failed") return {
+    status: "rejected", worktreePath, spawnLock,
+    reason: `checkout retained: ${describeSpawnLock(worktreePath, spawnLock) ?? spawnLock.detail}`
+      + " After locking it, continue work in the retained checkout; the placement has already applied.",
+  };
+  return { ...result, spawnLock };
 }
 
 async function graduateInRepo(ctx: ExecuteTransitionContext, params: GraduateParams): Promise<GraduateResult> {
@@ -864,6 +870,11 @@ async function completeCreatedWorktree(ctx: SpawnWorktreeContext, spawn: {
       spawnLock: await lockRetainedCreation(ctx, worktreePath, wuName, owner) };
   }
   const spawnLock = await lockSpawnedCheckout(ctx.io.exec, worktreePath);
+  if (spawnLock.kind === "failed") return {
+    ok: false, worktreePath, spawnLock,
+    reason: `checkout retained: ${describeSpawnLock(worktreePath, spawnLock) ?? spawnLock.detail}`
+      + " After locking it, continue work in the retained checkout; the placement has already applied.",
+  };
   return { ok: true, value: { worktreePath, branch, wuName, spawnLock,
     ...(postCreateNotice === undefined ? {} : { postCreateNotice }) } };
 }

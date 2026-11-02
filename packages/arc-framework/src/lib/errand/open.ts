@@ -496,9 +496,10 @@ async function rollbackIdentity(
 ): Promise<
   { kind: "rolled-back" } | { kind: "retained"; residue: string } | { kind: "failed"; message: string }
 > {
-  if (record === null || claimKind !== "applied") return { kind: "rolled-back" };
+  if (record === null) return { kind: "rolled-back" };
   const residue = durableResidue(evidence);
   if (residue !== null) return { kind: "retained", residue };
+  if (claimKind !== "applied") return { kind: "rolled-back" };
   const rollbackResume = options.dependencies.rollbackResume;
   try {
     let result: { kind: "rolled-back" | "generation-mismatch" };

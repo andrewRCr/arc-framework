@@ -13,7 +13,7 @@
  * on-branch result.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { execFile } from "node:child_process";
 import { mkdir, rm, writeFile, stat, readFile, readdir, rmdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
@@ -28,6 +28,11 @@ import {
   writeWorktreeOwnershipMarker,
 } from "../../src/lib/git/worktree-marker.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
+import * as ioModule from "../../src/lib/io-context.js";
+import { handleResume } from "../../src/handlers/lifecycle.js";
+import { runHandlerAt } from "../helpers/handler.js";
+import { makeInteractionContext } from "../helpers/interaction-context.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { getInternalTemplatePath } from "../../src/lib/paths.js";
 import {
   composeProjectReadinessView,
@@ -303,6 +308,62 @@ describe("park@Active → resume round-trip — against real worktrees", () => {
 
     expect(result, JSON.stringify(result)).toMatchObject({ status: "resumed", inPlaceCheckoutPending: true });
     expect(await readWorktreeLock(io.exec, placed)).toBeUndefined();
+  });
+
+  it("a sole lock failure retains the resumed branch and finishes pointer cleanup before refusing success", async () => {
+    await parkAndShip(h);
+    const executor = executorFor(h);
+    executor.exec = async (command, args, options) => {
+      if (args[0] === "worktree" && args[1] === "lock") {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "lock denied" });
+      }
+      return h.io.exec(command, args, options);
+    };
+    const result = await runResume({ executor, fs: parkResumeFs(h.io) }, {
+      name: SLUG, locationTemplate: h.locationTemplate, repo: basename(h.repo), spawningIdentity: IDENTITY,
+    });
+    expect(result).toMatchObject({ status: "rejected", worktreePath: h.wuWorktree,
+      spawnLock: { kind: "failed", detail: expect.stringContaining("lock denied") },
+      reason: expect.stringContaining("git worktree lock --reason") });
+    expect(await pathExists(join(h.repo, POINTER_REL))).toBe(false);
+    expect(await readFile(join(h.repo, ".arc", "backlog", "ROADMAP.md"), "utf8")).toBe(await renderExpectedRoadmap(h));
+    expect(await pathExists(join(h.wuWorktree, ACTIVE_REL))).toBe(true);
+    expect(await headBranch(h.wuWorktree)).toBe(BRANCH);
+    expect(await readWorktreeLock(h.io.exec, h.wuWorktree)).toBeUndefined();
+    expect(await lockSpawnedCheckout(h.io.exec, h.wuWorktree)).toEqual({ kind: "locked" });
+  });
+
+  it("the resume handler returns nonzero on a lock-only failure after preserving applied state", async () => {
+    await parkAndShip(h);
+    const origin = join(h.repo, ".git", "resume-origin.git");
+    await h.io.exec("git", ["init", "--bare", "--initial-branch=main", origin]);
+    await h.io.exec("git", ["remote", "add", "origin", origin]);
+    await h.io.exec("git", ["push", "-u", "origin", "main", BRANCH]);
+    await h.io.exec("git", ["config", "arc.identity", IDENTITY]);
+    const original = ioModule.createUserIOContext;
+    const factory = vi.spyOn(ioModule, "createUserIOContext").mockImplementation(() => {
+      const io = original();
+      return { ...io, exec: async (command, args, options) => {
+        if (args[0] === "worktree" && args[1] === "lock") {
+          throw makeGitProcessError({ command, args, exitCode: 128, stderr: "lock denied" });
+        }
+        return io.exec(command, args, options);
+      } };
+    });
+    let result;
+    try {
+      result = await runHandlerAt(h.repo, () => handleResume(SLUG, {},
+        makeInteractionContext({ noInput: true, yes: "compatibility" })));
+    } finally { factory.mockRestore(); }
+    const output = result.stdout + result.stderr;
+    expect(result.exitCode, output).toBe(1);
+    expect(output).toContain("lock denied");
+    expect(output).toContain("git worktree lock --reason");
+    expect(output).not.toContain("Done.");
+    expect(await pathExists(join(h.repo, POINTER_REL))).toBe(false);
+    expect(await pathExists(join(h.wuWorktree, ACTIVE_REL))).toBe(true);
+    expect(await headBranch(h.wuWorktree)).toBe(BRANCH);
+    expect(await lockSpawnedCheckout(h.io.exec, h.wuWorktree)).toEqual({ kind: "locked" });
   });
 
   it.each(["remove", "stage", "remove-and-lock"])("protects a retained spawn when pointer cleanup fails at %s", async (failure) => {
