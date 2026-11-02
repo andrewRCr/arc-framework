@@ -74,8 +74,11 @@ function localReviewerInstructions(
   return `${instructions}\n\n`
     + `Incremental correction pass. The requested change set for this pass is `
     + `${scope.predecessorHeadSha}..${scope.headSha}: review that range completely, and apply the coverage and `
-    + `clean rules to it. The changes from ${scope.basisHeadSha} to ${scope.predecessorHeadSha} were covered by the `
-    + `earlier passes in this review's recorded coverage chain; do not re-review them. ${findings} `
+    + `clean rules to it. The changes from ${source.diffBaseSha} to ${scope.predecessorHeadSha} were covered by the `
+    + `earlier passes in this review's recorded coverage chain; do not re-review them. `
+    + (scope.basisHeadSha === scope.predecessorHeadSha ? ""
+      : `Earlier incremental passes covered the changes from ${scope.basisHeadSha} to ${scope.predecessorHeadSha}. `)
+    + `${findings} `
     + (incrementalBasis === "delta-check" ? "Apply three inspection axes to the reviewed range. "
       : "Apply four fix-check axes to every repair. Closure: establish that the reported defect is resolved. ")
     + "Behavioral grounding: verify the repaired behavior with source and executable evidence, rather than edit shape alone. "
