@@ -111,7 +111,7 @@ async function create(input: Input, ctx: StoreStartContext): Promise<void> {
   if (baseRef === null) { refuse(`No base ref resolves; run git branch ${settings["branch.base"]} <commit> or fetch the configured base, then retry start.`); return; }
   const result = await runCreateNew({ store: ctx.executor.store, locusPorts: ctx.executor.locusPorts, io: ctx.io, internalTemplateDir: getInternalTemplatePath() },
     { name: input.name, worktreePath: ctx.cwd, identity: ctx.identity, baseRef });
-  if (!result.ok) { refuse(result.reason); return; }
+  if (!result.ok) { warnSpawnLock(result.worktreePath, result.spawnLock); refuse(result.reason); return; }
   p.note(`Work unit: ${input.name}\nCheckout: detached\nWorktree: ${result.value.worktreePath}`, "Started");
   if (result.value.postCreateNotice !== undefined) p.log.info(result.value.postCreateNotice);
   warnSpawnLock(result.value.worktreePath, result.value.spawnLock);

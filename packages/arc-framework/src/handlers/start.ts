@@ -438,6 +438,7 @@ async function createNew(
     "Spawn failed.",
   );
   if (!outcome.ok) {
+    warnSpawnLock(outcome.worktreePath, outcome.spawnLock);
     p.log.error(outcome.reason);
     process.exitCode = 1;
     return;

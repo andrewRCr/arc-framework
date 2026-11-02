@@ -74,6 +74,7 @@ import {
   type SpawnWorktreeContext,
 } from "../lib/git/worktree-scaffold.js";
 import { stampCreatedWorkUnitMarker } from "../lib/work-unit/created-work-unit-marker.js";
+import { readWorktreeMarker } from "../lib/git/worktree-marker.js";
 import type { OwnerIdentity } from "../lib/store/identity.js";
 import type {
   GitGraduationTransactionResult,
@@ -748,7 +749,7 @@ export interface CreateNewResult {
 /** No-throw outcome — a refusal carries a reason instead of throwing. */
 export type CreateNewOutcome =
   | { ok: true; value: CreateNewResult }
-  | { ok: false; reason: string };
+  | { ok: false; reason: string; worktreePath?: string; spawnLock?: SpawnLock };
 
 /**
  * Spawn an isolated worktree on a new `plan/<name>` branch for a brand-new work
@@ -859,11 +860,26 @@ async function completeCreatedWorktree(ctx: SpawnWorktreeContext, spawn: {
   } catch (error) { return rejectCreateNewScaffold(ctx, spawn, error); }
   if (spawn.offBranch) {
     const refusal = await stampCreatedWorkUnitMarker({ cwd: worktreePath, name: wuName, expected: spawn.markerGeneration, owner });
-    if (refusal !== null) return { ok: false, reason: refusal };
+    if (refusal !== null) return { ok: false, reason: refusal, worktreePath,
+      spawnLock: await lockRetainedCreation(ctx, worktreePath, wuName, owner) };
   }
   const spawnLock = await lockSpawnedCheckout(ctx.io.exec, worktreePath);
   return { ok: true, value: { worktreePath, branch, wuName, spawnLock,
     ...(postCreateNotice === undefined ? {} : { postCreateNotice }) } };
+}
+
+async function lockRetainedCreation(ctx: SpawnWorktreeContext, worktreePath: string, wuName: string,
+  owner: OwnerIdentity | undefined): Promise<SpawnLock> {
+  try {
+    const current = await readWorktreeMarker(worktreePath);
+    if (current.kind !== "present" || !current.marker.spawnedByArc
+      || current.marker.createdFor?.kind !== "work-unit" || current.marker.createdFor.name !== wuName
+      || (current.marker.createdFor.uid !== undefined && (owner?.type !== "work-item" || current.marker.createdFor.uid !== owner.uid))
+      || current.marker.provisioning !== undefined || current.marker.husk !== undefined) {
+      return { kind: "failed", detail: `The retained checkout's ARC-created claim for ${wuName} could not be confirmed; inspect its marker before locking.` };
+    }
+    return await lockSpawnedCheckout(ctx.io.exec, worktreePath);
+  } catch (error) { return { kind: "failed", detail: error instanceof Error ? error.message : String(error) }; }
 }
 
 async function rejectCreateNewScaffold(ctx: SpawnWorktreeContext, spawn: {
