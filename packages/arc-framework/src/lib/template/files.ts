@@ -5,8 +5,8 @@
  * for gitignore/gitattributes. Filesystem functions are injectable for unit testing.
  */
 
-import { join } from "node:path";
-import { PROJECTED_PERSONAL_PATTERN, projectedRootPatterns } from "../layout/index.js";
+import { join, posix } from "node:path";
+import { PROJECTED_PERSONAL_PATTERN, PROJECTED_PERSONAL_ROOT, projectedRootPatterns } from "../layout/index.js";
 import { renderTokens, renderConditionals } from "./render.js";
 import { prepareIgnoreFiles, type IgnoreSetupIO } from "./ignore-files.js";
 
@@ -194,7 +194,10 @@ const ARC_GITIGNORE_ENTRIES = [
   PROJECTED_PERSONAL_PATTERN,
 ];
 
-/** Search tools of the ripgrep family read `.ignore` above `.gitignore`; each entry re-includes one projected root. */
+/** Reopen ignored containers before their projected roots so repository-root searches can descend into them. */
 function arcSearchIgnoreEntries(): string[] {
-  return projectedRootPatterns().map((pattern) => `!${pattern}`);
+  return [
+    `!${posix.dirname(PROJECTED_PERSONAL_ROOT)}/`, `!${PROJECTED_PERSONAL_ROOT}/`,
+    ...projectedRootPatterns().map((pattern) => `!${pattern}`),
+  ];
 }

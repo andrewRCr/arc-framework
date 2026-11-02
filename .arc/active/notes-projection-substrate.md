@@ -638,3 +638,29 @@ allowing the container policy. The unpublished proof value changes in place: an 
 removing or migrating recovery entries. Policy absence, type and content share the existing before/after bracket and
 smudge discipline. Medium-depth author checks cover this footprint and affected Phase 1/2 tests; independent amendment
 review was declined, while the independent code fix check was approved separately.
+
+## A9 — preserve search traversal through ignored ancestors
+
+`arcSearchIgnoreEntries` negates the four leaf patterns, but a root `.gitignore` ignoring `.arc/` or `.arc/user/`
+prevents native repository-root ripgrep traversal. `guardProjectionIgnores` accepts those ancestor rules; exact-source
+setup/guard probes find zero or three of four sentinels instead of four. The correction first negates the two parent
+directories, retaining the leaf rules and repository-owned lines. Native proposal controls restore all four roots
+without changing Git/npm exclusion or a separate internal exclusion. Explicitly searching `.arc` skips this traversal
+boundary and is not the regression's entry point.
+
+Superseded § 11.3 opening:
+
+> The ripgrep family of search tools reads `.ignore` above `.gitignore` and `.git/info/exclude`, so a root `.ignore`
+> re-including all four projected roots makes them searchable there (D13). It negates the pattern that ignores each root,
+> `.arc/user/*/` for every identity's personal root, since a negation re-includes only the path its pattern names.
+> `arc init` (with `--reconfigure`), `join`, and `update` write it as ARC's managed block through `writeArcGitignoreBlock`
+> (`lib/template/files.ts`), which already takes the file's path and rewrites only its own block, so a repository's own
+> lines stay; the file is tracked. It lands live before the flip in every repository the verbs run in (§ 1.4), where it
+> changes only what search finds: the three shared roots are tracked and no rule ignores them, and `.arc/user/*/`, the one
+> root ignored before the flip, becomes searchable as it will be from the flip.
+
+This is a determinate correction to the search mechanism, at low amendment depth. The original Goals and criteria
+remain preserved; criterion 18 makes the accepted ancestor cases explicit. `writeArcIgnoreBlocks` supplies every
+setup entrypoint, so its generator, this repository's managed block and existing block expectations change together.
+Author checks cover the amended paragraph, root-pattern definitions, setup callers and existing criterion 3; the
+separately approved code fix check covers both corrections. No new dependency or packager behavior is added.

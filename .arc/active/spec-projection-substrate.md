@@ -936,14 +936,13 @@ leaves each root it names unwritten for the command, the read-back's writes ther
 
 #### 11.3 ARC's managed `.ignore` block
 
-The ripgrep family of search tools reads `.ignore` above `.gitignore` and `.git/info/exclude`, so a root `.ignore`
-re-including all four projected roots makes them searchable there (D13). It negates the pattern that ignores each root,
-`.arc/user/*/` for every identity's personal root, since a negation re-includes only the path its pattern names.
-`arc init` (with `--reconfigure`), `join`, and `update` write it as ARC's managed block through `writeArcGitignoreBlock`
-(`lib/template/files.ts`), which already takes the file's path and rewrites only its own block, so a repository's own
-lines stay; the file is tracked. It lands live before the flip in every repository the verbs run in (§ 1.4), where it
-changes only what search finds: the three shared roots are tracked and no rule ignores them, and `.arc/user/*/`, the one
-root ignored before the flip, becomes searchable as it will be from the flip.
+The ripgrep family of search tools reads `.ignore` above `.gitignore` and `.git/info/exclude`. ARC's managed block
+first re-includes `.arc/` and `.arc/user/` so a repository-root search traverses ignored ancestors, then re-includes
+all four projected roots, using `.arc/user/*/` for every identity's personal root (A9). Negating the roots alone does
+not reopen an ignored parent directory. `writeArcIgnoreBlocks` (`lib/template/files.ts`) writes the shared managed
+block through `writeArcManagedBlock`; `arc init` (with `--reconfigure`), `join`, and `update` use that writer, keeping
+repository-owned lines and repeated setup stable. The file is tracked and lands live before the flip (§ 1.4). This
+changes search traversal only; Git's personal-root exclusion and the nested npm policy remain independent.
 
 `writeArcIgnoreBlocks` also installs `.arc/user/.npmignore` before the flip (A8), through the existing exclusive-create
 primitive when absent. It retains an accepted regular file byte-for-byte and refuses conflicting content without
@@ -1489,6 +1488,10 @@ _These considerations cover the design the three members build together; § 1.1 
     changes without clearing recovery entries, and permits repaired retries. npm root overrides, child negations and
     main/bin entries exclude personal files while retaining a publishable control (A8).
 
+18. **Search traversal through ignored ancestors.** After managed setup, native repository-root ripgrep search finds
+    all four projected roots even when `.arc/` or `.arc/user/` was ignored. Repository-owned lines and separate internal
+    exclusions remain effective, repeated setup is stable, and Git/npm personal-state exclusion is unchanged (A9).
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -1518,5 +1521,8 @@ this design open.
 
 - **A8** — 2026-11-02 — design: prove npm exclusion. _Supersedes:_ Goal 7; § 1.4; § 11.2–11.3; § 15.3; § Cross-cutting
   Considerations ¶3. _Trigger:_ COMPLETE3-IGNORE-002 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A9** — 2026-11-02 — design: preserve search traversal. _Supersedes:_ § 11.3 ¶1.
+  _Trigger:_ COMPLETE4-IGNORE-001 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

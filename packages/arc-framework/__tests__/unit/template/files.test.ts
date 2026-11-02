@@ -309,7 +309,7 @@ describe("writeArcIgnoreBlocks", () => {
     await writeArcIgnoreBlocks("/repo", [], io.readFile, io.writeFile, io);
     expect(io.files.get(join("/repo", ".ignore"))).toBe([
       "# ARC Framework (managed by arc cli)",
-      "!.arc/active/", "!.arc/backlog/", "!.arc/completed/", "!.arc/user/*/",
+      "!.arc/", "!.arc/active/", "!.arc/backlog/", "!.arc/completed/", "!.arc/user/", "!.arc/user/*/",
       "# end ARC", "",
     ].join("\n"));
   });
@@ -322,7 +322,7 @@ describe("writeArcIgnoreBlocks", () => {
     expect(written).toBe([
       "# local search", "packages/arc-framework/dist/", "",
       "# ARC Framework (managed by arc cli)",
-      "!.arc/active/", "!.arc/backlog/", "!.arc/completed/", "!.arc/user/*/",
+      "!.arc/", "!.arc/active/", "!.arc/backlog/", "!.arc/completed/", "!.arc/user/", "!.arc/user/*/",
       "# end ARC", "",
     ].join("\n"));
     await writeArcIgnoreBlocks("/repo", [], io.readFile, io.writeFile, io);
