@@ -449,11 +449,14 @@ checks:
   # Integration tests read ARC Markdown from disk, which no import graph shows, so test:changed never reaches them.
   test:integration:content:
     runner: true
+    environment_inputs:
+      ARC_TEST_DURATION_FILE: file
     command:
       - npm
       - run
       - -s
       - test:integration
+      - --
     mode: files
     pass_paths: false
     cache: false
@@ -469,6 +472,10 @@ checks:
       - '!.arc/reference/adr/adr-*.md'
       - '!.arc/reference/supplemental/research/research-*.md'
       - '!.arc/reference/supplemental/analysis/analysis-*.md'
+    shards:
+      routed: true
+      count: 4
+      argument: --shard={index}/{count}
   test:arc-contracts:
     runner: true
     command:
