@@ -114,6 +114,15 @@ store check once. A passing check permits normal CI and the remaining tasks; it 
 stops with the captured details. A controlled native child failure validates the retained diagnostic path without
 attributing that controlled cause to the original failure.
 
+The approved full store retry at `b2dc2f14fa203cd543b21c3234669b507482b08e` passed all six shards, and the refreshed
+segment request passed. Normal CI `41392563220` at that pushed head then passed with `run_portability_pair=true` and
+no diagnostic inputs. Its Linux unit, integration, store, E2E, lint/typecheck, and concurrency checks passed, as did all
+six Windows and six macOS portability shards. Windows shard 3 ran all seven transaction-deadline cases and all four
+burst cases, including both prepared-hook deadline cases and both twenty-publisher layouts. Evidence is retained as
+`task-6.10-store-approved-retry.log`, `task-6.10-segment-current.log`, `task-6.10-ci-current.json`, and the six
+`task-6.10-ci-windows-*.log` files beside the original failure. These passing results permit continuation under the
+accepted exception; they establish no cause or fix for the original failure.
+
 ## Verification at the final head
 
 SC 3, SC 8's Windows case, SC 9, and SC 12 take their evidence mid-change, and no gate at the final head takes it again:

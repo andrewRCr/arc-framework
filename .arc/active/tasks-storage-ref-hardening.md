@@ -747,7 +747,7 @@ pull leaves writes and pull merges free of `lock-held` on the layout lock.
   observes candidate files, requires each failure to name its stranded lock, removes only those locks, and retries.
   Native cases cover both refusal shapes, a disappeared named lock, preserved unrelated files, and convergence.
 
-### `[ ]` **6.10 Exercise deadline-bound and concurrent sync on both platforms** — validate exit criterion at segment scope
+### `[x]` **6.10 Exercise deadline-bound and concurrent sync on both platforms** — validate exit criterion at segment scope
 
 - _Goal:_ Phase 6's exit criterion holds: the store suites and the unit tests pass on Linux, and a dispatched
   portability pair passes the deadline-kill case and both layouts' publishing bursts on Windows.
@@ -755,7 +755,7 @@ pull leaves writes and pull merges free of `lock-held` on the layout lock.
 - _Note:_ First store feedback at `411f3c461d` (run `b161b0ce676c4541bb59d23f21bac56d`) failed the first code-choice
   child case in `store-ref-designation-states.test.ts`, terminal false. Its 10-second child limit and 10,694ms case
   duration suggest a timeout, but the retained error does not establish the cause. Segment and unit checks passed;
-  hosted qualification has not started. The verifier remains open at the unknown-cause stop boundary.
+  hosted qualification had not started. The verifier remained open at the unknown-cause stop boundary.
 
 - _Note:_ The focused diagnostic did not reproduce the failure. The WSL run passed with console capture suppressed;
   corrected raw-stream capture on `m5-air-ac` (run `033ede2b02754842a93595eeb95283da`) observed a normal child exit in
@@ -766,9 +766,11 @@ pull leaves writes and pull merges free of `lock-held` on the layout lock.
   with assertions and timeouts unchanged and failure-only child diagnostics retained. A green retry permits normal
   CI and task progression without claiming a fix; recurrence stops with the captured details.
 
-    - Run `npx arc check run test:store` and `npx arc check segment`.
-    - Dispatch `gh workflow run ci.yml --ref <branch> -f run_portability_pair=true` at the pushed head and record the
-      run ID and its Windows results.
+- _Outcome:_ The approved full store retry and segment request passed. Normal CI `41392563220` at
+  `b2dc2f14fa203cd543b21c3234669b507482b08e`, dispatched with `run_portability_pair=true` and no diagnostic inputs,
+  passed Linux store and unit checks and all Windows/macOS shards. Windows shard 3 ran the prepared-transaction
+  deadline cases in both layouts and both layouts' twenty-publisher bursts successfully. The intermittent first-pull
+  failure remains unresolved, with its failure-only diagnostics and accepted recurrence stop retained.
 
 ## **Phase 7:** History retries, withdrawal placements, push refusals, and decomposition
 
