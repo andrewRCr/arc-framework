@@ -5,11 +5,12 @@ import { assertSessionInitAgenda } from "../../../src/commands/agenda/schema.js"
 import { createAgendaFixtureInput, forRow, workUnitRow } from "../../helpers/agenda-fixtures.js";
 import { configSessionInit, dirtyState, rosterResult, userSessionInit } from "../../helpers/session-init-fixtures.js";
 import type { SessionInitProbeOverrides } from "../../helpers/session-init-fixtures.js";
+import type { AgendaSignals } from "../../../src/commands/agenda/schema.js";
 
-async function compile(probes: SessionInitProbeOverrides = {}) {
+async function compile(probes: SessionInitProbeOverrides = {}, signals: AgendaSignals = {}) {
   const row = workUnitRow(false, true);
   const envelope = await forRow({ ...row, checkout: { ...row.checkout, path: "/repo/husk" } }, "present", false, probes);
-  const input = createAgendaFixtureInput(envelope, { read: {
+  const input = createAgendaFixtureInput(envelope, { signals, read: {
     exists: async () => true, size: async () => 1000, read: async () => "",
     git: async () => { throw new Error("Unexpected husk history read"); },
   } });
@@ -22,6 +23,13 @@ async function compile(probes: SessionInitProbeOverrides = {}) {
 }
 
 describe("contextless current husk", () => {
+  it("explains that an unused next flag cannot proceed from a husk", async () => {
+    const { agenda } = await compile({}, { next: true });
+    expect(agenda.steps).toContainEqual({ type: "note", surface: "unconsumed-signal",
+      text: "--next auto-proceeds only a work-unit resume." });
+    expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "stop", autoProceed: false });
+  });
+
   it("renders husk and checkout attention, leaves discovery workload quiet, and stops", async () => {
     const { agenda, envelope } = await compile({
       dirty: async () => dirtyState({ state: "dirty", fileCount: 3 }),

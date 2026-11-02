@@ -14,7 +14,7 @@ export async function compileCurrentHusk(input: AgendaCompileInput): Promise<Ses
   if (prefix.at(-1)?.type === "exec") return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, prefix));
   return createSessionInitAgenda(input, orientation, carryAgendaAnswers(input, [
     ...prefix, ...await compileUniversalReads(input),
-    ...orderOrientationSurfaces(compileSessionOrientation(input, [])),
+    ...orderOrientationSurfaces(compileSessionOrientation(input, [], undefined, {})),
     { type: "gate", kind: "stop", autoProceed: false },
   ]));
 }
