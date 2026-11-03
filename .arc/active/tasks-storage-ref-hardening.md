@@ -581,30 +581,14 @@ annotated commit.
   parent is needed. The raw report and source-verified dispositions are recorded in
   `notes-storage-ref-hardening.md` § Bound-mapping trial rehearsal.
 
-### `[ ]` **5.13 A trial import of real state returns a clean report** — validate exit criterion at segment scope
+### `[x]` **5.13 A trial import of real state returns a clean report** — validate exit criterion at segment scope
 
 - _Goal:_ A fresh disposable copy's `--trial` import returns the report Phase 5's exit criterion states.
 
-**Additional Context:** `notes-storage-ref-hardening.md` § Remaining-task reground after shipped base.
-
-- _Note:_ It runs after 5.12 and any corrective parent ahead of it, once this branch holds the review family's import
-  mapping and, for any fault 5.12 recorded in that mapping, its fix has landed and this unit has merged base; until then
-  the loop waits here. See `notes-storage-ref-hardening.md` § Coordination with `seam-delivery-review`.
-
-    - Run it with no review in flight, since the bound mapping correctly blocks on one.
-    - As 1.1: check `memcap_policy` and run through the gate in one command, copy afresh under
-      `~/dev/arc-evidence/storage-ref-hardening/`, clear the copy's `.git/arc/locks/`, and run this branch's built CLI
-      by path. Right before the copy, and only on approval, save notes with that built CLI,
-      `node <this checkout>/packages/arc-framework/bin/arc.js user save`, run from each registered checkout whose
-      work-unit files the import reads, root files saving from any one, so the copy's disk and notes copies agree; copy
-      in the same step. The command saves only the configured identity, so another identity's differing files must
-      already be reconciled by 5.11's or 5.12's repairs. The trial reads each checkout's personal directory live, so
-      from the save until the trial has read them, no session writes a personal file in any registered checkout.
-    - The report carries no blocked marker and returns `status: "ok"` either way, so read it: `refused` is empty, and
-      every notice is one that does not block — an Errand origin that changed (`import/transient.ts:118`), a skipped
-      derived capture (`code-captures.ts`), the identity mint (`entry.ts:40`), or a personal-link or
-      unreadable-annotated-commit notice from 5.2's carrier.
-    - Run `npx arc check segment`.
+- _Outcome:_ A second fresh save and disposable copy, with the bound review mapping and no live review, returns no
+  refused record and only the five permitted derived-task-capture skips. Copied refs are unchanged; the mapping,
+  legacy-chain diagnostics, and disk-only notes retain 5.12's dispositions. Evidence is recorded in
+  `notes-storage-ref-hardening.md` § Clean real-state trial.
 
 ## **Phase 6:** Ref transactions, Git ref locks, and the keeper lease
 

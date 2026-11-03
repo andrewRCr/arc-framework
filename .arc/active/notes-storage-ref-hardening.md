@@ -659,6 +659,22 @@ The trial completed in 10m04.88s with peak resident memory 2,305,324 KiB, below 
 parent, mapping fix, or state mutation is needed. Task 5.13 takes another fresh save and copy; the personal-write
 hold remains in force through its reads. Final-head verification repeats the trial after the remaining implementation.
 
+## Clean real-state trial
+
+Task 5.13 repeated the save and copy afresh at `b3cacc9f85`, under the same confirmed personal-write hold. All 13
+registered personal directories saved successfully. The actual built CLI ran without replacement ports or set-aside
+review sources. Evidence is `task-5.13-20261103T161746Z/` under `~/dev/arc-evidence/storage-ref-hardening/`.
+
+Its report proposes 327 refs, refuses no record, and returns exactly 5.12's five allowed derived-task-capture skips.
+All 3,214 review sources are accounted for: four mapped and 3,210 left behind, with the same mapping apart from fresh
+import UIDs. The six broken-chain conditions match 5.12 byte-for-byte, and all 506 differing-note rows are the same
+disk-only files. The source-verified dispositions above therefore still apply; no corrective parent or state repair
+is needed. The fresh trial meets the Phase 5 exit criterion.
+
+The trial completed in 10m03.57s with peak resident memory 2,195,920 KiB, within the same memory limits as 5.12. Its
+copied refs are unchanged. Both trial reads are finished and the personal-write hold is released. Final-head
+verification still takes a fresh trial after 7.R2's implementation.
+
 ## Verification at the final head
 
 SC 3, SC 8's Windows case, SC 9, and SC 12 take their evidence mid-change, and no gate at the final head takes it again:
