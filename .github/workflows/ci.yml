@@ -1015,14 +1015,15 @@ jobs:
 
   # Each platform keeps its own portability durations. Only a run that took every store suite writes, replacing the
   # platform's file whole: a dispatch that left unreached store suites out, or ran named files or timing alone, would
-  # drop the heaviest files from it.
+  # drop the heaviest files from it. A platform writes once all its shards report results, whatever their tests'
+  # outcome, so a failing shard's durations still count and one platform's failure never holds the other's file.
   merge-portability-durations:
     name: Merge & save portability durations (${{ matrix.os }})
     permissions:
       contents: read
       actions: read
     needs: portability-cross-platform
-    if: ${{ !cancelled() && needs.portability-cross-platform.result == 'success' && !inputs.portability_timing_only && !inputs.portability_files && (github.event_name == 'schedule' || github.ref == 'refs/heads/main' || inputs.portability_store_full) }}
+    if: ${{ !cancelled() && needs.portability-cross-platform.result != 'skipped' && !inputs.portability_timing_only && !inputs.portability_files && (github.event_name == 'schedule' || github.ref == 'refs/heads/main' || inputs.portability_store_full) }}
     strategy:
       fail-fast: false
       matrix:
@@ -1052,11 +1053,21 @@ jobs:
       with:
         pattern: portability-results-${{ matrix.os }}-*
         path: portability-results
+    # Six is the portability job's shard count; a shard that never reached its tests leaves no results file.
+    - name: Require every shard's results
+      id: complete
+      shell: bash
+      run: |
+        reported="$(find portability-results -path '*/vitest/*' -name results.json | wc -l)"
+        echo "Shards reporting results: $reported of 6"
+        echo "complete=$([ "$reported" -eq 6 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
     - name: Merge disjoint duration memberships
+      if: ${{ steps.complete.outputs.complete == 'true' }}
       run: >-
         node --import tsx packages/arc-framework/__tests__/helpers/merge-duration-input.ts portability-results
         packages/arc-framework/.test-cost-runs/platform-duration-input
     - name: Save platform duration cache
+      if: ${{ steps.complete.outputs.complete == 'true' }}
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       with:
         path: packages/arc-framework/.test-cost-runs/platform-duration-input

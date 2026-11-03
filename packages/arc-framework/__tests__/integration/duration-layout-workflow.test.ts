@@ -130,7 +130,7 @@ it("merges and saves after the writer shards succeeded, a push updating the inpu
     .toBe("unit-test-report-${{ matrix.node.label }}-${{ matrix.shard }}");
 });
 
-it("balances each platform's portability shards by its own durations, saved only by runs that took every store suite", async () => {
+it("balances each platform's portability shards by its own durations, saved by complete runs that took every store suite", async () => {
   const value = await workflow();
   const steps = value.jobs["portability-cross-platform"]?.steps ?? [];
   const restore = steps.find((entry) => entry.id === "platform-durations");
@@ -146,8 +146,14 @@ it("balances each platform's portability shards by its own durations, saved only
   const merger = value.jobs["merge-portability-durations"];
   expect(merger?.needs).toBe("portability-cross-platform");
   expect(merger?.strategy?.matrix.os).toEqual(["Windows", "macOS"]);
-  for (const condition of ["needs.portability-cross-platform.result == 'success'", "!inputs.portability_timing_only",
+  for (const condition of ["needs.portability-cross-platform.result != 'skipped'", "!inputs.portability_timing_only",
     "!inputs.portability_files", everyStoreSuite]) expect(merger?.if).toContain(condition);
+  const shards = z.array(z.number()).parse(value.jobs["portability-cross-platform"]?.strategy?.matrix.shard);
+  const complete = merger?.steps.find((entry) => entry.id === "complete");
+  expect(complete?.run).toContain(`[ "$reported" -eq ${String(shards.length)} ]`);
+  for (const name of ["Merge disjoint duration memberships", "Save platform duration cache"]) {
+    expect(merger?.steps.find((entry) => entry.name === name)?.if).toBe("${{ steps.complete.outputs.complete == 'true' }}");
+  }
   expect(merger?.steps.find((entry) => entry.name === "Download platform results")?.with?.pattern)
     .toBe("portability-results-${{ matrix.os }}-*");
   expect(merger?.steps.find((entry) => entry.name === "Merge disjoint duration memberships")?.run)
