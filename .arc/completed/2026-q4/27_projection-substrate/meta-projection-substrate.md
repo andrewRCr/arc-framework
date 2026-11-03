@@ -1,8 +1,8 @@
 # Metadata: Projection Substrate
 
-| **State**     | **Owner** | **Branch**                  | **Class** | **Priority** |
-| ------------- | --------- | --------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/projection-substrate` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-projection`
 - **Depends On:** [none]
@@ -13,15 +13,15 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:83564838a59030eba181b95579265e4cc82ae4a0b0b9ef2562ee53cc819557ff`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 5.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** —
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/1247>
+- **Completed:** 2026-11-02
 
 ## Release Notes Entry
 
