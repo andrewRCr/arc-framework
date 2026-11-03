@@ -898,6 +898,65 @@ before its fix and passes after it in the store suites.
   new member's verbatim Design entry. The retained probe and closure evidence are recorded under A3 in
   `notes-storage-ref-hardening.md`.
 
+### `[ ]` **7.R2 Select competing approval roots — § 9.1 (A4)**
+
+- _Goal:_ A competing-root lineage with an eligible explicit choice resumes composed approval reads and native response
+  authority without changing approved evidence, while stale choices, selector conflicts, and excluded performed/settled
+  branches remain blocked under the recorded policy (A4).
+
+**Additional Context:** `notes-storage-ref-hardening.md` § A4 — Explicit repair of competing approval roots.
+
+- _Note:_ Execute after 5.12 and 5.13 and before 8.1. Subtasks a–f form one implementation review increment and atomic
+  commit; the selector ships with its admission, composition, command, and executable recovery path.
+
+- _Approach:_ Build `test-first` (one behavior at a time):
+
+    - `[ ]` **7.R2.a Reproduce and register the exact repair state**
+        - Native two-clone producer-generated approvals first demonstrate the current second-root refusal. Add the one
+          selector kind, codec, stable key, and necessary native, memory-conformance, and machine-record fixture
+          coverage. No fake approval content or opaque production registry.
+
+    - `[ ]` **7.R2.b Select one valid branch across native readers**
+        - Implement the shared selection loader/validator and additive native response capability; propagate it through
+          family composition, reader/writer input types, and fixtures. Preserve evidence-first composed reads and
+          outcome-first native snapshots. Route lane reconstruction, settlement/pass derivation, hosted settled-result
+          projection, and approval-based authorization through selected authority. Cover absence, single roots, selected
+          reads, missing producers with orphan evidence/selectors, and formerly excluded branches remaining alone.
+          Distinguish loaded empty authority from not-requested immutable-only result access.
+
+    - `[ ]` **7.R2.c Apply a choice atomically and preserve provenance**
+        - Implement preview/basis/apply, admission checks, exact-version observations, and eligible-root policy. Show
+          byte-identical retained evidence and successful normal continuation. Cover a new root or changed performance
+          between preview and apply. Validate excluded authority on current-tail and authority-bearing replay paths
+          while retaining allowed exact physical fact replay.
+
+    - `[ ]` **7.R2.d Repair competing selections**
+        - Produce opposite selections in real clones, pull their whole-record conflict, and resolve it through the same
+          command. Exercise partial/stale conflict refusal followed by successful fresh preview/apply. Evidence
+          conflicts, missing data, and protected branches retain their refusal.
+
+    - `[ ]` **7.R2.e Exercise the real CLI seam**
+        - Run preview/apply and conflict recovery through the built command in temporary native repositories, in both
+          layouts, without usable legacy review files. Cover exact UID selection, wrong/stale owner/result inputs,
+          selected-branch continuation, rejected excluded advances, and late offline facts. Use production
+          invocation-bound native family ports for operation reads/snapshots and response continuation after repair.
+          Select pending-fix over approved no-fix branches in local and frontline cases: reads succeed while remaining
+          unsettled, excluded approval grants no authority, and performing the selected response permits normal
+          continuation. Exercise live-ref movement between snapshot-dependent reads and invalid-selector refusal before
+          authority is returned. Ordinary `createStore` still selects the in-repo backend today; the built repair CLI
+          proves the direct ref-store route, while native consumer tests prove its continuation without inventing a
+          post-cutover backend flag.
+
+    - `[ ]` **7.R2.f Close the amended boundary**
+        - Re-run the native scenarios and source/lint checks and both type checks, measure and retain process deltas for
+          every reader class in the cost bounds, ordinary/selected controls, evidence advances, and sync checks, and
+          verify the amended criteria. Check that immutable-only result reads avoid evidence/selector access and that
+          snapshot reuse avoids duplicate outcome discovery. Reuse captured write views for admission; an extra native
+          process outside the expressly permitted response-selection changes requires a new decision. Original
+          refusal/property cases may use narrow reconstructed controls; unknown-command/import/type errors alone are not
+          fail-first witnesses. Preserve the unresolved policy boundary explicitly. Final work-unit criteria remain
+          unmarked until Phase 8.
+
 ## **Phase 8:** Verification
 
 ### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
@@ -909,9 +968,8 @@ before its fix and passes after it in the store suites.
 
 - _Note:_ See `notes-storage-ref-hardening.md` § Verification at the final head and § Review during execution.
 
-- _Note:_ The current target inbox names “Repair a pull-merged second approved-response root”. The verification
-  workflow's Owner planning pass must disposition it before 8.1 begins; its repair is not specified by the current
-  tasks. See the additional context above.
+- _Note:_ A4 dispositions the approval-root repair and places it in 7.R2 before this task. Verification includes
+  criteria 17–19 and fresh final-head evidence; see the additional context above and the A4 notes.
 
 ---
 
@@ -982,3 +1040,22 @@ before its fix and passes after it in the store suites.
 - `[ ]` Decomposition's optional-copy reports name each verbatim companion's actual stored path in both ref layouts;
   conventional draft, single-spec, and paired-spec Design names and new-member Design admission stay unchanged
   (A3, spec criterion 16).
+
+- `[ ]` In both native layouts, independently approved competing roots with an eligible explicit choice can be selected
+  and read through the real command, preserving all evidence bytes and normal selected-branch continuation. Stale basis,
+  additional/missing roots, orphan selectors, evidence conflicts, and excluded performance/settlement refuse safely;
+  opposite selector choices have an executable conflict-resolution path. Native operation reads/snapshots, hosted
+  settled-result projection, settlement/pass derivation, and approval-based authorization use only selected authority
+  from one snapshot. Selecting pending-fix over an eligible no-fix branch remains unsettled until the selected fix is
+  performed; excluded approval cannot grant continuation. Snapshot interleavings never mix outcome, evidence, or
+  selector facts from different captures.
+
+- `[ ]` A4 adds only the selector record kind/reference vocabulary, new repair command schemas, and the additive native
+  response-snapshot capability. Existing Store methods and refusal/result/notice/publish-failure envelope shapes and
+  discriminants otherwise remain unchanged. This supersedes criterion 4 only to that extent.
+
+- `[ ]` Response-selection reads obey the per-reader Store-call and access-scope bounds in § 9.1, retaining narrow
+  composed outcome access and unchanged immutable-only producer reads. New inventories on formerly raw-key authority
+  paths are confined to the stated outcome/evidence listings and targeted selector lookup. Native Git-process deltas are
+  measured in both layouts, with no added version capture, duplicate outcome listing, or unrelated-family enumeration;
+  A2's exception and all paths outside the explicit response-authority changes retain their process budget.

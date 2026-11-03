@@ -87,7 +87,9 @@ reached only by a move between remotes also stays when a kept fix changes what t
 8. The remaining lock, sync, withdrawal, and decomposition defects end in typed outcomes (§ 8–§ 10).
 9. The import is reviewed before the rehearsal, and every finding that an import of this repository's state can reach
    is fixed (§ 11).
-10. No refusal code, pull-notice kind, publish-failure kind, or result schema changes.
+10. Existing Store methods, refusal codes/classes, pull-notice kinds, publish-failure kinds, and outer result schemas
+    remain unchanged except the selector kind/reference vocabulary, repair command schemas, and additive native response
+    capability in § 9.1 (A4).
 
 ## Non-Goals
 
@@ -138,6 +140,10 @@ import's own landing, including when a native writer occupies the destination be
 one-time import starts with an empty store while ordinary commands still use the in-repo backend, and the cutover
 quiesces writers before importing. Preexisting native state or native writes racing that import cannot be reached by
 an import of this repository's state. — Import review F1; approved scope disposition.
+
+Amended 2026-11-03 — A4: this work does not reconcile competing approval branches when selecting any root would exclude
+a node with `performance` or `settlement` present, including an empty settlement. The repair reports that policy
+boundary without changing evidence or promising retry; selecting a root cannot undo performed work or settlement.
 
 ## Proposed Design
 
@@ -905,6 +911,234 @@ The design:
   `write-completed.ts:160`, and `write-archive.ts:122`. It attributes the quarter change to the restoring mutation.
   This is traced, not yet run, so its test reproduces it first.
 
+#### 9.1 Approval-root selection (A4)
+
+Add a stable root-selection record and one explicit native-store repair command. Keep every approved response, its
+links, approval, performance, and settlement bytes unchanged. Selection determines the branch used for future composed
+reads and native response authority; it does not claim that independent approvals originally formed one succession or
+undo any effects.
+
+Selection uses this policy: an excluded branch must contain neither `performance` nor `settlement`, including an
+empty-but-present settlement. The selected branch may contain either. Validate every node in each branch, not only its
+root. If no root satisfies that condition, the command reports a non-retryable policy block and changes nothing. In
+particular, multiple performed/settled branches remain blocked. This repair does not provide their reconciliation and
+must not be reported as repairing that case.
+
+The command must distinguish this unsupported policy case from a stale preview or repairable store refusal; it must not
+advise blind retry. Existing composed-read refusals remain intact until a valid selection exists. Verification
+demonstrates refusal, explicit selection, successful continuation, and concurrent-selector recovery.
+
+##### Stored representation
+
+Add `review/evidence-root-selection`, a machine record in the existing review family and owner work-item ref. It has no
+projection or in-repo home. Register a parser and cross-record check alongside the review registrations. Use
+whole-record `single-writer` merging and ordinary expected-version writes; add no lock, ref, or merge algorithm.
+
+Its key is a canonical digest of a domain separator, exact owner UID, and producer ID. Choice, root inventory, recording
+time, and decider are not key inputs. The existing keyed approval read already selects by producer ID; its outcome
+binding is immutable in the selector value and may never be rebound to another result.
+
+The value contains:
+
+- `schemaVersion: 1`;
+- `producerId`, `outcomeKey`, and `resultDigest`;
+- `roots`: the sorted, unique disposition-set IDs of every root for that producer, at least two;
+- `selectedRoot`: one member of `roots`;
+- explicit `decidedBy`, `decidedAt`, and a nonempty `reason`.
+
+The record reference supplies the exact owner generation; admission checks the key and all content against it. Require
+non-null `decidedBy` using `ReviewIdentifierSchema` and an offset ISO datetime `decidedAt`, using the existing review
+attribution vocabulary. Apply obtains `decidedAt` from its clock port; it does not infer the decider from the running
+agent. Retain normal store actor provenance. Add no new identity or permission system. Ordinary evidence and outcome
+records are not rewritten. Selector updates are version-bound; store history retains prior choices and attribution.
+Ordinary removal is denied.
+
+##### Complete lineage validation
+
+Factor shared validation from the existing evidence history and succession checks. Inventory all evidence for the
+producer, require a complete conflict-free listing, and validate each record and its outcome/result/binding context.
+Partition it into complete linear reciprocal branches, each with exactly one root. Reject cycles, missing links, nodes
+outside those complete branches, crossed branches, duplicate keys, unavailable outcomes, or inconsistent contexts. The
+selector repairs only competing individually valid branches; it never waives another broken invariant.
+
+A selector is effective only when its exact root set and immutable result binding match that inventory, its chosen root
+exists, and every excluded node satisfies the excluded-branch policy. Validate that condition on reads and writes. A new
+root, an absent root, or late offline performance/settlement on an excluded branch invalidates it.
+
+##### Snapshot-consistent composed reads
+
+Preserve the evidence listing's existing `asOf` internally through the typed fact-access helper. `listRefRecords`
+already emits that captured manifest, including for an absent listing. Native composition requires that anchor; never
+fall back to independent current-state reads when it is unavailable.
+
+For `readDispositionRecord(producerId)`, read the stable selector at the same `asOf`, regardless of whether the
+inventory currently contains zero, one, or several roots. Read the outcome at that snapshot too. Return `null` only when
+both evidence and selector are absent. A selector whose evidence disappeared must refuse, rather than silently restoring
+authority to a formerly excluded branch or pretending the producer has no approval.
+
+For `listDispositionRecords()`, obtain one selector-kind listing at the evidence snapshot. Compose the union of producer
+IDs present in evidence and selectors. This detects orphan selectors as well as competing roots. Keep existing
+review-port methods and the composed-result schema unchanged. Add the native response capability below; snapshot
+retention remains internal.
+
+Without a selector, one complete root retains its existing behavior and multiple roots refuse with the new repair route.
+With a valid selector, compose only its selected branch through the existing disposition composer. Raw fact reads and
+listings continue to retain every branch. A malformed or conflicted selector refuses with exact record and conflict
+identities. A conflicted selector names the repair command's preview route. An unparseable selector or an irreparably
+inconsistent immutable binding instead names restoration of the exact selector content before preview; the command does
+not reconstruct missing approval history or rebind an existing selector to another outcome.
+
+##### Native response authority from the same snapshot
+
+Use one private selection loader and validator for composed disposition reads and native authority readers.
+`NativeReviewInFlightStateStore.evidence` currently reads raw `evidence.list`, and `composeOutcomeLane` sends those
+records to `orderReviewEvidenceLineage` and `reviewOutcomeIsSettled`. `StoredReviewResultReader.readHostedResult` also
+derives settlement from raw evidence. Selection must reach those consumers, not only the disposition adapter.
+
+Add an owner-bound `responses` capability to `NativeReviewFactPorts` and `StoredReviewFamilyPorts`, constructed by
+`bindReviewFamilyPorts` from its existing Store and exact owner. Carry it through native reader/writer input types,
+including `NativeReviewApprovalInput`, every composition site, and native fixtures. It exposes only:
+
+- `read(producerId, purpose)`, where `purpose` is explicitly `"authority"` or `"producer-result"`;
+- `list()`, an owner response-authority snapshot.
+
+A successful keyed read returns the uniquely matched immutable `StoredReviewFact<ReviewOutcome>`. Its authority is
+explicitly `"loaded"` with the selected branch's ordered `StoredReviewFact<ReviewEvidence>[]`, or `"not-requested"` with
+no evidence array. Use overloads or equivalent static narrowing: an authority-purpose caller can receive only loaded
+authority. A loaded empty array means the producer exists without an approved response; not-requested never means that.
+A missing producer is a distinct result, preserving existing caller-specific missing-producer handling. Incomplete,
+malformed, or conflicted required facts instead carry their existing typed store refusal.
+
+An authority-purpose read always validates the complete producer evidence and selector inventory, even when its outcome
+is absent. Evidence or a selector without its bound outcome must refuse; do not return missing-producer early. A
+producer-result read may return missing-producer normally, and may return not-requested only for an immutable
+local/frontline result whose projection uses no response authority. A hosted result that derives settlement loads and
+validates selected authority. Keep the existing immutable-result validation and project/owner checks.
+
+The native keyed loader retains the outcome listing's manifest internally. It reads evidence and the targeted selector
+at that manifest and validates that the outcome, result binding, and selected branch agree. Native list returns all
+owner outcomes and selection-validated evidence from one manifest; validate the union of producer IDs from outcomes,
+evidence, and selectors, including orphan selectors. Both methods return validated snapshots rather than partial
+authority. No public snapshot token, additional capture, or invocation-wide cache is introduced.
+
+Existing composed disposition methods keep their evidence-first anchor and point outcome reads; the private loader
+accepts that already captured context internally. Native readers keep their outcome-first anchor. Reuse the selection
+implementation without forcing composed point reads to enumerate all outcomes. `asOf` never crosses the native
+capability boundary. Related facts are read at that anchor, never independently refreshed or loaded twice merely to
+recover a snapshot that a typed helper dropped.
+
+Route both `NativeReviewInFlightStateStore.readOperation` and `readOperationSnapshot` through one `responses.list()` per
+read, supplying both arrays from that view to lane composition and pass/settlement derivation. Replace the hosted result
+reader's independent listings with the keyed producer-result read. It must not first list outcomes again. Immutable-only
+local/frontline result reads retain their outcome-only behavior. Outcome-only execution checks that do not derive
+response authority, such as `publishOperation`'s ended-producer check, keep that narrower access.
+
+Any native reader treating an approval as current authority must validate membership in the selected branch and retain
+its existing current-tail, producer, subject, performance, and approval checks. This covers conditional-pass
+capture/admission and performed-fix judgment, hosted-disposition binding, response performance, and settlement
+continuation, including authority-bearing replay or return paths. In particular, `publishNativeConditionalPass`,
+`readNativeApprovedFixPassJudgment`, and `bindNativeHostedDisposition` cannot authorize raw keyed evidence simply
+because its successor is null. Reuse the snapshot's outcome and stored evidence/version for validation and prepared
+advances rather than adding a redundant result lookup. Existing locked write checks still validate fresh admission.
+
+Raw `evidence.read/list` retain all branches for diagnosis, history, and physical mutation preparation. An excluded
+record's allowed exact fact replay grants no current-response authority. A pure settlement or pass-count function
+receives only selected evidence from native callers; it must never inspect a discarded branch alongside the chosen one.
+`mappingTerminusPassCount` consumes only legacy import inputs with no selector source and keeps those inputs.
+
+Cover the distinguishing case in both layouts: select an unperformed pending-fix local/frontline branch over an eligible
+approved no-fix branch. Normal operation reads and snapshots succeed but remain unsettled; excluded approval cannot
+grant continuation or conditional authority. Perform the selected fix and show normal continuation succeeds. Move live
+refs between dependent reads: the result must remain wholly from the original manifest, including any
+selection-invalidating late fact or conflicted selector present at that manifest.
+
+##### Preview and explicit apply
+
+Add the JSON command `arc store repair-review-roots [file | -]`, with `--schema`. Use one versioned request family with
+`schemaVersion: 1` and `operation: "preview" | "apply"`. Preview supplies `workItem` (an exact `{ type: "work-item",
+name, uid }` handle) and `producerId`. Apply supplies those same fields plus `basis`, `selectedRoot`, non-null
+`decidedBy`, and nonempty `reason`; it supplies no replacement evidence. The command opens the authoritative ref store
+directly, as the existing store commands do; it must not depend on `createStore` selecting refs, a projected review
+file, an active session, or a successful composed approval read. This seam therefore works before and after cutover,
+including from a checkout that does not hold the work item.
+
+Preview is read-only. It returns the exact owner/result coordinate, every complete root and branch, performance and
+settlement flags, the present selector and all its conflict alternatives, eligible choices, and a basis packet. The
+packet retains the snapshot `asOf` and binds the exact owner/producer, each evidence reference/version, the root set,
+selector reference/version-or-absence and conflict-reference set, and outcome reference/version, conflict set, and
+immutable result binding from one snapshot. Reuse `RecordObservationSchema` for record versions and conflict sets
+instead of inventing another observation model. Canonicalize inventories before comparing them. The anchor governs
+consistent reads; fresh admission compares the named records and complete producer inventory, not equality of the
+whole-store anchor. Unrelated owners changing does not alone stale this request. A preview is not permission to apply
+against changed evidence. Missing/malformed evidence or conflicts in evidence remain actionable existing store refusals;
+preview does not invent empty histories.
+
+Apply requires that basis, the explicitly selected root, decider, and reason. Re-read and compare the basis, then issue
+a version-bound selector put with read observations for all evidence and the outcome. Its kind check rechecks the
+complete current inventory, root set, binding, and policy inside `checkRefWrites` under the existing owner-ref admission
+lock/CAS. The selector check requires the matching complete evidence/outcome observations even for a direct Store batch,
+so an alternate local writer cannot omit the basis protection. Advisory sync checks validate the resulting selector and
+inventory without requiring a local preview or observations: `observeSyncChecks` supplies `observations: []` and must
+not emit a missing-preview warning for an otherwise valid remote selection. That complete-inventory check is required:
+per-record observations alone cannot detect a newly created root. A stale or raced basis returns an existing refusal and
+a fresh-preview route; never choose again or broaden the root set automatically. Apply changes no approval or outcome
+content.
+
+Use existing store refusals for store failures and malformed/stale requests. The new command envelope separately reports
+preview-ready, applied, not-needed, or policy-blocked, with policy-blocked explicitly non-retryable here. A refusal's
+existing remedy text supplies the complete preview request and command form; no refusal fields or codes are added. A
+successful apply returns the selector reference/version, selected root, and retained root inventory. A later retry needs
+a fresh basis; no durable authorization or global repair journal is introduced.
+
+##### Selector conflicts and continuing review
+
+Opposite choices share one path and must create an ordinary whole-record conflict; never merge fields into a new choice.
+Identical full records may converge. Different attribution may conservatively conflict even for the same root. Do not
+introduce special merging to erase that distinction.
+
+The same preview command reads the raw conflicted selector and every alternative at one snapshot. A new apply may choose
+any currently eligible root and must name the complete current selector conflict set in `resolves`. Admission permits
+resolving the selector's own conflicts while requiring conflict-free evidence, a valid proposed choice, and all basis
+checks. A partial/stale conflict set refuses without deleting anything. This executable route ships with selection;
+generic “resolve conflicts” text alone does not establish recovery.
+
+Keep existing evidence monotonicity checks. A valid selection lets the selected branch continue through the normal
+monotonic operations, including successor, policy-projection, performance, candidate-response binding, and settlement.
+The root-uniqueness check recognizes that valid selection for selected advances and excluded exact replays; it still
+rejects creating another root, including in a batch that proposes a larger selector inventory. Excluded branches permit
+exact replay only; any other advance refuses and names the selected branch or fresh-selection route. Creating another
+root remains inadmissible in an ordinary write. Sync continues to retain remote facts and report broken rules, so late
+offline activity is preserved and invalidates unsafe selection instead of being discarded. Multiple performed branches
+remain the explicit boundary.
+
+##### Compatibility and process cost
+
+The selector kind and its nested `RecordReference` vocabulary, repair command schemas, and additive native `responses`
+capability and typed snapshots are the only compatibility additions. Existing Store methods and outer result shapes,
+refusal codes/classes, notice kinds, publish-failure kinds, and their discriminants remain unchanged (A4).
+
+Only the response-selection reads below may exceed their prior process cost, including ordinary zero/one-root cases
+(A4). The limits are per logical response read, not per record in an aggregate:
+
+- Existing keyed disposition composition retains its one evidence listing and point outcome read, adding at most one
+  targeted selector point read. Existing aggregate composition adds at most one selector-kind listing and keeps its
+  existing outcome access scope; do not replace its point reads with an unrelated owner-wide outcome listing.
+- Native owner authority retains one outcome listing and one evidence listing, adding at most one selector-kind listing.
+  Lane reads obtain both arrays from this view instead of reloading them independently.
+- Native keyed authority is bounded by one owner-scoped outcome listing, one owner-scoped evidence listing, and one
+  targeted selector point read. This explicitly permits the complete inventories absent from a formerly raw-key
+  authority path. Reuse returned facts and versions rather than retaining the old raw/result reads beside the new view.
+- A keyed hosted producer-result read retains its outcome and evidence listings, adding at most one targeted selector
+  read. An immutable-only local/frontline producer-result read retains its one outcome listing and adds no evidence or
+  selector read.
+
+These are Store-call and scope bounds, not claims of one extra Git process. All dependent reads use the first listing's
+existing `asOf`; no extra Store version or fresh tip capture is permitted. Preserve A2's separate quarter-write
+exception. Add no family-wide enumeration or Store API to conceal the cost. Measure actual native child-process deltas
+for these reader classes, original absence/single-root controls, and selected continuations in both layouts, and publish
+the command counts before closing the revision. Existing paths outside these explicit response-authority changes retain
+their process budget.
+
 ### 10. Decomposition names a verbatim companion by its stored name
 
 `copyCoordinates` (`lib/decompose/scaffold-copy.ts`) names copied companions with `companionStoredName`
@@ -1160,11 +1394,13 @@ more than about a week out.
       directly, since whether Git prints the row `!` depends on its version and ref format. A row whose tracking ref
       moved to a descendant raises no notice, and a rewrite to an ancestor stays `history-diverged`.
     - § 12's four properties are pinned against the default ports.
-- **Performance (A2).** Success paths start no extra Git process except § 9's completed-copy repair: each
-  otherwise-unwritten completed-quarter ref whose composed tree must change may add the existing writer's one
-  `mktree --batch` and one `commit-tree` process per attempt. The repair reuses captured evidence, starts no
-  additional listing or redundant discovery process, and publishes all affected refs in the withdrawal's existing
-  atomic compare-and-swap transaction. Unaffected success paths retain their process budget:
+- **Performance (A2, A4).** The response-authority reads in § 9.1 may add only that section's explicitly bounded
+  selector lookups and newly required inventories, with actual native process deltas measured before closure.
+  Other success paths start no extra Git process except § 9's completed-copy repair: each otherwise-unwritten
+  completed-quarter ref whose composed tree must change may add the existing writer's one `mktree --batch` and one
+  `commit-tree` process per attempt. The repair reuses captured evidence, starts no additional listing or redundant
+  discovery process, and publishes all affected refs in the withdrawal's existing atomic compare-and-swap transaction.
+  Unaffected success paths retain their process budget:
     - § 1.3 reads a tree only after a `missing` answer;
     - § 1.6's local object check runs only after a completed failure with no porcelain rows;
     - § 5.2's wrapper `lstat`s only after a failed transaction with no lost race;
@@ -1173,10 +1409,12 @@ more than about a week out.
   no more than today.
 - **Locks and safety.** No path removes a lock automatically (§ 5.3). An uninterruptible transaction stays bounded by
   Git's own lock wait (§ 5.1). § 6.2 keeps every operation under both locks it held before.
-- **Compatibility.** ARC is pre-public-release, and the ref backend is reached only through hidden `arc store` commands
-  before the flip. No refusal code, notice kind, failure kind, or result schema changes, so callers keep compiling and
-  branching as they do. The outcomes that move are listed in § 1.8: a missing object from terminal to recoverable, and
-  a local object or transport failure from `unreachable` to `incomplete`.
+- **Compatibility (A4).** ARC is pre-public-release, and ordinary commands still select the in-repo backend through
+  `createStore` before the flip. § 9.1 adds its selector kind/reference vocabulary, explicit ref-store repair command
+  schemas, and native response capability. Existing Store methods, outer result shapes, refusal codes/classes, notice
+  kinds, publish-failure kinds, and discriminants remain unchanged. The other outcomes that move are listed in § 1.8:
+  a missing object from terminal to recoverable, and a local object or transport failure from `unreachable` to
+  `incomplete`.
 - **User-facing impact.** Remedies change wording: restore or fetch instead of forward repair, a placement remedy,
   and a lock file's path and age with a removal remedy. A designation question now appears in every pull consumer's
   output (§ 3).
@@ -1235,6 +1473,23 @@ more than about a week out.
 16. Decomposition's optional-copy reports name each verbatim companion's actual stored path in both ref layouts.
     Conventional draft, single-spec, and paired-spec Design names and new-member Design admission remain unchanged (A3).
 
+17. In both native layouts, independently approved competing roots with an eligible explicit choice can be selected and
+    read through the real command, preserving all evidence bytes and normal selected-branch continuation. Stale basis,
+    additional/missing roots, orphan selectors, evidence conflicts, and excluded performance/settlement refuse safely;
+    opposite selector choices have an executable conflict-resolution path. Native operation reads/snapshots, hosted
+    settled-result projection, settlement/pass derivation, and approval-based authorization use only selected authority
+    from one snapshot. Selecting pending-fix over an eligible no-fix branch remains unsettled until the selected fix is
+    performed; excluded approval cannot grant continuation. Snapshot interleavings never mix outcome, evidence, or
+    selector facts from different captures.
+18. A4 adds only the selector record kind/reference vocabulary, new repair command schemas, and the additive native
+    response-snapshot capability. Existing Store methods and refusal/result/notice/publish-failure envelope shapes and
+    discriminants otherwise remain unchanged. This supersedes criterion 4 only to that extent.
+19. Response-selection reads obey the per-reader Store-call and access-scope bounds in § 9.1, retaining narrow composed
+    outcome access and unchanged immutable-only producer reads. New inventories on formerly raw-key authority paths are
+    confined to the stated outcome/evidence listings and targeted selector lookup. Native Git-process deltas are
+    measured in both layouts, with no added version capture, duplicate outcome listing, or unrelated-family enumeration;
+    A2's exception and all paths outside the explicit response-authority changes retain their process budget.
+
 ## Open Questions
 
 None. Module and helper names inside `lib/store/ref/` for § 1.2's metadata result, § 1.4's helper, and § 5.2's
@@ -1249,5 +1504,8 @@ wrapper are implementation detail.
 
 - **A3** — 2026-11-02 — design: retain conventional Design admission; fix reachable companion reports.
   _Supersedes:_ § 10 ¶1. _Trigger:_ 7.5 must-stop. _Work:_ 7.5.R. _Revalidated:_ 7.5.R.
+
+- **A4** — 2026-11-03 — design: select roots. _Supersedes:_ Goals ¶10, Cross-cutting ¶2/4, SC 4.
+  _Trigger:_ 8.1 must-stop. _Work:_ 7.R2. _Revalidated:_ pending → 7.R2.f.
 
 ---

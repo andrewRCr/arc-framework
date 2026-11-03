@@ -136,6 +136,10 @@ explicitly selected repair and preserved approval provenance; the Owner's planni
 approved repair design. The capture remains in the inbox, no evidence is deleted, and no new task or criterion is
 silently approved. The next source-grounded steps 5.12/5.13 remain distinct from this pre-verification disposition.
 
+The subsequent approved A4 planning revision folds this capture into § 9.1 and 7.R2; its recorded policy,
+review, and execution order are under § A4 — Explicit repair of competing approval roots. Final verification also
+covers its appended criteria 17–19.
+
 ### Merge qualification
 
 The append-only merge is `217741578f81169aeb45107ca4f85cd995575a0b`, with both the pre-merge head and exact base as
@@ -561,6 +565,73 @@ passed. The new log is `task-7.5.R-revalidation.log` in the implementation evide
 removed after the run; its exact source remains `task-7.5-design-admission-probe.ts` beside the logs. Existing
 Design admission is a retained property, while the report correction keeps its original native fail-first witness.
 Task 7.5 closes on the amended scope through 7.5.R, and criterion 16 remains unchecked for final verification.
+
+## A4 — Explicit repair of competing approval roots
+
+The approval-root capture (AGG-F3, “Repair a pull-merged second approved-response root”) folds into § 9.1 and Task
+7.R2. It serves post-flip recovery: independent clones can each approve a root, and sync preserves their competing
+facts. It changes the compatibility and process-cost commitments below, so this is a design amendment at medium
+scope; the existing Heavy class remains appropriate. No implementation is included in the capture.
+
+### Superseded commitments
+
+Goal 10:
+
+> 10. No refusal code, pull-notice kind, publish-failure kind, or result schema changes.
+
+Cross-cutting › Compatibility:
+
+> - **Compatibility.** ARC is pre-public-release, and the ref backend is reached only through hidden `arc store`
+> commands before the flip. No refusal code, notice kind, failure kind, or result schema changes, so callers keep
+> compiling and branching as they do. The outcomes that move are listed in § 1.8: a missing object from terminal to
+> recoverable, and a local object or transport failure from `unreachable` to `incomplete`.
+
+Cross-cutting › Performance:
+
+> - **Performance (A2).** Success paths start no extra Git process except § 9's completed-copy repair: each
+> otherwise-unwritten completed-quarter ref whose composed tree must change may add the existing writer's one `mktree
+> --batch` and one `commit-tree` process per attempt. The repair reuses captured evidence, starts no additional listing
+> or redundant discovery process, and publishes all affected refs in the withdrawal's existing atomic compare-and-swap
+> transaction. Unaffected success paths retain their process budget: - § 1.3 reads a tree only after a `missing` answer;
+> - § 1.6's local object check runs only after a completed failure with no porcelain rows; - § 5.2's wrapper `lstat`s
+> only after a failed transaction with no lost race; - § 8's registry prediction reads the registry tree only when
+> `planRefRetirements` would, and reuses that read. § 6.2 can repeat a lease attempt under contention, bounded by the
+> deadline. § 2 narrows live listings and so reads no more than today.
+
+Criterion 4, preserved unchanged until verification dispositions it against A4's narrow replacement:
+
+> 4. `StoreRefusalSchema`, `ListingDiagnosticSchema`, `PullNoticeSchema`, `PublishFailureSchema`, and the result schemas
+> are unchanged.
+
+### Decision and execution boundary
+
+Use one stable whole-record selector for the exact owner UID and producer, retaining every approval and its history.
+The excluded branch policy is explicit: no node may contain performance or settlement, including empty settlement.
+The selected branch may contain either; multiple protected branches remain outside the repair. Late offline facts
+invalidate unsafe selection. Preview/apply, stale inventory, selector conflicts, and normal continuation all have
+executable recovery coverage. The new command opens refs directly, while ordinary `createStore` remains in-repo.
+
+One shared selection loader serves existing composed reads and the additive native response capability. Native lane,
+settlement/pass, hosted-result, and approval-authority consumers receive selected facts from one snapshot. Existing
+point outcome access and immutable-only result reads retain their scope; new inventories on raw-key authority paths
+are explicit and bounded. Actual native process counts remain implementation evidence, not a planning claim.
+
+Execution order is 5.12 → 5.13 → 7.R2.a–f → 8.1. The selector has no legacy import source, so it does not precede or
+change those trials. Subtasks a–f are one coherent implementation increment and atomic commit under the approved
+batch authority. Both native layouts and final-head verification remain required; criteria 17–19 are not yet met.
+
+### Planning review and authorization
+
+Pass 1 found one major: disposition-only selection missed native lane reconstruction and settlement consumers.
+The approved correction adds the shared native authority reader, complete consumer routing, explicit interface/cost
+commitments, and the selected pending-fix versus excluded no-fix scenario. Independent fix check round 1 found no
+findings; complete pass 2 also found no findings. Both reviewers reported independent runners with no session files
+loaded. The complete findings, actions, prompts, exact artifacts, and reports remain in the personal pass record.
+
+The Owner approved full pass 2 and, if clear, resumption of implementation (2026-11-03). The clear result releases
+this capture and the agreed remaining execution. Fresh notes-save/personal-write-hold confirmation is still required
+for 5.12/5.13; the earlier hold was released. No trial, repair implementation, or process-cost measurement is attested
+by these planning results. The post-settle capture reread compares the authored record with the reviewed proposal.
 
 ## Verification at the final head
 
