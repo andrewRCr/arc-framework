@@ -4,15 +4,19 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { BaseSequencer, type TestSpecification, type Vitest } from "vitest/node";
 import { z } from "zod";
-import { PROJECT_DURATION_ESTIMATES, SERIAL_PROJECT_WEIGHTS } from "./heavy-first-durations.js";
+import { EXCLUSIVE_PROJECTS, PROJECT_DURATION_ESTIMATES, SERIAL_PROJECT_WEIGHTS } from "./heavy-first-durations.js";
 
 const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
 
-/** One run's recorded durations, measured project fallback weights, and serial projects' recorded multipliers. */
+/**
+ * One run's recorded durations, measured project fallback weights, serial projects' recorded multipliers, and the
+ * projects whose files each take a shard alone.
+ */
 export interface DurationSource {
   readonly recorded: ReadonlyMap<string, unknown>;
   readonly estimates: Readonly<Record<string, number>>;
   readonly serialWeights?: Readonly<Record<string, number>>;
+  readonly exclusiveProjects?: readonly string[];
 }
 
 function recordedDuration(source: DurationSource, project: string, file: string): number | undefined {
@@ -59,14 +63,24 @@ export function readResultsDurations(content: string): ReadonlyMap<string, unkno
   return new Map(native.results.map(([key, value]) => [key, value.duration]));
 }
 
+/**
+ * Build the duration source every shard of a run uses from that run's one handed recording.
+ * @param recorded - Recorded durations keyed by complete project/path identity
+ * @returns The recording with the fixed estimates, serial multipliers and exclusive projects
+ */
+export function durationSource(recorded: ReadonlyMap<string, unknown>): DurationSource {
+  return { recorded, estimates: PROJECT_DURATION_ESTIMATES, serialWeights: SERIAL_PROJECT_WEIGHTS,
+    exclusiveProjects: EXCLUSIVE_PROJECTS };
+}
+
 function loadDurationSource(env: NodeJS.ProcessEnv): DurationSource {
-  const recorded = env.ARC_TEST_DURATION_FILE ? readResultsDurations(readFileSync(env.ARC_TEST_DURATION_FILE, "utf8"))
-    : new Map<string, unknown>();
-  return { recorded, estimates: PROJECT_DURATION_ESTIMATES, serialWeights: SERIAL_PROJECT_WEIGHTS };
+  return durationSource(env.ARC_TEST_DURATION_FILE
+    ? readResultsDurations(readFileSync(env.ARC_TEST_DURATION_FILE, "utf8")) : new Map<string, unknown>());
 }
 
 /**
- * Partition specifications by descending weight and stable identity.
+ * Partition specifications by descending weight and stable identity. Each file of an exclusive project first takes a
+ * shard of its own, unless there are too many to leave a shard for the rest, when every file is weighted instead.
  * @param files - Specifications in arbitrary discovery order
  * @param count - Number of shards
  * @param source - One shared duration input
@@ -81,7 +95,14 @@ export function assignDurationShards<T>(files: readonly T[], count: number, sour
     const identity = identify(entry);
     return { entry, ...identity, weight: shardWeight(source, identity.project, identity.file) };
   }).sort((left, right) => right.weight - left.weight || lexical(left.project, right.project) || lexical(left.file, right.file));
+  const exclusive = ordered.filter((file) => source.exclusiveProjects?.includes(file.project) === true);
+  const isolated = new Set(exclusive.length < count ? exclusive : []);
+  [...isolated].forEach((file, index) => {
+    shards[index]!.push(file.entry);
+    loads[index] = Number.POSITIVE_INFINITY;
+  });
   for (const file of ordered) {
+    if (isolated.has(file)) continue;
     let target = 0;
     for (let index = 1; index < count; index++) if (loads[index]! < loads[target]!) target = index;
     shards[target]!.push(file.entry);
