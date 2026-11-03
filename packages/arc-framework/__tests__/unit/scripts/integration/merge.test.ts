@@ -27,6 +27,7 @@ import { adversarialPassFixture } from "../../../fixtures/review-adversarial-pas
 import { MergeLockTransitionRequestSchema } from "../../../../src/scripts/review-gate/merge-lock.js";
 import { composeCanonicalSettlementPlan } from "../../../../src/scripts/integration/settlement-plan.js";
 import { ProjectIdentityError } from "../../../../src/lib/store/project-identity.js";
+import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`;
@@ -1110,6 +1111,27 @@ it.each([false, true])("retains project repair argv through merge ownership and 
   repaired = true;
   expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: { landingLink: { state: "written" } } });
   expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).links?.landingCommit)
+    .toEqual({ repository: h.projectId, sha: oid("d") });
+});
+
+it.each(["read", "write"] as const)("retains store repair argv after a landed merge's metadata %s refusal", async method => {
+  const h = await nativeLandingMerge(), read = h.store.read.bind(h.store), write = h.store.write.bind(h.store);
+  const refusal = StoreRefusalSchema.parse({ code: "state-unresolvable", class: "recoverable", historyRefs: [],
+    condition: "Landing metadata objects are missing.", remedy: { text: "Fetch metadata and retry.",
+      argv: ["git", "fetch", "origin", "refs/arc/meta/exact"] } });
+  let broken = true;
+  if (method === "read") h.store.read = async input => broken && input.reference.kind === "work-item/meta"
+    ? { status: "refused", refusal } : read(input);
+  else h.store.write = async input => broken && input.action === "put" && input.links?.landingCommit !== undefined
+    ? { status: "refused", refusal } : write(input);
+  const result = await mergeIntegration(request, h.value);
+  expect(result).toMatchObject({ state: "merged", payload: { landingLink: { state: "not-written",
+    detail: expect.stringContaining("git fetch origin refs/arc/meta/exact") } } });
+  expect(h.state.merged).toBe(true);
+  expect(lifecycleSuccess(await read({ reference: h.meta.reference }))).toEqual(h.meta);
+  broken = false;
+  expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: { landingLink: { state: "written" } } });
+  expect(lifecycleSuccess(await read({ reference: h.meta.reference })).links?.landingCommit)
     .toEqual({ repository: h.projectId, sha: oid("d") });
 });
 

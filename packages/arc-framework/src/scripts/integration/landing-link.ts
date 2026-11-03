@@ -7,6 +7,7 @@ import { mergeLifecycleLinks, readWorkUnit, recordPut } from "../../lib/store/li
 import type { IntegrationCheckpointCompositionRecord } from "./checkpoint-store.js";
 import { SpineRemedySchema, spineRemedy } from "./spine-refusal.js";
 import { nativeRefusalText } from "../../lib/store/native-refusal.js";
+import { StoreRefusalError } from "../../lib/store/refusal-error.js";
 
 /** Native landing-link persistence is distinct from the host's completed merge. */
 export const LandingLinkStateSchema = z.discriminatedUnion("state", [
@@ -30,10 +31,10 @@ export async function writeWorkUnitLandingCommit(input: {
   store: Store; projectId(): Promise<string>; workUnit: string; owner?: OwnerIdentity; sha: string;
 }): Promise<void> {
   const selected = await readWorkUnit(input.store, input.workUnit, input.owner);
-  if (selected.status === "refused") throw new Error(`${selected.refusal.condition} ${selected.refusal.remedy.text}`);
+  if (selected.status === "refused") throw new StoreRefusalError(selected.refusal, input.store.capabilities.stateOffBranch);
   if (selected.result.conflicts.length > 0) {
     const refusal = recordConflictRefusal(selected.result, `Metadata for \`${input.workUnit}\``, "lifecycle.meta-conflict");
-    throw new Error(`${refusal.condition} ${refusal.remedy.text}`);
+    throw new StoreRefusalError(refusal, input.store.capabilities.stateOffBranch);
   }
   const record = selected.result, repository = await input.projectId();
   const prior = record.links?.landingCommit;
@@ -41,7 +42,7 @@ export async function writeWorkUnitLandingCommit(input: {
   const links = mergeLifecycleLinks(record.links, { landingCommit: { repository, sha: input.sha } });
   const written = await input.store.write({ ...recordPut(record, { links }),
     provenance: { verb: "integrate-merge", lifecycleAction: "landing-link" } });
-  if (written.status === "refused") throw new Error(`${written.refusal.condition} ${written.refusal.remedy.text}`);
+  if (written.status === "refused") throw new StoreRefusalError(written.refusal, input.store.capabilities.stateOffBranch);
 }
 
 /** Keep a landed merge successful when its link needs the same merge invocation retried. */

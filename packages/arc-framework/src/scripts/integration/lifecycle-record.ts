@@ -9,6 +9,8 @@ import { WorkUnitStateSchema } from "../../lib/kernel/index.js";
 import { deriveState } from "../../lib/work-unit/lifecycle-resolver.js";
 import { lifecycleArtifactFacts } from "../review-gate/readiness.js";
 import { IntegrationLifecycleSummarySchema, type IntegrationLifecycleSummary } from "./checkpoint.js";
+import { StoreRefusalError } from "../../lib/store/refusal-error.js";
+import { nativeRefusalText } from "../../lib/store/native-refusal.js";
 
 /** Read current metadata directly, keeping its record version separate from the whole snapshot version. */
 export async function readStoredLifecycleSummary(input: {
@@ -41,13 +43,15 @@ export async function readStoredLifecycleSummary(input: {
   }) };
 }
 
-function refusedSummary(input: { workUnit: string; archiveCadence: "with-integration" | "manual"; storageVersion: string },
+function refusedSummary(input: { store: Store; workUnit: string; archiveCadence: "with-integration" | "manual"; storageVersion: string },
   refusal: StoreRefusal): { summary: IntegrationLifecycleSummary; recordVersion: null } {
+  const failure = new StoreRefusalError(refusal, input.store.capabilities.stateOffBranch);
+  const detail = nativeRefusalText(failure) ?? failure.message;
   if (refusal.code !== "not-found" && refusal.code !== "record-malformed") {
-    throw new Error(`${refusal.condition} ${refusal.remedy.text}`);
+    throw new Error(detail);
   }
   const artifactFacts = refusal.code === "not-found" ? [] : [{ code: "malformed-artifact",
-    path: JSON.stringify(refusal.reference), message: `${refusal.condition} ${refusal.remedy.text}` }];
+    path: JSON.stringify(refusal.reference), message: detail }];
   return { recordVersion: null, summary: IntegrationLifecycleSummarySchema.parse({ workUnit: input.workUnit, archiveCadence: input.archiveCadence,
     storageVersion: input.storageVersion, state: "nonexistent", position: null, artifactFacts, complete: false,
   }) };

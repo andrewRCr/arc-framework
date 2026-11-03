@@ -130,6 +130,22 @@ it("retains other store refusals with their repair instructions and succeeds aft
   expect(await readSummary(h)).toHaveProperty("complete", true);
 });
 
+it.each(["namespace-corrupt", "record-malformed"] as const)("preserves supplied repair argv in a lifecycle %s result", async code => {
+  const h = await compositionFixture(), read = h.store.read.bind(h.store);
+  const remedy = { text: "Fetch metadata and retry.", argv: ["git", "fetch", "origin", "refs/arc/meta/exact"] };
+  h.store.read = async input => input.reference.kind !== "work-item/meta" ? read(input) : ({ status: "refused", refusal: code === "namespace-corrupt"
+    ? { code, class: "terminal", namespace: "project-state", condition: "Metadata objects are unavailable.", remedy }
+    : { code, class: "recoverable", reference: h.primary.reference, rule: "meta.shape",
+        condition: "Metadata objects are unavailable.", remedy } });
+  const dependencies = createIntegrationCheckpointDependencies(h.options);
+  if (code === "namespace-corrupt") await expect(dependencies.readLifecycle("example"))
+    .rejects.toThrow("git fetch origin refs/arc/meta/exact");
+  else expect(await dependencies.readLifecycle("example")).toMatchObject({ complete: false,
+    artifactFacts: [{ code: "malformed-artifact", message: expect.stringContaining("git fetch origin refs/arc/meta/exact") }] });
+  h.store.read = read;
+  expect(await dependencies.readLifecycle("example")).toHaveProperty("complete", true);
+});
+
 it("reports an unpositioned stored meta as an artifact fact and resumes after repair", async () => {
   const h = await fixture();
   const selected = lifecycleSuccess(await h.store.read({ reference: h.primary.reference }));
