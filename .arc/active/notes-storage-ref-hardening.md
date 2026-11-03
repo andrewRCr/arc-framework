@@ -633,6 +633,32 @@ this capture and the agreed remaining execution. Fresh notes-save/personal-write
 for 5.12/5.13; the earlier hold was released. No trial, repair implementation, or process-cost measurement is attested
 by these planning results. The post-settle capture reread compares the authored record with the reviewed proposal.
 
+## Bound-mapping trial rehearsal
+
+Task 5.12 ran the real built CLI at `045aaa8bae` under a confirmed universal personal-write hold. Notes were saved
+from all 13 current registered personal directories, then the primary and its full Git common directory were copied
+with every ref and the registered-worktree metadata. The ref inventories matched; the copied lock directory alone
+was cleared. No review source was set aside and no custom ports replaced the command's bound review mapping.
+
+The report is `task-5.12-20261103T155811Z/trial.json` under `~/dev/arc-evidence/storage-ref-hardening/`, with its
+`assessment.json`, snapshot inventories, save results, stderr, and resource measurements. It proposes 327 refs and
+refuses no record. Its five notices are the known derived-task-capture skips for `decompose-matrix`,
+`errand-enablement`, `errand-lattice`, `work-organization-reform`, and `worktree-foundation`.
+`importTaskCaptures` adds these to `skipped`; `importTrackedState` computes its blocking decision before appending
+those rows. They are explicitly allowed by the Phase 5 exit criterion, with no repair required.
+
+The bound mapping accounts for 3,214 sources: four mapped and 3,210 explicitly left behind under its legacy/liveness
+rules, with no unmapped-source or in-flight notice. The six legacy broken-chain owners remain those accepted at 1.3;
+five conditions match byte-for-byte, while `evidence-applicability` names the same missing Candidate with the newer
+generic retry wording. `prepareImportCandidateSources` preserves historical bytes through as-found admission. The
+506 differing-note rows are all disk-only; there is no content disagreement or snapshot-only row. `comparePersonalFile`
+retains such disk content and blocks disagreements separately. Neither diagnostic group introduces a new state repair.
+
+The trial completed in 10m04.88s with peak resident memory 2,305,324 KiB, below its 2.5 GiB in-process ceiling and
+6 GiB address-space cap; Node's old-space ceiling was 1,536 MiB. The copy's refs are unchanged. No new corrective
+parent, mapping fix, or state mutation is needed. Task 5.13 takes another fresh save and copy; the personal-write
+hold remains in force through its reads. Final-head verification repeats the trial after the remaining implementation.
+
 ## Verification at the final head
 
 SC 3, SC 8's Windows case, SC 9, and SC 12 take their evidence mid-change, and no gate at the final head takes it again:

@@ -563,7 +563,7 @@ annotated commit.
   intact. Validation and exact hashes are retained in `working-memory.task-5.11-validation.json` under the evidence
   directory; no personal-file or canonical-notes write was performed.
 
-### `[ ]` **5.12 Rehearse the trial with the review mapping bound — § 11.1**
+### `[x]` **5.12 Rehearse the trial with the review mapping bound — § 11.1**
 
 - _Goal:_ Everything a trial with the review mapping bound raises over this repository's current state has a home and
   every state repair it needs has run, so that once the corrective parents it adds ahead of 5.13 have landed, and any
@@ -572,26 +572,14 @@ annotated commit.
 
 **Additional Context:** `notes-storage-ref-hardening.md` § Remaining-task reground after shipped base.
 
-- _Note:_ It runs once this branch holds the review family's import mapping; until then the loop waits here, since
-  tasks run in document order. See `notes-storage-ref-hardening.md` § Coordination with `seam-delivery-review`.
-
 - _Note:_ **Owner, 2026-11-01:** Execution is reordered: run Tasks 6.1 through 7.5 before this task. Once
   `seam-delivery-review` merges and this unit merges base, return to 5.12 and 5.13, then execute Phase 8. This overrides
   the document-order wait above. Stop if a Phase 6 or 7 task depends on the import fixes or the review mapping.
 
-    - Run the trial exactly as 5.13 does — no review in flight, notes saved on approval right before a fresh copy — and
-      keep its report beside the copy.
-    - Verify each refusal and blocking notice against source, then present the complete disposition set for approval,
-      by 1.3's dispositions: a state fault is recorded under `notes-storage-ref-hardening.md` § Import state faults and
-      repaired on approval, as 5.11 does; a reachable code defect takes the corrective route 5.10 gives a new finding,
-      its corrective parent placed after 5.12 and ahead of 5.13; an unreachable one is recorded in the spec's
-      § Non-Goals.
-    - A fault in the review mapping itself, which § 11.1 takes as an expected contract, is not this change's to fix:
-      record it under § Import state faults as the mapping's, and 5.13 waits until its fix lands and this unit merges
-      base.
-    - The unmapped review-source notices 1.3 recorded no longer appear; one that does is a fault in the mapping.
-    - It closes once every item the trial raised has a home and every state repair approved here has run. A code
-      defect's fix lands in its corrective parent after 5.12, so 5.13, next in document order, runs once it lands.
+- _Outcome:_ The fresh built-CLI trial with the bound mapping has no refused record or blocking notice. All review
+  sources are accounted for; only the five accepted derived-capture skips remain. No new state repair or corrective
+  parent is needed. The raw report and source-verified dispositions are recorded in
+  `notes-storage-ref-hardening.md` § Bound-mapping trial rehearsal.
 
 ### `[ ]` **5.13 A trial import of real state returns a clean report** — validate exit criterion at segment scope
 
