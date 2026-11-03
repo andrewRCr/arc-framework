@@ -1532,7 +1532,7 @@ describe("composePrePublicationReviewRequest", () => {
 
   it.each([
     ["a missing Candidate record", { readCandidate: async (): Promise<CandidateRead> => ({ status: "missing" }) }, "No managed Candidate record", undefined],
-    ["an unexplained reviewable delta", { readCandidate: async (): Promise<CandidateRead> => ({ status: "blocked", reason: "Run full work-unit verification." }) }, "Run full work-unit verification.", "candidate-unexplained-delta"],
+    ["an unexplained reviewable delta", { readCandidate: async (): Promise<CandidateRead> => ({ status: "blocked", reason: "Run full work-unit verification.", continuation: { kind: "re-enter" } }) }, "Run full work-unit verification.", "candidate-unexplained-delta"],
     ["an unbindable rubric", { readAssurance: async (): Promise<AssuranceRead> => ({ status: "refused", reason: "rubric unavailable" }) }, "rubric unavailable", undefined],
     ["unresolvable origin coordinates", { resolveTarget: async (): Promise<TargetRead> => ({ status: "refused", reason: "no origin" }) }, "no origin", undefined],
   ] as const)("refuses on %s", async (_label, override, expected, expectedCode) => {
@@ -1544,6 +1544,8 @@ describe("composePrePublicationReviewRequest", () => {
     expect(composition.status).toBe("refused");
     expect(composition.status === "refused" && composition.reason).toContain(expected);
     expect(composition.status === "refused" ? composition.code : undefined).toBe(expectedCode);
+    expect(composition.status === "refused" ? composition.candidateContinuation : undefined)
+      .toEqual(expectedCode === undefined ? undefined : { kind: "re-enter" });
   });
 
   it("does not read assurance, target, or progress once the Candidate read refuses", async () => {

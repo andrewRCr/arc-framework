@@ -97,6 +97,32 @@ not restate it. For a canonical delivery, each re-invocation recomposes the firs
 order. Follow the returned exact target and policy action; never enumerate members or preserve a separate review
 cursor in prose.
 
+A `candidate-unexplained-delta` refusal names the Candidate's continuation. When it carries `applicability`, the
+current subject holds a delta no recorded response explains: render `applicability.selectionOfferText`,
+`applicability.recommendedActionText`, and `applicability.selectionPromptText` verbatim, then stop for the named
+authority's explicit `covered`, `targeted-check`, or `changed` choice. Do not infer a selection from the
+recommendation. Compose the strict input from `applicability.resolutionSelector`, the selecting actor, and that choice;
+for `targeted-check`, add the completed check's evidence reference. Then invoke
+`arc candidate applicability resolve {name} -` with that input. For `covered` or `targeted-check`,
+`resolved / commit-selection` and `exact-replay / commit-selection` leave the Candidate selection staged. Request
+`arc check gate commit` over that selection, then commit:
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
+
+```text
+chore(arc): record Candidate applicability for {name}
+
+Context: meta-{name}.md (prepublication)
+```
+
+Re-enter pre-publication. `resolved / continue` and `exact-replay / continue` mean the selection is already durable;
+re-enter without a commit. Only `resolved / establish-new-root` or `exact-replay / establish-new-root`, produced by an
+explicit `changed` choice, follows ordinary scope selection, completed verification, and
+`arc attest {name} --new-root --json` before re-entry. Every stale, conflicting, invalid, or unavailable resolution
+follows its typed next action without substituting a selection in prose. A refusal without `applicability` renders
+`remedy.text` and invokes `remedy.argv` unchanged once the condition it names is met.
+
 The envelope's `target` is the exact target every exact-target operation below binds against. A null `target`
 means the checkout could not compose one; resolve the returned advisory before invoking any operation. The lane
 `target` inside `policy` routes lanes and does not identify a review.

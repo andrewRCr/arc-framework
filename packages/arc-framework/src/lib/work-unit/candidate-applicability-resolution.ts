@@ -6,7 +6,9 @@ import { RecordVersionSchema } from "../store/identity.js";
 import { canonicalize } from "../kernel/canonical/canonical-json.js";
 import { CanonicalDigestSchema } from "../kernel/schema/vocabulary.js";
 import {
+  CandidateApplicabilityDecisionResultSchema,
   CandidateApplicabilityResultSchema,
+  type CandidateApplicabilityDecisionResult,
   type CandidateApplicabilityRequest,
   type CandidateApplicabilityResult,
 } from "./candidate-applicability.js";
@@ -40,6 +42,52 @@ export const CandidateApplicabilityResolutionSelectorSchema = z.strictObject(Res
 export type CandidateApplicabilityResolutionSelector = z.infer<
   typeof CandidateApplicabilityResolutionSelectorSchema
 >;
+
+/** A bounded applicability decision with the exact selector its resolution input binds. */
+export const CandidateApplicabilityDecisionSelectionSchema = CandidateApplicabilityDecisionResultSchema.extend({
+  resolutionSelector: CandidateApplicabilityResolutionSelectorSchema,
+});
+export type CandidateApplicabilityDecisionSelection = z.infer<typeof CandidateApplicabilityDecisionSelectionSchema>;
+
+/**
+ * Compose the exact resolution selector for one bounded applicability decision.
+ *
+ * The decision names each target by revision and subject digest alone, while the resolver binds the whole lineage
+ * target, so the caller collects the current target's subject at the decision's revision. Collecting it is the
+ * caller's to do and to fail at; this only binds what was collected to the record and decision it was read against.
+ *
+ * @param input - The versioned Candidate record, the decision projected from it, and the collected current target.
+ * @returns The selector, or `changed` when the record or the collected subject no longer matches the decision.
+ */
+export function composeCandidateApplicabilityResolutionSelector(input: {
+  readonly record: CandidateManagedRecordV1;
+  readonly recordVersion: string;
+  readonly decision: CandidateApplicabilityDecisionResult;
+  readonly currentTarget: CandidateLineageTarget;
+}): { readonly status: "composed"; readonly selector: CandidateApplicabilityResolutionSelector }
+  | { readonly status: "changed" } {
+  const { decision, currentTarget } = input;
+  const priorTarget = reduceCandidateDurableBaseline(input.record).target;
+  if (priorTarget.revision !== decision.baselineTarget.revision
+    || priorTarget.subject.subjectDigest !== decision.baselineTarget.subjectDigest
+    || currentTarget.revision !== decision.currentTarget.revision
+    || currentTarget.subject.subjectDigest !== decision.currentTarget.subjectDigest) {
+    return { status: "changed" };
+  }
+  return {
+    status: "composed",
+    selector: CandidateApplicabilityResolutionSelectorSchema.parse({
+      schemaVersion: 1,
+      expectedRecordVersion: input.recordVersion,
+      candidateId: decision.candidateId,
+      priorTarget,
+      currentTarget,
+      currentBase: decision.currentBase,
+      projectionDigest: decision.projectionDigest,
+      residualDigest: decision.residualDigest,
+    }),
+  };
+}
 
 const ResolutionSelectionCommon = {
   ...ResolutionInputCommon,

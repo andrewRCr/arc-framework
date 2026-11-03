@@ -1,7 +1,20 @@
 /** Corrective remedies for pre-publication command refusals. */
 
 import { attestNewRootArgv, spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.js";
+import type { CanonicalDigest } from "../../../lib/kernel/canonical/canonical-json.js";
+import type { CandidateApplicabilityDecisionSelection } from
+  "../../../lib/work-unit/candidate-applicability-resolution.js";
+import { projectCandidateReRootContinuation } from "../../../lib/work-unit/candidate-effective-target.js";
 import type { ReviewPrePublicationRefusalCode } from "./review-command-envelope.js";
+
+/** How pre-publication continues past a Candidate whose current subject it cannot recognize. */
+export type PrePublicationCandidateContinuation =
+  /** A bounded decision only an explicit authority selection settles; its selector binds the resolution input. */
+  | { readonly kind: "resolve-applicability"; readonly applicability: CandidateApplicabilityDecisionSelection }
+  /** A subject outside the Candidate lineage, cleared only by a deliberate re-root over that exact subject. */
+  | { readonly kind: "establish-new-root"; readonly candidateId: CanonicalDigest; readonly subjectDigest: CanonicalDigest }
+  /** Any other condition, reported in the refusal's message and cleared before re-entry. */
+  | { readonly kind: "re-enter" };
 
 /** The idempotent pre-publication re-attempt — the resume point every refusal returns to. */
 function prePublicationResumeArgv(workUnit: string): readonly string[] {
@@ -78,6 +91,55 @@ const PRE_PUBLICATION_REMEDIES: Record<
  */
 export function prePublicationRemedy(code: ReviewPrePublicationRefusalCode, workUnit: string): SpineRemedy {
   return PRE_PUBLICATION_REMEDIES[code](workUnit);
+}
+
+/**
+ * Compose the remedy, and any decision payload, for one Candidate pre-publication cannot recognize.
+ *
+ * The refusal code alone cannot say which of these applies, so the composed continuation selects it: a bounded
+ * decision names the resolver its selector feeds, a subject outside the lineage names the re-root bound to it, and
+ * every other condition names the re-attempt that observes it again.
+ *
+ * @param workUnit - The refused work unit, interpolated into the corrective command.
+ * @param continuation - The typed continuation pre-publication composed for the Candidate.
+ * @returns The corrective remedy, with the decision and its selector when an authority selection is required.
+ */
+export function prePublicationCandidateRefusal(
+  workUnit: string,
+  continuation: PrePublicationCandidateContinuation,
+): { remedy: SpineRemedy; applicability?: CandidateApplicabilityDecisionSelection } {
+  switch (continuation.kind) {
+    case "resolve-applicability":
+      return {
+        remedy: spineRemedy(
+          "Pre-publication review requires an explicit authority selection for a Candidate delta it cannot settle "
+            + "mechanically.",
+          "Select covered, targeted-check, or changed, compose the resolution input from the carried selector, then run",
+          ["arc", "candidate", "applicability", "resolve", workUnit, "-"],
+        ),
+        applicability: continuation.applicability,
+      };
+    case "establish-new-root":
+      return {
+        remedy: spineRemedy(
+          "Pre-publication review requires the current reviewable subject to belong to the verified Candidate lineage.",
+          "Run full verification, then establish a new Candidate root over that subject",
+          projectCandidateReRootContinuation({
+            name: workUnit,
+            candidateId: continuation.candidateId,
+            subjectDigest: continuation.subjectDigest,
+          }).argv,
+        ),
+      };
+    case "re-enter":
+      return {
+        remedy: spineRemedy(
+          "Pre-publication review requires a Candidate whose current target it can read and recognize.",
+          "Resolve the reported Candidate condition, then re-run",
+          prePublicationResumeArgv(workUnit),
+        ),
+      };
+  }
 }
 
 /**

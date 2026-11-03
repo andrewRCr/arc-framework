@@ -402,6 +402,29 @@ describe("prepublication workflow boundary", () => {
     }
   });
 
+  it("routes an unexplained Candidate delta through the selector its refusal carries", async () => {
+    for (const root of ROOTS) {
+      const prepare = await readFile(
+        resolve(root, "system/workflows/arc/work-unit-lifecycle/prepare-work-unit.md"),
+        "utf8",
+      );
+      const start = prepare.indexOf("A `candidate-unexplained-delta` refusal");
+      const route = prepare.slice(start, prepare.indexOf("The envelope's `target`", start));
+
+      expect(start).toBeGreaterThan(-1);
+      for (const text of ["selectionOfferText", "recommendedActionText", "selectionPromptText"]) {
+        expect(route).toContain(`\`applicability.${text}\``);
+      }
+      expect(route).toContain("`applicability.resolutionSelector`");
+      expect(route).toContain("arc candidate applicability resolve {name} -");
+      expect(route).toMatch(softWrappedPattern(/commit-selection[\s\S]*`commit-interlock`\s+release/iu));
+      expect(route).toContain("chore(arc): record Candidate applicability for {name}");
+      expect(route).toContain("Context: meta-{name}.md (prepublication)");
+      expect(route).toMatch(softWrappedPattern(/explicit\s+`changed`\s+choice[\s\S]*--new-root/iu));
+      expect(route).toMatch(softWrappedProse("Do not infer a selection from the recommendation."));
+    }
+  });
+
   it("distinguishes review-fix and lifecycle-ceremony context footers", async () => {
     for (const root of ROOTS) {
       const [footer, selfReview] = await Promise.all([

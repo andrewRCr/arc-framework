@@ -488,6 +488,7 @@ export async function composePrePublicationReviewRequest(
       status: "refused",
       code: "candidate-unexplained-delta",
       reason: candidate.reason,
+      candidateContinuation: candidate.continuation,
     };
   }
 
