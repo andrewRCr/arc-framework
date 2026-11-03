@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "portability-os-durations",
+  "claimId": "f7144c6d0cad7b992302dd3557a6ab29",
+  "createdAt": "2026-11-03T01:25:37.124Z",
+  "updatedAt": "2026-11-03T01:25:37.124Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Shard the Windows and macOS portability jobs by their own recorded durations",
+  "branch": "chore/portability-os-durations",
+  "origin": "inbox",
+  "originEntry": "Balance the Windows and macOS portability jobs by their own recorded durations",
+  "originEntrySourceDigest": "sha256:62b3459002294e81a097f76ec6d3a63400215cbaeba7d3ffa39ea6db925c2539",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
