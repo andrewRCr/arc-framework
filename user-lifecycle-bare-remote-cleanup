@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "user-lifecycle-bare-remote-cleanup",
+  "claimId": "625c02b5dcd41c61bf711e8bed47e95b",
+  "createdAt": "2026-11-03T00:10:29.494Z",
+  "updatedAt": "2026-11-03T00:10:29.494Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Register and remove the user lifecycle E2E fixture’s sibling bare remote through retry-safe teardown, preserving shipped-state assertions",
+  "branch": "chore/user-lifecycle-bare-remote-cleanup",
+  "origin": "inbox",
+  "originEntry": "Remove the sibling bare remote after the user lifecycle E2E test",
+  "originEntrySourceDigest": "sha256:355ba4e5b4276860cbd495c9059e9f8a1c0f617bd5d6230756812a561670d933",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
