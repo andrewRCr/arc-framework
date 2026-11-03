@@ -13,18 +13,17 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit                       | Priority | Owner  | Depends on      | Cohort        |
-| ------------- | ------------------------------- | -------- | ------ | --------------- | ------------- |
-| `Active`      | storage-ref-hardening           | P1       | andrew | —               | state-storage |
-| `Planning`    | cohort-identity-verbs           | P1       | andrew | —               | storage-seam  |
-| `Integrating` | seam-delivery-review            | P1       | andrew | —               | storage-seam  |
-| `Planning`    | adopter-install-authority       | P1       | andrew | storage-cutover | —             |
-| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —               | —             |
-| `Planning`    | decomposition-doctrine          | P1       | andrew | —               | —             |
-| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —               | —             |
-| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —               | —             |
-| `Planning`    | stub-mint-to-launch             | P1       | andrew | —               | —             |
-| `Planning`    | cli-output-contract             | P2       | andrew | —               | —             |
+| State      | Work unit                       | Priority | Owner  | Depends on      | Cohort        |
+| ---------- | ------------------------------- | -------- | ------ | --------------- | ------------- |
+| `Active`   | storage-ref-hardening           | P1       | andrew | —               | state-storage |
+| `Planning` | cohort-identity-verbs           | P1       | andrew | —               | storage-seam  |
+| `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover | —             |
+| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —               | —             |
+| `Planning` | decomposition-doctrine          | P1       | andrew | —               | —             |
+| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —               | —             |
+| `Planning` | review-checkout-lifecycle       | P1       | andrew | —               | —             |
+| `Planning` | stub-mint-to-launch             | P1       | andrew | —               | —             |
+| `Planning` | cli-output-contract             | P2       | andrew | —               | —             |
 
 ## Ready
 
@@ -129,10 +128,10 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 3
 
-| Work unit                   | Priority | Owner  | Depends on                                                                                                      | Cohort           |
-| --------------------------- | -------- | ------ | --------------------------------------------------------------------------------------------------------------- | ---------------- |
-| storage-cutover             | P1       | andrew | seam-delivery-review, cohort-identity-verbs, storage-ref-hardening, projection-worktrees, projection-write-back | state-storage    |
-| delivery-review-cardinality | P2       | andrew | review-request-contracts                                                                                        | chunked-delivery |
+| Work unit                   | Priority | Owner  | Depends on                                                                                | Cohort           |
+| --------------------------- | -------- | ------ | ----------------------------------------------------------------------------------------- | ---------------- |
+| storage-cutover             | P1       | andrew | cohort-identity-verbs, storage-ref-hardening, projection-worktrees, projection-write-back | state-storage    |
+| delivery-review-cardinality | P2       | andrew | review-request-contracts                                                                  | chunked-delivery |
 
 ### Depth 4
 
