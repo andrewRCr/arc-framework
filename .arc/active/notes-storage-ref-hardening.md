@@ -937,6 +937,9 @@ holds on an object fault, grouped by the Phase 3 task that moves it. Paths are u
   `malformed` with `rule: "placement"`, keyed `${ref}:${root}`, carrying **Misplaced**. `decodeArchiveFolder`'s
   metadata takes § 1.2's read: **Missing**, **Unparseable**, or **No metadata**.
 - Archived record keys (`archive-view.ts`, `read.ts`): the key becomes `${ref}:${root}${path}` and the remedy names it.
+- **Final qualification (3.2.a).** `import-comparison.ts` matches completed diagnostics by `${home.ref}:${home.path}`,
+  preserving the intentionally malformed legacy Candidate fixture. Canonicalized machine content, parsed fields and
+  diagnostic kind retain the existing strict comparisons; no missing diagnostic or imported record is ignored.
 - Converters of an archive capture's diagnostic, each taking the diagnostic's fault row while a diagnostic with no
   § 1.1 fault keeps its own text:
     - `captureArchivedFolders` and `selectEndedOwners` (`ended-owners.ts`): an empty quarter group and an unavailable
