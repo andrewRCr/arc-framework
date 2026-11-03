@@ -110,9 +110,40 @@ run passed 109 cases and failed the synthetic mapping fixture; that result is re
   Final verification still needs the current inbox listing, aggregate author check, criteria walk, and Candidate
   attestation; source regrounding is not a substitute for them.
 
-No additional masked decision, scope ambiguity, missing acceptance criterion, or new task dependency was found in
-5.12, 5.13, or 8.1. The staged merge must pass its hooks and `arc check new-head --from` the pre-merge head before
-execution relies on it. No trial or hosted CI was launched during this audit.
+Tasks 5.12 and 5.13 have no additional source-grounding or acceptance gap. Current-state preflight then exposed the
+verification prerequisite below, so 8.1 is not ready to begin its verification ceremony. No trial or hosted CI was
+launched during this audit.
+
+### Current inbox finding — Owner disposition before 8.1
+
+`arc user inbox-list --target storage-ref-hardening --json` returned `state: "named"` with one capture:
+**Repair a pull-merged second approved-response root** (AGG-F3, captured during the delivery/review pre-publication
+pass). This is **fix before starting verification**, not an automatically approved implementation task.
+
+The source supports its material mechanism. `checkEvidenceSuccession` rejects a second first approval for the same
+producer/result inside one write view; two clones can each admit a distinct first root before exchanging them.
+`observeSyncChecks` reports broken rules as notices without refusing the prepared merge. `orderReviewEvidenceLineage`
+then refuses multiple roots with typed `review.evidence.root`, and its remedy explicitly says no command repairs a
+pull-merged second root. `checkReviewEvidence` prohibits evidence removal. `createReviewEvidencePort`'s keyed composed
+read is affected for that producer, and its aggregate composed listing also fails. Existing unit cases cover the
+second-root write refusal and typed damaged-lineage attribution; this audit adds source tracing rather than claiming
+a new native two-clone reproduction or a repair.
+
+The current specification settles neither the repair operation nor the authority and retention rules for choosing
+between those approvals. The recommended disposition is a bounded design revision before verification, with an
+explicitly selected repair and preserved approval provenance; the Owner's planning pass must settle it through
+`amend-design` before implementation. This serves the post-flip recovery purpose, but the present tasks contain no
+approved repair design. The capture remains in the inbox, no evidence is deleted, and no new task or criterion is
+silently approved. The next source-grounded steps 5.12/5.13 remain distinct from this pre-verification disposition.
+
+### Merge qualification
+
+The append-only merge is `217741578f81169aeb45107ca4f85cd995575a0b`, with both the pre-merge head and exact base as
+parents. Normal hooks passed 11 checks. `arc check new-head --from 04d90f6b6073af480642f76aa7bb169b295ffaa8`
+passed 12 checks and reused five, including both type checks, the complete unit tier, lint, and contract checks.
+The raw report is `base-merge-new-head.log` under the implementation evidence directory. ARC now reports the
+prerequisite as shipped. These results qualify the merge; they do not attest the real-state trial, full hosted
+portability, or work-unit completion.
 
 ## Later work that reads § 1–§ 4
 

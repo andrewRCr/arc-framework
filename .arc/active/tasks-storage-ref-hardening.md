@@ -909,6 +909,10 @@ before its fix and passes after it in the store suites.
 
 - _Note:_ See `notes-storage-ref-hardening.md` § Verification at the final head and § Review during execution.
 
+- _Note:_ The current target inbox names “Repair a pull-merged second approved-response root”. The verification
+  workflow's Owner planning pass must disposition it before 8.1 begins; its repair is not specified by the current
+  tasks. See the additional context above.
+
 ---
 
 ## Success Criteria
