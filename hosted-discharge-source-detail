@@ -3,7 +3,7 @@
   "slug": "hosted-discharge-source-detail",
   "claimId": "d3d3220b6dc4f6945fb1f91c1de12c07",
   "createdAt": "2026-11-03T13:18:34.994Z",
-  "updatedAt": "2026-11-03T13:18:34.994Z",
+  "updatedAt": "2026-11-03T14:17:33.522Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Make unchecked-material-fix discharge details name the selected review source.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Make hosted discharge's unchecked-material-fix detail name the source it routes to",
   "originEntrySourceDigest": "sha256:b00bf88b7d6f0cc48898c96f0d611f71cd34f9476f511968504d518e24f043d5",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/hosted-discharge-source-detail",
+    "headSha": "3f5d705afc87131ec4b2524a36065ed09fd62dca"
+  }
 }
