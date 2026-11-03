@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | `plan/projection-write-back` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-projection`
-- **Depends On:** `storage-ref-hardening`, `projection-substrate`
+- **Depends On:** `storage-ref-hardening`
 
 - **Origin:** [internal] — the `storage-projection` cut (2026-10-30)
 - **Design:** `spec-projection-write-back.md`
