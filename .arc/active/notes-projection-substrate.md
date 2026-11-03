@@ -664,3 +664,47 @@ remain preserved; criterion 18 makes the accepted ancestor cases explicit. `writ
 setup entrypoint, so its generator, this repository's managed block and existing block expectations change together.
 Author checks cover the amended paragraph, root-pattern definitions, setup callers and existing criterion 3; the
 separately approved code fix check covers both corrections. No new dependency or packager behavior is added.
+
+## A10 — bound the save-loss assurance
+
+Normal CI 41548750614 at `149279e52d` lost one randomized in-place save on Linux. The trace records the save's
+open/write/close and check-return times but not unlink, so its exact final-read/unlink ordering is unknown. Controlled
+source-import probes reproduce a write after unlink and a write completed after the final content read but before
+unlink, using `SYSTEM_READ_GATE` in both. A separate deterministic 1 ms/15 ms schedule yields different outcomes;
+it establishes a harness distortion, not the historical cause.
+
+`runSaveLoss` had substituted a 1 ms timer for the production gate's 15 ms timer, and awaited the worker only after
+`runSecondCheck`. A single in-place save can be descheduled after opening its handle and write past the final content
+read; retaining a handle across multiple saves is unnecessary. `settleAsideCopy` and `deleteAsideCopy` do not
+synchronize with that writer. No finite wait closes arbitrary late writes. The accepted design keeps production
+behavior unchanged, makes this residual explicit, and bounds the randomized zero-loss assurance: use the production
+gate and finish the trial's save before its destructive final check. Every raw loss still fails; no outcome is
+filtered or reclassified. All 3,000 randomized saves, deterministic within-window cases, empty-copy/next-sweep
+coverage and timeouts remain. Criterion 19 supersedes criterion 10's unbounded assurance; Goal 2 and original
+criteria/task Goals stay preserved.
+
+Superseded residual and criterion, verbatim:
+
+> 1. **A write through a held handle.** A write through a handle opened before a replacement goes to a deleted aside copy
+>    and is lost (§ 5.2) where it lands after the command's second check deleted a copy that was not empty, after a later
+>    sweep deleted one left empty, or after a persist or release step took the copy over. An empty copy waits for the
+>    next command's sweep (A1), so a save that truncates the file first is lost only where its write lands after that
+>    sweep. Reasoned, not measured: no tested editor or agent holds a file open across saves.
+
+Superseded criterion 10:
+
+> 10. **An emptied copy waits for the sweep.** An aside copy empty at its writer's second check is neither sent nor
+>     deleted there, and the next command's sweep settles it as any copy it takes over; on Linux and in the portability
+>     lane, the save-loss harness loses no save, one that left the file empty past the settle window included (§ 5.2,
+>     § 17) (A1).
+
+The amendment footprint is § 1.5, § 5.2, § 17 item 1 and criteria 10/19, the affected completed task/verification
+claims, and `runSaveLoss`. Review-site correction has no new corrective parent or lifecycle move. Medium-depth author
+checks cover reader independence, binding completeness, coherence, source grounding and the affected task derivation.
+The standing direction uses author amendment checks; an independent code fix check is separately approved. Preserved
+filesystem probes retain the excluded schedules as explicit evidence.
+
+Keeping an aside handle open across unlink could detect writes before a subsequent handle read, but later writes
+still escape. Reliable recovery is a medium change: `TakeInRequest` takes a pathname, so late bytes need a durable
+aside name and index/copy state before finalization, or a different take-in contract, plus crash and Windows sharing
+coverage. This was assessed read-only; no handle-retention implementation is included.

@@ -281,10 +281,8 @@ export async function runSaveLoss(run: SaveLossRun): Promise<SaveLossCounts> {
   await ignoreProjectedRoots(checkout);
   const landed: { content: string; stage: Stage }[] = [];
   let stage: Stage = "sweep";
-  // Commands run back to back here, so every file reads as young and each read settles first. Every save grows the file
-  // in one write, or empties it first, which the gate holds back by itself, so two stats a millisecond apart tell an
-  // unfinished save from a settled one by size alone.
-  const gate = { ...SYSTEM_READ_GATE, sleep: async () => { await yieldFor(1); } };
+  // Use the production settle interval: two short observations cannot establish that a descheduled writer finished.
+  const gate = SYSTEM_READ_GATE;
   const takeIn = gatedLanding(run.store, (content) => landed.push({ content, stage }), gate);
   let index = run.seeded.index;
   let stamp = stampAt(index, run.path);
@@ -344,6 +342,9 @@ export async function runSaveLoss(run: SaveLossRun): Promise<SaveLossCounts> {
           writer: SWAP_WRITER, format: "sha1", takeIn, gate, hooks,
         });
         at("batch done");
+        // Randomize saves through the guard and swap, then complete this trial's save before its final check. A writer
+        // still running after that check's content read can write into a copy being deleted, outside this guarantee.
+        await saved;
         stage = "second check";
         const checked = await runSecondCheck({
           location, checkout, index: batch.index, copies: batch.copies, removals: batch.removals, format: "sha1", takeIn,
@@ -448,12 +449,6 @@ function entryAt(index: ProjectionIndex, path: string): RecordEntry {
 
 function stampAt(index: ProjectionIndex, path: string): string {
   return entryAt(index, path).base.blob;
-}
-
-/** Wait the milliseconds given, yielding to other work, below the resolution a timer has on Windows. */
-async function yieldFor(milliseconds: number): Promise<void> {
-  const end = process.hrtime.bigint() + BigInt(milliseconds) * 1_000_000n;
-  while (process.hrtime.bigint() < end) await new Promise((resolve) => setImmediate(resolve));
 }
 
 function median(values: readonly number[]): number {

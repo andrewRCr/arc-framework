@@ -333,6 +333,12 @@ The `MACHINE_LOCAL_PATHS` entries (§ 12.9) are data no code acts on before the 
   and the integration tier drives them over the reference backend, while end-to-end tests cover the dark path and the
   root hooks' wiring.
 - **The live rehearsal:** `storage-cutover`'s, before the flip.
+- **Save-loss assurance (A10).** `runSaveLoss` uses `SYSTEM_READ_GATE`, including its 15 ms settle interval, for
+  1,000 randomized saves per mode. Saves overlap the guard and swap, and each trial's worker finishes before
+  `runSecondCheck` starts its final check. Every completed save in that schedule must remain in the store, at its
+  path, or aside; the strict zero-loss assertion and deterministic saves through the first check remain. Writes after
+  the final content read, including the interval before unlink, are the accepted residual § 17 item 1 names, not
+  evidence of preservation. The empty-copy and next-sweep cases remain required.
 - **The review's stop rule** (Owner, 2026-10-31). At any pass of the change set's review, every finding in the pieces
   live before the flip — the worktree lock and its relock, the printed and documented removals, ARC's managed `.ignore`
   block, and this repository's `.gitignore` change — is fixed, and so is every finding in the engine that loses a save,
@@ -747,6 +753,11 @@ the step with a retry (`spec-projection-worktrees.md` § 12.2, § 12.3). Only th
 while it runs, except that a removal or release of the checkout takes over a copy once it has settled
 (`spec-projection-worktrees.md` § 12.2). The sweep takes a copy over only once its writer has exited, so no sweep cuts
 short the delay the second check relies on.
+
+The check is an observation, not synchronization with an editor (A10). `settleAsideCopy` reads the copy, then
+`deleteAsideCopy` unlinks it; a nonempty write through an already-open handle after that final content read can be
+lost, including one completed before unlink. The settle interval reduces exposure but proves no writer has finished.
+§ 17 item 1 accepts that residual; the bounded save-loss assurance in § 1.5 does not claim to eliminate it.
 
 **A copy whose edit is refused.** An aside copy whose edit write-back refuses or cannot parse is never deleted while its
 edit stays refused — at the first or second check, at the sweep (§ 5.4), or at a removal's or release's takeover
@@ -1198,11 +1209,16 @@ Five change D13's or D17's own wording:
 
 ### 17. Residuals the design accepts
 
-1. **A write through a held handle.** A write through a handle opened before a replacement goes to a deleted aside copy
-   and is lost (§ 5.2) where it lands after the command's second check deleted a copy that was not empty, after a later
-   sweep deleted one left empty, or after a persist or release step took the copy over. An empty copy waits for the
-   next command's sweep (A1), so a save that truncates the file first is lost only where its write lands after that
-   sweep. Reasoned, not measured: no tested editor or agent holds a file open across saves.
+1. **A write through a held handle (A10).** A write through a handle opened before a replacement can be lost once the
+   final content read has finished: before `deleteAsideCopy` unlinks the aside pathname, or afterward through the
+   still-open handle. The same boundary applies when a later sweep deletes a copy, or a persist or release step takes
+   one over. An observed empty copy waits for the next command's sweep (A1), but a write after that sweep's final read
+   can still be lost. An ordinary single save descheduled between open and write can reach this boundary; it does not
+   require an editor to retain a handle across saves. Controlled filesystem probes reproduce both sides of unlink.
+   No finite settle interval guarantees the writer has finished; the randomized assurance in § 1.5 ends before this
+   boundary, and retains a strict zero-loss assertion within its stated schedule.
+   Holding the aside copy’s handle across unlink would only move that boundary at medium cost, requiring a durable
+   aside file and index record before recovery plus Windows sharing and deletion tests; it was considered and not taken.
 2. **An exact revert during a replacement.** A save to a file other than Markdown that exactly restores the version a
    replacement replaces, made while the index still records that version — during the replacement, after a stop or a
    rebuild's yield until the next command, while an aside copy left empty waits for that command's sweep (A1), or while
@@ -1461,6 +1477,8 @@ _These considerations cover the design the three members build together; § 1.1 
     lane, the save-loss harness loses no save, one that left the file empty past the settle window included (§ 5.2,
     § 17) (A1).
 
+    _Amended by A10:_ Criterion 19 supersedes the unbounded harness assurance while retaining empty-copy protection.
+
 11. A same-size save after a clean hash, after a swap link, or after an ignore snapshot remains detectable when later
     index/reference writes land.
 12. After a passing ignore guard, changing or unsetting core.excludesFile forces a new effective-rules verdict before
@@ -1491,6 +1509,12 @@ _These considerations cover the design the three members build together; § 1.1 
 18. **Search traversal through ignored ancestors.** After managed setup, native repository-root ripgrep search finds
     all four projected roots even when `.arc/` or `.arc/user/` was ignored. Repository-owned lines and separate internal
     exclusions remain effective, repeated setup is stable, and Git/npm personal-state exclusion is unchanged (A9).
+
+19. **Bounded save-loss assurance.** On Linux and in the portability pair, `runSaveLoss` uses the production settle
+    gate for all 3,000 randomized saves, with each trial's save completed before its final check begins, and retains
+    the strict zero-loss assertion. Deterministic within-window and empty-copy/next-sweep cases remain covered;
+    preserved deterministic evidence demonstrates the excluded final-read-to-unlink and after-unlink losses. Neither
+    outcome is filtered out of the randomized assertion; the schedule excludes that residual explicitly (A10).
 
 ## Open Questions
 
@@ -1524,5 +1548,8 @@ this design open.
 
 - **A9** — 2026-11-02 — design: preserve search traversal. _Supersedes:_ § 11.3 ¶1.
   _Trigger:_ COMPLETE4-IGNORE-001 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A10** — 2026-11-02 — design: bound save-loss assurance. _Supersedes:_ § 17 item 1; criterion 10.
+  _Trigger:_ CI-F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

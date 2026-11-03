@@ -393,6 +393,9 @@ command's sweep takes over the copies a stopped command left.
   timeline. Run 41274229274 at `730e04d2a3`, the pair dispatched, passed on Windows and macOS: none lost or emptied past
   the window, every placed outcome reached, and the second check's rescue reached by truncate-then-write on both.
 
+- _Amended by A10:_ Criterion 19 bounds the randomized assurance; the review fix uses the production settle gate
+  and completes each trial's save before its final check. The recorded 1 ms outcome above predates this correction.
+
 ### `[x]` **3.R Keep an emptied aside copy for the next command's sweep — § 5.2, § 17**
 
 - _Goal:_ An aside copy empty at its writer's second check waits in the aside folder for the next command's sweep, so a
@@ -530,6 +533,8 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
   including Linux integration/E2E and the Windows/macOS portability pair.
 - _Success criteria:_ 15 met; none superseded. The four chunks and shared contracts passed criteria review, with no
   findings in fix-check round 3. The engine remains dark; worktree locks and managed ignore content are live.
+- _Amended by A10:_ The review-fix verification revalidates the bounded save-loss assurance against criterion 19;
+  the earlier verification report remains a record of its original subject.
 
 ---
 
@@ -539,6 +544,8 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
   replacement, a rebuild, or a file removal — saved in place or by renaming a new file over it — a copy whose path moved
   on kept and reported; an absent file is rebuilt by the link alone and yields to a save that recreated it; and the next
   command's sweep takes over the copies a stopped command left, but for the residuals the spec's § 17 names.
+
+    - _Amended by A10:_ The randomized harness's assurance is bounded by criterion 19; the original assertion remains.
 
 - `[x]` Before the flip, every checkout ARC spawns for a work unit or an Errand carries `PROJECTION_LOCK_REASON`, or
   keeps a lock another tool set first, reported; under `PROJECTION_LOCK_REASON` a plain `git worktree remove` refuses
@@ -575,6 +582,8 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
   settles it as any copy it takes over; and on Linux and in a dispatched run of the portability pair, the save-loss
   harness loses no save, one that left the file empty past the settle window included.
 
+    - _Amended by A10:_ Criterion 19 supersedes the unbounded harness assurance and retains empty-copy protection.
+
 - `[x]` A same-size save after a clean hash, after a swap link, or after an ignore snapshot remains detectable when
   later index/reference writes land.
 
@@ -600,3 +609,8 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
   overwriting. Missing, linked, invalid or changed policy and a Git-only cached proof force refusal or revalidation
   without clearing recovery entries; repair permits retry. Native npm root overrides, child negations and main/bin
   entries exclude personal files while retaining a publishable control (A8).
+
+- `[ ]` The save-loss harness uses the production settle gate for all 3,000 randomized saves and completes each
+  trial's save before the final check, retaining the strict zero-loss assertion, deterministic within-window and
+  empty-copy/next-sweep coverage. Preserved probes demonstrate the excluded final-read-to-unlink and after-unlink
+  losses (A10; criterion 19).
