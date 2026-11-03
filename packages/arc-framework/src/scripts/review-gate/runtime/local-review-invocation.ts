@@ -23,6 +23,7 @@ export async function resolveReviewPolicyInvocation(options: ReviewInvocationInp
   if (!input.store.capabilities.stateOffBranch) return input;
   await input.projectId();
   const live = await readLocalReviewLiveContext(input);
+  if (input.workItem !== undefined && live.workItem === undefined) return input;
   return { ...input, workItem: corroborateLocalReviewOwner(input.workItem, live) };
 }
 
