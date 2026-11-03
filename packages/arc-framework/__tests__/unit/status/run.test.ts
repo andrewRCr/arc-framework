@@ -2446,7 +2446,7 @@ describe("runSessionInitStatus — recommended actions", () => {
     expect(result.recommendedCombinedPrompt).toBeNull();
   });
 
-  it("falls back to skip-everything when a required input slot fails", async () => {
+  it("surfaces worktree evidence without offers when a required input slot fails", async () => {
     const probes = sessionInitProbes({
       worktree: vi.fn(async () => worktreeSync({ state: "remote-ahead", behind: 2 })),
       dirty: async () => { throw new Error("porcelain failed"); },
@@ -2458,7 +2458,7 @@ describe("runSessionInitStatus — recommended actions", () => {
     });
     expect(result.dirty.ok).toBe(false);
     if (result.worktree.ok) {
-      expect(result.worktree.value.recommendedAction).toBe("skip");
+      expect(result.worktree.value.recommendedAction).toBe("surface");
       expect(result.worktree.value.recommendedPromptText).toBe("");
     }
     expect(result.recommendedCombinedPrompt).toBeNull();
