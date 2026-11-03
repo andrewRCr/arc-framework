@@ -17,9 +17,8 @@ import {
   type CandidateLineageTarget,
   type CandidateSubjectEntryInput,
 } from "./candidate-attestation.js";
-import { resolveCandidateRecordRelativePath } from "./candidate-record-store.js";
+import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../store/kinds/review/paths.js";
 import { artifactMatcher } from "./mutators/relocate-artifacts.js";
-import { resolveSubmissionBoundaryPath } from "./submission-boundary-store.js";
 
 export interface CollectGitCandidateTargetInput {
   cwd: string;

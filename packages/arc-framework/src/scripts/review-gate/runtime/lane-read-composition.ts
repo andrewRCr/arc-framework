@@ -1,11 +1,15 @@
 /** Read-only checkout composition for lineage facts and rejected findings. */
-import type { GitExec } from "../../../lib/git/exec.js";
+import { isOffBranchStoreRefusal } from "../../../lib/store/refusal-error.js";
+import type { RawGitExec } from "../../../lib/git/exec.js";
+import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
+import { createReviewCompositionContext } from "./composition-context.js";
+import type { ApprovedDispositionRecordReader, ReviewInFlightPort } from "../core/ports.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import { createLocalReviewCandidateReader } from "./local-prepare-composition.js";
-import { readSubmissionBoundaryVersioned } from "../../../lib/work-unit/submission-boundary-store.js";
-import { spineRemedy } from "../../integration/spine-refusal.js";
+import { readSubmissionBoundaryVersioned } from "../../../lib/store/kinds/review/integration-boundary/access.js";
+import { spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.js";
 import { createReviewTarget } from "../core/gate-contract-v2.js";
 import type { LaneProgressState } from "../core/operation-state-schema.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
@@ -13,8 +17,6 @@ import { readLocalReviewLiveContext, type ResolvedLocalReviewLiveContext } from 
 import { readRepositoryIdentity } from "../hosts/local/git-common-state.js";
 import { deriveLocalReviewTarget, deriveLocalReviewTargetFacts } from "../hosts/local/repository-target.js";
 import { LocalReviewAuthorityError } from "../hosts/local/review-authority.js";
-import { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
-import { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
 import { createReadOnlyRepositoryReviewResultReader } from "../hosts/local/review-result-reader-composition.js";
 import { countCompleteLogicalPasses, readLaneResponsePerformance } from "../lane-progress.js";
 import { deriveReviewNextPassContext } from "../policy/review-next-pass.js";
@@ -25,27 +27,28 @@ import { createLocalReviewSubjectResolver } from "./local-review-subject.js";
 import { resolveLocalPolicyTarget, createLocalContributionConfirmation } from "./local-correction-context.js";
 import { readReviewLaneHistory } from "./lane-history.js";
 import { readLocalDeltaAdmissionSurface } from "./local-reserved-obligation.js";
+import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
+import { ReviewOwnerSelectionError } from "../../../lib/store/kinds/review/errors.js";
+import { projectIdentitySpineRemedy, reviewFailureSpineRemedy } from "./project-identity-remedy.js";
 
-interface LaneReadBoundary {
-  readonly cwd: string; readonly exec: GitExec;
-}
+type LaneReadBoundary = ReviewInvocationInput & { rawGit?: RawGitExec };
 
 async function readNextContext(input: LaneReadBoundary & {
   candidateReader: ReturnType<typeof createLocalReviewCandidateReader>;
   target: ReturnType<typeof createReviewTarget>; lineage: LaneSubjectLineage; progress: readonly LaneProgressState[];
-  workUnitId?: string; sources: readonly string[]; operationStore: LocalReviewOperationStateStore;
-  dispositionStore: LocalApprovedDispositionRecordStore; publisher: RepositoryGitCommonStatePublisher;
+  workUnitId?: string; sources: readonly string[]; operationStore: ReviewInFlightPort;
+  dispositionStore: ApprovedDispositionRecordReader; publisher: RepositoryGitCommonStatePublisher;
 }): Promise<ReviewNextPassContext> {
   const completePasses = input.progress.filter(owner => owner.lane === "standard")
     .reduce((count, owner) => count + countCompleteLogicalPasses(owner.attempts), 0);
   const terminal = input.progress.filter(owner => owner.lane === "standard").flatMap(owner => owner.attempts)
     .filter(attempt => attempt.terminalProducer).at(-1);
   if (terminal === undefined) return { completePasses, convergence: "none", responseDue: false, incremental: null };
-  const resultReader = createReadOnlyRepositoryReviewResultReader(input.publisher, input.target.repositoryId);
+  const resultReader = createReadOnlyRepositoryReviewResultReader(input.publisher, input.target.repositoryId, input);
   const predecessor = await resultReader.readResult(terminal.attemptId);
   if (predecessor.kind === "frontline") throw new Error("standard lane contains a frontline producer");
   const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = predecessor.requirement;
-  const boundary = input.workUnitId === undefined ? null : (await readSubmissionBoundaryVersioned(input.cwd, input.workUnitId)).boundary;
+  const boundary = input.workUnitId === undefined ? null : (await readSubmissionBoundaryVersioned(input.cwd, input.workUnitId, { store: input.store, exec: input.exec, owner: input.workItem })).boundary;
   const standardReview = boundary?.reservation?.obligation ?? { obligation, reasons, rubricVersion, rubricDigest, retrigger, count };
   const candidate = input.lineage.kind === "candidate" && input.workUnitId !== undefined
     ? await input.candidateReader.read(input.workUnitId) : null;
@@ -68,6 +71,10 @@ async function readNextContext(input: LaneReadBoundary & {
 async function readResolvedLane(request: ReviewLaneReadRequest, input: LaneReadBoundary): Promise<ReviewLaneReadEnvelope> {
   let live: Promise<ResolvedLocalReviewLiveContext> | undefined;
   const readLive = () => live ??= readLocalReviewLiveContext(input);
+  if (input.store?.capabilities.stateOffBranch === true && input.workItem === undefined) {
+    const selected = await readLive();
+    if (selected.workItem !== undefined) input.workItem = selected.workItem;
+  }
   const candidateReader = createLocalReviewCandidateReader(input);
   const resolver = createLocalReviewSubjectResolver({ ...input, readLive, readOnly: true, candidateReader });
   const { vehicle, member } = await resolver.resolveVehicle(request.memberHeadObjectId);
@@ -76,10 +83,10 @@ async function readResolvedLane(request: ReviewLaneReadRequest, input: LaneReadB
   const coordinates = await deriveLocalReviewTargetFacts({ ...input, baseRef: settings["branch.base"],
     ...(member === null ? {} : { memberCoordinates: { headSha: member.head, diffBaseSha: member.base } }) });
   const lineage = await resolver.resolveLineage(vehicle, coordinates.headSha, undefined, member ?? undefined);
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
-  const repositoryId = await readRepositoryIdentity(publisher);
-  const operationStore = new LocalReviewOperationStateStore(publisher);
-  const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
+  const { publisher, family } = createReviewCompositionContext(input);
+  const repositoryId = await readRepositoryIdentity(publisher, input);
+  const operationStore = family.ports.inFlight;
+  const dispositionStore = family.ports.dispositions;
   const history = repositoryId === null ? { progress: [], inheritedLineages: [], dispositions: [] }
     : await readReviewLaneHistory({ resolveSupersessionAncestors: resolver.resolveSupersessionAncestors,
       store: operationStore, dispositionStore, repositoryId, headSha: coordinates.headSha, lineage, workUnitId });
@@ -90,20 +97,46 @@ async function readResolvedLane(request: ReviewLaneReadRequest, input: LaneReadB
     : await readNextContext({ ...input, ...history, target, lineage, workUnitId, candidateReader,
       sources, operationStore, dispositionStore, publisher });
   return projectReviewLaneRead({ ...history, lineage, nextPassContext, target: coordinates, sources,
-    ceiling: Number(settings["review.standard_max_passes"]), exec: createRawGitExec(input.cwd) });
+    ceiling: Number(settings["review.standard_max_passes"]), exec: input.rawGit ?? createRawGitExec(input.cwd) });
+}
+
+const LANE_READ_RETRY = ["arc", "review", "lane", "read", "-"] as const;
+
+function refusedLaneRead(code: string, detail: string, remedy: SpineRemedy): ReviewLaneReadEnvelope {
+  return { schemaVersion: 1, mode: "review-lane-read", state: "refused", nextAction: "stop", diagnostics: [],
+    payload: { code, detail, remedy } };
+}
+
+// A native typed refusal reports under its own code, carrying its condition and remedy.
+function nativeLaneReadRefusal(error: unknown, request: ReviewLaneReadRequest): ReviewLaneReadEnvelope | null {
+  if (error instanceof ProjectIdentityError) {
+    return refusedLaneRead("project-identity-unavailable", error.failure.reason,
+      projectIdentitySpineRemedy(error, LANE_READ_RETRY, request));
+  }
+  if (isOffBranchStoreRefusal(error)) {
+    return refusedLaneRead("store-refused", error.refusal.condition,
+      reviewFailureSpineRemedy(error.refusal.condition, error.refusal.remedy, LANE_READ_RETRY, request));
+  }
+  if (error instanceof ReviewOwnerSelectionError) {
+    return refusedLaneRead(error.code, error.condition, reviewFailureSpineRemedy(error.condition, error.remedy, LANE_READ_RETRY, request));
+  }
+  return null;
 }
 
 /** Read the authenticated checkout subject without publishing any review state. */
 export async function readReviewLane(request: ReviewLaneReadRequest, input: LaneReadBoundary): Promise<ReviewLaneReadEnvelope> {
-  try { return await readResolvedLane(request, input); }
+  try {
+    return await readResolvedLane(request, { ...input, ...resolveReviewInvocation(input) });
+  }
   catch (error) {
+    const typed = nativeLaneReadRefusal(error, request);
+    if (typed !== null) return typed;
     const code = error instanceof LocalReviewAuthorityError ? error.reason
       : error instanceof Error && "reason" in error && typeof error.reason === "string" ? error.reason : "lane-read-unavailable";
     const detail = error instanceof Error ? error.message : String(error);
     const correction = request.memberHeadObjectId === undefined
       ? `Use the checkout for the intended Errand claim or Candidate (current checkout: ${input.cwd}), then retry`
       : `Use the owning work-unit checkout (${input.cwd}) and a bound delivery member head; requested ${request.memberHeadObjectId}. Retry`;
-    return { schemaVersion: 1, mode: "review-lane-read", state: "refused", nextAction: "stop", diagnostics: [],
-      payload: { code, detail, remedy: spineRemedy(detail, correction, ["arc", "review", "lane", "read", "-"], request) } };
+    return refusedLaneRead(code, detail, spineRemedy(detail, correction, LANE_READ_RETRY, request));
   }
 }

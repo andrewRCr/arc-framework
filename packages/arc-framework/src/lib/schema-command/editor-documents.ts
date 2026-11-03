@@ -8,7 +8,7 @@ import type { WorktreeMarkerIgnoreFs } from "../git/worktree-marker.js";
 import { SlugSchema, type KernelRegistry } from "../kernel/index.js";
 import { foldKernelSchemaClosure, projectKernelSchemas } from "../kernel/schema/generate.js";
 import { resolveArcPath } from "../layout/index.js";
-import { createEditorDocumentSchemaRegistry } from "../../production-schema-registry.js";
+import { createEditorDocumentSchemaRegistry } from "../../editor-document-schema-registry.js";
 
 export interface EditorDocumentsFs extends WorktreeMarkerIgnoreFs {
   rm(path: string, options: { recursive: boolean; force: boolean }): Promise<void>;

@@ -1,6 +1,6 @@
 /** Operation dependencies and parser registration for the repository adapter. */
 
-import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
+import { IN_REPO_REGISTRATIONS } from "../kinds/in-repo-registrations.js";
 import { createKindRegistry, type KindDefinition } from "../registry.js";
 import type { KindId } from "../catalog.js";
 import type { StorePorts } from "../ports.js";
@@ -20,5 +20,5 @@ export interface InRepoContext {
  * @returns The backend's independent parser registry and ports.
  */
 export function createInRepoContext(ports: StorePorts): InRepoContext {
-  return { ports, registry: createKindRegistry(PRODUCTION_REGISTRATIONS) };
+  return { ports, registry: createKindRegistry(IN_REPO_REGISTRATIONS) };
 }

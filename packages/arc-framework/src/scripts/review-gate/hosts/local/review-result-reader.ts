@@ -1,5 +1,7 @@
 /** Git-common composition of immutable local, frontline, and hosted producer evidence. */
 
+import { isNativeTypedRefusal } from "../../../../lib/store/native-refusal.js";
+import { FrontlineAdmissionSchema } from "../../core/frontline-admission.js";
 import { canonicalDigest, canonicalize, type CanonicalDigest } from "../../../../lib/kernel/index.js";
 import { FrontlineOutcomeRecordSchema, type FrontlineOutcomeRecord } from "../../core/advisory-records.js";
 import { validateReviewReceipt } from "../../core/gate-contract-v2.js";
@@ -16,6 +18,7 @@ import type { ReviewResult } from "../../core/review-result.js";
 import type { ReviewOperationStateSnapshotRecord } from "../../core/ports.js";
 import type { LaneProgressState } from "../../core/operation-state-schema.js";
 import { projectHostedFinding } from "../../hosted/await.js";
+import { localAttemptMatchesState } from "../../core/local-operation.js";
 import { laneSubjectOwnerMatches } from "../../core/lane-admission.js";
 
 type LaneAttempt = LaneProgressState["attempts"][number];
@@ -82,7 +85,8 @@ function frontlineAdmissionMatches(
   state: FrontlineState,
   record: FrontlineOutcomeRecord,
 ): boolean {
-  const admission = attempt.frontline?.admission;
+  const parsed = FrontlineAdmissionSchema.safeParse(attempt.frontline?.admission);
+  const admission = parsed.success ? parsed.data : undefined;
   const admittedSource = admission?.frontlineReview.source;
   if (admission === undefined || admittedSource === undefined || admittedSource === null) return false;
   const expectedSourceBindingId = canonicalDigest(state.responseBinding === undefined
@@ -98,23 +102,6 @@ function frontlineAdmissionMatches(
     && canonicalize(record.outcome.target) === canonicalize(admission.target);
 }
 
-function localAttemptMatchesState(attempt: LaneAttempt, state: LocalState): boolean {
-  const local = attempt.local;
-  if (local === undefined) return false;
-  return attempt.attemptId === state.operationId
-    && attempt.logicalPass === state.logicalPass
-    && attempt.retryGeneration === state.retryGeneration
-    && attempt.sourceId === state.laneSourceId
-    && attempt.headSha === state.target.headSha
-    && local.requestId === state.requestId
-    && local.scopeMode === state.scopeMode
-    && canonicalize({ requestedCoverage: local.requestedCoverage,
-      ...(local.correctionScope === undefined ? {} : { correctionScope: local.correctionScope }) })
-      === canonicalize(state.coverageAdmission)
-    && canonicalize(local.target) === canonicalize(state.target)
-    && canonicalize(local.vehicle) === canonicalize(state.vehicle)
-    && canonicalize(local.deliveryAdmission ?? null) === canonicalize(state.deliveryAdmission ?? null);
-}
 
 function localSourceMatchesState(
   source: ReturnType<typeof LocalReviewSourceSchema.parse>,
@@ -289,18 +276,12 @@ export class LocalReviewResultReader implements ReviewResultReader {
         throw new LocalReviewResultReaderError("ambiguous-result");
       }
       const candidate = candidates[0];
-      if (candidate?.kind === "local-review") {
-        return await this.readLocalResult(candidate.record, records);
-      }
-      if (candidate?.kind === "frontline-run") {
-        return await this.readFrontlineResult(candidate.record, records);
-      }
-      if (candidate?.kind === "hosted") {
-        return this.readHostedResult(candidate.record, candidate.attempt);
-      }
-      throw new LocalReviewResultReaderError("missing-result");
+      if (candidate === undefined) throw new LocalReviewResultReaderError("missing-result");
+      return candidate.kind === "local-review" ? await this.readLocalResult(candidate.record, records)
+        : candidate.kind === "frontline-run" ? await this.readFrontlineResult(candidate.record, records)
+          : this.readHostedResult(candidate.record, candidate.attempt);
     } catch (error) {
-      if (error instanceof LocalReviewResultReaderError) throw error;
+      if (error instanceof LocalReviewResultReaderError || isNativeTypedRefusal(error)) throw error;
       throw new LocalReviewResultReaderError(
         "corrupt-result",
         error instanceof Error ? error.message : "producer result cannot be validated",

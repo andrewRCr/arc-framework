@@ -689,10 +689,9 @@ function loadSetFromState(options: {
 }
 
 /**
- * Compose recommendations from resolved probe slots. Falls back to skip-
- * everything when any required input failed to resolve — the workflow
- * surfaces probe-failure diagnostics separately, so recommendations stay
- * neutral rather than guessing.
+ * Compose recommendations from resolved probe slots. Withhold offers when a
+ * required input fails, while preserving orientation for resolved worktree
+ * states. Probe-failure diagnostics remain separate from passive guidance.
  */
 function composeSessionInitRecommendations(slots: {
   worktree: SessionResult<
@@ -706,8 +705,10 @@ function composeSessionInitRecommendations(slots: {
   supersession: import("../../lib/git/supersession.js").SupersessionResult | null;
 }): ReturnType<typeof inferSessionInitRecommendations> {
   if (!slots.worktree.ok || !slots.dirty.ok || !slots.config.ok) {
+    const surfaceWorktree = slots.worktree.ok
+      && ["remote-ahead", "local-ahead", "diverged", "branch-gone", "remote-unavailable"].includes(slots.worktree.value.state);
     return {
-      worktree: { recommendedAction: "skip", recommendedPromptText: "" },
+      worktree: { recommendedAction: surfaceWorktree ? "surface" : "skip", recommendedPromptText: "" },
       user: { recommendedAction: "skip", recommendedPromptText: "" },
       recommendedCombinedPrompt: null,
     };

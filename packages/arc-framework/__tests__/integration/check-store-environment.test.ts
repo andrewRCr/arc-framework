@@ -14,6 +14,9 @@ import { readReachDeclaration, selectReachCheck } from "../../src/lib/reach-chec
 
 const checkoutRoot = resolve(import.meta.dirname, "../../../..");
 const declarationPath = "packages/arc-framework/__tests__/reach/store-suites.json";
+/** The separate layout's whole-run conformance files: its three item ranges, each split into parts. */
+const SEPARATE_CONFORMANCE_PARTS = ["reads-1", "reads-2", "reads-3", "reads-4", "records-1", "records-2", "records-3",
+  "records-4", "sync-1", "sync-2", "sync-3"];
 const roots: string[] = [];
 afterEach(async () => { vi.unstubAllEnvs(); await removeGitBackedDirs(roots.splice(0)); });
 
@@ -83,8 +86,8 @@ it("keys real declared passes to their ask while reusing each unchanged form", a
   for (const ask of ["", "", "every", "every", "full", "full"]) outcomes.push(await harness.run(ask, undefined));
   expect(outcomes.map(result => result.outcome)).toEqual(["passed", "reused", "passed", "reused", "passed", "reused"]);
   const every = JSON.parse(outcomes[2]?.output ?? "[]") as string[], full = JSON.parse(outcomes[4]?.output ?? "[]") as string[];
-  for (const range of ["reads", "records", "sync"]) {
-    const file = `packages/arc-framework/__tests__/integration/store-ref-separate-conformance-${range}.test.ts`;
+  for (const part of SEPARATE_CONFORMANCE_PARTS) {
+    const file = `packages/arc-framework/__tests__/integration/store-ref-separate-conformance-${part}.test.ts`;
     expect(every).not.toContain(file);
     expect(full).toContain(file);
   }

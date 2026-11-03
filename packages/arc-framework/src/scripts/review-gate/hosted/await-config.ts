@@ -51,6 +51,7 @@ export function resolveHostedAwaitTiming(
   const execution = HostedAwaitExecutionEnvelopeSchema.safeParse({
     schemaVersion: request.schemaVersion,
     handle: request.handle,
+    ...(request.operationRef === undefined ? {} : { operationRef: request.operationRef }),
     timeoutMs,
     pollIntervalMs,
     ...(request.continueAfterAttention === true ? { continueAfterAttention: true as const } : {}),

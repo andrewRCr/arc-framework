@@ -1,4 +1,6 @@
 /** Direct run-mode policies preserve configured membership, execution, and failure semantics. */
+import { readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 import type { TestResult, TestSpecification } from "vitest/node";
 import { normalizeVitestOptions } from "../../src/lib/vitest-discovery.js";
@@ -87,7 +89,7 @@ it("retains each native portability boundary on the portability tier", () => {
     "build-coordinator.test.ts", "build-publication.test.ts", "build-inventory.test.ts", "build-ownership.test.ts",
     "ci-build-transfer.test.ts", "ci-build-recovery.test.ts", "local-test-admission.test.ts", "worktree-marker.test.ts",
     "commit-message-retry-store.test.ts", "advisory-lock", "user-sync-notes-lock", "ref-tree-cas", "state-ref-race.e2e",
-    "git-executor", "delivery-transfer.e2e", "check-symlink-cwd.test.ts",
+    "git-executor", "delivery-transfer.e2e", "check-symlink-cwd.test.ts", "atomic-graduation.test.ts",
     "lib/checks/batching.test.ts", "lib/checks/forecast.test.ts",
     "lib/checks/key.test.ts", "handlers/check/run-output", "check-runner-shard",
     "ci-check-runner.test.ts", "heavy-first-sequencer.test.ts", "duration-artifacts.test.ts",
@@ -99,10 +101,21 @@ it("retains each native portability boundary on the portability tier", () => {
     "store-ref-directory.test.ts", "store-ref-write-batching.test.ts", "store-ref-reader-lifetime.test.ts",
     "store-ref-archive-acquisition.test.ts",
     "store-ref-named-acquisition.test.ts", "store-ref-publication.test.ts",
-    "git-batch-reader.test.ts", "store-ref-separate-conformance-records.test.ts",
-    "store-ref-separate-conformance-reads.test.ts", "store-ref-separate-conformance-sync.test.ts",
+    "git-batch-reader.test.ts", "store-ref-separate-conformance-records-",
+    "store-ref-separate-conformance-reads-", "store-ref-separate-conformance-sync-",
     "store-ref-timing.test.ts", "store-ref-timing-isolation.test.ts",
   ]));
+});
+
+it("selects every test under a store/projection/ folder, and no other test file, on the portability tier", () => {
+  const tests = readdirSync(fileURLToPath(new URL("..", import.meta.url)), { recursive: true, encoding: "utf8" })
+    .map((path) => path.replaceAll("\\", "/")).filter((path) => /\.test\.ts$/u.test(path));
+  const isProjectionTest = (path: string) => /(^|\/)store\/projection\//u.test(path);
+  const projection = tests.filter(isProjectionTest);
+  expect(projection.length).toBeGreaterThan(0);
+  const selectors = localVitestTierArguments("portability").filter((selector) => projection.some((path) => path.includes(selector)));
+  expect(projection.filter((path) => !selectors.some((selector) => path.includes(selector)))).toEqual([]);
+  expect(tests.filter((path) => !isProjectionTest(path) && selectors.some((selector) => path.includes(selector)))).toEqual([]);
 });
 
 it.each(["raw-git-files.test.ts", "check-source-git.test.ts"])("selects actual raw-file portability cases: %s", path => {

@@ -1,5 +1,6 @@
 /** Store-backed graduation preserves the caller's Git coordinate and changes only operational state. */
 import { describe, expect, it } from "vitest";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 import { createClashDouble } from "../../helpers/store/clash-double.js";
 import { runGraduate } from "../../../src/commands/start.js";
 import type { ExecuteTransitionContext } from "../../../src/lib/work-unit/lifecycle-executor.js";
@@ -24,6 +25,8 @@ async function harness(refuse = false) {
     exec: async (_command, args) => {
       if (args[0] === "rev-parse") return { stdout: "a".repeat(40) };
       if (args[0] === "symbolic-ref") return { stdout: "refs/heads/person" };
+      if (args[0] === "worktree" && args[1] === "list") return { stdout: worktreePorcelainZ(`worktree /spawn\nHEAD ${"a".repeat(40)}\ndetached\n`) };
+      if (args[0] === "worktree" && args[1] === "lock") return { stdout: "" };
       if (args.join(" ") === "worktree remove --force /spawn") { occupied = false; return { stdout: "" }; }
       throw Error(`unexpected Git mutation ${args.join(" ")}`);
     },

@@ -51,6 +51,16 @@ function violations(path: string, text: string, predicate: ArchitecturePredicate
 }
 
 describe("raw state helper ratchet", () => {
+  it.each(["outcome", "decision", "evidence", "adversarial-pass", "candidate", "integration-boundary"])(
+    "keeps the %s registration behind the store while exposing pure review operations", (kind) => {
+      const module = `lib/store/kinds/review/${kind}/registration.ts`;
+      expect(violations("handlers/outside.ts", `import "../${module.replace(/\.ts$/u, ".js")}";`, "store-raw-state"))
+        .toEqual([`raw state helper ${module} outside the store`]);
+      expect(violations("lib/store/kinds/registrations.ts", `import "./review/${kind}/registration.js";`, "store-raw-state"))
+        .toEqual([]);
+      expect(violations("handlers/outside.ts", 'import { ReviewOutcomeSchema } from "../lib/store/kinds/review/index.js";', "store-raw-state"))
+        .toEqual([]);
+    });
   it("keeps Errand registration behind the store boundary", () => {
     expect(violations("handlers/outside.ts",
       'import { ERRAND_RECORD_REGISTRATION } from "../lib/store/kinds/errand-record/registration.js";', "store-raw-state"))
@@ -105,10 +115,12 @@ describe("raw state helper ratchet", () => {
   });
   it.each([
     ["handlers/outside.ts", 'import { PRODUCTION_REGISTRATIONS } from "../lib/store/kinds/registrations.js";', "lib/store/kinds/registrations.ts"],
+    ["handlers/outside.ts", 'import { IN_REPO_REGISTRATIONS } from "../lib/store/kinds/in-repo-registrations.js";', "lib/store/kinds/in-repo-registrations.ts"],
     ["handlers/outside.ts", 'import { META_REGISTRATION } from "../lib/store/kinds/meta/registration.js";', "lib/store/kinds/meta/registration.ts"],
     ["handlers/outside.ts", 'import { locateMetaCoreTable } from "../lib/store/kinds/meta/line-reading.js";', "lib/store/kinds/meta/line-reading.ts"],
     ["handlers/outside.ts", 'import { parseMetaFile } from "../lib/active/meta-reader.js";', "lib/active/meta-reader.ts"],
     ["handlers/outside.ts", 'import { readShippedWorkUnits } from "../lib/work-unit/completed-index.js";', "lib/work-unit/completed-index.ts"],
+    ["handlers/outside.ts", 'import { readSubmissionBoundary } from "../lib/work-unit/submission-boundary-store.js";', "lib/work-unit/submission-boundary-store.ts"],
     ["handlers/outside.ts", 'import { type Tip, readRefTip } from "../lib/git/ref-tree.js";', "lib/git/ref-tree.ts"],
     ["lib/status/view.ts", 'export { readTreeEntries } from "../errand/ref-tree.js";', "lib/errand/ref-tree.ts"],
     ["handlers/outside.ts", 'void import("../lib/errand/identity-transaction.js");', "lib/errand/identity-transaction.ts"],

@@ -302,7 +302,7 @@ async function publishedSingletonFix(maxPasses = 4) {
   const boundary = await readSubmissionBoundaryVersioned(cwd, "example");
   await writeSubmissionBoundary(cwd, projectPublicationBoundary({ workUnit: "example", branch: "feat/example",
     candidateId: candidate.attestation.candidateId, candidateSubjectDigest: candidate.subject.subjectDigest,
-    reservation, changeRequest: { repository: "owner/repo", pullRequest: 42 } }), boundary.version);
+    reservation, changeRequest: { repository: "owner/repo", pullRequest: 42 } }, 1), boundary.version);
   await writeFile(join(cwd, ".arc/active/meta-example.md"), makeMetaFixture("example", {
     state: "Integrating", currentWorkflow: "integrate-work-unit", owner: "andrew", branch: "feat/example",
     workClass: "Light", taskList: "tasks-example.md" }));
@@ -526,13 +526,18 @@ describe("pre-publication correction confirmation", () => {
       { repository: "owner/repo", pullRequest: null, headSha })).resolves.not.toBe("applicable");
   });
 
-  it("requires a local complete pass after a base move following an unchecked material fix", async () => {
+  it.each([
+    { sources: ["coderabbit-pr", "delegated-agent"], expectedRoute: { nextSource: "delegated-agent" } },
+    { sources: ["coderabbit-pr"], expectedRoute: { nextSource: "coderabbit-pr",
+      detail: "The unchecked material fix requires a complete review by hosted source `coderabbit-pr` at the current base." } },
+  ])("requires complete coverage from $expectedRoute.nextSource after a base move following an unchecked material fix",
+  async ({ sources, expectedRoute }) => {
     const { cwd, exec, git, base, candidate, predecessor } = await candidateFix(false, true, false, true);
     if (predecessor.kind === "frontline") throw new Error("expected standard result");
     const lineage = predecessor.admission.lineage;
     if (lineage.kind !== "delivery-member" || candidate === null) throw new Error("expected delivery Candidate");
     const reservation = createStandardReviewReservation({ candidateId: candidate.attestation.candidateId,
-      sourceId: "coderabbit-pr", sources: ["coderabbit-pr", "delegated-agent"],
+      sourceId: "coderabbit-pr", sources,
       target: { kind: "delivery", repository: "owner/repo", planId: lineage.planId, workUnitId: lineage.workUnitId },
       obligation: { obligation: predecessor.requirement.obligation, reasons: predecessor.requirement.reasons,
         rubricVersion: predecessor.requirement.rubricVersion, rubricDigest: predecessor.requirement.rubricDigest,
@@ -547,7 +552,7 @@ describe("pre-publication correction confirmation", () => {
     const result = await createHostedReservationDischargeReader({ cwd, exec })({ reservation,
       baseRevision: movedBase, approvedHead: headSha, changeRequest: { repository: "owner/repo", pullRequest: 42 },
       candidate, vehicle: { ...lineage, head: headSha } });
-    expect(result).toMatchObject({ discharged: false, nextSource: "delegated-agent", requestCoverage: "complete",
+    expect(result).toMatchObject({ discharged: false, ...expectedRoute, requestCoverage: "complete",
       nextPassContext: { completePasses: 1, convergence: "unconverged", responseDue: false, incremental: null } });
     expect(result).not.toHaveProperty("coverageSelectionAction");
   });

@@ -316,6 +316,8 @@ export async function awaitRequiredChecks(
     timeoutMs: input.timeoutMs,
     pollIntervalMs: input.pollIntervalMs,
     clock: dependencies.clock,
+    // The deadline callback owns the final observation and its multi-read budget.
+    observeAtDeadline: false,
     deadline: async (elapsedMs) => {
       const observation = await observeRequiredChecks(input, {
         port: dependencies.port,

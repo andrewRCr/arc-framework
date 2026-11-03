@@ -15,7 +15,8 @@ const WorkflowSchema = z.object({ jobs: z.record(z.string(), z.object({
 export type CheckPlumbing = Record<string, Array<{ job: string; step: string }>>;
 
 /**
- * Refuse stale check ids, missing steps, and inconsistent shard matrices.
+ * Refuse stale check ids, missing steps, and inconsistent shard matrices. A job without a shard matrix runs a sharded
+ * check whole.
  * @param checks - Merge-gate invocation forecast
  * @param plumbing - Repository-authored destinations
  * @param workflow - Parsed workflow document
@@ -31,12 +32,15 @@ export function validateCheckPlumbing(checks: readonly DeclaredCheckResult[], pl
       if (!job?.steps.some(step => step.id === destination.step)) {
         throw new Error(`CI map for ${id} names a missing step: ${destination.job}/${destination.step}`);
       }
-      if (check.shards !== undefined) {
-        const expected = check.shards.map(shard => shard.index);
-        if (JSON.stringify(job.strategy?.matrix.shard) !== JSON.stringify(expected)) {
-          throw new Error(`CI shard matrix for ${id} in ${destination.job} must be ${expected.join(", ")}`);
-        }
-      }
+      assertShardMatrix(id, destination.job, check.shards, job.strategy?.matrix.shard);
     }
+  }
+}
+
+function assertShardMatrix(id: string, job: string, shards: DeclaredCheckResult["shards"], matrix: unknown): void {
+  if (shards === undefined || matrix === undefined) return;
+  const expected = shards.map(shard => shard.index);
+  if (JSON.stringify(matrix) !== JSON.stringify(expected)) {
+    throw new Error(`CI shard matrix for ${id} in ${job} must be ${expected.join(", ")}`);
   }
 }

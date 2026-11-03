@@ -103,9 +103,9 @@ export const KIND_MECHANISMS = {
   "review/candidate": atRef("review/candidate-<uid>.json", machine({ substrate: "tracked", address: { kind: "candidate-record" } })),
   "review/integration-boundary": atRef("review/integration-boundary-<uid>.json", machine({ substrate: "tracked", address: { kind: "integration-boundary-record" } })),
   "review/evidence": atRef("review/evidence-<key>-<uid>.json", machine(unhomed)),
-  "review/outcome": atRef("review/outcome-<key>-<uid>.json", machine(unhomed)),
-  "review/terminus": atRef("review/terminus-<key>-<uid>.json", machine(unhomed)),
-  "review/adversarial-pass": atRef("review/adversarial-pass-<key>-<uid>.json", machine(unhomed)),
+  "review/outcome": atRef("review/outcome-<key>-<uid>.json", { ...machine(unhomed), writerRule: "create-only" }),
+  "review/decision": atRef("review/decision-<key>-<uid>.json", { ...machine(unhomed), writerRule: "create-only" }),
+  "review/adversarial-pass": atRef("review/adversarial-pass-<key>-<uid>.json", { ...machine(unhomed), writerRule: "create-only" }),
   "project-registry/identity": atRef("identity.json", { ...machine(unhomed), writerRule: "create-only" }),
   "project-registry/counter": atRef("counters/<key>.json", { ...machine(unhomed), writerRule: "cas" }),
   "lineage/transition": atRef("lineage/<uid>.json", { ...machine({ substrate: "tracked", address: { kind: "transition-record" } }), writerRule: "create-only" }),
@@ -202,6 +202,8 @@ export const MACHINE_LOCAL_PATHS = [
   { root: "git-common", pattern: ".machine-id" },
   { root: "git-common", pattern: "arc/**" },
   { root: "git-worktree", pattern: "arc-checks/**" },
+  { root: "git-worktree", pattern: "arc-projection/**" },
+  { root: "checkout", pattern: ".arc/system/.local/**" },
 ] as const;
 /** Status and archive listings are derived, never state records. */
 export const DERIVED_VIEWS = ["project-status", "identity-status", "archive-index"] as const;

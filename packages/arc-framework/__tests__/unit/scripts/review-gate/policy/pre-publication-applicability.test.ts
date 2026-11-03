@@ -174,9 +174,6 @@ function dependencies(
     },
     dispositionStore: {
       readDispositionRecord: vi.fn(async () => null),
-      appendDispositionRecord: vi.fn(async () => {
-        throw new Error("unexpected disposition write");
-      }),
     },
     readResponsePerformance: vi.fn(async () => null),
     confirmIncrementalApplicability: vi.fn(async () => "applicable" as const),

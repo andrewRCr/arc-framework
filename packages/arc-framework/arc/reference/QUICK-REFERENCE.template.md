@@ -12,21 +12,12 @@ load on demand when workflow steps reference them.
 
 ### Critical Path Reference
 
-<!-- List the resources an agent needs to find quickly. Adapt to your project's stack. -->
-
-| Resource         | Location from Repo Root | Why It Matters            |
-| ---------------- | ----------------------- | ------------------------- |
-| \[Resource name] | `[path]`                | \[brief explanation]      |
-| \[Resource name] | `[path]`                | \[brief explanation]      |
-| ARC docs         | `.arc/`                 | Development documentation |
+| Resource         | Location from Repo Root | Why It Matters       |
+| ---------------- | ----------------------- | -------------------- |
+| \[Resource name] | `[path]`                | \[brief explanation] |
+| \[Resource name] | `[path]`                | \[brief explanation] |
 
 ### Runtime Environment
-
-<!-- Describe what's needed to run the project. Examples: -->
-<!-- "Docker Compose must be running (3 containers: api, web, db)" -->
-<!-- "Python 3.12+ with venv at backend/.venv/" -->
-<!-- "Node.js 20+ with dependencies installed via npm" -->
-<!-- "Documentation-only — no runtime services needed" -->
 
 [Runtime description]
 
@@ -111,7 +102,7 @@ All commands from **repository root**.
 
 ### Command Prerequisites and Remote Access
 
-ARC requires Node.js 24 or newer and Git 2.47 or newer.
+ARC requires Node.js 24 or newer and Git 2.53 or newer.
 
 `arc status --session-init --json` is passive for code-repository evidence: it reads one live advertised-head
 generation and inspects only objects already present locally. It does not fetch code objects, update or create code

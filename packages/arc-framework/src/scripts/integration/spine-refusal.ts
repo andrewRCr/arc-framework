@@ -25,7 +25,8 @@ export const SpineRemedySchema = z.strictObject({
 });
 export type SpineRemedy = z.infer<typeof SpineRemedySchema>;
 
-function renderArgument(argument: string): string {
+/** Quote one supplied corrective command argument for shell display. */
+export function renderRemedyArgument(argument: string): string {
   if (/^[A-Za-z0-9_./:@+{}-]+$/u.test(argument)) return argument;
   return `'${argument.replaceAll("'", `'"'"'`)}'`;
 }
@@ -47,7 +48,7 @@ export function spineRemedy(
   return SpineRemedySchema.parse({
     invariant,
     text: `${invariant} ${correction}${stdin === undefined ? "" : " with the carried stdin request"}: `
-      + `\`${argv.map(renderArgument).join(" ")}\`.`,
+      + `\`${argv.map(renderRemedyArgument).join(" ")}\`.`,
     argv: [...argv],
     ...(stdin === undefined ? {} : { stdin }),
   });

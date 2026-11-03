@@ -7,8 +7,7 @@ import type { DeliveryRevisionedRecord } from "./ports.js";
 import { carryDeliveryReviewFixPublicBoundary } from "./review-fix.js";
 import type { DeliveryPlanV1, DeliveryStateV1 } from "./schema.js";
 import type { CandidateManagedRecordV1 } from "../work-unit/candidate-attestation.js";
-import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
-import { resolveSubmissionBoundaryPath } from "../work-unit/submission-boundary-store.js";
+import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../store/kinds/review/paths.js";
 import type { IntegrationBoundaryLocus } from
   "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import type { DeliveryReviewFixDriveEffect } from "./review-fix-driver.js";

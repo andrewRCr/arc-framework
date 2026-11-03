@@ -1,4 +1,5 @@
 /** Kernel registration for public review request schemas owned by their own command modules. */
+import { ReviewAdversarialRecordRequestSchema } from "./core/adversarial-record-schema.js";
 
 import { ReviewLaneReadRequestSchema } from "./lane-read-schema.js";
 import type { KernelRegistry } from "../../lib/kernel/index.js";
@@ -17,6 +18,7 @@ import { LocalCancelRequestSchema } from "./runtime/local-cancel-command.js";
 import { LocalResumeRequestSchema } from "./runtime/local-resume-command.js";
 import { DeliveryReviewTerminusAcceptanceInputSchema } from "./policy/delivery-review-terminus.js";
 
+export const REVIEW_ADVERSARIAL_RECORD_REQUEST_SCHEMA_ID = "review-adversarial-record-request";
 export const REVIEW_RESOLVE_REQUEST_SCHEMA_ID = "review-resolve-request";
 export const REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID = "review-hosted-await-request";
 export const REVIEW_REDUCE_REQUEST_SCHEMA_ID = "review-reduce-request";
@@ -45,6 +47,7 @@ export const REVIEW_TERMINUS_ACCEPT_REQUEST_SCHEMA_ID = "review-terminus-accept-
  */
 export function registerReviewRequestCommandSchemas(registry: KernelRegistry): KernelRegistry {
   for (const [id, schema] of [
+    [REVIEW_ADVERSARIAL_RECORD_REQUEST_SCHEMA_ID, ReviewAdversarialRecordRequestSchema],
     [REVIEW_RESOLVE_REQUEST_SCHEMA_ID, ReviewPolicyCommandRequestSchema],
     [REVIEW_HOSTED_AWAIT_REQUEST_SCHEMA_ID, HostedAwaitEnvelopeSchema],
     [REVIEW_REDUCE_REQUEST_SCHEMA_ID, ReduceRequestSchema],

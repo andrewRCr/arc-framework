@@ -39,12 +39,12 @@ export function createDeliveryLocalReviewAdmission(head: string, correctionScope
   };
 }
 
-export function createLocalReviewPreparationFixture() {
+export function createLocalReviewPreparationFixture(options: { repositoryId?: string } = {}) {
   const targetOf = (kind: "change-set" | "delivery-member", seed: string) => createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
     kind,
-    repositoryId: "repo-1",
+    repositoryId: options.repositoryId ?? "repo-1",
     baseRef: "main",
     diffBaseSha: objectId(seed),
     diffBaseTree: objectId("b"),
@@ -152,7 +152,7 @@ export function createLocalReviewPreparationFixture() {
     withLocalReviewLock: async <T>(action: () => Promise<T>) => action(),
     withLaneOperationLock: async <T>(_input: unknown, action: () => Promise<T>) => action(),
     confirmDispositionSetCurrent: async () => true,
-    resolveRepositoryId: async () => "repo-1",
+    resolveRepositoryId: async () => options.repositoryId ?? "repo-1",
     readCurrentHeadSha: async () => changeSetTarget.headSha,
     resolveVehicle: async (memberHeadObjectId?: string) => memberHeadObjectId === undefined
       ? {

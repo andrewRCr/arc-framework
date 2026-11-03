@@ -362,7 +362,7 @@ export async function resolveEvidenceBoundSingletonHostedReservationPolicy(
     frontlineActive: false,
     standardReview: input.reservation.obligation,
     completedPasses: input.discharge.completedPasses,
-    attempts: input.discharge.requestAttempts,
+    attempts: dischargePolicyAttempts(input.discharge),
     ...(input.invocation === undefined ? {} : { invocation: input.invocation }),
     ...(input.ceilingOverride === undefined ? {} : { ceilingOverride: input.ceilingOverride }),
     ...(input.additionalPassAuthorization === undefined ? {}
@@ -375,6 +375,10 @@ export async function resolveEvidenceBoundSingletonHostedReservationPolicy(
     nextPassContext: input.discharge.nextPassContext ?? dependencies.nextPassContext,
     chosenCoverage: input.chosenCoverage,
   });
+}
+
+function dischargePolicyAttempts(discharge: HostedReservationDischarge): ReviewPolicyCommandRequest["attempts"] {
+  return [...discharge.requestAttempts ?? [], ...(discharge.terminalAttempt === undefined ? [] : [discharge.terminalAttempt])];
 }
 
 function assertHostedPolicyResolution(
@@ -541,7 +545,7 @@ export function assertCandidateHostedReservationPolicyAdmission(input: {
   });
   const attemptsBySource = new Map<string, ReviewPolicyCommandRequest["attempts"][number]>();
   for (const attempt of [
-    ...input.discharge.requestAttempts ?? [],
+    ...dischargePolicyAttempts(input.discharge),
     ...completedCurrentHeadAttempts.slice(lastSettledIndex + 1),
   ]) {
     attemptsBySource.set(attempt.sourceId, "attemptId" in attempt
@@ -717,7 +721,7 @@ export async function assertEvidenceBoundCandidateHostedReservationPolicyAdmissi
   });
   const attemptsBySource = new Map<string, ReviewPolicyCommandRequest["attempts"][number]>();
   for (const attempt of [
-    ...input.discharge.requestAttempts ?? [],
+    ...dischargePolicyAttempts(input.discharge),
     ...completed.slice(lastSettledIndex + 1).map(projectReviewPolicyAttempt),
   ]) {
     attemptsBySource.set(attempt.sourceId, attempt);

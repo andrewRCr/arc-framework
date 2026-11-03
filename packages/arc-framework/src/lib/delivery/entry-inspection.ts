@@ -9,7 +9,7 @@ import type { CanonicalDigest } from "../kernel/index.js";
 import {
   ResolveDeliveryStatusActionSchema,
   ContinuePublicationActionSchema,
-  type IntegrationBoundaryLocus,
+  type PublishedIntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   projectDeliveryPublicReviewContinuation,
@@ -36,6 +36,7 @@ import {
   projectDeliveryReviewFixVerificationContinuation,
   type DeliveryReviewFixVerificationContinuation,
 } from "./review-fix-verification.js";
+import { isNativeTypedRefusal, nativeRefusalText, rethrowNativeRefusal } from "../store/native-refusal.js";
 
 /** Selector-free continuation the member-correction route enters. */
 const MEMBER_CORRECTION_COMMAND = "arc delivery review-fix continue -";
@@ -424,7 +425,7 @@ type ReadState =
   | { readonly status: "ok"; readonly value: DeliveryStateV1 | null; readonly revision: number | null }
   | { readonly status: "refused" };
 type ReadIntegrationBoundary =
-  | { readonly status: "ok"; readonly value: IntegrationBoundaryLocus | null }
+  | { readonly status: "ok"; readonly value: PublishedIntegrationBoundaryLocus | null }
   | { readonly status: "refused" };
 type ReadCandidate =
   | {
@@ -482,14 +483,15 @@ export type DeliveryCandidateRenewalInspectionResult =
  */
 export async function inspectDeliveryCandidateRenewal(
   workUnitId: string,
-  sourceBoundary: IntegrationBoundaryLocus | null,
+  sourceBoundary: PublishedIntegrationBoundaryLocus | null,
   dependencies: DeliveryEntryInspectionDependencies,
 ): Promise<DeliveryCandidateRenewalInspectionResult> {
   const workUnit = SlugSchema.parse(workUnitId);
   let taskList: string;
   try {
     taskList = await dependencies.readTaskList();
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return { status: "refused", reason: "evidence-unavailable" };
   }
   const planResolution = await dependencies.resolvePlan();
@@ -574,7 +576,7 @@ export async function inspectDeliveryReopen(
 const LATER_ENTRY_COST = "Delivery later entry requires attended inventory and member authoring, complete "
   + "eligibility, materialization, and exact-head review that planning-time entry could have front-loaded.";
 
-function refused(reason: Extract<DeliveryEntryInspectionResult, { status: "refused" }>["reason"])
+function refused(reason: Extract<DeliveryEntryInspectionResult, { status: "refused" }>["reason"], cause?: unknown)
   : Extract<DeliveryEntryInspectionResult, { status: "refused" }> {
   const remedy = reason === "review-fix-response-unavailable"
     ? "Restore readable approved review-response records before resuming the delivery correction."
@@ -591,7 +593,8 @@ function refused(reason: Extract<DeliveryEntryInspectionResult, { status: "refus
       : reason === "task-member-ambiguous"
         ? "Restore exactly-once delivery task coverage before resuming bound delivery execution."
         : "Resolve the delivery plan, authoring, task-list, and state evidence conflict before entering delivery.";
-  return { status: "refused", nextAction: "stop", reason, recommendedActionText: remedy };
+  // A native store, project-identity, or owner refusal that caused the miss names its own condition and remedy.
+  return { status: "refused", nextAction: "stop", reason, recommendedActionText: nativeRefusalText(cause) ?? remedy };
 }
 
 /** Classify the bounded top-level Delivery Plan locus without parsing its prose as plan authority. */
@@ -686,8 +689,9 @@ export async function inspectDeliveryEntry(
   let taskList: string;
   try {
     taskList = await dependencies.readTaskList();
-  } catch {
-    return refused("evidence-unavailable");
+  } catch (error) {
+    rethrowNativeRefusal(error);
+    return refused("evidence-unavailable", error);
   }
   const [planResolution, authoring] = await Promise.all([
     dependencies.resolvePlan(),
@@ -868,8 +872,8 @@ export async function inspectDeliveryEntry(
     let boundary: ReadIntegrationBoundary;
     try {
       boundary = await dependencies.readIntegrationBoundary();
-    } catch {
-      return refused("evidence-unavailable");
+    } catch (error) {
+      return refused("evidence-unavailable", error);
     }
     if (boundary.status === "refused") return refused("evidence-unavailable");
     if (boundary.value?.locus === "delivery-status-required"
@@ -877,7 +881,8 @@ export async function inspectDeliveryEntry(
       let candidate: ReadCandidate;
       try {
         candidate = await dependencies.readCandidate(state.value.members.at(-1)?.coordinates ?? undefined);
-      } catch {
+      } catch (error) {
+        if (isNativeTypedRefusal(error)) return refused("evidence-unavailable", error);
         candidate = { status: "refused" };
       }
       if (candidate.status === "ok"
@@ -903,8 +908,8 @@ export async function inspectDeliveryEntry(
       let candidate: ReadCandidate;
       try {
         candidate = await dependencies.readCandidate(state.value.members.at(-1)?.coordinates ?? undefined);
-      } catch {
-        return refused("evidence-unavailable");
+      } catch (error) {
+        return refused("evidence-unavailable", error);
       }
       if (candidate.status === "refused") return refused("evidence-unavailable");
       if (candidate.status === "non-current") {

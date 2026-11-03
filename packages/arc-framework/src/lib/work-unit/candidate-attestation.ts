@@ -204,7 +204,7 @@ export function resolveCandidateSupersessionAncestors(
       && record.attestation.workUnit === current.attestation.workUnit);
     if (index < 0) {
       throw new CandidateSupersessionResolutionError(
-        `Superseded Candidate ${predecessorId} is absent from reachable record history. Restore its history and retry pre-publication review.`,
+        `Superseded Candidate ${predecessorId} is absent from reachable record history. Restore its history, then retry the command.`,
       );
     }
     const predecessor = historicalNewestFirst[index];

@@ -16,6 +16,7 @@ import {
   type IncrementalCoverageBasisDependencies,
 } from
   "../../../../../src/scripts/review-gate/policy/incremental-coverage-basis.js";
+import { nativeListingRefusal } from "../../../../fixtures/native-refusal.js";
 
 const oid = (character: string): string => character.repeat(40);
 const digest = (value: string) => canonicalDigest({ value });
@@ -527,4 +528,50 @@ describe("incremental coverage basis", () => {
       findingId: "F1",
     });
   });
+});
+
+describe("incremental coverage over a native store refusal", () => {
+  /** Wrap one evidence reader so it raises a native store refusal until the store is repaired. */
+  function refusing<A extends unknown[], R>(read: (...args: A) => Promise<R>) {
+    const refusal = nativeListingRefusal();
+    let repaired = false;
+    return { refusal, repair: () => { repaired = true; },
+      read: async (...args: A): Promise<R> => { if (!repaired) throw refusal; return read(...args); } };
+  }
+  const complete = result({ id: "complete-1", head: oid("a"), coverage: "complete" });
+  const incremental = result({ id: "incremental-2", head: oid("c"), coverage: "incremental",
+    predecessor: { producerId: complete.producerId, basisHead: complete.target.headSha } });
+
+  it.each(["resultReader", "confirmApplicability", "readResponseEvidence"] as const)(
+    "raises a refused %s read whole rather than rating the chain inadequate, and validates it once repaired",
+    async (read) => {
+      const dependencies = harness([complete]);
+      const source = read === "resultReader" ? dependencies.readResult : dependencies[read];
+      const store = refusing(source as unknown as (...args: unknown[]) => Promise<never>);
+      const refused = read === "resultReader"
+        ? { ...dependencies, resultReader: { readResult: store.read } }
+        : { ...dependencies, [read]: store.read };
+
+      await expect(resolveIncrementalCoverageBasis(incremental, refused)).rejects.toBe(store.refusal);
+      store.repair();
+      await expect(resolveIncrementalCoverageBasis(incremental, refused)).resolves.toMatchObject({
+        status: "adequate", basisProducerId: complete.producerId });
+    },
+  );
+
+  it.each(["confirmCurrentApplicability", "readResponseEvidence"] as const)(
+    "raises a refused %s read whole rather than withholding the correction scope, and builds it once repaired",
+    async (read) => {
+      const base = { ...harness([complete]), confirmCurrentApplicability: async () => "applicable" as const,
+        readResponseEvidence: async () => ({ status: "performed" as const, hasFix: true, requiredFindings: [] }) };
+      const store = refusing(base[read] as (...args: unknown[]) => Promise<never>);
+      const dependencies = { ...base, [read]: store.read };
+      const input = { predecessor: complete, currentHeadSha: oid("b") };
+
+      await expect(resolveIncrementalCorrectionScope(input, dependencies)).rejects.toBe(store.refusal);
+      store.repair();
+      await expect(resolveIncrementalCorrectionScope(input, dependencies)).resolves.toMatchObject({
+        predecessorProducerId: complete.producerId, headSha: oid("b") });
+    },
+  );
 });

@@ -226,7 +226,7 @@ describe("trusted review-gate workflows", () => {
     // The pair fires only on the weekly schedule or an explicit dispatch
     // opt-in, so PR synchronizes never bill hosted-runner multipliers.
     expect(jobValue(workflow, "portability-cross-platform").if).toBe(
-      "${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && (inputs.run_portability_pair || inputs.portability_timing_only)) || " +
+      "${{ needs.setup.result == 'success' && ((github.event_name == 'workflow_dispatch' && (inputs.run_portability_pair || inputs.portability_timing_only || inputs.portability_files)) || " +
         "github.event_name == 'schedule') }}",
     );
     expect(jobValue(workflow, "portability-cross-platform").needs).toBe("setup");
@@ -668,8 +668,8 @@ describe("trusted review-gate workflows", () => {
     });
   });
 
-  it("limits session-notes overrides to discretionary planning and execution phases", async () => {
-    for (const name of ["session-init", "session-handoff"] as const) {
+  it("limits handoff session-notes overrides to discretionary planning and execution phases", async () => {
+    for (const name of ["session-handoff"] as const) {
       const [packaged, instance] = await Promise.all([
         readRepositoryFile(
           `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/${name}.template.md`,

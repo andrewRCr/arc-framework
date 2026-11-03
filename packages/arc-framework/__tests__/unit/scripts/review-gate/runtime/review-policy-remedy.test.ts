@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { CanonicalDigestSchema } from "../../../../../src/lib/kernel/index.js";
 import {
+  bindJudgment,
   ReviewDriverAdmissionError,
   assertStandardReviewExecutionAdmission,
 } from "../../../../../src/scripts/review-gate/policy/review-execution-admission.js";
@@ -193,4 +194,41 @@ describe("staleLaneAttemptsRemedy", () => {
     expect(staleLaneAttemptsRemedy(new Error(stale.message), request)).toBeUndefined();
     expect(staleLaneAttemptsRemedy(stale, [request])).toBeUndefined();
   });
+});
+
+it.each(["ceilingOverride", "additionalPassAuthorization"] as const)("refuses inconsistent full and targetless %s keys before policy admission", field => {
+  const judgment = field === "ceilingOverride" ? { exhaustedPassCount: 2, nextPass: 3 }
+    : { headSha: target.headSha, precedingProducerId: "producer-1", completedPasses: 2, nextPass: 3 };
+  const { headSha: _head, ...values } = { headSha: target.headSha, ...judgment };
+  void _head;
+  expect(() => assertStandardReviewExecutionAdmission(withReviewNextPassContext({ ...lane, completedPasses: 2,
+    [field]: { target, lane: "standard", ...values, decisionKey: `sha256:${"c".repeat(64)}` },
+    judgment: { [field]: { ...judgment, decisionKey: `sha256:${"d".repeat(64)}` } } })))
+    .toThrow(/decision references disagree/iu);
+});
+
+it("refuses an approved-fix full ceiling combined with an ordinary targetless reference", () => {
+  expect(() => assertStandardReviewExecutionAdmission(withReviewNextPassContext({ ...lane, completedPasses: 2,
+    ceilingOverride: { target, lane: "standard", exhaustedPassCount: 2, nextPass: 3,
+      conditionalPassAuthorizationId: `sha256:${"c".repeat(64)}` },
+    judgment: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3, decisionKey: `sha256:${"d".repeat(64)}` } } })))
+    .toThrow(/not both/iu);
+});
+
+it.each(["ceilingOverride", "additionalPassAuthorization"] as const)("binds the available %s reference into its matching full grant", field => {
+  const decisionKey = `sha256:${"d".repeat(64)}`;
+  const value = field === "ceilingOverride" ? { exhaustedPassCount: 2, nextPass: 3 }
+    : { headSha: target.headSha, precedingProducerId: "producer-1", completedPasses: 2, nextPass: 3 };
+  const { headSha: _head, ...fullValues } = { headSha: target.headSha, ...value };
+  void _head;
+  const bound = bindJudgment({ target, [field]: { target, lane: "standard", ...fullValues },
+    judgment: { [field]: { ...value, decisionKey } } });
+  expect(bound[field]).toMatchObject({ ...fullValues, target, lane: "standard", decisionKey });
+});
+
+it("refuses an ordinary full ceiling combined with a targetless approved-fix reference", () => {
+  expect(() => assertStandardReviewExecutionAdmission(withReviewNextPassContext({ ...lane, completedPasses: 2,
+    ceilingOverride: { target, lane: "standard", exhaustedPassCount: 2, nextPass: 3, decisionKey: `sha256:${"c".repeat(64)}` },
+    judgment: { ceilingOverride: { exhaustedPassCount: 2, nextPass: 3, conditionalPassAuthorizationId: `sha256:${"d".repeat(64)}` } } })))
+    .toThrow(/not both/iu);
 });

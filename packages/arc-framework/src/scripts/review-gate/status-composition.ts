@@ -1,5 +1,6 @@
 /** Production composition for exact-target review status. */
-import { deriveHostedReviewTarget } from "./policy/hosted-review-target.js";
+import { readStoredDeliveryReviewMemberTermini } from "./runtime/native-member-terminus.js";
+import { rethrowNativeRefusal } from "../../lib/store/native-refusal.js";
 
 
 import type { ReviewStatusRoute } from "./status-route.js";
@@ -19,7 +20,11 @@ import { isGitProcessError } from "../../lib/git/process-error.js";
 import { isGitObjectId } from "../../lib/git/object-id.js";
 import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
-import { readCandidateRecordVersioned } from "../../lib/work-unit/candidate-record-store.js";
+import { RecordVersionSchema } from "../../lib/store/identity.js";
+import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationOptions } from "./runtime/invocation.js";
+import { resolveNamedReviewWorkUnitInvocation } from "./runtime/review-work-unit.js";
+import { createReviewCompositionContext } from "./runtime/composition-context.js";
+import { readCandidateRecordVersioned } from "../../lib/store/kinds/review/candidate/access.js";
 import {
   projectGitCandidateEffectiveTarget,
   readGitCandidateTargetBase,
@@ -29,8 +34,7 @@ import {
 } from "../../lib/work-unit/git-candidate-subject.js";
 import {
   readSubmissionBoundaryVersioned,
-} from "../../lib/work-unit/submission-boundary-store.js";
-import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
+} from "../../lib/store/kinds/review/integration-boundary/access.js";
 import { validateDeliveryPublicReviewContinuation } from
   "../../lib/delivery/public-review-continuation.js";
 import { validateDeliveryActiveOperation } from "../../lib/delivery/operation.js";
@@ -50,12 +54,13 @@ import { resolveReviewSubject } from "./core/review-subject.js";
 import { readErrandRoutedObligation } from "./status-errand.js";
 import { optionalReviewStatusJudgment, type ReviewStatusPolicyJudgment } from "./status-judgment.js";
 import { deliveryHeadRef, selectDeliveryReviewStatusTarget } from "./status-delivery-target.js";
-import { resolveDeliveryMemberScopeSelection } from "./status-delivery-scope.js";
+import { composeNativeDeliveryStatusGrants } from "./runtime/native-delivery-status-grants.js";
+import { composeNativePublishedStatusGrants } from "./runtime/native-published-status-grants.js";
+import { resolveDeliveryStatusAdmission } from "./status-delivery-admission.js";
 import {
   createHostedReservationDischargeReader,
   resolveHostedReservationTargets,
 } from "./policy/hosted-reservation-discharge.js";
-import type { IntegrationBoundaryLocus } from "./policy/integration-boundary-locus.js";
 import {
   resolveChangeRequest,
   type ChangeRequestCandidate,
@@ -69,21 +74,17 @@ import { readHostReview } from "./host-review.js";
 import { createGhHostReviewPort } from "./hosts/github/host-review.js";
 import { RepositoryDeliveryMemberLookup } from "./hosts/local/delivery-member-lookup.js";
 import { resolveRepositoryIdentity } from "./hosts/local/git-common-state.js";
-import { LocalReviewOperationStateStore } from "./hosts/local/operation-state-store.js";
-import { LocalApprovedDispositionRecordStore } from
-  "./hosts/local/disposition-record-store.js";
 import { createRepositoryReviewResultReader } from
   "./hosts/local/review-result-reader-composition.js";
-import { readLaneResponsePerformance } from "./lane-progress.js";
 import { hostedGhRunner } from "./hosted/gh-process.js";
 import type { HostedReviewCoverage } from "./hosted/request.js";
 import { resolveConfiguredLanePolicy } from "./policy/lane-policy-config.js";
 import {
   projectHostedReservationPolicyProgress,
-  resolveEvidenceBoundHostedReservationPolicy,
 } from "./policy/hosted-reservation-admission.js";
 import { selectReviewCoverageChoice } from "./policy/review-coverage-selection.js";
 import { composePublishedSingletonReview } from "./status-singleton.js";
+import { readUnreservedObligation } from "./status-unreserved-obligation.js";
 import {
   bindDeliveryReviewTerminusOffer,
   composeDeliveryReviewObligation,
@@ -96,35 +97,6 @@ import {
   type ReviewStatusTargetInput,
   type RoutedReviewObligation,
 } from "./status.js";
-
-/**
- * Read what a publication boundary that reserved no hosted review still owes.
- *
- * Only the loci a Candidate reaches once pre-publication review settles owe nothing. Before that point the
- * boundary's own next step is what is owed, so it is returned unchanged rather than as a fresh review pass.
- *
- * @param boundary - The current boundary, carrying no hosted-review reservation.
- * @returns The settled obligation, the outstanding one carrying the boundary's continuation, or a block for a
- *   locus that cannot exist without a reservation.
- */
-function readUnreservedObligation(boundary: IntegrationBoundaryLocus): RoutedReviewObligation {
-  switch (boundary.locus) {
-    case "candidate-publish-ready":
-    case "publication-pending":
-      return { state: "settled", detail: "No hosted review was reserved across publication." };
-    case "candidate-review-pending":
-    case "candidate-fix-pending":
-    case "candidate-convergence-verification-pending":
-      return {
-        state: "review-required",
-        detail: "The Candidate's pre-publication review is not settled.",
-        prePublicationAction: boundary.nextAction,
-      };
-    case "hosted-review-pending":
-    case "delivery-status-required":
-      return { state: "blocked", detail: "The publication boundary lacks the hosted review reservation it requires." };
-  }
-}
 
 /**
  * Carry one overlap analysis across into the observation the review status records.
@@ -338,7 +310,7 @@ export async function readRoutedObligation(
   currentBaseRevision?: string,
   judgment?: ReviewStatusPolicyJudgment,
   host: Pick<DeliveryHostPort, "readRequest"> = new GhDeliveryHostPort(hostedGhRunner),
-  options: {
+  options: ReviewInvocationOptions & {
     readonly statusRoute?: ReviewStatusRoute;
     readonly baseMovement?: BaseMovementObservation | null;
     readonly remote?: string;
@@ -353,8 +325,10 @@ export async function readRoutedObligation(
     readonly rawExec?: RawGitExec;
   } = {},
 ): Promise<RoutedReviewObligation> {
+  let invocation = resolveReviewInvocation({ ...options, cwd, exec });
   const rawExec = options.rawExec ?? createRawGitExec(cwd);
   const errand = await readErrandRoutedObligation({
+    ...invocation,
     cwd,
     exec,
     rawExec,
@@ -374,6 +348,7 @@ export async function readRoutedObligation(
   });
   if (errand !== null) return errand;
   const subject = await resolveReviewSubject({
+    ...invocation,
     headRef: target.headRef,
     headSha: target.headSha,
     memberLookup,
@@ -385,12 +360,15 @@ export async function readRoutedObligation(
     return { state: "blocked", detail: "The target branch does not identify a work unit." };
   }
   const workUnit = subject.workUnitId;
+  invocation = await resolveNamedReviewWorkUnitInvocation({ ...invocation, cwd, exec,
+    workItem: invocation.workItem ?? subject.workItem }, workUnit);
+  const reviewRecordStore = invocation.store;
   try {
-    const boundary = (await readSubmissionBoundaryVersioned(cwd, workUnit)).boundary;
+    const boundary = (await readSubmissionBoundaryVersioned(cwd, workUnit, { store: reviewRecordStore, owner: invocation.workItem })).boundary;
     if (boundary === null) {
       return { state: "blocked", detail: "The publication boundary is unavailable." };
     }
-    const versionedRecord = await readCandidateRecordVersioned(cwd, workUnit);
+    const versionedRecord = await readCandidateRecordVersioned(cwd, workUnit, { store: reviewRecordStore, owner: invocation.workItem });
     if (versionedRecord.record === null || versionedRecord.version === null) {
       return { state: "blocked", detail: "The managed Candidate record behind the reservation is unavailable." };
     }
@@ -473,6 +451,7 @@ export async function readRoutedObligation(
       }
       const terminalCoordinates = continuationState.members.at(-1)?.coordinates ?? undefined;
       const terminalCoordinateAdvance = await projectGitDeliveryTerminalCoordinateAdvance({
+        stateOffBranch: reviewRecordStore.capabilities.stateOffBranch,
         cwd,
         exec,
         candidate: effective,
@@ -541,8 +520,14 @@ export async function readRoutedObligation(
     // that way reports every hosted-first work unit as forever mid-review. What settles it is the
     // reserved source's own verdict on the lane.
     const { reservation } = boundary;
-    if (reservation === null) return readUnreservedObligation(boundary);
+    if (reservation === null) {
+      await composeNativePublishedStatusGrants({ ...invocation, cwd, exec, record, candidateSubjectDigest,
+        baseRevision: singletonDiffBase, member: subject.member,
+        target: { repository: target.repository, pullRequest, headSha: target.headSha }, judgment });
+      return readUnreservedObligation(boundary);
+    }
     const readDischarge = createHostedReservationDischargeReader({
+      ...invocation,
       cwd,
       exec,
       rawExec,
@@ -595,6 +580,7 @@ export async function readRoutedObligation(
             if (!sameDeliveryReviewMemberIdentity(record.vehicle, terminalTarget.vehicle)
               || record.vehicle.head === terminalTarget.vehicle.head) return [];
             const proof = await projectGitDeliveryTerminalRecordAdvance({
+              stateOffBranch: reviewRecordStore.capabilities.stateOffBranch,
               cwd,
               exec,
               workUnitId: workUnit,
@@ -621,12 +607,12 @@ export async function readRoutedObligation(
         vehicle: memberTarget.vehicle,
         candidate: record,
       })));
-      const publisher = new RepositoryGitCommonStatePublisher(exec, cwd);
-      const store = new LocalReviewOperationStateStore(publisher);
-      const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
-      const resultReader = createRepositoryReviewResultReader(publisher);
+      const { publisher, family } = createReviewCompositionContext({ ...invocation, cwd, exec });
+      const store = family.ports.inFlight;
+      const dispositionStore = family.ports.dispositions;
+      const resultReader = createRepositoryReviewResultReader(publisher, invocation);
       const snapshot = await store.readOperationSnapshot();
-      const repositoryId = await resolveRepositoryIdentity(publisher);
+      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocation);
       const policy = await resolveConfiguredLanePolicy({
         lane: "standard",
         settings,
@@ -664,16 +650,24 @@ export async function readRoutedObligation(
           };
         },
       );
-      const firstOutstandingIndex = composedDischarges.findIndex((discharge, index) => {
+      const ownerTermini = await readStoredDeliveryReviewMemberTermini(boundary, store);
+      const findOutstandingIndex = () => composedDischarges.findIndex((discharge, index) => {
         const memberTarget = deliveryTargets[index];
         return !discharge.discharged && (memberTarget === undefined
           || !isDeliveryReviewMemberDischargedByOwnerTerminus({
             target: memberTarget,
             discharge,
-            ownerTermini: boundary.deliveryReviewTermini,
+            ownerTermini,
             ownerTerminusAdvances,
           }));
       });
+      const nativeGrants = await composeNativeDeliveryStatusGrants({ ...invocation, cwd, exec,
+        operationStore: store, repositoryId, targets: deliveryTargets, discharges, composedDischarges,
+        firstOutstandingIndex: findOutstandingIndex(), queriedTarget: { repository: target.repository, pullRequest, headSha: target.headSha },
+        reservation, record, judgment, readDischarge });
+      judgment = nativeGrants.judgment;
+      composedDischarges = nativeGrants.composedDischarges;
+      const firstOutstandingIndex = findOutstandingIndex();
       const rawFirstOutstanding = discharges[firstOutstandingIndex];
       let firstOutstanding: Parameters<typeof composeDeliveryReviewObligation>[0]["discharges"][number] | undefined =
         composedDischarges[firstOutstandingIndex];
@@ -702,76 +696,12 @@ export async function readRoutedObligation(
       if (firstOutstanding !== undefined && firstTarget !== undefined && coverageSelection?.state !== "refused"
         && (firstOutstanding.coverageSelectionAction === undefined || forcedSourceWithOffer)
         && (firstOutstanding.nextSource !== null || forcedSourceWithOffer)) {
-        const coverage = firstOutstanding.requestCoverage ?? judgment?.coverage ?? "complete";
-        const scopeSelection = coverage === "incremental" && firstOutstanding.correctionScope === undefined
-          ? undefined
-          : await resolveDeliveryMemberScopeSelection({
-            rawExec,
-            settings,
-            planId: reservation.target.planId,
-            target: firstTarget,
-            coverage,
-            ...(firstOutstanding.correctionScope === undefined ? {} : { correctionScope: firstOutstanding.correctionScope }),
-            ...(judgment?.sourceId === undefined ? {} : { sourceId: judgment.sourceId }),
-          });
-        const dischargeArgs = { reservation, baseRevision: firstTarget.baseRevision, approvedHead: firstTarget.headSha,
-          changeRequest: { repository: firstTarget.repository, pullRequest: firstTarget.pullRequest },
-          vehicle: firstTarget.vehicle, candidate: record };
-        const admission = await resolveEvidenceBoundHostedReservationPolicy({
-          reservation,
-          snapshot,
-          repositoryId,
-          currentReviewTarget: await deriveHostedReviewTarget({ cwd, exec, currentRepositoryId: repositoryId,
-            approvedHeadSha: firstTarget.headSha, baseRevision: firstTarget.baseRevision, vehicle: firstTarget.vehicle }),
-          target: {
-            repository: firstTarget.repository,
-            pullRequest: firstTarget.pullRequest,
-            headSha: firstTarget.headSha,
-          },
-          vehicle: firstTarget.vehicle,
-          maxPasses: policy.maxPasses, chosenCoverage: selectedCoverage?.coverage ?? judgment?.coverage,
-          ...(rawFirstOutstanding?.requestAttempts === undefined
-            ? {}
-            : { requestAttempts: rawFirstOutstanding.requestAttempts }),
-          ...(judgment?.ceilingOverride === undefined
-            ? {}
-            : { ceilingOverride: judgment.ceilingOverride }),
-          ...(judgment?.additionalPassAuthorization === undefined ? {}
-            : { additionalPassAuthorization: judgment.additionalPassAuthorization }),
-          ...(judgment?.sourceId === undefined
-            ? {}
-            : { invocation: { mode: "force" as const, sourceId: judgment.sourceId } }),
-          ...(selectedCoverage === null ? {} : { coverageSelection: selectedCoverage }),
-          ...(scopeSelection === undefined ? {} : { scopeSelection }),
-        }, {
-          resultReader,
-          dispositionStore,
-          readResponsePerformance: (predecessor) => readLaneResponsePerformance(store, predecessor),
-          confirmTarget: (attemptedTarget) => Promise.resolve(attemptedTarget),
-          confirmIncrementalApplicability: (predecessor, current) =>
-            readDischarge.confirmIncrementalApplicability(dischargeArgs, predecessor, current),
-          confirmCurrentApplicability: predecessor =>
-            readDischarge.confirmCurrentIncrementalApplicability(dischargeArgs, predecessor),
-        });
-        if (admission.status === "unavailable") {
-          return { state: "blocked", detail: admission.detail };
-        }
-        composedDischarges = composedDischarges.map((discharge, index) => index !== firstOutstandingIndex
-          ? discharge
-          : {
-              ...discharge,
-              ...(admission.policy.state === "unavailable" ? { coverageSelectionAction: undefined } : {}),
-              ...(admission.policy.state === "ready"
-                ? { nextSource: admission.policy.payload.sourceId }
-                : {}),
-              requestAdmission: admission.policy,
-              ...(judgment?.ceilingOverride === undefined
-                ? {}
-                : { requestCeilingOverride: judgment.ceilingOverride }),
-              ...(judgment?.additionalPassAuthorization === undefined ? {}
-                : { requestAdditionalPassAuthorization: judgment.additionalPassAuthorization }),
-              ...(scopeSelection === undefined ? {} : { requestScopeSelection: scopeSelection }),
-            });
+        const admission = await resolveDeliveryStatusAdmission({ ...invocation, cwd, exec, rawExec, settings,
+          repositoryId, reservation, record, snapshot, maxPasses: policy.maxPasses, firstTarget, firstOutstanding,
+          rawFirstOutstanding, selectedCoverage, judgment, resultReader, dispositionStore, store, readDischarge });
+        if (admission.status === "blocked") return admission.obligation;
+        composedDischarges = composedDischarges.map((discharge, index) =>
+          index === firstOutstandingIndex ? admission.discharge : discharge);
       }
       return composeDeliveryReviewObligation({
         statusRoute: options.statusRoute ?? { kind: "target", target },
@@ -783,10 +713,10 @@ export async function readRoutedObligation(
           : { requestInvocation: { mode: "force" as const, sourceId: judgment.sourceId } }),
         applicabilityContext: {
           workUnitId: workUnit,
-          expectedRecordVersion: versionedRecord.version,
+          expectedRecordVersion: RecordVersionSchema.parse(versionedRecord.version),
           candidateId: record.attestation.candidateId,
         },
-        ownerTermini: boundary.deliveryReviewTermini,
+        ownerTermini,
         ownerTerminusAdvances,
       });
     }
@@ -794,15 +724,17 @@ export async function readRoutedObligation(
       return { state: "blocked", detail: "The singleton Candidate diff base is unavailable." };
     }
     return await composePublishedSingletonReview({
+      ...invocation,
       statusRoute: options.statusRoute ?? { kind: "target", target },
-      cwd, exec, settings, reservation, record, workUnit,
-      recordVersion: versionedRecord.version,
+      cwd, exec, settings, reservation, record, workUnit, candidateSubjectDigest,
+      recordVersion: RecordVersionSchema.parse(versionedRecord.version),
       baseRevision: singletonDiffBase,
       target: { repository: target.repository, pullRequest, headSha: target.headSha },
       ...(judgment === undefined ? {} : { judgment }),
       readDischarge,
     });
   } catch (error) {
+    rethrowNativeRefusal(error);
     return {
       state: "blocked",
       detail: error instanceof Error ? error.message : String(error),
@@ -812,9 +744,7 @@ export async function readRoutedObligation(
 
 /** Bind GitHub, publication-boundary, and Git base reads to the status reducer. */
 export function createReviewStatusPort(
-  input: {
-    cwd: string;
-    exec: GitExec;
+  options: ReviewInvocationInput & {
     rawExec?: RawGitExec;
     remote?: string;
     sourceId?: string;
@@ -830,7 +760,9 @@ export function createReviewStatusPort(
     readonly deliveryLookupHeadSha: string;
   },
 ): ReviewStatusPort {
+  const input = { ...options, ...resolveReviewInvocation(options) };
   const rawExec = input.rawExec ?? createRawGitExec(input.cwd);
+  const reviewRecordStore = input.store;
   return {
     observe: async (target, ceilingOverride, coverage, sourceId, additionalPassAuthorization) => {
       try {
@@ -857,6 +789,7 @@ export function createReviewStatusPort(
           changeRequestPort,
         );
         const subject = await resolveReviewSubject({
+          ...input,
           headRef: target.headRef,
           headSha: matchesPrecomputedTarget ? precomputed.deliveryLookupHeadSha : target.headSha,
           memberLookup,
@@ -904,6 +837,8 @@ export function createReviewStatusPort(
               optionalReviewStatusJudgment({ ceilingOverride, additionalPassAuthorization, coverage, sourceId }),
               undefined,
               {
+                ...input,
+                store: reviewRecordStore,
                 remote,
                 rawExec,
                 baseMovement: base.baseMovement,
@@ -934,6 +869,7 @@ export function createReviewStatusPort(
           ...(subject.status === "resolved" ? { workUnitId: subject.workUnitId } : {}),
         };
       } catch (error) {
+        rethrowNativeRefusal(error);
         return {
           actualHeadSha: target.headSha,
           requiredChecks: "unavailable",
@@ -961,9 +897,7 @@ export class ReviewStatusWrongRouteError extends Error {
 }
 
 /** Resolve live stacked-delivery status without reconstructing a member target. */
-export async function resolveReviewStatusForWorkUnit(input: {
-  readonly cwd: string;
-  readonly exec: GitExec;
+export async function resolveReviewStatusForWorkUnit(options: ReviewInvocationInput & {
   readonly workUnitId: string;
   readonly ceilingOverride?: ReviewStatusTargetInput["ceilingOverride"];
   readonly additionalPassAuthorization?: ReviewStatusTargetInput["additionalPassAuthorization"];
@@ -971,8 +905,10 @@ export async function resolveReviewStatusForWorkUnit(input: {
   readonly sourceId?: string;
   readonly remote?: string;
 }): Promise<ReviewStatusResult> {
-  const workUnitId = SlugSchema.parse(input.workUnitId);
-  const { boundary, version } = await readSubmissionBoundaryVersioned(input.cwd, workUnitId);
+  const workUnitId = SlugSchema.parse(options.workUnitId);
+  const input = { ...options, ...await resolveNamedReviewWorkUnitInvocation(options, workUnitId) };
+  const reviewRecordStore = input.store;
+  const { boundary, version } = await readSubmissionBoundaryVersioned(input.cwd, workUnitId, { store: reviewRecordStore, owner: input.workItem });
   if (boundary === null) throw new Error("The publication boundary is unavailable.");
   if (boundary.locus !== "delivery-status-required") {
     throw new ReviewStatusWrongRouteError(workUnitId);
@@ -1021,6 +957,8 @@ export async function resolveReviewStatusForWorkUnit(input: {
     optionalReviewStatusJudgment(input),
     undefined,
     {
+      ...input,
+      store: reviewRecordStore,
       ...(input.remote === undefined ? {} : { remote: input.remote }),
       rawExec,
       statusRoute: { kind: "work-unit", workUnitId },
@@ -1051,7 +989,7 @@ export async function resolveReviewStatusForWorkUnit(input: {
     ...(input.additionalPassAuthorization === undefined ? {}
       : { additionalPassAuthorization: input.additionalPassAuthorization }),
     ...(input.coverage === undefined ? {} : { coverage: input.coverage }),
-  }, createReviewStatusPort({ ...input, rawExec }, {
+  }, createReviewStatusPort({ ...input, rawExec, store: reviewRecordStore }, {
     target: selectedTarget,
     pullRequest: selectedPullRequest,
     routedObligation: routed,

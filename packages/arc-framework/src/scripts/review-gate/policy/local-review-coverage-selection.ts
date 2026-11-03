@@ -21,7 +21,7 @@ import {
   type LocalReviewCoverageSelectionAction,
 } from "../core/local-review-coverage.js";
 import type {
-  ApprovedDispositionRecordStore,
+  ApprovedDispositionRecordReader,
 } from "../core/ports.js";
 import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
 import type { ReviewResult } from "../core/review-result.js";
@@ -46,6 +46,7 @@ import { nextPassConsiderations } from "./next-pass-offer-text.js";
 import type { NextPassFacts } from "./next-pass-facts-schema.js";
 import type { StandardReviewObligationProjection } from
   "./standard-review-projection-schema.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 
 export { confirmPrivateCandidateCorrectionBasis } from "./candidate-correction-proof.js";
 
@@ -134,6 +135,7 @@ function standardPredecessorSourceId(
 
 /** Prove a non-delivery predecessor against current contribution and exact Candidate authority. */
 export async function confirmNonDeliveryIncrementalApplicability(input: {
+  readonly stateOffBranch?: boolean;
   readonly predecessor: ReviewResult;
   readonly currentTarget: ReviewTarget;
   readonly currentLineage: LaneSubjectLineage;
@@ -194,7 +196,8 @@ export async function confirmNonDeliveryIncrementalApplicability(input: {
         projection,
         selections,
         projectSelector,
-        ownRecord: gitCandidateRecordAtHead(input.exec, input.candidate.attestation.workUnit),
+        ownRecord: input.stateOffBranch === true ? undefined
+          : gitCandidateRecordAtHead(input.exec, input.candidate.attestation.workUnit),
       });
   const authority = reduceReviewApplicabilityAuthorityWithMechanicalCarry(
     currentLineage.candidateId,
@@ -246,7 +249,8 @@ export async function confirmDeliveryMemberIncrementalApplicability(input: {
     if (proof.status === "accepted") return "applicable";
     return (proof.reason === "contribution-diverged" || proof.reason === "contribution-conflicted")
       && proof.paths.length > 0 ? "review-required" : "unavailable";
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return "unavailable";
   }
 }
@@ -258,7 +262,7 @@ type ErrandFixApplicabilityInput = {
   readonly currentClaimId: string | null;
   readonly currentResult?: ReviewResult;
   readonly observeTarget: () => Promise<ReviewTarget>;
-  readonly dispositionStore: ApprovedDispositionRecordStore;
+  readonly dispositionStore: ApprovedDispositionRecordReader;
   readonly readResponsePerformance: (
     predecessor: ReviewResult,
   ) => Promise<LaneResponsePerformance | null>;
@@ -326,12 +330,15 @@ export async function confirmErrandFixResponseApplicability(
     if (response.status !== "performed") return "unavailable";
     return historicalSuccessor || canonicalize(await input.observeTarget()) === canonicalize(currentTarget)
       ? "applicable" : "unavailable";
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return "unavailable";
   }
 }
 
-function localCoverageInteractionText(incrementalOffered: boolean, facts: NextPassFacts): string {
+function localCoverageInteractionText(
+  incrementalOffered: boolean, facts: NextPassFacts, retrigger: StandardReviewObligationProjection["retrigger"],
+): string {
   const bounds = incrementalOffered
     ? "A local fix check is offered first to verify the approved fixes. "
       + "A local complete pass is also offered, subject to its ceiling, but does not replace the fix check. "
@@ -339,7 +346,7 @@ function localCoverageInteractionText(incrementalOffered: boolean, facts: NextPa
       + "Check why the approved response, subject lineage, or live base and target do not prove the fix-check chain. ";
   return bounds + "After the Owner approves a listed coverage admission, re-run `arc review local prepare`. "
     + "Only a complete pass counts toward the ceiling; fix checks run outside it. This choice grants no next-pass authority.\n"
-    + nextPassConsiderations(facts).map(text => `- ${text}`).join("\n") + "\n"
+    + nextPassConsiderations(facts, retrigger).map(text => `- ${text}`).join("\n") + "\n"
     + "Give an advisory recommendation for the admitted next step. "
     + "Decide on any successor complete pass only after fix checks converge. "
     + "What do you recommend, why, and what would change your recommendation?";
@@ -411,7 +418,7 @@ export function resolveLocalReviewCoverageSelection(input: {
   const action = LocalReviewCoverageSelectionActionSchema.parse({
     schemaVersion: 1, kind: "local-review-coverage-selection", sourceId: input.sourceId,
     target: input.target, pass: input.policy.payload.pass, completedPasses, consumedPass: true, choices,
-    interactionText: localCoverageInteractionText(correctionScope !== null, input.facts),
+    interactionText: localCoverageInteractionText(correctionScope !== null, input.facts, input.standardReview.retrigger),
   });
   if (input.coverageAdmission === undefined) return { state: "coverage-required", action };
   if (!choices.some(choice => canonicalize(choice) === canonicalize(input.coverageAdmission))) {

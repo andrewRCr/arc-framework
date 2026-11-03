@@ -5,7 +5,7 @@ import { load } from "js-yaml";
 import { describe, expect, it } from "vitest";
 import { CheckDeclarationSchema } from "../../../src/lib/checks/declaration.js";
 import { resolveCheckForecast } from "../../../src/lib/checks/forecast.js";
-import { reachSuiteExclusions } from "../../../src/lib/local-vitest-runner.js";
+import { portabilityTakesReachSuites, reachSuiteExclusions } from "../../../src/lib/local-vitest-runner.js";
 import { describeReachSelection } from "../../../src/lib/reach-check.js";
 import {
   globPattern, locateFromOwnPath, ReachDeclarationSchema, ReachError, resolveReachForm, selectionPathsChanged,
@@ -13,6 +13,9 @@ import {
 } from "../../../src/lib/vitest-reach.js";
 
 const repositoryRoot = resolve(import.meta.dirname, "../../../../..");
+/** The separate layout's whole-run conformance files: its three item ranges, each split into parts. */
+const SEPARATE_CONFORMANCE_PARTS = ["reads-1", "reads-2", "reads-3", "reads-4", "records-1", "records-2", "records-3",
+  "records-4", "sync-1", "sync-2", "sync-3"];
 
 /** A repository held in memory: every file and its text. */
 function memoryFiles(files: Record<string, string>): ReachFiles {
@@ -189,7 +192,7 @@ describe("the store check's declaration", () => {
     const directory = "packages/arc-framework/__tests__/integration";
     const files = (await readdir(resolve(repositoryRoot, directory))).map(name => `${directory}/${name}`);
     expect(files.filter(file => reach.fullOnly.some(glob => globPattern(glob).test(file))).sort()).toEqual(
-      ["reads", "records", "sync"].map(range => `${directory}/store-ref-separate-conformance-${range}.test.ts`));
+      SEPARATE_CONFORMANCE_PARTS.map(part => `${directory}/store-ref-separate-conformance-${part}.test.ts`).sort());
   });
 
   it("forecasts six CI shards, each handing its shard to the runner, while a local run stays one", async () => {
@@ -213,10 +216,18 @@ describe("tiers that leave reach suites to their check", () => {
     expect(reachSuiteExclusions("portability", { ARC_PORTABILITY_FORM: "pull-request" }, suites)).toEqual(excluded);
   });
 
-  it("keeps them in scheduled and dispatched portability runs, the full tier, and the store tier", () => {
+  it("keeps them in other portability runs, which take them by reach, the full tier, and the store tier", () => {
     expect(reachSuiteExclusions("portability", {}, suites)).toEqual([]);
     expect(reachSuiteExclusions("full", {}, suites)).toEqual([]);
     expect(reachSuiteExclusions("store", {}, suites)).toEqual([]);
+  });
+
+  it("has a portability run take all of a declaration's suites unless its change reaches none", () => {
+    expect(portabilityTakesReachSuites({ form: "reach", suites: [] })).toBe(false);
+    expect(portabilityTakesReachSuites({ form: "reach", suites: ["packages/arc-framework/__tests__/integration/store-ref-a.test.ts"] }))
+      .toBe(true);
+    expect(portabilityTakesReachSuites({ form: "full", suites: [] })).toBe(true);
+    expect(portabilityTakesReachSuites({ form: "every", suites: [] })).toBe(true);
   });
 });
 

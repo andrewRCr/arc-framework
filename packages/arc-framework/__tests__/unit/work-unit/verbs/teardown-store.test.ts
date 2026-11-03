@@ -6,6 +6,7 @@ import { recordReferences } from "../../../../src/lib/store/identity.js";
 import { writeLineageRecord, parseLineageRecord } from "../../../../src/lib/store/kinds/lineage/index.js";
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { runTeardown } from "../../../../src/lib/work-unit/verbs/teardown.js";
+import { PROJECTION_LOCK_REASON } from "../../../../src/lib/git/worktree-removal.js";
 describe("store retirement ref sets", () => {
   it("discards a created branch locally and remotely on abandonment lineage", async () => {
     const h = await fixture(); expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
@@ -31,7 +32,7 @@ describe("store retirement ref sets", () => {
     expect(result).toMatchObject({ status: "torn-down", branchDeleted: false, notices: expect.arrayContaining([expect.stringContaining("git switch"), expect.stringContaining("git branch -D feat/demo")]) });
     expect(h.refs.has("refs/heads/feat/demo")).toBe(true); expect(h.state().current).toBe("feat/demo");
   });
-  it.each([undefined, null, "owner hold"])("offers removal by path for a missing adopted checkout with lock %s", async (locked) => {
+  it.each([undefined, null, "owner hold", PROJECTION_LOCK_REASON])("offers removal by path for a missing adopted checkout with lock %s", async (locked) => {
     const h = await fixture({ branches: [link("feat/demo", "adopted")] });
     const path = "/repo/missing checkout";
     h.ctx.scanWorktrees = async () => ({ ok: true, worktrees: [
@@ -47,6 +48,7 @@ describe("store retirement ref sets", () => {
     expect(removal).toEqual(expect.stringContaining("After confirming the folder is still missing"));
     expect(removal).toContain("git worktree remove '/repo/missing checkout'");
     if (locked === undefined) expect(removal).not.toContain("git worktree unlock");
+    else if (locked === PROJECTION_LOCK_REASON) expect(removal).toContain("missing, git worktree unlock '/repo/missing checkout', then git worktree remove");
     else expect(removal).toContain("its lock's owner may run git worktree unlock '/repo/missing checkout', then git worktree remove");
     expect(result.notices.some((notice) => notice.includes("git switch"))).toBe(false);
     expect(result.notices).toContain("Owner cleanup: git branch -D feat/demo");

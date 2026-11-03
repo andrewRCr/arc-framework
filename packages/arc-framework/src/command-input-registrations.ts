@@ -95,6 +95,7 @@ import {
 import { schemaCommandInputRegistrations, schemaCommandInputPolicyDeclarations } from "./handlers/schema.js";
 import { startCommandInputPolicyDeclarations, startCommandInputRegistration } from "./handlers/start.js";
 import { statusCommandInputPolicyDeclarations, statusCommandInputRegistration } from "./handlers/status.js";
+import { agendaCommandInputPolicyDeclarations, agendaCommandInputRegistration } from "./commands/agenda/input.js";
 import { syncCommandInputPolicyDeclarations } from "./handlers/sync.js";
 import { userCommandInputPolicyDeclarations, userCommandInputRegistrations } from "./handlers/user.js";
 import {
@@ -137,6 +138,7 @@ export const commandInputRegistrations = [
   wuReconcileCommandInputRegistration,
   recoverCommandInputRegistration,
   statusCommandInputRegistration,
+  agendaCommandInputRegistration,
   logStandaloneInputRegistration,
   ...userCommandInputRegistrations,
   userInboxListCommandInputRegistration,
@@ -189,6 +191,7 @@ export const commandInputPolicyDeclarations = [
   ...startCommandInputPolicyDeclarations,
   ...schemaCommandInputPolicyDeclarations,
   ...statusCommandInputPolicyDeclarations,
+  ...agendaCommandInputPolicyDeclarations,
   ...syncCommandInputPolicyDeclarations,
   ...userCommandInputPolicyDeclarations,
   ...userInboxListCommandInputPolicyDeclarations,

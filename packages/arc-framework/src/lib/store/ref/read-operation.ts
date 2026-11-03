@@ -1,5 +1,5 @@
 /** Keep native readers inside public calls and drain them before repository maintenance. */
-import { GitBatchReadScope } from "../../git/batch-reader.js";
+import { withRefOperation } from "./operation-scope.js";
 import type { RefBackendContext } from "./context.js";
 
 /** Coordinate only this backend's readers and explicit or fetch-triggered maintenance. */
@@ -15,14 +15,9 @@ export function createRefReadCoordinator(context: RefBackendContext): {
       let finish!: () => void;
       const done = new Promise<void>((resolve) => { finish = resolve; });
       active.add(done);
-      const batchReader = new GitBatchReadScope();
       try {
         await before;
-        let result;
-        try { result = await operation({ ...context, batchReader }); }
-        catch (error) { await batchReader.close().catch(() => undefined); throw error; }
-        await batchReader.close();
-        return result;
+        return await withRefOperation(context, operation);
       } finally { active.delete(done); finish(); }
     },
     maintenance: async (operation) => {

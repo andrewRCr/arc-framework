@@ -1,8 +1,7 @@
 # AGENT-BRIEF.CONTRIBUTOR.md — Contributor Role Orientation
 
-This briefing applies when `git config arc.role` is set to `contributor`. It replaces the
-maintainer-focused session initialization (meta files, task lists, task execution workflow)
-with a streamlined context appropriate for contributing to an ARC-managed project.
+This briefing applies when `git config arc.role` is set to `contributor`. It adds contributor boundaries to
+ordinary session entry in an ARC-managed project.
 
 ## What Contributors Do
 
@@ -33,12 +32,11 @@ update at handoff regardless of the interlock setting.
 
 ## Session Workflow
 
-Contributor sessions follow [session-init][session-init] and [session-handoff][session-handoff]
-with the contributor path. Personal active state under `user/{identity}/active/` mirrors maintainer
-structure (flat — no category subdir): `meta-{name}.md` per in-flight contribution plus optional
-companion files. Loaded if present; absent state is fine for ad-hoc contributions.
-See [contributor session lifecycle][TODO-docs-site] for the full load set, skipped artifacts, and
-handoff differences.
+Contributor sessions follow the ordinary [session-init agenda][session-init] and [session-handoff][session-handoff].
+This brief joins the universal reads; the emitted plan selects contribution artifacts and per-work-unit notes.
+Personal active state under `user/{identity}/active/` contains `meta-{name}.md` per in-flight contribution plus
+optional companions. Absent state is fine for ad-hoc contributions. See [contributor session lifecycle][TODO-docs-site]
+for workspace and handoff conventions.
 
 ## Personal Workspace: The Framework Read Contract
 
@@ -48,7 +46,7 @@ recommended directory layout, and rationale.
 
 **Framework-managed reads:**
 
-- `SESSION-NOTES.md` — session context, loaded at session-init, written at session-handoff
+- `{work-unit}/SESSION-NOTES.md` — per-work-unit context, read at entry and written at handoff
 - `ATOMIC-INBOX.md` — personal capture queue (arc-in-git upstream projects only)
 - `active/meta-{name}.md` — personal active work state for an in-flight contribution (optional)
 - `active/tasks-{name}.md` + `notes-{name}.md` — task list and notes companion when
@@ -70,9 +68,8 @@ and role-transition guidance.
 
 ---
 
-_This briefing is loaded during session initialization when `arc.role = contributor`.
-Maintainer sessions load the full document set instead. See [session-init][session-init] for the complete initialization
-protocol. Contributor concepts are explained in [user/README.md][user-readme] for human reference._
+_This briefing joins the universal reads when `arc.role = contributor`. See [session-init][session-init] for the entry
+protocol and [user/README.md][user-readme] for human workspace guidance._
 
 ---
 

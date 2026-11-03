@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterAll, onTestFinished } from "vitest";
-import type { ConformanceFixture, ConformanceRegistration, FixtureDeclarations } from "./fixture-contract.js";
+import type { ConformanceFixture, ConformanceRegistration, FixtureDeclarations, ItemRange, SuiteItem } from "./fixture-contract.js";
 import { FAMILY_IDS, FAMILY_REGISTRY, KIND_SHAPES, RecordReferenceSchema, familyOf, type KindDefinition, type KindId } from "../../../src/lib/store/index.js";
 import type { RefStorePorts } from "../../../src/lib/store/ports.js";
 import { createRefStore } from "../../../src/lib/store/create.js";
@@ -133,11 +133,21 @@ export async function createRefFixture(registryOverrides: Partial<Record<KindId,
   return fixture;
 }
 
-/** The item range each file of a layout's whole run takes. */
+/** The item range each file of the default layout's whole run takes. */
 const wholeRunRanges = { records: [1, 6], reads: [7, 15], sync: [16, 17] } as const;
+
+/** The separate layout's ranges, each split into parts. A file runs on one worker, and each range runs for 15–25
+ * minutes on a hosted Windows runner, so parts let shards share a range instead of one shard running it alone. */
+const separateWholeRunRanges = {
+  ...rangeParts("records", [1, 6], 4), ...rangeParts("reads", [7, 15], 4), ...rangeParts("sync", [16, 17], 3),
+};
+
+function rangeParts(name: string, items: readonly [SuiteItem, SuiteItem], of: number): Record<string, ItemRange> {
+  return Object.fromEntries(Array.from({ length: of }, (_, at) => [`${name}-${at + 1}`, { items, part: [at + 1, of] }]));
+}
 
 export const refRegistration: ConformanceRegistration = { declarations: refDeclarations, create: createRefFixture,
   runs: { ranges: wholeRunRanges } };
 
 export const separateRefRegistration: ConformanceRegistration = { declarations: refDeclarations, create: (overrides) => createRefFixture(overrides, "separate"),
-  runs: { subset: separatePerChangeSubset, ranges: wholeRunRanges } };
+  runs: { subset: separatePerChangeSubset, ranges: separateWholeRunRanges } };

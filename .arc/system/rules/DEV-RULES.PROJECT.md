@@ -3,9 +3,6 @@
 Project-specific development standards for the ARC framework. Quality gates, testing requirements,
 documentation style, file organization, and architecture rules.
 
-For ARC methodology rules (commit discipline, task execution, session management, verification), see
-[DEV-RULES.ARC][dev-rules-arc].
-
 ---
 
 ## Quality Gates
@@ -106,13 +103,14 @@ to gates still have to pass by their declared deadlines.
 
 ### Hosted CI before verification attests
 
-The local merge gate skips the `ci_only` checks, `test:integration` and `test:e2e` among them, and a feature-branch
-push starts no CI. Once the merge gate passes, dispatch CI at the pushed verified head (`gh workflow run ci.yml --ref
+The local merge gate skips the `ci_only` checks, `test:integration` and `test:e2e` among them, and a feature-branch push
+starts no CI. Once the merge gate passes, dispatch CI at the pushed verified head (`gh workflow run ci.yml --ref
 <branch>`). Work-unit verification attests only on a passing run whose `headSha` is that head and that was dispatched
-with neither diagnostic input set, recorded by run id in the verification commit body: `portability_timing_only` skips
-the build, lint, type-check, unit, integration, store, and E2E jobs, and `store_per_change` narrows the store run to
-its per-change form, so either run passes for its own purpose and attests nothing. Dispatch again after any later code
-change; planning-only commits need no new run.
+with none of the diagnostic inputs set, recorded by run id in the verification commit body: `portability_timing_only`
+skips the build, lint, type-check, unit, integration, store, and E2E jobs, `store_per_change` narrows the store run to
+its per-change form, and `portability_files` runs only the named files on the Windows/macOS pair, so each such run
+passes for its own purpose and attests nothing. Dispatch again after any later code change; planning-only commits need
+no new run.
 
 ### Test execution
 
@@ -143,7 +141,8 @@ strategy's complete suite at the merge gate: for the store suites the gate rests
 makes on every push to `main`, so a miss shows on `main` after merge rather than before it. A run given no base or
 changing the selection's data file, runner, or check entry runs every suite in full. `ARC_STORE_CHECK=full` asks for a
 full run, the separate layout's whole conformance suite among it, and `ARC_STORE_CHECK=every` for every suite in its
-per-change form; the integration tier, the lane, and a pull request's portability run leave the store suites out.
+per-change form; the integration tier, the lane, and a pull request's portability run leave the store suites out, and
+a dispatched one leaves them all out when its change reaches none of them.
 
 ## Testing Requirements
 

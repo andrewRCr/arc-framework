@@ -4,7 +4,7 @@ import { digestBytes } from "../../kernel/canonical/canonical-json.js";
 import { RecordVersionSchema, RecordReferenceSchema, OwnerIdentitySchema, type RecordReference } from "../identity.js";
 import type { ReadInput, StoreRecord } from "../read.js";
 import type { InRepoContext } from "./context.js";
-import { selectMeta, type MetaSource } from "./meta.js";
+import { flatActiveMeta, heldMetaSources, selectMeta, type MetaSource } from "./meta.js";
 import { notFound, refuse, unsupported } from "./refusals.js";
 import { recordPath } from "./paths.js";
 import { readFileAt } from "./files.js";
@@ -24,7 +24,7 @@ export async function readTracked(context: InRepoContext, input: ReadInput): Pro
   const content = await readFileAt(context, path, revision);
   if (content === null) return missingTracked(context,input);
   const placement = source?.placement ?? (input.reference.kind.startsWith("review/")
-    ? (await selectMeta(context,input.reference.owner.name,input.asOf))?.placement ?? { kind: "active" as const }
+    ? (await reviewMeta(context, input))?.placement ?? { kind: "active" as const }
     : undefined);
   if (unit && placement === undefined) return refuse({ code: "record-malformed", class: "recoverable", reference: input.reference,
     rule: "placement", condition: `The layout cannot place ${path}`, remedy: { text: `Move ${path} to a valid lifecycle surface, then retry.` } });
@@ -34,6 +34,14 @@ export async function readTracked(context: InRepoContext, input: ReadInput): Pro
     version: RecordVersionSchema.parse(digestBytes(Buffer.from(content))),
     formatVersion: 1, conflicts: [], ...(placement === undefined ? {} : { placement }),
     ...(decoded.fields === undefined ? {} : { fields: decoded.fields }) };
+}
+async function reviewMeta(context: InRepoContext, input: ReadInput): Promise<MetaSource | undefined> {
+  const slug = input.reference.owner.name;
+  const flat = input.asOf === undefined ? await flatActiveMeta(context, slug) : undefined;
+  if (flat !== undefined) return flat;
+  // A held owner supplies placement despite access-denied diagnostics in another lifecycle tier.
+  const held = (await heldMetaSources(context, input.asOf, undefined, [])).find((source) => source.slug === slug);
+  return held ?? selectMeta(context, slug, input.asOf);
 }
 async function requiredMeta(context: InRepoContext, input: ReadInput): Promise<MetaSource> {
   const source = await selectMeta(context, input.reference.owner.name, input.asOf);

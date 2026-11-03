@@ -1,6 +1,6 @@
 /** Personal command Store binding, including its existing injectable write and lock seams. */
 import { createStore } from "./create.js";
-import { createDefaultStorePorts } from "./default-ports.js";
+import { createDefaultStorePorts } from "./default-store-ports.js";
 import { withAdvisoryLock, type AdvisoryLockHandle } from "../advisory-lock.js";
 import { getNotesLockPath } from "../user-sync/notes-lock.js";
 import { ArcError, SlugSchema } from "../kernel/index.js";

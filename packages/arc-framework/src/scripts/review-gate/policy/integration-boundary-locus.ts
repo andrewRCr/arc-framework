@@ -1,7 +1,9 @@
 /** Typed operational loci at the Candidate-to-publication boundary. */
 
 import { z } from "zod";
-import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
+import { IntegrationBoundaryLocusV2Schema, type IntegrationBoundaryLocusV2,
+  type RunConvergenceVerificationActionV2Schema, type CandidateReviewResumeBoundaryV2Schema } from "./integration-boundary-locus-v2.js";
+export { IntegrationBoundaryLocusV2Schema };
 
 import { canonicalDigest, canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
 import {
@@ -13,12 +15,10 @@ import {
   DeliveryPublicReviewContinuationV1Schema,
   type DeliveryPublicReviewContinuationV1,
 } from "../../../lib/delivery/public-review-continuation.js";
-import { DeliveryPlanIdSchema } from "../../../lib/delivery/schema.js";
 import { SlugSchema } from "../../../lib/kernel/schema/slug.js";
+import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 import { attestConvergenceArgv } from "../../integration/spine-refusal.js";
-import { GitObjectIdSchema, ReviewIdentifierSchema } from "../core/gate-contract-v2-schema.js";
-import { ReviewResponseSettlementSourceSchema } from "../core/response-plan-schema.js";
-import { FrontlineResolveRequestSchema } from "./frontline-command-schema.js";
+import { GitObjectIdSchema } from "../core/gate-contract-v2-schema.js";
 import { ReviewResolveEnvelopeSchema } from "./review-policy-driver.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 import {
@@ -28,116 +28,27 @@ import {
   type OwnerAcceptedReviewTerminus,
 } from "./review-terminus.js";
 
-const CandidateIdSchema = CanonicalDigestSchema;
-const CandidateSubjectDigestSchema = CanonicalDigestSchema;
+import { CandidateIdSchema, CandidateSubjectDigestSchema, ActionFields, RunSelfReviewActionSchema,
+  ContinuePrePublicationActionSchema, ContinueHostedReviewActionSchema, ResolveDeliveryStatusActionSchema,
+  PublishCandidateActionSchema, ContinuePublicationActionSchema, StandardReviewReservationTargetSchema,
+  StandardReviewReservationV1Schema, type StandardReviewReservationV1, BoundaryIdentityShape, validateUniqueDeliveryTerminusVehicles } from "./integration-boundary-locus-shared.js";
+export { RunSelfReviewActionSchema, ContinuePrePublicationActionSchema, ContinueHostedReviewActionSchema,
+  ResolveDeliveryStatusActionSchema, PublishCandidateActionSchema, ContinuePublicationActionSchema,
+  StandardReviewReservationTargetSchema, type StandardReviewReservationTarget, StandardReviewReservationV1Schema,
+  type StandardReviewReservationV1 } from "./integration-boundary-locus-shared.js";
 
-const ActionFields = {
-  command: z.string().trim().min(1),
-  interactionText: z.string().trim().min(1),
-};
-export const RunSelfReviewActionSchema = z.strictObject({
-  kind: z.literal("run-self-review"),
-  ...ActionFields,
-});
-export const ContinuePrePublicationActionSchema = z.strictObject({
-  kind: z.literal("continue-pre-publication-review"),
-  authorizationRequest: FrontlineResolveRequestSchema.optional(),
-  request: FrontlineResolveRequestSchema.optional(),
-  resumeCommand: z.string().trim().min(1).optional(),
-  responseOperationId: ReviewIdentifierSchema.optional(),
-  responseSource: ReviewResponseSettlementSourceSchema.optional(),
-  ...ActionFields,
-}).superRefine((action, context) => {
-  const responds = action.command === "arc review respond -";
-  if (responds !== (action.responseOperationId !== undefined)) {
-    context.addIssue({
-      code: "custom",
-      path: ["responseOperationId"],
-      message: "the review response action requires its exact producer operation ID",
-    });
-  }
-  if (responds !== (action.responseSource !== undefined)) {
-    context.addIssue({
-      code: "custom",
-      path: ["responseSource"],
-      message: "the review response action requires its bound producer source",
-    });
-  }
-  const resolvesFrontline = action.command === "arc review frontline resolve -";
-  if (!resolvesFrontline && (action.request !== undefined || action.authorizationRequest !== undefined)) {
-    context.addIssue({
-      code: "custom",
-      path: ["request"],
-      message: "only the frontline resolver action may carry typed stdin requests",
-    });
-    return;
-  }
-  if (!resolvesFrontline) return;
-  if (action.request === undefined || action.authorizationRequest === undefined) {
-    context.addIssue({
-      code: "custom",
-      path: action.request === undefined ? ["request"] : ["authorizationRequest"],
-      message: "the frontline resolver action requires initial and authorized typed stdin requests",
-    });
-    return;
-  }
-  if (action.request.invocation.mode !== "inherit") {
-    context.addIssue({
-      code: "custom",
-      path: ["request", "invocation", "mode"],
-      message: "the initial frontline resolver request must preserve the offered-review authorization step",
-    });
-  }
-  const expectedAuthorizationRequest = {
-    ...action.request,
-    invocation: { ...action.request.invocation, mode: "force" },
-  };
-  if (canonicalize(action.authorizationRequest) !== canonicalize(expectedAuthorizationRequest)) {
-    context.addIssue({
-      code: "custom",
-      path: ["authorizationRequest"],
-      message: "the authorized frontline request may change only invocation mode to force",
-    });
-  }
-});
 export const PostAttestContinuationSchema = z.strictObject({
   reviewedHead: GitObjectIdSchema,
   nextAction: ContinuePrePublicationActionSchema,
   projectionDisposition: z.literal("keep-staged-until-publication"),
 });
 export type PostAttestContinuation = z.infer<typeof PostAttestContinuationSchema>;
-export const ContinueHostedReviewActionSchema = z.strictObject({
-  kind: z.literal("continue-hosted-review"),
-  workUnitId: SlugSchema,
-  ...ActionFields,
-}).superRefine((action, context) => {
-  if (action.command !== `arc review status --work-unit ${action.workUnitId}`) {
-    context.addIssue({
-      code: "custom",
-      path: ["command"],
-      message: "the hosted-review action must be self-contained for its work unit",
-    });
-  }
-});
-export const ResolveDeliveryStatusActionSchema = z.strictObject({
-  kind: z.literal("resolve-delivery-status"),
-  workUnitId: SlugSchema,
-  ...ActionFields,
-}).superRefine((action, context) => {
-  if (action.command !== `arc review status --work-unit ${action.workUnitId}`) {
-    context.addIssue({
-      code: "custom",
-      path: ["command"],
-      message: "the delivery-status action must be self-contained for its work unit",
-    });
-  }
-});
 const LegacyContinueHostedReviewActionSchema = z.strictObject({
   kind: z.literal("continue-hosted-review"),
   command: z.literal("arc review status --target '{targetRef}' --json"),
   interactionText: z.string().trim().min(1),
 });
-export const RunConvergenceVerificationActionSchema = z.strictObject({
+const RunConvergenceVerificationActionFieldsSchema = z.strictObject({
   kind: z.literal("run-convergence-verification"),
   requiredScope: z.enum(["focused", "full"]),
   verificationKind: z.enum(["focused", "tier-3"]),
@@ -145,9 +56,12 @@ export const RunConvergenceVerificationActionSchema = z.strictObject({
   attestArgv: z.array(z.string().trim().min(1)).length(8),
   ...ActionFields,
   postAttestContinuation: PostAttestContinuationSchema,
-}).superRefine((action, context) => {
-  const expectedKind = action.requiredScope === "focused" ? "focused" : "tier-3";
-  if (action.verificationKind !== expectedKind) {
+});
+
+function validateConvergenceAction(action: { requiredScope: "focused" | "full"; verificationKind: string;
+  attestArgv: string[]; command: string }, context: z.RefinementCtx): void {
+  const kinds = action.requiredScope === "focused" ? ["focused"] : ["tier-3", "merge"];
+  if (!kinds.includes(action.verificationKind)) {
     context.addIssue({
       code: "custom",
       path: ["verificationKind"],
@@ -173,7 +87,16 @@ export const RunConvergenceVerificationActionSchema = z.strictObject({
       message: "convergence attest command must display the exact required argv",
     });
   }
-});
+}
+export const RunConvergenceVerificationActionSchema = RunConvergenceVerificationActionFieldsSchema.superRefine(validateConvergenceAction);
+/** Published actions accept either backend's verification kind and projection-independent continuation. */
+const PublishedPostAttestContinuationSchema = PostAttestContinuationSchema.partial({ projectionDisposition: true });
+export type PublishedPostAttestContinuation = z.infer<typeof PublishedPostAttestContinuationSchema>;
+/** Widened transport contract; persisted boundary versions retain their own strict schemas. */
+export const PublishedRunConvergenceVerificationActionSchema = RunConvergenceVerificationActionFieldsSchema.extend({
+  verificationKind: z.enum(["focused", "tier-3", "merge"]),
+  postAttestContinuation: PublishedPostAttestContinuationSchema,
+}).superRefine(validateConvergenceAction);
 
 /**
  * Compose a substitution-required convergence-verification action for one work unit.
@@ -182,38 +105,44 @@ export const RunConvergenceVerificationActionSchema = z.strictObject({
  * @param requiredScope - Scope required to satisfy the pending convergence.
  * @returns An action whose evidence placeholder must be replaced before invocation.
  */
+export function createRunConvergenceVerificationAction(workUnit: string, requiredScope: "focused" | "full",
+  postAttestContinuation: PostAttestContinuation, schemaVersion?: 1): z.infer<typeof RunConvergenceVerificationActionSchema>;
+/** Compose an action with a continuation that can omit checkout projection bookkeeping. */
+export function createRunConvergenceVerificationAction(workUnit: string, requiredScope: "focused" | "full",
+  postAttestContinuation: PublishedPostAttestContinuation, schemaVersion?: 1): z.infer<typeof PublishedRunConvergenceVerificationActionSchema>;
+/** Emit the native verification kind and omit checkout projection bookkeeping. */
+export function createRunConvergenceVerificationAction(workUnit: string, requiredScope: "focused" | "full",
+  postAttestContinuation: PublishedPostAttestContinuation, schemaVersion: 2): z.infer<typeof RunConvergenceVerificationActionV2Schema>;
+/** Preserve the format selected by the invocation's backend. */
+export function createRunConvergenceVerificationAction(workUnit: string, requiredScope: "focused" | "full",
+  postAttestContinuation: PublishedPostAttestContinuation, schemaVersion: 1 | 2): z.infer<typeof PublishedRunConvergenceVerificationActionSchema>;
+/** Validate the emitted action through the public transport contract. */
 export function createRunConvergenceVerificationAction(
   workUnit: string,
   requiredScope: "focused" | "full",
-  postAttestContinuation: PostAttestContinuation,
-): z.infer<typeof RunConvergenceVerificationActionSchema> {
+  postAttestContinuation: PublishedPostAttestContinuation,
+  schemaVersion: 1 | 2 = 1,
+): z.infer<typeof PublishedRunConvergenceVerificationActionSchema> {
   const attestArgv = attestConvergenceArgv(
     workUnit,
     requiredScope,
     CANDIDATE_VERIFICATION_EVIDENCE_PLACEHOLDER,
   );
-  return RunConvergenceVerificationActionSchema.parse({
+  return PublishedRunConvergenceVerificationActionSchema.parse({
     kind: "run-convergence-verification",
     requiredScope,
-    verificationKind: requiredScope === "focused" ? "focused" : "tier-3",
+    verificationKind: requiredScope === "focused" ? "focused" : schemaVersion === 2 ? "merge" : "tier-3",
     verificationEvidenceRefRequired: true,
     attestArgv: [...attestArgv],
     command: attestArgv.join(" "),
     interactionText: requiredScope === "focused"
       ? "Run the bounded focused verification, then replace the carried evidence placeholder and attest."
       : "Run arc check gate merge --force, then replace the carried evidence placeholder and attest.",
-    postAttestContinuation,
+    postAttestContinuation: schemaVersion === 2
+      ? { reviewedHead: postAttestContinuation.reviewedHead, nextAction: postAttestContinuation.nextAction }
+      : postAttestContinuation,
   });
 }
-export const PublishCandidateActionSchema = z.strictObject({
-  kind: z.literal("publish-candidate"),
-  ...ActionFields,
-});
-export const ContinuePublicationActionSchema = z.strictObject({
-  kind: z.literal("continue-publication"),
-  ...ActionFields,
-});
-
 export const IntegrationBoundaryNextActionSchema = z.discriminatedUnion("kind", [
   RunSelfReviewActionSchema,
   ContinuePrePublicationActionSchema,
@@ -223,31 +152,6 @@ export const IntegrationBoundaryNextActionSchema = z.discriminatedUnion("kind", 
   ContinuePublicationActionSchema,
 ]);
 export type IntegrationBoundaryNextAction = z.infer<typeof IntegrationBoundaryNextActionSchema>;
-
-export const StandardReviewReservationTargetSchema = z.discriminatedUnion("kind", [
-  z.strictObject({
-    kind: z.literal("pinned-head"),
-    repository: z.string().trim().min(1),
-    headSha: GitObjectIdSchema,
-  }),
-  z.strictObject({
-    kind: z.literal("delivery"),
-    repository: z.string().trim().min(1),
-    workUnitId: SlugSchema,
-    planId: DeliveryPlanIdSchema,
-  }),
-]);
-export type StandardReviewReservationTarget = z.infer<typeof StandardReviewReservationTargetSchema>;
-
-export const StandardReviewReservationV1Schema = z.strictObject({
-  schemaVersion: z.literal(1),
-  semanticsVersion: z.literal("standard-review-reservation/v1"),
-  reservationId: CandidateIdSchema,
-  sources: z.array(z.string().trim().min(1)).min(1),
-  target: StandardReviewReservationTargetSchema,
-  obligation: StandardReviewObligationProjectionSchema,
-});
-export type StandardReviewReservationV1 = z.infer<typeof StandardReviewReservationV1Schema>;
 
 /**
  * Review evidence for a boundary that carried no hosted-review reservation.
@@ -261,33 +165,10 @@ export const NO_HOSTED_REVIEW_RESERVATION_DETAIL =
 
 const BoundaryCommonShape = {
   schemaVersion: z.literal(1),
-  mode: z.enum(["pre-publication-review", "integration-boundary"]),
-  workUnit: SlugSchema,
-  candidateId: CandidateIdSchema,
-  /**
-   * The reviewable subject the boundary was written for — what submission authorizes against.
-   *
-   * The reviewable subject, not the head: operational-only writes advance the head without changing
-   * what review covered, and a boundary invalidated by its own ceremony's churn would send the
-   * operator back through a review whose evidence never went stale.
-   */
-  candidateSubjectDigest: CandidateSubjectDigestSchema.nullable().default(null),
+  ...BoundaryIdentityShape,
   /** Candidate-scoped residual-risk verdict; subject movement is gated by typed Candidate currentness. */
   terminus: OwnerAcceptedReviewTerminusSchema.nullable().default(null),
-  deliveryReviewTermini: z.array(DeliveryReviewMemberTerminusSchema).default([]).superRefine((records, context) => {
-    const seen = new Set<string>();
-    for (const [index, record] of records.entries()) {
-      const key = canonicalDigest(record.vehicle);
-      if (seen.has(key)) {
-        context.addIssue({
-          code: "custom",
-          path: [index, "vehicle"],
-          message: "delivery-member review termini must have unique exact vehicles",
-        });
-      }
-      seen.add(key);
-    }
-  }),
+  deliveryReviewTermini: z.array(DeliveryReviewMemberTerminusSchema).default([]).superRefine(validateUniqueDeliveryTerminusVehicles),
 };
 
 const CandidateReviewBoundaryFields = {
@@ -460,6 +341,9 @@ export const IntegrationBoundaryLocusSchema = z.union([
   DeliveryStatusRequiredBoundarySchema,
 ]);
 export type IntegrationBoundaryLocus = z.infer<typeof IntegrationBoundaryLocusSchema>;
+/** Published boundary-bearing outputs carry the format held by their record. */
+export const PublishedIntegrationBoundaryLocusSchema = z.union([IntegrationBoundaryLocusSchema, IntegrationBoundaryLocusV2Schema]);
+export type PublishedIntegrationBoundaryLocus = z.infer<typeof PublishedIntegrationBoundaryLocusSchema>;
 
 /** Parse one structural integration boundary. */
 export function parseIntegrationBoundaryLocus(input: unknown): IntegrationBoundaryLocus {
@@ -493,17 +377,33 @@ const PublicationBoundaryInputSchema = z.strictObject({
     pullRequest: z.number().int().positive(),
   }).nullable(),
 });
+const PublicationBoundaryInputV2Schema = PublicationBoundaryInputSchema.omit({ standardLaneOwnerVersion: true }).extend({
+  terminus: CanonicalDigestSchema.nullable().default(null),
+  readinessBinding: CanonicalDigestSchema.nullable(),
+});
 
-/** Project the conservative exact Candidate entry point before review evidence is reduced. */
-export function projectCandidateReviewBoundary(input: {
+interface CandidateSubjectCoordinates {
   workUnit: string;
   candidateId: string;
+  candidateSubjectDigest: string;
+}
+interface CandidateEntryCoordinates extends Omit<CandidateSubjectCoordinates, "candidateSubjectDigest"> {
   candidateSubjectDigest?: string | null;
-}): IntegrationBoundaryLocus {
+}
+
+/** Project the conservative exact Candidate entry point before review evidence is reduced. */
+export function projectCandidateReviewBoundary(input: CandidateEntryCoordinates, schemaVersion?: 1): IntegrationBoundaryLocus;
+/** Project native Candidate entry without copied policy state. */
+export function projectCandidateReviewBoundary(input: CandidateEntryCoordinates, schemaVersion: 2): IntegrationBoundaryLocusV2;
+/** Preserve the persisted format selected by the invocation. */
+export function projectCandidateReviewBoundary(input: CandidateEntryCoordinates, schemaVersion: 1 | 2): PublishedIntegrationBoundaryLocus;
+/** Validate Candidate entry through its selected format. */
+export function projectCandidateReviewBoundary(input: CandidateEntryCoordinates, schemaVersion: 1 | 2 = 1): PublishedIntegrationBoundaryLocus {
   const workUnit = SlugSchema.parse(input.workUnit);
   const candidateId = CandidateIdSchema.parse(input.candidateId);
-  return IntegrationBoundaryLocusSchema.parse({
-    schemaVersion: 1,
+  const schema = schemaVersion === 2 ? IntegrationBoundaryLocusV2Schema : IntegrationBoundaryLocusSchema;
+  return schema.parse({
+    schemaVersion,
     mode: "integration-boundary",
     workUnit,
     candidateId,
@@ -514,25 +414,28 @@ export function projectCandidateReviewBoundary(input: {
       command: `arc review pre-publication ${workUnit}`,
       interactionText: "Run or resume the typed pre-publication review procedure.",
     },
-    policy: null,
+    ...(schemaVersion === 1 ? { policy: null } : {}),
     reservation: null,
     terminus: null,
   });
 }
 
+interface AttestedBoundaryRecoveryInput extends CandidateSubjectCoordinates {
+  stored: PublishedIntegrationBoundaryLocus | null;
+  repairCurrent: boolean;
+}
+
 /**
- * Recover a Candidate-scoped Owner verdict after attestation proves subject movement non-semantic.
+ * Recover Candidate-scoped Owner acceptance after attestation proves subject movement non-semantic.
  *
  * @param input - Stored boundary plus the attestation's currentness and Candidate coordinates.
  * @returns The rebound public boundary, or `null` when no durable verdict can carry.
  */
-export function recoverAttestedOwnerTerminusBoundary(input: {
-  stored: IntegrationBoundaryLocus | null;
-  workUnit: string;
-  candidateId: string;
-  candidateSubjectDigest: string;
-  repairCurrent: boolean;
-}): IntegrationBoundaryLocus | null {
+export function recoverAttestedOwnerTerminusBoundary(input: AttestedBoundaryRecoveryInput & { stored: IntegrationBoundaryLocus | null }): IntegrationBoundaryLocus | null;
+/** Retain named native authority without decoding it as an embedded verdict. */
+export function recoverAttestedOwnerTerminusBoundary(input: AttestedBoundaryRecoveryInput): PublishedIntegrationBoundaryLocus | null;
+/** Rebind the existing authority only after exact Candidate repair has been established. */
+export function recoverAttestedOwnerTerminusBoundary(input: AttestedBoundaryRecoveryInput): PublishedIntegrationBoundaryLocus | null {
   const workUnit = SlugSchema.parse(input.workUnit);
   const candidateId = CandidateIdSchema.parse(input.candidateId);
   const candidateSubjectDigest = CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest);
@@ -547,7 +450,8 @@ export function recoverAttestedOwnerTerminusBoundary(input: {
       && stored.locus !== "delivery-status-required")) {
     return null;
   }
-  return IntegrationBoundaryLocusSchema.parse({
+  const schema = stored.schemaVersion === 2 ? IntegrationBoundaryLocusV2Schema : IntegrationBoundaryLocusSchema;
+  return schema.parse({
     ...stored,
     candidateSubjectDigest,
   });
@@ -563,14 +467,13 @@ export function recoverAttestedOwnerTerminusBoundary(input: {
  *   the attestation recognized the current subject as the same Candidate.
  * @returns The public boundary bound to the current subject, or null when publication authority cannot carry.
  */
-export function recoverAttestedSingletonPublicationBoundary(input: {
-  stored: IntegrationBoundaryLocus | null;
-  workUnit: string;
-  candidateId: string;
-  candidateSubjectDigest: string;
-  integrating: boolean;
-  repairCurrent: boolean;
-}): IntegrationBoundaryLocus | null {
+export function recoverAttestedSingletonPublicationBoundary(input: AttestedBoundaryRecoveryInput & {
+  stored: IntegrationBoundaryLocus | null; integrating: boolean;
+}): IntegrationBoundaryLocus | null;
+/** Retain native publication bindings through an exact singleton continuation. */
+export function recoverAttestedSingletonPublicationBoundary(input: AttestedBoundaryRecoveryInput & { integrating: boolean }): PublishedIntegrationBoundaryLocus | null;
+/** Preserve the stored format after singleton lifecycle and Candidate admission. */
+export function recoverAttestedSingletonPublicationBoundary(input: AttestedBoundaryRecoveryInput & { integrating: boolean }): PublishedIntegrationBoundaryLocus | null {
   const stored = input.stored;
   if (!input.integrating
     || stored === null
@@ -579,10 +482,18 @@ export function recoverAttestedSingletonPublicationBoundary(input: {
     || (stored.candidateSubjectDigest !== input.candidateSubjectDigest && !input.repairCurrent)
     || (stored.locus !== "publication-pending" && stored.locus !== "hosted-review-pending")
     || stored.reservation?.target.kind === "delivery") return null;
-  return IntegrationBoundaryLocusSchema.parse({
+  const schema = stored.schemaVersion === 2 ? IntegrationBoundaryLocusV2Schema : IntegrationBoundaryLocusSchema;
+  return schema.parse({
     ...stored,
     candidateSubjectDigest: CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest),
   });
+}
+
+interface SingletonResponseRebindInput {
+  stored: PublishedIntegrationBoundaryLocus | null;
+  workUnit: string;
+  response: CandidateReviewResponseEvidenceV1;
+  requirePublished: boolean;
 }
 
 /**
@@ -591,12 +502,11 @@ export function recoverAttestedSingletonPublicationBoundary(input: {
  * @param input - Stored boundary, exact work unit and response, and whether publication must exist.
  * @returns The rebound boundary, or null when this is not a published singleton response.
  */
-export function rebindSingletonPublicationResponseBoundary(input: {
-  stored: IntegrationBoundaryLocus | null;
-  workUnit: string;
-  response: CandidateReviewResponseEvidenceV1;
-  requirePublished: boolean;
-}): IntegrationBoundaryLocus | null {
+export function rebindSingletonPublicationResponseBoundary(input: SingletonResponseRebindInput & { stored: IntegrationBoundaryLocus | null }): IntegrationBoundaryLocus | null;
+/** Retain native readiness and decision references across a verified singleton response. */
+export function rebindSingletonPublicationResponseBoundary(input: SingletonResponseRebindInput): PublishedIntegrationBoundaryLocus | null;
+/** Enforce exact response coordinates before carrying either stored format. */
+export function rebindSingletonPublicationResponseBoundary(input: SingletonResponseRebindInput): PublishedIntegrationBoundaryLocus | null {
   const response = CandidateReviewResponseEvidenceV1Schema.parse(input.response);
   const stored = input.stored;
   const singleton = stored !== null
@@ -622,32 +532,46 @@ export function rebindSingletonPublicationResponseBoundary(input: {
     throw new Error("The singleton publication boundary does not match the reviewed Candidate subject. "
       + "Reconcile the boundary and replay the approved response.");
   }
-  return parseIntegrationBoundaryLocus({ ...stored, candidateSubjectDigest: newDigest });
+  const rebound = { ...stored, candidateSubjectDigest: newDigest };
+  return stored.schemaVersion === 2 ? IntegrationBoundaryLocusV2Schema.parse(rebound) : parseIntegrationBoundaryLocus(rebound);
 }
 
-/** Resume pre-publication after convergence without discarding its carried hosted-review authority. */
-export function projectCandidateReviewResumeBoundary(input: {
-  workUnit: string;
-  candidateId: string;
-  candidateSubjectDigest: string;
+interface CandidateReviewResumeInput extends CandidateSubjectCoordinates {
   reservation: StandardReviewReservationV1 | null;
   terminus?: OwnerAcceptedReviewTerminus | null;
   deliveryReviewTermini?: readonly DeliveryReviewMemberTerminus[];
   postAttestContinuation: PostAttestContinuation;
-}): IntegrationBoundaryLocus {
+}
+type NativeReviewResumeFields = z.infer<typeof CandidateReviewResumeBoundaryV2Schema>;
+type NativeCandidateReviewResumeInput = Omit<CandidateReviewResumeInput, "terminus" | "deliveryReviewTermini" | "postAttestContinuation"> & {
+  terminus?: NativeReviewResumeFields["terminus"];
+  deliveryReviewTermini?: readonly NativeReviewResumeFields["deliveryReviewTermini"][number][];
+  postAttestContinuation: PublishedPostAttestContinuation;
+};
+
+/** Resume pre-publication after convergence without discarding its carried hosted-review authority. */
+export function projectCandidateReviewResumeBoundary(input: CandidateReviewResumeInput, schemaVersion?: 1): IntegrationBoundaryLocus;
+/** Resume native convergence with portable authority references. */
+export function projectCandidateReviewResumeBoundary(input: NativeCandidateReviewResumeInput, schemaVersion: 2): IntegrationBoundaryLocusV2;
+/** Validate the selected format without translating embedded verdicts into decision references. */
+export function projectCandidateReviewResumeBoundary(input: CandidateReviewResumeInput | NativeCandidateReviewResumeInput,
+  schemaVersion: 1 | 2 = 1): PublishedIntegrationBoundaryLocus {
   const workUnit = SlugSchema.parse(input.workUnit);
   const candidateId = CandidateIdSchema.parse(input.candidateId);
   const candidateSubjectDigest = CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest);
-  return IntegrationBoundaryLocusSchema.parse({
-    schemaVersion: 1,
+  const schema = schemaVersion === 2 ? IntegrationBoundaryLocusV2Schema : IntegrationBoundaryLocusSchema;
+  return schema.parse({
+    schemaVersion,
     mode: "pre-publication-review",
     workUnit,
     candidateId,
     candidateSubjectDigest,
     locus: "candidate-review-pending",
     nextAction: input.postAttestContinuation.nextAction,
-    postAttestContinuation: input.postAttestContinuation,
-    policy: null,
+    postAttestContinuation: schemaVersion === 2
+      ? { reviewedHead: input.postAttestContinuation.reviewedHead, nextAction: input.postAttestContinuation.nextAction }
+      : input.postAttestContinuation,
+    ...(schemaVersion === 1 ? { policy: null } : {}),
     reservation: input.reservation,
     terminus: input.terminus ?? null,
     deliveryReviewTermini: input.deliveryReviewTermini ?? [],
@@ -660,16 +584,19 @@ export function projectCandidateReviewResumeBoundary(input: {
  * @param input - Work-unit and Candidate coordinates for the source-free recovery boundary.
  * @returns A pre-publication boundary that keeps the approved response resumable.
  */
-export function projectCandidateFixResumeBoundary(input: {
-  workUnit: string;
-  candidateId: string;
-  candidateSubjectDigest: string;
-}): IntegrationBoundaryLocus {
+export function projectCandidateFixResumeBoundary(input: CandidateSubjectCoordinates, schemaVersion?: 1): IntegrationBoundaryLocus;
+/** Retain source-free native fix authority in a version-two boundary. */
+export function projectCandidateFixResumeBoundary(input: CandidateSubjectCoordinates, schemaVersion: 2): IntegrationBoundaryLocusV2;
+/** Preserve the persisted format selected by the invocation. */
+export function projectCandidateFixResumeBoundary(input: CandidateSubjectCoordinates, schemaVersion: 1 | 2): PublishedIntegrationBoundaryLocus;
+/** Validate fix re-entry through its selected format. */
+export function projectCandidateFixResumeBoundary(input: CandidateSubjectCoordinates, schemaVersion: 1 | 2 = 1): PublishedIntegrationBoundaryLocus {
   const workUnit = SlugSchema.parse(input.workUnit);
   const candidateId = CandidateIdSchema.parse(input.candidateId);
   const candidateSubjectDigest = CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest);
-  return IntegrationBoundaryLocusSchema.parse({
-    schemaVersion: 1,
+  const schema = schemaVersion === 2 ? IntegrationBoundaryLocusV2Schema : IntegrationBoundaryLocusSchema;
+  return schema.parse({
+    schemaVersion,
     mode: "pre-publication-review",
     workUnit,
     candidateId,
@@ -680,7 +607,7 @@ export function projectCandidateFixResumeBoundary(input: {
       command: `arc review pre-publication ${workUnit}`,
       interactionText: "Resume the approved Candidate review fix response.",
     },
-    policy: null,
+    ...(schemaVersion === 1 ? { policy: null } : {}),
     reservation: null,
     terminus: null,
   });
@@ -697,7 +624,21 @@ export function recoverPrePublicationBoundary(input: {
   workUnit: string;
   candidateId: string;
   candidateSubjectDigest: string;
-}): IntegrationBoundaryLocus | null {
+}): IntegrationBoundaryLocus | null;
+/** Retain the exact native or repository prepublication boundary when its subject matches. */
+export function recoverPrePublicationBoundary(input: {
+  stored: PublishedIntegrationBoundaryLocus | null;
+  workUnit: string;
+  candidateId: string;
+  candidateSubjectDigest: string;
+}): PublishedIntegrationBoundaryLocus | null;
+/** Check common Candidate coordinates before carrying either persisted format. */
+export function recoverPrePublicationBoundary(input: {
+  stored: PublishedIntegrationBoundaryLocus | null;
+  workUnit: string;
+  candidateId: string;
+  candidateSubjectDigest: string;
+}): PublishedIntegrationBoundaryLocus | null {
   const workUnit = SlugSchema.parse(input.workUnit);
   const candidateId = CandidateIdSchema.parse(input.candidateId);
   const candidateSubjectDigest = CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest);
@@ -721,12 +662,18 @@ export function recoverPrePublicationBoundary(input: {
  * at the hosted resume point. Every other combination continues publication, including a
  * reservation still waiting for its change request.
  */
-export function projectPublicationBoundary(input: unknown): IntegrationBoundaryLocus {
-  const value = PublicationBoundaryInputSchema.parse(input);
+export function projectPublicationBoundary(input: unknown, schemaVersion: 1): IntegrationBoundaryLocus;
+/** Project native publication with the readiness binding that authorized it. */
+export function projectPublicationBoundary(input: unknown, schemaVersion: 2): IntegrationBoundaryLocusV2;
+/** Select the persisted format explicitly at the backend boundary. */
+export function projectPublicationBoundary(input: unknown, schemaVersion: 1 | 2): PublishedIntegrationBoundaryLocus;
+/** Preserve shared publication routing across both persisted formats. */
+export function projectPublicationBoundary(input: unknown, schemaVersion: 1 | 2): PublishedIntegrationBoundaryLocus {
+  const value = schemaVersion === 2 ? PublicationBoundaryInputV2Schema.parse(input) : PublicationBoundaryInputSchema.parse(input);
   const hosted = value.reservation !== null && value.changeRequest !== null;
   const deliveryHosted = hosted && value.reservation?.target.kind === "delivery";
-  return IntegrationBoundaryLocusSchema.parse({
-    schemaVersion: 1,
+  const projection = {
+    schemaVersion,
     mode: "integration-boundary",
     workUnit: value.workUnit,
     candidateId: value.candidateId,
@@ -754,13 +701,29 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
         : "Resume publication at the idempotent push, then resolve or open the change request.",
       ...(deliveryHosted ? { workUnitId: value.workUnit } : {}),
     },
-    policy: null,
     reservation: value.reservation,
     terminus: value.terminus,
+  };
+  if ("readinessBinding" in value) return IntegrationBoundaryLocusV2Schema.parse({
+    ...projection,
+    ...(!hosted ? { readinessBinding: value.readinessBinding } : {}),
+  });
+  return IntegrationBoundaryLocusSchema.parse({
+    ...projection,
+    policy: null,
     ...(!hosted && value.standardLaneOwnerVersion !== undefined
       ? { standardLaneOwnerVersion: value.standardLaneOwnerVersion }
       : {}),
   });
+}
+
+interface CorrectiveDeliveryBoundaryInput {
+  readonly workUnit: string;
+  readonly candidateId: string;
+  readonly candidateSubjectDigest: string;
+  readonly supersedesCandidateId: string | null;
+  readonly sourceBoundary: PublishedIntegrationBoundaryLocus;
+  readonly deliveryContinuation: DeliveryPublicReviewContinuationV1;
 }
 
 /**
@@ -769,21 +732,18 @@ export function projectPublicationBoundary(input: unknown): IntegrationBoundaryL
  * @param input - Renewed Candidate identity, exact source boundary, and current delivery binding.
  * @returns One provider-neutral delivery-status boundary carrying the unchanged public reservation.
  */
-export function projectCorrectiveDeliveryStatusBoundary(input: {
-  readonly workUnit: string;
-  readonly candidateId: string;
-  readonly candidateSubjectDigest: string;
-  readonly supersedesCandidateId: string | null;
-  readonly sourceBoundary: IntegrationBoundaryLocus;
-  readonly deliveryContinuation: DeliveryPublicReviewContinuationV1;
-}): IntegrationBoundaryLocus {
+export function projectCorrectiveDeliveryStatusBoundary(input: CorrectiveDeliveryBoundaryInput & { sourceBoundary: IntegrationBoundaryLocus }): IntegrationBoundaryLocus;
+/** Carry native delivery authority in the source boundary's own format. */
+export function projectCorrectiveDeliveryStatusBoundary(input: CorrectiveDeliveryBoundaryInput): PublishedIntegrationBoundaryLocus;
+/** Validate exact delivery binding before projecting either stored format. */
+export function projectCorrectiveDeliveryStatusBoundary(input: CorrectiveDeliveryBoundaryInput): PublishedIntegrationBoundaryLocus {
   const workUnit = SlugSchema.parse(input.workUnit);
   const candidateId = CandidateIdSchema.parse(input.candidateId);
   const candidateSubjectDigest = CandidateSubjectDigestSchema.parse(input.candidateSubjectDigest);
   const supersedesCandidateId = input.supersedesCandidateId === null
     ? null
     : CandidateIdSchema.parse(input.supersedesCandidateId);
-  const source = IntegrationBoundaryLocusSchema.parse(input.sourceBoundary);
+  const source = PublishedIntegrationBoundaryLocusSchema.parse(input.sourceBoundary);
   const continuation = DeliveryPublicReviewContinuationV1Schema.parse(input.deliveryContinuation);
   if (source.mode !== "integration-boundary"
     || (source.locus !== "publication-pending"
@@ -798,8 +758,9 @@ export function projectCorrectiveDeliveryStatusBoundary(input: {
     || source.reservation.target.planId !== continuation.planId) {
     throw new Error("Corrective Candidate renewal requires the exact carried public delivery reservation.");
   }
-  return IntegrationBoundaryLocusSchema.parse({
-    schemaVersion: 1,
+  const schema = source.schemaVersion === 2 ? IntegrationBoundaryLocusV2Schema : IntegrationBoundaryLocusSchema;
+  return schema.parse({
+    schemaVersion: source.schemaVersion,
     mode: "integration-boundary",
     workUnit,
     candidateId,
@@ -811,7 +772,7 @@ export function projectCorrectiveDeliveryStatusBoundary(input: {
       command: `arc review status --work-unit ${workUnit}`,
       interactionText: "Resolve the retained delivery status.",
     },
-    policy: null,
+    ...(source.schemaVersion === 1 ? { policy: null } : {}),
     reservation: source.reservation,
     terminus: source.terminus,
     deliveryReviewTermini: source.deliveryReviewTermini,
@@ -819,14 +780,20 @@ export function projectCorrectiveDeliveryStatusBoundary(input: {
   });
 }
 
-/** Recover the public integration projection without dropping same-Candidate prepublication authority. */
-export function recoverPublicationBoundary(input: {
-  stored: IntegrationBoundaryLocus | null;
+interface PublicationRecoveryInput {
+  stored: PublishedIntegrationBoundaryLocus | null;
   workUnit: string;
   branch: string;
   candidateId: string;
   candidateSubjectDigest: string;
-}): IntegrationBoundaryLocus | null {
+}
+
+/** Recover the public integration projection without dropping same-Candidate prepublication authority. */
+export function recoverPublicationBoundary(input: PublicationRecoveryInput & { stored: IntegrationBoundaryLocus | null }): IntegrationBoundaryLocus | null;
+/** Recover publication while retaining the stored record's format. */
+export function recoverPublicationBoundary(input: PublicationRecoveryInput): PublishedIntegrationBoundaryLocus | null;
+/** Preserve the binding that authorized the transition to publication. */
+export function recoverPublicationBoundary(input: PublicationRecoveryInput): PublishedIntegrationBoundaryLocus | null {
   const stored = input.stored;
   if (stored === null
     || stored.workUnit !== input.workUnit
@@ -837,12 +804,23 @@ export function recoverPublicationBoundary(input: {
     || stored.locus === "delivery-status-required") {
     // The Candidate record's latest response subject is authoritative for the current lineage.
     // Rebind the carried publication authority instead of treating that approved advance as stale.
-    return IntegrationBoundaryLocusSchema.parse({
+    const schema = stored.schemaVersion === 2 ? IntegrationBoundaryLocusV2Schema : IntegrationBoundaryLocusSchema;
+    return schema.parse({
       ...stored,
       candidateSubjectDigest: input.candidateSubjectDigest,
     });
   }
   if (stored.locus !== "candidate-publish-ready") return null;
+  if (stored.schemaVersion === 2) return projectPublicationBoundary({
+    workUnit: input.workUnit,
+    branch: input.branch,
+    candidateId: input.candidateId,
+    candidateSubjectDigest: input.candidateSubjectDigest,
+    reservation: stored.reservation,
+    terminus: stored.terminus,
+    readinessBinding: stored.readinessBinding,
+    changeRequest: null,
+  }, 2);
   return projectPublicationBoundary({
     workUnit: input.workUnit,
     branch: input.branch,
@@ -851,7 +829,7 @@ export function recoverPublicationBoundary(input: {
     reservation: stored.reservation,
     terminus: stored.terminus,
     changeRequest: null,
-  });
+  }, 1);
 }
 
 /**
@@ -860,13 +838,11 @@ export function recoverPublicationBoundary(input: {
  * @param input - Stored boundary and the authoritative current Candidate and branch identity.
  * @returns The recoverable integration or same-Candidate review locus; otherwise `null`.
  */
-export function recoverIntegratingBoundary(input: {
-  stored: IntegrationBoundaryLocus | null;
-  workUnit: string;
-  branch: string;
-  candidateId: string;
-  candidateSubjectDigest: string;
-}): IntegrationBoundaryLocus | null {
+export function recoverIntegratingBoundary(input: PublicationRecoveryInput & { stored: IntegrationBoundaryLocus | null }): IntegrationBoundaryLocus | null;
+/** Recover either persisted format without reducing its stored authority. */
+export function recoverIntegratingBoundary(input: PublicationRecoveryInput): PublishedIntegrationBoundaryLocus | null;
+/** Apply public recovery first, then exact Candidate prepublication recovery. */
+export function recoverIntegratingBoundary(input: PublicationRecoveryInput): PublishedIntegrationBoundaryLocus | null {
   return recoverPublicationBoundary(input) ?? recoverPrePublicationBoundary({
     stored: input.stored,
     workUnit: input.workUnit,

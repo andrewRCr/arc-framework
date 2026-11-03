@@ -8,6 +8,7 @@ import { ApprovedDispositionRecordSchema } from "../../../../../src/scripts/revi
 import { createFixAuthorization, consumeFixAuthorization } from "../../../../../src/scripts/review-gate/core/fix-authorization.js";
 import { confirmReviewCorrectionLeg } from "../../../../../src/scripts/review-gate/policy/review-next-pass.js";
 import { approvedRecord, findingsHostedResult, performedFix } from "../../../../fixtures/review-response-proof.js";
+import { nativeListingRefusal } from "../../../../fixtures/native-refusal.js";
 
 function fixture() {
   const template = findingsHostedResult(["major"]);
@@ -66,6 +67,24 @@ describe("delivery correction response proof", () => {
     const input = fixture();
     await expect(confirmReviewCorrectionLeg({ ...input, ...readers(input), confirmGrounds: async () => "review-required" }))
       .resolves.toBe("applicable");
+  });
+  it("raises a native refusal from the member performance read whole, and proves the leg once readable", async () => {
+    const input = fixture(), refusal = nativeListingRefusal();
+    let readable = false;
+    const leg = { ...input, ...readers(input), confirmGrounds: async () => "review-required" as const,
+      readResponsePerformance: async () => { if (!readable) throw refusal; return input.performance; } };
+    await expect(confirmReviewCorrectionLeg(leg)).rejects.toBe(refusal);
+    readable = true;
+    await expect(confirmReviewCorrectionLeg(leg)).resolves.toBe("applicable");
+  });
+  it("raises a native refusal from the site's grounds whole, and proves the leg once they are readable", async () => {
+    const input = fixture(), refusal = nativeListingRefusal();
+    let readable = false;
+    const leg = { ...input, ...readers(input),
+      confirmGrounds: async () => { if (!readable) throw refusal; return "review-required" as const; } };
+    await expect(confirmReviewCorrectionLeg(leg)).rejects.toBe(refusal);
+    readable = true;
+    await expect(confirmReviewCorrectionLeg(leg)).resolves.toBe("applicable");
   });
   it.each(["base", "head", "response", "performance"])("refuses an unchecked fix with changed %s even if grounds retain it", async variation => {
     const input = fixture();

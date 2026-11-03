@@ -298,12 +298,14 @@ At `N == M`, a non-converged pass reports `cap-exhausted`; stop before another e
 pass completes normally and reports that its allowance is exhausted. Neither outcome bypasses completeness for the
 current pass, and cap exhaustion resolves no material finding.
 
-**Re-inspection test.** After fix-check rounds converge, recommend another complete pass when the folds changed the
-artifact so much that the last complete assessment no longer holds, or a fold repaired a rule that sections it did
-not touch also state. Otherwise, the caller's response check verifies rework where it stands. The test decides
-whether a complete pass follows the fix checks, never whether it replaces them. This is a recommendation input, never
-a trigger or authorization; the share of majors landing in earlier fixes may inform its cost-and-signal rationale,
-except under sustained non-convergence (below): there the re-entry offer comes before another pass.
+**Successor pass.** After fix-check rounds converge, recommend the next look by [review-model § Successor
+passes][review-model-successor-passes]: until a complete pass finds no confirmed critical or major finding, another
+complete pass is the default, and the rounds' own convergence never decides it. The re-inspection test holds when the
+folds changed the artifact so much that the last complete assessment no longer holds, or a fold repaired a rule that
+sections it did not touch also state; then no reason to stop early stands. A complete pass never replaces the rounds.
+This is a recommendation input, never a trigger or authorization; the share of majors landing in earlier fixes may
+inform its cost-and-signal rationale, except under sustained non-convergence (below): there the re-entry offer comes
+before another pass.
 
 **Severity beside fold tags.** With fold verification on, severity and the fold tags answer different questions.
 Severity decides whether a fix needs a successor look: an approved fix of a confirmed `critical` or `major` withholds
@@ -487,8 +489,8 @@ there is no round cap. The primary recommends, and the Owner decides:
   recommend stopping only on those same merits. Tags inform the recommendation without changing materiality.
 
 A following pass, approved or under the cap, is never a reason to decline. Fix-check rounds converge before the
-successor pass launches. The re-inspection test decides whether a complete pass follows them, never whether one
-replaces them; no recommendation authorizes either activity.
+successor pass launches. Whether a complete pass follows them is the successor-pass recommendation above, never their
+own convergence, and a complete pass never replaces them; no recommendation authorizes either activity.
 
 Every round's findings and repairs join the next pass's `prior-findings` as context, not its search frontier or evidence
 that the repairs were checked. A complete pass searches the whole artifact for undiscovered defects; it does not
@@ -705,3 +707,4 @@ the same source verification, disposition, and exit-gate rules as a standard pas
 [review-model]: review-model.md
 [review-model-trend]: review-model.md#trend
 [review-model-shared-causes]: review-model.md#shared-causes
+[review-model-successor-passes]: review-model.md#successor-passes

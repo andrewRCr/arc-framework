@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | [TBD]     | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** `storage-cutover`
+- **Depends On:** `cutover-flip`
 
 - **Origin:** [internal] — the `state-storage` re-cut (2026-09-28), as a storage program follow-on
 - **Design:** `draft-delivery-observe-attest.md`

@@ -15,6 +15,49 @@ import { readLifecycleView } from "../../src/lib/store/lifecycle-view.js";
 import { resolveProcessInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import * as terminal from "../../src/lib/terminal.js";
 import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
+import { runHandlerAt } from "../helpers/handler.js";
+import { lockSpawnedCheckout, PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+import { readWorktreeLock } from "../helpers/worktree-lock.js";
+import type { GitExec } from "../../src/lib/git/index.js";
+
+it.each(["create", "graduate"] as const)("retains store-backed %s without success ceremony when its sole lock fails", async (arm) => {
+  const h = await fixture();
+  const denied: GitExec = async (command, args, options) => {
+    if (args[0] === "worktree" && args[1] === "lock") {
+      throw makeGitProcessError({ command, args, exitCode: 128, stderr: "lock denied" });
+    }
+    return h.exec(command, args, options);
+  };
+  const io = { ...h.io, exec: denied };
+  const executor = buildExecutorContext({ cwd: h.root, io, store: h.store, identity: "starter",
+    teamMode: false, internalTemplateDir: "/templates" });
+  const name = arm === "create" ? "fresh" : "target";
+  const result = await runHandlerAt(h.root, () => handleStoreStart(
+    StartCommandInputSchema.parse({ name, ...(arm === "create" ? { new: true } : {}) }),
+    { cwd: h.root, identity: "starter", executor, io, interaction: h.interaction },
+  ));
+  const output = result.stdout + result.stderr;
+  expect(result.exitCode, output).toBe(1);
+  expect(output).toContain("lock denied");
+  expect(output).toContain("git worktree lock --reason");
+  expect(output).toContain("continue work in the retained checkout");
+  expect(output).not.toContain("Done.");
+  expect(output).not.toContain("Started");
+  const marker = await readWorktreeMarker(h.path);
+  expect(marker).toMatchObject({ kind: "present", marker: { createdFor: { kind: "work-unit", name } } });
+  const lookup = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse(name) }));
+  const record = lifecycleSuccess(await h.store.read({ reference: lookup.reference }));
+  expect(record).toMatchObject({ placement: { kind: "active" }, fields: { owner: "starter" } });
+  expect(await readWorktreeLock(h.exec, h.path)).toBeUndefined();
+  expect(await lockSpawnedCheckout(h.exec, h.path)).toEqual({ kind: "locked" });
+  expect(await readWorktreeLock(h.exec, h.path)).toBe(PROJECTION_LOCK_REASON);
+  expect(await readWorktreeMarker(h.path)).toEqual(marker);
+  expect(lifecycleSuccess(await h.store.read({ reference: lookup.reference }))).toEqual(record);
+  const continued = await runHandlerAt(h.root, () => handleStoreStart(StartCommandInputSchema.parse({ name }),
+    { cwd: h.root, identity: "starter", executor: h.executor, io: h.io, interaction: h.interaction }));
+  expect(continued.stdout + continued.stderr).toContain(`already started in checkout ${h.path}; continue work there`);
+}, 30_000);
 
 it("names a cohort when start requires a work unit", async () => {
   const h = await fixture();

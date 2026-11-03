@@ -8,7 +8,8 @@ import { type ReviewOperationState } from "../../../../src/scripts/review-gate/c
 import { FrontlineExecutionOutcomeSchema } from "../../../../src/scripts/review-gate/policy/frontline-outcome.js";
 import { createReviewTarget } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { createFrontlineAdmission } from "../../../../src/scripts/review-gate/core/frontline-admission.js";
-import { frontlineLaneOutcome, recordFrontlineAttempt, readCandidateInheritedLaneProgress, readLaneProgress, readLaneProgressAcrossLineage, recordLaneAttempt, settleLaneAttempt } from "../../../../src/scripts/review-gate/lane-progress.js";
+import { frontlineLaneOutcome } from "../../../../src/scripts/review-gate/core/frontline-lane-outcome.js";
+import { recordFrontlineAttempt, readCandidateInheritedLaneProgress, readLaneProgress, readLaneProgressAcrossLineage, recordLaneAttempt, settleLaneAttempt } from "../../../../src/scripts/review-gate/lane-progress.js";
 
 import { reduceReviewRouting } from "../../../../src/scripts/review-gate/policy/routing.js";
 

@@ -17,11 +17,13 @@ Stage 1  storage-contract          design core; ships the contract over today's 
 Stage 2  storage-seam              every reader and writer through the contract; after storage-contract lands
          storage-ref-backend       the refs/arc/* store, personal state synced through it, import, explicit
                                    state fetch; implements once seam-lifecycle ships
+         store-operation-git-access fewer Git processes per ref-store call; lands before
+                                   storage-ref-hardening's implementation
          storage-ref-hardening     the ref backend's routed defects the cutover exercises; after the
                                    ref backend lands
-         storage-projection        the working copy
+         storage-projection/*      the working copy, in three members
          projected-markdown-checks Markdown checks over projected state; builds beside the projection
-Stage 3  storage-cutover           rehearse, quiesce, import, flip, retire notes; then deletion and documentation
+Stage 3  storage-cutover/*         the flip, then deletion and documentation, in five members
 ```
 
 Each member's `Depends On` edges are the source of truth. Three orderings are not edges:
@@ -41,8 +43,9 @@ Each member's `Depends On` edges are the source of truth. Three orderings are no
   whose interface `storage-projection`'s spec fixes; whichever of the two lands second connects them. `storage-cutover`
   depends on it, since from the flip no Markdown check reads projected state until it lands.
 
-After the cutover, deletion passes, documentation, `naming-conventions`, `wu-lifecycle-state-model`'s front half, and
-the follow-ons all run in parallel. The follow-ons are standalone work units, each tagged core or deferred by
+After the flip, the deletion and documentation members (`cohort-storage-cutover.md`), `wu-lifecycle-state-model`'s
+front half, and the follow-ons run in parallel, and `naming-conventions` follows the deletion and documentation
+members. The follow-ons are standalone work units, each tagged core or deferred by
 `storage-contract`. Three items once listed here moved into members: the backing-repository backend into
 `storage-ref-backend`, branchless planning into `storage-seam`, and the records engine into the parser `storage-seam`
 builds for each family it reroutes.
@@ -96,6 +99,17 @@ not wait on it. Both depend on `storage-ref-backend`. `storage-ref-hardening` la
 the fault classes and remedies, and the pull-result consumer sweep those phases observe, and it re-raises a split into
 its own member if either's ref-backend phases are ready to start while its remaining work is more than about a week
 out.
+
+### Store process cost (2026-10-29)
+
+The store-suite measurement (`analysis-test-suite-cost-baseline.md` § Store-suite process cost) found the store suites'
+cost is the store's own Git process volume, and that routed to `store-operation-git-access` (P1). It gives every public
+ref-store call one operation-owned scope, a shared object reader and remembered configuration lookups refreshed at the
+events that can make them stale, with no contract change. It lands before `storage-ref-hardening`'s implementation, and
+the two plan side by side: hardening's keeper-lock item moves where the scope's fetch and lock events fall, and its
+missing-object classification sits on the scope's missing-answer check. The two land in an agreed order with no
+`Depends On` edge either way (Owner, 2026-10-30), and hardening keeps one invariant: transport and designation lookups
+stay fresh under whatever lease replaces the keeper lock. Sharing state across calls is captured as a follow-on.
 
 ### Shared contracts
 
@@ -291,8 +305,8 @@ the known rows; `storage-contract`'s draft-design completes the sweep.
 | Foreign-artifact detection (`arc errand check`) finds overlap through branch diffs                                                                                                                                                                                                                                                                                                                    | `storage-seam`                                                 | Stays for code targets; state targets become a store query                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | open   |
 | `arc rename`'s stub-branch leg (`withRenameStubBranch`)                                                                                                                                                                                                                                                                                                                                               | `storage-seam`                                                 | Rewritten: a rename is a store write                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | open   |
 | Workflow steps commit state with `git`: 23 `chore(arc):` ceremony subject lines in 14 shipped workflows, handoff's `git add <meta>`, the task list riding the code commit, and protection-mode write routing                                                                                                                                                                                          | `storage-cutover`                                              | Rewritten at the flip: every commit stays as today until then, and the flip rewrites each affected step from the consumer map's end states — a commit step that carried only state becomes `arc save` or goes, the ROADMAP hand-render steps and their refresh commits go, a ceremony that also changes tracked files keeps a commit step for them, and the task loop closes through the close verb; each rewrite is checked against `strategy-procedure-evolution.md`                                                                                                                                                                                                                                                                                                                                                                                     | open   |
-| Checkout-removal guards read only `git status` (`isWorktreeClean`: teardown, reconcile, the stale sweep, branch-gone recovery; `lib/errand/terminal-occupancy.ts`; `lib/locus/primary-safety.ts`), so unsynced edits in the gitignored projection are invisible                                                                                                                                       | `storage-projection`                                           | Rewritten: persist or refuse before removing a checkout; the call sites move through `storage-seam`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | open   |
-| Identity-global user files are rooted in the primary worktree, and teardown merges up or refuses a linked worktree's copy (`lib/user-surfaces.ts`, `lib/user-surface-migration.ts`)                                                                                                                                                                                                                   | `storage-projection`                                           | Removed: `storage-contract`'s projection retires the rooting and the migration, which exist only because per-worktree copies diverged                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | open   |
+| Checkout-removal guards read only `git status` (`isWorktreeClean`: teardown, reconcile, the stale sweep, branch-gone recovery, the residue sweep, and the park and abandon guard; `lib/errand/terminal-occupancy.ts`, Errand leave's check among it), so unsynced edits in the gitignored projection are invisible                                                                                    | `storage-projection`                                           | Rewritten: the seam's removal function persists or refuses before removing a checkout, and its removal check — `git status` plus the projection's part — tells a caller that decides or reports a removal whether it would refuse; the seam moves the call sites onto them. `lib/locus/primary-safety.ts`, which also reads only `git status`, decides only whether the primary may host a transient claim, which removes no checkout, and stays as today                                                                                                                                                                                                                                                                                                                                                                                                  | open   |
+| Identity-global user files are rooted in the primary worktree, and teardown merges up or refuses a linked worktree's copy (`lib/user-surfaces.ts`, `lib/user-surface-migration.ts`)                                                                                                                                                                                                                   | `storage-cutover`                                              | Removed at the deletion pass (D15): the projection gives every worktree its own copy, and the rooting and the migration stay as the in-repo implementation's arms until then                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | open   |
 | The per-worktree `active/` isolation invariant and its acceptance test (`strategy-work-organization.md`)                                                                                                                                                                                                                                                                                              | `storage-projection`                                           | Rewritten: the invariant becomes "`active/current/` holds only this checkout's work item", and other in-flight work units project under `active/in-flight/<slug>/` with lifecycle/owner/kind edit rights: the owner edits prose and Errand descriptions from any checkout, meta/task-list edits stay with the owning checkout, and another person's items stay read-only except routing inserts; `storage-cutover` rewrites the doctrine                                                                                                                                                                                                                                                                                                                                                                                                                   | open   |
 | This repository's `.gitignore` ignores `.ignore` (Marksman), against ADR-035's tracked `.ignore`                                                                                                                                                                                                                                                                                                      | `storage-projection`                                           | Removed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | open   |
 | Errand identity refs pushed straight to origin with no remote-tracking namespace, and notes sync's `refs/arc/user/<id>/sync-state`, with the plumbing both share, `lib/git/ref-tree.ts` and `lib/user-sync/cas-retry.ts`; the Errand refs' reader is `lib/errand/identity-snapshot.ts`'s tip, tree, and blob acquisition, with `lib/errand/record.ts`'s in-flight indexes and their fetched variant   | `storage-ref-backend`                                          | Rewritten: Errands become project-scope work items, one ref each at `refs/arc/work/<uid>`, and the Errand branch takes an eight-character UID suffix; grooming and housekeeping claims move to `refs/arc/user/<id>/claims`, and `refs/arc/user/<id>/errands` retires with the move, which re-homes both; the sync-state ref retires with notes; the reader's acquisition moves behind the contract's `list`, `read`, and `sync`, while its consumers keep the absent, unreadable, and complete distinction, per-entry diagnostics, one version as the mutation basis, and refusal to authorize review from incomplete evidence                                                                                                                                                                                                                             | open   |
@@ -343,6 +357,15 @@ registrations, write checks, `anchorFields`, and `HAND_EDIT_VERBS`, which the ba
 its import build on, so implementation starts once it ships; and `seam-locus`'s Errand `owner` field, which the import
 needs before it re-homes Errands, so it lands after that member.
 
+### `store-operation-git-access`
+
+_Exposes:_ fewer Git processes per ref-store call: every public store call holds an operation-owned scope with a shared
+`cat-file --batch` reader and remembered configuration lookups, refreshed at the events that can make them stale. No
+contract change.
+
+_Consumes:_ `storage-ref-backend`, landed. `storage-ref-hardening` consumes it: its keeper-lock and missing-object items
+land on this unit's refresh rules.
+
 ### `storage-ref-hardening`
 
 _Exposes:_ the ref backend with the defects the cutover exercises fixed: the import, fault classes and remedies for
@@ -365,12 +388,6 @@ _Consumes:_ `storage-ref-backend`'s structured push boundary and both physical l
 before first native-Windows adoption, no later than Gate A; implementation may overlap projection after the backend
 lands.
 
-### `storage-projection`
-
-_Exposes:_ the working copy at the familiar `.arc/` paths.
-
-_Consumes:_ the contract's approved interface and the projection behavior it defines.
-
 ### `projected-markdown-checks`
 
 _Exposes:_ ARC's link rules over records, refused where records are written, and their other end over tracked Markdown
@@ -379,12 +396,6 @@ and this repository's Markdown checks and `lint:md:fix` over the selection.
 
 _Consumes:_ `storage-projection`'s selection of the projected Markdown files a checkout may edit, read from its index;
 whichever of the two lands second connects them.
-
-### `storage-cutover`
-
-_Exposes:_ the flipped repository — notes retired, state in the store — then the deletion passes and documentation.
-
-_Consumes:_ every other member, landed.
 
 ## ADR anchors
 

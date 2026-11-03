@@ -27,6 +27,7 @@ import { describe, it, expect } from "vitest";
 
 import { cleanupTempDir, createTempRepo, removeGitBackedDir } from "./helpers.js";
 import { runRound, type WorkerResult } from "./true-race.js";
+import { CALL_LIMIT } from "../helpers/call-limit.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -41,8 +42,11 @@ const SYNC_STATE_REF = `refs/arc/user/${IDENTITY}/sync-state`;
 const ERRANDS_REF = `refs/arc/user/${IDENTITY}/errands`;
 const NOTES_REF = `refs/notes/arc/user/${IDENTITY}`;
 
-/** Per-it budget — generous for cold `tsx` start-up across rounds × racers. */
-const SMOKE_TIMEOUT_MS = 60_000;
+/**
+ * Per-it budget: each round's cold-started `tsx` racers get one child-process call's limit, plus one for setup, since
+ * the racers carry no limit of their own.
+ */
+const SMOKE_TIMEOUT_MS = (ROUNDS + 1) * CALL_LIMIT;
 
 /** Assert every worker in a round exited cleanly, surfacing stderr on failure. */
 function expectAllOk(results: WorkerResult[], round: number): void {

@@ -1,6 +1,7 @@
 /** Source and settlement invariants for one durable lane attempt. */
 
 import { z } from "zod";
+import { FrontlineAdmissionSchema } from "./frontline-admission.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 import { validateReviewRequirement, validateReviewTarget } from "./gate-contract-v2.js";
 import { HostedProviderIdSchema, hostedLaneAttemptId, hostedRequestHandleMatchesProgress } from "../hosted/request.js";
@@ -68,6 +69,9 @@ function validateSourceBinding(attempt: LaneAttempt, context: z.RefinementCtx): 
     });
   }
   const frontline = attempt.frontline;
+  if (frontline !== undefined && attempt.outcome === "pending" && !FrontlineAdmissionSchema.safeParse(frontline.admission).success) {
+    context.addIssue({ code: "custom", path: ["frontline"], message: "pending frontline execution requires its executable admission" });
+  }
   if (!frontlineMatchesAdmission(attempt)) {
     context.addIssue({
       code: "custom",

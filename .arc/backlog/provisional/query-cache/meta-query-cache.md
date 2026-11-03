@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
 
 - **Cohort:** [none]
-- **Depends On:** `storage-cutover`
+- **Depends On:** `cutover-flip`
 
 - **Origin:** [internal] — minted provisional at `storage-contract`'s draft close (2026-09-30), deferred behind
   a tripwire

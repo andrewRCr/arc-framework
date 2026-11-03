@@ -1,5 +1,5 @@
 /** Handed duration files survive restoration and writer artifacts merge by complete membership. */
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
@@ -75,5 +75,27 @@ it("updates a handed input from partial writers instead of replacing it", () => 
     expect(readFileSync(join(output, "e2e.json"), "utf8")).toBe("");
     expect(JSON.parse(readFileSync(join(output, "integration.json"), "utf8")).results.map(([key]: [string]) => key))
       .toEqual(["integration:a.test.ts", "integration:store-ref-a.test.ts"]);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+it("merges one platform's portability shards into its portability file, ignoring their other measurements", () => {
+  const root = mkdtempSync(join(tmpdir(), "duration-merge-"));
+  try {
+    for (const [shard, path] of [[1, "a.test.ts"], [2, "b.test.ts"]] as const) {
+      const artifact = join(root, "download", `portability-results-Windows-${shard}`);
+      const directory = join(artifact, "node_modules", ".vite", "vitest", "hash");
+      mkdirSync(directory, { recursive: true });
+      writeFileSync(join(directory, "results.json"), JSON.stringify({ version: "4.1.8", results: [
+        [`integration:${path}`, { duration: 600_000, failed: false }],
+      ] }));
+      writeFileSync(join(artifact, "store-timing.json"), "{}");
+    }
+    const output = join(root, "output");
+    mergeDurationArtifacts(join(root, "download"), output);
+    expect(readdirSync(output)).toEqual(["portability.json"]);
+    expect(JSON.parse(readFileSync(join(output, "portability.json"), "utf8"))).toEqual({ version: "4.1.8", results: [
+      ["integration:a.test.ts", { duration: 600_000, failed: false }],
+      ["integration:b.test.ts", { duration: 600_000, failed: false }],
+    ] });
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

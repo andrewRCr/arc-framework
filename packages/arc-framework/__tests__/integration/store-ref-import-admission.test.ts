@@ -2,10 +2,12 @@
 import { mkdir, writeFile, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { MigrateReportSchema, createKindRegistry } from "../../src/lib/store/index.js";
+import { MigrateReportSchema, RecordReferenceSchema, createKindRegistry } from "../../src/lib/store/index.js";
 import { importFixture, saveImportPersonal } from "../helpers/store/import-fixture.js";
 import { resolveArcPath } from "../../src/lib/layout/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
+import { success } from "../helpers/store/suite-tools.js";
+import { createRefStore } from "../../src/lib/store/create.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 
 const candidate = resolveArcPath({ kind: "candidate-record", slug: SlugSchema.parse("alpha") });
@@ -49,9 +51,23 @@ describe("import serialization admission", () => {
     }
     expect(await h.migrate()).toMatchObject({ status: "ok" });
   });
+  it("imports unanchored bold-colon memory body text without inventing entries", async () => {
+    const h = await importFixture();
+    const path = join(h.root, ".arc/user/andrew/WORKING-MEMORY.md");
+    const content = "# Working Memory\n\n## Memories\n\n**Remember this:**\n\nDetails\n";
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, content);
+    await saveImportPersonal(h.root, false);
+    const trial = await h.migrate(true);
+    expect(trial.status, JSON.stringify(trial)).toBe("ok");
+    if (trial.status !== "ok") throw new Error("No trial report");
+    expect(MigrateReportSchema.parse(trial.result).refused).toEqual([]);
+    expect(await h.migrate()).toMatchObject({ status: "ok" });
+    const reference = RecordReferenceSchema.parse({ kind: "personal/working-memory", owner: { type: "person", name: "andrew" } });
+    expect(success(await createRefStore(h.ports).read({ reference })).content).toBe(content);
+  });
   it.each([
     { defect: "companion alias", rule: "key", path: ".arc/active/errand-alpha.md", content: "Companion content\n", repairPath: ".arc/active/extra-alpha.md" },
-    { defect: "unstampable memory", rule: "entry-id", path: ".arc/user/andrew/WORKING-MEMORY.md", content: "# Working Memory\n\n## Memories\n\n**Remember this:**\n\nDetails\n", fixed: "# Working Memory\n\n## Memories\n\n**Remember this:**\n_Remove when:_ complete.\n\nDetails\n" },
     { defect: "repeated entry ID", rule: "entry-id", path: ".arc/user/andrew/WORKING-MEMORY.md", content: "# Working Memory\n\n## Memories\n\n**First:**\n_Remove when:_ complete.\n_Id:_ `11111111`\n\nDetails\n\n**Second:**\n_Remove when:_ complete.\n_Id:_ `11111111`\n\nDetails\n", fixed: "# Working Memory\n\n## Memories\n\n**First:**\n_Remove when:_ complete.\n\nDetails\n" },
   ])("refuses $defect until repaired", async ({ rule, path, content, repairPath, fixed }) => {
     const h = await importFixture();
@@ -62,7 +78,7 @@ describe("import serialization admission", () => {
     expect(trial.status, JSON.stringify(trial)).toBe("ok");
     if (trial.status !== "ok") throw new Error("No trial report");
     expect(MigrateReportSchema.parse(trial.result).refused).toEqual(expect.arrayContaining([expect.objectContaining({ rule })]));
-    const cause = rule === "key" ? "errand" : path.endsWith("WORKING-MEMORY.md") && content.includes("11111111") ? "11111111" : "removal trigger";
+    const cause = rule === "key" ? "errand" : "11111111";
     expect(trial.result.notices).toEqual(expect.arrayContaining([expect.objectContaining({
       condition: expect.stringContaining(cause), remedy: { text: expect.any(String) },
     })]));

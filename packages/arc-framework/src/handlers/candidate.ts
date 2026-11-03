@@ -19,6 +19,17 @@ import {
 } from "../lib/delivery/review-vehicle.js";
 import { deliveryReviewFixRecordDigest } from "../lib/delivery/review-fix-record-effects.js";
 import { createGitExec, createRawGitExec } from "../lib/io-context.js";
+import { createStore } from "../lib/store/create.js";
+import type { Store } from "../lib/store/contract.js";
+import type { GitExec } from "../lib/git/exec.js";
+import { createDefaultStorePorts } from "../lib/store/default-store-ports.js";
+import { retryEndedItemHistory } from "../lib/store/history-retry.js";
+import { ProjectIdentityError } from "../lib/store/project-identity.js";
+import { isNativeTypedRefusal } from "../lib/store/native-refusal.js";
+import { ReviewOwnerSelectionError } from "../lib/store/kinds/review/errors.js";
+import { reviewFailureSpineRemedy } from "../scripts/review-gate/runtime/project-identity-remedy.js";
+import type { ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
+import { resolveCandidateRecordRelativePath } from "../lib/store/kinds/review/paths.js";
 import { SlugSchema } from "../lib/kernel/schema/slug.js";
 import {
   CandidateApplicabilityResolutionInputSchema,
@@ -28,9 +39,8 @@ import {
 import {
   CandidateRecordVersionConflictError,
   readCandidateRecordVersioned,
-  resolveCandidateRecordRelativePath,
   writeCandidateRecord,
-} from "../lib/work-unit/candidate-record-store.js";
+} from "../lib/store/kinds/review/candidate/access.js";
 import { projectGitCandidateApplicability } from "../lib/work-unit/git-candidate-applicability.js";
 import { readGitCandidateTargetBase } from "../lib/work-unit/git-candidate-effective-target.js";
 import {
@@ -57,6 +67,9 @@ import {
   type SpineRemedy,
 } from "../scripts/integration/spine-refusal.js";
 import {
+  resolveCandidateMutationGeneration,
+  ownedCheckout,
+  type OwnedCandidateCheckout,
   resolveCandidateMutationOwner,
   resolveCompletedCandidateWorkUnits,
 } from "./candidate-mutation-owner.js";
@@ -130,16 +143,32 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+// The generation an applicability resolution writes: the owning checkout's own by its marker's UID or a completed
+// checkout's branch, else the slug's.
+function resolveApplicabilityGeneration(store: Store, input: { root: string; name: string;
+  input: CandidateApplicabilityCommandInput; scope: CandidateMutationScope; invocation?: ReviewInvocationInput;
+  checkout?: OwnedCandidateCheckout }) {
+  const candidateId = "kind" in input.input ? input.input.offer.candidateId : input.input.candidateId;
+  return resolveCandidateMutationGeneration(store, input.name, input.scope, { cwd: input.root, candidateId },
+    input.invocation?.workItem, input.checkout === undefined ? undefined
+      : { ...input.checkout, projectId: input.invocation?.projectId });
+}
+
 async function executeCandidateApplicabilityResolution(
   root: string,
   name: string,
   input: CandidateApplicabilityCommandInput,
   interaction: InteractionContext | undefined,
   requireMutationOwner: () => Promise<void>,
+  invocation?: ReviewInvocationInput,
+  scope: CandidateMutationScope = "owned",
+  checkout?: OwnedCandidateCheckout,
 ): Promise<CandidateApplicabilityCommandResult> {
   const { settings } = await readConfigSettings(root);
   const baseBranch = settings["branch.base"];
-  const git = createGitExec(interaction?.subprocess);
+  const git = invocation?.exec ?? createGitExec(interaction?.subprocess);
+  const store = retryEndedItemHistory(invocation?.store ?? createStore(createDefaultStorePorts({ checkoutRoot: root, exec: git })));
+  const owner = await resolveApplicabilityGeneration(store, { root, name, input, scope, invocation, checkout });
   const rawGit = createRawGitExec(root);
   const readObjectId = async (expression: string): Promise<string> => (
     await git("git", ["rev-parse", "--verify", expression], {
@@ -176,7 +205,7 @@ async function executeCandidateApplicabilityResolution(
   ): Promise<"written" | "version-conflict"> => {
     await requireMutationOwner();
     try {
-      await writeCandidateRecord(root, name, record, expectedVersion);
+      await writeCandidateRecord(root, name, record, expectedVersion, { store, owner });
       return "written";
     } catch (error) {
       if (error instanceof CandidateRecordVersionConflictError) return "version-conflict";
@@ -192,7 +221,7 @@ async function executeCandidateApplicabilityResolution(
     const requests = reviewApplicabilityResolutionInputsFromCommand(input);
     const memberLookup = new RepositoryDeliveryMemberLookup({ cwd: root, exec: git });
     const context = {
-      readRecord: () => readCandidateRecordVersioned(root, name),
+      readRecord: () => readCandidateRecordVersioned(root, name, { store, owner }),
       projectApplicability: (selector: ReviewApplicabilityResolutionInput["selector"]) => (
         projectGitReviewContributionApplicability({
           selector,
@@ -234,7 +263,7 @@ async function executeCandidateApplicabilityResolution(
       : await resolveReviewApplicabilityBatch(context, requests);
   } else {
     resolution = await resolveCandidateApplicability({
-      readRecord: () => readCandidateRecordVersioned(root, name),
+      readRecord: () => readCandidateRecordVersioned(root, name, { store, owner }),
       currentTarget,
       currentBase,
       projectApplicability: (request) => projectGitCandidateApplicability({
@@ -255,7 +284,7 @@ async function executeCandidateApplicabilityResolution(
   const stagesSelection = resolution.mode === "candidate-applicability-resolve"
     ? resolution.nextAction === "continue"
     : resolution.nextAction === "continue" || resolution.nextAction === "request-review";
-  if (!stagesSelection) return resolution;
+  if (!stagesSelection || store.capabilities.stateOffBranch) return resolution;
   const recordPath = resolveCandidateRecordRelativePath(name);
   await requireMutationOwner();
   await git("git", ["add", "--", recordPath], { cwd: root });
@@ -291,21 +320,33 @@ export interface CandidateApplicabilityResolveHandlerDependencies {
     input: CandidateApplicabilityCommandInput,
     interaction: InteractionContext | undefined,
     requireMutationOwner: () => Promise<void>,
+    scope?: CandidateMutationScope,
+    /** What the owning checkout carries to select its own generation: its marker's UID, a completed one's branch. */
+    checkout?: OwnedCandidateCheckout,
   ): Promise<unknown>;
   write(text: string): void;
   setExitCode(code: number): void;
 }
 
-function defaultDependencies(): CandidateApplicabilityResolveHandlerDependencies {
+function defaultDependencies(invocation?: ReviewInvocationInput): CandidateApplicabilityResolveHandlerDependencies {
+  let opened: Store | undefined;
+  const storeFor = (root: string, exec: GitExec): Store =>
+    invocation?.store ?? (opened ??= createStore(createDefaultStorePorts({ checkoutRoot: root, exec })));
+  const execFor = (interaction?: InteractionContext) => invocation?.exec ?? createGitExec(interaction?.subprocess);
   return {
-    resolveRoot: () => requireArcProjectRoot(),
+    resolveRoot: () => invocation?.cwd ?? requireArcProjectRoot(),
     resolveMutationOwner: (root, interaction) => resolveCandidateMutationOwner({
       cwd: root,
-      exec: createGitExec(interaction?.subprocess),
+      ...invocation,
+      exec: execFor(interaction),
+      store: storeFor(root, execFor(interaction)),
     }),
-    resolveCompletedWorkUnits: resolveCompletedCandidateWorkUnits,
+    resolveCompletedWorkUnits: root => resolveCompletedCandidateWorkUnits(root, storeFor(root, execFor())),
     readText: (source) => source === "-" ? readStdin() : readFile(source, "utf8"),
-    execute: executeCandidateApplicabilityResolution,
+    execute: (root, name, input, interaction, requireMutationOwner, scope, checkout) =>
+      executeCandidateApplicabilityResolution(root, name, input, interaction, requireMutationOwner,
+        { ...invocation, cwd: root, exec: execFor(interaction), store: storeFor(root, execFor(interaction)) }, scope,
+        checkout),
     write: (text) => process.stdout.write(text),
     setExitCode: (code) => { process.exitCode = code; },
   };
@@ -341,7 +382,7 @@ function uncollectableSubjectRemedy(workUnit: string): SpineRemedy {
  * @param workUnit - The work unit whose resolution stopped.
  * @returns The closed execution-unavailable result.
  */
-function executionFailedResult(error: unknown, workUnit: string): CandidateApplicabilityCommandResult {
+function executionFailedResult(error: unknown, workUnit: string, request: unknown): CandidateApplicabilityCommandResult {
   return CandidateApplicabilityResolutionResultSchema.parse({
     schemaVersion: 1,
     mode: "candidate-applicability-resolve",
@@ -350,8 +391,17 @@ function executionFailedResult(error: unknown, workUnit: string): CandidateAppli
     reason: "execution-failed",
     ...(error instanceof CandidateSubjectUncollectableError
       ? { detail: error.message, remedy: uncollectableSubjectRemedy(workUnit) }
-      : {}),
+      : nativeRefusalDetail(error, workUnit, request)),
   });
+}
+
+// A store keeping state off the branch refuses with its own cause and repair; an in-repo failure stays closed as before.
+function nativeRefusalDetail(error: unknown, workUnit: string, request: unknown): { detail?: string; remedy?: SpineRemedy } {
+  const refusal = !isNativeTypedRefusal(error) ? undefined
+    : error instanceof ProjectIdentityError ? { condition: error.failure.reason, remedy: error.failure.remedy }
+    : error instanceof ReviewOwnerSelectionError ? error : error.refusal;
+  return refusal === undefined ? {} : { detail: refusal.condition.slice(0, 4_096), remedy: reviewFailureSpineRemedy(
+    refusal.condition, refusal.remedy, ["arc", "candidate", "applicability", "resolve", workUnit, "-"], request) };
 }
 
 function emit(
@@ -363,29 +413,32 @@ function emit(
 }
 
 type CandidateMutationRefusal = "active-work-unit-mismatch" | "active-work-unit-unavailable";
+type CandidateMutationScope = "owned" | "unowned";
 
-async function resolveCandidateMutationRefusal(
+async function resolveCandidateMutationScope(
   deps: CandidateApplicabilityResolveHandlerDependencies,
   root: string,
   workUnit: string,
   interaction?: InteractionContext,
-): Promise<CandidateMutationRefusal | null> {
+): Promise<{ refusal: CandidateMutationRefusal; cause?: unknown }
+  | { scope: CandidateMutationScope; checkout?: OwnedCandidateCheckout }> {
   let owner: CandidateMutationOwner;
   try {
     owner = await deps.resolveMutationOwner(root, interaction);
-  } catch {
-    return "active-work-unit-unavailable";
+  } catch (error) {
+    return { refusal: "active-work-unit-unavailable", cause: error };
   }
-  if (owner.status === "unavailable") return "active-work-unit-unavailable";
+  if (owner.status === "unavailable") return { refusal: "active-work-unit-unavailable" };
   if (owner.status === "owned") {
-    return owner.workUnit === workUnit ? null : "active-work-unit-mismatch";
+    if (owner.workUnit !== workUnit) return { refusal: "active-work-unit-mismatch" };
+    return { scope: "owned", checkout: ownedCheckout(owner) };
   }
   try {
     return (await deps.resolveCompletedWorkUnits(root)).includes(workUnit)
-      ? null
-      : "active-work-unit-mismatch";
-  } catch {
-    return "active-work-unit-unavailable";
+      ? { scope: "unowned" }
+      : { refusal: "active-work-unit-mismatch" };
+  } catch (error) {
+    return { refusal: "active-work-unit-unavailable", cause: error };
   }
 }
 
@@ -395,8 +448,9 @@ export async function handleCandidateApplicabilityResolve(
   input: string,
   interaction?: InteractionContext,
   overrides: Partial<CandidateApplicabilityResolveHandlerDependencies> = {},
+  invocation?: ReviewInvocationInput,
 ): Promise<void> {
-  const deps = { ...defaultDependencies(), ...overrides };
+  const deps = { ...defaultDependencies(invocation), ...overrides };
   const commandInput = CandidateApplicabilityResolveCommandInputSchema.safeParse({ name, input });
   if (!commandInput.success) {
     emit(deps, CandidateApplicabilityResolutionResultSchema.parse({
@@ -432,30 +486,33 @@ export async function handleCandidateApplicabilityResolve(
     }));
     return;
   }
-  const mutationRefusal = await resolveCandidateMutationRefusal(
+  const mutation = await resolveCandidateMutationScope(
     deps,
     root,
     commandInput.data.name,
     interaction,
   );
-  if (mutationRefusal !== null) {
+  if ("refusal" in mutation) {
     emit(deps, CandidateApplicabilityResolutionResultSchema.parse({
       schemaVersion: 1,
       mode: "candidate-applicability-resolve",
       state: "execution-unavailable",
       nextAction: "stop",
-      reason: mutationRefusal,
+      reason: mutation.refusal,
+      ...nativeRefusalDetail(mutation.cause, commandInput.data.name, request),
     }));
     return;
   }
   const requireMutationOwner = async (): Promise<void> => {
-    const refusal = await resolveCandidateMutationRefusal(
+    const current = await resolveCandidateMutationScope(
       deps,
       root,
       commandInput.data.name,
       interaction,
     );
-    if (refusal !== null) throw new Error(`Candidate mutation refused: ${refusal}`);
+    if ("refusal" in current) {
+      throw current.cause instanceof Error ? current.cause : new Error(`Candidate mutation refused: ${current.refusal}`);
+    }
   };
   let executed: unknown;
   try {
@@ -465,9 +522,11 @@ export async function handleCandidateApplicabilityResolve(
       request,
       interaction,
       requireMutationOwner,
+      mutation.scope,
+      mutation.checkout,
     );
   } catch (error) {
-    emit(deps, executionFailedResult(error, commandInput.data.name));
+    emit(deps, executionFailedResult(error, commandInput.data.name, request));
     return;
   }
   const parsed = CandidateApplicabilityCommandResultSchema.safeParse(executed);

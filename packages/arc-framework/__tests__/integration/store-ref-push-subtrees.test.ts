@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
+import { withOpaqueReview } from "../helpers/store/opaque-review.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { plantRef, type PlantTreeEntry } from "../helpers/store/ref-plant.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
@@ -13,7 +14,7 @@ const provenance = { verb: "user", lifecycleAction: "save" };
 const status = (result: PushResult, family: "review" | "lineage") => result.publishes.find((outcome) => outcome.families.includes(family))?.status;
 
 async function seedSubtrees(layout: "default" | "separate") {
-  const h = await refSyncFixture(layout);
+  const h = withOpaqueReview(await refSyncFixture(layout));
   const requested = RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } });
   const primary = success(await h.a.store.write({ action: "put", reference: requested, expected: null,
     content: makeMetaFixture("alpha"), placement: { kind: "active" }, provenance }));
@@ -72,7 +73,7 @@ describe.each(["default", "separate"] as const)("subtree publication outcomes in
     expect(status(imported, "review")).toBe("reconciled"); expect(status(imported, "lineage")).toBe("reconciled");
   });
   it("attributes a quarter-only pull to its archived work, cohort, and review records", async () => {
-    const h = await refSyncFixture(layout), quarter = ArchiveQuarterSchema.parse("2026-q4");
+    const h = withOpaqueReview(await refSyncFixture(layout)), quarter = ArchiveQuarterSchema.parse("2026-q4");
     const requested = RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } });
     const primary = success(await h.a.store.write({ action: "put", reference: requested, expected: null,
       content: makeMetaFixture("alpha"), placement: { kind: "active" }, provenance }));

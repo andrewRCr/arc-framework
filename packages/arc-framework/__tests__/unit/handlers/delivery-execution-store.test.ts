@@ -1,0 +1,165 @@
+/** Production review-fix continuation reads native lifecycle records without projected files. */
+import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
+import { expect, it, onTestFinished, vi } from "vitest";
+import { handleDeliveryExecution } from "../../../src/handlers/delivery-execution.js";
+import { ArchiveQuarterSchema } from "../../../src/lib/kernel/index.js";
+import { recordPut } from "../../../src/lib/store/lifecycle-write.js";
+import { writeMetaTaskList } from "../../../src/lib/store/kinds/meta/writers.js";
+import { lifecycleSuccess } from "../../helpers/store/lifecycle-harness.js";
+import { recordReferences } from "../../../src/lib/store/identity.js";
+import { createReviewHarness } from "../../helpers/store/review-harness.js";
+import { createReviewCheckout } from "../../helpers/store/review-checkout.js";
+import type { Store } from "../../../src/lib/store/contract.js";
+import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
+import { bindDeliveryWorkItem } from "../../../src/handlers/delivery-review-fix-entry.js";
+import { ReviewOwnerSelectionError } from "../../../src/lib/store/kinds/review/errors.js";
+import { nativeRefusalText } from "../../../src/lib/store/native-refusal.js";
+import { readStoredDeliveryEntryInput } from "../../../src/lib/store/delivery-entry-input.js";
+import type { ReviewInvocationContext } from "../../../src/scripts/review-gate/runtime/invocation.js";
+
+async function captureExecutionOutput(run: (write: (text: string) => void) => Promise<void>): Promise<unknown> {
+  let output = "";
+  const previousExitCode = process.exitCode;
+  const write = (text: string) => { output += text; };
+  const stdout = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { write(String(chunk)); return true; });
+  try { await run(write); }
+  finally { stdout.mockRestore(); process.exitCode = previousExitCode; }
+  return JSON.parse(output) as unknown;
+}
+
+async function fixture(state: "Active" | "Shipped", binding: string | null = "tasks-example.md", storedTasks = true,
+  liveNamesake = false, checkoutBranch: string | null = "feat/example", identity = { configured: true }) {
+  const h = createReviewHarness();
+  const projectId = "123e4567-e89b-42d3-a456-426614174099";
+  await h.seedProject(projectId);
+  const primary = await h.seedMeta("example", { state, owner: "test-user", taskList: binding,
+    currentWorkflow: state === "Active" ? "process-task-loop" : null }, state === "Active" ? { kind: "active" }
+    : { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+  { branches: [{ repository: projectId, ref: "feat/example", linkedAs: "created", excluded: [] }] });
+  if (liveNamesake) await h.seedMeta("example", { owner: "test-user", taskList: "tasks-example.md" }, { kind: "active" },
+    { branches: [{ repository: projectId, ref: "feat/example-next", linkedAs: "created", excluded: [] }] });
+  const seedTasks = () => h.seed(recordReferences["work-item/task-list"](primary.reference.owner),
+    `# Task List: example\n\n## **Phase 1:** Build\n\n### \`[${state === "Shipped" ? "x" : " "}]\` **1.1 Build**\n`);
+  if (storedTasks) await seedTasks();
+  const checkout = await createReviewCheckout(h, { script: [
+    { match: ["config", "--null", "--get", "arc.identity"], responses: [() => identity.configured
+      ? { stdout: "test-user\0" } : { failure: { exitCode: 1 } }] },
+    { match: ["config", "--get", "user.name"], responses: [{ failure: { exitCode: 1 } }] },
+    { match: ["diff", "--cached", "--name-only", "-z", "--"], responses: [{ stdout: "" }] },
+    { match: ["rev-parse", "--verify", "--quiet", "origin/main"], responses: [{ stdout: "b".repeat(40) }] },
+    { match: ["cherry", "b".repeat(40), "a".repeat(40)], responses: [{ stdout: `+ ${"a".repeat(40)}\n` }] },
+    { match: ["symbolic-ref", "--quiet", "--short", "HEAD"], responses: [checkoutBranch === null
+      ? { failure: { exitCode: 1 } } : { stdout: checkoutBranch }] },
+  ] });
+  onTestFinished(checkout.cleanup);
+  await checkout.occupy(checkoutBranch, boundWorkUnitSubject(primary));
+  return { ...checkout, primary, seedTasks, run: (store: Store = checkout.store) => captureExecutionOutput(write =>
+    handleDeliveryExecution("review-fix-continue", { input: "-" }, undefined, {
+      readText: async () => JSON.stringify({ repository: "owner/repository" }),
+      write, setExitCode: () => {},
+    }, { ...checkout, store })) };
+}
+it.each(["Active", "Shipped"] as const)("continues a %s work unit from its stored tasks without projected files", async state => {
+  const h = await fixture(state);
+  const result = await h.run();
+  expect(result, JSON.stringify(result)).toMatchObject({ status: "idle", nextAction: "continue-work-unit" });
+});
+
+it("continues a Shipped work unit from its own checkout while a live work unit reuses its name", async () => {
+  const h = await fixture("Shipped", "tasks-example.md", true, true);
+  const result = await h.run();
+  expect(result, JSON.stringify(result)).toMatchObject({ status: "idle", nextAction: "continue-work-unit" });
+});
+
+it.each(["fix/example-correction", null])(
+  "binds delivery to the generation its checkout's marker names on branch %s, beside a live namesake", async branch => {
+    const h = await fixture("Shipped", "tasks-example.md", true, true, branch);
+    const invocation: ReviewInvocationContext = { store: h.store, projectId: h.projectId };
+    await bindDeliveryWorkItem(h.cwd, h.exec, invocation, "example");
+    expect(invocation.workItem).toEqual(h.primary.reference.owner);
+  });
+
+it("refuses an unbound delivery's owner typed without arc.identity, naming how to set it, and binds once set", async () => {
+  const identity = { configured: false };
+  const h = await fixture("Shipped", "tasks-example.md", true, true, "fix/example-correction", identity);
+  const invocation: ReviewInvocationContext = { store: h.store, projectId: h.projectId };
+  const refusal = await bindDeliveryWorkItem(h.cwd, h.exec, invocation, "example").then(() => null, (error: unknown) => error);
+  expect(refusal).toBeInstanceOf(ReviewOwnerSelectionError);
+  expect(refusal).toMatchObject({ code: "invalid-input",
+    remedy: { argv: ["git", "config", "--local", "arc.identity", "<identity>"] } });
+  expect(nativeRefusalText(refusal)).toContain("git config --local arc.identity '<identity>'");
+  expect(invocation.workItem).toBeUndefined();
+  identity.configured = true;
+  await bindDeliveryWorkItem(h.cwd, h.exec, invocation, "example");
+  expect(invocation.workItem).toEqual(h.primary.reference.owner);
+});
+
+it("refuses a missing metadata task binding without writes and continues after repair", async () => {
+  const h = await fixture("Active", null);
+  const version = lifecycleSuccess(await h.store.version());
+  const missing = await readStoredDeliveryEntryInput(h.store, "example", h.primary.reference.owner);
+  if (missing.status !== "refused") throw new Error("Expected the missing task binding to refuse.");
+  expect(await h.run()).toMatchObject({ status: "rejected", reason: missing.refusal.condition, refusal: missing.refusal });
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.primary, { content: writeMetaTaskList(h.primary.content, "tasks-example.md") }),
+    provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  expect(await h.run()).toMatchObject({ status: "idle", nextAction: "continue-work-unit" });
+});
+it("refuses an archived owner with no task kind and continues after restoration", async () => {
+  const h = await fixture("Shipped", "tasks-example.md", false);
+  const version = lifecycleSuccess(await h.store.version());
+  const missing = await h.store.read({ reference: recordReferences["work-item/task-list"](h.primary.reference.owner) });
+  if (missing.status !== "refused") throw new Error("Expected the missing task list to refuse.");
+  expect(await h.run()).toMatchObject({ status: "rejected", reason: missing.refusal.condition, refusal: missing.refusal });
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
+  await h.seedTasks();
+  expect(await h.run()).toMatchObject({ status: "idle", nextAction: "continue-work-unit" });
+});
+
+/** A store whose review family listing cannot be read until repaired. */
+function unreadableReviewListing(store: Store) {
+  let unreadable = true;
+  const refusing = Object.create(store) as Store;
+  refusing.list = async input => unreadable && input.family === "review" ? { status: "ok", result: { status: "unreadable",
+    condition: "The review family index cannot be read.", remedy: { text: "Restore the review family index, then retry.",
+      argv: ["git", "fetch", "origin", "refs/arc/project/review"] } } }
+    : store.list(input);
+  return { store: refusing, repair: () => { unreadable = false; } };
+}
+
+it("names a refused review-response listing's own remedy on a closed task list, and continues once it reads", async () => {
+  const h = await fixture("Shipped");
+  const { store, repair } = unreadableReviewListing(h.store);
+  expect(await h.run(store)).toMatchObject({ status: "refused", reason: "review-fix-response-unavailable",
+    recommendedActionText: expect.stringContaining("git fetch origin refs/arc/project/review") });
+  repair();
+  expect(await h.run(store)).toMatchObject({ status: "idle", nextAction: "continue-work-unit" });
+});
+
+it("names a native refusal escaping execution with its own remedy, and emits the route once the store is repaired", async () => {
+  const refusal = nativeListingRefusal();
+  const route = { status: "idle", nextAction: "continue-work-unit", recommendedActionText: "Continue the work unit." };
+  const execute = vi.fn().mockRejectedValueOnce(refusal).mockResolvedValueOnce(route);
+  const run = () => captureExecutionOutput(write =>
+    handleDeliveryExecution("review-fix-continue", { input: "-" }, undefined, {
+      readText: async () => JSON.stringify({ repository: "owner/repository" }), execute,
+      write, setExitCode: () => {},
+    }));
+  expect(await run()).toMatchObject({ status: "rejected", reason: refusal.refusal.condition, refusal: refusal.refusal });
+  expect(await run()).toMatchObject(route);
+});
+
+it("names the store's refusal resolving the review-fix work unit's branch, and continues once it reads", async () => {
+  const h = await fixture("Active");
+  let refusing = true, primaryReads = 0;
+  const refusal = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [],
+    condition: "The work unit's primary record objects are missing.", remedy: { text: "Fetch the missing objects, then retry." } };
+  const store = Object.create(h.store) as Store;
+  // The occupancy resolver reads the claimed primary first; the branch read is the second.
+  store.read = async input => refusing && input.reference.kind === "work-item/meta" && ++primaryReads % 2 === 0
+    ? { status: "refused", refusal: { ...refusal, reference: input.reference } } : h.store.read(input);
+  expect(await h.run(store)).toMatchObject({ status: "rejected", reason: refusal.condition,
+    refusal: { ...refusal, reference: h.primary.reference } });
+  refusing = false;
+  expect(await h.run(store)).toMatchObject({ status: "idle", nextAction: "continue-work-unit" });
+});

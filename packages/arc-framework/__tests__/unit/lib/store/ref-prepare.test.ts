@@ -46,13 +46,16 @@ describe("ref content admission before I/O", () => {
         condition: expect.stringContaining("1234abcd"), remedy: { text: expect.stringContaining("ID") } } });
     }
   });
-  it("names a field-header entry missing its removal trigger before consulting a port", async () => {
+  it("does not treat unanchored bold-colon body text as an entry during preflight", async () => {
     const reference = RecordReferenceSchema.parse({ owner: { type: "person", name: "test-user" }, kind: "personal/working-memory" });
     for (const suffix of ["body", "_Id:_ `1234abcd`\nbody", "<!-- _Remove when:_ example -->\nbody"]) {
       const mutation = { action: "put" as const, reference, expected: null, content: `## Memories\n\n**Memory:**\n${suffix}\n` };
       const store = createPreflightRefStore();
-      expect(await store.write({ ...mutation, provenance })).toMatchObject({ status: "refused", refusal: { code: "record-malformed", reference,
-        condition: expect.stringContaining("Memory"), remedy: { text: expect.stringContaining("Remove when") } } });
+      // Passing content admission reaches the first deliberately unavailable I/O port.
+      for (const operation of ["write", "batch"] as const) {
+        const result = operation === "write" ? store.write({ ...mutation, provenance }) : store.batch({ writes: [mutation], provenance });
+        await expect(result).rejects.toThrow("Admission consulted an I/O port");
+      }
     }
   });
 });

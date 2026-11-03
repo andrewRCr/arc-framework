@@ -31,6 +31,8 @@ import {
 } from "./meta-schema.js";
 import { SlugSchema, type Slug } from "../kernel/schema/slug.js";
 import { WorkUnitStateSchema } from "../kernel/index.js";
+import type { Store } from "../store/contract.js";
+import type { OwnerIdentity } from "../store/identity.js";
 import { writePreformattedMetaBullet } from "../store/kinds/meta/preformatted-writer.js";
 import {
   writeMetaState, writeMetaBranch, writeMetaClass, writeMetaTitle,
@@ -53,6 +55,8 @@ const META_PREFIX = "meta-";
 const FULL_SUFFIX = ".md";
 
 export interface ReadActiveCandidatesOptions {
+  /** Retain the invocation's operational authority for checkout-held records. */
+  store?: Store;
   /**
    * Active dir relative to `cwd` as path segments. Defaults to `[".arc", "active"]`.
    * Contributor flow uses `[".arc", "user", identity, "active"]`.
@@ -64,6 +68,8 @@ export interface ReaderResult {
   layout: ActiveLayout;
   candidates: MetaFileCandidate[];
   warnings: string[];
+  /** Native generation identities, kept outside the serialized candidate fields. */
+  owners?: ReadonlyMap<string, OwnerIdentity>;
 }
 
 /**
@@ -95,7 +101,7 @@ export async function readActiveMetaCandidates(
     // Swallow — handled below as a warning.
   }
 
-  if (activeDir === join(cwd, ...DEFAULT_ROOT_SEGMENTS)) return readHeldCandidates(cwd,
+  if (activeDir === join(cwd, ...DEFAULT_ROOT_SEGMENTS)) return readHeldCandidates(cwd, options?.store,
     exists ? undefined : `${rootDisplay} not found — no active work units to enumerate.`);
 
   if (!exists) {
@@ -189,11 +195,11 @@ function candidateFromContent(cwd: string, absPath: string, content: string, war
   };
 }
 
-async function readHeldCandidates(cwd: string, missingRootWarning?: string): Promise<ReaderResult> {
+async function readHeldCandidates(cwd: string, selectedStore?: Store, missingRootWarning?: string): Promise<ReaderResult> {
   const [{ resolveCurrentWorkUnit }, { createStore }, { createDefaultStorePorts }] = await Promise.all([
     import("../store/current-work-unit.js"), import("../store/create.js"), import("../store/default-ports.js"),
   ]);
-  const store = createStore(createDefaultStorePorts({ checkoutRoot: cwd }));
+  const store = selectedStore ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd }));
   if (missingRootWarning !== undefined && !store.capabilities.stateOffBranch) return {
     layout: "full", candidates: [], warnings: [missingRootWarning],
   };
@@ -201,6 +207,7 @@ async function readHeldCandidates(cwd: string, missingRootWarning?: string): Pro
   const warnings = [...resolved.warnings];
   if (resolved.status === "unbound") warnings.push(resolved.unbound.reason);
   const candidates: MetaFileCandidate[] = [];
+  const owners = new Map<string, OwnerIdentity>();
   for (const current of resolved.candidates) {
     const path = resolveArcPath({ kind: "work-unit-artifact", artifact: "meta", slug: current.reference.owner.name,
       placement: { kind: "active", scope: { kind: "project" } } });
@@ -208,10 +215,10 @@ async function readHeldCandidates(cwd: string, missingRootWarning?: string): Pro
       const read = await store.read({ reference: current.reference });
       if (read.status === "refused") { warnings.push(`Unable to read ${path}: ${read.refusal.condition}`); continue; }
       const candidate = candidateFromContent(cwd, join(cwd, path), read.result.content, warnings);
-      if (candidate !== null) candidates.push(candidate);
+      if (candidate !== null) { candidates.push(candidate); owners.set(candidate.path, current.reference.owner); }
     } catch (error) { warnings.push(`Unable to read ${path}: ${error instanceof Error ? error.message : String(error)}`); }
   }
-  return { layout: "full", candidates, warnings };
+  return { layout: "full", candidates, warnings, ...(store.capabilities.stateOffBranch ? { owners } : {}) };
 }
 
 export interface ParsedMetaFields {

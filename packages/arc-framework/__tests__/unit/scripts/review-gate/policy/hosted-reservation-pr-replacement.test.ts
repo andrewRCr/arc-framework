@@ -58,7 +58,6 @@ describe("Candidate hosted PR replacement", () => {
       resultReader: { readResult: () => Promise.reject(new Error("old PR must not be read")) },
       dispositionStore: {
         readDispositionRecord: () => Promise.resolve(null),
-        appendDispositionRecord: () => Promise.reject(new Error("read-only test store")),
       },
       confirmTarget: () => Promise.reject(new Error("old PR must not be confirmed")),
     })).resolves.toBeUndefined();
@@ -77,7 +76,6 @@ describe("Candidate hosted PR replacement", () => {
       resultReader: { readResult: () => Promise.reject(new Error("pending request")) },
       dispositionStore: {
         readDispositionRecord: () => Promise.resolve(null),
-        appendDispositionRecord: () => Promise.reject(new Error("read-only test store")),
       },
       confirmTarget: () => Promise.reject(new Error("pending request")),
     })).rejects.toThrow(/already held by a pending request/u);

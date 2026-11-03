@@ -13,6 +13,8 @@ const target = createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-
 const standardReview = { obligation: "required" as const, reasons: ["sensitive-change-set"] as const,
   rubricVersion: "standard-review/v1", rubricDigest: canonicalDigest({ rubric: "standard" }), retrigger: "full-final" as const, count: 1 as const };
 const lineage = { kind: "head-bound" as const, vehicleKind: "errand", vehicleIdentity: "claim", headSha: target.headSha };
+const fullFinalConsiderations = (facts: Parameters<typeof nextPassConsiderations>[0]) =>
+  nextPassConsiderations(facts, "full-final");
 function input(convergence: "converged" | "unconverged") {
   const nextPassContext = { completePasses: 1, convergence, responseDue: false, incremental: null };
   const facts = nextPassFactsFixture(); facts.chainProven = false; facts.rangeSize.fix = null;
@@ -112,7 +114,7 @@ it("groups the offered critical and major counts by complete pass, not by look",
     outcome: "findings", materialCount: 1, provisional: false };
   const check = { producerId: "fix-check-3", logicalPass: 5, coverage: "fix-check" as const,
     outcome: "clean", materialCount: 0, provisional: false };
-  const text = nextPassConsiderations({ ...facts, completePasses: 2, fixChecksSinceLastComplete: [check],
+  const text = fullFinalConsiderations({ ...facts, completePasses: 2, fixChecksSinceLastComplete: [check],
     materialTrend: [...facts.materialTrend, { ...facts.materialTrend[1]!, producerId: "fix-check-2", logicalPass: 3 },
       complete, check, { ...check, provisional: true }] }).join("\n");
   expect(text).toContain("Critical and major findings: Pass 1 of 4: 2 → 1 → 1; Pass 2 of 4: 1 → 0 (this look).");
@@ -120,17 +122,59 @@ it("groups the offered critical and major counts by complete pass, not by look",
   expect(text).not.toContain("Pass 4");
 });
 
+it("keeps another complete pass the default when fix checks converge after a high-yield complete pass", () => {
+  const facts = nextPassFactsFixture();
+  const [complete, check] = facts.materialTrend;
+  const text = fullFinalConsiderations({ ...facts, materialTrend: [{ ...complete!, materialCount: 12 },
+    { ...check!, materialCount: 2 }, { ...check!, producerId: "fix-check-2", logicalPass: 3, materialCount: 0,
+      provisional: true }] }).join("\n");
+  expect(text).toContain("Critical and major findings: Pass 1 of 4: 12 → 2 → 0 (this look). Complete pass 1 found 12.");
+  expect(text).toContain("until a complete pass finds no critical or major finding, another complete pass after fix "
+    + "checks converge is the default. Recommending a stop before then needs a reason specific to this change. "
+    + "An Owner's decision on where review stops ends this default.");
+  expect(text).toContain("Prefer a different source for a successor pass.");
+  expect(text).not.toMatch(/favou?r stopping/u);
+  const met = fullFinalConsiderations({ ...facts, materialTrend: [{ ...complete!, materialCount: 0 }] }).join("\n");
+  expect(met).toContain("Complete pass 1 found none, which meets the review's bar. If later repairs make that "
+    + "assessment cease to hold, another complete pass is due under the re-inspection test.");
+  expect(met).not.toContain("is the default");
+});
+
+it("names an incremental lane's closure on converged fix checks instead of a successor default", () => {
+  const facts = nextPassFactsFixture();
+  const [complete, check] = facts.materialTrend;
+  const text = nextPassConsiderations({ ...facts, materialTrend: [{ ...complete!, materialCount: 12 },
+    { ...check!, materialCount: 0, provisional: true }] }, "incremental").join("\n");
+  expect(text).toContain("Complete pass 1 found 12. Fix checks show whether repairs hold, not what a complete pass "
+    + "missed. This lane's policy closes it once the fix-check chain converges; a further complete pass runs only if "
+    + "the Owner directs one.");
+  expect(text).not.toContain("is the default");
+  expect(text).not.toContain("Prefer a different source");
+  expect(text).toContain("a broad range supports considering an additional complete pass the Owner directs once fix "
+    + "checks converge.");
+  expect(text).toContain("either favors an additional complete pass the Owner directs once fix checks converge");
+  expect(text).not.toContain("a complete pass after fix checks converge");
+  const met = nextPassConsiderations({ ...facts, materialTrend: [{ ...complete!, materialCount: 0 }] }, "incremental")
+    .join("\n");
+  expect(met).toContain("Complete pass 1 found none, which meets the review's bar.");
+  expect(met).not.toContain("re-inspection test");
+  const offered = resolveLocalReviewCoverageSelection({ ...input("unconverged"),
+    standardReview: { ...standardReview, retrigger: "incremental" as const } });
+  if (offered.state !== "coverage-required") throw new Error("expected coverage offer");
+  expect(offered.action.interactionText).toContain("This lane's policy closes it once the fix-check chain converges");
+});
+
 it("says when no look found a critical or major finding, and when there is no look yet", () => {
   const facts = nextPassFactsFixture();
   const zero = facts.materialTrend.map(look => ({ ...look, materialCount: 0 }));
-  expect(nextPassConsiderations({ ...facts, materialTrend: zero }).join("\n"))
+  expect(fullFinalConsiderations({ ...facts, materialTrend: zero }).join("\n"))
     .toContain("Critical and major findings: none at any look.");
-  expect(nextPassConsiderations({ ...facts, materialTrend: [], fixRounds: [] }).join("\n"))
+  expect(fullFinalConsiderations({ ...facts, materialTrend: [], fixRounds: [] }).join("\n"))
     .toContain("Critical and major findings: no completed looks.");
-  expect(nextPassConsiderations({ ...facts, fixRounds: [] }).join("\n")).not.toContain("Change signals");
+  expect(fullFinalConsiderations({ ...facts, fixRounds: [] }).join("\n")).not.toContain("Change signals");
   const quiet = facts.fixRounds.map(round => ({ ...round, outsideCitedLoci: false, addedFiles: false }));
-  expect(nextPassConsiderations({ ...facts, fixRounds: quiet }).join("\n"))
+  expect(fullFinalConsiderations({ ...facts, fixRounds: quiet }).join("\n"))
     .toContain("Change signals after fixes: no signal fired after 2 fix rounds.");
-  expect(nextPassConsiderations({ ...facts, fixRounds: quiet.slice(0, 1) }).join("\n"))
+  expect(fullFinalConsiderations({ ...facts, fixRounds: quiet.slice(0, 1) }).join("\n"))
     .toContain("Change signals after fixes: no signal fired after 1 fix round.");
 });

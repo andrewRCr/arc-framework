@@ -1,7 +1,7 @@
 /** Production assembly for approved review dispositions. */
 import { readReviewLaneHistory } from "./lane-history.js";
 import { deriveNextPassFacts } from "../policy/next-pass-facts.js";
-import { readSubmissionBoundaryVersioned } from "../../../lib/work-unit/submission-boundary-store.js";
+import { readSubmissionBoundaryVersioned } from "../../../lib/store/kinds/review/integration-boundary/access.js";
 import { resolveIncrementalCoverageBasis } from "../policy/incremental-coverage-basis.js";
 import { readIncrementalPredecessorResponseEvidence } from "../policy/review-policy-evidence.js";
 import { readStandardPassCounts } from "./lane-pass-counts.js";
@@ -15,23 +15,29 @@ import { readFile } from "node:fs/promises";
 
 import { canonicalize } from "../../../lib/kernel/canonical/canonical-json.js";
 import { readConfigSettings } from "../../../lib/config/status-reader.js";
+import { exportWorkUnitSpec } from "../../../lib/work-unit/design-export.js";
 import { resolveCommitInterlock, resolvePushInterlock } from "../../../lib/config/resolved-settings.js";
 import {
   projectTransientInFlightRead,
   readTransientInFlightIndexes,
 } from "../../../lib/errand/record.js";
 import type { GitExec } from "../../../lib/git/exec.js";
+import type { ApprovedDispositionRecordReader } from "../core/ports.js";
+import { parseReviewSourceReferenceForOwner } from "../core/review-source-reference.js";
+import { reviewSourceProducer, selectedSourceOwner } from "./source-invocation.js";
+import { ReviewContinuationReferenceError } from "./continuation-invocation.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
 import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
 import { createRawGitExec } from "../../../lib/io-context.js";
 import type { DeliveryReviewMemberVehicle } from "../../../lib/delivery/review-vehicle.js";
 import { getFrameworkVersion } from "../../../lib/version.js";
 import {
-  readCandidateRecord,
   readCandidateRecordVersioned,
-  resolveCandidateRecordRelativePath,
   writeCandidateRecord,
-} from "../../../lib/work-unit/candidate-record-store.js";
+} from "../../../lib/store/kinds/review/candidate/access.js";
+import { resolveCandidateRecordRelativePath } from "../../../lib/store/kinds/review/paths.js";
+import { createReviewCompositionContext } from "./composition-context.js";
+import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationContext } from "./invocation.js";
 import {
   CandidateManagedRecordV1Schema,
   type CandidateManagedRecordV1,
@@ -45,10 +51,8 @@ import {
   collectGitCandidateSubject,
   collectUnstagedReviewablePaths,
 } from "../../../lib/work-unit/git-candidate-subject.js";
-import {
-  confirmCurrentDispositionSet,
-  LocalApprovedDispositionRecordStore,
-} from "../hosts/local/disposition-record-store.js";
+import { confirmCurrentDispositionSet } from "../hosts/local/disposition-record-store.js";
+import { NativeApprovedDispositionRecordStore } from "./native-disposition-store.js";
 import {
   bindHostedAttemptDisposition,
   captureConditionalNextPassAuthorization,
@@ -80,8 +84,9 @@ import type { RespondCommandDependencies } from "./respond-command.js";
 import { createLocalPrepareDependencies, createLocalReviewCandidateReader } from "./local-prepare-composition.js";
 import {
   resolveCandidateMutationOwner,
-  resolveCompletedCandidateWorkUnits,
+  resolveCompletedCandidateOwners,
 } from "../../../handlers/candidate-mutation-owner.js";
+import { ownsBoundCandidate, readRespondCandidate, selectRespondCandidateWorkUnits } from "./respond-candidate-selection.js";
 import { resolveConfiguredLanePolicy } from "../policy/lane-policy-config.js";
 import { resolveEvidenceBoundReviewPolicyContinuation } from
   "../policy/review-policy-evidence.js";
@@ -107,6 +112,7 @@ import { confirmIncrementalPredecessorApplicability } from
 import type { IncrementalPredecessorApplicability } from
   "../policy/incremental-coverage-basis.js";
 import { stageSingletonPublicationResponse } from "./singleton-publication-response.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 
 /**
  * Report a subject the branch and its base leave uncollectable under the boundary's own precondition type.
@@ -124,7 +130,7 @@ function rethrowUncollectableSubject(error: unknown): never {
 
 /** Bind local policy coordinates to the live branch and change request, as local admission does. */
 export async function resolveRespondPolicyTarget(
-  input: { exec: GitExec; cwd: string },
+  input: ReviewInvocationInput,
   current: ReviewResult,
   baseRef: string,
 ): Promise<{ repository: string; pullRequest: number | null } | null> {
@@ -149,30 +155,9 @@ export async function resolveRespondPolicyTarget(
   };
 }
 
-/** Select only the unique managed Candidate that owns the immutable producer lineage. */
-async function readRespondCandidate(
-  input: { exec: GitExec; cwd: string },
-  current: ReviewResult,
-): Promise<{ workUnit: string; record: CandidateManagedRecordV1 } | null> {
-  const lineage = current.admission.lineage;
-  if (lineage.kind !== "candidate") return null;
-  const owner = await resolveCandidateMutationOwner(input);
-  const workUnits = owner.status === "owned"
-    ? [owner.workUnit]
-    : owner.status === "unowned" ? await resolveCompletedCandidateWorkUnits(input.cwd) : [];
-  const candidates = await Promise.all(workUnits.map(async (workUnit) => ({
-    workUnit,
-    record: await readCandidateRecord(input.cwd, workUnit),
-  })));
-  const matching = candidates.filter(({ record }) =>
-    record?.attestation.candidateId === lineage.candidateId);
-  const selected = matching.length === 1 ? matching[0] : undefined;
-  return selected?.record == null ? null : { workUnit: selected.workUnit, record: selected.record };
-}
-
 /** Observe the exact planned or bound member while D4 reads both contribution endpoints. */
 async function confirmRespondDeliveryMemberApplicability(input: {
-  readonly repository: { exec: GitExec; cwd: string };
+  readonly repository: ReviewInvocationInput;
   readonly predecessor: ReviewResult;
   readonly current: ReviewResult;
   readonly lineage: Extract<ReviewResult["admission"]["lineage"], { kind: "delivery-member" }>;
@@ -313,18 +298,19 @@ async function observePinnedCorrectionMember(input: {
       cwd: input.cwd,
       deliveryMembers: input.deliveryMembers,
     });
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return null;
   }
 }
 
 /** Bind the existing contribution grounds used by response policy. */
 function createRespondPolicyConfirmation(context: {
-  repository: { exec: GitExec; cwd: string };
+  repository: ReviewInvocationInput;
   request: Pick<ReviewPolicyCommandRequest, "target">;
   currentSettings: Awaited<ReturnType<typeof readConfigSettings>>["settings"];
   rawGit: RawGitExec;
-  dispositionStore: LocalApprovedDispositionRecordStore;
+  dispositionStore: ApprovedDispositionRecordReader;
   readResponsePerformance: NonNullable<EvidenceBoundReviewPolicyDependencies["readResponsePerformance"]>;
   deliveryMembers: RepositoryDeliveryMemberLookup;
   privateDeliveryTargets: ReturnType<typeof createPreBindingDeliveryReviewTargetDependencies>;
@@ -359,7 +345,7 @@ function createRespondPolicyConfirmation(context: {
         privateDeliveryTargets,
       }) });
     }
-    const selected = await readRespondCandidate(input, current);
+    const selected = await readRespondCandidate(input, current.admission.lineage);
     const observeTarget = () => deriveLocalReviewTarget({
       exec: input.exec,
       cwd: input.cwd,
@@ -383,6 +369,7 @@ function createRespondPolicyConfirmation(context: {
         });
       }
       return confirmNonDeliveryIncrementalApplicability({
+        stateOffBranch: input.store?.capabilities.stateOffBranch,
         predecessor,
         currentTarget: current.target,
         currentLineage: lineage,
@@ -403,7 +390,7 @@ function createRespondPolicyConfirmation(context: {
 }
 
 async function readRespondPolicyNextPassContext(context: {
-  input: { cwd: string; exec: GitExec };
+  input: ReviewInvocationInput;
   request: ReviewPolicyCommandRequest;
   confirmedProducerTarget: ReviewResult["target"];
   prepare: Pick<ReturnType<typeof createLocalPrepareDependencies>, "operationStore">;
@@ -415,10 +402,10 @@ async function readRespondPolicyNextPassContext(context: {
   const terminal = request.attempts.at(-1);
   const predecessor = terminal?.outcome === "clean" || terminal?.outcome === "findings"
     ? await policyDependencies.resultReader.readResult(terminal.reviewOperationId) : null;
-  const selected = predecessor === null ? null : await readRespondCandidate(input, predecessor);
+  const selected = predecessor === null ? null : await readRespondCandidate(input, predecessor.admission.lineage);
   const lineage = predecessor?.admission.lineage ?? { kind: "head-bound" as const, vehicleKind: "review-target" as const,
     vehicleIdentity: confirmedProducerTarget.targetId, headSha: confirmedProducerTarget.headSha };
-  const { completePasses } = await readStandardPassCounts({ ...input, store: prepare.operationStore,
+  const { completePasses } = await readStandardPassCounts({ ...input, store: prepare.operationStore, reviewRecordStore: input.store, workItem: input.workItem,
     repositoryId: confirmedProducerTarget.repositoryId, headSha: confirmedProducerTarget.headSha,
     lineage, candidate: selected?.record });
   return deriveReviewNextPassContext({ predecessor, completePasses, completedPasses: request.completedPasses,
@@ -439,8 +426,9 @@ async function readRespondPolicyNextPassContext(context: {
 }
 
 interface RespondPolicyContext {
-  input: { cwd: string; exec: GitExec };
+  input: ReviewInvocationInput;
   publisher: RepositoryGitCommonStatePublisher;
+  family: ReturnType<typeof createReviewCompositionContext>["family"];
   prepare: Pick<ReturnType<typeof createLocalPrepareDependencies>, "operationStore">;
   settings: () => Promise<Awaited<ReturnType<typeof readConfigSettings>>["settings"]>;
   readConfiguredLanePolicy: RespondCommandDependencies["readConfiguredLanePolicy"];
@@ -451,22 +439,25 @@ interface RespondPolicyContext {
 
 async function resolveRespondPolicy(context: RespondPolicyContext,
   request: ReviewPolicyCommandRequest, confirmedProducerTarget: ReviewResult["target"]) {
-  const { input, publisher, prepare, settings, readConfiguredLanePolicy, rawGit, deliveryMembers, privateDeliveryTargets } = context;
+  const { input, publisher, family, prepare, settings, readConfiguredLanePolicy, rawGit, deliveryMembers,
+    privateDeliveryTargets } = context;
   const configured = await readConfiguredLanePolicy(request.lane);
   const currentSettings = await settings();
+  const dispositions = family.ports.dispositions;
   const retainedSources = configured.sources.length === 0
     ? [...new Set(request.attempts.map(({ sourceId }) => sourceId))]
     : configured.sources;
   const confirmIncrementalApplicability = createRespondPolicyConfirmation({
     repository: input, request, currentSettings, rawGit, deliveryMembers, privateDeliveryTargets,
-    dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+    dispositionStore: dispositions,
     readResponsePerformance: producer => readLaneResponsePerformance(prepare.operationStore, producer),
   });
   const policyDependencies: EvidenceBoundReviewPolicyDependencies = {
     ...configured,
+    ...(prepare.operationStore.stateOffBranch === true ? { stateOffBranch: true } : {}),
     sources: retainedSources,
-    resultReader: createRepositoryReviewResultReader(publisher),
-    dispositionStore: new LocalApprovedDispositionRecordStore(publisher),
+    resultReader: createRepositoryReviewResultReader(publisher, input),
+    dispositionStore: dispositions,
     readResponsePerformance: (predecessor) => readLaneResponsePerformance(
       prepare.operationStore,
       predecessor,
@@ -490,12 +481,12 @@ async function resolveRespondPolicy(context: RespondPolicyContext,
 
 async function readRespondProvisionalPassFacts(context: RespondPolicyContext,
   assessment: Parameters<RespondCommandDependencies["readProvisionalPassFacts"]>[0]) {
-  const { input, publisher, prepare, settings, rawGit, deliveryMembers, privateDeliveryTargets } = context;
+  const { input, publisher, family, prepare, settings, rawGit, deliveryMembers, privateDeliveryTargets } = context;
   const { result, proposal, configuredSources, configuredMaxPasses } = assessment;
   if (result.kind === "frontline") throw new Error("standard pass facts require a standard producer");
-  const selected = await readRespondCandidate(input, result);
-  const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
-  const resultReader = createRepositoryReviewResultReader(publisher);
+  const selected = await readRespondCandidate(input, result.admission.lineage);
+  const dispositionStore = family.ports.dispositions;
+  const resultReader = createRepositoryReviewResultReader(publisher, input);
   const readResponsePerformance = (producer: ReviewResult) => readLaneResponsePerformance(prepare.operationStore, producer);
   const currentSettings = await settings();
   const policyTarget = result.kind === "attested-local" && result.deliveryAdmission !== undefined
@@ -507,7 +498,7 @@ async function readRespondProvisionalPassFacts(context: RespondPolicyContext,
     resolveSupersessionAncestors: createLocalReviewCandidateReader(input).readSupersessionAncestors,
     repositoryId: result.repositoryId, headSha: result.target.headSha, lineage: result.admission.lineage,
     workUnitId: selected?.workUnit });
-  const counts = await readStandardPassCounts({ ...input, store: prepare.operationStore,
+  const counts = await readStandardPassCounts({ ...input, store: prepare.operationStore, reviewRecordStore: input.store, workItem: input.workItem,
     repositoryId: result.repositoryId, headSha: result.target.headSha, lineage: result.admission.lineage, candidate: selected?.record });
   const { obligation, reasons, rubricVersion, rubricDigest, retrigger, count } = result.requirement;
   const nextPassContext = await deriveReviewNextPassContext({ ...counts, predecessor: result,
@@ -517,7 +508,7 @@ async function readRespondProvisionalPassFacts(context: RespondPolicyContext,
   const facts = await deriveNextPassFacts({ ...history, proposed: proposal, nextPassContext,
     target: result.target, ceiling: configuredMaxPasses, exec: rawGit });
   const workUnit = selected?.workUnit ?? (result.admission.lineage.kind === "delivery-member" ? result.admission.lineage.workUnitId : undefined);
-  const boundary = workUnit === undefined ? null : (await readSubmissionBoundaryVersioned(input.cwd, workUnit)).boundary;
+  const boundary = workUnit === undefined ? null : (await readSubmissionBoundaryVersioned(input.cwd, workUnit, { store: input.store, exec: input.exec, owner: input.workItem })).boundary;
   const routeSources = boundary?.reservation?.sources ?? configuredSources;
   const basis = await resolveIncrementalCoverageBasis(result, { resultReader, confirmApplicability,
     readResponseEvidence: predecessor => readIncrementalPredecessorResponseEvidence(predecessor, dispositionStore, readResponsePerformance) });
@@ -526,16 +517,30 @@ async function readRespondProvisionalPassFacts(context: RespondPolicyContext,
       && (routeSources.length === 0 || routeSources.includes("delegated-agent")) };
 }
 
-/** Bind respond to repository-common records and trusted local/runtime identities. */
-export function createRespondDependencies(input: {
-  exec: GitExec;
-  cwd: string;
-}): RespondCommandDependencies {
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
-  const rawGit = createRawGitExec(input.cwd);
+/** Bind respond to the selected backend's review records and trusted local/runtime identities. */
+export function createRespondDependencies(input: ReviewInvocationInput & { rawGit?: RawGitExec }): RespondCommandDependencies {
+  return createBoundRespondDependencies({ ...input, ...resolveReviewInvocation(input) });
+}
+
+function responseDispositionDependencies(input: ReviewInvocationInput & ReviewInvocationContext,
+  context: Pick<ReturnType<typeof createReviewCompositionContext>, "family">,
+  operationStore: ReturnType<typeof createLocalPrepareDependencies>["operationStore"]) {
+  const { family } = context;
+  const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({ ...input, dispositionStore: family.ports.dispositions, operationStore: operationStore });
+  const dispositionStore = family.mode === "stored" ? new NativeApprovedDispositionRecordStore({
+    store: input.store, inFlight: operationStore, outcomes: family.ports.outcomes, evidence: family.ports.evidence,
+    readProjectId: input.projectId, now: () => new Date().toISOString(), confirmResponseHeadContinuation,
+  }) : family.ports.dispositions;
+  return { dispositionStore, confirmResponseHeadContinuation };
+}
+
+/** Share the response invocation's operational store with prepare, policy, and publication. */
+function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInvocationContext & { rawGit?: RawGitExec }): RespondCommandDependencies {
+  const { publisher, family } = createReviewCompositionContext(input);
+  const rawGit = input.rawGit ?? createRawGitExec(input.cwd);
   const prepare = createLocalPrepareDependencies(input);
-  const dispositionStore = new LocalApprovedDispositionRecordStore(publisher);
-  const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({ ...input, dispositionStore, operationStore: prepare.operationStore });
+  const { dispositionStore, confirmResponseHeadContinuation } = responseDispositionDependencies(
+    input, { family }, prepare.operationStore);
   const deliveryMembers = new RepositoryDeliveryMemberLookup(input);
   const privateDeliveryTargets = createPreBindingDeliveryReviewTargetDependencies(input);
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
@@ -560,20 +565,29 @@ export function createRespondDependencies(input: {
         transitions: record.transitions.slice(0, length),
         lineageAttestations: [],
       }));
-  const completedWorkUnits = (): Promise<readonly string[]> =>
-    resolveCompletedCandidateWorkUnits(input.cwd);
-  const candidateMutationOwner = () => resolveCandidateMutationOwner({
-    cwd: input.cwd,
-    exec: input.exec,
-  });
+  const completedOwners = () => resolveCompletedCandidateOwners(input.cwd, input.store);
+  const candidateMutationOwner = () => resolveCandidateMutationOwner(input);
   const requireCandidateMutationOwner = async (workUnit: string): Promise<void> => {
     const owner = await candidateMutationOwner();
-    if (owner.status === "owned" && owner.workUnit === workUnit) return;
-    if (owner.status === "unowned" && (await completedWorkUnits()).includes(workUnit)) return;
+    if (await ownsBoundCandidate(input, owner, workUnit)) return;
+    if (owner.status === "unowned" && (await completedOwners()).some(({ name }) => name === workUnit)) return;
     throw new Error("Candidate mutation is not owned by the entering checkout.");
   };
-  const policyContext = { input, publisher, prepare, settings, readConfiguredLanePolicy, rawGit, deliveryMembers, privateDeliveryTargets };
+  const policyContext = { input, publisher, family, prepare, settings, readConfiguredLanePolicy, rawGit, deliveryMembers,
+    privateDeliveryTargets };
   return {
+    ...(prepare.operationStore.stateOffBranch === true ? { stateOffBranch: true as const,
+      ...(family.mode === "stored" ? { extraPassFacts: { decisions: family.ports.decisions, readProjectId: input.projectId } } : {}),
+    } : {}),
+    parseSourceReference: async (value, kind) => {
+      const owner = await selectedSourceOwner(input);
+      if (owner === undefined) return parseReviewSourceReferenceForOwner(value, kind);
+      try { return parseReviewSourceReferenceForOwner(value, kind, owner); }
+      catch (error) {
+        throw new ReviewContinuationReferenceError(error instanceof Error ? error.message : "malformed review source reference",
+          reviewSourceProducer(kind));
+      }
+    },
     withOperationLock: (operationId, action) => withRepositoryReviewOperationLock(
       input.exec,
       input.cwd,
@@ -581,7 +595,7 @@ export function createRespondDependencies(input: {
       10_000,
       action,
     ),
-    resultReader: createRepositoryReviewResultReader(publisher),
+    resultReader: createRepositoryReviewResultReader(publisher, input),
     dispositionStore,
     confirmTarget: (target) => prepare.confirmTarget(target),
     confirmCorrectionTarget: (target, expectedFixPaths) => confirmLocalReviewCorrectionTarget({
@@ -632,6 +646,11 @@ export function createRespondDependencies(input: {
       const branch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
         cwd: input.cwd,
       })).stdout.trim();
+      if (input.store.capabilities.stateOffBranch) {
+        const record = live.errandRecord;
+        return record?.state === "open" && record.branch === branch
+          ? { key: record.slug, claimId: record.claimId, branch: record.branch } : null;
+      }
       const projected = projectTransientInFlightRead(await readTransientInFlightIndexes({
         exec: input.exec,
         identity: live.context.activeIdentity,
@@ -680,8 +699,7 @@ export function createRespondDependencies(input: {
       }
     },
     resolveCandidateFixAuthoring: async ({ workUnit, expectedHead }) => {
-      const owner = await candidateMutationOwner();
-      if (owner.status !== "owned" || owner.workUnit !== workUnit) return null;
+      if (!await ownsBoundCandidate(input, await candidateMutationOwner(), workUnit)) return null;
       let ref: string;
       try {
         ref = (await input.exec("git", ["symbolic-ref", "--quiet", "HEAD"], {
@@ -706,12 +724,7 @@ export function createRespondDependencies(input: {
     },
     now: () => new Date().toISOString(),
     readCandidateLineage: async (target) => {
-      const owner = await candidateMutationOwner();
-      const candidates = owner.status === "owned"
-        ? [owner.workUnit]
-        : owner.status === "unowned"
-          ? await completedWorkUnits()
-          : [];
+      const candidates = await selectRespondCandidateWorkUnits(input, await candidateMutationOwner(), completedOwners);
       const matching = [] as Array<{
         workUnit: string;
         record: NonNullable<Awaited<ReturnType<typeof readCandidateRecordVersioned>>["record"]>;
@@ -735,7 +748,7 @@ export function createRespondDependencies(input: {
         );
       }
       for (const workUnit of candidates) {
-        const { record, version } = await readCandidateRecordVersioned(input.cwd, workUnit);
+        const { record, version } = await readCandidateRecordVersioned(input.cwd, workUnit, { store: input.store, owner: input.workItem });
         if (record === null || version === null) continue;
         const projections = await Promise.all(transitionPrefixes(record).map(async (prefix) =>
           projectGitCandidateEffectiveTarget({
@@ -820,25 +833,28 @@ export function createRespondDependencies(input: {
       }
       return collected.target;
     },
-    // Staged like the record `attest` publishes: the Candidate's own projection never enters the
-    // reviewable subject, so staging it advances the lineage without disturbing what review sees.
+    // Repository records share attestation's staging protocol; native writes finish in the store.
     appendCandidateResponse: async ({ workUnit, record, expectedRecordVersion }) => {
       await requireCandidateMutationOwner(workUnit);
-      const recordPath = await writeCandidateRecord(input.cwd, workUnit, record, expectedRecordVersion);
+      const recordPath = await writeCandidateRecord(input.cwd, workUnit, record, expectedRecordVersion, { store: input.store, owner: input.workItem });
+      if (recordPath === null) return {};
       await input.exec("git", ["add", "--", recordPath], { cwd: input.cwd });
       return { recordPath };
     },
     stageCandidateResponse: async (workUnit) => {
       await requireCandidateMutationOwner(workUnit);
+      if (input.store.capabilities.stateOffBranch) return {};
       const recordPath = resolveCandidateRecordRelativePath(workUnit);
       await input.exec("git", ["add", "--", recordPath], { cwd: input.cwd });
       return { recordPath };
     },
+    exportCandidateDesign: async workUnit => exportWorkUnitSpec({
+      ...input, workUnit, owner: input.workItem, trackDesignDocs: (await settings())["storage.track_design_docs"],
+    }),
     rebindSingletonPublicationResponse: async ({ workUnit, response, requirePublished }) => {
       await requireCandidateMutationOwner(workUnit);
       await stageSingletonPublicationResponse({
-        cwd: input.cwd,
-        exec: input.exec,
+        ...input,
         workUnit,
         response,
         requirePublished,
@@ -848,7 +864,7 @@ export function createRespondDependencies(input: {
       confirmCandidateResponseHeadContinuation({ ...input, workUnit, candidateId: response.candidateId,
         dispositionSetId: response.dispositionId, expectedResponseId: response.responseId,
         originatingHeadSha: response.oldTarget.revision, verifiedHeadSha: fromHeadSha, fromHeadSha, toHeadSha,
-        approvedBy: response.approvedBy, appliedBy: response.appliedBy }),
+        approvedBy: response.approvedBy, appliedBy: response.appliedBy, stateOffBranch: input.store.capabilities.stateOffBranch }),
     settleLaneFindings: async (settlement) => {
       await settleLaneAttempt(prepare.operationStore, {
         ...settlement,
@@ -890,7 +906,7 @@ export function createRespondDependencies(input: {
         prepare.operationStore,
         { ...withdrawal, now: new Date().toISOString() },
         (producerId, dispositionSetId) => confirmCurrentDispositionSet(
-          dispositionStore,
+          family.ports.dispositions,
           producerId,
           dispositionSetId,
         ),

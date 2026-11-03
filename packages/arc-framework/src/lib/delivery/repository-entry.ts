@@ -5,12 +5,17 @@ import { join, resolve } from "node:path";
 
 import { RepositoryGitCommonStatePublisher } from "../git-common-state.js";
 import { validateManagedPath } from "../kernel/index.js";
-import { resolveActiveWu } from "../release/wu-resolution.js";
+import { raiseNativeResolutionRefusal, resolveActiveWu } from "../release/wu-resolution.js";
 import type { GitExec } from "../git/exec.js";
 import { createRawGitExec } from "../io-context.js";
+import type { Store } from "../store/contract.js";
+import { recordReferences } from "../store/identity.js";
+import { recordConflictRefusal } from "../store/conflict-diagnostics.js";
+import { resolveReviewInvocation, type ReviewInvocationOptions } from "../../scripts/review-gate/runtime/invocation.js";
+import { createReviewCompositionContext } from "../../scripts/review-gate/runtime/composition-context.js";
 import { projectGitCandidateEffectiveTarget } from "../work-unit/git-candidate-effective-target.js";
-import { readCandidateRecord } from "../work-unit/candidate-record-store.js";
-import { readSubmissionBoundary } from "../work-unit/submission-boundary-store.js";
+import { readCandidateRecord } from "../store/kinds/review/candidate/access.js";
+import { readSubmissionBoundary } from "../store/kinds/review/integration-boundary/access.js";
 import { RepositoryDeliveryAuthoringStore } from "./authoring-store.js";
 import { resolveExistingDeliveryAuthoringMap } from "./authoring-resolution.js";
 import {
@@ -24,7 +29,7 @@ import {
   type DeliveryCandidateRenewalInspectionResult,
   type DeliveryReopenInspectionResult,
 } from "./entry-inspection.js";
-import type { IntegrationBoundaryLocus } from
+import type { PublishedIntegrationBoundaryLocus } from
   "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import {
   RepositoryDeliveryPlanStore,
@@ -44,10 +49,9 @@ import {
   GitDeliveryRenameTransitionSource,
   resolveExistingDeliveryPlan,
 } from "./plan-resolution.js";
-import { LocalApprovedDispositionRecordStore } from
-  "../../scripts/review-gate/hosts/local/disposition-record-store.js";
-
-export interface RepositoryDeliveryInspectionInput {
+import { StoreRefusalError } from "../store/refusal-error.js";
+import { nativeRefusalText, rethrowNativeRefusal } from "../store/native-refusal.js";
+export interface RepositoryDeliveryInspectionInput extends ReviewInvocationOptions {
   readonly cwd: string;
   /** Validated repository-relative task-list path. */
   readonly taskListPath: string;
@@ -56,10 +60,23 @@ export interface RepositoryDeliveryInspectionInput {
   readonly exec: GitExec;
 }
 
+/** Read the selected task kind natively, or its validated repository path on the repository backend. */
+export async function readInspectionTaskList(input: Pick<RepositoryDeliveryInspectionInput, "cwd" | "taskListPath" | "workItem">,
+  store: Store): Promise<string> {
+  if (!store.capabilities.stateOffBranch) return readFile(join(input.cwd, input.taskListPath), "utf8");
+  if (input.workItem === undefined) throw new Error("Resolve the selected work item before inspecting its task list.");
+  const read = await store.read({ reference: recordReferences["work-item/task-list"](input.workItem) });
+  if (read.status === "refused") throw new StoreRefusalError(read.refusal, true);
+  if (read.result.conflicts.length > 0) throw new StoreRefusalError(
+    recordConflictRefusal(read.result, "The task list", "delivery.task-list-conflict"), true);
+  return read.result.content;
+}
+
 function createRepositoryDeliveryInspectionDependencies(
-  input: RepositoryDeliveryInspectionInput,
+  options: RepositoryDeliveryInspectionInput,
 ): DeliveryEntryInspectionDependencies {
-  const workUnitId = input.workUnitId;
+  const input = { ...options, ...resolveReviewInvocation(options) };
+  const { workUnitId, store: reviewRecordStore } = input;
   const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
@@ -71,7 +88,7 @@ function createRepositoryDeliveryInspectionDependencies(
     : { status: "established" as const, ref: `refs/heads/${base}` };
 
   return {
-    readTaskList: () => readFile(join(input.cwd, input.taskListPath), "utf8"),
+    readTaskList: () => readInspectionTaskList(input, reviewRecordStore),
     resolvePlan: async () => {
       const result = await resolveExistingDeliveryPlan({
         planStore: { enumerateCurrent: () => planStore.enumerateCurrentReadOnly() },
@@ -107,10 +124,10 @@ function createRepositoryDeliveryInspectionDependencies(
     },
     readIntegrationBoundary: async () => ({
       status: "ok",
-      value: await readSubmissionBoundary(input.cwd, workUnitId),
+      value: await readSubmissionBoundary(input.cwd, workUnitId, { store: reviewRecordStore, owner: input.workItem }),
     }),
     readCandidate: async (terminalCoordinates) => {
-      const record = await readCandidateRecord(input.cwd, workUnitId);
+      const record = await readCandidateRecord(input.cwd, workUnitId, { store: reviewRecordStore, owner: input.workItem });
       if (record === null) return { status: "ok", value: null };
       try {
         const projected = await projectGitCandidateEffectiveTarget({
@@ -131,11 +148,9 @@ function createRepositoryDeliveryInspectionDependencies(
         }
         const tail = record.transitions.at(-1);
         const terminalCoordinateAdvance = await projectGitDeliveryTerminalCoordinateAdvance({
-          cwd: input.cwd,
-          exec: input.exec,
+          ...input,
+          stateOffBranch: reviewRecordStore.capabilities.stateOffBranch,
           candidate: projected,
-          workUnitId,
-          baseBranch: input.baseBranch,
           ...(terminalCoordinates === undefined ? {} : { terminalCoordinates }),
         });
         return {
@@ -150,7 +165,8 @@ function createRepositoryDeliveryInspectionDependencies(
             ...(terminalCoordinateAdvance === undefined ? {} : { terminalCoordinateAdvance }),
           },
         };
-      } catch {
+      } catch (error) {
+        rethrowNativeRefusal(error);
         return { status: "refused" };
       }
     },
@@ -161,7 +177,8 @@ async function classifyTerminalDelta(
   input: RepositoryDeliveryInspectionInput,
   terminalHead: string,
 ): Promise<DeliveryTerminalDeltaClassification | null> {
-  const active = await resolveActiveWu({ cwd: input.cwd });
+  const active = raiseNativeResolutionRefusal(
+    await resolveActiveWu({ cwd: input.cwd, store: input.store, projectId: input.projectId }));
   const base = input.baseBranch.trim();
   if (active.status !== "resolved" || active.name !== input.workUnitId
     || active.branch === null || base === "") {
@@ -169,6 +186,7 @@ async function classifyTerminalDelta(
   }
   return classifyGitDeliveryTerminalDelta({
     exec: input.exec,
+    stateOffBranch: input.store?.capabilities.stateOffBranch,
     workUnitId: input.workUnitId,
     activeMetaPath: validateManagedPath(active.path),
     protectedBaseRef: `refs/heads/${base}`,
@@ -177,19 +195,20 @@ async function classifyTerminalDelta(
     toRevision: "HEAD",
     readDirectory: (path) => readdir(resolve(input.cwd, path)),
     readArtifactsAtRef: (ref, workUnitId) =>
-      readGitDeliveryLifecycleArtifactsAtRef(input.exec, ref, workUnitId),
+      readGitDeliveryLifecycleArtifactsAtRef(input.exec, ref, workUnitId, input.store?.capabilities.stateOffBranch),
   });
 }
 
 /** Inspect one exact work unit through repository-backed read-only delivery stores. */
-export async function inspectRepositoryDeliveryEntry(input: {
+export async function inspectRepositoryDeliveryEntry(options: {
   readonly cwd: string;
   /** Validated repository-relative task-list path. */
   readonly taskListPath: string;
   readonly request: DeliveryEntryInspectionRequest;
   readonly baseBranch: string;
   readonly exec: GitExec;
-}): Promise<DeliveryEntryInspectionResult> {
+} & ReviewInvocationOptions): Promise<DeliveryEntryInspectionResult> {
+  const input = { ...options, ...resolveReviewInvocation(options) };
   const inspected = await inspectDeliveryEntry(input.request, createRepositoryDeliveryInspectionDependencies({
     ...input,
     workUnitId: input.request.workUnitId,
@@ -198,17 +217,17 @@ export async function inspectRepositoryDeliveryEntry(input: {
     || inspected.status === "review-fix-verification-required") {
     return inspected;
   }
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+  const { publisher, family } = createReviewCompositionContext(input);
   let records;
   try {
-    records = await new LocalApprovedDispositionRecordStore(publisher).listDispositionRecords();
-  } catch {
+    records = await family.ports.dispositions.listDispositionRecords();
+  } catch (error) {
     return {
       status: "refused",
       nextAction: "stop",
       reason: "review-fix-response-unavailable",
-      recommendedActionText:
-        "Restore readable approved review-response records before resuming the delivery correction.",
+      recommendedActionText: nativeRefusalText(error)
+        ?? "Restore readable approved review-response records before resuming the delivery correction.",
     };
   }
   const selection = selectPendingDeliveryReviewFixAuthority({
@@ -229,7 +248,7 @@ export async function inspectRepositoryDeliveryEntry(input: {
   const planStore = new RepositoryDeliveryPlanStore(publisher, DeliveryPlanV1Codec);
   const stateStore = new RepositoryDeliveryStateStore(publisher);
   const [taskList, planRead, stateRead] = await Promise.all([
-    readFile(join(input.cwd, input.taskListPath), "utf8").catch(() => null),
+    readInspectionTaskList(input, input.store).catch((error: unknown) => { rethrowNativeRefusal(error); return null; }),
     planStore.readCurrent(selection.planId),
     stateStore.read(selection.planId),
   ]);
@@ -289,7 +308,7 @@ export async function inspectRepositoryDeliveryReopen(input: RepositoryDeliveryI
  */
 export async function inspectRepositoryDeliveryCandidateRenewal(
   input: RepositoryDeliveryInspectionInput & {
-    readonly sourceBoundary: IntegrationBoundaryLocus | null;
+    readonly sourceBoundary: PublishedIntegrationBoundaryLocus | null;
   },
 ): Promise<DeliveryCandidateRenewalInspectionResult> {
   return inspectDeliveryCandidateRenewal(

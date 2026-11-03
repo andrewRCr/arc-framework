@@ -1,6 +1,7 @@
 /** Intentional concise list summaries for the registered visible command tree. */
 
 export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
+  "agenda": "Compile session initialization steps",
   "store conflict": "Inspect or explicitly discard an exact stored conflict",
   "store migrate": "Move or import state into the ref store",
   "store remote": "Inspect or set the ref store's remote roles",
@@ -190,6 +191,8 @@ export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
   "review merge-method": "Manage the configured merge method",
   "review checks await": "Await required checks for a pull-request head",
   "review checks": "Manage required status checks",
+  "review adversarial": "Record approved adversarial passes",
+  "review adversarial record": "Record one approved adversarial pass",
   "review lane": "Read review lineage history",
   "review lane read": "Read lineage rejections and standard-lane facts",
   "review readiness": "Validate lifecycle readiness for a head",

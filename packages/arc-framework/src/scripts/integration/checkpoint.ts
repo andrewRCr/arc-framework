@@ -1,6 +1,7 @@
 /** Typed integration checkpoint reduction over canonical boundary evidence. */
 
 import { z } from "zod";
+import { RecordVersionSchema } from "../../lib/store/identity.js";
 import { describeCheckpointReconciliation } from "./checkpoint-reconciliation-detail.js";
 
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
@@ -13,13 +14,12 @@ import {
 } from "../../lib/git/merge-feasibility.js";
 import type { CandidateCurrentnessProjection } from "../../lib/work-unit/candidate-attestation.js";
 import {
-  CandidateApplicabilityDecisionResultSchema,
   CandidateApplicabilityResultSchema,
   type CandidateApplicabilityDecisionResult,
   type CandidateApplicabilityResult,
 } from "../../lib/work-unit/candidate-applicability.js";
 import {
-  CandidateApplicabilityResolutionSelectorSchema,
+  CandidateApplicabilityDecisionSelectionSchema,
   type CandidateApplicabilityResolutionSelector,
 } from "../../lib/work-unit/candidate-applicability-resolution.js";
 import { CandidateSubjectUncollectableError } from "../../lib/work-unit/git-candidate-subject.js";
@@ -37,7 +37,7 @@ import {
 } from "../review-gate/change-request.js";
 import {
   NO_HOSTED_REVIEW_RESERVATION_DETAIL,
-  RunConvergenceVerificationActionSchema,
+  PublishedRunConvergenceVerificationActionSchema,
   createRunConvergenceVerificationAction,
   type PostAttestContinuation,
 } from "../review-gate/policy/integration-boundary-locus.js";
@@ -364,9 +364,7 @@ const CheckpointBlockedBaseShape = {
 };
 
 const CandidateApplicabilityCheckpointPayloadSchema = z.union([
-  CandidateApplicabilityDecisionResultSchema.extend({
-    resolutionSelector: CandidateApplicabilityResolutionSelectorSchema,
-  }),
+  CandidateApplicabilityDecisionSelectionSchema,
   CandidateApplicabilityResultSchema,
 ]);
 
@@ -546,7 +544,7 @@ const IntegrationCheckpointBlockedResultSchema = z.discriminatedUnion("reason", 
     state: z.literal("blocked"),
     nextAction: z.literal("run-convergence-verification"),
     reason: z.literal("candidate-convergence-pending"),
-    action: RunConvergenceVerificationActionSchema,
+    action: PublishedRunConvergenceVerificationActionSchema,
     payload: z.strictObject({
       candidate: z.custom<Extract<CandidateCurrentnessProjection, { status: "current" }>>(),
     }),
@@ -835,8 +833,8 @@ export const IntegrationCheckpointResultSchema = z.union([
     reason: z.literal("candidate-record-moved"),
     remedy: SpineRemedySchema,
     payload: z.strictObject({
-      expectedRecordVersion: DigestSchema,
-      observedRecordVersion: DigestSchema.nullable(),
+      expectedRecordVersion: RecordVersionSchema,
+      observedRecordVersion: RecordVersionSchema.nullable(),
     }),
   }),
   CandidatePublicationCheckpointResultSchema,
@@ -956,6 +954,8 @@ export type DeliveryDriftClassificationResult =
     });
 
 export interface IntegrationCheckpointDependencies {
+  /** Boundary format selected by the invocation backend. */
+  readonly boundarySchemaVersion: 1 | 2;
   readDrift(workUnit: string): Promise<BaseDriftResult>;
   classifyDeliveryDrift(workUnit: string, drift: BaseDriftResult): Promise<DeliveryDriftClassificationResult>;
   readMovementObservation(workUnit: string, drift: BaseDriftResult): Promise<{
@@ -1360,6 +1360,7 @@ export async function checkpointIntegration(
           request.workUnit,
           candidate.convergenceScope,
           checkpointPostAttestContinuation(request.workUnit, candidate.recognizedRevision),
+          dependencies.boundarySchemaVersion,
         ),
         payload: { candidate },
       });
@@ -1451,6 +1452,7 @@ export async function checkpointIntegration(
         request.workUnit,
         candidate.convergenceScope,
         checkpointPostAttestContinuation(request.workUnit, candidate.recognizedRevision),
+        dependencies.boundarySchemaVersion,
       ),
       payload: { candidate },
     });
@@ -1649,8 +1651,9 @@ export async function checkpointIntegration(
         coordinates,
         remedy: checkpointRemedy("composition-unavailable", request.workUnit),
         payload: {
-          expectedRecordVersion: handleResult.expectedRecordVersion,
-          observedRecordVersion: handleResult.observedRecordVersion,
+          expectedRecordVersion: RecordVersionSchema.parse(handleResult.expectedRecordVersion),
+          observedRecordVersion: handleResult.observedRecordVersion === null
+            ? null : RecordVersionSchema.parse(handleResult.observedRecordVersion),
         },
       });
     }

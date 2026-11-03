@@ -1,3 +1,5 @@
+import { join, resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { createRefStore } from "../../../../src/lib/store/create.js";
@@ -14,6 +16,8 @@ function missing(path: string): Error {
  * while a plain `--version` answers; the raw port lists no refs where it is not the one rejecting.
  */
 function olderGitPorts(rejecting: "exec" | "rawExec"): RefStorePorts {
+  const checkoutRoot = resolve("/repository");
+  const gitDirectory = join(checkoutRoot, ".git");
   const reject = (args: readonly string[]): never => {
     throw makeGitProcessError({ command: "git", args: ["--no-lazy-fetch", ...args], exitCode: 129,
       stderr: "unknown option: --no-lazy-fetch" });
@@ -36,18 +40,18 @@ function olderGitPorts(rejecting: "exec" | "rawExec"): RefStorePorts {
     },
     fs: { readFile: async (path) => { throw missing(path); }, readBytes: unexpected, writeBytes: unexpected,
       readdir: unexpected, lstat: async (path) => {
-        if (path.replaceAll("\\", "/") === "/repository/.git") return { isDirectory: () => true } as Awaited<ReturnType<RefStorePorts["fs"]["lstat"]>>;
+        if (path === gitDirectory) return { isDirectory: () => true } as Awaited<ReturnType<RefStorePorts["fs"]["lstat"]>>;
         throw missing(path);
       }, mkdir: unexpected, writeFile: unexpected, exclusiveCreate: unexpected, unlink: unexpected, rename: unexpected,
       realpath: unexpected, removeDirectory: unexpected },
-    checkoutRoot: "/repository", identity: async () => null, backingRepository: unexpected, actor: unexpected,
+    checkoutRoot, identity: async () => null, backingRepository: unexpected, actor: unexpected,
     lock: async () => async () => {}, clock: () => new Date(0), sleep: { wait: unexpected, bound: unexpected },
     random: () => 0.5,
   };
 }
 
 describe("ref store Git floor on a local-only call", () => {
-  const floor = /Git 2\.43\.0 is below the required Git 2\.47/u;
+  const floor = /Git 2\.43\.0 is below the required Git 2\.53/u;
 
   it("names the version found when the byte executor's first listing is refused", async () => {
     await expect(createRefStore(olderGitPorts("rawExec")).version()).rejects.toThrow(floor);

@@ -3,9 +3,8 @@
 Behavioral rules for human-AI collaboration under the ARC methodology. These rules apply to every
 ARC project regardless of technology stack.
 
-Your project-specific standards — testing requirements, architecture rules, and documentation style — live in
-[DEV-RULES.PROJECT][dev-rules-project]. Project checks are declared in `.arc/system/arc-checks.yml` and run with
-`arc check`. Contributors (`arc.role = contributor`) work within different boundaries throughout — see
+Project checks are declared in `.arc/system/arc-checks.yml` and run with `arc check`. Contributors
+(`arc.role = contributor`) work within different boundaries throughout — see
 [AGENT-BRIEF.CONTRIBUTOR][contributor-briefing].
 
 > Rules marked `[configurable]` follow the project's configured override; see [Configurability
@@ -157,7 +156,7 @@ Class tags name the fire-site type; routing follows § Workflow class-tag routin
   non-structured surface) is NOT — commit waits for a structured gate. Off-workflow / incidental
   commits use the same shape: surface what landed, end with `Commit and proceed to <next-target>?`
   (releasing interlocks) or `Proceed?` (manual). Routing follows existing rules.
-    - **Prefix mapping** (read from session-init envelope `config.settings.commit.interlock`):
+    - **Prefix mapping** (read `config.value.settings["commit.interlock"]` from the agenda's residual `config`):
       `Proceed` when `manual`; `Commit and proceed` when `on-task-approval` or `on-workflow`.
       `pushInterlock` selects the analogous push prefix when a push fire is in scope.
 
@@ -166,10 +165,10 @@ Class tags name the fire-site type; routing follows § Workflow class-tag routin
 
 - **Workflow class-tag routing** · `[configurable]`:
     - Workflow fire sites may carry a backtick-wrapped class tag (`` `taskCommit` ``, `` `workflowCommit` ``,
-      `` `workflowPush` ``). At fire time, look up `releaseRouting.value.<class>` in the session-init envelope:
-      `wrapper` invokes `arc release commit` / `arc release push` (the workflow supplies the message body in a
-      `text` codeblock, or push args inline); `raw` invokes raw `git`, and is the default on probe failure, a
-      missing tag, or an unrecognized class.
+      `` `workflowPush` ``). At fire time, look up `releaseRouting.value.<class>` in the agenda's residual inputs
+      or the session-init envelope: `wrapper` invokes `arc release commit` / `arc release push` (the workflow supplies
+      the message body in a `text` codeblock, or push args inline); `raw` invokes raw `git`, and is the default on probe
+      failure, a missing tag, or an unrecognized class.
     - Class authorization, when `wrapper` resolves: all three require `arc.releaseOptedIn`, plus
       `arc.commitInterlock ∈ {on-task-approval, on-workflow}` for `taskCommit`, `arc.commitInterlock:
       on-workflow` for `workflowCommit`, and `arc.pushInterlock: on-workflow` for `workflowPush`.
@@ -292,8 +291,15 @@ If quality gates fail after task completion:
 - **The gate never ran** — a wrong invocation is not a gate failure. Correct it and re-run; there is nothing to decide.
 - **Deterministic same-concern** — locally owned, mechanical, inside the approved change (e.g. trailing blank,
   auto-fixable lint): fix and re-run immediately; report the correction.
-- **Otherwise** — report details and suspected causes; ask fix-now vs defer. Do not proceed until resolved or
-  approved.
+- **In-scope fix** — the cause is known, and the fix plainly serves the goal of a task inside the current approval
+  without departing from the recorded design or the user's direction; a piece that a later task in the approval
+  specifies counts. Make the fix, note it on the task it serves, re-run, and continue; name it in the next report.
+- **Otherwise** — such as an unknown cause, a fix that serves no task inside the current approval, or one the
+  recorded design does not settle: report details and suspected causes; ask fix-now vs defer. Do not proceed until
+  resolved or approved.
+
+Fixing and re-running keeps the check in force, so where the recorded design already settles the fix it is yours to
+make; deferring, carrying, or bypassing a failure is never yours to decide.
 
 **A green rerun after an intermittent failure shows only that the failure is intermittent.** A fix names the
 mechanism it removes and shows the change reaches it, such as a reproduction that fails reliably without the change
@@ -343,8 +349,7 @@ destination (existing stub, new stub, standalone errand, flush to shared) resolv
 | Out-of-WU, not urgent                  | No — defer the write       | **Capture** to `USER-INBOX` (via `arc-inbox`).         |
 
 In-WU multi-step discovery folds into the active task list (an existing task, a new subtask, or a new task; a
-whole new phase may mean it isn't this WU's — ask). Errand-vs-Work-Unit classification follows
-[strategy-work-organization][work-org] § Errand Work Class.
+whole new phase may mean it isn't this WU's — ask).
 
 **Express lanes, never forced.** When you already hold the commitment, you may skip the inbox and act
 directly — run an errand (a self-evident concern, atomic, possibly extended) or scaffold a `backlog/` stub
@@ -444,8 +449,7 @@ Before implementing in a codified domain, follow the [STRATEGY-INDEX][strategy-i
 
 A workflow's `arc.methods` frontmatter is an **index of what that workflow may fire**, not a
 preload list. A method's own `arc.methods` field analogously indexes methods its default or override may fire.
-Declare what your own body fires, never what you would carry only on a declared method's behalf. Load declared
-content only when its direct consumer reaches the callout, signature block, or other fire-point
+Load declared content only when its direct consumer reaches the callout, signature block, or other fire-point
 that invokes it. A declaration the current path never reaches is not a reason to load it. Don't proceed from
 intuition at a fire-point when the declared content is one read away.
 
@@ -470,11 +474,6 @@ clause` — couple code to a document on its own evolution schedule. Replace the
 process rationale to a planning artifact (specs, drafts, task lists, meta files, ADRs, work-unit notes, commit
 `Context:` footers). Substantive references — test names describing behavior, comments on non-obvious invariants —
 stay.
-
-### Artifact relocatability
-
-Movable `.arc/` artifacts relocate between lifecycle states (`active/` ↔ `backlog/` ↔ `completed/`) by pure
-`git mv` with no content edit — which holds only if they carry position-independent references, the rule below.
 
 ### `.arc/` artifact references
 
@@ -526,35 +525,21 @@ prescriptions and method overrides govern as the method specifies.
 
 Load these documents when you reach the relevant work — not during session initialization.
 
-- **Before starting task execution:** The [process-task-loop workflow][process-task-loop] loads
-  conditionally at session-init when the active `meta-{name}.md` shows active task work (see
-  session-init item 10). If it wasn't loaded at init, load it before beginning any task
+- **Before starting task execution:** Load the [process-task-loop workflow][process-task-loop] before beginning
+  any task if it is not already loaded.
 
 - **Before complex commits:** Load the [prepare-commits workflow][prepare-commits] — multi-session
   work, interleaved concerns, atomicity analysis
 
-- **Before work in a codified domain:** Check [STRATEGY-INDEX][strategy-index] for relevant
-  strategy documents
-
-- **Before authoring a workflow:** Consult [Workflow Authoring Strategy][workflow-authoring] —
-  frontmatter schema, author-side declaration rule, body conventions
-
-- **For method defaults and overrides:** At a direct fire-point, load the relevant
-  [`system/methods/`][arc-methods-dir] files on-demand
-
 ---
 
-[dev-rules-project]: DEV-RULES.PROJECT.md
 [arc-methods-cf]: ../../system/methods/commit-format.md
 [arc-methods-ccf]: ../../system/methods/commit-footer.md
 [arc-methods-it]: ../../system/methods/issue-triage.md
 [arc-methods-rdw]: ../../system/methods/route-discovered-work.md
 [arc-methods-tf]: ../../system/methods/test-first.md
-[arc-methods-dir]: ../../system/methods/README.md
 [config-arch]: ../../reference/strategies/arc/strategy-configurability-architecture.md
 [concurrent-work]: ../../reference/strategies/arc/strategy-concurrent-work.md
-[work-org]: ../../reference/strategies/arc/strategy-work-organization.md
-[workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
 [session-ops]: ../../reference/strategies/arc/strategy-session-operations.md
 [process-task-loop]: ../../system/workflows/arc/process-task-loop.md
 [prepare-commits]: ../../system/workflows/arc/supplemental/prepare-commits.md

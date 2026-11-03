@@ -1,8 +1,9 @@
 /** Production adapters for exact-target frontline review execution. */
 
+import { bindReviewSourceReferenceForInvocation } from "./source-invocation.js";
 import type { InteractionContext } from "../../../lib/command-input/interaction-context.js";
-import type { GitExec } from "../../../lib/git/exec.js";
-import { RepositoryGitCommonStatePublisher } from "../../../lib/git-common-state.js";
+import type { ReviewInvocationInput } from "./invocation.js";
+import { createReviewCompositionContext } from "./composition-context.js";
 import {
   LocalFrontlineOutcomeStore,
 } from "../hosts/local/frontline-outcome-store.js";
@@ -10,9 +11,6 @@ import {
   prepareFrontlineTargetMaterialization,
 } from "../hosts/local/frontline-materialization.js";
 import { withRepositoryReviewOperationLock } from "../hosts/local/git-common-state.js";
-import {
-  LocalReviewOperationStateStore,
-} from "../hosts/local/operation-state-store.js";
 import {
   classifyFrontlineCarrierFailure,
   prepareFrontlineCarrier,
@@ -35,17 +33,26 @@ import {
 } from "../providers/coderabbit/process.js";
 import type { FrontlineRunCommandDependencies } from "./frontline-run-command.js";
 
-/** Bind frontline run to exact Git materialization, repository-common stores, and CodeRabbit. */
-export function createFrontlineRunDependencies(input: {
-  exec: GitExec;
-  cwd: string;
+/** External process seams; executable lookup, hashing, and provider parsing stay production-owned. */
+export interface CodeRabbitProcessOptions {
+  executable?: Pick<NonNullable<Parameters<typeof resolveCodeRabbitExecutable>[1]>, "interrogate" | "pathValue">;
+  run?: typeof runCodeRabbitProcess;
+}
+
+/** Bind frontline run to exact Git materialization, the invocation's result store, and CodeRabbit. */
+export function createFrontlineRunDependencies(options: ReviewInvocationInput & {
   interaction: InteractionContext["subprocess"];
+  codeRabbit?: CodeRabbitProcessOptions;
 }): FrontlineRunCommandDependencies {
-  const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
+  const context = createReviewCompositionContext(options);
+  const input = { ...options, ...context };
+  const { publisher, family } = context;
   const registry = new FrontlineSourceRegistry([CODERABBIT_FRONTLINE_REGISTRATION]);
   return {
-    operationStore: new LocalReviewOperationStateStore(publisher),
-    outcomeStore: new LocalFrontlineOutcomeStore(publisher),
+    bindSourceReference: reference => bindReviewSourceReferenceForInvocation(input, reference),
+    operationStore: family.ports.inFlight,
+    ...(family.mode === "stored" ? { outcomes: family.ports.outcomes }
+      : { outcomeStore: new LocalFrontlineOutcomeStore(publisher) }),
     withOperationLock: (operationId, maxWaitMs, action) => withRepositoryReviewOperationLock(
       input.exec,
       input.cwd,
@@ -77,9 +84,10 @@ export function createFrontlineRunDependencies(input: {
                 execute: () => executeCodeRabbitFrontline(execution, {
                   resolveExecutable: (command, context) => resolveCodeRabbitExecutable(command, {
                     ...context,
+                    ...input.codeRabbit?.executable,
                     interaction: input.interaction,
                   }),
-                  run: (command, argv, options) => runCodeRabbitProcess(command, argv, {
+                  run: (command, argv, options) => (input.codeRabbit?.run ?? runCodeRabbitProcess)(command, argv, {
                     ...options,
                     interaction: input.interaction,
                   }),

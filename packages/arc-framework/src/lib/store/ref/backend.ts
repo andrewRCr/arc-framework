@@ -19,6 +19,7 @@ import { pullRefStore } from "./pull.js";
 import { readSourceContext } from "./read-source-namespace.js";
 import { runRefMigrate, runRefRemote } from "./commands.js";
 import { runRefConflict } from "./conflict-command.js";
+import { withRefOperation, wrapRefCommandStore } from "./operation-scope.js";
 import { createRefReadCoordinator } from "./read-operation.js";
 import { maintainRefStore } from "./maintain.js";
 import { withOperationIdentity as scoped } from "./operation-identity.js";
@@ -33,13 +34,13 @@ export function createRefBackend(ports: RefStorePorts): Store {
     batch: (input) => operations.read((reader) => batchRefRecords(scoped(reader), input)),
     pull: (input) => {
       const parsed = PullInputSchema.safeParse(input ?? {});
-      return parsed.success ? operations.maintenance(() => pullRefStore(scoped(context), parsed.data)) : syncInputRefusal("pull", parsed.error);
+      return parsed.success ? operations.maintenance(() => withRefOperation(scoped(context), (reader) => pullRefStore(reader, parsed.data))) : syncInputRefusal("pull", parsed.error);
     },
     push: (input) => {
       const parsed = PushInputSchema.safeParse(input ?? {});
-      return parsed.success ? operations.maintenance(() => pushRefStore(scoped(context), parsed.data)) : syncInputRefusal("push", parsed.error);
+      return parsed.success ? operations.maintenance(() => withRefOperation(scoped(context), (reader) => pushRefStore(reader, parsed.data))) : syncInputRefusal("push", parsed.error);
     },
-    maintain: () => operations.maintenance(() => maintainRefStore(scoped(context))),
+    maintain: () => operations.maintenance(() => withRefOperation(scoped(context), maintainRefStore)),
   };
 }
 
@@ -63,20 +64,21 @@ function refReadOperations(context: RefBackendContext, operations = createRefRea
     capabilities: { stateOffBranch: true },
     read: (input) => operations.read((reader) => input.asOf ? readSnapshotRecord(scoped(reader), input) : readRefRecord(scoped(reader), input)),
     list: (input) => operations.read((reader) => input.asOf ? listSnapshotRecords(scoped(reader), input) : listRefRecords(scoped(reader), input)),
-    version: async () => ({ status: "ok", result: await refStateVersion(scoped(context)) }),
-    history: (input) => historyRefRecord(scoped(context), input), changes: (input) => changesRefRecords(scoped(context), input),
+    version: () => operations.read(async (reader) => ({ status: "ok", result: await refStateVersion(scoped(reader)) })),
+    history: (input) => operations.read((reader) => historyRefRecord(scoped(reader), input)),
+    changes: (input) => operations.read((reader) => changesRefRecords(scoped(reader), input)),
     lookup: (input) => operations.read((reader) => lookupRefRecord(scoped(reader), input)),
   };
 }
 
 /** Enter the ref backend's explicit migration command. */
 export async function runRefBackendMigrate(ports: RefStorePorts, input: StoreMigrateInput): Promise<StoreMigrateResult> {
-  return runRefMigrate(createRefBackendContext(ports), createRefBackend(ports), input);
+  return withRefOperation(scoped(createRefBackendContext(ports)), (context) => runRefMigrate(context, wrapRefCommandStore(context, createRefBackend(ports)), input));
 }
 
 /** Enter the ref backend's explicit designation command. */
 export async function runRefBackendRemote(ports: RefStorePorts, input: StoreRemoteInput): Promise<StoreRemoteResult> {
-  return runRefRemote(createRefBackendContext(ports), createRefBackend(ports), input);
+  return withRefOperation(scoped(createRefBackendContext(ports)), (context) => runRefRemote(context, wrapRefCommandStore(context, createRefBackend(ports)), input));
 }
 
 /** Inspect an exact conflict without changing operational backend selection. */

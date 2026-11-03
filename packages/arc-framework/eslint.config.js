@@ -66,7 +66,7 @@ const architectureBans = [
   {
     files: [src("lib/active/meta-reader.ts")],
     syntax: ["ImportDeclaration", "ExportNamedDeclaration", "ExportAllDeclaration"].map((node) => ({
-      selector: `${node}[source.value=/\\/store\\//]:not([source.value=/\\/store\\/kinds\\/meta\\/(?:writers|projection|empty-record|line-reading|preformatted-writer)\\.js$/])`,
+      selector: `${node}[source.value=/\\/store\\//]:not([importKind="type"]):not([source.value=/\\/store\\/kinds\\/meta\\/(?:writers|projection|empty-record|line-reading|preformatted-writer)\\.js$/])`,
       message: "Keep the store delegate dynamic",
     })),
   },
@@ -135,8 +135,8 @@ const architectureBans = [
   },
   {
     files: [src("commands/active/status.ts")],
-    paths: ["../../lib/config/status-reader.js", "../../lib/work-unit/submission-boundary-store.js",
-      "../../lib/work-unit/candidate-record-store.js", "../../lib/work-unit/candidate-attestation.js",
+    paths: ["../../lib/store/active-review-access.js", "../../lib/config/status-reader.js", "../../lib/store/kinds/review/integration-boundary/access.js",
+      "../../lib/store/kinds/review/candidate/access.js", "../../lib/work-unit/candidate-attestation.js",
       "../../lib/work-unit/git-candidate-effective-target.js", "../../scripts/review-gate/policy/integration-boundary-locus.js",
       "../../scripts/review-gate/policy/candidate-review-fix-continuation.js"].map((name) => ({ name, allowTypeImports: true })),
   },

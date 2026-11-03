@@ -58,7 +58,7 @@ describe("entry splitting", () => {
 describe("managed ID stamping", () => {
   it.each([
     [heading,'## Errand\n\n### **Entry**\n\n- _Created:_ `2026-10-01`\n\n<!-- example\n- _Description:_ example field\n-->\n\nactual body\n'],
-    [field,'## Memories\n\n**Memory:**\n<!-- example\n_Remove when:_ example\n-->\n_Remove when:_ real\n\nbody\n'],
+    [field,'## Memories\n\n<!-- example\n_Remove when:_ example\n-->\n\n**Memory:**\n_Remove when:_ real\n\nbody\n'],
     [heading,'## Errand\n\n### **Entry**\n- _Description:_ real <!-- example\n- _Description:_ hidden\n-->\n\nbody\n'],
     [field,'## Memories\n\n**Memory:**\n_Remove when:_ real <!-- example\n_Remove when:_ hidden\n-->\n\nbody\n']
   ] as const)("stamps a usable identity outside comment examples for %j", (config,input) => {

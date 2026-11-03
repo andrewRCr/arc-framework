@@ -207,8 +207,11 @@ export function createErrandMergeDependencies(input: {
   const common = createIntegrationMergeDependencies({
     cwd: input.cwd,
     exec: input.exec,
+    store,
     workUnit: slug,
     hostedRunner: runner,
+    // An Errand records no landing link, so its merged read needs no exact merge identity.
+    confirmMergeIdentity: false,
     ...(input.changeRequestPort === undefined ? {} : { changeRequestPort: input.changeRequestPort }),
   });
   const rawExec = createRawGitExec(input.cwd);
@@ -249,7 +252,7 @@ export function createErrandMergeDependencies(input: {
       return selectCurrentErrandMergeIdentity(frame, slug, store);
     },
     readMerged: async (target) => ({
-      merged: await common.readMerged(target),
+      merged: (await common.readMerged(target)).merged,
       providerMergeId: null,
     }),
     refreshTarget: (target) => common.refreshTarget(target),

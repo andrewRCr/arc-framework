@@ -298,7 +298,7 @@ beforeAll(async () => {
     const root = await createTempRepo("arc-candidate-lineage-template-");
     const initialized = await runArc(["init", "--yes", "--name", "example"], root);
     expect(initialized.exitCode, initialized.stderr || initialized.stdout).toBe(0);
-    await git(root, ["add", ".arc", ".gitignore"]);
+    await git(root, ["add", ".arc", ".gitignore", ".ignore"]);
     await git(root, ["commit", "-m", "install ARC"]);
     return root;
   });
@@ -1601,7 +1601,8 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     expect(prePublication.exitCode).toBe(1);
     expect(JSON.parse(prePublication.stdout)).toMatchObject({
       error: { code: "candidate-unexplained-delta" },
-      remedy: { argv: ["arc", "attest", "example", "--new-root"] },
+      applicability: { state: "decision-required", resolutionSelector: { candidateId: superseded } },
+      remedy: { argv: ["arc", "candidate", "applicability", "resolve", "example", "-"] },
     });
 
     // The default re-attestation refuses while checkpoint exposes the bounded applicability decision.
@@ -1651,6 +1652,46 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       reason: "candidate-unexplained-delta",
     });
   });
+
+  it("continues pre-publication from the applicability selector its refusal carries", async () => {
+    const root = await fixture();
+    await git(root, ["remote", "add", "origin", "https://github.com/owner/repo.git"]);
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+    await writeFile(join(root, "reviewed.txt"), "unexplained implementation\n", "utf8");
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "unexplained implementation"]);
+
+    const refused = await runArc(["review", "pre-publication", "example"], root);
+    expect(refused.exitCode).toBe(1);
+    const refusal = JSON.parse(refused.stdout) as {
+      applicability: { resolutionSelector: Record<string, unknown> };
+      remedy: { argv: string[] };
+    };
+    expect(refusal).toMatchObject({
+      error: { code: "candidate-unexplained-delta" },
+      applicability: { state: "decision-required", paths: ["reviewed.txt"] },
+      remedy: { argv: ["arc", "candidate", "applicability", "resolve", "example", "-"] },
+    });
+
+    const selected = await runArcWithStdin(refusal.remedy.argv.slice(1), root, `${JSON.stringify({
+      ...refusal.applicability.resolutionSelector,
+      selectedBy: "test-user",
+      choice: "covered",
+    })}\n`);
+    expect(selected.exitCode, selected.stderr || selected.stdout).toBe(0);
+    expect(JSON.parse(selected.stdout)).toMatchObject({
+      state: "resolved", nextAction: "commit-selection", choice: "covered",
+    });
+    await git(root, ["commit", "-m", "record Candidate applicability"]);
+
+    const resumed = await runArc(["review", "pre-publication", "example"], root);
+    expect(resumed.exitCode, resumed.stderr || resumed.stdout).toBe(0);
+    expect(JSON.parse(resumed.stdout)).toMatchObject({
+      locus: "candidate-review-pending",
+      target: { kind: "change-set", headSha: await git(root, ["rev-parse", "HEAD^{commit}"]) },
+    });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("refuses an exact re-root continuation after its staged subject changes", async () => {
     const root = await fixture();
@@ -2577,6 +2618,7 @@ async function persistComposition(root: string, approvedHead: string): Promise<s
     const baseRevision = await git(root, ["rev-parse", "main^{commit}"]);
     const dependencies = createIntegrationCheckpointDependencies({ cwd: root, exec: gitExec });
     await dependencies.readCandidate("example", baseRevision);
+    const lifecycle = await dependencies.readLifecycle("example");
     const persisted = await dependencies.createHandle({
       workUnit: "example",
       approvedHead,
@@ -2590,15 +2632,7 @@ async function persistComposition(root: string, approvedHead: string): Promise<s
         requirements: [{ id: "candidate-convergence", state: "satisfied", detail: "Converged." }],
       },
       statusSummary: {
-        lifecycle: {
-          workUnit: SlugSchema.parse("example"),
-          storageVersion: approvedHead,
-          archiveCadence: "manual",
-          state: "integrating",
-          position: { phase: "Integrating", location: "active" },
-          artifactFacts: [],
-          complete: true,
-        },
+        lifecycle,
         changeRequest: {
           repository: "owner/repo",
           pullRequest: 42,
@@ -2638,6 +2672,8 @@ function registerReviewBearingIntegration(it: typeof vitestIt): void {
     const { root, approvedHead } = await settledReviewLineage();
     const handle = await persistComposition(root, approvedHead);
     const production = createIntegrationMergeDependencies({ cwd: root, exec: gitExec, workUnit: "example" });
+    const checkpoint = await inRepository(root, async () => production.readCheckpoint("example", handle));
+    if (checkpoint === null) throw new Error("Expected the persisted checkpoint");
     const target: IntegrationMergeTarget = {
       repository: "owner/repo",
       pullRequest: 42,
@@ -2651,11 +2687,11 @@ function registerReviewBearingIntegration(it: typeof vitestIt): void {
       readStatus: async () => ({
         actualHead: approvedHead,
         lifecycleComplete: true,
-        lifecycleVersion: approvedHead,
+        lifecycleVersion: checkpoint.lifecycleVersion,
         target,
       }),
       refreshTarget: async () => target,
-      readMerged: async () => false,
+      readMerged: async () => ({ merged: false, providerMergeId: null }),
       readConfiguredBase: async () => "main",
       releaseLock: async () => ({ state: "released" }),
       holdLock: async () => ({ state: "held" }),
@@ -2775,7 +2811,7 @@ async function reserveHostedReview(root: string, approvedHead: string): Promise<
       obligation: OBLIGATION,
     }),
     changeRequest: { repository: "owner/repo", pullRequest: 42 },
-  }), version);
+  }, 1), version);
 }
 
 function registerRoutedReviewObligation(it: typeof vitestIt): void {

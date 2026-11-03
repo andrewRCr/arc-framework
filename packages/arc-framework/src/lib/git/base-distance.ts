@@ -416,6 +416,15 @@ function resolveResolver(
   }
 }
 
+/** An authoritative unavailable verdict for a failure met before analysis, carrying its diagnostic text. */
+export function unavailableBaseDrift(
+  reason: BaseDriftUnavailableReason,
+  base: string | null,
+  diagnostic: unknown,
+): Extract<BaseDriftResult, { verdict: "unavailable" }> {
+  return unavailable("authoritative", reason, "remote-unavailable", base, "error", diagnostic);
+}
+
 function unavailable(
   mode: BaseDriftMode,
   reason: BaseDriftUnavailableReason,
@@ -466,6 +475,7 @@ function baseDriftFailureDetail(
     "fetched-base-unresolved": `The fetched origin/${namedBase} ref did not resolve to a commit.`,
     "distance-read-failed": `Git could not compare HEAD with the observed ${namedBase} commit.`,
     "remote-evidence-unreachable": `Remote snapshot evidence for ${namedBase} was unreachable.`,
+    "locus-unavailable": "The checkout's work-unit state could not be read, so its path treatment is unknown.",
   };
   const raw = diagnostic === undefined
     ? ""
@@ -493,6 +503,7 @@ function baseDriftTerminalExplanation(
     "fetched-base-unresolved": `Repair origin/${namedBase} so it resolves to a commit, then rerun arc base drift.`,
     "distance-read-failed": "Restore a complete readable Git history, then rerun arc base drift.",
     "remote-evidence-unreachable": "Restore remote evidence access, then repeat the calling operation.",
+    "locus-unavailable": "Repair the reported work-unit state, then rerun arc base drift.",
   };
   return explanations[reason];
 }

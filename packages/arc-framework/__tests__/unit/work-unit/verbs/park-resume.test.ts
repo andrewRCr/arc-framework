@@ -15,6 +15,8 @@
  * ordered call log and the recorded writes / removals.
  */
 
+import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
+import { worktreePorcelainZ } from "../../../helpers/worktree-porcelain.js";
 import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness.js";
 import { describe, it, expect } from "vitest";
 
@@ -147,6 +149,11 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
   }
 
   const executor: ExecuteTransitionContext = {
+    exec: scriptGitExec([
+      { match: ["worktree", "list", "--porcelain", "-z"], responses: [{ stdout:
+        worktreePorcelainZ(`worktree ${WORKTREE}\nHEAD ${"a".repeat(40)}\nbranch refs/heads/feat/foo\n`) }] },
+      { match: { prefix: ["worktree", "lock"] }, responses: [{ stdout: "" }] },
+    ]).exec,
     cwd: CWD,
     indexFs: buildIndexFs(metas),
     setPhase: async () => ({ phase: "Active" }),
