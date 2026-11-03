@@ -18,24 +18,13 @@ and the three write rules raise carries the repair for its holders and tie; `met
 former slug naming the current one and admit a completed meta's rewrite onto a completed cohort; and before the flip
 `arc cohort close` and `arc cohort remove` refuse `unsupported` while every in-repo arm's existing tests pass unchanged.
 
-### `[ ]` **1.1 Build a branch link's repair beside the clash repair — § 3.3**
+### `[x]` **1.1 Build a branch link's repair beside the clash repair — § 3.3**
 
 - _Goal:_ A live branch-link tie names, per holder, the move that takes its link off the branch, and a completed one
   says no lifecycle repair is available, naming each holder's UID.
 
-    - Add `branchLinkRepair(candidates, tie, branch)` to `lib/store/clash-repair.ts`, `branch` being the branch the
-      lookup names: a completed tie takes `clashRepair`'s completed text; a live tie names `arc rename <uid> <new-slug>`
-      for a work unit, the catch-up `arc rename <uid> <slug>` for one where `workBranchName(branch)` does not match
-      `^[^/]+/<current-slug>$`, any one-segment prefix, as `branchRename` matches, and `arc errand close <uid>` for an
-      Errand, each run on the machine holding that holder's checkout; its argv is `arc status --json`.
-    - `clashRepair` already carries § 3.1's preferred move, former-tie, and completed-tie text and its argv rule; it is
-      unchanged, and its cases in `__tests__/unit/lib/store/clash-repair.test.ts` stand.
-
-    - Build `test-first` (one behavior at a time):
-        - a live tie of two work units names `arc rename <uid> <new-slug>` for each, with `arc status --json` as argv
-        - a live tie of a work unit and an Errand names the rename for one and `arc errand close <uid>` for the other
-        - a work unit whose current slug no longer names the branch takes the catch-up form
-        - a completed tie of closed Errands takes the completed text, naming each UID
+- _Outcome:_ Added `branchLinkRepair` with per-holder rename, catch-up, and Errand-close instructions on the holding
+  machine; completed holders retain the UID-bearing no-repair result.
 
 ### `[ ]` **1.2 Give each lookup arm's ambiguity its repair in both backends — § 3.1, § 3.3**
 

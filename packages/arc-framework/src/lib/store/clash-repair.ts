@@ -1,8 +1,24 @@
 /** Pure recovery instructions for ranked lifecycle lookup ties. */
 import type { RecordReference } from "./identity.js";
 import type { Remedy, StoreRefusal } from "./refusal.js";
+import { workBranchName } from "./lifecycle-branch.js";
 /** Ranking facts carried by a lifecycle ambiguity. */
 export type ClashTie = NonNullable<Extract<StoreRefusal, { code: "ambiguous-match" }>["tie"]>;
+/** Build recovery instructions for owners sharing a branch link. */
+export function branchLinkRepair(candidates: readonly RecordReference[], tie: ClashTie, branch: string): Remedy {
+  if (tie.liveness === "completed") return clashRepair(candidates, tie);
+  const moves = candidates.map(reference => {
+    const uid = holderUid(reference) ?? "<uid>";
+    if (reference.kind === "work-item/record") return `\`arc errand close ${uid}\``;
+    const currentBranch = workBranchName(branch);
+    const parts = currentBranch.split("/");
+    const target = parts.length === 2 && parts[0] !== "" && parts[1] === reference.owner.name
+      ? "<new-slug>" : reference.owner.name;
+    return `\`arc rename ${uid} ${target}\``;
+  });
+  return { text: `On the machine holding each holder's checkout, move its branch link with ${moves.join("; ")}.`,
+    argv: ["arc", "status", "--json"] };
+}
 /** Build a human repair and one executable next observation or action. */
 export function clashRepair(candidates: readonly RecordReference[], tie: ClashTie): Remedy {
   const observe = ["arc", "status", "--json"];
