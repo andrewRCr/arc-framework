@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "prepub-routing-fact",
+  "claimId": "b8f311ac3ebb1406bf4a9100deaf40c6",
+  "createdAt": "2026-11-03T18:49:06.580Z",
+  "updatedAt": "2026-11-03T18:49:06.580Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Have pre-publication establish a supplied change set as known, carry its routing advisory in the envelope, and name the differing routing fact in its policy-mismatch refusal",
+  "branch": "chore/prepub-routing-fact",
+  "origin": "inbox",
+  "originEntry": "Report a rejected pre-publication routing fact in the envelope and name it in the policy-mismatch refusal",
+  "originEntrySourceDigest": "sha256:5e2cb41c221da930dc03f7a0dfd0a19e6eac1e707ede1a929fb026c6cf30abf8",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
