@@ -68,6 +68,11 @@ friction points.
 - What does the agent need to know every session to make good decisions?
 - What are the gotchas that waste agent time — things not obvious from the code?
 - What's the one-paragraph summary of what this project is?
+- Which stack categories fit? Web apps: language, framework, frontend, database, infrastructure. CLI tools: language,
+  package manager, distribution. Libraries: language, build system, test framework, documentation tool.
+- Which top-level directories must the agent find quickly?
+- Friction examples include tests that need a database, unexpected configuration locations, two coexisting build
+  systems, and commands that require a particular working directory.
 
 Keep it concise — this is loaded every session, not a comprehensive reference.
 PROJECT-PRD and TECHNICAL-OVERVIEW carry the detail.

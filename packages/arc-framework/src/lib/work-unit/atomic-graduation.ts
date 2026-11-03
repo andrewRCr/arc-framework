@@ -16,6 +16,7 @@ import {
   type GitIndexTransaction,
 } from "../git/exec.js";
 import { parseGitWorktreePorcelain } from "../git/worktree-porcelain.js";
+import { localPathsEqual } from "../local-path-identity.js";
 import type {
   GraduationStoredArtifact,
   ValidatedGraduationTransaction,
@@ -85,6 +86,18 @@ async function optionalBytes(fs: AtomicGraduationFs, path: string): Promise<Uint
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
+}
+
+/**
+ * Whether Git lists a worktree at `path`. Git spells a checkout its own way (forward slashes on Windows, a resolved
+ * temporary root on macOS), so each listed path is compared by local identity, never as a string.
+ */
+async function worktreeRegistered(deps: AtomicGraduationDependencies, path: string): Promise<boolean> {
+  const { stdout } = await deps.exec("git", ["worktree", "list", "--porcelain"], { cwd: deps.cwd });
+  for (const entry of parseGitWorktreePorcelain(stdout)) {
+    if (await localPathsEqual(entry.path, path)) return true;
+  }
+  return false;
 }
 
 async function pathExists(fs: AtomicGraduationFs, path: string): Promise<boolean> {
@@ -205,9 +218,8 @@ async function verifyInitialOccupation(
   }
   if (transaction.occupation.mode === "spawned") {
     const worktree = transaction.occupation.worktree;
-    const { stdout } = await deps.exec("git", ["worktree", "list", "--porcelain"], { cwd: deps.cwd });
-    const registered = parseGitWorktreePorcelain(stdout).some(({ path }) => path === worktree.path);
-    if (worktree.kind !== "absent" || registered || await pathExists(deps.fs, worktree.path)) {
+    if (worktree.kind !== "absent" || await worktreeRegistered(deps, worktree.path)
+      || await pathExists(deps.fs, worktree.path)) {
       throw new Error(`Graduation worktree destination is no longer absent: ${worktree.path}.`);
     }
     return;
@@ -221,7 +233,7 @@ async function verifyInitialOccupation(
   ]);
   if (head.trim() !== worktree.head
     || (branch.trim() || null) !== worktree.branch
-    || top.trim() !== worktree.path
+    || !await localPathsEqual(top.trim(), worktree.path)
     || await indexTree(deps.exec, deps.cwd) !== transaction.occupation.indexTree) {
     throw new Error("In-place graduation occupation or index preimage changed.");
   }
@@ -302,9 +314,7 @@ async function rollbackOccupation(
 ): Promise<void> {
   const operation = transaction.occupation.operation;
   if (operation.kind === "spawned") {
-    const { stdout } = await deps.exec("git", ["worktree", "list", "--porcelain"], { cwd: deps.cwd });
-    const registered = parseGitWorktreePorcelain(stdout).some(({ path }) => path === operation.worktreePath);
-    if (registered) {
+    if (await worktreeRegistered(deps, operation.worktreePath)) {
       try {
         await deps.exec("git", ["worktree", "remove", "--force", operation.worktreePath], { cwd: deps.cwd });
       } catch (error) {
@@ -374,9 +384,7 @@ async function verifyRollback(
     } else {
       const worktree = transaction.occupation.worktree;
       if (worktree.kind !== "absent") throw new Error("spawned worktree preimage is invalid");
-      const { stdout } = await deps.exec("git", ["worktree", "list", "--porcelain"], { cwd: deps.cwd });
-      if (parseGitWorktreePorcelain(stdout).some(({ path }) => path === worktree.path)
-        || await pathExists(deps.fs, worktree.path)) {
+      if (await worktreeRegistered(deps, worktree.path) || await pathExists(deps.fs, worktree.path)) {
         throw new Error("spawned worktree remains");
       }
     }

@@ -220,7 +220,8 @@ function recoveryWorkflowForWorkUnit(
   return context.stage;
 }
 
-function transientWorkflow(
+/** Resolve the owning workflow for an already selected transient subject. */
+export function transientWorkflow(
   subject: Exclude<DerivedCheckoutSubject, { kind: "work-unit" }>,
 ): { name: string; path: string } {
   switch (subject.kind) {

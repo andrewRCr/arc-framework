@@ -143,21 +143,23 @@ a configurability path (how teams adapt it).
 
 ### Agent discovery
 
-The agent learns about the active configuration during session initialization. The session-init probe
-(`arc status --session-init --json`) resolves **final settings** by merging project YAML (`arc-config.yml`)
-with the current developer's local git-config — per-developer keys (`arc.commitInterlock`, `arc.pushInterlock`,
-`arc.syncInterlock`, `arc.releaseOptedIn`, `arc.notesPush`) take precedence in the resolution. Downstream
-logic (workflows, hooks, fire-point directives) consumes the resolved view, not the raw YAML:
+The agenda's residual `config` slot carries resolved session-entry settings. Resolution merges project YAML
+(`arc-config.yml`) with the current developer's local git-config; per-developer keys (`arc.commitInterlock`,
+`arc.pushInterlock`, `arc.syncInterlock`, `arc.releaseOptedIn`, `arc.notesPush`) take precedence where applicable.
+Downstream consumers use the resolved view rather than interpreting raw YAML.
 
-1. **Platform**: Check `platform.type`; use QUICK-REFERENCE § Platform Commands for platform-appropriate PR/MR
-   and issue commands. The section lists GitHub defaults and is project-editable for other platforms.
-2. **Custom patterns**: If `commit.format: custom` or `commit.context_footer: custom`, note the active patterns
+Settings outside that entry subset are read by the operation that needs them:
+
+1. **Platform**: Resolve `platform.type` for platform-specific operations; use QUICK-REFERENCE § Platform Commands
+   for the configured PR/MR and issue commands. The section lists GitHub defaults and is project-editable.
+2. **Custom patterns**: When `commit.format: custom` or `commit.context_footer: custom`, the commit operation reads
+   the active patterns.
 
 Method defaults and overrides load on demand at their direct workflow or method fire-point
 (see [Session Operations Strategy][session-ops]).
 
-This is a read-and-note step, not a ceremony. The agent carries this awareness through the session and applies
-it when encountering method references or platform-specific operations.
+Carry the resolved settings into their consuming operation. Method references and platform-specific operations
+supply the fire-points for any remaining reads.
 
 ---
 

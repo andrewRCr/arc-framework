@@ -668,8 +668,8 @@ describe("trusted review-gate workflows", () => {
     });
   });
 
-  it("limits session-notes overrides to discretionary planning and execution phases", async () => {
-    for (const name of ["session-init", "session-handoff"] as const) {
+  it("limits handoff session-notes overrides to discretionary planning and execution phases", async () => {
+    for (const name of ["session-handoff"] as const) {
       const [packaged, instance] = await Promise.all([
         readRepositoryFile(
           `packages/arc-framework/arc/system/workflows/arc/session-lifecycle/${name}.template.md`,

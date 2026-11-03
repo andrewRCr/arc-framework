@@ -13,8 +13,9 @@
  * @module
  */
 
+import { buildErrandNextResult, resolveErrandNext, type ErrandNextResult } from "../commands/errand-next.js";
 import { runStoreErrandOverlap } from "../lib/errand/store-overlap.js";
-import { resolveQueueExecutionOffer, QueueOfferProblemSchema, type QueueExecutionOffer } from "../lib/inbox/offer.js";
+import { resolveQueueExecutionOffer, type QueueExecutionOffer } from "../lib/inbox/offer.js";
 import { formatErrandQueueReport } from "./errand-queue-report.js";
 import { prepareHandlerErrandAdoption, completePartialQueueDrop, prepareHandlerErrandReturn, settleStorePartialCapture, reportPriorErrand } from "./errand-entry-storage.js";
 import { prepareErrandReturn } from "../lib/inbox/errand-return.js";
@@ -113,9 +114,7 @@ import {
 } from "../lib/user-sync/inbox-writer.js";
 import {
   resolveExecutionNextOffer,
-  resolveExecutionStartupOffer,
   type ExecutionOfferResolution,
-  type ExecutionStartupOfferResolution,
 } from "../lib/user-sync/execution-offer.js";
 import { resolveArcPath } from "../lib/layout/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
@@ -142,92 +141,6 @@ export interface ErrandNextOptions {
 /** Validated input for resolving the next queued Errand. */
 export const ErrandNextInputSchema = z.object({ json: z.boolean().optional() }).strict();
 
-const ErrandNextOfferSchema = z.strictObject({
-  kind: z.literal("errand"),
-  key: z.string().min(1),
-  parentCheckoutPath: z.null(),
-});
-
-/** Typed queue-head result consumed by `arc-session --errand --next`. */
-export const ErrandNextResultSchema = z.discriminatedUnion("state", [
-  z.strictObject({
-    leftOut: z.array(QueueOfferProblemSchema).optional(),
-    skipped: z.array(QueueOfferProblemSchema).optional(),
-    schemaVersion: z.literal(1),
-    mode: z.literal("errand-next"),
-    state: z.literal("available"),
-    nextAction: z.literal("open-errand"),
-    nextOffer: ErrandNextOfferSchema,
-    recommendedPromptText: z.string().min(1),
-  }),
-  z.strictObject({
-    leftOut: z.array(QueueOfferProblemSchema).optional(),
-    skipped: z.array(QueueOfferProblemSchema).optional(),
-    schemaVersion: z.literal(1),
-    mode: z.literal("errand-next"),
-    state: z.literal("empty"),
-    nextAction: z.literal("none"),
-    nextOffer: z.null(),
-    recommendedPromptText: z.string().min(1),
-  }),
-  z.strictObject({
-    leftOut: z.array(QueueOfferProblemSchema).optional(),
-    skipped: z.array(QueueOfferProblemSchema).optional(),
-    schemaVersion: z.literal(1),
-    mode: z.literal("errand-next"),
-    state: z.literal("refused"),
-    nextAction: z.literal("stop"),
-    nextOffer: z.null(),
-    reason: z.string().min(1),
-    remedy: z.string().min(1),
-    retryCommand: z.literal("arc errand next --json"),
-    recommendedPromptText: z.string().min(1),
-  }),
-]);
-export type ErrandNextResult = z.infer<typeof ErrandNextResultSchema>;
-
-/** Project one queue read into the closed startup-selection contract. */
-export function buildErrandNextResult(
-  resolution: ExecutionStartupOfferResolution,
-  refusalRemedy?: string,
-): ErrandNextResult {
-  if (resolution.kind === "refused") {
-    const remedy = refusalRemedy ?? resolution.remedy ?? "Repair the reported `USER-INBOX` condition.";
-    return ErrandNextResultSchema.parse({
-      schemaVersion: 1,
-      mode: "errand-next",
-      state: "refused",
-      nextAction: "stop",
-      nextOffer: null,
-      reason: resolution.reason,
-      remedy,
-      retryCommand: "arc errand next --json",
-      recommendedPromptText: "The execute-bound Errand queue could not be read safely: "
-        + `${resolution.reason} ${remedy} Retry with \`arc errand next --json\`.`,
-    });
-  }
-  if (resolution.nextOffer === null) {
-    return ErrandNextResultSchema.parse({
-      schemaVersion: 1,
-      mode: "errand-next",
-      ...(resolution.leftOut === undefined ? {} : { leftOut: resolution.leftOut, skipped: resolution.skipped }),
-      state: "empty",
-      nextAction: "none",
-      nextOffer: null,
-      recommendedPromptText: "No execute-bound Errand is queued.",
-    });
-  }
-  return ErrandNextResultSchema.parse({
-    schemaVersion: 1,
-    mode: "errand-next",
-    ...(resolution.leftOut === undefined ? {} : { leftOut: resolution.leftOut, skipped: resolution.skipped }),
-    state: "available",
-    nextAction: "open-errand",
-    nextOffer: { ...resolution.nextOffer, parentCheckoutPath: null },
-    recommendedPromptText: `Next execute-bound Errand: ${resolution.nextOffer.key}.`,
-  });
-}
-
 /** Resolve the stable first execute-bound capture without opening or mutating it. */
 export async function handleErrandNext(
   opts: ErrandNextOptions,
@@ -245,24 +158,8 @@ export async function handleErrandNext(
   try {
     const cwd = requireArcProjectRoot();
     const identity = cwd === null ? null : await resolveIdentity({ exec: errandGitExec(context) });
-    if (cwd === null || identity === null) {
-      emitErrandNextResult(buildErrandNextResult({
-        kind: "refused",
-        reason: cwd === null
-          ? "ARC project root is unavailable."
-          : "No identity resolved — set arc.identity before selecting an Errand.",
-      }, cwd === null
-        ? "Run from an ARC project checkout."
-        : "Set `arc.identity` for this checkout."), opts.json === true);
-      return;
-    }
-    const resolution = await resolveCurrentExecutionStartupOffer({
-      cwd,
-      io: createUserIOContext(context?.subprocess),
-      identity,
-      parentCheckoutPath: null,
-    });
-    emitErrandNextResult(buildErrandNextResult(resolution), opts.json === true);
+    const result = await resolveErrandNext({ cwd, identity, io: createUserIOContext(context?.subprocess) });
+    emitErrandNextResult(result, opts.json === true);
   } catch (error) {
     emitErrandNextResult(buildErrandNextResult({
       kind: "refused",
@@ -1555,29 +1452,6 @@ async function resolveCurrentExecutionNextOffer(options: {
   });
 }
 
-async function resolveCurrentExecutionStartupOffer(options: {
-  cwd: string;
-  io: ReturnType<typeof createUserIOContext>;
-  identity: string;
-  parentCheckoutPath: string | null;
-}): Promise<ExecutionStartupOfferResolution> {
-  const store = openDefaultStore(options.cwd, options.io.exec);
-  if (store.capabilities.stateOffBranch) {
-    const offer = await resolveQueueExecutionOffer({ store, identity: options.identity, now: () => new Date() }, options.parentCheckoutPath);
-    return offer.status === "refused" ? { kind: "refused", reason: offer.refusal.condition, remedy: offer.refusal.remedy.text } : { kind: "resolved", ...offer.result };
-  }
-  const { postImage } = await withLockedUserInbox(
-    { cwd: options.cwd, io: options.io, identity: options.identity },
-    () => ({ result: null }),
-  );
-  if (postImage.state === "missing") {
-    return { kind: "resolved", nextOffer: null };
-  }
-  return resolveExecutionStartupOffer({
-    content: postImage.content,
-    parentCheckoutPath: options.parentCheckoutPath,
-  });
-}
 
 export function formatErrandCloseResult(
   result: ErrandTerminalResult,

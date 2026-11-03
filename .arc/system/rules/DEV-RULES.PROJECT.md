@@ -3,9 +3,6 @@
 Project-specific development standards for the ARC framework. Quality gates, testing requirements,
 documentation style, file organization, and architecture rules.
 
-For ARC methodology rules (commit discipline, task execution, session management, verification), see
-[DEV-RULES.ARC][dev-rules-arc].
-
 ---
 
 ## Quality Gates

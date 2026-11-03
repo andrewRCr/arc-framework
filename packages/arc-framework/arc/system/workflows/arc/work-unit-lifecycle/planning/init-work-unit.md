@@ -89,8 +89,8 @@ creating the planning branch. This guard matters most on cross-machine resume, w
 on a sibling clone.
 
 **USER-INBOX backstop warning.** Before creating the planning branch or spawning a worktree, read the
-`inboxState` slot from the current session-init probe if available; otherwise run a fresh read-only probe and
-consume only that slot:
+`inboxState` slot at the current agenda's `residual.inboxState` when available; otherwise run a fresh read-only probe
+and consume only that slot:
 
 ```bash
 arc status --session-init --json

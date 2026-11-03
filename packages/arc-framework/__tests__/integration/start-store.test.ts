@@ -73,7 +73,7 @@ describe("store-backed start checkouts", () => {
   it("refuses a foreign target lock before the store write and preserves the lock", async () => {
     const h = await fixture(); await h.exec("git", ["worktree", "add", "--detach", h.path, "main"]);
     await h.exec("git", ["worktree", "lock", "--reason", "operator", h.path]); await rm(h.path, { recursive: true });
-    expect(await runGraduate(h.ctx, h.params)).toMatchObject({ status: "rejected", reason: expect.stringContaining(`git worktree unlock ${h.path}`) });
+    expect(await runGraduate(h.ctx, h.params)).toMatchObject({ status: "rejected", reason: expect.stringContaining(`git worktree unlock '${h.path}'`) });
     expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).version).toEqual(h.meta.version);
     expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain("locked operator");
     expect(await stat(h.path).catch(() => null)).toBeNull();
