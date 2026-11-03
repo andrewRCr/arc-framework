@@ -1,4 +1,6 @@
 /** Native Errand status reads the stored claim without requiring checkout occupancy. */
+import { appendFile } from "node:fs/promises";
+import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
 import { readStoredStatusErrandSelection } from "../../../../src/scripts/review-gate/status-errand-selection.js";
 import { readErrandRoutedObligation } from "../../../../src/scripts/review-gate/status-errand.js";
@@ -20,6 +22,13 @@ import { createReviewOutcomePort } from "../../../../src/lib/store/kinds/review/
 import { ReviewOutcomeSchema } from "../../../../src/lib/store/kinds/review/outcome/schema.js";
 import { createReviewTarget } from "../../../../src/scripts/review-gate/core/gate-contract-v2.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../../../../src/scripts/review-gate/policy/standard-review.js";
+import { createReviewEvidencePort } from "../../../../src/lib/store/kinds/review/evidence/access.js";
+import { composeReviewDispositionRecord } from "../../../../src/lib/store/kinds/review/evidence/composed-record.js";
+import { performedEvidenceFixture } from "../../../fixtures/review-evidence.js";
+import { publishNativeReviewApproval } from "../../../../src/scripts/review-gate/runtime/native-review-approval.js";
+import { publishNativeConditionalPass } from "../../../../src/scripts/review-gate/runtime/native-conditional-pass.js";
+import { publishNativeReviewPerformance } from "../../../../src/scripts/review-gate/runtime/native-review-performance.js";
+import { createFixAuthorization, consumeFixAuthorization } from "../../../../src/scripts/review-gate/core/fix-authorization.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const head = "a".repeat(40), branch = "chore/repair";
@@ -38,6 +47,7 @@ async function fixture(project = true, owner = "test-user") {
     { match: ["merge-base", "--all", head, base], responses: [{ stdout: base }] },
     ...[base, head].map(revision => ({ match: ["merge-base", "--is-ancestor", base, revision], responses: [{ stdout: "" }] })),
     ...[head, base].map(revision => ({ match: ["rev-parse", "--verify", `${revision}^{tree}`], responses: [{ stdout: "c".repeat(40) }] })),
+    { match: ["merge-base", "--is-ancestor", "c".repeat(40), head], responses: [{ stdout: "" }] },
     { match: ["rev-parse", "--verify", "--end-of-options", `refs/remotes/origin/${branch}^{commit}`],
       responses: [() => ({ stdout: branchHead })] },
     { match: ["rev-parse", "--verify", "--end-of-options", `refs/heads/${branch}^{commit}`],
@@ -48,13 +58,64 @@ async function fixture(project = true, owner = "test-user") {
   onTestFinished(checkout.cleanup);
   const rawExec = scriptRawGitExec([]).exec;
   return { ...checkout, record, primary, moveHead: (value: string) => { branchHead = value; },
-    run: (grant: { ceilingOverride?: ReviewCeilingOverride; additionalPassAuthorization?: ReviewAdditionalPassAuthorization } = {},
+    run: (grant: { ceilingOverride?: ReviewCeilingOverride; additionalPassAuthorization?: ReviewAdditionalPassAuthorization; sourceId?: string } = {},
       store: Store = checkout.store, workItem?: OwnerIdentity) => readErrandRoutedObligation({
     ...checkout, store, ...(workItem === undefined ? {} : { workItem }), projectId: createProjectIdentityReader(store), rawExec,
     target: { repository: "owner/repository", headRef: branch, headSha: head }, pullRequest: 42,
     currentBaseOid: base, changeRequestCandidate: { baseRefName: "main", url: "https://github.com/owner/repository/pull/42" }, ...grant,
   }) };
 }
+
+it("relays an unconsumed conditional approval for an Errand's complete hosted pass at the ceiling", async () => {
+  const h = await fixture(), priorHead = "c".repeat(40);
+  await appendFile(join(h.cwd, ".arc/system/arc-config.yml"), "review.standard_sources: [coderabbit-pr,delegated-agent]\n");
+  const target = createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-gate/v2", kind: "change-set",
+    repositoryId: projectId, baseRef: "main", diffBaseSha: base, diffBaseTree: "c".repeat(40), headSha: priorHead, headTree: "d".repeat(40) });
+  const outcomes = createReviewOutcomePort(h.store, h.primary.reference.owner);
+  const evidence = createReviewEvidencePort(h.store, h.primary.reference.owner);
+  const decisions = createReviewDecisionPort(h.store, h.primary.reference.owner);
+  const makeOutcome = (logicalPass: number) => {
+    const value = localOutcome({ target, logicalPass, lineage: { kind: "head-bound", vehicleKind: "errand",
+      vehicleIdentity: h.record.claimId, headSha: priorHead }, vehicle: { kind: "errand", identity: h.record.slug, claimId: h.record.claimId },
+      ...(logicalPass === 2 ? { outcome: "findings" as const, findings: [{ findingId: "finding-1", severity: "minor" as const,
+        locus: "src/main.ts:1", evidenceUrlOrId: "finding:1", sourceOrdinal: 1 }] } : {}) });
+    return ReviewOutcomeSchema.parse({ ...value, local: { ...value.local, rubricIdentity: STANDARD_REVIEW_RUBRIC_IDENTITY } });
+  };
+  await outcomes.create(makeOutcome(1));
+  const outcome = makeOutcome(2);
+  await outcomes.create(outcome);
+  const { value } = performedEvidenceFixture("errand", outcome);
+  if (value.performance?.fixResponse === undefined) throw new Error("Expected the fix transition");
+  const { performance: original, ...approved } = value;
+  const binding = { kind: "errand" as const, errand: { key: h.record.slug, claimId: h.record.claimId, branch: h.record.branch } };
+  const record = composeReviewDispositionRecord(outcome, [{ ...approved, binding }], h.primary.reference.owner);
+  const ports = { outcomes, evidence, decisions, readProjectId: h.projectId };
+  await publishNativeReviewApproval({ ...ports, record, now: () => "2026-10-20T12:01:00Z" });
+  const captured = await publishNativeConditionalPass({ ...ports, capture: { lane: "standard", repositoryId: projectId,
+    headSha: priorHead, lineage: outcome.lineage, producerId: outcome.attemptId,
+    dispositionSetId: approved.dispositionSet.dispositionSetId, authorizedBy: approved.approval.approvedBy,
+    exhaustedPassCount: 2, nextPass: 3, now: "2026-10-20T12:02:00Z" } });
+  const { targetId: ignored, ...coordinates } = target;
+  void ignored;
+  const current = createReviewTarget({ ...coordinates, headSha: head, headTree: "c".repeat(40) });
+  const authorization = createFixAuthorization({ oldTarget: target, dispositionState: { schemaVersion: 2,
+    semanticsVersion: "review-gate/v2", state: "approved", dispositionSet: approved.dispositionSet, approval: approved.approval } });
+  const fixConsumption = consumeFixAuthorization({ authorization, oldTarget: target, newTarget: current, appliedBy: "andrew",
+    consumedAt: "2026-10-20T12:03:00Z", verificationRefs: ["test:passed"], priorConsumptions: [] });
+  const performance = { ...original, producedHeadSha: head,
+    fixResponse: { ...original.fixResponse, newTarget: current, fixConsumption }, performedAt: "2026-10-20T12:04:00Z" };
+  await publishNativeReviewPerformance({ ...ports, record, performance });
+  const version = lifecycleSuccess(await h.store.version()), before = await decisions.list();
+  const omitted = await h.run({ sourceId: "coderabbit-pr" });
+  expect(omitted, JSON.stringify(omitted)).toMatchObject({ state: "approval-required" });
+  const ceilingOverride = { target: { repository: "owner/repository", pullRequest: 42, headSha: head }, lane: "standard" as const,
+    exhaustedPassCount: 2, nextPass: 3, conditionalPassAuthorizationId: reviewDecisionKey(captured.value) };
+  const result = await h.run({ ceilingOverride, sourceId: "coderabbit-pr" });
+  expect(result, JSON.stringify(result)).toMatchObject({ state: "review-required", action: { provider: "coderabbit-pr",
+    coverage: "complete", ceilingOverride } });
+  expect(await decisions.list()).toEqual(before);
+  expect(lifecycleSuccess(await h.store.version())).toBe(version);
+});
 
 it("drops a spent keyless additional-pass input on native Errand re-entry without renewing authority", async () => {
   const h = await fixture();

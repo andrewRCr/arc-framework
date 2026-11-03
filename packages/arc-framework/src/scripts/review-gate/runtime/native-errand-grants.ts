@@ -28,8 +28,11 @@ export async function readErrandStatusPassGrants(input: ReviewInvocationInput & 
     completedPasses: progress.status === "recorded" ? progress.completedPasses : 0,
     policyTarget: { repository: input.target.repository, pullRequest: input.pullRequest, headSha: input.target.headSha },
     currentBaseRef: input.changeRequestCandidate?.baseRefName });
-  return { progress, grants: input.operationStore.stateOffBranch === true ? resolved : { ceilingOverride: input.ceilingOverride,
-    additionalPassAuthorization: input.additionalPassAuthorization, ...resolved } };
+  // Ordinary normalization leaves conditional authority to its separate admission validator.
+  const conditional = input.ceilingOverride?.conditionalPassAuthorizationId === undefined
+    ? {} : { ceilingOverride: input.ceilingOverride };
+  return { progress, grants: input.operationStore.stateOffBranch === true ? { ...resolved, ...conditional }
+    : { ceilingOverride: input.ceilingOverride, additionalPassAuthorization: input.additionalPassAuthorization, ...resolved } };
 }
 
 /** Omit automatically discovered grants from an incremental pass while retaining explicit inputs for validation. */
