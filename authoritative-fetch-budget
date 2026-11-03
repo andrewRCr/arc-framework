@@ -3,7 +3,7 @@
   "slug": "authoritative-fetch-budget",
   "claimId": "7c92909a15ce3b27b91af0b7e31316d4",
   "createdAt": "2026-11-03T19:30:38.451Z",
-  "updatedAt": "2026-11-03T19:30:38.451Z",
+  "updatedAt": "2026-11-03T23:05:48.201Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Give the merge verbs' authoritative base read and decompose's publication read a network budget slow-but-working GitHub access meets, and name a timeout as the refusal's cause",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Give the merge verbs' authoritative base read a fetch timeout that slow-but-working GitHub access meets",
   "originEntrySourceDigest": "sha256:9a53f95231af856dc31dc92b286f10728346809cc030ff973ad924fb04df513c",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/authoritative-fetch-budget",
+    "headSha": "9888492b4a719b7533036065756e15d4a3852387"
+  }
 }
