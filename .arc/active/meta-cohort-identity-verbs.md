@@ -1,8 +1,8 @@
 # Metadata: cohort-identity-verbs
 
-| **State**  | **Owner** | **Branch**                   | **Class** | **Priority** |
-| ---------- | --------- | ---------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/cohort-identity-verbs` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                   | **Class** | **Priority** |
+| --------- | --------- | ---------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/cohort-identity-verbs` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-seam`
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-cohort-identity-verbs.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** generate-tasks — `tasks-cohort-identity-verbs.md` finalized
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Build a branch link’s repair beside the clash repair
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Implement Phase 1 under deferred review with atomic commits
 
 - **PR URL:** [none]
 - **Completed:** [none]
