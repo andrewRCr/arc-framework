@@ -13,10 +13,7 @@ import {
   composeIntegrationFinalPlan,
   createIntegrationMergeDependencies,
   finalBaseMovementUnavailableDetail,
-  readMergeBaseDrift,
 } from "../../../../src/scripts/integration/merge-composition.js";
-import { MATERIALIZING_FETCH_TIMEOUT_MS } from "../../../../src/lib/git/worktree-sync.js";
-import { scriptGitExec, type GitExecCall } from "../../../helpers/git-exec-fake.js";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 
 const oid = (character: string): string => character.repeat(40);
@@ -308,7 +305,6 @@ describe("integration merge composition", () => {
     expect(drift).toHaveBeenCalledWith(expect.objectContaining({
       baseBranch: "main",
       mode: "authoritative",
-      fetchTimeoutMs: MATERIALIZING_FETCH_TIMEOUT_MS,
     }));
     drift.mockRestore();
     },
@@ -460,50 +456,7 @@ describe("integration merge composition", () => {
   });
 });
 
-describe("the merge verbs' authoritative base read", () => {
-  /** A repository whose base fetch answers after `fetchMs`, unless its own bound aborts it first. */
-  function slowFetchGit(fetchMs: number): GitExec {
-    const fetch = ({ options }: GitExecCall) => new Promise<{ stdout: string } | { failure: { isCanceled: true } }>(
-      (resolve) => {
-        const timer = setTimeout(() => { resolve({ stdout: "" }); }, fetchMs);
-        options?.signal?.addEventListener("abort", () => {
-          clearTimeout(timer);
-          resolve({ failure: { isCanceled: true } });
-        }, { once: true });
-      });
-    return scriptGitExec([
-      { match: { prefix: ["check-ref-format"] }, responses: [{ stdout: "" }] },
-      { match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [{ stdout: "feat/example\n" }] },
-      { match: ["remote", "get-url", "origin"], responses: [{ stdout: "git@example/repo\n" }] },
-      { match: { prefix: ["fetch"] }, responses: [fetch] },
-      { match: ["rev-parse", "--is-shallow-repository"], responses: [{ stdout: "false" }] },
-      { match: ["rev-parse", "--verify", "HEAD^{commit}"], responses: [{ stdout: `${oid("c")}\n` }] },
-      { match: { prefix: ["rev-parse", "--verify"] }, responses: [{ stdout: `${oid("b")}\n` }] },
-      { match: { prefix: ["rev-list"] }, responses: [{ stdout: "0\t0\n" }] },
-      { match: { prefix: ["merge-base"] }, responses: [{ stdout: `${oid("b")}\n` }] },
-      { match: { prefix: ["diff"] }, responses: [{ stdout: "" }] },
-      { match: { prefix: ["log"] }, responses: [{ stdout: "" }] },
-    ]).exec;
-  }
-
-  it.each([
-    ["waits out a fetch slower than a status probe's bound", 10_000, { baseOid: oid("b"), headOid: oid("c") }],
-    ["names the bound a fetch outlasts", MATERIALIZING_FETCH_TIMEOUT_MS + 10_000, {
-      verdict: "unavailable",
-      unavailableReason: "fetch-timeout",
-      detail: expect.stringContaining(`bounded at ${MATERIALIZING_FETCH_TIMEOUT_MS / 1000} s`),
-    }],
-  ] as const)("%s", async (_label, fetchMs, expected) => {
-    vi.useFakeTimers();
-    try {
-      const read = readMergeBaseDrift({ exec: slowFetchGit(fetchMs), baseBranch: "main", mode: "authoritative" });
-      await vi.advanceTimersByTimeAsync(fetchMs);
-      await expect(read).resolves.toMatchObject(expected);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
+describe("the final plan's base movement refusal", () => {
   it("names the drift read's own cause when the final base movement is unavailable", () => {
     const timedOut = baseDistance.unavailableBaseDrift("fetch-timeout", "main", "The fetch was bounded at 30 s.");
     expect(finalBaseMovementUnavailableDetail(timedOut, oid("c"))).toBe("The final authoritative base movement could "
