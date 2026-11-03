@@ -1,4 +1,5 @@
 /** Store-first reads preserve identity independently of local state artifacts. */
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { afterEach, expect, it, vi, onTestFinished } from "vitest";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
@@ -160,6 +161,8 @@ it.each(["Not-A-Slug", "parent/child/grandchild", "parent//child"])("diagnoses u
   const exec = async (_command: string, args: string[]) => {
     if (args[0] === "rev-parse") return { stdout: "a".repeat(40) };
     if (args[0] === "symbolic-ref") return { stdout: "refs/heads/person" };
+    if (args[0] === "worktree" && args[1] === "list") return { stdout: worktreePorcelainZ(`worktree /spawn\nHEAD ${"a".repeat(40)}\ndetached\n`) };
+    if (args[0] === "worktree" && args[1] === "lock") return { stdout: "" };
     throw Error(`Unexpected Git operation: ${args.join(" ")}`);
   };
   const ctx = buildExecutorContext({ cwd: "/absent", io: { ...createUserIOContext(), exec }, store: h.store,

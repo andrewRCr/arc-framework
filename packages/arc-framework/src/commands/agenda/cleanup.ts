@@ -25,7 +25,8 @@ function currentHuskSurface(input: AgendaCompileInput): OrientationSurface | nul
   const slot = input.envelope.currentHusk;
   if (!slot?.ok || slot.value === null) return null;
   const { subject, branch, stamp, worktreePath } = slot.value;
-  if (stamp.kind === "manual-only") return { id: "husk", steps: [{ type: "render", surface: "husk", text: `**Husk:** ${stamp.reason}` }] };
+  if (stamp.kind === "manual-only") return { id: "husk", steps: [{ type: "render", surface: "husk",
+    text: `**Husk:** ${stamp.reason}. ${manualHuskCleanup(worktreePath)}` }] };
   const argv = ["arc", "teardown", subject.name, "--husk", worktreePath];
   const command = `${workUnitTeardownAction(subject.name).text} --husk ${quoteShellArgument(worktreePath)}`;
   const authorization = stamp.kind === "legacy"
@@ -46,6 +47,11 @@ type PublishedCommand = Omit<SessionAction, "argv"> & { argv: readonly string[] 
 function cleanupChoice(input: AgendaCompileInput, action: PublishedCommand, handoff = false): OfferChoice {
   return { kind: "actions", label: action.text, accepts: [], actions: [{ ...action, argv: [...action.argv] }],
     then: handoff ? { kind: "handoff" } : { kind: "recompile", argv: buildAgendaArgv(input.signals, input.answers, { dropNext: true }) } };
+}
+
+/** Offer only published executable folder remedies; text-only repairs remain manual. */
+export function missingFolderCleanupChoices(input: AgendaCompileInput, actions: readonly SessionAction[]): OfferChoice[] {
+  return actions.flatMap(action => action.argv === undefined ? [] : [cleanupChoice(input, { ...action, argv: action.argv })]);
 }
 
 function cleanupSurface(surface: string, text: string, choices: OfferChoice[]): OrientationSurface {
@@ -130,7 +136,17 @@ function worktreeCommands(report: WorktreeReport, linked: boolean): PublishedCom
 function worktreeReportLine(report: WorktreeReport, linked = false): string {
   const remedies = worktreeRemedies(report).map(action => `\`${action.text}\``).join("; ");
   const label = linked ? `\`${report.worktreePath}\` — ${worktreeLabel(report)}` : worktreeLabel(report);
-  return `- ${label} — ${worktreeDisposition(report, linked)}${remedies === "" ? "" : `; ${remedies}`}`;
+  const manual = report.kind === "husk" && (report.stamp.kind === "manual-only" || report.decision.action === "outside"
+    || report.subject.kind === "errand" || (linked && report.subject.kind === "branch"));
+  return `- ${label} — ${worktreeDisposition(report, linked)}${remedies === "" ? "" : `; ${remedies}`}`
+    + (manual ? `; ${manualHuskCleanup(report.worktreePath)}` : "");
+}
+
+function manualHuskCleanup(worktreePath: string): string {
+  const path = quoteShellArgument(worktreePath);
+  return "Inspect this husk before making a manual decision to remove it. Before manual cleanup, run `arc user save`"
+    + " in the husk, then from the primary checkout have its lock's owner run "
+    + `\`git worktree unlock ${path}\` if locked, followed by \`git worktree remove ${path}\`.`;
 }
 
 function worktreeLabel(report: WorktreeReport): string {
@@ -172,7 +188,7 @@ function missingFoldersSurface(input: AgendaCompileInput): OrientationSurface | 
   for (const report of reports) {
     lines.push(`- \`${report.worktreePath}\` (${report.outcome}): ${report.actions.map(action => action.text).join("\n  ")}`);
   }
-  return cleanupSurface("missing-folders", lines.join("\n"), []);
+  return cleanupSurface("missing-folders", lines.join("\n"), missingFolderCleanupChoices(input, reports.flatMap(report => report.actions)));
 }
 
 

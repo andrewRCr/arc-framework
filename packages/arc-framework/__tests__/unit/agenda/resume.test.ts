@@ -219,7 +219,7 @@ describe("agenda work-unit resume", () => {
       retirements: [{ status: "blocked", worktreePath: "/repo/retired", subject: { slug: "retired", branch: "feat/retired" }, reason: "uncommitted" }],
       worktrees: [{ kind: "branched", branch: "feat/ended", worktreePath: "/repo/ended", decision: { action: "removable" },
         teardown: { text: "arc teardown ended", argv: ["arc", "teardown", "ended"] } }],
-      missingFolders: [{ worktreePath: "/repo/gone", branch: "feat/gone", outcome: "missing", actions: missingRegistrationActions("/repo/gone", { locked: false, workUnitName: "gone" }) }],
+      missingFolders: [{ worktreePath: "/repo/gone", branch: "feat/gone", outcome: "missing", actions: missingRegistrationActions("/repo/gone", { lock: undefined, workUnitName: "gone" }) }],
     });
     const nudge = { shouldNudge: true, markerPath: ".arc/user/andrew/.internal/reminder", today: "2026-06-01" };
     const agenda = await compile(await input({ config: async () => config,

@@ -21,6 +21,20 @@ export type GitExcludeResult = { ok: true; path: string } | { ok: false; path?: 
 export async function ensureGitExcludePattern(
   root: string, pattern: string, exec: GitExec, fs: GitExcludeFs,
 ): Promise<GitExcludeResult> {
+  return ensureGitExcludePatterns(root, [pattern], exec, fs);
+}
+
+/**
+ * Append each clone-local exclusion pattern not yet present, in order, with one Git call and at most one write.
+ * @param root - Checkout against which Git resolves its shared exclude file.
+ * @param patterns - Exact Git ignore patterns to append once each.
+ * @param exec - Caller-owned Git executor.
+ * @param fs - Injectable exclude-file operations.
+ * @returns The resolved absolute path, or the original failure and any established path.
+ */
+export async function ensureGitExcludePatterns(
+  root: string, patterns: readonly string[], exec: GitExec, fs: GitExcludeFs,
+): Promise<GitExcludeResult> {
   let path: string | undefined;
   try {
     const { stdout } = await exec("git", ["rev-parse", "--git-path", "info/exclude"], { cwd: root });
@@ -30,11 +44,12 @@ export async function ensureGitExcludePattern(
     path = excludePath;
     await fs.withLock(`${excludePath}.arc.lock`, async () => {
       const content = await readExclude(excludePath, fs);
-      if (!content.split(/\r?\n/u).includes(pattern)) {
-        const prefix = content.length === 0 || content.endsWith("\n") ? content : `${content}\n`;
-        await fs.mkdir(dirname(excludePath), { recursive: true });
-        await fs.writeFile(excludePath, `${prefix}${pattern}\n`);
-      }
+      const present = new Set(content.split(/\r?\n/u));
+      const missing = patterns.filter((pattern) => !present.has(pattern));
+      if (missing.length === 0) return;
+      const prefix = content.length === 0 || content.endsWith("\n") ? content : `${content}\n`;
+      await fs.mkdir(dirname(excludePath), { recursive: true });
+      await fs.writeFile(excludePath, `${prefix}${missing.map((pattern) => `${pattern}\n`).join("")}`);
     });
     return { ok: true, path };
   } catch (error) {

@@ -16,6 +16,9 @@ export function prepareDurationInputs(directory: string): void {
   }
 }
 
+/** A writer shard's artifact: a Linux tier's, or one platform's portability shard, which writes the `portability` tier. */
+const WRITER_ARTIFACT = /^(?:duration-results-(unit|integration|e2e)-(?:store-)?\d+|portability-results-(?:Windows|macOS)-\d+)$/u;
+
 /**
  * Merge downloaded shard artifacts into the duration cache directory.
  * @param input - Artifact download root
@@ -26,8 +29,9 @@ export function prepareDurationInputs(directory: string): void {
 export function mergeDurationArtifacts(input: string, output: string, base?: string): void {
   const documents = readdirSync(input, { recursive: true, encoding: "utf8" }).filter((path) => basename(path) === "results.json")
     .sort().map((path) => {
-      const tier = /^duration-results-(unit|integration|e2e)-(?:store-)?\d+$/u.exec(path.split(sep)[0] ?? "")?.[1];
-      if (tier === undefined) throw new Error(`Unrecognized duration artifact: ${path}`);
+      const match = WRITER_ARTIFACT.exec(path.split(sep)[0] ?? "");
+      if (match === null) throw new Error(`Unrecognized duration artifact: ${path}`);
+      const tier = match[1] ?? "portability";
       return { tier, content: readFileSync(join(input, path), "utf8") };
     });
   const merged = mergeTestDurations(documents);

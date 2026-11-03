@@ -62,6 +62,7 @@ export const ISOLATED_UNIT_MOCK_FILES = [
   "__tests__/unit/scripts/review-gate/runtime/respond-composition.test.ts",
   "__tests__/unit/sync-orchestrator.test.ts",
   "__tests__/unit/sync.test.ts",
+  "__tests__/unit/template/ignore-files.test.ts",
   "__tests__/unit/user-handlers.test.ts",
   "__tests__/unit/work-unit/executor-context.test.ts",
 ] as const;

@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { assertEditorDocumentsProvisioned, resetEditorDocumentsProvisioning } from "./editor-document-helpers.js";
 import { runArc, createTempRepo, cleanupTempDir, commitAll, git } from "./helpers.js";
+import { ARC_IGNORE_BLOCK } from "../helpers/arc-ignore-block.js";
 
 describe("update", () => {
   let tmpDir: string;
@@ -39,6 +40,22 @@ describe("update", () => {
     const output = update.stdout + update.stderr;
     expect(output).toContain("unchanged");
     expect(await git(tmpDir, ["status", "--porcelain"])).toBe("");
+  });
+
+  it("leaves an unchanged .ignore byte-identical", async () => {
+    expect((await runArc(["init", "--yes", "--name", "test-project"], tmpDir)).exitCode).toBe(0);
+    const before = await readFile(join(tmpDir, ".ignore"), "utf8");
+    await commitAll(tmpDir);
+    expect((await runArc(["update"], tmpDir)).exitCode).toBe(0);
+    expect(await readFile(join(tmpDir, ".ignore"), "utf8")).toBe(before);
+  });
+
+  it("rewrites only ARC's block in an edited .ignore", async () => {
+    expect((await runArc(["init", "--yes", "--name", "test-project"], tmpDir)).exitCode).toBe(0);
+    await writeFile(join(tmpDir, ".ignore"), `docs/build/\n\n${ARC_IGNORE_BLOCK.replace("!.arc/backlog/\n", "")}\n`);
+    await commitAll(tmpDir);
+    expect((await runArc(["update"], tmpDir)).exitCode).toBe(0);
+    expect(await readFile(join(tmpDir, ".ignore"), "utf8")).toBe(`docs/build/\n\n${ARC_IGNORE_BLOCK}\n`);
   });
 
   it("concurrent clean updates preserve valid manifest state", async () => {

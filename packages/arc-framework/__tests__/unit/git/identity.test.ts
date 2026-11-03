@@ -7,7 +7,9 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { UserFacingError } from "../../../src/lib/errors.js";
-import { readConfiguredIdentity, slugifyIdentity, resolveIdentity } from "../../../src/lib/git/identity.js";
+import {
+  readConfiguredIdentity, resolveIdentityFromValues, slugifyIdentity, resolveIdentity,
+} from "../../../src/lib/git/identity.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 
@@ -191,5 +193,18 @@ describe("readConfiguredIdentity", () => {
 
     await expect(readConfiguredIdentity(missing)).rejects.toMatchObject({ code: "identity.invalid" });
     await expect(readConfiguredIdentity(repeated)).rejects.toMatchObject({ code: "identity.invalid" });
+  });
+});
+
+describe("resolveIdentityFromValues", () => {
+  it.each([
+    ["a valid arc.identity", { arcIdentity: "andrew", userName: "Someone Else" }, { status: "identified", identity: "andrew", source: "arc.identity" }],
+    ["an invalid arc.identity, user.name aside", { arcIdentity: "Not A Slug", userName: "Ada" }, { status: "invalid" }],
+    ["arc.identity set with no value", { arcIdentity: null }, { status: "invalid" }],
+    ["user.name alone, slugified", { userName: "Ada Q. Lovelace" }, { status: "identified", identity: "ada-q-lovelace", source: "user.name" }],
+    ["a user.name that slugifies to nothing", { userName: "!!!" }, { status: "unset" }],
+    ["neither", {}, { status: "unset" }],
+  ] as const)("resolves %s", (_case, values, expected) => {
+    expect(resolveIdentityFromValues(values)).toEqual(expected);
   });
 });

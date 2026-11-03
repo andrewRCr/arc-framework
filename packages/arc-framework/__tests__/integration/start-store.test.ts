@@ -8,6 +8,7 @@ import { runGraduate, runCreateNew } from "../../src/commands/start.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+import { readWorktreeLock } from "../helpers/worktree-lock.js";
 import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { readWorktreeMarker, writeWorktreeOwnershipMarker, resolveWorktreeMarkerPath } from "../../src/lib/git/worktree-marker.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
@@ -45,6 +46,19 @@ describe("store-backed start checkouts", () => {
     expect(branch).toBe(detached ? null : "refs/heads/person");
     expect((await h.exec("git", ["branch", "--list", "plan/*"])).stdout).toBe("");
     expect(parseMetaRecord(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).content).owner).toBe("starter");
+  }, timeout);
+  it("graduates --here in a checkout another tool placed and leaves that checkout unlocked", async () => {
+    const h = await fixture(); const placed = join(h.root, "placed");
+    await h.exec("git", ["worktree", "add", "--detach", placed, "main"]);
+    const ctx = buildExecutorContext({ cwd: placed, io: { ...h.io, exec: makeGitExec(placed) }, store: h.store,
+      projectId: async () => "repo", identity: "starter", teamMode: false, internalTemplateDir: "/templates" });
+    expect(await runGraduate(ctx, { name: "demo", inPlace: true, spawningIdentity: "starter" })).toMatchObject({ status: "graduated" });
+    expect(await readWorktreeLock(h.exec, placed)).toBeUndefined();
+  }, timeout);
+  it("graduates into a detached checkout locked with the projection's reason", async () => {
+    const h = await fixture();
+    expect(await runGraduate(h.ctx, h.params)).toMatchObject({ status: "graduated", worktreePath: h.path });
+    expect(await readWorktreeLock(h.exec, h.path)).toBe(PROJECTION_LOCK_REASON);
   }, timeout);
   it.each([undefined, PROJECTION_LOCK_REASON])("repairs a folderless detached target before graduation, lock=%s", async (lock) => {
     const h = await fixture(); await h.exec("git", ["worktree", "add", "--detach", h.path, "main"]);

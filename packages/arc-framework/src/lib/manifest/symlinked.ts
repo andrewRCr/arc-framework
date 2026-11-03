@@ -18,9 +18,9 @@ import { UserFacingError } from "../errors.js";
 type Component = "link" | "absent" | "present";
 
 /** Read one component without following it; a missing entry, or a file where a directory belongs, is absent. */
-async function readComponent(path: string): Promise<Component> {
+async function readComponent(path: string, stat: (path: string) => Promise<{ isSymbolicLink(): boolean }>): Promise<Component> {
   try {
-    return (await lstat(path)).isSymbolicLink() ? "link" : "present";
+    return (await stat(path)).isSymbolicLink() ? "link" : "present";
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === "ENOENT" || code === "ENOTDIR") return "absent";
@@ -44,14 +44,16 @@ function componentsBelow(root: string, path: string): string[] {
  * @param paths - Paths the install writes, absolute or relative to `root`
  * @returns Each linked component once, repository-relative and `/`-separated, in the order the writes reach it
  */
-export async function findSymlinkedWritePaths(root: string, paths: readonly string[]): Promise<string[]> {
+export async function findSymlinkedWritePaths(
+  root: string, paths: readonly string[], stat: (path: string) => Promise<{ isSymbolicLink(): boolean }> = lstat,
+): Promise<string[]> {
   const read = new Map<string, Component>();
   const linked: string[] = [];
   for (const path of paths) {
     for (const component of componentsBelow(root, path)) {
       let state = read.get(component);
       if (state === undefined) {
-        state = await readComponent(resolve(root, component));
+        state = await readComponent(resolve(root, component), stat);
         read.set(component, state);
         if (state === "link") linked.push(component);
       }

@@ -4,6 +4,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import type { LinkedWorktreeCreationReceipt } from "../git/linked-worktree.js";
 import type { WorktreeMarker } from "../git/worktree-marker.js";
+import { describeSpawnLock, type SpawnLock } from "../git/worktree-removal.js";
 import type { ProvisioningAuthority } from "./provisioning-authority.js";
 import { resolveProvisioningAuthority } from "./provisioning-authority.js";
 import {
@@ -36,6 +37,7 @@ interface SpawnState {
   readonly rosterHead: string;
   readonly creation: LinkedWorktreeCreationReceipt | null;
   readonly marker: { marker: WorktreeMarker; bytes: Buffer; owned: boolean };
+  readonly lock: SpawnLock;
 }
 
 /** Compose one already-claimed transient identity into a marker-owned local checkout. */
@@ -118,8 +120,28 @@ async function provisionSpawned(
     return rollbackSpawnFailure(options, created, roster.head, marker.error, marker.rollback);
   }
   if (marker.kind === "refused") return refused(marker.reason, marker.evidence);
-  const spawn: SpawnState = { checkoutPath, rosterHead: roster.head, creation: created, marker: marker.value };
-  return provisioned(options, spawn, null);
+  // Every rollback above removes the checkout without unlocking it, so the lock is the spawn's last step.
+  return completeSpawn(options, { checkoutPath, rosterHead: roster.head, creation: created, marker: marker.value });
+}
+
+async function completeSpawn(
+  options: ProvisionTransientLocusOptions, spawn: Omit<SpawnState, "lock">,
+): Promise<ProvisionTransientLocusResult> {
+  const { checkoutPath, marker } = spawn;
+  const lock = await lockSpawn(options, checkoutPath);
+  if (lock.kind === "failed") return {
+    kind: "error",
+    error: new Error(`checkout retained: ${describeSpawnLock(checkoutPath, lock)}`
+      + " After locking it, retry this Errand open from its original launch checkout."),
+    evidence: { kind: "marker-residue", checkoutPath, markerBytes: marker.bytes },
+  };
+  return provisioned(options, { ...spawn, lock }, null);
+}
+
+async function lockSpawn(options: ProvisionTransientLocusOptions, checkoutPath: string): Promise<SpawnLock> {
+  const locked = await safeCall(() => options.dependencies.lockSpawnedCheckout(checkoutPath));
+  if (locked.kind === "value") return locked.value;
+  return { kind: "failed", detail: locked.error instanceof Error ? locked.error.message : String(locked.error) };
 }
 
 async function provisionPrimary(
@@ -179,6 +201,7 @@ function provisioned(
       },
       worktree: { path: checkoutPath, created: spawn?.creation !== null && spawn !== null, head },
       marker: { state: "ready", bytes: marker.bytes },
+      ...(spawn === null ? {} : { lock: spawn.lock }),
     },
   };
 }

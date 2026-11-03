@@ -398,6 +398,8 @@ const PORTABILITY_SURFACE_GLOBS = [
   "packages/arc-framework/src/handlers/status.ts",
   "packages/arc-framework/src/handlers/status/*",
   "packages/arc-framework/src/lib/advisory-lock.ts",
+  "packages/arc-framework/src/lib/store/projection/*",
+  "packages/arc-framework/__tests__/*/store/projection/*",
   "packages/arc-framework/src/lib/git/ref-tree.ts",
   "packages/arc-framework/src/lib/errand/*",
   "packages/arc-framework/src/lib/user-sync/*",

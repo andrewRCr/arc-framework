@@ -6,6 +6,7 @@
  * filesystem behavior.
  */
 
+import { join } from "node:path";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock atomicWriteJson — unit tests use virtual IO
@@ -23,6 +24,7 @@ import type { IOContext } from "../../src/commands/init.js";
 import type { Recipe, Manifest, InstallConfig } from "../../src/lib/types.js";
 import type { PlannedRemoval } from "../../src/lib/manifest/plan.js";
 import type { RemovalDecision } from "../../src/prompts/removal-prompts.js";
+import { ARC_IGNORE_BLOCK } from "../helpers/arc-ignore-block.js";
 
 // --- Helpers ---
 
@@ -231,6 +233,20 @@ describe("runReconfigure", () => {
     const writtenManifest = manifestCall![1] as Manifest;
     expect(writtenManifest.install_config.team_mode).toBe(true);
     expect(writtenManifest.install_config.project_name).toBe("New Name");
+  });
+
+  it("writes ARC's managed .ignore block", async () => {
+    const files = { "reference/README.md": "# Framework readme", "system/arc-config.yml": "pm.mode: none" };
+    const io = mockIO(makeManifest(), files, files);
+    const written = new Map<string, string>();
+    io.writeFile = async (path, content) => { written.set(path, content); };
+
+    await runReconfigure({
+      cwd: "/project", io, templateDir: "/templates", recipe: minimalRecipe,
+      newInstallConfig: { project_name: "Test Project", pm_mode: "none", tools: ["claude"], team_mode: false },
+    });
+
+    expect(written.get(join("/project", ".ignore")) ?? "").toContain(ARC_IGNORE_BLOCK);
   });
 
   it("produces correct file additions when switching to arc-in-git", async () => {

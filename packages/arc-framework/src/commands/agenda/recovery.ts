@@ -1,5 +1,6 @@
 /** Compile branch-gone recovery before synchronization or explicit entry signals. */
 import { compileRecoveryDecision } from "./recovery-decisions.js";
+import { missingFolderCleanupChoices } from "./cleanup.js";
 import { compileResumeContext } from "./context.js";
 import type { AgendaCompileInput } from "./compile-input.js";
 import { createSessionInitAgenda } from "./document.js";
@@ -26,7 +27,11 @@ export async function compileBranchGone(input: AgendaCompileInput): Promise<Sess
     const surfaces = compileSessionOrientation(input, findings).filter(surface => surface.id !== "unconsumed-signal");
     const degraded = renderDegradedSlot("recovery", input.envelope.recovery);
     if (degraded !== null) surfaces.push({ id: "degraded-slot", steps: [degraded] });
-    surfaces.push({ id: "branch-gone", steps: [renderBranchGone(input, destinations)] });
+    const folderChoices = missingFolderCleanupChoices(input, recovery?.missingFolders?.flatMap(folder => folder.actions) ?? []);
+    const recoverySteps: AgendaStep[] = [renderBranchGone(input, destinations)];
+    if (folderChoices.length > 0) recoverySteps.push({ type: "offer", id: "branch-gone:missing-folders", ask: "orientation",
+      text: "Choose a missing-folder cleanup action when ready.", choices: folderChoices });
+    surfaces.push({ id: "branch-gone", steps: recoverySteps });
     steps.push(...reads, ...orderOrientationSurfaces(surfaces), { type: "gate", kind: "stop", autoProceed: false });
   }
   return createSessionInitAgenda(input, recoveryOrientation(input), carryAgendaAnswers(input, steps));
