@@ -14,7 +14,6 @@ import {
   createCurrentBaseDriftAdapters,
 } from "../../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
-import { runBaseDrift } from "../../lib/git/base-distance.js";
 import type { BaseDriftResult, OverlapEvidence } from "../../lib/git/base-drift-types.js";
 import {
   observeGitMergeFeasibility,
@@ -47,6 +46,8 @@ import {
 } from "./checkpoint.js";
 import {
   createIntegrationMergeDependencies,
+  finalBaseMovementUnavailableDetail,
+  readMergeBaseDrift,
 } from "./merge-composition.js";
 import { IntegrationBindingChangedError, type IntegrationMergeTarget } from "./merge.js";
 import type {
@@ -261,7 +262,7 @@ export function createErrandMergeDependencies(input: {
     readFinalPlan: async (target, admissionOverride) => {
       const config = await readConfigSettings(input.cwd);
       const [drift, observedTarget] = await Promise.all([
-        runBaseDrift({
+        readMergeBaseDrift({
           exec: input.exec,
           baseBranch: config.settings["branch.base"],
           mode: "authoritative",
@@ -276,10 +277,7 @@ export function createErrandMergeDependencies(input: {
           status: "unavailable",
           target: observedTarget,
           baseOid: drift.baseOid,
-          detail: typeof drift.headOid === "string" && drift.headOid !== observedTarget.headSha
-            ? `The authoritative drift head ${drift.headOid} does not match the refreshed host head `
-              + `${observedTarget.headSha}.`
-            : "The final authoritative base movement could not be established.",
+          detail: finalBaseMovementUnavailableDetail(drift, observedTarget.headSha),
         };
       }
       const coordinates = {

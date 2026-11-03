@@ -11,6 +11,7 @@ import {
   boundedGitInvocation,
   checkOriginExists,
   getCurrentBranch,
+  type BoundedFetchResult,
   type GitExec,
 } from "./exec.js";
 import { z } from "zod";
@@ -231,6 +232,22 @@ export async function runBaseDrift(options: RunBaseDriftOptions): Promise<BaseDr
   return runAuthoritativeBaseDrift(options);
 }
 
+/** Report a failed authoritative base fetch, naming the bound a timed-out fetch ran out. */
+function unavailableBaseFetch(
+  fetch: BoundedFetchResult,
+  baseBranch: string,
+  fetchTimeoutMs: number,
+): Extract<BaseDriftResult, { verdict: "unavailable" }> {
+  if (isGitProcessError(fetch.error) && fetch.error.expectedOutcome === "absent-remote-ref") {
+    return unavailable("authoritative", "remote-base-absent", "remote-unavailable", baseBranch);
+  }
+  if (fetch.outcome === "timeout") {
+    return unavailable("authoritative", "fetch-timeout", "remote-unavailable", baseBranch, "timeout",
+      `The fetch was bounded at ${fetchTimeoutMs / 1000} s.`);
+  }
+  return unavailable("authoritative", "fetch-failed", "remote-unavailable", baseBranch, "error", fetch.error);
+}
+
 async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<BaseDriftResult> {
   const {
     exec,
@@ -261,19 +278,7 @@ async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<
     ["fetch", "origin", fetchRefspec],
     fetchTimeoutMs,
   );
-  if (fetch.outcome !== "ok") {
-    if (isGitProcessError(fetch.error) && fetch.error.expectedOutcome === "absent-remote-ref") {
-      return unavailable("authoritative", "remote-base-absent", "remote-unavailable", baseBranch);
-    }
-    return unavailable(
-      "authoritative",
-      fetch.outcome === "timeout" ? "fetch-timeout" : "fetch-failed",
-      "remote-unavailable",
-      baseBranch,
-      fetch.outcome,
-      fetch.error,
-    );
-  }
+  if (fetch.outcome !== "ok") return unavailableBaseFetch(fetch, baseBranch, fetchTimeoutMs);
 
   let baseOid: string;
   try {
