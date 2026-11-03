@@ -42,7 +42,8 @@ function input(predecessor: ReviewResult | null, severity: "major" | "minor" = "
   };
 }
 
-function localCorrectionResult(predecessor: ReviewResult, scope: IncrementalReviewScope): ReviewResult {
+function localCorrectionResult(predecessor: ReviewResult, scope: IncrementalReviewScope,
+  originalOutcome: "findings" | "clean" = "findings"): ReviewResult {
   if (predecessor.kind === "frontline") throw new Error("expected standard producer");
   const logicalPass = predecessor.admission.logicalPass + 1;
   const { targetId: ignored, ...coordinates } = predecessor.target;
@@ -59,9 +60,9 @@ function localCorrectionResult(predecessor: ReviewResult, scope: IncrementalRevi
     authorIdentity: "author", evaluatorIdentity: "delegated-agent", lineageId: canonicalDigest(predecessor.admission.lineage),
     logicalPass, generation: 0, requestMechanism: "subagent" });
   return { kind: "attested-local", producerId: `local/delta-${logicalPass}`, repositoryId: target.repositoryId, target,
-    sourceIdentity: "delegated-agent", originalOutcome: "findings",
-    findings: [{ findingId: "finding-1", severity: "major", locus: "src/delta.ts:1",
-      evidenceUrlOrId: "local:finding-1", sourceOrdinal: 1 }], resultDigest: canonicalDigest({ request, scope }),
+    sourceIdentity: "delegated-agent", originalOutcome,
+    findings: originalOutcome === "clean" ? [] : [{ findingId: "finding-1", severity: "major", locus: "src/delta.ts:1",
+      evidenceUrlOrId: "local:finding-1", sourceOrdinal: 1 }], resultDigest: canonicalDigest({ request, scope, originalOutcome }),
     admission: { lineage: predecessor.admission.lineage, logicalPass, retryGeneration: 0,
       requestedCoverage: "incremental", effectiveCoverage: "incremental", scopeMode: "whole-target",
       policyVersion: requirement.policyVersion, correctionScope: scope },
@@ -332,6 +333,15 @@ it("admits repeated material fix checks at the ceiling with the complete correct
   const records = new Map<string, ReturnType<typeof approvedRecord>>();
   const performances = new Map<string, ReturnType<typeof performedFix>>();
   const requiredProducers: string[] = [];
+  const readers = {
+    resultReader: { readResult: async (id: string) => {
+      const result = results.get(id);
+      if (result === undefined) throw new Error(`Missing producer ${id}`);
+      return result;
+    } },
+    dispositionStore: { readDispositionRecord: async (id: string) => records.get(id) ?? null },
+    readResponsePerformance: async (result: ReviewResult) => performances.get(result.producerId) ?? null,
+  };
 
   for (const seed of ["e", "f", "1"]) {
     results.set(predecessor.producerId, predecessor);
@@ -342,16 +352,7 @@ it("admits repeated material fix checks at the ceiling with the complete correct
     void ignored;
     const currentTarget = createReviewTarget({ ...coordinates, headSha: seed.repeat(40), headTree: "1".repeat(40) });
     performances.set(predecessor.producerId, { ...performedFix(predecessor, record), producedHeadSha: currentTarget.headSha });
-    const request = { ...input(predecessor), currentTarget,
-      resultReader: { readResult: async (id: string) => {
-        const result = results.get(id);
-        if (result === undefined) throw new Error(`Missing producer ${id}`);
-        return result;
-      } },
-      dispositionStore: { readDispositionRecord: async (id: string) => records.get(id) ?? null,
-        appendDispositionRecord: async () => { throw new Error("read-only derivation"); } },
-      readResponsePerformance: async (result: ReviewResult) => performances.get(result.producerId) ?? null,
-    };
+    const request = { ...input(predecessor), ...readers, currentTarget };
     const nextPassContext = await deriveReviewNextPassContext(request);
     expect(nextPassContext).toMatchObject({ completePasses: 1, convergence: "unconverged", responseDue: false,
       incremental: { basis: "fix-check", scope: { predecessorProducerId: predecessor.producerId,
@@ -365,6 +366,26 @@ it("admits repeated material fix checks at the ceiling with the complete correct
       completedPasses: predecessor.admission.logicalPass, attempts: [], nextPassContext,
     })).toMatchObject({ state: "ready", payload: { pass: predecessor.admission.logicalPass + 1,
       sourceId: "delegated-agent", ceilingOverrideApplied: false } });
-    predecessor = localCorrectionResult(predecessor, scope);
+    predecessor = localCorrectionResult(predecessor, scope, seed === "1" ? "clean" : "findings");
   }
+
+  results.set(predecessor.producerId, predecessor);
+  const successor = { ...input(predecessor), ...readers, currentTarget: predecessor.target };
+  const nextPassContext = await deriveReviewNextPassContext(successor);
+  expect(nextPassContext).toEqual({ completePasses: 1, convergence: "converged", responseDue: false, incremental: null });
+  expect(predecessor.admission.logicalPass).toBe(4);
+  const request = { schemaVersion: 1,
+    target: { repository: "owner/repository", pullRequest: null, headSha: predecessor.target.headSha },
+    lane: "standard", standardReview: successor.standardReview, sources: ["delegated-agent"], maxPasses: 1,
+    completedPasses: predecessor.admission.logicalPass, attempts: [], nextPassContext,
+  };
+  const approval = resolveReviewPolicy(request);
+  expect(approval).toMatchObject({ state: "approval-required", nextAction: "obtain-ceiling-override",
+    payload: { consumedPass: false, consequence: { target: request.target, lane: "standard",
+      exhaustedPassCount: 4, nextPass: 5 } },
+  });
+  if (approval.state !== "approval-required") throw new Error("Expected approval for the complete successor");
+  expect(resolveReviewPolicy({ ...request, ceilingOverride: approval.payload.consequence }))
+    .toMatchObject({ state: "ready", nextAction: "local-prepare", payload: { scope: "whole-target", pass: 5,
+      sourceId: "delegated-agent", consumedPass: false, ceilingOverrideApplied: true } });
 });
