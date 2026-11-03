@@ -2,7 +2,7 @@
 
 import type { SessionInitWorktreeValue } from "../status/types.js";
 import { composeBaseBranchSyncBehindText } from "../../lib/session-init/recommended-action.js";
-import type { AgendaCompileInput, SyncChannels } from "./compile-input.js";
+import type { AgendaCompileInput } from "./compile-input.js";
 import type { OrientationSurface } from "./orientation.js";
 import type { AgendaStep } from "./schema.js";
 import { renderSuperseded } from "./superseded.js";
@@ -12,9 +12,9 @@ type Render = Extract<AgendaStep, { type: "render" }>;
 const render = (surface: string, text: string): Render => ({ type: "render", surface, text });
 
 /** Compile checkout attention surfaces for the path's synchronization decisions. */
-export function compileCheckoutOrientation(input: AgendaCompileInput, sync: AgendaSyncState, channels: SyncChannels = "all"): OrientationSurface[] {
+export function compileCheckoutOrientation(input: AgendaCompileInput, sync: AgendaSyncState): OrientationSurface[] {
   const steps: Render[] = [...worktreeSurfaces(input, sync), ...baseSurfaces(input, sync)];
-  const superseded = renderSuperseded(input, channels);
+  const superseded = renderSuperseded(input);
   if (superseded !== null) steps.push(superseded);
   const dirty = input.envelope.dirty;
   if (dirty.ok && dirty.value.state === "dirty") steps.push(render("dirty", `**Uncommitted changes:** ${dirty.value.fileCount} file(s) dirty in working tree.`));

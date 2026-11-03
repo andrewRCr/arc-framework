@@ -62,7 +62,7 @@ export function compileCheckoutSessionOrientation(input: AgendaCompileInput, cha
     if (degraded !== null) steps.push(degraded);
   }
   return [...steps.flatMap(step => step.type === "render" || step.type === "note" ? [{ id: step.surface, steps: [step] }] : []),
-    ...compileCheckoutOrientation(input, sync, channels), ...compileNotesOrientation(input, sync)];
+    ...compileCheckoutOrientation(input, sync), ...compileNotesOrientation(input, sync)];
 }
 
 /** Collect core resume surfaces and findings for the shared ordered assembly. */

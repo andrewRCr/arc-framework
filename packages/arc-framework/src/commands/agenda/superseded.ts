@@ -18,10 +18,10 @@ export function compileSupersededSync(input: AgendaCompileInput, channels: SyncC
       argv: ["git", "reset", "--hard", target] }] });
 }
 
-/** Render the explanation when a reset question is no longer pending on this row. */
-export function renderSuperseded(input: AgendaCompileInput, channels: SyncChannels = "all"): Extract<AgendaStep, { type: "render" }> | null {
+/** Retain the explanation on the orientation path reached by a bare reset decline. */
+export function renderSuperseded(input: AgendaCompileInput): Extract<AgendaStep, { type: "render" }> | null {
   const facts = supersededFacts(input);
-  if (facts === null || resetPending(input, channels)) return null;
+  if (facts === null) return null;
   return { type: "render", surface: "superseded", text: composeSupersessionHead(facts.branch) };
 }
 
