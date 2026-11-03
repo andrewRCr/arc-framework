@@ -82,6 +82,12 @@ import {
 import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 export * from "./hosted-reservation-support.js";
 
+function uncheckedMaterialFixDetail(nextSource: string | null): string {
+  const review = nextSource === "delegated-agent" ? "a local complete review"
+    : "a complete review" + (nextSource === null ? "" : ` by hosted source \`${nextSource}\``);
+  return `The unchecked material fix requires ${review} at the current base.`;
+}
+
 type CurrentFindingReferences = Pick<Parameters<typeof projectHostedReservationDischarge>[0],
   "bindCurrentAttemptRef" | "bindCurrentOperationRef">;
 
@@ -472,8 +478,8 @@ export async function projectHostedReservationDischarge(input: {
           nextPassContext: input.nextPassContext });
         if (input.nextPassContext?.incremental === null && completeCorrection.nextSource !== undefined) {
           return await retainedFindingsBeforeRequest() ?? { discharged: false,
-            detail: "The unchecked material fix requires a local complete review at the current base.",
-            nextSource: null, ...requestContext(), ...completeCorrection };
+            detail: uncheckedMaterialFixDetail(completeCorrection.nextSource),
+            ...requestContext(), ...completeCorrection, nextSource: completeCorrection.nextSource };
         }
         const equivalenceKey = stopped.projection === undefined
           ? null
