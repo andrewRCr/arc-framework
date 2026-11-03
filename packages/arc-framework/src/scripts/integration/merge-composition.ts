@@ -12,7 +12,8 @@ import {
   createCurrentBaseDriftAdapters,
   workUnitPathTreatmentContext,
 } from "../../lib/base-drift/current-adapters.js";
-import { runBaseDrift, type BaseDriftResult } from "../../lib/git/base-distance.js";
+import { runBaseDrift, type BaseDriftResult, type RunBaseDriftOptions } from "../../lib/git/base-distance.js";
+import { MATERIALIZING_FETCH_TIMEOUT_MS } from "../../lib/git/worktree-sync.js";
 import {
   getCurrentBranch,
   observeGitMergeFeasibility,
@@ -87,6 +88,35 @@ const GitHubMergeConfirmationSchema = z.object({
   base: z.object({ ref: z.string().min(1) }).loose(),
   head: z.object({ ref: z.string().min(1), sha: z.string().min(1) }).loose(),
 }).loose();
+
+/**
+ * Read a merge verb's authoritative base drift under a requested operation's fetch bound.
+ *
+ * A merge acts on what this read establishes, so it waits as long as an explicit materialization rather than
+ * failing at the short bound a status probe uses.
+ *
+ * @param options - The drift read, without a fetch bound of its own.
+ * @returns The authoritative base drift.
+ */
+export function readMergeBaseDrift(options: Omit<RunBaseDriftOptions, "fetchTimeoutMs">): Promise<BaseDriftResult> {
+  return runBaseDrift({ ...options, fetchTimeoutMs: MATERIALIZING_FETCH_TIMEOUT_MS });
+}
+
+/**
+ * Explain why a final merge plan has no exact base movement, naming the drift read's own cause when it has one.
+ *
+ * @param drift - The final authoritative base drift.
+ * @param observedHeadSha - The refreshed host head the drift must have analyzed.
+ * @returns The refusal detail.
+ */
+export function finalBaseMovementUnavailableDetail(drift: BaseDriftResult, observedHeadSha: string): string {
+  if (typeof drift.headOid === "string" && drift.headOid !== observedHeadSha) {
+    return `The authoritative drift head ${drift.headOid} does not match the refreshed host head ${observedHeadSha}.`;
+  }
+  return drift.verdict === "unavailable"
+    ? `The final authoritative base movement could not be established: ${drift.detail}`
+    : "The final authoritative base movement could not be established.";
+}
 
 /** Bind final work-unit movement evidence to one refreshed host target. */
 export function composeIntegrationFinalPlan(input: {
@@ -394,7 +424,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
     readFinalPlan: async (target, admissionOverride) => {
       const config = await readConfigSettings(input.cwd);
       const [drift, observedTarget] = await Promise.all([
-        runBaseDrift({
+        readMergeBaseDrift({
           exec: input.exec,
           baseBranch: config.settings["branch.base"],
           mode: "authoritative",
@@ -411,10 +441,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
           status: "unavailable",
           target: observedTarget,
           baseOid: drift.baseOid,
-          detail: typeof drift.headOid === "string" && drift.headOid !== observedTarget.headSha
-            ? `The authoritative drift head ${drift.headOid} does not match the refreshed host head `
-              + `${observedTarget.headSha}.`
-            : "The final authoritative base movement could not be established.",
+          detail: finalBaseMovementUnavailableDetail(drift, observedTarget.headSha),
         };
       }
       const coordinates = {
@@ -496,7 +523,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
           AbortSignal.timeout(60_000),
         );
         if (policy.strictCurrentness) {
-          const drift = await runBaseDrift({
+          const drift = await readMergeBaseDrift({
             exec: input.exec,
             baseBranch: target.baseRef,
             mode: "authoritative",
