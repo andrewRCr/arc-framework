@@ -1,8 +1,8 @@
 # Metadata: Seam Delivery and Review Records
 
-| **State**     | **Owner** | **Branch**                  | **Class** | **Priority** |
-| ------------- | --------- | --------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/seam-delivery-review` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-seam`
 - **Depends On:** [none]
@@ -13,15 +13,15 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:88fda83978ce192ec2b9d570009971ee3505042f470541bebabee12d45cdd8d9`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 8.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run or resume the typed pre-publication review procedure.
+- **Next Action:** —
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/1248>
+- **Completed:** 2026-11-03
 
 ## Release Notes Entry
 
