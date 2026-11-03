@@ -193,7 +193,7 @@ describe("arc teardown (CLI surface)", () => {
     await rm(worktree, { recursive: true, force: true });
     const result = await runArc(["teardown", "demo"], tmpDir);
     expect(result.exitCode).toBe(1);
-    expect(result.stdout + result.stderr).toContain(`git worktree unlock ${worktree}`);
+    expect(result.stdout + result.stderr).toContain(`git worktree unlock '${worktree}'`);
     expect(await git(tmpDir, ["worktree", "list", "--porcelain"])).toContain(`worktree ${worktree}\n`);
   });
 
