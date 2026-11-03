@@ -11,14 +11,14 @@
 - **Design:** `spec-seam-delivery-review.md`
 - **Task List:** `tasks-seam-delivery-review.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:c1fcb9ebb649133e34b13eb89a081fbb5f1e233f0c0703291ccd799a44007209`
+- **Candidate:** `sha256:88fda83978ce192ec2b9d570009971ee3505042f470541bebabee12d45cdd8d9`
 
 - **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 8.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
