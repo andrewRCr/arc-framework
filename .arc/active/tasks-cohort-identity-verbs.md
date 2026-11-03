@@ -47,38 +47,22 @@ former slug naming the current one and admit a completed meta's rewrite onto a c
 - _Outcome:_ Both backends give every lookup arm its applicable recovery; orphan, missing-worktree, and teardown reports
   preserve the branch-link instructions, including catch-up moves for renamed holders.
 
-### `[ ]` **1.3 Carry the tie and its repair on a refusal of a name — § 3.2, § 3.7**
+### `[x]` **1.3 Carry the tie and its repair on a refusal of a name — § 3.2, § 3.7**
 
 - _Goal:_ A typed read or write naming its record by slug alone refuses under a clash with the tie its ranking tier
   gives and `clashRepair`'s remedy for it, so each reader that binds a name within one family names the repair.
 
-    - `[ ]` **1.3.a Binding a reference by name**
+    - `[x]` **1.3.a Binding a reference by name**
 
-        - `resolveCapturedReference` (`lib/store/ref/reference-resolution.ts`) sets `tie: { liveness, name }` from the
-          preferred tier and its remedy from `clashRepair`, a completed tie included, built over each work-item
-          candidate's recorded primary role (`metadata.primary.role`), since a secondary-kind read keeps the requested
-          kind on its candidates and `canonicalPrimaryKind` maps only a primary kind; the lineage arm's
-          `resolveCapturedLineage` keeps "Name the intended origin by UID, then retry" (§ 3.4).
-        - A write's names bind here (`bindName`, `lib/store/ref/write-names.ts`) before `resolveOwner` runs, so writes
-          by name take this remedy with no change of their own.
+        - Name-binding refusals carry their preferred tier and derive the repair from each owner's recorded primary
+          role, preserving requested secondary kinds on the candidates.
 
-    - `[ ]` **1.3.b Resolving a write's owner**
+    - `[x]` **1.3.b Resolving a write's owner**
 
-        - `resolveOwner`'s refusal of several candidates (`lib/store/ref/write-resolution.ts`) takes "Name the intended
-          origin by UID, then retry" for the lineage owners it is handed (`lineageOwnerCandidates`, its `preselected`
-          path), and otherwise `clashRepair`'s remedy for a live current-name tie, in place of its text saying to rename
-          one.
+        - Lineage owner ties name the intended origin by UID; other owner ties use the live-current clash repair.
 
-    - Build `test-first` (one behavior at a time):
-        - over the ref backend, a read of a work item by a slug two live work units hold refuses with the tie and
-          `clashRepair`'s remedy; a completed tie names each holder's UID
-        - a read of a secondary kind by a slug a work unit and an Errand share names the Errand's close, not a rename
-        - a write naming its owner by such a slug refuses at binding with the same remedy
-          (`store-ref-name-resolution.test.ts`)
-        - a lineage write whose origin name several candidates hold refuses with the origin text
-        - with two cohorts holding one slug, session entry's frame read (`readStoreCohortDoc`), archive's cohort read
-          (`prepareObservedCohorts`), and a member's rename (`acquireRenameGroups`) each refuse naming the cohort rename
-        - a clash between a work unit and a cohort refuses no cohort read and no work-item read
+- _Outcome:_ Name-bound reads and writes preserve ranked recovery through session frames, archive, and rename;
+  cross-family clashes remain isolated to their own typed reads.
 
 ### `[ ]` **1.4 Observe an ambiguous record, and pass its remedy through the cohort, parent, and edge rules — § 3.5**
 
