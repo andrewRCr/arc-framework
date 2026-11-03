@@ -54,7 +54,9 @@ async function fixture(lifecycle: "Active" | "Integrating" = "Active") {
     await attestCandidateWithReviewBoundary({ ...base, store }, AttestCommandInputSchema.parse({ name: "example", json: true, newRoot }));
     return JSON.parse(output.join("")) as unknown;
   };
-  const initial = AttestResultSchema.parse(await attest());
+  await attestCandidateWithReviewBoundary({ ...base, workItem: primary.reference.owner },
+    AttestCommandInputSchema.parse({ name: "example", json: true }));
+  const initial = AttestResultSchema.parse(JSON.parse(output.join("")));
   if (initial.status !== "attested") throw new Error(`Expected initial attestation: ${JSON.stringify(initial)}`);
   return { ...h, cwd, exec, primary, initial, branch, attest, publish: async () => {
     output.length = 0;
@@ -213,6 +215,7 @@ it("refuses live-review recovery through the store's refusal of the Candidate hi
 it("refuses attestation with the owner refusal when the stored boundary names another work unit, and attests once repaired",
   async () => {
     const h = await fixture();
+    await h.reference.seedProject(projectId);
     const reference = recordReferences["review/integration-boundary"](h.primary.reference.owner);
     const stored = lifecycleSuccess(await h.reference.store.read({ reference }));
     const foreign = lifecycleSuccess(await h.reference.store.write({ action: "put", reference, expected: stored.version,
