@@ -130,36 +130,53 @@ it("merges and saves after the writer shards succeeded, a push updating the inpu
     .toBe("unit-test-report-${{ matrix.node.label }}-${{ matrix.shard }}");
 });
 
-it("balances each platform's portability shards by its own durations, saved by complete runs that took every store suite", async () => {
+it("restores each platform's durations once into the handed input, so every portability shard partitions one file", async () => {
   const value = await workflow();
+  const input = "packages/arc-framework/.test-cost-runs/duration-input";
+  const setup = value.jobs.setup?.steps ?? [];
+  const upload = setup.findIndex((entry) => entry.name === "Upload duration input");
+  for (const platform of ["Windows", "macOS"]) {
+    const restore = setup.findIndex((entry) => entry.name === `Restore ${platform} duration cache`);
+    expect(restore).toBeGreaterThanOrEqual(0);
+    expect(restore).toBeLessThan(upload);
+    expect(setup[restore]?.uses).toMatch(/^actions\/cache\/restore@/u);
+    expect(setup[restore]?.with).toEqual({ path: `${input}/${platform}`,
+      key: `arc-test-durations-${platform}-\${{ github.run_id }}`, "restore-keys": `arc-test-durations-${platform}-` });
+  }
   const steps = value.jobs["portability-cross-platform"]?.steps ?? [];
-  const restore = steps.find((entry) => entry.id === "platform-durations");
-  expect(restore?.uses).toMatch(/^actions\/cache\/restore@/u);
-  expect(restore?.with).toMatchObject({ path: "packages/arc-framework/.test-cost-runs/platform-duration-input",
-    "restore-keys": "arc-test-durations-${{ runner.os }}-", enableCrossOsArchive: true });
-  const run = steps.find((entry) => entry.id === "test");
-  expect(run?.env?.ARC_TEST_DURATION_FILE).toBe("${{ github.workspace }}/packages/arc-framework/.test-cost-runs/"
-    + "${{ steps.platform-durations.outputs.cache-matched-key && 'platform-duration-input/portability' "
-    + "|| 'duration-input/integration' }}.json");
+  expect(steps.some((entry) => entry.uses?.startsWith("actions/cache"))).toBe(false);
+  const download = steps.findIndex((entry) => entry.name === "Download duration input");
+  const select = steps.findIndex((entry) => entry.id === "durations");
+  const run = steps.findIndex((entry) => entry.id === "test");
+  expect(steps[download]?.with?.name).toBe("test-duration-input");
+  expect(select).toBeGreaterThan(download);
+  expect(run).toBeGreaterThan(select);
+  expect(steps[select]?.run).toContain(`[ -s "${input}/$RUNNER_OS/portability.json" ]`);
+  expect(steps[select]?.run).toContain("name=integration.json");
+  expect(steps[run]?.env?.ARC_TEST_DURATION_FILE)
+    .toBe(`\${{ github.workspace }}/${input}/\${{ steps.durations.outputs.name }}`);
+});
+
+it("saves each platform's durations once all its shards report from a run that took every store suite", async () => {
+  const value = await workflow();
+  const input = "packages/arc-framework/.test-cost-runs/duration-input";
   const everyStoreSuite = "(github.event_name == 'schedule' || github.ref == 'refs/heads/main' || inputs.portability_store_full)";
+  const run = value.jobs["portability-cross-platform"]?.steps.find((entry) => entry.id === "test");
   expect(run?.env?.ARC_STORE_CHECK).toBe(`\${{ ${everyStoreSuite} && 'full' || '' }}`);
   const merger = value.jobs["merge-portability-durations"];
   expect(merger?.needs).toBe("portability-cross-platform");
   expect(merger?.strategy?.matrix.os).toEqual(["Windows", "macOS"]);
   for (const condition of ["needs.portability-cross-platform.result != 'skipped'", "!inputs.portability_timing_only",
     "!inputs.portability_files", everyStoreSuite]) expect(merger?.if).toContain(condition);
-  const shards = z.array(z.number()).parse(value.jobs["portability-cross-platform"]?.strategy?.matrix.shard);
-  const complete = merger?.steps.find((entry) => entry.id === "complete");
-  expect(complete?.run).toContain(`[ "$reported" -eq ${String(shards.length)} ]`);
-  for (const name of ["Merge disjoint duration memberships", "Save platform duration cache"]) {
-    expect(merger?.steps.find((entry) => entry.name === name)?.if).toBe("${{ steps.complete.outputs.complete == 'true' }}");
-  }
   expect(merger?.steps.find((entry) => entry.name === "Download platform results")?.with?.pattern)
     .toBe("portability-results-${{ matrix.os }}-*");
-  expect(merger?.steps.find((entry) => entry.name === "Merge disjoint duration memberships")?.run)
-    .toContain("portability-results packages/arc-framework/.test-cost-runs/platform-duration-input");
+  const shards = z.array(z.number()).parse(value.jobs["portability-cross-platform"]?.strategy?.matrix.shard);
+  expect(merger?.steps.find((entry) => entry.id === "complete")?.run)
+    .toContain(`[ "$reported" -eq ${String(shards.length)} ]`);
+  const merge = merger?.steps.find((entry) => entry.name === "Merge disjoint duration memberships");
   const save = merger?.steps.find((entry) => entry.name === "Save platform duration cache");
+  for (const step of [merge, save]) expect(step?.if).toBe("${{ steps.complete.outputs.complete == 'true' }}");
+  expect(merge?.run).toContain(`portability-results ${input}/\${{ matrix.os }}`);
   expect(save?.uses).toMatch(/^actions\/cache\/save@/u);
-  expect(save?.with).toMatchObject({ path: restore?.with?.path, key: "arc-test-durations-${{ matrix.os }}-${{ github.run_id }}",
-    enableCrossOsArchive: true });
+  expect(save?.with).toEqual({ path: `${input}/\${{ matrix.os }}`, key: "arc-test-durations-${{ matrix.os }}-${{ github.run_id }}" });
 });
