@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "bounded-wait-final-observation",
+  "claimId": "9ef13ce5f687e06146172baf12ac99e5",
+  "createdAt": "2026-11-03T14:18:39.491Z",
+  "updatedAt": "2026-11-03T14:18:39.491Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Observe once more at a bounded wait deadline before reporting pending.",
+  "branch": "chore/bounded-wait-final-observation",
+  "origin": "inbox",
+  "originEntry": "Observe once more before a bounded hosted wait returns pending at its deadline",
+  "originEntrySourceDigest": "sha256:7d54e0672824a5e317802052534520b5fd71ae3e0925c0be50d1561d17be8e0c",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
