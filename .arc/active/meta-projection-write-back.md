@@ -1,8 +1,8 @@
 # Metadata: Projection Write-Back
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+| **State**  | **Owner** | **Branch**                   | **Class** | **Priority** |
+| ---------- | --------- | ---------------------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/projection-write-back` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-projection`
 - **Depends On:** `storage-ref-hardening`, `projection-substrate`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin generate-tasks
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
