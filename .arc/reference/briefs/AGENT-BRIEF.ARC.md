@@ -10,8 +10,8 @@ git hooks, and a CLI package — all agent-platform agnostic.
 `arc-handoff`. State files: active work unit's
 `meta-{name}.md` (tracked, `active/`) and `SESSION-NOTES.md` (gitignored, `user/{identity}/{work-unit}/`).
 
-**Work pipeline:** PRD → task generation → task execution loop. One task = one review
-increment; see DEV-RULES.ARC § Task Execution.
+**Work pipeline:** Design → spec → task generation → task execution loop. One task = one review increment;
+see DEV-RULES.ARC § Task Execution.
 
 **Methods:** Behavior modules under `system/methods/`. Workflows root the
 declared method graph; methods carry their own nested dependencies, and each loads at its direct fire-point.
@@ -26,8 +26,8 @@ configuration; draft-state lock (`merge.lock: draft`) is a per-PR structural hol
 **Release wrappers:** `arc release commit` / `arc release push` are the canonical commit/push
 invocation shape when active (`arc.releaseOptedIn: true` plus harness allowlist). After the interlock-validation
 cascade, `arc release commit` accepts the same message/flags as `git commit`; `arc release push` supplies
-`origin <current-branch>` itself, takes no target argument, and refuses destructive flags. See DEV-RULES.ARC
-§ Commit Discipline.
+`origin <current-branch>` itself and accepts that matching pair, with or without `-u`. It refuses destructive flags.
+See DEV-RULES.ARC § Commit Discipline.
 
 ## Vocabulary
 
@@ -117,11 +117,4 @@ Precise meanings — assume the technical sense.
 └── user/        — Per-developer session state
 ```
 
-`backlog/planned/` may nest work units one directory deeper under cohort directories; resolve work units by slug
-rather than assuming the planned backlog is flat.
-
 ---
-
-_Shared ARC framework entry point for all AI agents. Project-specific context lives in
-[AGENT-BRIEF.PROJECT.md](AGENT-BRIEF.PROJECT.md); agent-specific guidance lives in harness-level
-files (e.g., `CLAUDE.md`, `AGENTS.md`) outside ARC._

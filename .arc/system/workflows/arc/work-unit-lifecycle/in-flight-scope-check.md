@@ -38,7 +38,7 @@ including remote-only ones with no local branch or worktree.
    flight (its `worktreePath`; "remotely on `origin/<branch>`" when `remoteOnly`; otherwise "local branch, no
    worktree"), the overlap, and any design-load note, then offer the choice. For example:
    `` `feat/x` is in flight in `../repo.x` and touches the same module — parallelize, or sequence after it integrates? ``
-   Proceed with activation unless the operator redirects.
+   Return the advisory to the caller, which owns progression and any required confirmation.
 
 ---
 

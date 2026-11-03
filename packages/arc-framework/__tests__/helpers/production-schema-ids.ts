@@ -150,6 +150,7 @@ export const PRODUCTION_SCHEMA_IDS = [
   "schema-list-envelope",
   "schema-refusal-envelope",
   "session-action",
+  "session-init-agenda",
   "session-init-envelope",
   "session-init-recovery",
   "session-init-user",

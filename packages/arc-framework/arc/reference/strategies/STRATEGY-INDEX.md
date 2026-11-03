@@ -1,11 +1,7 @@
 # Strategy Document Index
 
-**Purpose:** Quick reference to codified strategy guidance. Consult relevant strategies before implementing
-work in their domains.
-
 ## ARC Framework Strategies
 
-These ship with the framework and cover development methodology applicable to any project.
 Strategies marked **(arc-in-git)** are only present when arc-in-git Project Management mode is active
 (`pm.mode: arc-in-git`); those marked **(team mode)** only when `team.mode: true` — both in `arc-config.yml`.
 
@@ -59,19 +55,6 @@ Strategies marked **(arc-in-git)** are only present when arc-in-git Project Mana
       classification, branch, and archival calls.
 
 ## Project Strategies
-
-Create project-specific strategies in `project/` as your project's patterns emerge.
-See `project/README.md` for guidance on when to create one.
-
-**Example project strategies** (illustrations — these files don't exist until you
-create them):
-
-- `project/strategy-authentication.md` - Auth flow, session management
-- `project/strategy-testing-methodology.md` - Testing patterns, coverage expectations
-- `project/strategy-service-layer.md` - Business logic organization, DI patterns
-- `project/strategy-type-safety.md` - Type checking approach, policy decisions
-- `project/style/strategy-component-styling.md` - Component patterns, design system
-- `project/style/strategy-color-tokens.md` - Color token reference, naming conventions
 
 ---
 
