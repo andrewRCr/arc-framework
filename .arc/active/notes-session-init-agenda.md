@@ -3,6 +3,8 @@
 ## Contents
 
 - [A4 — Store Start evidence](#a4--store-start-evidence)
+- [A5 — Repaired-kit acceptance](#a5--repaired-kit-acceptance)
+- [Standard review repairs](#standard-review-repairs)
 
 **Design and coordination**
 
@@ -833,3 +835,60 @@ The amendment's depth is medium: a bounded record-to-method contract with an exp
 scope covers the Start row and method arguments, method source/instance/pristine hash, backend and legacy regressions,
 and the appended criterion. Reader independence and binding completeness retain all evidence and launch boundaries.
 The approved independent fix check includes this written footprint and its surrounding contract.
+
+## A5 — Repaired-kit acceptance
+
+Standard finding `E1` identified an acceptance mismatch, separately from the measured reduction. The original
+measurement criterion requires an install committed and pushed "as a new project gets it"; the recorded experiments
+needed the kit's documented `fill-link-targets.sh` accommodation. Disclosure alone had not changed that requirement.
+
+The accepted replacement criterion permits the recorded matched repair: ten copied package targets at baseline and
+seven at result. It preserves packed installation, hooks-enabled commit/push, both instruments, baseline timing and
+the percentage bounds. Its depth is low: an explicit fixture acceptance decision with no installer change. Original
+criteria, Goals, task outcomes, inventories and raw evidence remain preserved.
+
+This qualification governs the Baseline install, Result install and comparison, Plain-resume rehearsal, Remaining-arm
+rehearsals, Task 5.4 outcome and all kit-based completion claims in the earlier verification record. They establish
+the disclosed repaired installations and empirical adherence limits; unmodified fresh-install qualification remains
+unestablished. No installer success is inferred from the relative token reductions.
+
+## Standard review repairs
+
+The complete standard pass at `480122a5a2f46b0dd7bc628d99468f5fae8b6575` covered all 194 changed paths through five
+contract-closed scopes, a dedicated seam and a fresh aggregate. Its result is findings: `R-1` major, `context-F1`
+minor and `E1` minor. Source verification retained all three, and disposition set
+`sha256:8c273c4abd88f160ea9746f70bd1d8be73c8adfcb0474fd99ed60178ee4cb6c4` approves their fixes with full verification.
+The independent repair check is separately authorized. No successor complete pass or integration authority is implied.
+
+Canonical review evidence is retained under `~/dev/arc-evidence/session-init-agenda/standard-review/`, operation
+`local-1e42c457623abd9f5d644bae80adcc8f42774f6567dcd85f812bb85b1b1c5b0d`. Its aggregate report is
+`c36fbb50c8d7b726dc63000ba09c71e4248a67905d91d58599b64332b8325788.md`. The evidence leaf's exposure to prior-review
+prose inside the assigned notes is disclosed; that prose supplied no proof, and the seam and aggregate independently
+corroborated the material source/evidence joins.
+
+`renderSuperseded` now retains the explanation in the precompiled orientation reached by a bare reset decline.
+The reset remains offered only; accepting its action recompiles before that tail. Resume and Orient regressions cover
+the direct continuation, alongside the previously tested answered-input path.
+
+Fail-first run `f68402405f6f4633a074a8bdfef341c6` has ten behavioral failures and seven passing controls. Earlier red
+attempts exposed an invalid test fixture's companion placement and are not behavioral proof. The corrected fixtures
+use the store's real primary/companion creation rules. Run `5945c90e587a4557aad70c146c8f09ac` removes only legacy target
+reads and produces one behavioral failure; restoring the exact implementation passes the full agenda scope:
+482 tests in 39 files, run `0bf338bf05764731ba8f0baefc7f5219`.
+
+After the same-concern complexity refactor and refusal-fixture type correction, the increment passes ten checks with
+two reused results. Native Start, resume and passivity coverage passes four cases in three files, run
+`536dd3f5168e437aad708ef688f361e9`. The forced merge gate passes all 19 local requests, including all six store shards
+for 320 reached suites. The local gate excludes four CI-only requests; hosted evidence is separate.
+
+The authorized headless remeasurement uses the unchanged instrument and `claude-opus-5-5`. Empty input is 6,564 tokens;
+the net Part 1 results are resume 4,706, Orient 5,495 and Start 5,863 against baseline 27,283, or 17.25%, 20.14% and
+21.49%. The raw inputs, usage and comparison are retained under
+`~/dev/arc-evidence/session-init-agenda/standard-fix-1/`. The matched real-context Start report is 47.8k, less the
+matched empty report's 40.8k: approximately 7.0k against the baseline's 30.3k, or 23.10%, below 28%. Raw transcripts
+confirm exactly the three requested full-file Reads and one final `OK` after their results. The kit remains clean.
+
+The final context pair uses the baseline's original harness flags and suppression instruction, retaining included
+first response and rounded-report limits. Restricted Read-only controls are retained separately: conditional tool
+loading changes their cost, so they do not define the final comparison. The new kit again used seven copied package
+targets after 19 initial broken links, with hooks-enabled commit and local push passing under the A5 qualification.

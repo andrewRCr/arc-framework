@@ -1415,6 +1415,13 @@ compiler compiles both arms from whichever the probe's readers return.
     supply target evidence. A missing task record is explicit absence; another refusal or conflict makes Start
     unresolved. Legacy file reads and the agenda schema remain unchanged. (A4)
 
+19. **Measurement fixture acceptance.** Superseding only Success Criterion 3's unmodified-install fixture, the
+    recorded matched kit link fills are accepted: ten copied package targets at baseline and seven at result, with
+    each inventory retained. Packed installation, hooks-enabled commit and push, baseline timing, both instruments
+    and the percentage bounds remain required. Measurement and kit-rehearsal completion establishes the disclosed
+    repaired installations; it does not qualify an unmodified fresh install. Original criteria and raw evidence are
+    preserved. (A5)
+
 ## Open Questions
 
 None blocks starting. The per-group read budget's value, the surface ids' spelling, and the compiler's module split are
@@ -1430,3 +1437,5 @@ implementation detail.
   § 5.4 Errand rows. _Trigger:_ 4.2.c must-stop. _Work:_ 4.R2. _Revalidated:_ 4.7.
 - **A4** — 2026-11-02 — design: carry Start record evidence in method arguments.
   _Supersedes:_ § 5.4 Start; § 8.2 ¶1. _Trigger:_ R-1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A5** — 2026-11-02 — design: accept the documented matched kit link fills.
+  _Supersedes:_ Success Criterion 3. _Trigger:_ E1 review. _Work:_ review-fix. _Revalidated:_ review-fix.

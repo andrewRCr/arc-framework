@@ -20,6 +20,7 @@ with a typed refusal, and leaves the repository as found.
 
 - _Goal:_ Both parts of the done-signal have a baseline, measured by both instruments on a kit install of the unchanged
   base, before this branch changes any shipped text.
+    - _Amended in:_ review-fix (A5).
 
 - **Additional Context:** `notes-session-init-agenda.md` § Sizing and measurement
 
@@ -535,7 +536,7 @@ tier pass against the new text.
 ### `[x]` **5.4 Measure the done-signal — Success Criteria 1–3**
 
 - _Goal:_ Both parts of the done-signal are measured by the Phase 1 instruments and recorded beside the baseline.
-    - _Amended in:_ review-fix (A4).
+    - _Amended in:_ review-fix (A4, A5).
 
 - _Outcome:_ Matched kit measurements put the three rows at 17.25–20.96% itemized and approximately 18.15–22.44%
   real-session baseline input. Full Orient is 47.70% itemized and approximately 54.75% real-session, below both
@@ -628,3 +629,6 @@ tier pass against the new text.
 - `[x]` Store-backed Start supplies exact metadata and task-record contents, references and versions under the
   selected owner/UID, without reading target checkout projections; missing tasks remain explicit, refusals/conflicts
   withhold readiness, and legacy file reads and the agenda schema remain unchanged (A4)
+
+- `[x]` Measurement and kit-rehearsal completion is qualified to the accepted matched link-fill fixtures, retaining
+  the baseline/result inventories, original criteria, raw evidence, both instruments and the percentage bounds (A5)
