@@ -9,6 +9,7 @@ const digest = (character: string): `sha256:${string}` => `sha256:${character.re
 
 export function checkpointDependencies(): IntegrationCheckpointDependencies {
   return {
+    boundarySchemaVersion: 1,
     readDrift: async () => ({
       mode: "authoritative",
       verdict: "reconcile",

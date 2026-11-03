@@ -17,6 +17,8 @@ import { createStore } from "../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../src/lib/store/default-ports.js";
 import { createStoreSyncPort } from "../../src/lib/store/operational-sync.js";
 import { guidanceMarkdownFiles } from "../helpers/guidance-markdown.js";
+import { ReviewCommandModeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
+import { reviewRequestRetryArgv } from "../../src/scripts/review-gate/runtime/project-identity-remedy.js";
 
 const REPOSITORY_SCAN_TIMEOUT_MS = 30_000;
 
@@ -162,9 +164,11 @@ describe("documented command surface", () => {
   let operandCommands!: ReadonlySet<string>;
   let declaresJson!: ReadonlySet<string>;
   let sourceFiles!: Readonly<Record<string, string>>;
+  let operands!: ReadonlyMap<string, readonly { name: string; required: boolean }[]>;
 
   beforeAll(async () => {
     const snapshot = await loadRepositoryCommandInputSnapshot(sourceRoot);
+    operands = new Map(snapshot.source.commands.map((command) => [command.path, command.operands]));
     operandCommands = new Set(snapshot.source.commands.filter((command) => command.operands.length > 0)
       .map((command) => command.path));
     sourceFiles = snapshot.sourceFiles;
@@ -209,6 +213,18 @@ describe("documented command surface", () => {
       .map(({ file, invocation }) => `${file}: ${invocation.line}`);
 
     expect(unregistered).toEqual([]);
+  });
+
+  it.each(ReviewCommandModeSchema.options)("retries %s through a registered command taking its request", (mode) => {
+    const argv = reviewRequestRetryArgv(mode);
+    if (argv === undefined) {
+      expect(mode, "Only pre-publication takes its work unit rather than a request.").toBe("review-pre-publication");
+      return;
+    }
+    expect(argv.slice(0, 2)).toEqual(["arc", "review"]);
+    expect(argv.at(-1)).toBe("-");
+    expect(operands.get(argv.slice(1, -1).join(" "))?.map(({ name, required }) => ({ name, required })))
+      .toEqual([{ name: "input", required: false }]);
   });
 
   it("registers remote designation while the default operational backend stays in-repo", async () => {

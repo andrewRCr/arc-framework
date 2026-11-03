@@ -76,8 +76,7 @@ async function fixture() {
       repositoryId: "repo-1", baseRef: "main", diffBaseSha: base, diffBaseTree: baseTree,
       headSha: await git("rev-parse", "HEAD"), headTree: await git("rev-parse", "HEAD^{tree}") });
     return confirmPerformedResponse({ predecessor, currentTarget, currentLineage: lineage,
-      dispositionStore: { readDispositionRecord: async () => record,
-        appendDispositionRecord: async () => { throw new Error("read-only proof"); } },
+      dispositionStore: { readDispositionRecord: async () => record },
       readResponsePerformance: async () => performance,
       candidateProof: { cwd, baseRef: "main", exec, candidate, observeTarget: async () => currentTarget } });
   };

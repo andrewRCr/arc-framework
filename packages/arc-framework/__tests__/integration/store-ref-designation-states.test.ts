@@ -15,6 +15,7 @@ import { quoteShellArgument } from "../../src/lib/release/commit-message-retry.j
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { refCarryFixture, carriedBranch, carriedDocument } from "../helpers/store/ref-carry.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { CALL_LIMIT } from "../helpers/call-limit.js";
 
 const execFileAsync = promisify(execFile);
 const firstPull = fileURLToPath(new URL("../fixtures/store/ref-first-pull.ts", import.meta.url));
@@ -35,15 +36,15 @@ async function runFirstPull(root: string, terminal: boolean) {
   const argv = [process.execPath, "--import", "tsx", firstPull, root];
   const began = performance.now();
   const pending = terminal
-    ? execFileAsync("script", ["-q", "-e", "-c", argv.map(quoteShellArgument).join(" "), "/dev/null"], { timeout: 10_000 })
-    : execFileAsync(process.execPath, argv.slice(1), { timeout: 10_000 });
+    ? execFileAsync("script", ["-q", "-e", "-c", argv.map(quoteShellArgument).join(" "), "/dev/null"], { timeout: CALL_LIMIT })
+    : execFileAsync(process.execPath, argv.slice(1), { timeout: CALL_LIMIT });
   const { stdout, stderr } = await pending.catch((error: unknown) => {
     const details = typeof error === "object" && error !== null
       ? Object.fromEntries(Object.getOwnPropertyNames(error).map((key): [string, unknown] => [key, (error as Record<string, unknown>)[key]]))
       : { thrown: String(error) };
     try {
       writeSync(2, "FIRST_PULL_PROCESS_FAILURE " + JSON.stringify({ terminal, elapsedMs: performance.now() - began,
-        timeoutMs: 10_000, nodeVersion: process.version, platform: process.platform, pid: pending.child.pid,
+        timeoutMs: CALL_LIMIT, nodeVersion: process.version, platform: process.platform, pid: pending.child.pid,
         exitCode: pending.child.exitCode, signalCode: pending.child.signalCode, killed: pending.child.killed, error: details }) + "\n");
     } catch { /* Preserve the child failure if the diagnostic stream cannot be written. */ }
     throw error;
@@ -85,7 +86,7 @@ describe.each([false, true])("first pull with terminal %s", (terminal) => {
         expect(result.pulls).toEqual([]);
         expect((await h.b.exec("git", ["config", "--list"])).stdout).not.toContain("arc-state");
       }
-    }, 15_000,
+    }, 2 * CALL_LIMIT,
   );
 });
 

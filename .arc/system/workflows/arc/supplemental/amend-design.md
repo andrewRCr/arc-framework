@@ -48,8 +48,8 @@ anchor. Rename a heading only with every citing site updated in the same change.
 - **Arm** — which kind of change the evidence selects: `task`, `spec-depth`, or `design`. The gate returns one.
 - **Footprint** — the settled elements one amendment changes, plus what cites or depends on them. It bounds the
   sweep and the adversarial pass; nothing outside it is re-attacked.
-- **Detour** — the span from entry to closure. It is open while its corrective parent is open and carries no
-  lifecycle state of its own.
+- **Detour** — the span from entry to closure. It is open while its corrective parent is open, or, for `_Work:_ none`,
+  while `_Revalidated:_` is pending, and carries no lifecycle state of its own.
 
 **Effective report** and **delta** are defined in [`validate-criteria`][validate-criteria] and used here unchanged.
 
@@ -214,9 +214,11 @@ The grammar is closed and defined here only. A row runs two lines at most, in th
 - `_Supersedes:_` — a section-and-paragraph locus, or `none`.
 - `_Trigger:_` — a site token, `segment` | `member` | `terminal` | `must-stop` | `review` | `door`, preceded by
   the detecting task id where one exists, or by the finding id at `review`.
-- `_Work:_` — the corrective parent's id, or `review-fix` when the correction is a review-fix increment.
+- `_Work:_` — the corrective parent's id, `review-fix` when the correction is a review-fix increment, or `none`
+  when the amendment only removes or relaxes obligations and needs no corrective work.
 - `_Revalidated:_` — the closing check: a task id, `verify-work-unit`, `review-fix`, or `pending → X.Z` while the
-  detour is open.
+  detour is open. For `_Work:_ none` at any entry site, use `pending → X.Z` until the next covering verifier
+  passes, then record that verifier's id.
 
 ### Where the change lands in the record
 
@@ -341,25 +343,30 @@ The hit list is greppable wherever parent titles cite the design element they re
 
 ## Closure
 
-The detour is done when the check that opened it passes again. Two facts the row carries are distinct: the detour
-is **open** while its corrective parent is open, and `_Revalidated:_` names the check that closes the loop. They
+The detour is done when the check that opened it passes again; for `_Work:_ none`, it closes when the next covering
+verifier passes. Two facts the row carries are distinct: the detour is **open** while its corrective parent is open, or,
+for `_Work:_ none`, while `_Revalidated:_` is pending; `_Revalidated:_` names the check that closes the loop. They
 coincide at the member site and diverge elsewhere.
 
 | Site                   | `_Revalidated:_`                            | What the re-record contains                                 |
 | ---------------------- | ------------------------------------------- | ----------------------------------------------------------- |
+| `_Work:_ none`         | `pending → X.Z`, the next covering verifier | no corrective parent; closes on that verifier's evidence    |
 | member verifier        | the delta subtask's id                      | a delta against the member's boundary report                |
 | segment verifier       | the re-run verifier's own id                | the scenario's outcome — the verifier's ordinary completion |
 | terminal verification  | the verification rerun                      | none — the walk reruns against the current subject          |
 | review finding         | the review-fix increment's verification     | none — the increment's own evidence at its scope            |
 | must-stop / skill door | `pending → X.Z`, the next covering verifier | the parent closes on its own evidence                       |
 
-**Member-site closure.** The corrective parent's closing subtask records the delta — run
-[`validate-criteria`][criteria-delta-check] over the changed criteria and the amendment's span; that method defines
-the delta's shape, a supplement to the preserved report rather than a second one. The member's closing task, left
-`[ ]` at the stop with its boundary report preserved, then closes on the **effective report**: a marker flip whose
-completion note cites the delta subtask. **A closing task that already carries a preserved boundary report does
-not re-walk** — it closes on the effective report. That rule reads a fact on the task being executed, never the
-log.
+**Member-site closure.** Run [`validate-criteria`][criteria-delta-check] over the changed criteria and the amendment's
+span; that method defines the delta's shape, a supplement to the preserved report rather than a second one. With
+corrective work, the corrective parent's closing subtask records the delta. For `_Work:_ none`, the next covering
+verifier records it in its own verification evidence, keyed by the amendment row's id; `_Revalidated:_` names that
+verifier, with its pending target used while the detour is open.
+
+The member's closing task, left `[ ]` at the stop with its boundary report preserved, closes only when the **effective
+report** has no unresolved criteria. Its completion note cites the delta subtask, or, for `_Work:_ none`, the verifier
+and amendment id identifying the delta. **A closing task that already carries a preserved boundary report does not
+re-walk** — it consumes that report plus its deltas. That branch reads a fact on the task being executed, never the log.
 
 **Review-site closure.** On the spec-changing arms at review there is no corrective parent: the correction is the
 review-fix increment, `_Work:_` is `review-fix`, and `_Revalidated:_` is that increment's verification at the

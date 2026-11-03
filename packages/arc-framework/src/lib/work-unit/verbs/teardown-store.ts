@@ -129,7 +129,7 @@ async function reportAdopted(ctx: Bound, link: RetirementLink): Promise<void> {
   const holder = ctx.worktrees.find((item) => item.branch === branch);
   ctx.notices.push(`Kept ${branch}: it was adopted from its owner.`);
   if (holder?.folderPresent === false) {
-    const actions = missingRegistrationActions(holder.path, { locked: holder.locked !== undefined });
+    const actions = missingRegistrationActions(holder.path, { lock: holder.locked });
     ctx.notices.push(...actions.map(({ text }) => `Owner cleanup: ${text}`));
   } else if (holder !== undefined) ctx.notices.push(`Owner cleanup: git switch ${ctx.baseBranch} (from ${holder.path}, or detach where base is occupied).`);
   ctx.notices.push(`Owner cleanup: git branch -D ${branch}`);

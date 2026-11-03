@@ -6,9 +6,9 @@ import type { ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import type { ReviewResult } from "../core/review-result.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import { deriveLocalReviewTarget } from "../hosts/local/repository-target.js";
-import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
-import type { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
-import type { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
+import { readLiveErrandClaimId } from "../hosts/local/live-context.js";
+import type { ApprovedDispositionRecordReader, ReviewOperationStateStore } from "../core/ports.js";
+import type { ReviewInvocationInput } from "./invocation.js";
 import { createGhChangeRequestResolutionPort } from "../hosts/github/change-request.js";
 import { resolveChangeRequest } from "../change-request.js";
 import { readLaneResponsePerformance } from "../lane-progress.js";
@@ -18,12 +18,12 @@ import { confirmErrandFixResponseApplicability, confirmPrivateCandidateCorrectio
 
 /** Resolve the exact public or private change-request target without publishing state. */
 export async function resolveLocalPolicyTarget(
-  input: { cwd: string; exec: GitExec },
+  input: { cwd: string; exec: GitExec; headRef?: string },
   repositoryId: string,
   target: ReviewTarget,
   baseRef: string,
 ) {
-  const branch = (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
+  const branch = input.headRef ?? (await input.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
     cwd: input.cwd,
   })).stdout.trim();
   if (branch === "" || branch === "HEAD") {
@@ -55,9 +55,9 @@ export async function resolveLocalPolicyTarget(
 /** Bind the exact Errand fix-response bridge and ordinary contribution proof to one live target. */
 export function createLocalContributionConfirmation(input: {
   context: {
-    input: { cwd: string; exec: GitExec };
-    dispositionStore: LocalApprovedDispositionRecordStore;
-    operationStore: LocalReviewOperationStateStore;
+    input: ReviewInvocationInput;
+    dispositionStore: ApprovedDispositionRecordReader;
+    operationStore: ReviewOperationStateStore;
   };
   repositoryId: string;
   baseRef: string;
@@ -75,13 +75,11 @@ export function createLocalContributionConfirmation(input: {
   ) => {
     if (input.policyTarget.pullRequest === null && currentLineage.kind === "head-bound"
       && currentLineage.vehicleKind === "errand") {
-      const live = await readLocalReviewLiveContext(input.context.input).catch(() => null);
       return confirmErrandFixResponseApplicability({
         predecessor,
         currentTarget,
         currentLineage,
-        currentClaimId: live?.context.errand?.claimId === currentLineage.vehicleIdentity
-          ? live.context.errand.claimId : null,
+        currentClaimId: await readLiveErrandClaimId(input.context.input, currentLineage.vehicleIdentity),
         ...(currentResult === undefined ? {} : { currentResult }),
         observeTarget,
         dispositionStore: input.context.dispositionStore,
@@ -105,6 +103,7 @@ export function createLocalContributionConfirmation(input: {
       });
     }
     return confirmNonDeliveryIncrementalApplicability({
+      stateOffBranch: input.context.operationStore.stateOffBranch === true,
       predecessor,
       currentTarget,
       currentLineage,

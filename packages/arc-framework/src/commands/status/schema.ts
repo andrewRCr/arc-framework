@@ -63,7 +63,7 @@ import { RecoveryLocusFrameSchema, resolveRecoveryParentContext } from "../../li
 import { ReleaseRoutingValueSchema } from "../../lib/release/routing.js";
 import { assertSessionEnvelopeContract } from "../../lib/session-envelope/validation.js";
 import { DeliveryPositionViewSchema } from "../../lib/session-init/delivery-position.js";
-import { IntegrationBoundaryLocusSchema } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
+import { PublishedIntegrationBoundaryLocusSchema } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
 // Keep composition declarations bounded while retaining each producer-owned inferred payload.
 const DerivedLocusFrameWireSchema: z.ZodType<
@@ -161,7 +161,7 @@ export const SessionInitWorktreeValueSchema = withRemoteEvidence({
       || (value.recommendedAction === "surface" && value.recommendedPromptText === "")
     : value.state === "diverged"
       ? value.recommendedAction === "surface"
-        && ((value.supersession?.superseded === true) === (value.recommendedPromptText !== ""))
+        && (value.recommendedPromptText === "" || value.supersession?.superseded === true)
       : ["local-ahead", "branch-gone", "remote-unavailable"].includes(value.state)
         ? value.recommendedAction === "surface" && value.recommendedPromptText === ""
         : value.recommendedAction === "skip" && value.recommendedPromptText === "";
@@ -349,6 +349,37 @@ const SessionInitEnvelopeObjectSchema = z.strictObject({
 
 type SessionInitEnvelopeValue = z.infer<typeof SessionInitEnvelopeObjectSchema>;
 
+/** Require offer prerequisites at the envelope, where all dependent slots are visible. */
+function refineRecommendationPrerequisites(
+  value: SessionInitEnvelopeValue,
+  context: z.core.$RefinementCtx<SessionInitEnvelopeValue>,
+): void {
+  const worktree = value.worktree.ok ? value.worktree.value : null;
+  if (value.worktree.ok && value.config.ok && value.dirty.ok) {
+    if (worktree?.state === "diverged" && worktree.supersession?.superseded === true
+      && worktree.recommendedPromptText === "") {
+      context.addIssue({ code: "custom", path: ["worktree", "value", "recommendedPromptText"],
+        message: "superseded divergence requires an offer when recommendation prerequisites are resolved" });
+    }
+    return;
+  }
+  if (worktree !== null && (worktree.recommendedPromptText !== ""
+    || !["skip", "surface"].includes(worktree.recommendedAction))) {
+    context.addIssue({ code: "custom", path: ["worktree", "value", "recommendedAction"],
+      message: "unresolved recommendation prerequisites forbid worktree offers" });
+  }
+  const user = value.user.ok ? value.user.value : null;
+  if (user !== null && "state" in user
+    && (user.recommendedAction !== "skip" || user.recommendedPromptText !== "")) {
+    context.addIssue({ code: "custom", path: ["user", "value", "recommendedAction"],
+      message: "unresolved recommendation prerequisites require skipping notes offers" });
+  }
+  if (value.recommendedCombinedPrompt !== null) {
+    context.addIssue({ code: "custom", path: ["recommendedCombinedPrompt"],
+      message: "unresolved recommendation prerequisites forbid combined offers" });
+  }
+}
+
 function hasOwn(value: SessionInitEnvelopeValue, key: keyof SessionInitEnvelopeValue): boolean {
   return Object.hasOwn(value, key);
 }
@@ -382,7 +413,7 @@ function worktreeValue(value: SessionInitEnvelopeValue): Record<string, unknown>
 
 function phaseAcceptsBoundary(
   sessionType: "planning" | "execution" | "prepublication" | "integration" | null,
-  boundary: z.infer<typeof IntegrationBoundaryLocusSchema> | null,
+  boundary: z.infer<typeof PublishedIntegrationBoundaryLocusSchema> | null,
   workflow: string | null,
   completedRecovery = false,
 ): boolean {
@@ -433,6 +464,7 @@ function sessionTypeAcceptsWorkflow(
 
 const SessionInitProbeResultRuntimeSchema =
   SessionInitEnvelopeObjectSchema.superRefine((value, context) => {
+  refineRecommendationPrerequisites(value, context);
   const active = activeValue(value);
   const worktree = worktreeValue(value);
   const rosterSuccessful = value.roster?.ok === true;

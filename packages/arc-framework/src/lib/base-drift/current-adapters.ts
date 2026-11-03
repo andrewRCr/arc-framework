@@ -24,8 +24,7 @@ import {
   type CompletedEvidenceRead,
   type ShippedWorkUnitRecord,
 } from "../work-unit/completed-index.js";
-import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
-import { resolveSubmissionBoundaryPath } from "../work-unit/submission-boundary-store.js";
+import { resolveCandidateRecordRelativePath, resolveSubmissionBoundaryPath } from "../store/kinds/review/paths.js";
 
 export interface CurrentBaseDriftAdapters {
   resolverFactory: IntegrationEvidenceResolverFactory;

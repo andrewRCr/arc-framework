@@ -1,0 +1,898 @@
+# Notes: seam-delivery-review
+
+## Contents
+
+- [How the rows were checked](#how-the-rows-were-checked)
+- [Corrections across rows](#corrections-across-rows)
+- [Rows](#rows)
+- [Files no row covers](#files-no-row-covers)
+- [Register keys](#register-keys)
+- [Mechanisms that exist because records ride the branch](#mechanisms-that-exist-because-records-ride-the-branch)
+- [Where review state lives today](#where-review-state-lives-today)
+- [Decision-record census](#decision-record-census)
+- [Withdrawal, reopen, and retirement](#withdrawal-reopen-and-retirement)
+- [Rules a write check cannot see](#rules-a-write-check-cannot-see)
+- Amendments — each records the correction as it was decided; the task list records what its tasks did,
+  and the spec's § Amendments where each was revalidated:
+    - [A6 — Shipped locus and review-policy contracts](#a6--shipped-locus-and-review-policy-contracts)
+    - [A7 — Portable frontline source identity](#a7--portable-frontline-source-identity)
+    - [A8 — Producer facts belong to outcome observations](#a8--producer-facts-belong-to-outcome-observations)
+    - [A10 — No-fix settlement headers retain their recorded facts](#a10--no-fix-settlement-headers-retain-their-recorded-facts)
+    - [A11 — Native defaults must select an owner before family binding](#a11--native-defaults-must-select-an-owner-before-family-binding)
+    - [A12 — Typed fact listings must retain conflict refusals](#a12--typed-fact-listings-must-retain-conflict-refusals)
+    - [A13 — Continuation references retain their native owner](#a13--continuation-references-retain-their-native-owner)
+    - [A15 — Policy calculation does not imply vehicle admission](#a15--policy-calculation-does-not-imply-vehicle-admission)
+    - [A16 — Retain the binding form of an ordinary extra pass](#a16--retain-the-binding-form-of-an-ordinary-extra-pass)
+    - [A17 — Native terminus projections retain absent authors](#a17--native-terminus-projections-retain-absent-authors)
+    - [A18 — Ordinary extra-pass continuation validity](#a18--ordinary-extra-pass-continuation-validity)
+    - [A19 — A clean fix check and its complete successor](#a19--a-clean-fix-check-and-its-complete-successor)
+    - [A20 — The import gives the mapping a source the design did not name](#a20--the-import-gives-the-mapping-a-source-the-design-did-not-name)
+    - [A21 — The current Candidate record can be newer than its history](#a21--the-current-candidate-record-can-be-newer-than-its-history)
+- [Neighbors](#neighbors)
+- [Prior art](#prior-art)
+
+## How the rows were checked
+
+The rows are the 35 seam-owned rows this work unit inherits from `notes-storage-contract.md` § Consumer map — 17 under §
+Delivery and 18 under § Review and evidence — re-verified at `66924aa56` on 2026-10-15, with the files no row covers,
+the review gate's decision records, and the withdrawal and reopen paths. Four read-only sweeps did the reading; each
+finding the design acts on was checked against source before it entered the design. `generate-tasks` grounded against
+these notes and re-derived line numbers, which drift, so a citation here is the file and symbol, with a line only where
+the line is the evidence. `src/` is `packages/arc-framework/src/`, and `rg/` is `src/scripts/review-gate/`. From
+§ Corrections across rows through § Rules a write check cannot see, present-tense descriptions of code record what the
+sweeps found, before this work unit's tasks ran.
+
+| Verdict   | Delivery | Review and evidence |
+| --------- | -------- | ------------------- |
+| Confirmed | 6        | 9                   |
+| Drift     | 11       | 9                   |
+| Moved     | 0        | 0                   |
+
+No row points the wrong way. Most drift is a missed state touch, a stale line, or a miscited key; the material drift is
+under § Corrections across rows. Every path exists at HEAD, and none of the four file splits (#812, #818, #826, #827)
+moved a row: #827 moved three locus lookups into `handlers/review-locus-context.ts`, which `seam-locus` took, and #812
+touches no row here.
+
+## Corrections across rows
+
+- **The store already holds Candidate and boundary records, and nothing uses it.** `review/candidate` and
+  `review/integration-boundary` are registered (`lib/store/registry.ts`) and implemented in the in-repo backend, whose
+  `landTracked` (`lib/store/in-repo/write-stores.ts`) delegates to `writeCandidateRecord` and
+  `writeSubmissionBoundary`. Every consumer still imports `candidate-record-store.ts` and `submission-boundary-store.ts`
+  directly (31 imports), so the work is adoption, not construction. The in-repo backend stages nothing and reports
+  `capabilities: { stateOffBranch: false }` (`createInRepoBackend`), the one gate for every mechanism under § Mechanisms
+  that exist because records ride the branch.
+- **Integration's lifecycle reads are already store-backed.** `checkpoint-composition.ts` and `merge-composition.ts`
+  default to `createStoreLifecycleStorage` (`lib/store/lifecycle-storage.ts`), whose version is still HEAD in-repo.
+  What remains of key 48 is D2's binding to per-record versions plus the code head, and two Git-tree readers: the
+  shipped-delivery boundary replay in `checkpoint-composition.ts` and the merge-lock readiness gate's read of the
+  pull-request head tree in `merge-composition.ts`.
+- **Key 13 is missing on both record stores.** Each hand-builds the path the layout's `candidate-record` and
+  `integration-boundary-record` addresses already resolve.
+- **Key 17 is miscited on the eight review-gate store rows.** Frozen key 17 is the per-work-unit workspace; no
+  review-gate code reads a workspace path. Their mechanism is the register's machine-local row ("Machine-local state
+  under `.git/arc/`"), inserted after the freeze and so keyless. Key 39 on the two `git-common-state.ts` rows is an
+  analogue only: those modules take their own locks, not `.notes.lock`.
+- **Key 57 is now `storage-cutover`'s** in the current register, though the map's key table names `storage-seam`; it
+  sits on all three workflow rows.
+- **Mechanisms newer than the sweep.** The response head continuation (2026-10-03) and `gitCandidateRecordAtHead` with
+  `recordsOwnSelection` (2026-10-02) postdate every row. Both exist because records ride the branch and retire at the
+  flip rather than move to store reads.
+- **`handlers/lifecycle.ts`'s row** (lifecycle partition) no longer holds the attest and publish staging; it moved to
+  `handlers/lifecycle-delivery-review.ts` with #826.
+- **D18's review copy is evidence-neutral in every direction, not only on its delete.** Seven rows, and the contract
+  notes' handoff for the Candidate review subject, keep the export's add and re-export reviewable while the
+  candidate-tail delete stays neutral. That cannot hold. `classifyPathTreatment` classifies by path alone, so D18's one
+  arm for the export path makes the add, the re-export, and the delete neutral alike. A reviewable add would let the
+  delete change the subject: the copy is never in base, so its delete drops out of the base-relative diff
+  (`collectGitCandidateSubject`). The copy reaches review on the pull request, and a work unit's own spec on the branch
+  is evidence-neutral today (`isWorkUnitArtifactOrCompanion`), so a spec-only fix moves no subject now either. A
+  stacked delivery meets the copy in delivery's lifecycle-contribution path group too
+  (`CurrentDeliveryLifecycleContributionPathSource`, `lib/delivery/lifecycle-contribution.ts`), which three readers take
+  under a delivery plan only: `classifyDeliveryTerminalDelta`, through `classifyGitDeliveryTerminalDelta` and
+  `lib/delivery/repository-entry.ts`; `revalidateDeliveryLifecycleContribution`
+  (`lib/delivery/git-lifecycle-contribution.ts`), which holds every group path to the protected base in each member,
+  from `lib/delivery/eligibility.ts`, `handlers/delivery-execution.ts`, and `rg/policy/pre-publication-composition.ts`;
+  and `compareNormalizedDeliveryTree`, which reports a group path the base lacks as invented, through
+  `compareGitNormalizedDeliveryTrees` (`lib/delivery/git-eligibility.ts`) from `handlers/delivery-execution.ts` and
+  `rg/policy/pre-publication-composition.ts`, and through `lib/delivery/chain-containment.ts` from
+  `lib/delivery/chain-adoption.ts`. In the group no member could carry the copy, so the export adds nothing to it, and
+  where a delivery's design reaches review is `delivery-observe-attest`'s question (spec, § 12.5). The
+  rows read the same: this member's `rg/policy/pre-publication-composition.ts` and
+  `rg/status-composition.ts` (§ Rows), `storage-cutover`'s `lib/evidence-applicability/path-treatment.ts`,
+  `lib/git/base-overlap.ts`, and `lib/base-drift/current-adapters.ts`, and `delivery-observe-attest`'s
+  `lib/delivery/git-lifecycle-contribution.ts` and `lib/delivery/lifecycle-contribution.ts`, the other owners' sent as
+  captures.
+
+## Rows
+
+| Row                                                  | Verdict   | Correction                                                                                                                                                                                                         |
+| ---------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `integrate-work-unit.md`                             | Drift     | Misses the `commit-boundary` step and the reconcile commit. The review-copy steps it cites are D18's planned `.arc/specs/<slug>/` copy, which no workflow implements yet.                                          |
+| `prepare-work-unit.md`                               | Drift     | Names neither `commit-selection` nor `commit-boundary` (integrate does); misses the staged Candidate-response `taskCommit`.                                                                                        |
+| `verify-work-unit.md`                                | Drift     | Families omit `wu.meta` (attest's meta projection rides the verification commit), the personal inbox, `wu.prose`, and adversarial passes; Shared with is not empty.                                                |
+| `handlers/delivery-entry.ts`                         | Confirmed | —                                                                                                                                                                                                                  |
+| `handlers/candidate.ts`                              | Drift     | Misses the `recordEffect` digest (key 35) and the completed-placement read in its mutation-owner check.                                                                                                            |
+| `lib/delivery/repository-entry.ts`                   | Confirmed | Misses approved-disposition reads, delivery's machine-local plan and state, and the lifecycle-artifacts-at-ref classification (key 27).                                                                            |
+| `lib/delivery/task-list-render.ts`                   | Drift     | The region splice now lives in the store's task-list kind; its one repository caller is `handlers/delivery.ts`, `delivery-observe-attest`'s.                                                                       |
+| `lib/work-unit/candidate-record-store.ts`            | Drift     | Now also the in-repo backend's adapter for `review/candidate`; key 13 missing.                                                                                                                                     |
+| `lib/work-unit/submission-boundary-store.ts`         | Drift     | Now also the in-repo backend's adapter for `review/integration-boundary`; key 13 missing.                                                                                                                          |
+| `integration/candidate-response-confirmation.ts`     | Confirmed | Misses its frontline-outcome, operation-state, and disposition reads.                                                                                                                                              |
+| `integration/checkpoint-composition.ts`              | Drift     | Lifecycle port store-backed; the shipped-delivery boundary replay still reads the HEAD tree; misses the workspace read, key 15, and key 26.                                                                        |
+| `integration/checkpoint-store.ts`                    | Confirmed | —                                                                                                                                                                                                                  |
+| `integration/checkpoint.ts`                          | Drift     | Line moves only: the `--regenerate-roadmap` remedy and the `commit-boundary` action.                                                                                                                               |
+| `integration/errand-merge-composition.ts`            | Drift     | Reads no meta; takes the Errand's identity through the locus probe; its readiness tree reader is never consulted for an Errand.                                                                                    |
+| `integration/lineage-review-composition.ts`          | Confirmed | —                                                                                                                                                                                                                  |
+| `integration/merge-composition.ts`                   | Drift     | Lifecycle port store-backed; the pull-request-head readiness gate survives (key 48); misses the checkpoint read and the Candidate-from-HEAD read.                                                                  |
+| `integration/merge.ts`                               | Confirmed | Still compares the whole lifecycle version, as the row's until-the-flip clause allows.                                                                                                                             |
+| `handlers/review.ts`                                 | Drift     | Missing families machine-local, delivery, and Errand; missing `history`; `wu-workspace` unsupported; the Owner terminus's HEAD-against-worktree replay uncited.                                                    |
+| `lib/git-common-state.ts`                            | Drift     | `transact` serves delivery's authoring store only; "Shared with user-sync" is stale; keys 17 and 39 miscited.                                                                                                      |
+| `rg/hosts/local/disposition-record-store.ts`         | Confirmed | Its records embed references into machine-local stores; key 17 miscited.                                                                                                                                           |
+| `rg/hosts/local/frontline-outcome-store.ts`          | Confirmed | —                                                                                                                                                                                                                  |
+| `rg/hosts/local/git-common-state.ts`                 | Drift     | Lines only.                                                                                                                                                                                                        |
+| `rg/hosts/local/hosted-request-owner-index.ts`       | Confirmed | Shares the `identity/` namespace with the repository ID.                                                                                                                                                           |
+| `rg/hosts/local/live-context.ts`                     | Confirmed | —                                                                                                                                                                                                                  |
+| `rg/hosts/local/operation-state-store.ts`            | Drift     | Materializations and quarantine are not here; operation records carry durable-fact fields (§ Where review state lives today).                                                                                      |
+| `rg/hosts/local/receipt-store.ts`                    | Drift     | The cited import and materialization lock is not in this module; the ledger is one record with positional references.                                                                                              |
+| `rg/hosts/local/source-store.ts`                     | Confirmed | Record names derive from machine-local locators (`sourceRecordName`), which a project-scope record cannot keep.                                                                                                    |
+| `rg/policy/delivery-review-terminus.ts`              | Confirmed | —                                                                                                                                                                                                                  |
+| `rg/policy/mechanical-review-applicability-carry.ts` | Confirmed | Its Becomes should read retire, not move: with no selection commit after the flip, `recordsOwnSelection` has nothing to prove.                                                                                     |
+| `rg/policy/pre-publication-composition.ts`           | Drift     | Misses the lifecycle-artifacts-at-ref read, the pending-fix authority read, and the keep-staged rule; its review copy is neutral in every direction (§ Corrections across rows).                                   |
+| `rg/readiness.ts`                                    | Confirmed | Misses the machine-local delivery-state lookup and branch-name identity.                                                                                                                                           |
+| `rg/runtime/local-prepare-composition.ts`            | Drift     | Understated: `history`, five stores and two locks, the Errand claim, and the head continuation.                                                                                                                    |
+| `rg/runtime/respond-composition.ts`                  | Drift     | Misses the head continuation, the completed-work-unit placement read, and the index-against-worktree subject check.                                                                                                |
+| `rg/runtime/singleton-publication-response.ts`       | Confirmed | —                                                                                                                                                                                                                  |
+| `rg/status-composition.ts`                           | Drift     | Misses the terminal record-advance proofs, the operations snapshot, delivery state, the Errand arm, and the branch-to-work-unit lookup; its review copy is neutral in every direction (§ Corrections across rows). |
+
+## Files no row covers
+
+Each is a seam row the member adds; `Shared with` follows the file's callers.
+
+- **`handlers/lifecycle-delivery-review.ts`** — `handleAttest`, `claimPublicationBoundary`, and `permitDeliveryReopen`:
+  the partition's densest staging site, four `git add` calls over the Candidate record, meta, and boundary. Keys 1, 2,
+  12, 13, 34, 45, and 80; shared with lifecycle (publish and reopen call in) and review (lane progress and lock).
+- **`lib/work-unit/verbs/attest.ts`** — orchestration over ports; its result schema and remedy text carry the Candidate
+  record's commit OID (`recordRevision`, `candidateRecordRevision`, key 2), and it returns record paths for its caller
+  to stage.
+- **`lib/work-unit/git-candidate-subject.ts`** — `collectGitCandidateSubject` reads no state record, but most of its
+  classification exists for state on the branch: own-artifact relocation keying, `candidateProjectionPaths`, and the
+  evidence-neutral arm through `classifyPathTreatment`. `notes-storage-contract.md` gives the subject's D18 redefinition
+  to review and evidence work, so the row sits under review.
+- **`lib/work-unit/git-candidate-effective-target.ts`** and **`lib/work-unit/candidate-effective-target.ts`** — collect
+  the subject from the index and from HEAD to yield `staged-change` (`projectStagedCandidateCurrentness`); they feed
+  `handlers/candidate.ts`, `repository-entry.ts`, `candidate-response-confirmation.ts`, `checkpoint-composition.ts`,
+  `lineage-review-composition.ts`, and `handlers/lifecycle-delivery-review.ts`. Neither imports either store, and this
+  change leaves both as they are.
+- **`lib/delivery/review-fix.ts`** — parses an approved-disposition record and builds the advanced record a delivery
+  member's fix writes (`ApprovedDispositionRecordSchema.parse`, `currentApprovedDispositionNode`), so it changes with
+  the evidence record's shape.
+- **`lib/delivery/review-fix-continuation.ts`** — reads a lineage node's fix authorization, delivery-member response,
+  and resolved policy request (`responsePolicyRequest`), the snapshot the evidence record keeps.
+- **`handlers/delivery-execution.ts`'s review reads and write** — lists disposition records
+  (`LocalApprovedDispositionRecordStore`), reads lane operation state (`LocalReviewOperationStateStore`), appends the
+  advanced disposition record, and settles the lane attempt (`settleLaneAttempt`). `delivery-observe-attest` has a row
+  for the file; this member adds one for these reads and the write beside it.
+- **`rg/policy/assurance.ts`** — reads the meta's `workClass` and `reviewRubric` through its callers; moves with the
+  meta parser.
+- **`rg/runtime/candidate-response-head-continuation.ts`** — `confirmCandidateResponseHeadContinuation` proves the
+  commit after a verified fix is a clean, record-only successor. Its port is threaded through ten other modules
+  (`hosted-response-completion.ts`, `lane-progress.ts` with its conditional, hosted-request, and hosted-settlement
+  siblings, `frontline-command.ts`, `local-prepare.ts`, `local-prepare-composition.ts`, `respond-composition.ts`, and
+  `handlers/review.ts`). Its record-only proof retires at the flip; the port stays, from the flip proving only a direct
+  successor whose one change is the review copy (spec, § 5.6, § 14.3).
+- **`rg/core/review-subject.ts`** — resolves a branch to its work unit by stripping the type prefix
+  (`branchToWorkUnitSlug`); becomes the store's reverse `lookup` on the branch link.
+- **`rg/policy/earlier-review-applicability.ts`** and **`rg/policy/local-review-coverage-selection.ts`** — deciding
+  consumers of `gitCandidateRecordAtHead`, which retires with `recordsOwnSelection`.
+- **Unrowed importers of the review gate's state modules:** `frontline-materialization.ts`,
+  `review-result-reader-composition.ts` (joins operations, receipts, outcomes, and sources in one read — where machine
+  and project scope cross), `candidate-review-fix-continuation.ts`, `hosted-reservation-discharge.ts`,
+  `frontline-run-composition.ts`, `local-attest-composition.ts` and `local-resume-composition.ts` (both write
+  receipts), `reduce-composition.ts`, `status-singleton.ts`, and `review-applicability-resolution.ts`, which imports
+  only the Candidate record's type but emits `commit-selection`. Also unrowed: `rg/runtime/respond-command.ts`, which
+  imports none of the stores but is the main writer of disposition records and the Candidate stager, and refuses
+  unstaged reviewable paths because the subject is the index.
+- **`rg/status-errand.ts`'s review reads** — it imports `LocalReviewOperationStateStore`,
+  `LocalApprovedDispositionRecordStore`, and `resolveRepositoryIdentity`, so the reshape of lane progress and
+  dispositions changes what it reads. Its one consumer-map row is `storage-ref-backend`'s, for its Errand reads
+  (key 62); this member adds a row for the review reads beside it.
+- **Importers of `rg/core/advisory-records.ts`,** where the disposition record's schema and its lineage readers live: a
+  module can read the shape with no store import, as the two delivery fix modules above do. 24 non-test modules import
+  it, and 20 are rowed in the map or above, or fated in the next bullet. The other four:
+    - _Composing from records._ `rg/core/review-result-disposition.ts` checks an approved-disposition record's lineage
+      against its result (`validateApprovedDispositionRecordForResult`), so it becomes the per-set check over evidence
+      records, read through it by `runtime/respond-command.ts`, `policy/pre-publication-request.ts`,
+      `policy/review-policy-evidence.ts`, `runtime/reduce-command.ts`, and `runtime/local-resume-command.ts`.
+      `rg/runtime/reduce-command.ts` reads the current lineage node and the reduction projection
+      (`currentApprovedDispositionNode`, `ReviewReductionProjectionSchema`), so it reads the current set from the
+      succession instead.
+    - _Unchanged unless their shapes change._ `rg/core/review-command-envelope.ts` imports only the reduction
+      projection's schema, and `rg/providers/coderabbit/frontline-execution.ts` only the `FrontlineExecutableIdentity`
+      type, which the frontline result keeps.
+- **Importers of `rg/core/operation-state-schema.ts`,** which the family splits: 35 non-test modules import it on
+  2026-10-16, `policy/frontline-pending-admission.ts` and `runtime/frontline-admission-validation.ts` among them, and 27
+  of the 33 counted earlier sit on no consumer-map row and no row above. Their fates, by role:
+    - _The family's writers._ The lane-progress transitions — `lane-progress.ts`, `lane-progress-conditional.ts`,
+      `lane-progress-hosted-request.ts`, `lane-progress-hosted-settlement.ts`, `lane-progress-seal-recovery.ts`, and
+      `hosted-response-completion.ts` — write outcomes, evidence, and decisions, and `policy/frontline-phase.ts`'s skip
+      marker becomes a lane-skip decision. Three modules also run in-flight admission, whose state stays working state,
+      but write a result that becomes an outcome: `runtime/local-attest-command.ts` appends the local receipt
+      (`attestLocalReviewCommand`) and records a `terminal-failure` attempt, `runtime/local-pending-replay.ts` records
+      an interrupted attempt as `stale-target`, and `policy/frontline-operation.ts` appends the frontline outcome
+      (`executeFrontlineRun`). `runtime/local-resume-command.ts`, which imports neither schema module, writes one too:
+      resuming a local attempt appends its receipt (`resumeLocalReviewCommand`).
+    - _The kinds' write checks._ `core/lane-attempt-validation.ts` and `core/lane-progress-state-validation.ts` carry
+      today's invariants into the outcome and evidence checks.
+    - _Readers composing from records._ `hosts/local/review-result-reader.ts`, `core/review-result.ts`,
+      `policy/review-policy-evidence.ts`, `policy/pre-publication-request.ts`, and `lane-progress-supersession.ts`,
+      which carries pass counts across supersession.
+    - _In-flight admission and retry, staying working state in the new namespace._ `core/local-operation.ts`,
+      `core/local-prepare.ts`, `core/local-source-sweep.ts`, `lane-progress-local-retry.ts`, `runtime/local-prepare.ts`,
+      `runtime/local-prepare-retry.ts`, `core/frontline-retry-contract.ts`, and `runtime/frontline-retry-remedy.ts`.
+    - _Registration._ `core/ports.ts` and `core/register-review-schemas.ts` take the new kinds' ports and schemas.
+
+    The other six are rowed: `handlers/review.ts`, `hosts/local/operation-state-store.ts`, and `status-errand.ts` in the
+    map, and `runtime/candidate-response-head-continuation.ts`, `policy/local-review-coverage-selection.ts`, and
+    `runtime/respond-command.ts` above.
+
+## Register keys
+
+Keys are `notes-storage-contract.md` § Register keys, matched by mechanism (`cohort-storage-seam.md` § Citing the
+register). The rows this work unit inherits carry these, each closing when the spec's fate for it is built:
+
+- **01**, its Candidate half — Candidate records, with withdrawal and retirement (spec, § 3.1, § 8, § 10).
+- **02** — the Git-history supersession read, whose `recordRevision` becomes a store version (spec, § 8.4).
+- **13** — the record stores' hand-built paths, which the layout's addresses replace (spec, § 3.1).
+- **34** — a singleton's own record writes, which close at the flip with no continuation built before it (spec,
+  § 10.5).
+- **45** — writers completing through a code commit (spec, § 14.3).
+- **48** — readiness and integration reads of lifecycle state: the checkpoint's binding, the shipped-delivery boundary
+  replay, and the merge lock's readiness read (spec, § 3.2, § 12.7, § 14.3).
+- **62** — the review gate's listing protocols over Errands and claims, which keep refusing to authorize review from
+  incomplete evidence (spec, § 12.4).
+- **The machine-local row** ("Machine-local state under `.git/arc/`"), keyless, which the eight review-gate store rows
+  carry in place of the miscited key 17 (§ Corrections across rows; spec, § 4.7, § 13).
+
+Keys on this work unit's rows that close elsewhere: 27 with `storage-cutover`, which removes delivery's
+lifecycle-contribution path group and keeps the review copy's arm (spec, § 12.5); 57 with `storage-cutover`'s deletion
+pass over the in-repo arms (spec, § 14.3); 35, stacked-delivery convergence, with `delivery-correction-convergence`; and
+80, the terminus's reach and invalidation, with `review-source-authority` (spec, § 5.6).
+
+## Mechanisms that exist because records ride the branch
+
+Each retires at the flip. Before it, today's in-repo arm keeps it, gated as one unit on `stateOffBranch`. Twelve of
+the 17 delivery rows and every new row carry at least one.
+
+- **Write, then stage** (key 45): `handlers/lifecycle-delivery-review.ts` (four sites), `handlers/candidate.ts`,
+  `rg/runtime/respond-composition.ts` (`appendCandidateResponse`, `stageCandidateResponse`),
+  `rg/runtime/singleton-publication-response.ts`, and `handlers/review.ts` (the Owner terminus, the pre-publication
+  boundary, and the attestation-ordering recovery).
+- **`commit-*` next actions:** `commit-boundary` in `rg/policy/delivery-review-terminus.ts`, `handlers/review.ts`, and
+  `integration/checkpoint.ts`; `commit-selection` in `rg/policy/review-applicability-resolution.ts`,
+  `lib/work-unit/candidate-applicability-resolution.ts`, and `handlers/candidate.ts`; the workflows' `chore(arc):`
+  record commits in `integrate-work-unit.md` and `prepare-work-unit.md`; the keep-staged rule emitted in
+  `handlers/review.ts` and `integration/checkpoint.ts`, tolerated by `rg/policy/pre-publication-composition.ts`'s diff
+  base, and stated in `verify-work-unit.md`.
+- **Replay against HEAD or the index:** the staged-terminus recovery in `handlers/review.ts`; the boundary checks in
+  `checkpoint-composition.ts`; `candidate-response-confirmation.ts`'s `HEAD == approvedHead` and its comparison of the
+  committed record with the worktree's.
+- **Proofs that a record commit moved the head:** `confirmCandidateResponseHeadContinuation`,
+  `projectGitDeliveryTerminalRecordAdvance` (`lib/delivery/public-review-continuation-git.ts`) and the owner-terminus
+  advances in `rg/status-composition.ts` and `integration/checkpoint-composition.ts`, the record-commit arms of
+  `projectGitDeliveryTerminalCoordinateAdvance` at its three consumers, and `recordsOwnSelection`.
+- **Protecting a subject digest from the work unit's own writes** (key 34): `candidateProjectionPaths`, the
+  evidence-neutral arm of `classifyPathTreatment` for the work unit's own artifacts, publication binding
+  `candidateSubjectDigest` rather than the head, and `handlers/review.ts` honoring an advanced boundary only while the
+  Candidate's head is the current root. `candidateProjectionPaths` alone stays past the flip, until the deletion pass: a
+  live work unit's committed Candidate and boundary files stay on its branch, and must stay neutral to keep the subject
+  digest its imported Candidate holds (spec, § 14.3).
+- **Records read from history or a head tree** (keys 2, 26, 48): `readRepositoryCandidateSupersessionChain` and
+  `readRepositoryCandidateRecordRevision` (`git log`, `git show`), `gitCandidateRecordAtHead`, the readiness reads of
+  the pull-request head tree in `rg/readiness.ts`, delivery's record-effect recovery
+  (`reconstructExpectedRecordEffects`), and `readGitDeliveryLifecycleArtifactsAtRef`.
+- **Decisions inside a command string:** `buildPrePublicationResumeCommand` encodes the lane judgments — ceiling
+  override, additional pass, terminus judgment, invocation — into a `--resume` token stored in the tracked boundary,
+  with `consumeOwnerAcceptedTerminus` and its sibling scrubbing them out after subject movement.
+
+## Where review state lives today
+
+The review gate's own records already live off the branch, under the Git common directory
+(`RepositoryGitCommonStatePublisher`, `<common>/arc/review-gate/<namespace>/`). Two tracked files ride it: the Candidate
+record (`.arc/system/.internal/candidates/<slug>.json`) and its boundary (`<slug>.boundary.json`), each versioned by a
+byte digest.
+
+| Location                                                 | Record                                                                                                                                        | Today's class, and what the research found                                                                                                                                                                          |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `review-gate/evidence/disposition-*.json`                | Approved disposition record                                                                                                                   | Durable. Embeds `localSourceRef` and `attemptRef` (`ApprovedDispositionSourceSchema`), which point into machine-local `sources/` and `operations/`.                                                                 |
+| `review-gate/evidence/receipts-v2.json`                  | One repository-wide receipt ledger (`ForwardReceiptLedgerRecord`)                                                                             | Durable. References are positional (`receipts-v2.json#N`); compare-and-swap is ledger-wide.                                                                                                                         |
+| `review-gate/outcomes/frontline-outcome-*.json`          | Frontline outcome                                                                                                                             | Durable.                                                                                                                                                                                                            |
+| `review-gate/identity/repository-identity.json`          | Repository UUID (`resolveRepositoryIdentity`)                                                                                                 | Identity; the import maps it onto the project ID.                                                                                                                                                                   |
+| `review-gate/identity/hosted-request-owner-*.json`       | Hosted request owner index                                                                                                                    | Working (operation routing), in the identity namespace.                                                                                                                                                             |
+| `review-gate/operations/operation-*.json`                | `lane-progress`, `frontline-run`, `frontline-phase`, `review-suspension`, `local-review`                                                      | Working by D5, but `LaneProgressStateSchema` also holds `completedPasses`, sealed hosted results, settlement evidence, response performance, and conditional pass authorizations, and publication is gated on them. |
+| `review-gate/sources/source-*.json`                      | Local review source                                                                                                                           | Mixed: semantic fields are portable (`sourceDigest`), the record name and locators are not.                                                                                                                         |
+| `review-gate/materializations/<operationId>/`            | Detached review checkout                                                                                                                      | Working.                                                                                                                                                                                                            |
+| `refs/arc/review/local*`                                 | Reachability pins                                                                                                                             | Working; outside `.git/arc/`, and D5 does not name it.                                                                                                                                                              |
+| Locks (`.write.lock`, `.sweep.lock`, `operation-locks/`) | —                                                                                                                                             | Working.                                                                                                                                                                                                            |
+| `.arc/system/.internal/candidates/<slug>.json`           | Candidate record: attestation, subject, review- and verification-response and applicability-selection transitions, and lineage attestations   | Tracked on the branch.                                                                                                                                                                                              |
+| `.arc/system/.internal/candidates/<slug>.boundary.json`  | Boundary: locus, `nextAction`, `terminus`, `deliveryReviewTermini`, `reservation`, `policy`, `standardLaneOwnerVersion`, the `--resume` token | Tracked on the branch; `standardLaneOwnerVersion` is a machine-local operation record's version, and `policy` copies a resolve envelope with its own terminus and pass count.                                       |
+
+No quarantine mechanism exists in code; the nearest are orphan source reaping (`core/local-source-sweep.ts`) and
+skipping malformed records.
+
+The frontline skip marker (`rg/policy/frontline-phase.ts`) is keyed by Candidate ID under the operation-ID domain
+`arc.review.singleton-frontline-phase/v1`. Retiring it for a derived window touches `frontlinePhaseClosed`,
+`readSingletonFrontlinePhaseClosure`, and `recordSingletonFrontlineInitialSkip`; the `frontline-phase` operation kind
+and its published schema ID `frontline-phase-state`, with the schema-inventory variant
+(`core/operation-state-schema.ts`, `core/schema-inventory.ts`); the `FrontlinePhase*` schema and type names; the
+`frontline-phase-closed` diagnostic; and the policy driver's `phase-closed` skip reason.
+
+## Decision-record census
+
+Seventeen shapes decide something about an exact review subject. Six live in tracked files, four in the Git common
+directory, three only as request input, two in the integration checkpoint, and two nowhere.
+
+| Shape                                                             | Decided-by                                    | Stored                             | What the census found                                                                                         |
+| ----------------------------------------------------------------- | --------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `ReviewCeilingOverride`                                           | none                                          | request; leaks into four records   | One pass past an exhausted ceiling at one head; `nextPass` is always the count plus one.                      |
+| `ReviewAdditionalPassAuthorization`                               | none                                          | request                            | One elective pass after convergence; folded into the same applied flag at the ceiling.                        |
+| `ConditionalPassAuthorization`                                    | `authorizedBy`                                | operations (lane progress)         | Five states and a lineage chain for one pass after an approved fix.                                           |
+| `DispositionApproval`                                             | `approvedBy`, owner-checked on the local path | evidence                           | Content-addressed approval of a disposition set; proposer and approver must differ. The defensible precision. |
+| `FixAuthorization` and its consumption                            | copied                                        | embedded in the disposition record | Derived deterministically from the approval (`createFixAuthorization`); the consumption is a performed fact.  |
+| `OwnerAcceptedReviewTerminus`                                     | `acceptedBy`, authenticated                   | boundary                           | No subject or timestamp of its own; bound by its container.                                                   |
+| `DeliveryReviewTerminus*`                                         | `acceptedBy`, authenticated                   | boundary, then a commit            | The same shape per delivery member; refused when `completedPasses` differs.                                   |
+| `FrontlineInvocationOverride`                                     | none                                          | request                            | Routing precedence for one call.                                                                              |
+| Frontline skip marker (`frontline-phase`)                         | none                                          | operations                         | Singleton Candidates only; re-synthesized into a skip request; never deleted.                                 |
+| `CandidateResponseConfirmationAction`                             | none                                          | checkpoint                         | Not a decision: recomposed and compared at merge.                                                             |
+| Owner-directed review stop                                        | none                                          | nowhere                            | Conversation only (`run-errand.md`); re-entry loses it and status reads `review-required` throughout.         |
+| `CandidateReviewApplicabilitySelectionV1`                         | `selectedBy`, unchecked                       | Candidate record, then a commit    | Covered or review-required for one residual.                                                                  |
+| `CandidateReviewResponseEvidenceV1`                               | copied                                        | Candidate record, then a commit    | The fourth copy of one approval; its commit is what the head continuation proves.                             |
+| `CandidateApplicabilitySelectionV1` (verification)                | `selectedBy`, unchecked                       | Candidate record                   | The verification twin of the review selection.                                                                |
+| Checkpoint approval and the Errand merge interlock                | none                                          | checkpoint; conversation           | An exact-head merge authorization held as a handle.                                                           |
+| `--resume` token judgments                                        | none                                          | boundary                           | An unschematized store of Owner decisions inside a command string.                                            |
+| Legacy receipt payloads (`decision`, `head-update-authorization`) | `actorIdentity`                               | parse only                         | No writer found.                                                                                              |
+
+- **They share a shape.** The CLI emits an exact offer, the agent obtains the Owner's choice, and echoes the offer back
+  with it; only some shapes then keep who decided, and the shapes missing a decider are exactly those missing a
+  timestamp. One envelope — subject, choice, decided-by, decided-at, basis — covers them. The two applicability
+  selections already hold the whole envelope in their Candidate transitions (`selectedBy`, `selectedAt` on the review
+  twin, `choice`, and the projection and residual digests), which the Candidate's fold reads in order.
+- **They collapse.** The ceiling override, additional pass, and conditional authorization are one extra-pass decision
+  with three preconditions; the singleton and delivery termini are one shape in two containers; the frontline skip and
+  a `skip` invocation are interconvertible; the two applicability selections differ only in domain; and the Errand
+  stop is an Owner terminus on an Errand subject.
+- **Some go.** The fix authorization as its own shape, the confirmation action, the resume token's judgments with
+  their scrubbers, the record-only head-move proofs, the redundant `nextPass`, and the legacy payloads.
+- **Trust.** Who decided is checked for the termini, through `readOwnerTerminusAuthority`
+  (`rg/policy/pre-publication-composition.ts`) with a completed work unit's owner as the fallback
+  (`acceptDeliveryReviewTerminus`, `handlers/review.ts`), and for a local disposition approval, through
+  `resolveLocalReviewAuthority` (`rg/hosts/local/review-authority.ts`): in both, `arc.identity` must equal the work
+  unit's owner, and the local approval takes the active identity as an Errand's author. A frontline or hosted
+  disposition approval takes the active identity unchecked (`resolveFrontlineActors`,
+  `rg/runtime/respond-composition.ts`), and a conditional authorization must name the approver (`respond-command.ts`).
+  Each is the active identity the review gate resolves, not a separate credential. The applicability selections'
+  `selectedBy` is caller-supplied and unchecked.
+- **Inventory.** `REVIEW_DURABLE_RECORD_INVENTORY` lists the disposition set, fix authorization, and fix consumption as
+  durable records of their own, but each persists only inside the approved-disposition record.
+
+## Withdrawal, reopen, and retirement
+
+- **Withdrawal leaves no record.** No verb, flag, or record state names it. `reopen` returns an Integrating work unit to
+  Active and closes or drafts its pull request (`withdraw-pr`, `lib/work-unit/lifecycle-transitions.ts`), leaving the
+  Candidate and its `publication-pending` boundary as they were. `arc publish` then admits through
+  `authorizeActivePublication`'s `publication-pending` arm (`lib/work-unit/verbs/publish.ts`), and a no-change
+  `arc attest` re-carries the boundary to an Active work unit, so publication authority survives a deliberate
+  withdrawal. A reopened work unit and an interrupted publish are the same state, and nothing tells them apart.
+- **What reopen keeps.** The Candidate, the boundary with any Owner terminus and hosted reservation, lane progress, and
+  frontline closure, which is keyed by Candidate rather than head. A no-change re-publish carries all of it. A re-root
+  after code changes inherits pass counts through the supersession chain but overwrites the boundary, dropping the
+  terminus and reservation, whose only durable home it was. The hosted-reservation carry checks the Candidate ID and
+  repository but not the subject, by design: the Candidate record's currentness is the authority, and the
+  reservation's use checks that the current Candidate head is the hosted target's (spec, § 9.4).
+- **The original capture concerned a singleton,** not a one-member delivery: a withdrawn singleton could leave its
+  Candidate and boundary mutually recognizable, so a later no-change reattestation revived it. A bound one-member
+  delivery cannot be reopened (`entry-inspection.ts`).
+- **Retirement.** 56 tracked files sit under `.arc/system/.internal/candidates/` on 2026-10-16 — 28 records and 28
+  boundaries, every one for an archived work unit. Archive moves only the work unit's artifacts, and the record store
+  has no delete. `subject-meta.ts` does not read them for a shipped work unit; before merge under `with-integration` the
+  checkpoint and `attest --new-root` read the working-tree files; after merge only the Git-history reads remain.
+  Deleting them is safe only after merge.
+- **`seam-lifecycle` changes none of this:** it reuses `authorizeActivePublication`, its store-backed reopen and archive
+  leave Candidates alone, and its spec's non-goals exclude Candidate and review records. Its store-backed
+  `arc status <slug>` returns `integrationBoundary: null`, dropping the interrupted-publication recovery hint.
+
+## Rules a write check cannot see
+
+A write check reads stored records alone, not the order they were written in, and an attempt still in flight is
+machine-local working state (spec § 4.7), so these rules of today's stay with the verbs that admit, approve, and
+withdraw, each from the flip reading the in-flight record beside the stored outcomes:
+
+- **No attempt pending at a pass after its finished one.** `validatePassCounts` refuses it over lane progress today;
+  from the flip admission refuses to start one (Task 4.7 and Task 5.1 - `tasks-seam-delivery-review.md`).
+- **An explicit frontline retry binds its prior.** `retryOfOperationId` is a run input no record keeps, so
+  `validateExplicitRetry` keeps binding the retry to its prior's repository, target, and logical pass, refusing a
+  `clean` or `findings` prior (Task 5.1 - `tasks-seam-delivery-review.md`).
+- **A local retry's generation.** Admission computes one past the highest stored or in-flight generation
+  (`nextLocalRetryGeneration`); the check verifies only that the stored generations stay contiguous (Task 4.9 -
+  `tasks-seam-delivery-review.md`).
+- **A consumed `approved-fix` extra pass whose admission has not ended.** The admission's citation lives in its
+  in-flight record until its outcome is written, so `withdrawConditionalNextPassAuthorization` reads that record to
+  refuse the withdrawal, as `withdrawLockedAdmission` refuses withdrawing the unrun admission itself
+  (`conditional-authority-consumed`; Task 5.4 - `tasks-seam-delivery-review.md`).
+- **A withdrawal after a successor's approval.** Today a withdrawal of an `approved-fix` extra pass refuses once a
+  successor disposition set for its result is approved, while the reverse order stands: withdrawn, then a successor
+  approved, since `invalidateConditionalNextPassAuthorization` keeps a withdrawn authorization as it is. Stored records
+  show both and not their order, so `withdrawConditionalNextPassAuthorization` keeps the refusal, reading the stored
+  evidence when it withdraws, and an imported or merged history that withdrew first passes the write check, the ref
+  backend's pull-time check among them (Task 5.4 - `tasks-seam-delivery-review.md`).
+- **A hosted record's first settlement entries.** `validInitialHostedDisposition` requires them `record-only` and
+  uncarried; the approving verb writes them so (Task 5.3 - `tasks-seam-delivery-review.md`), and no check can tell
+  that write from the import creating a record whose response was settled before it.
+
+## A6 — Shipped locus and review-policy contracts
+
+The post-base-merge task audit at `e6869523a` found four plan defects; the complete correction set was approved on
+2026-10-19. This is a determinate, low-depth design amendment: preserve the shipped interfaces and policy rather than
+choose new ones. It lands as one review-fix increment over the planning artifacts, with no new implementation parent:
+all affected implementation tasks were still open, and their forward descriptions carried the correction. The
+six-kind design, the in-repo behavior, and the ref-backend wait stay.
+
+### Superseded statements
+
+- § 14.4 said the Candidate owner and completed set stayed on old substrates "until the locus change gives both
+  store arms", and that "a flip-time test of any of them supplies the owner". Task 4.2 therefore prescribed an owner
+  stand-in and a dual-seeded Errand for hosted locus discovery. `resolveCandidateMutationOwner` already forwards
+  `store` and `projectId`; `resolveCompletedCandidateWorkUnits` reads completed store evidence; and
+  `acquireDerivedLocusEvidence` skips the transient identity-ref read off branch. The harness plan now requires those
+  production paths with exact marker/topology evidence. Only the independently retained Errand status vehicle read
+  still needs both substrates.
+- § 5.1 called an extra pass "one pass past the lane's pass count it was decided at", with `passCount` "in the
+  count's units", and § 5.5 made consumption depend on whether a pass counts. `ceilingPassCount` reads complete
+  coverage for the standard ceiling, but `resolveInvalidOverrideReason` and `withCeilingOverride` bind logical
+  ordinals. Complete pass 1 and fix check 2 therefore admit logical pass 3 from count 2 while the ceiling count is 1.
+  The shipped distinction was already anticipated in § 4.3 but had not propagated through this plan's decisions,
+  mapping, and writers; no change to the provider's policy is needed.
+- § 6.2's field list omitted the optional `advisoryFixTags` that `createPendingResponseDispositionNode` stores.
+  `readApprovedResponseReport` uses those tags on replay and `priorRoundReadings` reads earlier nodes, so the evidence
+  and import must retain them, including historical absence. They remain outside canonical disposition and approval
+  identity and carry no policy or convergence authority. `validateReviewFixTags` checks exact `fix` identities;
+  the existing disposition-store advance checks preserve those fields. Each evidence advance must do the same.
+- § 14.2's root inventory omitted `runDerivedLocusStateProbe`'s nested delivery and pending-fix reads. Its callbacks
+  called `inspectRepositoryDeliveryEntry` and `readPendingCandidateReviewFixAuthority` without the probe's
+  operational store. Wiring only the subject's direct Candidate and boundary reads leaves those branches dependent
+  on legacy files. Tasks 4.1.b, 4.6.c, 5.6.b, and 7.6 carried the same-store wiring and production-path scenarios.
+
+### Propagation and closure
+
+The affected tasks are 1.2–1.4, 1.8, 3.3–3.4, 3.7, 4.1–4.4, 4.6, 4.9, 5.2–5.4, 5.6, 6.2, and 7.6. Added criteria in the
+spec and task list cover the mixed-count history, stored tags, production owner resolution, and both nested subject
+branches. Existing Goals, criteria, completion markers, and lifecycle state remain unchanged.
+`createLocalContributionConfirmation` must accept core read ports rather than concrete local-store types, and the five
+review callers of `resolveActiveWu` take a review-local branch lookup without changing that shared resolver's
+checkout-occupancy contract. The caller sweep also finds the shipped `readResolveNextPassContext` in
+`handlers/review-next-pass-context.ts`, which resolves repository identity and opens Candidate history independently.
+Tasks 4.1.b and 4.3.b now pass the invocation store and project-ID reader through that helper and use core read ports,
+preserving both derived counts. `readReviewLane` in `rg/runtime/lane-read-composition.ts` is another new root: it
+constructs local operation and disposition stores and calls the read-only `readRepositoryIdentity`. Tasks 4.1.b, 4.3.b,
+and 5.6.e bind those reads to the invocation store and project-ID reader too, preserving its rejected-finding and
+next-pass projections without record writes. The schema import inventory is re-enumerated rather than retaining
+pre-landing caller counts.
+
+The amendment closes on the author-run `spec-review` coherence and source-grounding checks and the affected-task
+`task-audit` grounding floor. This closes the planning correction, not the implementation's new acceptance criteria;
+those stayed open until the tasks and their segment verifiers ran. Low depth omits a separate independent planning pass
+under `planning-review`; the original audit's scouts were read-only and did not author these corrections.
+
+## A7 — Portable frontline source identity
+
+The Task 1.2.c evidence-fixture preparation exposed an omitted binding field in § 4.2 and the completed 1.2.a schema.
+`FrontlineReviewResult` requires `sourceBindingId`; `LocalReviewResultReader.readFrontlineResult` returns the run's
+recorded identity, and `dispositionSetMatchesSourceContext` requires it to match the approved set exactly.
+`computeFrontlineSourceBindingId` hashes the full source descriptor with the optional response binding, so hashing the
+portable descriptor after command-path redaction changes that identity. The approved correction retains the original
+canonical digest alongside the existing recorded policy and outcome digests; no approval identity or policy changes.
+
+The import derives that identity from the full legacy outcome before redaction, without requiring a run record; any
+joined run digest must agree. The live writer copies the run's identity, and portable result and pending-fix readers
+use it rather than reconstructing it. The affected source sweep covers `frontlineAdmissionMatches` in
+`rg/hosts/local/review-result-reader.ts`, `dispositionSetMatchesSourceContext` in `rg/core/disposition-records.ts`,
+`dispositionSourceContextForResult` in `rg/core/review-result-disposition.ts`, and
+`readPendingCandidateReviewFixAuthority` in `rg/policy/candidate-review-fix-continuation.ts`. Disposition and approval
+schemas need no change; local and hosted bindings are unaffected. Tasks 3.2, 5.1.a, and 5.6 carry the remaining path
+changes, and 1.2.R corrects the schema before the pass/settlement derivations resume.
+
+The bounded author spec review checks reader independence, binding completeness, and source grounding; the revision
+and propagated task descriptions receive the grounding-only task audit. The correction is determinate, so the
+independent planning offer is omitted. Segment verifier 5.8 recorded no revalidation, so it passed to terminal
+verification, which also checks the added acceptance criterion.
+
+## A8 — Producer facts belong to outcome observations
+
+Task 1.4.a assigned source- and lineage-dependent performance checks to the evidence parser, although § 2.5 already
+places every rule reading another record in the write check. The design holds: § 6.5 qualifies its parser rules as
+those the record settles alone, and its performance invariants remain unchanged. This task-only correction separates
+local content checks from exact producer comparisons; no stored producer fact or acceptance outcome is added.
+
+`validateResponseDigestLineage` reads the lane owner's original lineage. Response ownership is different:
+`settleNewApprovedResponse` resolves its Candidate by the reviewed target through `readCandidateLineage`, while
+`recordPerformedResponse` deliberately omits `candidateResponseId` unless the producer's admission lineage is Candidate.
+A Candidate response binding therefore cannot prove that the referenced outcome has Candidate lineage. The evidence
+record retains the outcome key, not that lineage. It also omits the stored fix authorization whose `oldHeadSha`
+`ApprovedDispositionRecordSchema` compares with a Candidate-owned private member's head before performance exists;
+that original fix head now comes from the referenced outcome. The same observation gives the authoritative source kind for
+`validateErrandFixResponse` and `validateDeliveryMemberFixResponse`'s host-coordinate rules; it also grounds the result
+digest and canonical source context instead of inferring them from response ownership or host coordinates.
+`ApprovedDispositionRecordSchema` admits an unperformed frontline member binding without a Candidate owner; that remains
+readable, and the source-dependent member restriction applies only to performance.
+
+Task 1.4.a keeps content-only binding, authorization, transition, and settlement validation. Task 1.4.R reads the exact
+outcome and checks producer-dependent invariants before 1.4.b composes the full write check. The correction receives
+bounded author spec review and the grounding-only task audit; low depth omits an independent planning pass. Goals,
+criteria, completed tasks, and lifecycle state remain unchanged. Segment verifier 5.8 recorded no revalidation, so it
+passed to terminal verification.
+
+## A10 — No-fix settlement headers retain their recorded facts
+
+The diagnostic mapping returned four Errand evidence records whose approved findings contain no `fix`, but whose native
+lane histories hold a `LaneResponsePerformanceSchema` header. `mapReviewEvidencePerformance` correctly keeps that
+header; `validateFixOwnership` rejects it because it requires a complete fix response for every Errand or member
+performance. `parseApprovedDispositionRecord` and the native lane schema accept the original records. These headers
+record settlement without a fix; there is no target transition to recover or fabricate.
+
+The superseded § 6.5 statement was:
+
+> an Errand's performance binds its Errand, its fix, and its target transition, a hosted one keeping its originating
+> change request; a delivery member's binds its member, its fix, and its hosted transition, with host coordinates as
+> its source kind gives and never a frontline source
+
+Section 6.2 described every performance through the response's old and new targets, applicability, fix consumption,
+hosted fix target, and Candidate response. That description now distinguishes a recorded settlement header from the
+complete transition a fix requires. Full fix-response objects remain required for performed Errand and member fixes
+and are refused where the approved set contains no fix. The mapper preserves each recorded header unchanged.
+
+The approved correction changes § 6.2 and § 6.5, adds Success Criterion 12, and is carried by Task 1.R. Task 1.4.a
+points forward without rewriting its completed result. The mapping, settlement derivation, and remaining evidence-port tasks
+retain their existing shapes; Task 3.8 reruns its real-record scenario. Bounded author spec review and grounding-only
+task audit apply at low depth; the independent planning offer is omitted.
+
+## A11 — Native defaults must select an owner before family binding
+
+At `7e52aac2b`, `resolveReviewInvocation` only retains an optional supplied `workItem`, and
+`createReviewCompositionContext` immediately calls `bindReviewFamilyPorts`, which refuses a native Store without it.
+`createLocalPrepareDependencies`, `createRespondDependencies`, and the other runtime constructors bind the family before
+these roots reach their asynchronous vehicle-selection callbacks. Passing a Store and project-ID reader therefore
+proves context propagation but cannot exercise the native default without an independently supplied owner.
+
+The design already requires the opposite order in § 2.3: a root binds to the work item its invocation's authenticated
+vehicle resolved, and the family adds no refusal. `readReviewWorkUnitByRef` retains the exact primary owner;
+`Store.lookup` resolves Errand claims, `RepositoryDeliveryMemberLookup` resolves delivery members, and
+`resolveCandidateMutationOwner` with `resolveCompletedCandidateWorkUnits` supplies completed-owner selection. The
+correction changes binding order and retains those selected generations, with no new owner policy. Task 4.4.R follows
+the boundary and attestation footing before the in-flight and result implementations depend on it.
+
+## A12 — Typed fact listings must retain conflict refusals
+
+At `94263a3c8`, `createReviewFactAccess.list` checks listing diagnostics but drops each `StoreRecord.conflicts` when it
+maps the result to `StoredReviewFact`. Its individual `read` instead calls `readReviewRecord`, which rejects unresolved
+conflicts. `createReviewEvidencePort` takes the list's values through `completeEvidence` into `readDispositionRecord`
+and `listDispositionRecords`, so these composed approval reads can accept conflicted evidence without another check.
+
+The runtime readiness reader's actual sync-conflict scenario exposes this distinction; `readReviewReadinessBinding`
+checks its raw listing independently. The shared correction retains the ports' existing incomplete-result shape and
+uses `describeRecordConflicts` for exact identities and recovery guidance. Task 4.R corrects 4.1.a before the lane
+compositions depend on its listings; no kind, decision, reach rule, or publication policy changes.
+
+## A13 — Continuation references retain their native owner
+
+At `13a4bb5e0`, `resolveLocalReviewResumeInvocation`, `resolveLocalReviewAttestInvocation`, and
+`resolveReduceInvocation` obtain their exact owner from `LocalReviewOperationStateStore`;
+`resolveFrontlineRunInvocation` reads its saved admission through `readValidatedFrontlineAdmission` before binding.
+`bindReviewSourceReference` carries only source kind, operation ID, and durable reference. The new in-flight namespace
+must make today's operation files inert and prune ended attempts, while native results remain readable from stored
+outcomes. A reference needs the owner before the family can read those facts.
+
+The superseded § 2.3 premise was: “Every consumer of today's operation snapshot is already scoped to its invocation's
+vehicle, so a port bound to one work item serves each (§ 4.7).” Operation-based re-entry has no current-vehicle check to
+reuse. Requiring one would change those commands' policy, and scanning unrelated work items or deriving an owner from a
+Candidate ID would violate the selected-owner contract. The previous § 9.3 source-reference contract named operation
+and durable coordinates without specifying their owner; its native form now retains that owner explicitly. Goal 8's
+“**No observable change before the flip**” exception list and the pre-flip schema exclusion also expand to the additive
+continuation schemas, while their in-repo emissions stay unchanged.
+
+The approved correction adds portable native operation and source locators, with the project ID and the full storage
+handle whose UID selects the generation. Existing IDs, outcome keys, approval identities, and provider-handle hashes
+stay unchanged. `operationRef` travels beside IDs or handles rather than inside their identity preimages. Source
+references retain their opaque string fields and carry the native owner in their versioned encoding. Existing hosted
+request-index replay retains the selected owner without a new locator index. No new review kind or stored fact is
+introduced; reference possession adds no authorization.
+
+The public schemas admit these additions before the flip but the repository arm emits none. Native ended replay uses
+outcomes and evidence without needing pruned source/materialization data; a missing local `sourceRef` is omitted rather
+than fabricated. Pending execution continues to require its actual local state. The local proof follows the native
+outcome reader, and the existing Phase 5 scenario exercises the remaining lanes. Prior import mapping, stable keys,
+passed pre-flip scenarios, and the six-kind family remain unaffected; the completed schema-widening task takes an
+additive amendment pointer. The bounded amendment composes existing identities and reference codecs at medium depth.
+
+## A15 — Policy calculation does not imply vehicle admission
+
+At `1a82b2781`, `resolveReviewPolicyInvocation` retains no owner when `readStoredLiveContext` finds neither a linked
+work unit nor an active Errand claim. `resolveConfiguredReviewPolicy` immediately binds the family, so
+`bindReviewFamilyPorts` adds its internal owner-required error even for a fact-free policy request. The in-repo root
+allows that request; `errandFrontlinePhaseClosed` and `errandStandardVehicle` tolerate an absent vehicle. Admission's
+existing vehicle checks do not supply a refusal for this generic read-only calculation.
+
+The clarification keeps fact-free calculation and defers native family access until actual evidence is needed.
+`bindReviewPolicyEvidence` needs a producer for terminal `clean` or `findings` attempts. Runnable standard review also
+needs derived lane history through `readResolveNextPassContext`, as `validateReviewNextPassContext` requires, even
+with no terminal attempt. Those paths need established owner context and report its absence actionably rather than
+claiming empty history. No owner scan, repository fallback, new locator, or admission authorization is introduced.
+The bounded correction follows existing reducer and evidence-binding predicates at low amendment depth; 4.R4 carries
+its default-handler proofs before the local segment verifier.
+
+## A16 — Retain the binding form of an ordinary extra pass
+
+Superseded § 5.1 described `ceiling` as "a pass past an exhausted ceiling" and `additional` as "an elective pass after
+convergence, naming the result it follows", without their policy-target binding. Section 5.6 said "this change keeps
+today's", but the envelope could not retain the repository and PR tested by `resolveInvalidOverrideReason` and
+`invalidAdditionalPassReason`. `ReviewTargetIdPreimageSchema` includes base and tree coordinates instead, and no PR.
+Comparing that digest would both miss a PR change and add a diff-base restriction the policy driver does not impose.
+
+The source has two binding forms. `bindJudgment` retains supplied full grants unchanged, but binds repository and PR
+for targetless lane judgments; `withCeilingOverride` likewise binds the current target for pre-publication inputs.
+`projectSingletonLocalPrepareAction` and `policyEnvelope` strip target coordinates while relaying that authority.
+The new ordinary `targetBinding` retains the source form: `policy-target` holds the full grant's portable host
+repository spelling and nullable PR; `call-target` preserves targetless binding. The head remains in the envelope,
+whose kind-specific reach still admits a later head of the same Candidate for a standard ceiling grant. A bound
+repository and PR do not advance with that head. Ceiling repository spelling compares exactly, while additional
+spelling compares case-insensitively, as their existing guards do.
+
+The replay mapper sees targetless lane judgments only. `PrePublicationReplayInputSchema.scopeJudgmentTarget` uses
+`ReviewTargetSchema`, not `ReviewPolicyTargetSchema`, so no source supplies a host repository or PR to recover.
+Mapping `call-target` preserves that recorded form; inferring current coordinates or dropping the authority would
+each change its replay. Live full grants retain their coordinates and validate them before a native decision write.
+
+Native full and targetless relay forms gain `decisionKey`, a reference excluded from the envelope. It avoids turning
+an already recorded targetless grant into a new full grant or assigning its authorship to the relayer. The native
+reader checks the selected owner's live decision and its projected call values before admission. Approved-fix passes
+keep their existing conditional-authorization key and pending-attempt behavior. The bounded amendment composes
+existing policy equality, content keys, and stored decision readers at medium depth; it adds no kind, scope selector,
+owner discovery, or alternate identity scheme. Published schemas widen before the flip without in-repo emission changes.
+
+## A17 — Native terminus projections retain absent authors
+
+The existing policy contract embeds `OwnerAcceptedReviewTerminusSchema` in both
+`ReviewPolicyCommandRequestSchema` and the `owner-accepted` result, requiring a non-null `acceptedBy`.
+`mapReviewReplayDecisions` instead preserves `decidedBy: null` for a terminus present only in a resume token.
+Section 11.2 already requires that decision to remain effective without another acceptance; projecting the current
+Owner or a sentinel would invent the missing provenance. Section 3.5 previously listed no authorless policy arm, and
+§ 9.3 stated, "The envelope's version 2 arm types it per variant, as version 1's variants do", without specifying a
+native terminus projection.
+
+The native version-two projection carries the stored decision key, nullable recorded author, and acceptance count.
+The public command schema and caller judgment remain unchanged; the internal bound-policy schema accepts both
+projections. Native authority is resolved on the selected owner before policy, and only native outputs gain the new
+projection. The boundary continues to store its key alone. This is a bounded schema/composition amendment at medium
+depth, with no record-kind, identity, policy, reach, or import change. The independent planning pass was declined;
+the required author coherence, grounding, and affected-task checks cover the amendment footprint.
+
+The propagation sweep includes the policy request/result schemas, evidence and continuation binding,
+pre-publication composition/projection, native boundary reads, corrective request payloads, and their callers.
+The mapping and its keys, ordinary/approved-fix grants, and repository terminus remain unchanged. Task 4.5 takes the
+additive amendment pointer for its native output embeddings; completed mapping scenarios retain their recorded
+outcomes. The task checklist also mirrors the already-approved ordinary-grant criterion from A16.
+
+## A18 — Ordinary extra-pass continuation validity
+
+Two adopted captures concern the public use of D5 ordinary decisions rather than their stored shape:
+`Drop consumed complete-pass overrides from post-fix continuations` and the scope-change predecessor capture.
+
+The settled scope said each lane "admits, counts, and stops passes as today" and excluded changing the review gate's
+behavior before the flip. A18 narrowly supersedes those exclusions for the two corrections. Existing § 5.5's one-pass
+consumption, § 5.6's reach, and § 4.3's distinct logical and complete-coverage counts remain binding. The correction
+requires no new record or public schema: it changes which already-verified authority the continuation projects.
+
+`bindReviewPolicyContinuationEvidence` preserves a request's override when it clears attempts for fresh continuation;
+`resolveInvalidOverrideReason` then reads it as authority for the next logical pass. Ordinary native ceiling
+resolution retains the prior grant at its admitted count for terminal replay, so pre-publication must distinguish
+that replay from fresh incremental admission. `invalidAdditionalPassReason` compares against `lastEligibleAttempt`,
+which filters using successor scope and can discard the actual predecessor even after immutable evidence binding.
+
+Propagation: 6.2's stored decision implementation gains the additive amendment pointer. The 6.6 scenario's attestation,
+withdrawal, readiness, re-root and retirement evidence remains valid; it did not exercise either newly adopted case.
+Terminal verification covers the appended criterion after 6.R's focused public-path regressions. Tasks 7.5 and 7.7
+retained the independent provider dependency.
+
+The Candidate staging-recovery capture stays held until cutover: Task 6.5.a already makes `appendCandidateResponse`
+and `stageCandidateResponse` skip Candidate-record staging natively. The repository arm retains that failure path;
+a legacy-only remedy remains a separately authorized Errand if it is needed before cutover.
+
+Author checks: source-grounding and spec-review cover § 3/5.5, surrounding § 4.3/5.6 and the new criterion; task-audit
+covers 6.R and its neighbors at grounding-only depth. The correction is determinate at low amendment depth, so the
+independent planning offer is omitted by `planning-review`; no independent review is claimed.
+
+## A19 — A clean fix check and its complete successor
+
+The public regression for 6.R.b reproduces two distinct refusals. Repository composition applies additional
+judgment in `applyPrePublicationExtraPassJudgment` after `bindReviewPolicyContinuationEvidence` has selected a fresh
+route and cleared attempts, causing `preceding-producer-mismatch`. Native composition binds the grant earlier, but
+`deriveVerifiedTerminalSignal` reports inadequate final coverage for the incremental result, and
+`invalidAdditionalPassReason` uses that flag as convergence, causing `pass-not-converged`.
+
+A18 retained "all other admission rules" and preserved the shipped pass policy. A19 supersedes that restriction only
+for the approved clean fix-check case: repository-derived convergence may authorize the required complete successor
+while the result's final-coverage signal remains false. Exact target, ordinal, immutable producer, source selection,
+recorded author, and consumed-grant checks remain binding. The exception admits no incremental successor and never
+settles final coverage. No command-input field or record schema is added.
+
+The amendment is a determinate correction at low depth. Source-grounding and spec-review cover § 3/5.5, surrounding
+§ 4.3/5.1/5.6, and appended Criterion 19; task-audit grounds 6.R2 against the real public regression. Reader independence
+and binding completeness are checked over that footprint. The independent planning offer is omitted at low depth.
+The original 6.6 scenario and later provider-dependent tasks are unaffected; 8.1 remains the next covering verifier.
+
+## A20 — The import gives the mapping a source the design did not name
+
+Merging base brought `storage-ref-backend`'s import ahead of this change, and with it the import's own half of the
+mapping contract. Its port (`ReviewMappingInput`, `lib/store/ports.ts`) gives each live work unit's Candidate entry a
+`current` field — the record as read at the work unit's selected meta revision — and `mapImportReview` adds that
+record's plain tracked path to the sources `inspectReviewCoverage` requires the listing to cover exactly once. Any
+coverage notice blocks the import. The branch's mapping met the port by shape and ignored `current`, so once passed in
+it would refuse every import holding a live Candidate. At the amendment no production caller passed it in:
+`handleStoreMigrate` ran `runStoreMigrate` over the command's ports alone, and Task 3.6's deferral had assumed the
+import's change would wire it. Task 3.R2.b wired it for `--import`.
+
+Superseded in § 11 ¶1, which enumerated the listing's sources: "each Candidate version as `<tracked path>@<commit>`, its
+tracked path the one its work unit's slug gives (`resolveCandidateRecordRelativePath`); and each boundary by its
+tracked path". Superseded in § 11 ¶2: "The mapping expects one contract of the import, available from the flip" and
+"each live work unit's Candidate versions, oldest first from the record's path log, with its current boundary".
+Superseded in § 11.1 ¶1: "The import refuses until such a work unit's branch merges, or is removed where its change has
+already landed or is no longer wanted, so the mapping never meets one." The import marks such a work unit live
+(`archivedWorkLive`), so the mapping meets it; the import still refuses, so the outcome is unchanged.
+
+`current` duplicates the newest version's bytes: `readImportCandidateVersions` logs the record's path at the same
+revision whose tree `current` is read from, so the current record is the newest version's content. Listing it as mapped
+into the Candidate record that version became adds no content, and leaving it behind with that version's reason keeps
+one refusal reason per record. The import's and the mapping's tracked paths come from the same layout calls, so versions
+and boundaries already match the import's sources exactly.
+
+Two reader-accuracy corrections ride the same edit with no behavior change: the Terms' ref backend and import are on
+base, and § 10.4's ended item leaves the live listings while an archived item's current records stay readable from its
+quarter's archive ref at placement `completed`, which the location-filtered listings Criterion 5.4 reads leave out.
+
+Propagation: Task 3.6 and verifier 3.8 take the forward pointer; 3.8's counts came from an uncommitted harness built
+to the branch's port model and never met the import's own source list. Criterion 4 stands and Criterion 20 appends.
+§ 14.2 already names `arc store migrate`'s handler, and the Open Questions' availability terms remain accurate. Task 7.5
+and the Phase 7 exit criterion are unaffected; 8.1 is the next covering verifier, with 3.R2.c's trial as its evidence.
+
+Author checks: source-grounding and spec-review's coherence and grounding slices cover § 11, § 11.1, the Terms, § 10.4,
+§ 14.2, and Criteria 4 and 20; task-audit grounds 3.R2 at grounding-only depth. The correction is determinate at low
+depth, so `planning-review` omits the independent offer; no independent review is claimed.
+
+## A21 — The current Candidate record can be newer than its history
+
+A20 rested on `current` always repeating the newest committed version, and it does not. The import reads each live
+work unit's Candidate where the in-repo implementation selects that work unit's meta (`composedMetaSource`): a saved
+revision for a work unit held elsewhere, but the working copy for one this checkout holds, where `arc attest` writes the
+record before the workflow commits it. The import's own suite pins that case ("preserves a newer uncommitted Candidate
+separately from its committed history"), and a staged removal gives the opposite one, committed versions with a null
+`current` ("supplies null current content for live work holding only a boundary"). Under A20 the first case would
+leave a live work unit's newest Candidate behind, so it would need attesting again after the import.
+
+Superseded in § 11 ¶1 (A20): "its content its newest version's, mapped into the Candidate record that version became,
+adding no content, or left behind with that version's reason". Superseded Criterion 20's clause: "mapped into the
+Candidate record its newest version became or left behind with that version's reason"; its coverage requirement stands.
+
+The current record now maps as one more version. Where it repeats the newest committed version it takes that version's
+outcome and adds nothing; otherwise it is the record's newest revision and passes today's reader checks — parse, owning
+work unit, supersession over the committed versions — or is left behind with the reader's reason. The port's record
+contents carry no trailing removal, so committed versions with no current record cannot land without bringing back a
+Candidate today's reader no longer finds; they are left behind with that reason, and their history stays in Git.
+
+Propagation: 3.R2.a's plan bullets change with its Goal unchanged; its import-level coverage check moves to 3.R2.b,
+since tests reach the import only through `runStoreMigrate` (the `store-tests` import boundary). Criterion 20's
+coverage requirement and Criterion 4 stand, Criterion 21 appends, and the A20 analysis otherwise holds.
+
+Author checks: source-grounding and spec-review's coherence and grounding slices cover § 11 ¶1–2 and Criteria 20–21;
+task-audit grounds the revised 3.R2.a against the import suite's two `current` cases. The correction is determinate
+at low depth, so `planning-review` omits the independent offer.
+
+## Neighbors
+
+The spec names no other work unit. These are the ones its descriptive references mean, and what each owns where it
+meets this one:
+
+- **"The lifecycle change"** — `seam-lifecycle`, merged: the pause record, the store-backed reopen (`runStoreReopen`)
+  and publication this change edits, the project-ID port, and the task close verb with its copy-key match.
+  Implementation built on its landing.
+- **"The locus change"** — `seam-locus`, shipped in PR #1042. Its store-aware subject, Candidate owner,
+  completed-owner inventory, and Errand discovery are the baseline for § 12.1, § 12.4, and § 14.4. A6 replaces the
+  provider stand-ins with production-path tests and gives the probe's nested readers the invocation store. Task 1.8
+  took its landing and re-grounded the tasks built on it.
+- **"The standard lane's pass policy"** — `review-coverage-cadence`, shipped in PR #1038. An incremental
+  fix check or delta check advances the completed logical count, while only complete coverage advances the standard
+  ceiling count. A6 carries those distinct units into decisions and preserves its optional stored fix tags outside
+  the approved set. This work unit preserves its incremental-review contract and the correction loop; any later
+  change to their shared properties still requires coordination.
+- **"The ref backend" and "the import"** — `storage-ref-backend`: the import, its trial, and its refusals, which call
+  this change's mapping (spec, § 11); the history refs and the `state-unresolvable` refusal (spec, § 10.4); and the
+  layout row for the review kinds. Its spec builds only `arc rename`'s retry and leaves every other caller's to its
+  verb, so this change builds the ended-item retry around every store it opens, the one task that waited for the refusal
+  and `pull({ history })` on base (Task 7.5 - `tasks-seam-delivery-review.md`; spec, § 14.4).
+- **"The cutover"** — `storage-cutover`: the flip, its workflow rewrite (spec, § 12.6), the quiesce of reviews in
+  flight, and the deletion pass (spec, § 14.3).
+- **The terminus's reach and invalidation** (spec, § 5.6) — `review-source-authority`. Whether an Errand takes a
+  terminus, and a computed carry policy in place of the attended applicability choice (spec, § 5.8), are
+  `review-orchestration-right-sizing`'s.
+- **"Delivery's own redesign"** (spec, § 12.2, § 12.5) — `delivery-observe-attest`: how a stacked delivery's members and
+  its lifecycle-contribution path group treat the review copy, and delivery's attribution moving onto captures.
+- **"The Candidate-state projection"** (spec, Non-Goals) — `candidate-reroot-recovery-frame`; the boundary's withdrawal
+  and a work item's end feed it.
+- **`seam-status-roadmap`,** which the spec has no reason to mention: its "One identity" fix switches the identity read
+  in `readLocalReviewLiveContext` (`rg/hosts/local/live-context.ts`) before the flip, and Task 4.4 -
+  `tasks-seam-delivery-review.md` gives the same function its store-backed work-unit and Errand reads, so whichever
+  lands second takes the conflict.
+
+## Prior art
+
+Gathered 2026-10-15 by a bounded research pass that verified nothing itself; the facts the design relies on match
+independent knowledge and are re-checked at source-grounding.
+
+- **Review records bind to an exact revision, and carry is mechanical.** A [GitHub review][github-reviews] carries
+  `commit_id`; a [check run][github-check-runs] binds `head_sha`; a merge queue binds the exact merged SHA it tested.
+  Gerrit copies a vote to a new patch set by a per-label `copyCondition` over computed change kinds — `NO_CHANGE`,
+  `NO_CODE_CHANGE`, `TRIVIAL_REBASE`, `MERGE_FIRST_PARENT_UPDATE`, `REWORK` — marks the rest outdated, and keeps
+  blocking votes sticky, `is:MIN` ([Gerrit labels][gerrit-labels]). GitLab resets approvals on push but compares pushes
+  by `git patch-id`, so a rebase with an unchanged diff keeps them ([GitLab approval settings][gitlab-approvals]). No
+  system read asks a person whether earlier review covers a change.
+- **Git-native stores are append-only logs with a derived view.** [git-appraise][git-appraise] keeps one JSON object
+  per line in notes with a format field `v`; git-bug folds operation packs into a snapshot; Radicle's collaborative
+  objects fold a commit DAG ([Radicle protocol][radicle]). None stores a counter.
+- **Findings have a computed identity.** [SARIF][sarif] gives a result versioned `partialFingerprints` and a
+  `baselineState` — new, unchanged, updated, absent — relative to a baseline run.
+- **Decisions bind a subject digest, and lifecycle is observed.** An [in-toto statement][in-toto] is a subject digest
+  set plus a typed, versioned predicate; SLSA's [verification summary][slsa-vsa] names the verifier, policy, and inputs
+  and leaves staleness to the reader. [Kubernetes conditions][k8s-conventions] are "observations and not, themselves,
+  state machines", with `observedGeneration` marking the spec version a status was computed from. A
+  [Step Functions task token][step-functions] binds an answer to one pending request and is regenerated on timeout;
+  [Stripe's idempotency key][stripe-idempotency] replays the first result and refuses a reuse with different
+  parameters.
+- **Agent-facing interfaces.** [Published guidance][anthropic-tools] favors few workflow-level operations over many fine
+  ones, compact default output with drill-down, and errors that state the fix; the one measured study,
+  [SWE-agent][swe-agent]'s interface ablations, found bounded, summarized feedback and guardrails at the point of action
+  raised task success. Typed refusals map onto [RFC 9457][rfc-9457]'s machine `type` plus extension members, and a
+  resumable operation onto [AIP-151][aip-151]'s handle with `done`, progress, and result. No controlled study isolates
+  call count or schema discoverability against agent cost, so efficiency claims want ARC's own measurement.
+
+## A38 — Defer imported grants until subject selection
+
+The approved import correction extends the existing retained-call pattern: the mapping has no authoritative delivery
+member coordinates, so it cannot turn every saved ordinary judgment into a Candidate decision. The superseded § 11.2
+statement was “The `--resume` token's judgments become decisions with no decider.” Retain unbound grants and the
+frontline head restriction until the consuming native call selects and validates its subject; do not infer a member
+from a head or broaden a recorded decision's reach. Criterion 22 covers the imported-to-native continuation.
+
+## A39 — Bind landing persistence to checkpoint ownership
+
+The superseded § 3.2 statement was “The checkpoint record keeps its `lifecycleVersion` field and schema.” Native landing
+persistence adds a mutation to the already-merged path, which runs before live status comparison. A slug can be reused,
+so the immutable composition binds project ID and UID; the direct UID read supplies the canonical record and its version.
+Checkpoint creation keeps exact selection. Merge setup does not eagerly resolve the slug: read the retained checkpoint
+and observe its target first, then validate native ownership before any unmerged settlement. A merged result preserves
+its host truth even when exact-owner link persistence cannot finish. Criterion 23 covers reuse, history repair and retry.
+
+---
+
+[github-reviews]: https://docs.github.com/en/rest/pulls/reviews
+[github-check-runs]: https://docs.github.com/en/rest/checks/runs
+[gerrit-labels]: https://gerrit-review.googlesource.com/Documentation/config-labels.html
+[gitlab-approvals]: https://docs.gitlab.com/ee/user/project/merge_requests/approvals/settings.html
+[git-appraise]: https://github.com/google/git-appraise
+[radicle]: https://radicle.dev/guides/protocol
+[sarif]: https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/sarif-v2.1.0-errata01-os-complete.html
+[in-toto]: https://github.com/in-toto/attestation/blob/main/spec/v1/statement.md
+[slsa-vsa]: https://slsa.dev/spec/v1.0/verification_summary
+[k8s-conventions]: https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md
+[step-functions]: https://docs.aws.amazon.com/step-functions/latest/dg/connect-to-resource.html
+[stripe-idempotency]: https://docs.stripe.com/api/idempotent_requests
+[anthropic-tools]: https://www.anthropic.com/engineering/writing-tools-for-agents
+[swe-agent]: https://arxiv.org/abs/2405.15793
+[rfc-9457]: https://www.rfc-editor.org/rfc/rfc9457
+[aip-151]: https://google.aip.dev/151

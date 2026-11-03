@@ -10,7 +10,7 @@
 import type { StoreRecord } from "../store/read.js";
 import type { Store } from "../store/contract.js";
 import { createStore } from "../store/create.js";
-import { createDefaultStorePorts } from "../store/default-ports.js";
+import { createDefaultStorePorts } from "../store/default-store-ports.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { decodeWorktreeMarkerOwnership, readWorktreeMarkerGeneration, type WorktreeMarker } from "./worktree-marker.js";
 import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";

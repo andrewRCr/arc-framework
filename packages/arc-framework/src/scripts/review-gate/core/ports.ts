@@ -9,6 +9,66 @@ import type {
 } from "./advisory-records.js";
 import type { ReviewReduceEnvelope } from "./review-command-envelope.js";
 import type { ReviewResult } from "./review-result.js";
+import type { RecordReference, RecordVersion } from "../../../lib/store/identity.js";
+import type { Mutation } from "../../../lib/store/write.js";
+import type { StoreRefusal } from "../../../lib/store/refusal.js";
+import type { ReviewOutcome } from "../../../lib/store/kinds/review/outcome/schema.js";
+import type { ReviewEvidence } from "../../../lib/store/kinds/review/evidence/schema.js";
+import type { ReviewDecision } from "../../../lib/store/kinds/review/decision/schema.js";
+
+/** One portable review fact with its backend mutation basis. */
+export interface StoredReviewFact<T> {
+  reference: RecordReference;
+  version: RecordVersion;
+  value: T;
+}
+
+/** A complete fact selection or an explicit failure to establish completeness. */
+export type ReviewFactListing<T> =
+  | { status: "complete"; records: readonly StoredReviewFact<T>[] }
+  /** Off the branch, `refusal` is the store's own refusal or a recoverable one naming the listing's unread or conflicted state. */
+  | { status: "incomplete" | "unavailable"; reason: string; refusal?: StoreRefusal };
+
+/** One durable put, ready to join an invocation's atomic batch. */
+export type ReviewFactPut = Extract<Mutation, { action: "put" }>;
+
+/** Create-only access to a work item's immutable review facts. */
+interface ReviewFactPort<T> {
+  read(key: string): Promise<StoredReviewFact<T> | null>;
+  list(): Promise<ReviewFactListing<T>>;
+  create(value: T): Promise<StoredReviewFact<T>>;
+  prepareCreate(value: T): ReviewFactPut;
+}
+
+/** Ended producer results. */
+export type ReviewOutcomePort = ReviewFactPort<ReviewOutcome>;
+
+/** Approved responses with version-bound monotonic advances and legacy composed reads. */
+export interface ReviewEvidencePort extends ReviewFactPort<ReviewEvidence> {
+  advance(value: ReviewEvidence, expectedVersion: RecordVersion): Promise<StoredReviewFact<ReviewEvidence>>;
+  prepareAdvance(value: ReviewEvidence, expectedVersion: RecordVersion): ReviewFactPut;
+  readDispositionRecord(producerId: string): Promise<ApprovedDispositionRecord | null>;
+  listDispositionRecords(): Promise<readonly ApprovedDispositionRecord[]>;
+}
+
+/** Immutable decisions keyed by their canonical content. */
+export type ReviewDecisionPort = ReviewFactPort<ReviewDecision>;
+
+/** Portable review facts selected together by one native invocation. */
+export interface NativeReviewFactPorts {
+  outcomes: ReviewOutcomePort;
+  evidence: ReviewEvidencePort;
+  decisions: ReviewDecisionPort;
+  readProjectId(): Promise<string>;
+}
+
+/** Numeric working-state CAS and completeness-preserving operation observations. */
+export type ReviewInFlightPort = ReviewOperationStateStore & ReviewOperationStateSnapshotIndex;
+
+/** Working-state access plus the selected immutable result writer for lane transitions. */
+export interface ReviewLaneTransitionStore extends ReviewOperationStateStore {
+  readonly outcomeWriter?: ReviewOutcomePort;
+}
 
 /** Versioned forward receipt snapshot, optionally filtered to one target. */
 export interface ForwardReceiptLedger {
@@ -36,6 +96,12 @@ export interface ForwardReviewReceiptIndex {
 
 /** Versioned storage boundary for resumable, explicitly non-evidentiary review operations. */
 export interface ReviewOperationStateStore {
+  /** Immutable authority available only on the selected native adapter. */
+  readonly nativeFacts?: NativeReviewFactPorts;
+  /** Fact placement carried from the invocation's selected backend for recovery guidance. */
+  readonly stateOffBranch?: boolean;
+  /** Actual clone-local source locator, when retained after the execution ends. */
+  readLocalSourceReference?(operationId: string): Promise<string | null>;
   readOperation(operationId: string): Promise<{
     version: number;
     state: ReviewOperationState | null;
@@ -74,6 +140,9 @@ export interface ApprovedDispositionRecordStore {
   readDispositionRecord(operationId: string): Promise<ApprovedDispositionRecord | null>;
   appendDispositionRecord(record: ApprovedDispositionRecord): Promise<{ dispositionRecordRef: string }>;
 }
+
+/** Keyed approved-response access without mutation authority. */
+export type ApprovedDispositionRecordReader = Pick<ApprovedDispositionRecordStore, "readDispositionRecord">;
 
 /**
  * Enumeration boundary for consumers holding a disposition-set identity rather than an operation.

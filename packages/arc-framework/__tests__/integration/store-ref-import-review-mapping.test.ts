@@ -1,8 +1,9 @@
 /** Review mapping consumes opaque legacy sources and determines imported review records. */
 import { expect, it } from "vitest";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { importFixture } from "../helpers/store/import-fixture.js";
+import { opaqueReviewRegistry } from "../helpers/store/opaque-review.js";
 import { resolveGitCommonDir } from "../../src/lib/git/exec.js";
 import { resolveArcPath } from "../../src/lib/layout/index.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
@@ -12,6 +13,7 @@ import { inRepoContent } from "../helpers/store/in-repo-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { resolveCandidateRecordRelativePath } from "../../src/lib/work-unit/candidate-record-store.js";
 import type { ReviewMappingInput, ReviewMappingResult } from "../../src/lib/store/ports.js";
+import { mapReviewSource } from "../../src/lib/store/kinds/review/mapping-error.js";
 import { expandStoredPath } from "../../src/lib/store/stored-path.js";
 import { createKindRegistry } from "../../src/lib/store/registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
@@ -21,6 +23,17 @@ import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { TransientIdentityRecordSchema, serializeTransientIdentityRecord } from "../../src/lib/errand/identity-record.js";
 import { hashBlob, writeTreeCommit } from "../../src/lib/errand/ref-tree.js";
 import { makeGitProcessError } from "../helpers/git-exec-fake.js";
+import { canonicalDigest } from "../../src/lib/kernel/index.js";
+import { CandidateManagedRecordV1Schema, createCandidateAttestation, createCandidateSubjectSnapshot,
+  serializeCandidateManagedRecord } from "../../src/lib/work-unit/candidate-attestation.js";
+import { projectCandidateReviewBoundary } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
+
+// The stub mappings echo their input as record content, so the review family's codecs stay out of the import.
+async function opaqueReviewImport(...args: Parameters<typeof importFixture>): ReturnType<typeof importFixture> {
+  const h = await importFixture(...args);
+  h.ports.registry = opaqueReviewRegistry(h.ports.registry);
+  return h;
+}
 
 function listing(input: ReviewMappingInput, records: RecordReference[]): ReviewMappingResult["listing"] {
   return [
@@ -47,7 +60,7 @@ function tableMapping(input: ReviewMappingInput): ReviewMappingResult {
 }
 
 it("imports one review record when its mapping emits the same qualified record twice", async () => {
-  const h = await importFixture();
+  const h = await opaqueReviewImport();
   h.ports.reviewMapping = input => {
     const mapped = tableMapping(input);
     return { ...mapped, records: mapped.records.flatMap(record => [record, { ...record, reference: { ...record.reference } }]) };
@@ -62,7 +75,7 @@ it("imports one review record when its mapping emits the same qualified record t
 });
 
 it("uses a mapping's records after supplying exact gate bytes and the live Candidate history and boundary", async () => {
-  const h = await importFixture();
+  const h = await opaqueReviewImport();
   const reference = RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name: "alpha" } });
   const boundaryRef = RecordReferenceSchema.parse({ ...reference, kind: "review/integration-boundary" });
   const boundary = resolveArcPath({ kind: "integration-boundary-record", slug: SlugSchema.parse("alpha") });
@@ -115,7 +128,7 @@ it("uses a mapping's records after supplying exact gate bytes and the live Candi
 }, 40_000);
 
 it.each(["merge", "squash"] as const)("refuses archived work with an unlanded %s branch and succeeds after its safe repair", async repair => {
-  const h = await importFixture("default", { completed: true });
+  const h = await opaqueReviewImport("default", { completed: true });
   const path = resolveArcPath({ kind: "work-unit-artifact", artifact: "meta", slug: SlugSchema.parse("archived"), placement: {
     kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q3"), sequence: ArchiveSequenceSchema.parse("53"),
   } });
@@ -176,7 +189,7 @@ it.each(["merge", "squash"] as const)("refuses archived work with an unlanded %s
 }, 60_000);
 
 it("classifies every held work item and preserves completed review records as found", async () => {
-  const h = await importFixture("default", { completed: true, lineage: true });
+  const h = await opaqueReviewImport("default", { completed: true, lineage: true });
   await writeFile(join(h.root, ".arc/active/meta-merged.md"), makeMetaFixture("merged", { owner: "andrew", branch: "feat/merged" }));
   await h.git("git", ["add", ".arc"]);
   await h.git("git", ["commit", "-m", "Prepare merged active work"]);
@@ -243,7 +256,7 @@ it("classifies every held work item and preserves completed review records as fo
 }, 60_000);
 
 it("reports in-flight mappings without landing and succeeds once review has finished", async () => {
-  const h = await importFixture();
+  const h = await opaqueReviewImport();
   let inFlight = true;
   h.ports.reviewMapping = input => {
     const mapped = tableMapping(input);
@@ -259,7 +272,7 @@ it("reports in-flight mappings without landing and succeeds once review has fini
 }, 40_000);
 
 it("accounts for gate files and separate Candidate versions without omissions, repetitions, or invented sources", async () => {
-  const h = await importFixture();
+  const h = await opaqueReviewImport();
   const gatePath = "arc/review-gate/evidence/held.json";
   const common = await resolveGitCommonDir(h.git, h.root);
   await mkdir(dirname(join(common, gatePath)), { recursive: true });
@@ -300,7 +313,7 @@ it("accounts for gate files and separate Candidate versions without omissions, r
 }, 60_000);
 
 it.each(["parser", "serialization", "empty"] as const)("refuses a mapping's %s-invalid revisions and lands after the mapping is repaired", async defect => {
-  const h = await importFixture();
+  const h = await opaqueReviewImport();
   const registry = createKindRegistry(PRODUCTION_REGISTRATIONS);
   if (defect === "parser") h.ports.registry = { ...registry, "review/candidate": { ...registry["review/candidate"],
     parser: content => JSON.parse(content).allowed === true ? { success: true, data: {} } : { success: false, error: "Mapped record is not allowed" } } };
@@ -331,7 +344,7 @@ it.each(["parser", "serialization", "empty"] as const)("refuses a mapping's %s-i
 }, 40_000);
 
 it("rebuilds the mapping against a concurrently established repository identity before any ref lands", async () => {
-  const h = await importFixture();
+  const h = await opaqueReviewImport();
   const publisher = new RepositoryGitCommonStatePublisher(h.git, h.root);
   const projectId = "34567890-1234-4234-8234-123456789abc";
   let establish = true;
@@ -354,7 +367,7 @@ it("rebuilds the mapping against a concurrently established repository identity 
 }, 40_000);
 
 it("replays each returned review revision in its own batch before the shared current-files landing", async () => {
-  const h = await importFixture();
+  const h = await opaqueReviewImport();
   const candidateContents = ['{"mapped":"older"}', '{"mapped":"newer"}'];
   const boundaryContent = '{"mapped":"boundary"}';
   h.ports.reviewMapping = input => {
@@ -386,7 +399,7 @@ it("replays each returned review revision in its own batch before the shared cur
 }, 40_000);
 
 it("preserves a newer uncommitted Candidate separately from its committed history", async () => {
-  const h = await importFixture();
+  const h = await opaqueReviewImport();
   await h.git("git", ["checkout", "feat/alpha"]);
   const reference = RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name: "alpha" } });
   const path = resolveCandidateRecordRelativePath("alpha");
@@ -413,7 +426,7 @@ it("preserves a newer uncommitted Candidate separately from its committed histor
 }, 40_000);
 
 it("supplies null current content for live work holding only a boundary", async () => {
-  const h = await importFixture();
+  const h = await opaqueReviewImport();
   await h.git("git", ["checkout", "feat/alpha"]);
   const candidatePath = resolveCandidateRecordRelativePath("alpha");
   const candidateContent = await readFile(join(h.root, candidatePath), "utf8");
@@ -435,7 +448,7 @@ it("supplies null current content for live work holding only a boundary", async 
 }, 40_000);
 
 it("requires mapping coverage for history-only Candidate sources and imports after repair", async () => {
-  const h = await importFixture();
+  const h = await opaqueReviewImport();
   await h.git("git", ["checkout", "feat/alpha"]);
   const path = resolveCandidateRecordRelativePath("alpha"), content = await readFile(join(h.root, path), "utf8");
   await h.git("git", ["rm", path]);
@@ -459,7 +472,7 @@ it("requires mapping coverage for history-only Candidate sources and imports aft
 }, 40_000);
 
 it.each(["alpha", "archived"])("retains absent-current Candidate history for %s without landing a current Candidate", async name => {
-  const h = await importFixture("default", { completed: name === "archived" });
+  const h = await opaqueReviewImport("default", { completed: name === "archived" });
   if (name === "alpha") await h.git("git", ["checkout", "feat/alpha"]);
   const path = resolveCandidateRecordRelativePath(name), content = await readFile(join(h.root, path), "utf8");
   await h.git("git", ["rm", path]);
@@ -475,7 +488,7 @@ it.each(["alpha", "archived"])("retains absent-current Candidate history for %s 
 }, 40_000);
 
 it("accounts for materialization folders once and refuses overlapping or noncanonical coverage through repair", async () => {
-  const h = await importFixture();
+  const h = await opaqueReviewImport();
   const folder = "arc/review-gate/materializations/work/";
   const files = [`${folder}source.json`, `${folder}nested/payload.bin`];
   const common = await resolveGitCommonDir(h.git, h.root);
@@ -516,7 +529,7 @@ it("accounts for materialization folders once and refuses overlapping or noncano
 }, 60_000);
 
 it.each(["unknown-owner", "unparsable"] as const)("refuses a mapping record with an %s reference and lands after the mapping is repaired", async defect => {
-  const h = await importFixture();
+  const h = await opaqueReviewImport();
   let broken = true;
   h.ports.reviewMapping = input => {
     const alpha = input.workItems.find(item => item.slug === "alpha")!;
@@ -539,7 +552,7 @@ it.each(["unknown-owner", "unparsable"] as const)("refuses a mapping record with
 }, 40_000);
 
 it.each(["work-item/meta", "work-item/notes"] as const)("refuses mapped %s bytes and retains acquired records after mapping repair", async kind => {
-  const h = await importFixture();
+  const h = await opaqueReviewImport();
   const artifact = kind === "work-item/meta" ? "meta" : "notes";
   const original = await readFile(join(h.root, `.arc/active/${artifact}-alpha.md`), "utf8");
   let broken = true;
@@ -564,3 +577,119 @@ it.each(["work-item/meta", "work-item/notes"] as const)("refuses mapped %s bytes
     expect(success(await store.read({ reference })).content).toBe(content);
   }
 }, 40_000);
+
+it("passes the review mapping into the import from arc store migrate and covers every live review source once", async () => {
+  const h = await importFixture();
+  const subject = createCandidateSubjectSnapshot([{ path: "src/main.ts", mode: "100644", digest: canonicalDigest({ source: 1 }),
+    treatment: "reviewable" }]);
+  const attestation = createCandidateAttestation({ workUnit: "alpha", subject, baseRevision: "a".repeat(40), attestedBy: "andrew",
+    attestedAt: "2026-10-29T12:00:00Z", verificationEvidenceRef: "verification://root" });
+  const candidate = serializeCandidateManagedRecord(CandidateManagedRecordV1Schema.parse({ schemaVersion: 1,
+    semanticsVersion: "candidate-attestation/v1", attestation, subject, transitions: [], lineageAttestations: [] }));
+  const path = resolveCandidateRecordRelativePath("alpha");
+  const boundary = resolveArcPath({ kind: "integration-boundary-record", slug: SlugSchema.parse("alpha") });
+  await writeFile(join(h.root, path), candidate);
+  await mkdir(dirname(join(h.root, boundary)), { recursive: true });
+  await writeFile(join(h.root, boundary), JSON.stringify(projectCandidateReviewBoundary({ workUnit: "alpha",
+    candidateId: attestation.candidateId, candidateSubjectDigest: subject.subjectDigest })));
+  await h.git("git", ["add", ".arc"]);
+  await h.git("git", ["commit", "-m", "Attest alpha"]);
+  await h.git("git", ["update-ref", "refs/heads/feat/alpha", (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim()]);
+  const common = await resolveGitCommonDir(h.git, h.root);
+  const gate = ["arc/review-gate/retired/old.json", "arc/review-gate/quarantine/evidence.bin"];
+  for (const file of gate) {
+    await mkdir(dirname(join(common, file)), { recursive: true });
+    await writeFile(join(common, file), "{}");
+  }
+  const commits = (await h.git("git", ["log", "--format=%H", "--", path])).stdout.trim().split("\n");
+  const trial = await h.migrateCommand(true);
+  if (trial.status !== "ok") throw new Error(JSON.stringify(trial));
+  expect(trial.result.reviewMapping.map(({ source }) => source).sort())
+    .toEqual([...gate, path, ...commits.map(commit => `${path}@${commit}`), boundary].sort());
+  expect(trial.result.reviewMapping.find(({ source }) => source === path)).toMatchObject({ outcome: "mapped" });
+  expect(trial.result.reviewMapping.find(({ source }) => source === gate[1])).toMatchObject({
+    outcome: "left-behind", reason: "Quarantined disposition records are machine-local." });
+  expect(trial.result.notices.filter(({ condition }) => condition.startsWith("Review "))).toEqual([]);
+  expect(await h.migrateCommand()).toMatchObject({ status: "ok" });
+  const store = createRefStore(h.ports);
+  const reference = RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name: "alpha" } });
+  expect(success(await store.read({ reference })).content).toBe(candidate);
+  const stored = success(await store.read({ reference: RecordReferenceSchema.parse({ ...reference, kind: "review/integration-boundary" }) }));
+  expect(JSON.parse(stored.content)).toMatchObject({ schemaVersion: 2, workUnit: "alpha", candidateId: attestation.candidateId });
+}, 60_000);
+
+it("names the records a joined review source joins in the import's remedy, never its removal", async () => {
+  const h = await opaqueReviewImport();
+  const source = "arc/review-gate/operations/lane.json";
+  let missingPartner = true;
+  h.ports.reviewMapping = input => missingPartner ? mapReviewSource(source, () => { throw new Error("cited outcome is absent"); },
+    "the review outcomes it cites") : tableMapping(input);
+  const trial = await h.migrate(true);
+  if (trial.status !== "ok") throw new Error(JSON.stringify(trial));
+  expect(trial.result.notices).toContainEqual({ condition: expect.stringContaining("cited outcome is absent"),
+    remedy: { text: `Repair ${source}, or restore the review outcomes it cites, then retry arc store migrate --import.` } });
+  expect(await h.migrate()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
+  missingPartner = false;
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+}, 40_000);
+
+it("refuses a trial over an unmappable review source through its report and imports once it is removed", async () => {
+  const h = await importFixture();
+  const common = await resolveGitCommonDir(h.git, h.root);
+  const broken = "arc/review-gate/operations/broken.json";
+  await mkdir(dirname(join(common, broken)), { recursive: true });
+  await writeFile(join(common, broken), "{}");
+  const trial = await h.migrateCommand(true);
+  if (trial.status !== "ok") throw new Error(JSON.stringify(trial));
+  expect(trial.result.notices).toContainEqual({
+    condition: expect.stringContaining(`Review source ${broken} cannot be mapped`),
+    remedy: { text: `Repair ${broken}, then retry arc store migrate --import.` } });
+  expect(await h.migrateCommand()).toMatchObject({ status: "refused", refusal: { code: "import-refused" } });
+  expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
+  await rm(join(common, broken));
+  expect(await h.migrateCommand()).toMatchObject({ status: "ok" });
+}, 60_000);
+
+function alphaCandidate(source: number): string {
+  const subject = createCandidateSubjectSnapshot([{ path: "src/main.ts", mode: "100644", digest: canonicalDigest({ source }),
+    treatment: "reviewable" }]);
+  const attestation = createCandidateAttestation({ workUnit: "alpha", subject, baseRevision: "a".repeat(40), attestedBy: "andrew",
+    attestedAt: "2026-10-29T12:00:00Z", verificationEvidenceRef: "verification://root" });
+  return serializeCandidateManagedRecord(CandidateManagedRecordV1Schema.parse({ schemaVersion: 1,
+    semanticsVersion: "candidate-attestation/v1", attestation, subject, transitions: [], lineageAttestations: [] }));
+}
+
+it.each(["newer", "absent"] as const)("trials a live Candidate whose current record is %s through the command's own mapping", async current => {
+  const h = await importFixture();
+  const path = resolveCandidateRecordRelativePath("alpha"), committed = alphaCandidate(1), newer = alphaCandidate(2);
+  await writeFile(join(h.root, path), committed);
+  await h.git("git", ["add", ".arc"]);
+  await h.git("git", ["commit", "-m", "Attest alpha"]);
+  await h.git("git", ["update-ref", "refs/heads/feat/alpha", (await h.git("git", ["rev-parse", "HEAD"])).stdout.trim()]);
+  await h.git("git", ["checkout", "feat/alpha"]);
+  if (current === "newer") await writeFile(join(h.root, path), newer);
+  else {
+    await h.git("git", ["rm", path]);
+    await h.git("git", ["commit", "-m", "Remove current Candidate after retaining its history"]);
+  }
+  const trial = await h.migrateCommand(true);
+  if (trial.status !== "ok") throw new Error(JSON.stringify(trial));
+  const candidateSources = trial.result.reviewMapping.filter(({ source }) => source === path || source.startsWith(`${path}@`));
+  expect(candidateSources.filter(({ source }) => source.startsWith(`${path}@`))).not.toEqual([]);
+  expect(trial.result.notices.filter(({ condition }) => condition.startsWith("Review "))).toEqual([]);
+  if (current === "newer") {
+    expect(candidateSources.filter(({ source }) => source === path)).toEqual([expect.objectContaining({ outcome: "mapped" })]);
+    expect(candidateSources.every(({ outcome }) => outcome === "mapped")).toBe(true);
+  } else {
+    expect(candidateSources.some(({ source }) => source === path)).toBe(false);
+    expect(candidateSources).toEqual(candidateSources.map(({ source }) => expect.objectContaining({ source, outcome: "left-behind",
+      reason: expect.stringContaining("no current Candidate record") })));
+  }
+  expect(await h.migrateCommand()).toMatchObject({ status: "ok" });
+  const reference = RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name: "alpha" } });
+  const store = createRefStore(h.ports);
+  if (current === "newer") {
+    expect(success(await store.read({ reference })).content).toBe(newer);
+    expect(success(await store.history({ reference })).map(({ content }) => content)).toContain(committed);
+  } else expect(await store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+}, 60_000);

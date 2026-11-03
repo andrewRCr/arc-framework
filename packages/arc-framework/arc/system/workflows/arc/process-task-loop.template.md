@@ -6,6 +6,7 @@ arc:
     - issue-triage
     - review-chunking
     - testing-standards
+    - validate-criteria
     - verification-review
 ---
 
@@ -164,14 +165,15 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
 
      Stop when the specified scope is complete, or earlier if a stop condition is met:
 
-     - **Must stop:** quality gate failure that can't be auto-fixed, blocking dependency on
-       another task or external input, unanticipated design decision that needs user input,
+     - **Must stop:** quality gate failure with neither an auto-fix nor an in-scope fix, blocking dependency
+       on another task or external input, unanticipated design decision that needs user input,
        or scope significantly exceeding expectations for the task
-     - **Continue with note:** auto-fixable lint issues (fix and note), task taking longer
-       than expected but progressing, minor deviation from plan that doesn't change outcomes
+     - **Continue with note:** auto-fixable lint issues (fix and note), an in-scope fix (make it, note it on the
+       task it serves, and re-run), task taking longer than expected but progressing, minor deviation from plan
+       that doesn't change outcomes
 
-     Stop conditions are not suspended by deferred review — a non-auto-fixable gate failure
-     ends the deferred scope early and surfaces the issue to the user.
+     Stop conditions are not suspended by deferred review — a gate failure with neither an auto-fix nor an
+     in-scope fix ends the deferred scope early and surfaces the issue to the user.
 
      An unanticipated design decision enters [`amend-design`][amend-design] at that stop rather than being settled
      inside the increment; its [entry gate][amend-design-gate] returns that the design holds where only the
@@ -193,10 +195,15 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      for terminal verification. If the report contains an unresolved `[ ]`, dispatch to item 4's unresolved branch;
      otherwise dispatch to its resolved completion branch.
 
-     **A closing task that already carries a preserved boundary report does not re-walk.** It closes on the effective
-     report — that preserved report plus the deltas recorded since, composed per [validate-criteria's amendment
-     deltas][criteria-deltas] — with a completion note citing the subtask that recorded the delta, and dispatches to
-     item 4's resolved completion branch. The key is a fact on the task being executed, never list-wide state.
+     **A closing task that already carries a preserved boundary report does not re-walk.** For a `_Work:_ none`
+     amendment awaiting this verifier, run [validate-criteria's amendment-delta procedure][criteria-deltas] over the
+     changed criteria and amendment span; record the bounded delta in this verifier's own evidence, keyed by the
+     amendment row id.
+
+     Compose the effective report from the preserved report and its deltas. If any criterion remains `[ ]`, dispatch to
+     item 4's unresolved branch; otherwise close with a completion note citing the delta subtask, or the verifier and
+     amendment id for a work-free delta, and dispatch to the resolved branch. The key selecting this branch is the
+     preserved report on the task being executed, never list-wide state.
 
      Before a fresh member criteria walk or its first independent reviewer, invoke `arc review changeset resolve -`
      over the bounded member diff, including local edits, using `validate-criteria` § Verification subject for its
@@ -263,9 +270,10 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
      completion branch.
 
      Every answer — `Fix now`, `amend`, and `defer` alike — enters [`amend-design`][amend-design]; its
-     [entry gate][amend-design-gate] decides what the chosen answer changes. None of them lands work inside the
-     verifier's own increment: the correction takes a revision parent of its own, and this task closes later on
-     the effective report.
+     [entry gate][amend-design-gate] decides what the chosen answer changes. Corrective work takes a revision parent of
+     its own; it never lands inside the verifier's increment. An amendment with `_Work:_ none` needs no corrective
+     parent: the covering verifier records its bounded delta as verification evidence through the preserved-report path
+     above. This task closes only on a resolved effective report.
 
      **Resolved completion branch:** Finalize the task completion and report it through the ordinary task interlock.
 
@@ -314,10 +322,11 @@ selector. `canonicalize-provisional` resumes the matching delivery-entry route. 
          continue to the next task UNLESS explicitly stated otherwise. Address any stated concerns
          before moving on.
 
-     If any checklist item is unchecked, complete it before reporting. For quality gate failures: fix obvious
-     issues (lint, type errors) and re-run. Diagnose a non-obvious failure before posing it, then end the completion
-     report with `Quality gates failed: <details>. <cause>. Fix now or defer? (fix / defer)`. If diagnosis reaches
-     no cause, say so and ask for direction.
+     If any checklist item is unchecked, complete it before reporting. For quality gate failures: fix obvious issues
+     (lint, type errors), make an in-scope fix ([DEV-RULES.ARC][dev-rules-arc] § Quality gate failure), and re-run.
+     Diagnose any other failure before posing it, then end the completion report with
+     `Quality gates failed: <details>. <cause>. Fix now or defer? (fix / defer)`. If diagnosis reaches no cause, say
+     so and ask for direction.
 
 > [!IMPORTANT]
 > `task-interlock`: Stop after reporting task completion. Surface verification status and await

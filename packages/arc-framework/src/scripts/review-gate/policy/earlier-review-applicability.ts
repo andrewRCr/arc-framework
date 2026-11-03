@@ -1,5 +1,5 @@
 /** Compose earlier-attempt discovery, D4 projection, and canonical Candidate authority. */
-
+import { bindNativeReviewOperationReference } from "../core/review-operation-reference.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
 import {
   candidateReviewApplicabilitySelections,
@@ -33,7 +33,7 @@ import {
 import type {
   ReviewContributionApplicabilityResult,
 } from "./review-contribution-applicability.js";
-import { bindReviewSourceReference, parseReviewSourceReference } from "../core/review-source-reference.js";
+import { bindReviewSourceReference, parseReviewSourceReferenceForOwner, type ReviewSourceReferenceOwner } from "../core/review-source-reference.js";
 import type { HostedFindingsResponsePlan } from "../core/response-plan-schema.js";
 import { projectHostedFinding } from "../hosted/await.js";
 
@@ -59,7 +59,7 @@ export type EarlierHostedAttemptApplicabilityRead =
       readonly projection?: ReviewContributionApplicabilityResult;
       readonly authorityState?: "decision-required" | "blocked";
       readonly responsePlan?: HostedFindingsResponsePlan;
-      readonly localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string };
+      readonly localResumeAction?: { readonly schemaVersion: 1; readonly operationId: string; readonly operationRef?: string };
     }[];
   }
   | { readonly status: "not-found" }
@@ -75,6 +75,8 @@ export function earlierAttemptRetainsReservationPosition(outcome: string): boole
 }
 
 export interface EarlierReviewApplicabilityInput {
+  readonly stateOffBranch?: boolean;
+  readonly sourceOwner?: ReviewSourceReferenceOwner;
   readonly query: EarlierReviewAttemptQuery;
   readonly currentBase: string;
   readonly snapshot: ReviewOperationStateSnapshot;
@@ -90,6 +92,7 @@ export interface EarlierReviewApplicabilityInput {
 }
 
 function verifiedDeliveryMemberFixResponse(input: {
+  readonly sourceOwner?: ReviewSourceReferenceOwner;
   readonly record: ApprovedDispositionRecord | null;
   readonly candidate: EarlierReviewAttemptCandidate;
   readonly query: EarlierReviewAttemptQuery;
@@ -108,8 +111,8 @@ function verifiedDeliveryMemberFixResponse(input: {
   let sourceReference;
   try {
     sourceReference = record.source.kind === "hosted"
-      ? parseReviewSourceReference(record.source.attemptRef, "hosted")
-      : parseReviewSourceReference(record.source.receiptRef, "attested-local");
+      ? parseReviewSourceReferenceForOwner(record.source.attemptRef, "hosted", input.sourceOwner)
+      : parseReviewSourceReferenceForOwner(record.source.receiptRef, "attested-local", input.sourceOwner);
   } catch {
     return null;
   }
@@ -156,24 +159,55 @@ export function candidateExpectsEarlierReviewAttempt(
   ));
 }
 
+function earlierResponseRoutes(candidate: EarlierReviewAttemptCandidate, sourceOwner?: ReviewSourceReferenceOwner) {
+  return {
+    ...(candidate.outcome !== "findings" || candidate.findings.length === 0
+      ? {}
+      : {
+          responsePlan: {
+            schemaVersion: 1 as const,
+            target: candidate.reviewTarget,
+            source: {
+              kind: "hosted" as const,
+              attemptRef: bindReviewSourceReference({ ...sourceOwner,
+                kind: "hosted",
+                operationId: candidate.operationId,
+                durableRef: candidate.attemptId,
+              }),
+            },
+            findings: candidate.findings.map(projectHostedFinding),
+          },
+        }),
+    ...(candidate.sourceKind === "local" && candidate.outcome === "findings"
+      ? { localResumeAction: { schemaVersion: 1 as const, operationId: candidate.attemptId,
+          ...(sourceOwner === undefined ? {} : { operationRef: bindNativeReviewOperationReference({
+            ...sourceOwner, operationId: candidate.attemptId,
+          }) }) } }
+      : {}),
+  };
+}
+
 /** Project every exact earlier candidate without reading or writing authority outside the Candidate. */
 export async function projectEarlierReviewApplicability(
   input: EarlierReviewApplicabilityInput,
 ): Promise<EarlierHostedAttemptApplicabilityRead> {
   const query = EarlierReviewAttemptQuerySchema.parse(input.query);
+  const sourceOwner = input.sourceOwner;
   const queried = queryEarlierReviewAttempts(query, input.snapshot);
   if (queried.status === "unavailable") {
     if (queried.reason === "no-matching-attempt") return { status: "not-found" };
     return { status: "unavailable", detail: queried.detail };
   }
   const selections = candidateReviewApplicabilitySelections(input.candidate);
-  const ownRecord = gitCandidateRecordAtHead(input.exec, input.candidate.attestation.workUnit);
+  const ownRecord = input.stateOffBranch === true ? undefined
+    : gitCandidateRecordAtHead(input.exec, input.candidate.attestation.workUnit);
   const attempts = await Promise.all(queried.candidates.map(async (candidate) => {
     const dispositionRecord = candidate.outcome === "settled-findings"
       && input.readDispositionRecord !== undefined
       ? await input.readDispositionRecord(candidate.attemptId)
       : null;
     const fixResponse = verifiedDeliveryMemberFixResponse({
+      sourceOwner,
       record: dispositionRecord,
       candidate,
       query,
@@ -272,26 +306,7 @@ export async function projectEarlierReviewApplicability(
         : reviewApplicabilityConsumerAction(authority),
       ...(retainedByFixResponse ? { retentionBasis: "verified-fix-response" as const } : {}),
       ...(authority === null ? {} : { projection: authority.projection }),
-      ...(candidate.outcome !== "findings" || candidate.findings.length === 0
-        ? {}
-        : {
-            responsePlan: {
-              schemaVersion: 1 as const,
-              target: candidate.reviewTarget,
-              source: {
-                kind: "hosted" as const,
-                attemptRef: bindReviewSourceReference({
-                  kind: "hosted",
-                  operationId: candidate.operationId,
-                  durableRef: candidate.attemptId,
-                }),
-              },
-              findings: candidate.findings.map(projectHostedFinding),
-            },
-          }),
-      ...(candidate.sourceKind === "local" && candidate.outcome === "findings"
-        ? { localResumeAction: { schemaVersion: 1 as const, operationId: candidate.attemptId } }
-        : {}),
+      ...earlierResponseRoutes(candidate, sourceOwner),
       ...(authority !== null && (authority.state === "decision-required" || authority.state === "blocked")
         ? { authorityState: authority.state }
         : {}),

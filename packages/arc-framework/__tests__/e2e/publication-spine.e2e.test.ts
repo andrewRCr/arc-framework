@@ -94,7 +94,7 @@ async function createAtCapPublicationRepo(): Promise<string> {
     "review.standard_sources: []",
     "review.standard_sources: [delegated-agent]",
   ));
-  await git(repository, ["add", ".arc", ".gitignore"]);
+  await git(repository, ["add", ".arc", ".gitignore", ".ignore"]);
   await git(repository, ["commit", "-m", "install ARC"]);
   await git(repository, ["switch", "-c", "feat/example"]);
   await mkdir(join(repository, ".arc", "active"), { recursive: true });

@@ -51,7 +51,7 @@ import { createHostedAdmission } from "../../src/scripts/review-gate/hosted/requ
 import { projectLocalReviewGuidance } from "../../src/scripts/review-gate/policy/local-review-guidance.js";
 import { CandidateBoundMemberFixAuthoringSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import { normalizeFrontlineOutcome } from "../../src/scripts/review-gate/policy/frontline-outcome.js";
-import { computeFrontlineSourceBindingId } from "../../src/scripts/review-gate/policy/frontline-operation.js";
+import { computeFrontlineSourceBindingId } from "../../src/scripts/review-gate/core/frontline-source-binding.js";
 import { type RespondCommandDependencies } from "../../src/scripts/review-gate/runtime/respond-command.js";
 import { createLocalReviewReceipt } from "../../src/scripts/review-gate/runtime/local-attestation.js";
 

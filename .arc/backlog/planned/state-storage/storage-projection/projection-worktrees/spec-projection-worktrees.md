@@ -848,6 +848,12 @@ One adds to D13 without contradicting it:
    command's second check, or after a persist or release step took the aside copy over, goes to a deleted aside copy and
    is lost (`spec-projection-substrate.md` § 5.2). Reasoned, not measured: no tested editor or agent holds a file open
    across saves.
+
+   _Superseded by A10 in `spec-projection-substrate.md`:_ `settleAsideCopy` can lose a write through an open handle
+   after its final content read, before or after `deleteAsideCopy` unlinks the copy; an ordinary single save delayed
+   after open can reach this window. Production-source filesystem probes reproduce both sides of unlink. An empty
+   copy observed at its writer's second check waits for the next sweep, whose final read has the same loss boundary.
+   No finite settle interval proves the writer has finished.
 2. **An exact revert during a replacement.** A save to a file other than Markdown that exactly restores the version a
    replacement replaces, made while the index still records that version — during the replacement, after a stop or a
    rebuild's yield until the next command, or while the batch's aside copy waits for another process scope (item 9) —

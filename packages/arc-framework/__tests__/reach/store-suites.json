@@ -5,9 +5,9 @@
   "ask": "ARC_STORE_CHECK",
   "suites": ["packages/arc-framework/__tests__/integration/store-ref-*.test.ts"],
   "fullOnly": [
-    "packages/arc-framework/__tests__/integration/store-ref-separate-conformance-records.test.ts",
-    "packages/arc-framework/__tests__/integration/store-ref-separate-conformance-reads.test.ts",
-    "packages/arc-framework/__tests__/integration/store-ref-separate-conformance-sync.test.ts"
+    "packages/arc-framework/__tests__/integration/store-ref-separate-conformance-records-*.test.ts",
+    "packages/arc-framework/__tests__/integration/store-ref-separate-conformance-reads-*.test.ts",
+    "packages/arc-framework/__tests__/integration/store-ref-separate-conformance-sync-*.test.ts"
   ],
   "environment": [
     {

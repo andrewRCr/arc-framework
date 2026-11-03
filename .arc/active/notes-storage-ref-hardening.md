@@ -50,6 +50,70 @@ That work unit binds the review family's import mapping to `arc store migrate` (
 - **Until then.** Task 1.1's second trial sets the copy's other review-gate sources aside, and Task 1.3 records the
   unmapped-source notices under § Import state faults as cleared by the binding.
 
+## Remaining-task reground after shipped base
+
+The authorized reconciliation takes base `41963788ec39a67face3054ab4ad9351416a9b1c`, containing the delivery/review
+landing `7d5072b1401c791dae7c93e34282e8dd8e3b8c14` (PR #1248), onto pre-merge head
+`04d90f6b6073af480642f76aa7bb169b295ffaa8`. The scope is Tasks 5.12, 5.13, and 8.1, their acceptance criteria, and
+compatibility with completed tasks. This is the primary author's full `task-audit`, covering grounding and all eight
+issue categories; it supplies no independent review or final verification attestation.
+
+### Compatibility findings resolved for the merge
+
+- **Interface contracts / codebase drift — fix before starting, resolved in the composition.** Base's
+  `requireWaitBudget` rejected zero to protect a spent store deadline, while § 6.3 requires one zero-wait attempt.
+  `bindDeadline` already rejects aborted or exhausted deadlines before calling the lock port. The composition keeps
+  that boundary and the approved zero-wait behavior, plus base's positive-budget final attempt, bounded holder reads,
+  and reclamation guards. Negative waits still refuse without creating a lock. Zero admits one create despite an
+  advancing clock, and a failed create performs no holder read, recovery, or sleep. `createRefLockFactory` retains
+  the default positive release budget. Task 6.7 records the correction; its Goal and § 6.3 are unchanged.
+- Astra's bounded advice (`lock_merge_advisor`, first consultation for this reconciliation) confirmed that this is
+  settled composition rather than a new mode or design decision. Source grounding independently traced
+  `bindDeadline`, `withProjectionLock`, `withRepositoryReviewOperationLock`, and `runFrontlineReviewCommand`'s
+  positive timeout-plus-margin budget. No new caller was found encoding expiry as an unguarded zero.
+- **Test strategy / codebase drift — fix before starting, resolved in the fixture.** The duplicate-mapping case
+  added in Task 5.7 emits synthetic review content. Base uses `opaqueReviewImport` for such mapping mechanics, so the
+  merged case uses that existing adapter too; genuine command/mapping cases retain production codecs. The duplicate
+  write, retained-content, and complete-list assertions are unchanged.
+- Mechanical conflicts retain the ref-port split into `default-store-ports`, opaque review fixture setup in push
+  exclusion, and a portable Git-directory path plus the required `mtimeMs` fixture field. First-pull process
+  diagnostics remain intact and use base's shared `CALL_LIMIT` (30 seconds) from `00e3c1979f`; this separately shipped
+  budget change establishes no cause or fix for the accepted historical intermittent failure. Its recurrence stop
+  remains in force.
+
+The advancing-clock zero-wait cases failed against incoming base, then passed in the composition. The seven-suite
+selection covering advisory locks, version-floor ports, comparison leases, expired/aborted deadline admission,
+first-pull designation, push exclusion, and mapped import passed all 110 cases after the fixture correction. Raw
+results are `base-merge-zero-wait-red.log`, `base-merge-regression.log`, and
+`base-merge-regression-retry.log` under `~/dev/arc-evidence/storage-ref-hardening/implementation/`. The first combined
+run passed 109 cases and failed the synthetic mapping fixture; that result is retained rather than reported green.
+
+### Remaining-task findings
+
+- **5.12 / 5.13, dependency and interface contracts — carry as context.** `migratePorts` binds `mapReviewRecords`
+  only for the command's own ports. Use the real built CLI with no injected ports for the trial. `mapImportReview`
+  inventories the supplied sources, enforces coverage, and blocks an in-flight live review through its report.
+  `importTrackedState` still returns `status: "ok"` for a blocked trial: inspect `refused`, `reviewMapping`, and every
+  notice. A mapping failure stays a mapping-owned fault under 5.12; it is not silently patched or set aside here.
+- **5.12 / 5.13, execution assumptions — carry as context.** The real-state copy must include the primary Git common
+  directory, every source ref, and registered-worktree metadata. `readImportPersonalDisk` still reads the registered
+  checkouts' personal files live. The task's fresh notes-save approval and no-personal-write interval remain required;
+  the earlier hold is not renewed by this merge. No personal file, notes ref, or live state ref was changed here.
+  The destination must remain empty; `inspectImportDestination` can otherwise short-circuit a trial of an existing
+  landing. The ordinary in-repo backend and disposable copy preserve the approved one-time import boundary.
+- **8.1, verification coverage — carry as context.** Run the complete current verification workflow after the clean
+  real-state trial. All sixteen specification criteria, including A1–A3, remain subject to final evidence. Repeat
+  the fault-site sweep, real-state trial, merge gate, and exact-head normal hosted CI as the existing verification
+  note requires. The current CI offers `portability_store_full=true`; combine it with `run_portability_pair=true`
+  when qualifying the full Windows/macOS store runs so reach selection cannot omit the required deadline and burst
+  cases. This broadens normal coverage; leave diagnostic timing/file filters and per-change narrowing unset.
+  Final verification still needs the current inbox listing, aggregate author check, criteria walk, and Candidate
+  attestation; source regrounding is not a substitute for them.
+
+No additional masked decision, scope ambiguity, missing acceptance criterion, or new task dependency was found in
+5.12, 5.13, or 8.1. The staged merge must pass its hooks and `arc check new-head --from` the pre-merge head before
+execution relies on it. No trial or hosted CI was launched during this audit.
+
 ## Later work that reads § 1–§ 4
 
 `storage-projection`'s and `cohort-identity-verbs`' ref-backend phases build on the listing scope, the fault classes and

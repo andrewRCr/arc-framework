@@ -18,7 +18,7 @@ export function classifyStoreAddress(address: ArcLayoutAddress): ClassifiedStore
       : { kind: "personal/session-context", key: address.document.workUnit, identity: address.identity, entryList: false };
     case "cohort-document": return { kind: "cohort/document", entryList: false };
     case "arc-root": case "editor-document-root": case "editor-document": case "placement-root": case "work-unit-container":
-    case "procedure-root": case "project-document": case "user-root": return null;
+    case "procedure-root": case "project-document": case "user-root": case "work-unit-export": return null;
     default: return assertNever(address);
   }
 }

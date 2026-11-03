@@ -23,8 +23,7 @@ async function resolve(submitted: unknown, standardMaxPasses = 2, frontlineMaxPa
       sources: parsed.lane === "frontline" ? ["coderabbit-cli"] : ["codex-pr"],
       maxPasses: parsed.lane === "frontline" ? frontlineMaxPasses : standardMaxPasses,
       resultReader: reader, confirmTarget: async () => admission.target,
-      dispositionStore: { readDispositionRecord: async () => null,
-        appendDispositionRecord: async () => { throw new Error("not used"); } },
+      dispositionStore: { readDispositionRecord: async () => null },
     }),
     write: text => output.push(text), setExitCode: code => exitCodes.push(code),
   });
@@ -34,7 +33,7 @@ async function resolve(submitted: unknown, standardMaxPasses = 2, frontlineMaxPa
 function correction(result: unknown) {
   const error = ReviewCommandErrorEnvelopeSchema.parse(result);
   expect(error.error.code).toBe("invalid-input");
-  if (!("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
+  if (error.mode !== "review-resolve" || !("remedy" in error) || error.remedy === undefined) throw new Error("expected a corrected-input remedy");
   expect(error.remedy.argv).toEqual(["arc", "review", "resolve", "-"]);
   return ReviewPolicyCommandRequestSchema.parse(error.remedy.stdin);
 }

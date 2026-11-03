@@ -161,6 +161,24 @@
   out by the Owner's scope line for the deadline: a default-layout cutover runs no remote switch and has no separate
   store. Widened after that pass's fix check named the layout-move arm, the undo, and the backing setting.
 
+### `[ ]` **Make the batch write's stored-path collision check linear per ref**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ § Routed Items, Race and benchmark kit: its benchmark gaps.
+
+- _Observation:_ every ref-store batch write passes `storedPathCollision`
+  (`packages/arc-framework/src/lib/store/ref/write-build.ts:183-198`). For each put it filters every write in the
+  batch and builds neighbors over every entry in that put's ref, so its cost grows with the square of the batch per
+  ref. `storage-ref-hardening`'s Task 5.7 makes `checkRefBatchPaths` linear, the import's check and a batch write's
+  pre-check, and leaves `storedPathCollision` unchanged; the import never takes that path, and ordinary batches are
+  small, so the cutover does not reach the cost.
+
+- _Approach:_ group a batch's puts by ref and check each ref's paths once, as `findRefPathCollision` already does for
+  `checkRefBatchPaths`, with a benchmark case beside that unit's other batch-size measurements.
+
+- _Captured during:_ `storage-ref-hardening`'s task-list review (finding F10), 2026-10-31.
+
 ---
 
 ## Problem / Motivation

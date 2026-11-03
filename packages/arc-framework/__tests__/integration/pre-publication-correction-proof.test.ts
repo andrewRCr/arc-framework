@@ -302,7 +302,7 @@ async function publishedSingletonFix(maxPasses = 4) {
   const boundary = await readSubmissionBoundaryVersioned(cwd, "example");
   await writeSubmissionBoundary(cwd, projectPublicationBoundary({ workUnit: "example", branch: "feat/example",
     candidateId: candidate.attestation.candidateId, candidateSubjectDigest: candidate.subject.subjectDigest,
-    reservation, changeRequest: { repository: "owner/repo", pullRequest: 42 } }), boundary.version);
+    reservation, changeRequest: { repository: "owner/repo", pullRequest: 42 } }, 1), boundary.version);
   await writeFile(join(cwd, ".arc/active/meta-example.md"), makeMetaFixture("example", {
     state: "Integrating", currentWorkflow: "integrate-work-unit", owner: "andrew", branch: "feat/example",
     workClass: "Light", taskList: "tasks-example.md" }));

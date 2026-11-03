@@ -1,4 +1,5 @@
 /** Executable hosted-review progression across delivery-member targets. */
+import { IntegrationBoundaryLocusSchema } from "../../src/scripts/review-gate/policy/integration-boundary-locus.js";
 import { withReviewReport } from "../fixtures/review-report-input.js";
 import { createFixedLocalMemberReview, type FanOutHarness, completeLocalReviewThroughHandlers, createHarness, deliveryHost, git, installCandidate, member, repository, respondThroughHandler, resumeLocalThroughHandler, roots, selectReviewRequiredUntilRouted, statusThroughHandler, targetAndRequirement, writeBoundary } from "../fixtures/review-fan-out-harness.js";
 
@@ -593,7 +594,7 @@ async function createEightMemberHarness(): Promise<EightMemberHarness> {
     candidateSubjectDigest: candidate.subject.subjectDigest,
     reservation,
     changeRequest: { repository, pullRequest: 48 },
-  }), null);
+  }, 1), null);
   return {
     root,
     exec,
@@ -842,7 +843,7 @@ async function resolveThroughProductionHandler(root: string, request: unknown) {
 /** The status target an admission refusal's remedy names, after checking it names review status. */
 function remedyStatusTarget(output: unknown): { repository: string; headRef: string; headSha: string } {
   const refusal = ReviewCommandErrorEnvelopeSchema.parse(output);
-  if (!("remedy" in refusal)) throw new Error("expected a remedy on the admission refusal");
+  if (refusal.mode === "review-adversarial-record" || !("remedy" in refusal)) throw new Error("expected a remedy on the admission refusal");
   expect(refusal.error.code).toBe("invalid-input");
   expect(refusal.remedy.argv.slice(0, 4)).toEqual(["arc", "review", "status", "--target"]);
   return JSON.parse(refusal.remedy.argv[4] ?? "") as { repository: string; headRef: string; headSha: string };
@@ -1309,10 +1310,10 @@ describe("hosted review fan-out lifecycle", () => {
           },
           writeBoundary: async (boundary, expectedVersion) => ({
             status: "written",
-            path: await writeSubmissionBoundary(harness.root, boundary, expectedVersion),
+            path: await writeSubmissionBoundary(harness.root, IntegrationBoundaryLocusSchema.parse(boundary), expectedVersion),
           }),
         });
-        if (result.state === "recorded") {
+        if (result.state === "recorded" && result.nextAction === "commit-boundary") {
           await harness.exec("git", ["add", "--", result.boundaryPath], { cwd: harness.root });
         }
         return result;
@@ -1567,11 +1568,13 @@ describe("hosted review fan-out lifecycle", () => {
       },
       writeBoundary: async (boundary, expectedVersion) => ({
         status: "written",
-        path: await writeSubmissionBoundary(harness.root, boundary, expectedVersion),
+        path: await writeSubmissionBoundary(harness.root, IntegrationBoundaryLocusSchema.parse(boundary), expectedVersion),
       }),
     });
     expect(accepted).toMatchObject({ state: "recorded", nextAction: "commit-boundary" });
-    if (accepted.state !== "recorded") throw new Error("expected recorded final member terminus");
+    if (accepted.state !== "recorded" || accepted.nextAction !== "commit-boundary") {
+      throw new Error("expected tracked final member terminus");
+    }
     await git(harness.root, ["add", accepted.boundaryPath]);
     await git(harness.root, ["commit", "--only", accepted.boundaryPath, "-m", "record final terminus"]);
     const advancedTerminalHead = await git(harness.root, ["rev-parse", "HEAD"]);
@@ -2938,6 +2941,7 @@ describe("hosted review fan-out lifecycle", () => {
       currentTarget: requested.handle.admission.reviewTarget,
       currentLineage: requested.handle.admission.lineage,
       ...await readStandardPassCounts({ cwd: harness.root, exec: harness.exec, store: harness.store,
+        reviewRecordStore: undefined, workItem: undefined,
         repositoryId: harness.repositoryId, headSha: requested.handle.target.headSha,
         lineage: requested.handle.admission.lineage }),
       standardReview: policy.standardReview, resultReader, dispositionStore,
@@ -3008,7 +3012,7 @@ describe("hosted review fan-out lifecycle", () => {
       candidateSubjectDigest: candidate.record.subject.subjectDigest,
       reservation: pinnedReservation,
       changeRequest: { repository, pullRequest: 42 },
-    }), boundary.version);
+    }, 1), boundary.version);
     const lineage = {
       kind: "candidate" as const,
       candidateId: candidate.record.attestation.candidateId,
@@ -3125,7 +3129,7 @@ describe("hosted review fan-out lifecycle", () => {
       candidateSubjectDigest: candidate.record.subject.subjectDigest,
       reservation,
       changeRequest: { repository, pullRequest: 42 },
-    }), boundary.version);
+    }, 1), boundary.version);
     const lineage = { kind: "candidate" as const, candidateId: candidate.record.attestation.candidateId };
     const target = { repository, pullRequest: 42, headSha: harness.priorSecond };
     const reviewTarget = createReviewTarget({

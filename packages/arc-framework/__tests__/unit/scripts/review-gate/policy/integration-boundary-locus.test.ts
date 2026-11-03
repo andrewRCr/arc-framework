@@ -64,7 +64,7 @@ function singletonPublicationBoundary() {
       },
     }),
     changeRequest: { repository: "owner/repository", pullRequest: 41 },
-  });
+  }, 1);
 }
 
 describe("rebindSingletonPublicationResponseBoundary", () => {
@@ -108,7 +108,7 @@ function restoredAcceptedBoundary() {
     reservation: null,
     terminus: TERMINUS,
     changeRequest: null,
-  });
+  }, 1);
 }
 
 describe("recoverAttestedOwnerTerminusBoundary", () => {
@@ -156,7 +156,7 @@ describe("recoverAttestedOwnerTerminusBoundary", () => {
         candidateSubjectDigest: SOURCE_SUBJECT,
         reservation: null,
         changeRequest: null,
-      }),
+      }, 1),
       workUnit: "example",
       candidateId: SOURCE_CANDIDATE,
       candidateSubjectDigest: MOVED_SUBJECT,

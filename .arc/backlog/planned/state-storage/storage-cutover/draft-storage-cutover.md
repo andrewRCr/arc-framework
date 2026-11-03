@@ -843,4 +843,83 @@ evidence.
 - _Captured during:_ `storage-ref-backend` pre-publication standard review (finding F19, deferred with the approved
   disposition set), 2026-10-23.
 
+### `[ ]` **Save personal state from every checkout immediately before the import**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ the cutover procedure's pre-import steps and its rehearsal.
+
+- _Observation:_ the import blocks on every personal file whose disk copy differs from its saved notes copy ("Personal
+  file … differs between notes and disk copies", remedy `arc user save` and `arc user load`). The 2026-10-31 trial over
+  `main` found 10: `RELEASE-GATES.md`, `PM-NOTES.md`, `CINEXPLORER-MIGRATION.md`, `USER-INBOX.md`, and `SESSION-NOTES.md`
+  or `ADVERSARIAL-PASSES.md` under five live work units. Live sessions edit these continuously, so a save taken early
+  goes stale before the import runs.
+
+- _Approach:_ make quiescing the sessions and saving from every registered checkout one step immediately before the
+  import, and exercise it in the rehearsal.
+
+- _Captured during:_ the import trial Errand over current `main`, 2026-10-31.
+
+### `[ ]` **Commit the cutover's deletion pass to removing the review gate's inert local folders**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ the deletion pass; `seam-delivery-review`'s spec § 11.1–11.2 (left-behind review-gate files).
+
+- _Observation:_ the import's review mapping (`seam-delivery-review`) carries only live work's review-gate facts. It
+  leaves behind shipped work units' facts ("No live work item owns this review fact"), working state, retired
+  snapshots, retired-attempt frontline outcomes and older dispositions; 2,895 sources in its 2026-10-29 trial, about
+  2,940 files and 22 MB in `.git/arc/review-gate/` on 2026-10-31, dating from 2026-07-23. Left behind means not
+  imported: the files stay. That spec says the folders stay inert from the flip and that the cutover's deletion pass
+  "may" remove them, which commits nothing. Nothing reads a shipped work unit's review facts to decide (its § 11.1).
+
+- _Approach:_ make the deletion pass remove the inert review-gate folders after the flip, keeping the import's
+  left-behind report as the record of what was dropped. Leave the machine-local hosted-request owner index
+  (`identity/`), which stays in use after the flip, to the retention capture beside this one.
+
+- _Captured during:_ PM follow-up on the import trial, answered by `seam-delivery-review`, 2026-10-31.
+
+### `[ ]` **Repoint `storage-cutover`'s draft from `spec-storage-projection.md` to the projection members' specifications**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ the two inbound items citing `spec-storage-projection.md`: "Leave no tracked or installed file in a
+  projected root from the flip" (its § 18) and "Lock every unlocked work-item worktree at the cutover's quiesce" (its
+  § 18 and § 12.7).
+
+- _Observation:_ `storage-projection` was decomposed on 2026-10-31 into `projection-substrate`,
+  `projection-write-back`, and `projection-worktrees`, and its specification retired with it. Each member's
+  specification keeps the design's section numbers, says in its Section numbers term which member builds each section,
+  and states in its own § 18 what it leaves to `storage-cutover`. The worktree lock and § 12.7 are
+  `spec-projection-substrate.md`'s, and materialization into the projected roots is `spec-projection-worktrees.md`'s.
+
+- _Approach:_ repoint each citation to the member specification holding the cited content, checking each member's
+  `storage-cutover` entry in § 18.
+
+- _Captured during:_ `storage-projection`'s decomposition, distribution approval (2026-10-31).
+
+### `[ ]` **Retarget the flip's session-init rewrite at the session-init agenda's spine and its cutover module**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
+
+- _Shapes:_ the flip's workflow-rewrite step list — the consumer-map end states for `session-init.md` and
+  `probe-envelope.md` (`notes-storage-contract.md`).
+
+- _Observation:_ `session-init-agenda` (Gate B Must, in draft-design) lands before the flip (Owner, 2026-10-31):
+  `session-init.md` becomes a spine plus CLI-selected arm methods, a dedicated `arc agenda session-init` verb compiles
+  the agenda, and `probe-envelope.md` is deleted. The consumer map's end states for `session-init.md` and
+  `probe-envelope.md` — removing the notes pull/load dispatch and the notes-lag,
+  compaction, partial-push and notes-drift surfaces, moving the freshness anchor to the store state version, reading
+  session notes from the meta — describe prose that unit restructures.
+
+- _Approach:_ the agenda compiles every surface the cutover retires in one CLI module, so the flip's rewrite becomes
+  deleting that module, plus the freshness and session-notes changes in the compiler, which reads SESSION-NOTES'
+  `Session Type` and `Commit at Handoff` itself. Prose still to rewrite at the flip: the spine's SESSION-NOTES authority
+  boundary (notes come from the meta's session context, D5) and the `discover-next-work` method's `.arc/backlog/` and
+  `.arc/active/` reads (discovery reads the projected backlog or `list`). Re-derive those rewrite steps from
+  `draft-session-init-agenda.md` (or its spec) once it settles, not from today's prose. `session-init.contributor.md` is
+  deleted by that unit (D14 retires the contributor layout), so the flip has no contributor-variant rewrite left.
+
+- _Captured during:_ `session-init-agenda` draft-design, 2026-10-31.
+
 ---

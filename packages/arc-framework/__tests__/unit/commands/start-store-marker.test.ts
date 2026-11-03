@@ -8,6 +8,7 @@ import { runCreateNew, runGraduate } from "../../../src/commands/start.js";
 import { buildExecutorContext } from "../../../src/lib/work-unit/executor-context.js";
 import { createDefaultLocusPorts, type LocusPorts } from "../../../src/lib/work-unit/locus-ports.js";
 import { writeWorktreeOwnershipMarker, resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
+import { PROJECTION_LOCK_REASON } from "../../../src/lib/git/worktree-removal.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import { createUserIOContext } from "../../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../../src/lib/paths.js";
@@ -39,7 +40,9 @@ async function fixture(ports?: LocusPorts, productionOccupancy = false) {
     if (args.join(" ") === "rev-parse --show-toplevel") return { stdout: root };
     if (args.join(" ") === "rev-parse --git-common-dir") return { stdout: root };
     if (args[0] === "worktree" && args[1] === "list") return { stdout: worktreePorcelainZ(`worktree ${root}\nHEAD ${"a".repeat(40)}\nbranch refs/heads/person\n`) };
-    mutations.push([...args]); throw new Error(`Unexpected physical mutation: ${args.join(" ")}`);
+    mutations.push([...args]);
+    if (args[0] === "worktree" && args[1] === "lock") return { stdout: "" };
+    throw new Error(`Unexpected physical mutation: ${args.join(" ")}`);
   };
   const io = { ...createUserIOContext(), exec };
   const ctx = buildExecutorContext({ cwd: root, io, store: h.store, locusPorts: ports, identity: "starter", teamMode: false, internalTemplateDir: getInternalTemplatePath() });
@@ -157,5 +160,6 @@ it.each([false, true])("uses the actual graduation placement with an occupied ca
     expect((await h.read()).placement).toEqual({ kind: "active" });
   }
   expect(await readFile(h.markerPath)).toEqual(originalMarker);
-  expect(h.mutations).toEqual([]);
+  // A spawned graduation's one physical step after its placement is the lock on the checkout it spawned.
+  expect(h.mutations).toEqual(inPlace ? [] : [["worktree", "lock", "--reason", PROJECTION_LOCK_REASON, join(h.root, "spawn")]]);
 });

@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { DeliveryLocalReviewAdmissionSchema } from "../../../../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
+import { createDeliveryLocalReviewAdmission } from "../../../../fixtures/local-review-preparation.js";
 
 import { CanonicalDigestSchema, canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { createReviewRequirement, createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
@@ -91,37 +93,7 @@ describe("local review operation identity", () => {
 
   it("returns an identical existing operation and re-verifies it without rebuilding", async () => {
     const admission = createLocalReviewAdmission(fixture());
-    const guidance = projectLocalReviewGuidance();
-    const state = {
-      schemaVersion: 1 as const,
-      semanticsVersion: "review-operation/v1" as const,
-      kind: "local-review" as const,
-      operationId: admission.operationId,
-      updatedAt: "2026-07-23T17:00:00Z",
-      vehicle: admission.authority.vehicle,
-      repositoryId: admission.target.repositoryId,
-      targetId: admission.target.targetId,
-      requestId: admission.carrier.request.requestId,
-      policyVersion: admission.requirement.policyVersion,
-      policyBindingDigest: CanonicalDigestSchema.parse(admission.policyBindingDigest),
-      laneSourceId: admission.laneSourceId,
-      lineage: admission.lineage,
-      logicalPass: admission.logicalPass,
-      retryGeneration: admission.retryGeneration,
-      coverageAdmission: admission.coverageAdmission,
-      scopeMode: admission.scopeMode,
-      attestationRuntimeKind: admission.authority.attestationRuntimeKind,
-      sourceRef: "review-source.json",
-      sourceDigest: digest("source"),
-      guidance: guidance.projection,
-      guidanceDigest: CanonicalDigestSchema.parse(guidance.guidanceDigest),
-      reviewerInstructions: guidance.reviewerInstructions,
-      target: admission.target,
-      requirement: admission.requirement,
-      request: admission.carrier.request,
-      attestation: admission.carrier.attestation,
-      cleanupTtlMs: 60_000,
-    };
+    const state = operationState(admission);
     const store: ReviewOperationStateStore = {
       readOperation: vi.fn(async () => ({ version: 1, state })),
       publishOperation: vi.fn(),
@@ -189,4 +161,81 @@ describe("local review operation identity", () => {
       expect(admission.carrier.request.requestId).not.toBe(original.carrier.request.requestId);
     }
   });
+});
+
+function memberInput() {
+  const input = fixture(), { targetId: _targetId, ...fields } = input.target;
+  void _targetId;
+  const target = createReviewTarget({ ...fields, kind: "delivery-member" });
+  const requirement = createReviewRequirement({ target, projection: { obligation: "recommended", reasons: ["routine-code"],
+    rubricVersion: "standard-review/v1", rubricDigest: digest("rubric"), retrigger: "full-final", count: 1 },
+    acceptableSources: [{ sourceKind: "agent", qualifier: "standard-review/v1" }], initialAdmission: "checkpoint" });
+  if (requirement === null) throw new Error("Expected review requirement");
+  const deliveryAdmission = DeliveryLocalReviewAdmissionSchema.parse(createDeliveryLocalReviewAdmission(target.headSha));
+  const { head: _head, ...lineage } = deliveryAdmission.vehicle;
+  void _head;
+  return { ...input, target, requirement, deliveryAdmission, lineage: LaneSubjectLineageSchema.parse(lineage),
+    authority: { ...input.authority, vehicle: { kind: "delivery-member" as const, identity: deliveryAdmission.vehicle.deliverableId } } };
+}
+
+it.each(["ceilingOverride", "additionalPassAuthorization"] as const)("keeps delivery operation and request identities stable across transient %s references", field => {
+  const input = memberInput(), target = input.deliveryAdmission.target;
+  const grant = field === "ceilingOverride" ? { target, lane: "standard" as const, exhaustedPassCount: 0, nextPass: 1 }
+    : { target, lane: "standard" as const, precedingProducerId: "producer-1", completedPasses: 0, nextPass: 1 };
+  const baseline = createLocalReviewAdmission({ ...input, deliveryAdmission: { ...input.deliveryAdmission, [field]: grant } });
+  const decisionKey = digest(field);
+  const referenced = createLocalReviewAdmission({ ...input,
+    deliveryAdmission: { ...input.deliveryAdmission, [field]: { ...grant, decisionKey } } });
+  expect(referenced.operationId).toBe(baseline.operationId);
+  expect(referenced.carrier.request.requestId).toBe(baseline.carrier.request.requestId);
+  expect(referenced.deliveryAdmission?.[field]).toHaveProperty("decisionKey", decisionKey);
+});
+
+function operationState(admission: ReturnType<typeof createLocalReviewAdmission>) {
+    const guidance = projectLocalReviewGuidance();
+    return {
+      schemaVersion: 1 as const,
+      semanticsVersion: "review-operation/v1" as const,
+      kind: "local-review" as const,
+      operationId: admission.operationId,
+      updatedAt: "2026-07-23T17:00:00Z",
+      vehicle: admission.authority.vehicle,
+      repositoryId: admission.target.repositoryId,
+      targetId: admission.target.targetId,
+      requestId: admission.carrier.request.requestId,
+      policyVersion: admission.requirement.policyVersion,
+      policyBindingDigest: CanonicalDigestSchema.parse(admission.policyBindingDigest),
+      laneSourceId: admission.laneSourceId,
+      lineage: admission.lineage,
+      logicalPass: admission.logicalPass,
+      retryGeneration: admission.retryGeneration,
+      coverageAdmission: admission.coverageAdmission,
+      scopeMode: admission.scopeMode,
+      attestationRuntimeKind: admission.authority.attestationRuntimeKind,
+      sourceRef: "review-source.json",
+      sourceDigest: digest("source"),
+      guidance: guidance.projection,
+      guidanceDigest: CanonicalDigestSchema.parse(guidance.guidanceDigest),
+      reviewerInstructions: guidance.reviewerInstructions,
+      target: admission.target,
+      requirement: admission.requirement,
+      request: admission.carrier.request,
+      attestation: admission.carrier.attestation,
+      cleanupTtlMs: 60_000,
+      ...(admission.deliveryAdmission === undefined ? {} : { deliveryAdmission: admission.deliveryAdmission }),
+    };
+}
+
+it.each(["ceilingOverride", "additionalPassAuthorization"] as const)("reuses an existing delivery operation across transient %s references", async field => {
+  const input = memberInput(), target = input.deliveryAdmission.target;
+  const grant = field === "ceilingOverride" ? { target, lane: "standard" as const, exhaustedPassCount: 0, nextPass: 1 }
+    : { target, lane: "standard" as const, precedingProducerId: "producer-1", completedPasses: 0, nextPass: 1 };
+  const original = { ...input, deliveryAdmission: { ...input.deliveryAdmission, [field]: grant } };
+  const admission = createLocalReviewAdmission(original), state = operationState(admission);
+  const store: ReviewOperationStateStore = { readOperation: async () => ({ version: 1, state }), publishOperation: vi.fn() };
+  const result = await resolveLocalReviewAdmission({ ...input,
+    deliveryAdmission: { ...input.deliveryAdmission, [field]: { ...grant, decisionKey: digest(field) } } },
+    { store, verifyExisting: async () => undefined });
+  expect(result).toMatchObject({ state: "existing", operationId: admission.operationId,
+    deliveryAdmission: { [field]: { decisionKey: digest(field) } }, persistedState: { operationId: admission.operationId } });
 });

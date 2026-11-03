@@ -12,6 +12,12 @@ import { createIntegrationMergeDependencies } from "../../src/scripts/integratio
 import { createTempRepo, cleanupTempDir, makeGitExec, makeGitExecInput, makeCommit } from "../helpers/integration.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { candidateFixture } from "../helpers/store/tracked-write-fixture.js";
+import { writeCandidateRecord } from "../../src/lib/work-unit/candidate-record-store.js";
+import { readIntegrationCheckpointComposition } from "../../src/scripts/integration/checkpoint-store.js";
+import { composeCanonicalSettlementPlan } from "../../src/scripts/integration/settlement-plan.js";
+import { createUserSurfaceResolver } from "../../src/lib/user-surfaces.js";
+import { SlugSchema, canonicalDigest } from "../../src/lib/kernel/index.js";
 
 async function fixture() {
   const root = await createTempRepo("arc-lifecycle-storage-");
@@ -24,7 +30,11 @@ async function fixture() {
     await mkdir(dirname(join(root, path)), { recursive: true }); await writeFile(join(root, path), content);
   };
   const save = async () => { await exec("git", ["add", "."]); return makeCommit(root, "Save lifecycle records"); };
-  return { root, exec, ports, store, storage, put, save };
+  const metaVersion = async (name: string, asOf: string) => success(await store.read({
+    reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name } }),
+    asOf: StateVersionSchema.parse(asOf),
+  })).version;
+  return { root, exec, ports, store, storage, put, save, metaVersion };
 }
 const completion = "\n## Completion Notes\n\nDelivered the work unit.\n";
 function changeRequestPort(head: string) {
@@ -36,6 +46,50 @@ function changeRequestPort(head: string) {
 }
 
 describe("store lifecycle snapshot", () => {
+  it.each([false, true])("persists the captured meta version despite later lifecycle reads (%s)", async (interleaved) => {
+    const h = await fixture();
+    await h.exec("git", ["config", "arc.identity", "andrew"]);
+    await h.put(".arc/system/arc-config.yml", "archive.cadence: manual\n");
+    const path = ".arc/active/meta-example.md";
+    await h.put(path, makeMetaFixture("example", { state: "Integrating" }) + completion);
+    const head = await h.save();
+    let selected = await h.storage.readSnapshot();
+    const reference = RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "example" } });
+    const meta = success(await h.store.read({ reference, asOf: selected.version }));
+    await writeCandidateRecord(h.root, "example", candidateFixture(), null);
+    const dependencies = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec,
+      lifecycleStorage: { readSnapshot: async () => selected } });
+    const lifecycle = await dependencies.readLifecycle("example");
+    expect(lifecycle).toMatchObject({ storageVersion: head, complete: true });
+    expect(lifecycle).not.toHaveProperty("metaVersion");
+    if (interleaved) {
+      await h.put(path, makeMetaFixture("example", { state: "Integrating", priority: "P1" }) + completion);
+      await h.save();
+      selected = await h.storage.readSnapshot();
+      await dependencies.readLifecycle("example");
+    }
+    const request: Parameters<typeof dependencies.createHandle>[0] = { workUnit: "example", approvedHead: head,
+      candidateTailDiff: { fromRevision: head, throughRevision: head, reference: `${head}..${head}` },
+      requirementSummary: { conclusion: "satisfied", requirements: [] },
+      statusSummary: { lifecycle, changeRequest: { repository: "owner/repo", pullRequest: 42,
+        baseRef: "main", headRef: "feat/example", headSha: head, state: "open" }, requiredChecks: "green" },
+      settlementPlan: composeCanonicalSettlementPlan([]), mergeMethod: { schemaVersion: 1,
+        mode: "review-merge-method-resolve", repository: "owner/repo", stackPosition: "non-delivery", state: "validated",
+        nextAction: "use-method", method: "merge", allowedMethods: ["merge"], policyFingerprint: canonicalDigest({ policy: 1 }) } };
+    const author = interleaved ? dependencies : createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec,
+      lifecycleStorage: { readSnapshot: async () => selected } });
+    if (!interleaved) {
+      await expect(author.createHandle(request)).rejects.toThrow(/lifecycle record version.*recompose.*retry/iu);
+      await author.readLifecycle("example");
+    }
+    const result = await author.createHandle(request);
+    expect(result.status).toBe("created");
+    if (result.status !== "created") throw new Error("Candidate unexpectedly moved");
+    const surfaces = createUserSurfaceResolver({ cwd: h.root, identity: SlugSchema.parse("andrew") });
+    const record = await readIntegrationCheckpointComposition(surfaces.workUnitRoot(SlugSchema.parse("example")), "example", result.handle);
+    expect(record?.lifecycleVersion).toBe(meta.version);
+    expect(record?.lifecycleVersion).not.toBe(head);
+  });
   it("bounds saved inventory acquisition independently of snapshot record reads", async () => {
     const h = await fixture();
     const paths = [".arc/active", ".arc/backlog/planned/planned", ".arc/backlog/provisional/group/nested",
@@ -195,7 +249,7 @@ describe("store lifecycle snapshot", () => {
       const repaired = await h.save();
       expect((await h.storage.readSnapshot()).version).toBe(repaired);
       expect(await checkpoint.readLifecycle("example")).toMatchObject({ complete: true, storageVersion: repaired });
-      expect(await merge.readStatus("example")).toMatchObject({ lifecycleComplete: true, lifecycleVersion: repaired });
+      expect(await merge.readStatus("example")).toMatchObject({ lifecycleComplete: true, lifecycleVersion: await h.metaVersion("example", repaired) });
     });
   }
   it("matches the legacy lifecycle summary and bytes at a pinned state across every placement", async () => {
@@ -250,16 +304,19 @@ describe("store lifecycle snapshot", () => {
     expect(await checkpoint.readLifecycle("example")).toMatchObject({ storageVersion: next, complete: true });
     expect(await checkpoint.readLifecycle("upper")).toMatchObject({ state: "nonexistent" });
     const injected = createIntegrationCheckpointDependencies({ cwd: h.root, exec: h.exec,
-      lifecycleStorage: { readSnapshot: async () => ({ version: head, fs: createGitTreeReadFs({ cwd: h.root, revision: head, exec: h.exec }) }) } });
+      lifecycleStorage: { readSnapshot: async () => ({ version: head,
+        metaVersion: (workUnit) => workUnit === "example" ? "meta-example:v1" : null,
+        fs: createGitTreeReadFs({ cwd: h.root, revision: head, exec: h.exec }) }) } });
     expect(await injected.readLifecycle("example")).toMatchObject({ storageVersion: head, complete: true });
     await h.put(".arc/system/arc-config.yml", "archive.cadence: with-integration\n");
     const mergeHead = await h.save();
     const merge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, workUnit: "upper", changeRequestPort: changeRequestPort(mergeHead) });
-    expect(await merge.readStatus("upper")).toMatchObject({ lifecycleVersion: mergeHead, lifecycleComplete: false });
+    expect(await merge.readStatus("upper")).toMatchObject({ lifecycleVersion: null, lifecycleComplete: false });
     const legacyMerge = createIntegrationMergeDependencies({ cwd: h.root, exec: h.exec, workUnit: "upper", changeRequestPort: changeRequestPort(mergeHead),
       lifecycleStorage: { readSnapshot: async () => ({ version: mergeHead,
+        metaVersion: (workUnit) => workUnit === "upper" ? "meta-upper:v1" : null,
         fs: createGitTreeReadFs({ cwd: h.root, revision: mergeHead, exec: h.exec }) }) } });
-    expect(await legacyMerge.readStatus("upper")).toMatchObject({ lifecycleVersion: mergeHead, lifecycleComplete: true });
+    expect(await legacyMerge.readStatus("upper")).toMatchObject({ lifecycleVersion: "meta-upper:v1", lifecycleComplete: true });
   });
   it("refuses missed lifecycle evidence in snapshots and default deciding ports, then resumes after repair", async () => {
     const h = await fixture();
@@ -280,7 +337,7 @@ describe("store lifecycle snapshot", () => {
     const snapshot = await h.storage.readSnapshot();
     expect(snapshot.version).toBe(repaired);
     expect(await checkpoint.readLifecycle("example")).toMatchObject({ storageVersion: repaired, complete: true });
-    expect(await merge.readStatus("example")).toMatchObject({ lifecycleVersion: repaired, lifecycleComplete: true });
+    expect(await merge.readStatus("example")).toMatchObject({ lifecycleVersion: await h.metaVersion("example", repaired), lifecycleComplete: true });
     for (const name of ["upper"]) {
       expect(await readLifecycleSummary(h.root, name, "with-integration", repaired, snapshot.fs)).toMatchObject({ state: "nonexistent" });
     }
@@ -326,5 +383,5 @@ it.each([
   expect(snapshot.version).toBe(repaired);
   expect(await snapshot.fs.readFile(join(h.root, path))).toBe(valid.trimEnd());
   expect(await checkpoint.readLifecycle("example")).toMatchObject({ storageVersion: repaired, complete: true });
-  expect(await merge.readStatus("example")).toMatchObject({ lifecycleVersion: repaired, lifecycleComplete: true });
+  expect(await merge.readStatus("example")).toMatchObject({ lifecycleVersion: await h.metaVersion("example", repaired), lifecycleComplete: true });
 });

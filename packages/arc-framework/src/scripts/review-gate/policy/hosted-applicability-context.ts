@@ -1,23 +1,24 @@
 /** Fresh hosted applicability reads for one exact Candidate or delivery member. */
+import type { OwnerIdentity } from "../../../lib/store/identity.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { GitExec, RawGitExec } from "../../../lib/git/exec.js";
 import type { DeliveryHostPort } from "../../../lib/delivery/host.js";
 import { readGitCandidateTargetBase } from "../../../lib/work-unit/git-candidate-effective-target.js";
 import type { DeliveryDischargeTargetLookup } from "../core/delivery-member-lookup.js";
-import type { LocalReviewOperationStateStore } from "../hosts/local/operation-state-store.js";
-import type { LocalApprovedDispositionRecordStore } from "../hosts/local/disposition-record-store.js";
+import type { ReviewInFlightPort, ApprovedDispositionRecordReader } from "../core/ports.js";
 import { projectEarlierReviewApplicability, type EarlierHostedAttemptApplicabilityRead } from "./earlier-review-applicability.js";
 import type { HostedReservationDischargeReaderArgs } from "./hosted-reservation-support.js";
 
 interface HostedApplicabilityContextInput {
+  readonly nativeWorkItem?: OwnerIdentity;
   readonly cwd: string;
   readonly exec: GitExec;
   readonly rawExec: RawGitExec;
   readonly remote?: string;
   readonly delivery?: DeliveryDischargeTargetLookup;
   readonly host?: Pick<DeliveryHostPort, "readRequest">;
-  readonly store: LocalReviewOperationStateStore;
-  readonly dispositions: LocalApprovedDispositionRecordStore;
+  readonly store: Pick<ReviewInFlightPort, "readOperationSnapshot" | "stateOffBranch">;
+  readonly dispositions: ApprovedDispositionRecordReader;
   readonly repositoryId: () => Promise<string>;
   readonly args: Omit<HostedReservationDischargeReaderArgs, "workUnitId" | "reservation">;
 }
@@ -98,6 +99,9 @@ export async function createHostedApplicabilityContext(input: HostedApplicabilit
     ? undefined
     : async (sourceId: string): Promise<EarlierHostedAttemptApplicabilityRead> => (
         projectEarlierReviewApplicability({
+          stateOffBranch: store.stateOffBranch,
+          sourceOwner: input.nativeWorkItem === undefined ? undefined
+            : { repositoryId: currentRepositoryId, workItem: input.nativeWorkItem },
           query: {
             schemaVersion: 1,
             repositoryId: currentRepositoryId,

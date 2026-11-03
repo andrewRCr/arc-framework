@@ -511,6 +511,9 @@ annotated commit.
   guards when recovering the original stored paths from a logical collision. The public primary-record fixture
   also carries its required placement.
 
+- _Note:_ Base-merge feedback adapted the branch-added duplicate-mapping case to the existing opaque review
+  fixture used by synthetic mappings. Its duplicate-record, content, and listing assertions remain intact.
+
 - _Outcome:_ Batch admission groups original stored paths by ref and unresolved owner, skips identical references,
   and checks each namespace once. Logical collisions name their original stored paths. Public preflight and native
   mapping cases retain the collision and exemption behavior; a real CLI trial checks 20,000 personal paths within
@@ -567,6 +570,8 @@ annotated commit.
   fix to the review mapping it records has landed and this unit has merged base, the verifier confirms a clean report
   rather than discovering faults.
 
+**Additional Context:** `notes-storage-ref-hardening.md` § Remaining-task reground after shipped base.
+
 - _Note:_ It runs once this branch holds the review family's import mapping; until then the loop waits here, since
   tasks run in document order. See `notes-storage-ref-hardening.md` § Coordination with `seam-delivery-review`.
 
@@ -591,6 +596,8 @@ annotated commit.
 ### `[ ]` **5.13 A trial import of real state returns a clean report** — validate exit criterion at segment scope
 
 - _Goal:_ A fresh disposable copy's `--trial` import returns the report Phase 5's exit criterion states.
+
+**Additional Context:** `notes-storage-ref-hardening.md` § Remaining-task reground after shipped base.
 
 - _Note:_ It runs after 5.12 and any corrective parent ahead of it, once this branch holds the review family's import
   mapping and, for any fault 5.12 recorded in that mapping, its fix has landed and this unit has merged base; until then
@@ -709,6 +716,10 @@ pull leaves writes and pull merges free of `lock-held` on the layout lock.
 - _Goal:_ A push that overlaps another checkout's pull on the same remote never holds the layout lock while waiting
   for that remote's keeper lease, and the keeper lease is the one lock other than the move lock held across a network
   call.
+
+- _Note:_ Base reconciliation preserves the positive-budget backoff and reclamation guards while keeping this
+  task's zero-wait attempt. The spent sync deadline still refuses before the port; advancing-clock zero-wait cases
+  and expired-port admission cases cover their composition.
 
 - _Note:_ 6.7.a is pulled forward with 6.6: its explicit zero-wait keeper request supplies the public Store path that
   verifies zero is preserved through deadline and operation wrappers over the default lock port. The lease dance
@@ -893,6 +904,8 @@ before its fix and passes after it in the store suites.
 
 - _Goal:_ Every success criterion is backed by evidence at the final implementation head, with required checks and
   integration readiness established through the work-unit verification workflow.
+
+**Additional Context:** `notes-storage-ref-hardening.md` § Remaining-task reground after shipped base.
 
 - _Note:_ See `notes-storage-ref-hardening.md` § Verification at the final head and § Review during execution.
 

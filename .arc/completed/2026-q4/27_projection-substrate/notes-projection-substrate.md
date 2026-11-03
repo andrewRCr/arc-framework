@@ -1,0 +1,710 @@
+# Notes: projection-substrate
+
+## Contents
+
+- [Spike evidence](#spike-evidence)
+- [Spike 1 — the refresh's replace guard](#spike-1--the-refreshs-replace-guard)
+- [Spike 1b — moving the file aside](#spike-1b--moving-the-file-aside)
+- [Spike 3 — how editors and agent tools write](#spike-3--how-editors-and-agent-tools-write)
+- [Spike 7 — aside copies against a stale buffer's record](#spike-7--aside-copies-against-a-stale-buffers-record)
+- [A1 — an emptied aside copy waits for the next sweep](#a1--an-emptied-aside-copy-waits-for-the-next-sweep)
+
+## Spike evidence
+
+Each spike's harness and raw logs stay on the machine that ran it, under `~/dev/scratch/arc-storage-spike/projection/`;
+this file keeps the results and what they settle. Linux runs are WSL2 on ext4; Windows runs use `node.exe` on NTFS.
+The September spikes behind `storage-contract`'s Part B are in its notes, § Evidence behind Part B.
+
+## Spike 1 — the refresh's replace guard
+
+Run 2026-10-09 on both platforms (`spike1/`; Linux Node 26.3 and Git 2.55, Windows `node.exe` 22.17 and Git for
+Windows 2.49). Most Windows runs ran under 29–66% host CPU from other suites sharing the machine; each run's load is in
+its `results/*.gate.txt`.
+
+**Exclusive open.** `fs.constants.UV_FS_O_EXLOCK` is absent, but the raw `0x10000000` flag passes through on Windows,
+from `openSync` and `fs.promises.open` alike: while one process holds the file, another gets `EBUSY` on every open and
+on unlink, and `EPERM` on a rename over it. Linux ignores the flag.
+
+**The same-size save at the re-check** (`sametick.mjs`). The projection writes F through a staged file, records the
+entry from the staged file's stat, renames it onto F, and writes the index; a second process toggles one checkbox (a
+same-size write, whole-file or one byte in place) at a set delay after F appears, and the refresh re-checks and
+renames. Edits finished before the refresh began, 4,000 per variant and delay, summed over 4 KB and 76 KB files and
+both write methods:
+
+| Variant                                   | Linux lost at 0 / 0.2 / 1 / 5 ms | Windows lost at 0 / 0.2 / 1 / 5 ms   | False defers per 2,000        |
+| ----------------------------------------- | -------------------------------- | ------------------------------------ | ----------------------------- |
+| A: stat re-check                          | 3,935 / 3,888 / 3,585 / 1,972    | 363 / 160 / 0 / 0                    | 0                             |
+| B: racy entries hashed                    | 8 / 0 / 0 / 0                    | 40 / 1 / 0 / 0                       | 0                             |
+| B': racy entries deferred                 | 4 / 0 / 0 / 0                    | 35 / 0 / 0 / 0                       | Linux ~1,980, Windows 193–389 |
+| H: always hash                            | 0 / 0 / 0 / 0                    | 0 / 0 / 0 / 0                        | 0                             |
+| B, index written before the rename onto F | 0 / 0 / 0 / 0                    | 0 / 0 / 0, 5 ms not run (2,000 each) | 0                             |
+
+- A loses every same-size save inside F's modification-time tick; holding the file exclusively during the check
+  changes nothing (Windows, 372 and 162 lost).
+- Every loss under B and B' had the save in F's tick and the index file in a later tick, so the entry never looked
+  racy. Writing the index before renaming the staged file onto F removes that order: a save can only follow the
+  rename, so a save in F's tick puts the index in that tick too, and the entry is racy and hashed. If the process stops
+  between the index write and the rename, F still holds its old bytes and old stamp, which equal their own base, so
+  write-back finds no edit and the next refresh replaces them.
+- B' defers almost every refresh on Linux, where 10 ms ticks leave nearly every fresh entry racy.
+- Re-check to finished rename takes 22–114 µs on Linux and 0.48–0.83 ms on Windows for A and B; always hashing raises
+  Windows to 0.91–1.41 ms.
+
+**A save during the re-check-to-rename interval** (the same harness, the refresh starting while the editor fires): no
+variant closes it. A save that opens, writes, and closes inside the interval is replaced on both platforms. At the
+delays that land in it, A and B lost 67–1,146 of 4,000 per delay on Linux (0.05–0.2 ms) and 117–237 of 1,500 on Windows
+(1.5–2.5 ms); always hashing, whose slower re-check widens the interval, lost up to 985 and 409. Holding the file
+exclusively turned 173–239 of 1,500 saves per delay into editor `EBUSY` failures and still lost 6–354. On Linux,
+September's descriptor held across the rename rescues an in-place save, never a replace-style one, which swaps in a new
+file the descriptor does not see; Windows refuses a rename while anyone holds the file, so it has no rescue. Every save
+timed into the interval here was in place (`trunc`, `pwrite`); replace-style saves there are untested on both
+platforms.
+
+**Burst** (September's `entryburst.mjs` with 35% checkbox toggles, September's rescue off). On Linux, 20 worktrees ×
+16 edits: A lost 9 of 9,600 operations over two runs — 4 toggles and 5 size-changing captures and notes, which have no
+established mechanism — and B none of 9,600, its hash catching 58 racy saves. On Windows, 10 worktrees: neither lost
+anything in 1,440 operations each, a shadow hash found no save the stat missed in 4,048 checks, and one B refresh gave
+up on a held file after its retry, keeping the edit.
+
+**Rebuilding an absent file during a Vim-style save** (`rebuild.mjs`, 1,000 loops per cell, the rebuild firing inside
+the editor's empty window or at its create):
+
+| Commit                          | Linux: inside the window / at the create | Windows: inside the window / at the create |
+| ------------------------------- | ---------------------------------------- | ------------------------------------------ |
+| Rename                          | 13 / 68 saves lost                       | 6 / 407 saves lost                         |
+| Rename after a second check     | 3 / 11 lost                              | 11 / 315 lost                              |
+| Hard link from the staged file  | 0 / 0                                    | 0 / 0                                      |
+| `copyFile` with `COPYFILE_EXCL` | 1 lost, 3 mixed / 10 mixed               | 37 / 401 editor saves failed               |
+
+Hard links work on NTFS: `EEXIST` on an existing path, and both names readable.
+
+**Read-only files.** On Windows a rename over a 0444 file fails with `EPERM` — the code the rename retry reads as a
+held file — and keeps the old bytes; clearing the mode first lets it through. Node's unlink removes a read-only file on
+both platforms (`cmd`'s `del` and `Remove-Item` without `-Force` refuse). `git worktree remove`, with or without
+`--force`, and `git clean -fdX` delete read-only ignored files with exit 0 on both platforms.
+
+What it settles:
+
+- **The refresh re-check is B, with the index written before the replacement:** a stat comparison, the content hashed
+  only for a racy entry, and no time-based deferral — deferral costs nearly every refresh on Linux. The replacement is
+  § Spike 1b's swap, never a rename onto F.
+- **The exclusive open is reachable and rejected.** It makes an editor's save fail and closes nothing a hash does not.
+- **A rebuild commits with a hard link from the staged file.**
+- **A protected file's refresh needs no mode change:** § Spike 1b's swap moves a read-only F aside and links the staged
+  file in with its read-only mode, where a rename onto a 0444 F fails with `EPERM` on Windows and would spin through the
+  retry to its timeout.
+
+## Spike 1b — moving the file aside
+
+Run 2026-10-09 on both platforms (`spike1b/`), against the residual spike 1 left: a save between the refresh's
+re-check and its rename is replaced. The candidate swap renames F aside, hard-links the staged file onto F — failing,
+and yielding, if a save recreated F in between — and then compares the aside copy with the index entry, settling and
+writing back a save it holds. F is absent between the two steps. Two checks ran first, each able to stop the spike.
+
+**Check A: can a held file be moved aside?** (`aside.mjs`)
+
+| Holder of F                                      | Linux                        | Windows                                               |
+| ------------------------------------------------ | ---------------------------- | ----------------------------------------------------- |
+| None                                             | moves                        | moves                                                 |
+| Node `openSync` (shares read, write, and delete) | moves; its writes land aside | moves; its writes land aside                          |
+| .NET sharing read, write, and delete             | —                            | moves; its writes land aside                          |
+| .NET sharing read and write only                 | —                            | `EBUSY` (a rename over F: `EPERM`); F keeps its bytes |
+| Exclusive (`0x10000000`)                         | moves (flag ignored)         | `EBUSY` (a rename over F: `EPERM`); F keeps its bytes |
+| A writer paused mid-save, then finishing         | the whole save lands aside   | the whole save lands aside                            |
+
+A read-only F moves aside on both platforms, and the aside copy unlinks; a read-only staged file links in and unlinks,
+leaving F read-only. A refusal is the bounded retry's case, as for a rename over a held file today. Every case gave the
+same result with the aside copy moved into a hidden folder beside the files rather than beside F (`aside-dir.mjs`).
+
+| Per replaced file, 2,000 swaps (median / p99) | Linux: F absent | Linux: whole swap | Windows: F absent | Windows: whole swap |
+| --------------------------------------------- | --------------- | ----------------- | ----------------- | ------------------- |
+| 4 KB                                          | 10 / 27 µs      | 62 / 330 µs       | 0.84 / 2.46 ms    | 1.50 / 3.32 ms      |
+| 76 KB                                         | 10 / 23 µs      | 85 / 301 µs       | 0.85 / 1.22 ms    | 1.55 / 2.29 ms      |
+
+Today's stat and rename over F took 20–61 µs on Linux and 0.48 ms on Windows. One Windows swap left F absent for
+0.64 s during a host stall that held a rename over F for 1.9 s in the same run: a stall extends the absence.
+
+**Check B: what do readers see?** (`absent.mjs`, two processes reading F in a tight loop for 5 s while it is swapped
+every millisecond or so, on a quiet host)
+
+- **Linux:** the swap's readers got `ENOENT` on 7,968 of 2,416,892 reads (0.33%) and 13,860 of 19,626,545 stats; a
+  rename over F gave none.
+- **Windows:** the swap's readers got `ENOENT` on most accesses (154,033 of 165,444 reads), counts inflated because a
+  failed open returns far faster than a read. A rename over F gave readers no error, but the readers starved it: 23 of
+  24 refreshes gave up after 200 retries.
+- **Watch events:** on Windows, a rename over F already reports F removed and re-added, as the swap does; on Linux it
+  reports one rename onto F, where the swap reports F moved away and then created.
+- **VS Code and Zed** (`CHECKLIST-gui.md`, WSL remote): VS Code reloaded the file the same way under both methods, and
+  never marked the tab deleted, even at twenty swaps a second; Zed never reloaded under either. Both run auto-save on
+  focus change here, so the unsaved-buffer steps saved before each run started — the same under both methods. An
+  edit is therefore on disk the moment focus leaves the editor for a terminal or an agent.
+
+Neither check stopped the spike.
+
+**The loss measurement** (`sametick1b.mjs`, spike 1's harness in its concurrent mode with the index written first, a
+save fired at a set delay after F appears so it lands around the refresh; 4 KB and 76 KB summed). Three refreshes:
+B, spike 1's choice, renaming over F; B with September's descriptor held across the rename (Linux only); and the swap.
+Three save styles: an in-place whole-file save (VS Code, Zed), an in-place one-byte patch through an open-without-create
+(no editor tested saves this way), and a replace-style save, a temporary file renamed over F (Vim, Emacs, Claude Code).
+
+| Saves lost, per delay   | Linux B (of 2,000) | Linux B + descriptor | Linux swap | Windows B (of 1,000) | Windows swap |
+| ----------------------- | ------------------ | -------------------- | ---------- | -------------------- | ------------ |
+| In-place whole file     | 16–537             | 0–1                  | 0–1        | 0–260                | 0            |
+| In-place one-byte patch | 46–1,012           | 0–17                 | 0–4        | 0–503                | 0–1          |
+| Replace-style           | 3–1,255            | 3–1,498              | 0          | 10–363               | 0            |
+
+Linux delays were 0–0.2 ms and Windows 0–2.5 ms, spanning each platform's re-check-to-replace interval. Control loops,
+with no save, all refreshed normally. The swap's saves were kept three ways: rescued whole from the aside copy (up to
+1,429 of 2,000 in a cell), kept because the save recreated F and the link yielded (up to 472 of 1,000), or refused at
+the re-check. A one-byte patch opening F in the swap's gap failed with `ENOENT` (up to 187 of 2,000 on Linux and 367 of
+1,000 on Windows): the editor sees its save fail, so nothing is lost silently.
+
+- **The descriptor rescues in-place saves only.** It lost as many replace-style saves as B did, or more: the replaced
+  file it holds is never the one the editor swapped in.
+- **The swap's two Windows losses were the harness's**, the editor having missed its trigger and saved before the
+  refresh began.
+- **Its Linux losses had one cause:** a save that opened F a few microseconds before the move aside and wrote after the
+  aside copy was checked and removed. Keeping the aside copy until the command ends and checking it again closed it —
+  at the delays that lost, 7 of 40,000 saves lost without the second check and none with it, the second check
+  rescuing 14 whole and flagging no control loop.
+
+## Spike 3 — how editors and agent tools write
+
+Run 2026-10-09 on Linux (`spike3/`). Each editor ran interactively in a private tmux server with an inotify log per
+case; there is no personal editor configuration on the machine, so "default" means each editor's built-in defaults.
+
+| Writer                     | Save                                                                        | Side files                                                                     | CRLF file                                           | Mode 0444                                                  |
+| -------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------- | ---------------------------------------------------------- |
+| Vim 9 (`defaults.vim`)     | Renames the original to `name~`, creates a new file: new inode each save    | `.name.swp`, a `.swx` probe, a `4913` probe per write, short-lived `name~`     | Kept                                                | `E45`; `:w!` writes, new inode, mode restored to 0444      |
+| Vim `-u NONE`              | In place                                                                    | `.name.swp`, `.swx`, short-lived `name~`                                       | Kept only as literal `^M`; a replaced line loses it | `:w!` fails (`E212`)                                       |
+| Neovim 0.12                | As Vim's default: new inode                                                 | `4913`, short-lived `name~`; the swap file lives under `$XDG_STATE_HOME`       | Kept                                                | As Vim's default                                           |
+| Emacs 31.1                 | First save renames the original to `name~`: new inode; later saves in place | `.#name` lock symlink while modified; `#name#` auto-save; `name~` stays        | Kept                                                | Typing refused; a forced save writes, new inode, mode 0444 |
+| Claude Code Edit and Write | Temp `name.tmp.<pid>.<hex>` renamed over: new inode                         | None                                                                           | Edit kept it; Write saved the LF text given         | Both write, mode carried to the new file                   |
+| codex 0.162 (`exec`)       | Appended with `>>`: same inode                                              | Its sandbox made and removed empty `.git`, `.agents`, `.codex`, `.aws` folders | Appended an LF line: mixed endings                  | Not tried                                                  |
+
+When the file changed underneath an open buffer: Vim warns (`W11`, or `W12` with unsaved edits) and asks again at
+`:w`; Neovim's `autoread` reloads an unmodified buffer silently and warns as Vim does otherwise; Emacs asks at the first
+keystroke and again at save; Claude Code's Edit and Write refuse ("File has been modified since read") and allow a
+timestamp-only change. One `claude -p` run resolving a conflicted inbox file kept both entries with a blank line
+between them, left no markers, and passed lint.
+
+VS Code (Remote-WSL) and Zed (WSL remote, the Windows app) ran a manual checklist the same day (`spike3/E/`, with the
+inotify log in `E/watch.log`):
+
+- **Save:** both save in place, truncating to 0 bytes and then writing, same inode, no side files. The file stayed
+  empty for up to 19 ms in one VS Code save and about 1 ms in others; under 1 ms in Zed.
+- **Mode 0444:** neither shows an indicator by default, and both allow typing. VS Code's save fails with "File is
+  read-only. Select 'Overwrite' to attempt to make it writeable." and offers Overwrite, Save As, and Revert;
+  Overwrite sets the mode to 0644 and saves in place, leaving 0644. Zed's save fails with "os error 5, access is
+  denied", and the mode stays 0444. Under `files.readonlyFromPermissions`, VS Code shows the read-only indicator and
+  blocks typing with "Editor is read-only because of file permissions. Click here to set writeable anyway."
+- **Length-7 conflict:** VS Code shows its Accept and Compare actions; after Accept Both and a save, a blank line
+  separated the two entries and lint passed (a save-time fixer was not ruled out). Zed shows no conflict UI outside
+  a Git merge.
+- **Length-11 conflict whose sides hold `=======`:** VS Code shows the actions, but "Current" covers only the line
+  above the inner `=======`. Accept Incoming kept that underline, the real 11-character separator, and parts of both
+  sides.
+- **New file:** VS Code writes LF; Zed, running on Windows, writes CRLF.
+
+What it settles:
+
+- **Replacement is the normal save, and inode numbers recur.** Every editor default and both Claude Code tools write a
+  new file; ext4 hands a freed inode number to the next file in the folder (Neovim's external-rewrite case reused
+  one). Change detection compares type, size, and modification time in nanoseconds, and reads file identity one way
+  only: a changed identity sends the file to the hash, while an unchanged one never proves the file unchanged, since
+  freed numbers recur.
+- **A save leaves the path empty for a moment.** Vim, Neovim, and Emacs rename the original away before creating the
+  new file: 14 ms between the rename and the create in Vim's log. A refresh that rebuilds an absent file in that gap
+  and lands after the editor's create would replace the save, so a rebuild creates exclusively and yields when the path
+  has reappeared. Since `arc sync` rebuilds deleted files (D13), an absent file never deletes a record.
+- **The read-only mode is advisory.** Vim's and Neovim's `:w!`, Emacs's forced save, and both Claude Code tools write
+  through 0444 and leave the mode at 0444, so the mode looks untouched afterward. The persist refusal, keyed on the
+  stat and content change, is the protection; the mode only makes an editor ask first.
+- **Editors warn before saving over a refresh, and the stamp covers the rest.** A buffer holding unsaved edits across
+  a refresh still carries the old base stamp, so if the person saves anyway, write-back merges against that base
+  rather than reverting the refresh.
+- **Side files the scan ignores:** `*~`, `.#*`, `#*#`, `.*.sw?`, `4913`, and `*.tmp.<pid>.<hex>`; VS Code and Zed
+  add none. `.#name.md` is a dangling symlink whose name ends in `.md`, so a `*.md` scan that admits dotfiles finds
+  it; Emacs leaves `name~` and `#name#` behind for good.
+- **An in-place save passes through an empty file.** VS Code and Zed truncate before they write, so a read in that
+  window — up to 19 ms observed — sees an empty file that is not what the person saved.
+- **VS Code's Overwrite turns the mode back to 0644,** so a protected file can stay writable after one forced save;
+  Zed honors the mode. The mode needs restoring at the next refresh.
+- **VS Code's conflict actions read markers by a seven-character prefix.** Escalated markers around a side that holds
+  `=======` are split at that line. Accept Incoming then leaves the real separator, which a parser matching the
+  recorded length reads as malformed; Accept Current would keep only the lines above the inner `=======`, which no
+  marker check can see. The trigger is a setext underline, which markdownlint's MD003 already flags in an ATX
+  document.
+- **Line endings arrive mixed.** An append can put an LF line into a CRLF file, and a whole-file write drops CRLF;
+  D13's normalize-on-read absorbs both.
+- **Projected files sit outside the gate's lint runs.** The `lint:md` gate enumerates through Git
+  (`MARKDOWN_SELECTION` and the index-plus-untracked-non-ignored source in `lib/markdown/selection.ts`), so gitignored
+  projected files fall outside it. That clause of the register row is `projected-markdown-checks`' (Owner, 2026-10-16):
+  its `selection` checks read this work unit's selection (§ 11.7), and its `lint:md:fix` fixes Git's Markdown list plus
+  the selection. A bare `markdownlint-cli2` run, as an editor's lint makes, globs `**/*.md` and does see them, whatever
+  `gitignore` is set to for the shared roots: globby reads only `.gitignore` files, and those roots are excluded through
+  `.git/info/exclude` (§ 11.1). The root `.markdownlint-cli2.jsonc`'s `gitignore: false` matters only for
+  `.arc/user/*/`, which `.gitignore` excludes; `.arc/completed/**` is already in its `ignores`.
+
+## Spike 7 — aside copies against a stale buffer's record
+
+Run 2026-10-15 on Linux (`spike7/`): a breadth-first model in Python, not the CLI, of one projected entry list of four
+entries, one editor buffer, the store with its history, the index's record of the path's last persisted write-back
+(§ 3.6), and the aside copies refreshes make (§ 5.2). The buffer either never reloads, as Zed, saving under the stamp it
+loaded, or reloads a file changed since it last loaded or wrote it before each save, as VS Code. Its events: a command
+(sweep, write-back, refresh); a save to the path; a save landing in an aside copy, only while the copy's writer runs and
+before any later save; the swap's first check, under the lock before any other command; the writer's second check;
+another machine's write, to an entry the person does not edit and, in the second bound, to one they do; the person's
+malformed set and its repair; in the runs that name it, the person deleting the file once, while it holds what the
+projection last wrote, which a refresh rebuilds by the link alone once the store has moved (§ 5.5); and a removal's
+check and persist step (§ 12.2). Entries are named values: the store's merge keeps the current side at a clash and files
+it, as `chooseEntries` does, and a merge in the checkout refuses a clash. Every interleaving within the bound is
+explored, and every reachable state is settled with no further saves and checked three ways: each writer's last saved
+value for each entry stands in the store's lineage, a filed conflict, or a reported file or copy; the same once a
+persist step that passes has removed the checkout; and the removal check answers as the persist step does.
+
+Three designs ran. The settled text. Option 1: each copy records its path's record at the swap, and a copy taken in once
+that record has changed is refused as superseded and never sent; as approved it records the record's stamp and content
+and fires only where either carries the copy's stamp; amended it records the stamp and the version the write landed,
+re-recorded at the copy's own landing, fires on any change, and adds three refinements — a copy holding what its swap
+moved or what it held when its own take-in landed is no edit, a superseded copy whose every change, from its stamp's
+version and from the record's content, the store already holds is deleted, and the persist step takes the aside copies
+over before writing files back, the order the sweep keeps. Keeping both: a copy holding an edit whose path no longer
+holds the file its swap linked is kept and reported, never merged, and one holding what its swap moved or what it held
+when its own take-in landed is no edit. With the person deleting the file, keeping both ran as § 5.2 first stated it, an
+absent path never moved on, and with a mark: each write-back of the path marks its other aside copies as it lands, which
+is § 5.2's mark before the send since every send lands in the model, a marked copy's path has moved on whether the path
+is there or not, and the removal check reads the copies in the persist step's order, each against the marks the earlier
+take-ins would set.
+
+At four commands and four saves, the buffer never reloading:
+
+| Design                                         | States  | Loss   | At removal | Disagrees | Kept copies |
+| ---------------------------------------------- | ------- | ------ | ---------- | --------- | ----------- |
+| The settled text                               | 211,914 | 28,869 | 44,690     | 0         | 0           |
+| Option 1 as approved, copies first             | 109,030 | 18     | 9          | 0         | 50,239      |
+| Option 1 amended, files first as § 12.2 has it | 85,468  | 0      | 90         | 3,296     | 12,164      |
+| Option 1 amended                               | 85,468  | 0      | 0          | 0         | 12,164      |
+| Keeping both                                   | 93,038  | 0      | 0          | 0         | 37,242      |
+
+At three commands and three saves, the buffer reloading and the other machine also editing an entry the person edits:
+
+| Design                                            | States  | Loss  | At removal | Disagrees | Kept copies |
+| ------------------------------------------------- | ------- | ----- | ---------- | --------- | ----------- |
+| The settled text                                  | 220,323 | 4,986 | 8,500      | 0         | 0           |
+| Option 1 as approved, copies first                | 191,725 | 68    | 68         | 614       | 39,218      |
+| Option 1 amended, firing only on the copy's stamp | 171,491 | 68    | 68         | 0         | 0           |
+| Option 1 amended                                  | 168,099 | 0     | 0          | 290       | 12,950      |
+| Keeping both                                      | 170,683 | 0     | 0          | 0         | 37,344      |
+
+Keeping both again, the person able to delete the file, at four by four with the buffer never reloading and at three by
+three with it reloading and the other machine also editing:
+
+| Bound and design                                  | States  | Loss   | At removal | Disagrees | Kept copies |
+| ------------------------------------------------- | ------- | ------ | ---------- | --------- | ----------- |
+| Four by four, as first stated                     | 266,015 | 22,289 | 18,673     | 0         | 83,211      |
+| Four by four, with the mark                       | 222,259 | 0      | 0          | 0         | 84,892      |
+| Three by three, as first stated                   | 672,895 | 6,032  | 6,332      | 0         | 148,548     |
+| Three by three, the mark, check reading unordered | 629,996 | 0      | 0          | 440       | 159,108     |
+| Three by three, with the mark                     | 629,996 | 0      | 0          | 0         | 159,108     |
+
+Without deletion the mark changes nothing: keeping both with it reaches the same 93,038 states at four by four, with the
+same counts.
+
+States are a count of what the bound reaches, not a frequency, and every run is complete. Disagrees counts the states
+where the removal check answers otherwise than the persist step; the check reads each file and copy against the state
+as it stands, except that with the mark, but for the row marked unordered, it reads the copies in the persist step's
+order, each against the marks the earlier take-ins would set. Kept copies counts those that settle with a copy kept,
+refused or reported, holding no malformed set. The settled text keeps none because it merges every copy. The
+digest-only runs peaked at 39–457 MB.
+
+The shortest traces, each read against the spec:
+
+- **An unedited copy reverts a newer save** (the settled text). A refresh moves the unedited file aside; the stale
+  buffer saves an edit to the path under the same stamp; an overlapping command writes it back, so the record now
+  carries that stamp; the first command's second check reads its copy against the record, and the copy reads as removing
+  the edit. A removal reaches it without overlap: the persist step writes the path back before taking the copy over.
+
+- **A copy holding an older save** (the settled text). A save opened before the move lands in the copy after the first
+  check; the buffer's newer save to the path persists; the second check sends the copy, reverting it.
+
+- **The persist step's order** (a buffer that never reloads). The buffer adds an entry, a save that lands in the copy,
+  then removes it and saves to the path. Read against its stamp's version, the path holds no edit and records nothing;
+  the copy then lands the entry; and step 4's re-check passes the path, whose stat has not changed since step 2 read it.
+  Taking the copy over first lands the entry, after which the path reads as removing it, and the removal lands. A
+  reloading buffer never meets it: it reloads the refreshed file, which lacks the entry, before the person can remove
+  it.
+
+- **The recorded identity repeats** (option 1 as approved). With no stored version, where the content taken in merges in
+  the checkout, the record's content goes from one entry set to that set plus an added entry and back once the person
+  removes it, so a copy that recorded the first sees no change, is not refused, and re-adds the removed entry. The
+  version the write landed changes at every persisted write-back, so an identity carrying it cannot repeat.
+
+- **One record per path, two stamps** (option 1 firing only on the copy's stamp). A reloading buffer saves a malformed
+  set and an added entry under the refreshed stamp; the rest lands, recording that stamp, and the file keeps its
+  content; the person repairs the set and removes the entry. An older copy under the earlier stamp, holding an edit
+  saved before the reload, is taken over first and lands, replacing the path's one record, so the file's write-back
+  reads against its stamp's stored version and the removal is lost. The copy's stamp is not the record's, so a
+  superseded test gated on it never fires; firing on any change keeps the copy aside.
+
+- **A refused copy sent back over a newer save** (the settled text). Where a copy's path holds what the projection last
+  wrote, by the index entry, a copy with a malformed set goes back over the read-back of a newer save from the same
+  buffer, and the file's partial landing reverts that save. Under either other design the superseded or moved-on test
+  runs first and keeps it aside.
+
+- **Keeping both, tested by the index entry.** A copy whose path holds what the projection last wrote is merged, so
+  after a newer save has landed and been read back the older copy merges again: 2,933 states lose at three by three, the
+  buffer never reloading. Keeping both needs the file its own swap linked recorded beside the copy.
+
+- **A deleted path after a persisted save** (keeping both as first stated). A save opened before the move, holding a
+  malformed set, lands in the copy; the buffer's newer save to the path persists while the copy's writer still runs;
+  the person deletes the refreshed file; the writer's second check reads the absent path as not moved on and sends the
+  copy back to it, and its partial landing merges from the newer record, reverting that save's edit. The mark keeps the
+  copy aside.
+
+- **Two copies of an absent path** (keeping both with the mark). The persist step takes the older copy in, which marks
+  the newer, so the newer is kept and the step refuses; the removal check, reading each copy against the state as it
+  stands, answered removable. Reading the copies in the persist step's order, each against the marks the earlier
+  take-ins would set, it refuses too.
+
+- **Two copies in one pass** (option 1 amended, the remaining disagreement). The persist step takes the older copy over
+  and lands it, which changes the record, so the newer copy reads as superseded and is kept, and the step refuses; the
+  removal check, reading the newer copy against the record as it stood, answered removable. Reading in the persist
+  step's order, each item against the record the earlier ones would leave, it refuses too.
+
+Every copy the amended option 1 keeps either adds or removes an entry a newer save from the same path handled otherwise
+— the same buffer's older save or another editor's concurrent edit, which nothing on disk tells apart — or is the newer
+of two copies taken over in one pass.
+
+Bounds: one path, four named entries, one buffer, each edit made once so no entry returns to an earlier value, no
+`_Id:_` matching (Spike 5, in `notes-projection-write-back.md`, covers it), no index rebuild, stampless file, held
+file's conflict record, removal of the file (§ 5.6), writer stopping before its second check, stop between a write's
+landing and its index write, store refusing a write, writer holding its descriptor across the move (§ 5.3), or timing
+(Spikes 1 and 1b), the person deleting the file only once and only while it holds what the projection last wrote, and
+step 4's re-check passes left out, which the order trace shows would not catch it. The rule deleting a superseded copy
+whose changes the store already holds is the one these bounds cannot judge: a copy re-adding an entry an intermediate
+record removed shows no change against its stamp's version, a shape monotone edits never make. The model's own errors,
+found against the spec and fixed before these figures: a save could land in an older copy after a later save, that
+deletion rule first measured a copy's changes against its stamp's version alone, and an editor reloaded once at an
+arbitrary point.
+
+Research the same day, one pass over primary sources: Syncthing re-checks a file's metadata before replacing it and
+aborts on a change, and a real conflict renames the losing file to `.sync-conflict-*`, never merged; Dropbox keeps a
+conflicted copy, never merged; Git refuses a checkout over local changes, merging only under `-m`; and jj records
+conflicts as data, though its working-copy update carries a note to check that a file has not changed before overwriting
+it (read from source; no issue found). No tool merges a losing copy on its own, since none holds a common base for it;
+the stamp gives this projection one. Zed's behavior is not from that research but Spikes 1b and 3.
+
+What it settles: the settled text loses saves in every bound, and option 1 as approved in both. Two designs lose nothing
+in either bound. Option 1 amended needs the stamp and the version the write landed recorded beside each copy, a copy
+refused as superseded once that record changes at all, the persist step taking copies over before files with the removal
+check reading in that order, and the no-edit refinements; it keeps a copy only where an older save and another editor's
+cannot be told apart or two copies meet in one pass. Keeping both needs the file each swap linked recorded beside its
+copy and the no-edit rules for what the swap moved and what it held when its own take-in landed; it keeps about three
+times as many copies. As § 5.2 first stated it, an absent path never moved on, it held unchanged in every bound until
+the person could delete the file, and then lost saves in both; with the mark beside each copy and the removal check
+reading the copies in the persist step's order, it loses nothing in either bound and agrees with the persist step.
+Option 1 amended was not run with the file deleted.
+
+## A1 — an emptied aside copy waits for the next sweep
+
+**The evidence.** The save-loss harness's first full run on desktop Windows lost one truncate-then-write save in 1,000,
+before the harness recorded timelines. Its mechanism was then reproduced deterministically: a save that truncates the
+file, its move into the aside folder, and its write landing after the command's second check, the copy's empty window
+past § 4's 50 ms. The second check reads such a copy as a deleted file (`gateRead`, `read-gate.ts`), so
+`settleAsideCopy` deletes it and the write goes to an unlinked file. The one loss fits that mechanism but was never
+traced, so its cause stays suspected. Eight later local Windows runs and three hosted runs of the portability pair lost
+none. The harness counted such a save as "emptied past the settle window", apart from a loss.
+
+**What it changes.** The writer's second check keeps any copy that is an empty regular file, neither sending nor
+deleting it, and the next command's sweep settles it as it settles any copy: a save written into it since is taken in,
+or kept where its path has moved on, and a Markdown copy still empty is deleted as a deleted file. This covers files
+other than Markdown too. Today an old empty one reaches the take-in port as an edit emptying the file, which loses a
+late write and takes in an edit no one made. The swap's first check deletes nothing and is unchanged. A removal's or
+release's takeover (`spec-projection-worktrees.md` § 12.2, § 12.3) is not the command that made the copy, and residual 1
+still names it.
+
+**The cost.** An empty copy lingers in the aside folder until the next command, and for a file other than Markdown the
+entry's in-progress record stays until then, widening residual 2's window by the same span. The harness can now count a
+save emptied past the window as lost: it waits for each save to finish before the next command's sweep, so the
+"emptied past the settle window" outcome retires.
+
+**Superseded text.** § 5.2, The second check: "A copy is deleted only once its check finds no edit or the edit it took
+in has landed whole; one whose edit write-back defers or leaves pending stays in the aside folder, and the next
+command's sweep sends it again while its path has not moved on." § 17 item 1: "A write through a handle opened before a
+replacement and landing after the command's second check, or after a persist or release step took the aside copy over,
+goes to a deleted aside copy and is lost (§ 5.2). Reasoned, not measured: no tested editor or agent holds a file open
+across saves."
+
+## A2 — observations remain racy through index publication
+
+`commitProjectionIndex` must protect observations of files already visible to editors: a clean hash, a linked
+replacement's stat, and an ignore snapshot. Their pre-publication observation does not constrain a later same-tick
+save. Only `swapBatch`'s first write exempts staged files that are linked afterward. Its second write has no exemption.
+The regression cases preserve inode, size, and modification time across the intervening save.
+
+**Superseded § 3.3 text:**
+
+> - **Smudging.** Every index write smudges each entry it carries over unchanged that is racy against the reference it
+>   replaces — its cached size zeroed, so the next check hashes it — after Git's index write
+>   (`ce_smudge_racily_clean_entry`), which hashes first and smudges only a changed entry; the entries a write records
+> are
+>   racy against the new reference instead. Without the smudge a later write, a sibling's fan-out among them, would make
+>   the entry read clean and hide a same-tick save. A command that hashes a smudged entry clean re-records its stats,
+>   writing the index.
+
+## A3 — the ignore cache records its effective excludes source
+
+`readProjectionConfiguration` reads `core.excludesFile` in its existing Git query; `checkIgnores` compares that value
+with the last passing guard's value before considering file snapshots. `sweepAsideFolder` publishes both together.
+A changed or unset setting invalidates the cache even while the old source still exists unchanged. No extra Git call
+is added to the no-change path. Tests use real Git configuration and cover refusal plus continuation after repair.
+
+**Superseded § 11.2 paragraph:**
+
+> Before a write into a root the guard runs only when an ignore file may have changed. When it passes, the index
+> records,
+> for `.git/info/exclude`, each `.gitignore` on the path from the repository root to every projected root and the aside
+> folder, and any other file the call names as a match's source, a `core.excludesFile` among them, whether it exists,
+> its
+> stat, and its blob id, and a command skips the call only when each still matches and none is racy against the index's
+> reference (§ 3.3), so a refresh or fan-out pays nothing for it. These records take the smudge rule as entries do, each
+> against the blob id recorded beside it: an index write that carries one over unchanged while it is racy against the
+> reference it replaces smudges it, so the next write into a root runs the call, an ignore file truncated to empty in
+> the
+> guard's tick included.
+
+**Superseded § 15.3 configuration paragraph:**
+
+> - **The one configuration read.** It is `git config --null --get-regexp
+> '^(arc\.|user\.name$|extensions\.objectformat$)'`,
+>   which prints each match as its lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and
+>   exits 1 where no key is set, read as none set. A single-valued key takes its last occurrence, as `git config --get`
+>   returns it, and `arc.inflightPin` takes every occurrence. It returns the settings, or the no-identity verdict § 2.5
+>   states, naming the remedy that sets `arc.identity`.
+
+## A4 — bind a cached guard pass to the source it evaluated
+
+The first cache correction carried a setting read before Git's guard without binding it to that guard. A configuration
+change could make the guard evaluate another source and publish its pass under the earlier setting. An unset key and
+a valueless key also collapsed to one cache value, although Git refuses the latter. The correction binds the guard to
+the captured effective path and confirms selection before accepting its pass. A changed selection refuses recoverably;
+only a freshly run guard pays for confirmation. The default path follows the invocation environment, and invalid
+configuration names a repair. The original two-call budget continues to govern unchanged cached checks.
+
+**Superseded § 11.2 cache paragraph (A3):**
+
+> Before a write into a root `checkIgnores` runs the guard when an ignore file or its effective excludes source may have
+> changed (A3). When it passes, the index records the effective `core.excludesFile` value from
+> `readProjectionConfiguration`, including its absence, and, for `.git/info/exclude`, each `.gitignore` on the path from
+> the repository root to every projected root and the aside folder, and every match source, each file's existence, stat,
+> and blob id. A command skips Git's guard only when the effective setting still matches and every file still matches
+> without being racy against the index's reference (§ 3.3). Changing or unsetting the setting forces a fresh verdict
+> even
+> if the former source's bytes are unchanged. Every snapshot takes § 3.3's smudge rule, including one just recorded, so
+> publication cannot hide a same-tick change after the snapshot (A2).
+
+**Superseded § 15.3 configuration paragraph (A3):**
+
+> - **The one configuration read (A3).** `readProjectionConfiguration` runs `git config --null --get-regexp` with the
+>   expression `^(arc\.|user\.name$|extensions\.objectformat$|core\.excludesfile$)`. It prints each match as its
+>   lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and exits 1 where no key is set,
+> read
+>   as none set. A single-valued key takes its last occurrence, as `git config --get` returns it, and `arc.inflightPin`
+>   takes every occurrence. It returns the settings, the effective excludes source (null where unset), and the identity
+> or
+>   no-identity verdict § 2.5 states, naming the remedy that sets `arc.identity`.
+
+The cache correction validates every excludes occurrence before selecting the last value (`excludesFileOf`), since
+Git refuses an earlier valueless occurrence too. Home/default expansion concatenates path components without
+collapsing a symlink followed by `..`. `ignoreFiles` anchors each matched source's root prefix through `sourcePath`,
+leaving its traversal components for the filesystem. This keeps the cached snapshot on the file Git actually read.
+
+## A5 — cache the complete excludes selection
+
+The path-only basis in `checkIgnores` discarded earlier values that Git still parses. An earlier path naming a
+nonexistent home user could therefore reuse a pass while `guardProjectionIgnores` refused the same configuration.
+`readProjectionConfiguration` retains the ordered raw values beside the effective path; `checkIgnores` compares both
+on reuse and confirmation, and `sweepAsideFolder` persists both. A changed raw sequence forces native Git validation
+without adding a call to an unchanged cached start. Valueless occurrences still refuse before reuse.
+
+Superseded § 11.2 paragraph:
+
+> Before a write into a root `checkIgnores` compares the effective excludes source with the last passing guard's source
+> before considering file snapshots (A4). `readProjectionConfiguration` resolves an unset `core.excludesFile` to Git's
+> default excludes path from the invocation environment; an explicit string, including an empty string, stays explicit.
+> Any valueless excludes occurrence is invalid, including one before a later valid value, and refuses every root with a
+> configuration-repair remedy, never reusing a passing cache. Path expansion and source snapshots preserve traversal
+> components so the filesystem follows a symlink before a following `..`. A newly run guard receives the captured source
+> as a command-local Git setting, so its verdict and snapshots describe the same selection. Before accepting that pass,
+> `checkIgnores` confirms the current selection through another configuration read; a changed or invalid selection
+> refuses
+> every root recoverably, for a retry with fresh settings. The passed result carries its source, and `sweepAsideFolder`
+> records that source with its snapshots. This confirmation runs only with a fresh guard; an unchanged cached pass adds
+> no
+> call to the two-call start budget. As with an ignore-file edit after the guard's final snapshot, a configuration edit
+> after its last observation is seen on the next command.
+
+Superseded § 15.3 read:
+
+> - **The one configuration read (A4).** `readProjectionConfiguration` runs `git config --null --get-regexp` with the
+>   expression `^(arc\.|user\.name$|extensions\.objectformat$|core\.excludesfile$)`. It prints each match as its
+>   lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and exits 1 where no key is set,
+> read
+>   as none set. A single-valued key takes its last occurrence, as `git config --get` returns it, and `arc.inflightPin`
+>   takes every occurrence. It returns the settings, the effective excludes path or an invalid-setting verdict, and the
+>   identity or no-identity verdict § 2.5 states, naming the remedy that sets `arc.identity`. An unchanged start makes
+>   this call once. A fresh ignore guard makes a confirming read before its pass is accepted, with the same invocation
+>   environment; this does not add a call to an unchanged cached check.
+
+## A6 — bind the complete demonstrated guard basis
+
+The approved correction gives a guard pass its own root set, independently of `projectedUnder.identity`, and retains
+ordered `core.ignoreCase` values alongside the excludes selection. `checkIgnores` compares that basis before reuse;
+`guardProjectionIgnores` pins its captured effective settings and `checkIgnores` confirms them before accepting a
+fresh pass. The unchanged-start budget remains two Git calls. Git validates case-policy values, including valueless
+true entries; ARC preserves the raw sequence rather than implementing another boolean parser.
+
+Superseded § 11.2 cache basis:
+
+> Before a write into a root `checkIgnores` compares the effective excludes source and the complete ordered raw
+> `core.excludesFile` values with the last passing guard's basis before considering file snapshots (A5).
+> `readProjectionConfiguration` resolves an unset `core.excludesFile` to Git's default excludes path from the invocation
+> environment; an explicit string, including an empty string, stays explicit. Any valueless excludes occurrence is
+> invalid, including one before a later valid value, and refuses every root with a configuration-repair remedy, never
+> reusing a passing cache. Path expansion and source snapshots preserve traversal components so the filesystem follows a
+> symlink before a following `..`. A newly run guard receives the captured source as a command-local Git setting, so its
+> verdict and snapshots describe the same selection. Before accepting that pass, `checkIgnores` confirms the source and
+> all raw values through another configuration read; any change or invalid selection refuses every root recoverably, for
+> a retry with fresh settings. The passed result carries its source and raw values, and `sweepAsideFolder` records both
+> with its snapshots. This confirmation runs only with a fresh guard; an unchanged cached pass adds no call to the
+> two-call start budget. As with an ignore-file edit after the guard's final snapshot, a configuration edit after its
+> last observation is seen on the next command.
+
+Superseded § 15.3 read:
+
+> - **The one configuration read (A5).** `readProjectionConfiguration` runs `git config --null --get-regexp` with the
+>   expression `^(arc\.|user\.name$|extensions\.objectformat$|core\.excludesfile$)`. It prints each match as its
+>   lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and exits 1 where no key is set,
+>   read as none set. A single-valued key takes its last occurrence, as `git config --get` returns it, and
+>   `arc.inflightPin` takes every occurrence. It retains every excludes value in order for cache comparison, and returns
+>   the settings, the effective excludes path or an invalid-setting verdict, and the identity or no-identity verdict §
+>   2.5 states, naming the remedy that sets `arc.identity`. An unchanged start makes this call once. A fresh ignore
+>   guard makes a confirming read before its pass is accepted, with the same invocation environment; this does not add a
+>   call to an unchanged cached check.
+
+## A7 — prove personal ignores in worktree context
+
+A relative `core.excludesFile` can name a regular ancestor `.gitignore` while applying its patterns relative to the
+repository, rather than to that file's directory. `isIgnoredAsRequired` checked the filename and file kind, which did
+not establish the worktree semantics `npm pack` needs. `guardProjectionIgnores` must retain the configured all-roots
+query and add a personal-roots query with global excludes disabled and the captured case policy unchanged.
+`checkIgnores` brackets both queries with source snapshots and confirms the configuration after them; its guard basis
+requires `personalRules: "worktree"` before reuse. Existing development index fixtures change in place, with no
+migration reader or deletion of recovery entries. An unchanged start still makes no guard or confirmation call.
+
+Superseded § 11.2 opening:
+
+> The guard runs where those entries are written and before the projection writes into a root: one
+> `git check-ignore -z -v --non-matching --no-index --stdin` over the roots and the aside folder refuses a path no rule
+> ignores, and `.arc/user/*/` must match a rule whose source is `.gitignore` itself, since `npm pack` reads only
+> `.gitignore`.
+
+The two-query guard replaces the single-query cost in the portability and no-change-budget sections. Its source
+union uses the same ancestor and matched-source snapshots; lifecycle roots may still rely on global excludes.
+The regression boundary includes refusal and repaired retry, package exclusion, valid nested worktree rules,
+captured case policy, cache-proof invalidation and the unchanged-start budget.
+
+## A8 — prove npm exclusion independently of Git
+
+**Evidence and decision.** `guardProjectionIgnores` accepts worktree Git rules while ordinary npm root `.npmignore` or
+`package.json` `files` rules include personal files. Eighteen native `npm pack --dry-run --json --ignore-scripts` cases
+support a strict nested `.arc/user/.npmignore` containing `*`, including child negations and `main`/`bin` targets, with
+`public.txt` retained. This is a bounded proof of npm's normal project-root walk; other packagers, separate package
+roots and edits after the last check are explicitly outside the guarantee. The policy composes existing managed setup,
+exclusive creation and ignore snapshots; no package interpreter, new dependency or npm process runs at command start.
+
+**Superseded statements.** Goal 7 names only the worktree lock, root `.ignore` and this repository's `.gitignore` change
+as live exceptions. § 11.2 says personal roots require worktree rules “since `npm pack` reads worktree rules rather than
+global excludes”; its cache basis requires `personalRules: "worktree"`. Cross-cutting Considerations' Ignore integrity
+claims “no packaging tool ships personal state”. A8 adds the live policy exception, a distinct npm proof and an opaque
+proof discriminator, and bounds that packaging claim. Original Goal 7 and passed criteria remain preserved, with a
+forward amendment and new criteria. Criterion 17 bounds criterion 16's packaging clause while retaining its Git proof;
+no corrective task parent exists at this review site.
+
+**Propagation.** § 1.4, § 11.2–11.3, § 15.3, Ignore integrity and Rollout now carry the policy and boundary; the module
+reference and all five setup callers must agree. The root `.gitignore` continues to ignore identity directories while
+allowing the container policy. The unpublished proof value changes in place: an old proof forces a fresh guard without
+removing or migrating recovery entries. Policy absence, type and content share the existing before/after bracket and
+smudge discipline. Medium-depth author checks cover this footprint and affected Phase 1/2 tests; independent amendment
+review was declined, while the independent code fix check was approved separately.
+
+## A9 — preserve search traversal through ignored ancestors
+
+`arcSearchIgnoreEntries` negates the four leaf patterns, but a root `.gitignore` ignoring `.arc/` or `.arc/user/`
+prevents native repository-root ripgrep traversal. `guardProjectionIgnores` accepts those ancestor rules; exact-source
+setup/guard probes find zero or three of four sentinels instead of four. The correction first negates the two parent
+directories, retaining the leaf rules and repository-owned lines. Native proposal controls restore all four roots
+without changing Git/npm exclusion or a separate internal exclusion. Explicitly searching `.arc` skips this traversal
+boundary and is not the regression's entry point.
+
+Superseded § 11.3 opening:
+
+> The ripgrep family of search tools reads `.ignore` above `.gitignore` and `.git/info/exclude`, so a root `.ignore`
+> re-including all four projected roots makes them searchable there (D13). It negates the pattern that ignores each root,
+> `.arc/user/*/` for every identity's personal root, since a negation re-includes only the path its pattern names.
+> `arc init` (with `--reconfigure`), `join`, and `update` write it as ARC's managed block through `writeArcGitignoreBlock`
+> (`lib/template/files.ts`), which already takes the file's path and rewrites only its own block, so a repository's own
+> lines stay; the file is tracked. It lands live before the flip in every repository the verbs run in (§ 1.4), where it
+> changes only what search finds: the three shared roots are tracked and no rule ignores them, and `.arc/user/*/`, the one
+> root ignored before the flip, becomes searchable as it will be from the flip.
+
+This is a determinate correction to the search mechanism, at low amendment depth. The original Goals and criteria
+remain preserved; criterion 18 makes the accepted ancestor cases explicit. `writeArcIgnoreBlocks` supplies every
+setup entrypoint, so its generator, this repository's managed block and existing block expectations change together.
+Author checks cover the amended paragraph, root-pattern definitions, setup callers and existing criterion 3; the
+separately approved code fix check covers both corrections. No new dependency or packager behavior is added.
+
+## A10 — bound the save-loss assurance
+
+Normal CI 41548750614 at `149279e52d` lost one randomized in-place save on Linux. The trace records the save's
+open/write/close and check-return times but not unlink, so its exact final-read/unlink ordering is unknown. Controlled
+source-import probes reproduce a write after unlink and a write completed after the final content read but before
+unlink, using `SYSTEM_READ_GATE` in both. A separate deterministic 1 ms/15 ms schedule yields different outcomes;
+it establishes a harness distortion, not the historical cause.
+
+`runSaveLoss` had substituted a 1 ms timer for the production gate's 15 ms timer, and awaited the worker only after
+`runSecondCheck`. A single in-place save can be descheduled after opening its handle and write past the final content
+read; retaining a handle across multiple saves is unnecessary. `settleAsideCopy` and `deleteAsideCopy` do not
+synchronize with that writer. No finite wait closes arbitrary late writes. The accepted design keeps production
+behavior unchanged, makes this residual explicit, and bounds the randomized zero-loss assurance: use the production
+gate and finish the trial's save before its destructive final check. Every raw loss still fails; no outcome is
+filtered or reclassified. All 3,000 randomized saves, deterministic within-window cases, empty-copy/next-sweep
+coverage and timeouts remain. Criterion 19 supersedes criterion 10's unbounded assurance; Goal 2 and original
+criteria/task Goals stay preserved.
+
+Superseded residual and criterion, verbatim:
+
+> 1. **A write through a held handle.** A write through a handle opened before a replacement goes to a deleted aside copy
+>    and is lost (§ 5.2) where it lands after the command's second check deleted a copy that was not empty, after a later
+>    sweep deleted one left empty, or after a persist or release step took the copy over. An empty copy waits for the
+>    next command's sweep (A1), so a save that truncates the file first is lost only where its write lands after that
+>    sweep. Reasoned, not measured: no tested editor or agent holds a file open across saves.
+
+Superseded criterion 10:
+
+> 10. **An emptied copy waits for the sweep.** An aside copy empty at its writer's second check is neither sent nor
+>     deleted there, and the next command's sweep settles it as any copy it takes over; on Linux and in the portability
+>     lane, the save-loss harness loses no save, one that left the file empty past the settle window included (§ 5.2,
+>     § 17) (A1).
+
+The amendment footprint is § 1.5, § 5.2, § 17 item 1 and criteria 10/19, the affected completed task/verification
+claims, and `runSaveLoss`. Review-site correction has no new corrective parent or lifecycle move. Medium-depth author
+checks cover reader independence, binding completeness, coherence, source grounding and the affected task derivation.
+The standing direction uses author amendment checks; an independent code fix check is separately approved. Preserved
+filesystem probes retain the excluded schedules as explicit evidence.
+
+Keeping an aside handle open across unlink could detect writes before a subsequent handle read, but later writes
+still escape. Reliable recovery is a medium change: `TakeInRequest` takes a pathname, so late bytes need a durable
+aside name and index/copy state before finalization, or a different take-in contract, plus crash and Windows sharing
+coverage. This was assessed read-only; no handle-retention implementation is included.

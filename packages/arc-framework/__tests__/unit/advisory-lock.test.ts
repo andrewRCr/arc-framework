@@ -96,6 +96,99 @@ function buildMemoryLockFs(initial: Record<string, string>): {
 }
 
 describe("acquireAdvisoryLock", () => {
+  it("refuses a negative wait without creating a lock, and takes one with a fresh budget", async () => {
+    await expect(acquireAdvisoryLock(lockPath, { maxWaitMs: -1, now: () => 10 }))
+      .rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
+    expect(await exists(lockPath)).toBe(false);
+    const handle = await acquireAdvisoryLock(lockPath, { maxWaitMs: 10, now: () => 10, pid: 42 });
+    expect((await readHolder(lockPath)).pid).toBe(handle.pid);
+    await releaseAdvisoryLock(handle);
+  });
+  it.each([180, 200])("acquires a lock released at %i ms within its 200 ms wait", async (releasedAt) => {
+    let clock = 0;
+    let bytes = JSON.stringify({ pid: 1, acquiredAt: 0 });
+    const handle = await acquireAdvisoryLock("/lock", {
+      pid: 2, maxWaitMs: 200, now: () => clock, isProcessAlive: () => true,
+      exclusiveCreate: async (_path, content) => {
+        if (clock < releasedAt) throw Object.assign(new Error("held"), { code: "EEXIST" });
+        bytes = content;
+      },
+      readFile: async () => bytes,
+      sleep: async (ms) => { clock += ms; },
+    });
+    expect(handle.pid).toBe(2);
+    expect(JSON.parse(bytes)).toMatchObject({ pid: 2, token: handle.token });
+    expect(clock).toBeLessThanOrEqual(200);
+  });
+  it("observes a healthy release during the last bounded sleep even when its timer wakes late", async () => {
+    let clock = 0;
+    const memory = buildMemoryLockFs({ "/lock": holder(1, 0) });
+    const acquired = await acquireAdvisoryLock("/lock", {
+      ...memory, pid: 2, maxWaitMs: 200, now: () => clock, isProcessAlive: () => true,
+      sleep: async (ms) => {
+        const wake = clock + ms;
+        if (wake >= 180) {
+          clock = 180;
+          memory.files.delete("/lock");
+        }
+        clock = wake === 200 ? 201 : wake;
+      },
+    });
+    expect(clock).toBe(201);
+    expect(JSON.parse(memory.files.get("/lock")!)).toMatchObject({ pid: 2, token: acquired.token });
+  });
+  it("does not earn a final create from a holder read that outlasts the budget, and permits a fresh retry", async () => {
+    let clock = 0;
+    const memory = buildMemoryLockFs({ "/lock": holder(1, 0) });
+    const readFile = async (path: string) => {
+      clock = 220;
+      memory.files.delete(path);
+      throw enoent();
+    };
+    await expect(acquireAdvisoryLock("/lock", {
+      ...memory, readFile, pid: 2, maxWaitMs: 200, now: () => clock, isProcessAlive: () => true,
+      sleep: async (ms) => { clock += ms; },
+    })).rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
+    expect(clock).toBe(220);
+    expect(memory.files.size).toBe(0);
+    const retry = await acquireAdvisoryLock("/lock", { ...memory, pid: 2, maxWaitMs: 200, now: () => clock });
+    expect(JSON.parse(memory.files.get("/lock")!)).toMatchObject({ pid: 2, token: retry.token });
+  });
+  it("times out instead of acquiring after stale-holder settling spends the remaining budget, then permits retry", async () => {
+    let clock = 0;
+    const memory = buildMemoryLockFs({ "/lock": JSON.stringify({ pid: 1, acquiredAt: 0 }) });
+    const options = { ...memory, pid: 2, maxWaitMs: 200, now: () => clock, isProcessAlive: () => true,
+      sleep: async (ms: number) => {
+        clock += ms;
+        if (clock >= 150 && memory.files.has("/lock")) memory.files.set("/lock", "malformed");
+      },
+    };
+    await expect(acquireAdvisoryLock("/lock", options)).rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
+    expect(clock).toBeLessThanOrEqual(200);
+    expect(memory.files.get("/lock")).toBe("malformed");
+    expect(memory.files.has("/lock.break")).toBe(false);
+    memory.files.delete("/lock");
+    const retry = await acquireAdvisoryLock("/lock", options);
+    expect(retry.pid).toBe(2);
+    expect(clock).toBeLessThanOrEqual(200);
+  });
+  it.each(["main-reread", "break-holder"])("bounds settling the %s during serialized reclamation", async (phase) => {
+    let clock = 0;
+    const memory = buildMemoryLockFs({ "/lock": JSON.stringify({ pid: 1, acquiredAt: 0 }) });
+    if (phase === "break-holder") memory.files.set("/lock.break", "malformed");
+    const options = { ...memory, pid: 2, maxWaitMs: 200, now: () => clock,
+      isProcessAlive: () => clock < 150,
+      readFile: async (path: string) => phase === "main-reread" && path === "/lock" && memory.files.has("/lock.break")
+        ? "malformed" : memory.readFile(path),
+      sleep: async (ms: number) => { clock += ms; },
+    };
+    await expect(acquireAdvisoryLock("/lock", options)).rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
+    expect(clock).toBeLessThanOrEqual(200);
+    expect(JSON.parse(memory.files.get("/lock")!)).toMatchObject({ pid: 1 });
+    memory.files.delete("/lock");
+    memory.files.delete("/lock.break");
+    expect((await acquireAdvisoryLock("/lock", options)).pid).toBe(2);
+  });
   let dir: string;
   let lockPath: string;
 
@@ -126,10 +219,12 @@ describe("acquireAdvisoryLock", () => {
   });
 
   it("acquires a free lock with one immediate zero-wait attempt", async () => {
-    let attempts = 0;
-    const handle = await acquireAdvisoryLock(lockPath, { maxWaitMs: 0, now: () => 1000,
+    let attempts = 0, time = 1000;
+    const handle = await acquireAdvisoryLock(lockPath, { maxWaitMs: 0, now: () => time++,
       exclusiveCreate: async (path, content) => { attempts += 1; await atomicCreateFile(path, content); },
       sleep: async () => { throw new Error("A zero-wait acquisition must not back off"); },
+      readFile: async () => { throw new Error("A zero-wait acquisition must not inspect holders"); },
+      removeFile: async () => { throw new Error("A zero-wait acquisition must not reclaim holders"); },
     });
     try {
       expect(attempts).toBe(1);
@@ -141,10 +236,12 @@ describe("acquireAdvisoryLock", () => {
   it("tries a held lock once at zero wait without changing its owner and succeeds after release", async () => {
     const owner = await acquireAdvisoryLock(lockPath);
     const original = await readFile(lockPath, "utf8");
-    let attempts = 0;
-    const options: AdvisoryLockOptions = { maxWaitMs: 0, now: () => 1000,
+    let attempts = 0, time = 1000;
+    const options: AdvisoryLockOptions = { maxWaitMs: 0, now: () => time++,
       exclusiveCreate: async (path, content) => { attempts += 1; await atomicCreateFile(path, content); },
       sleep: async () => { throw new Error("A zero-wait acquisition must not back off"); },
+      readFile: async () => { throw new Error("A zero-wait acquisition must not inspect holders"); },
+      removeFile: async () => { throw new Error("A zero-wait acquisition must not reclaim holders"); },
     };
     try {
       await expect(acquireAdvisoryLock(lockPath, options)).rejects.toMatchObject({ name: "AdvisoryLockTimeoutError", phase: "acquire", lockPath, waitedMs: 0 });

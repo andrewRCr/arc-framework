@@ -9,7 +9,13 @@ import { createUserIOContext } from "../../src/lib/io-context.js";
 import { runMaterialize } from "../../src/lib/work-unit/verbs/materialize.js";
 import { MaterializeCommandInputSchema } from "../../src/handlers/lifecycle.js";
 import { createDefaultLocusPorts } from "../../src/lib/work-unit/locus-ports.js";
-import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+import { lockSpawnedCheckout, PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
+import { readWorktreeLock } from "../helpers/worktree-lock.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
+import type { GitExec } from "../../src/lib/git/index.js";
+import { handleStoreMaterialize } from "../../src/handlers/materialize-store.js";
+import { readConfigSettings } from "../../src/lib/config/status-reader.js";
+import { runHandlerAt } from "../helpers/handler.js";
 import type { WorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 let root: string | undefined;
 afterEach(async () => { if (root !== undefined) await cleanupTempDir(root); root = undefined; });
@@ -52,11 +58,66 @@ describe("store materialize real refs", () => {
     expect(h.marker()).toMatchObject({ spawnedByArc: false, createdFor: { kind: "work-unit", name: "demo" } });
     expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
   }, timeout);
-  it("materializes a released local branch with no origin", async () => {
+  it("materializes --here in a checkout another tool placed and leaves that checkout unlocked", async () => {
+    const h = await fixture(false); const placed = join(h.root, "placed");
+    await h.exec("git", ["worktree", "add", "--detach", placed, "main"]);
+    const input = MaterializeCommandInputSchema.parse({ slug: "demo", here: true });
+    const params = { name: input.slug!, inPlace: true as const, baseBranch: "main", identity: "starter", spawningIdentity: "starter" };
+    expect(await runMaterialize(h.contextAt(placed), params)).toMatchObject({ status: "materialized", inPlace: true, worktreePath: placed });
+    expect(await readWorktreeLock(h.exec, placed)).toBeUndefined();
+  }, timeout);
+  it("materializes a released local branch with no origin, its checkout locked", async () => {
     const h = await fixture(); await h.exec("git", ["branch", "feat/demo", "main"]);
     expect(await runMaterialize(h.ctx, h.params)).toMatchObject({ status: "materialized", branch: "feat/demo", worktreePath: h.path });
     expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"], { cwd: h.path })).stdout).toBe("feat/demo");
+    expect(await readWorktreeLock(h.exec, h.path)).toBe(PROJECTION_LOCK_REASON);
     expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference })).version).toEqual(h.meta.version);
+  }, timeout);
+  it("refuses success after a sole lock failure, retains the placement and permits explicit lock repair", async () => {
+    const h = await fixture(); await h.exec("git", ["branch", "feat/demo", "main"]);
+    const input = MaterializeCommandInputSchema.parse({ slug: "demo" });
+    const denied: GitExec = async (command, args, options) => {
+      if (args[0] === "worktree" && args[1] === "lock") {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "lock denied" });
+      }
+      return h.exec(command, args, options);
+    };
+    const result = await runMaterialize({ ...h.ctx, exec: denied }, { ...h.params, name: input.slug! });
+    expect(result).toMatchObject({ status: "rejected", worktreePath: h.path,
+      spawnLock: { kind: "failed", detail: expect.stringContaining("lock denied") },
+      reason: expect.stringContaining("git worktree lock --reason") });
+    expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"], { cwd: h.path })).stdout).toBe("feat/demo");
+    expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+    expect(await readWorktreeLock(h.exec, h.path)).toBeUndefined();
+    expect(await lockSpawnedCheckout(h.exec, h.path)).toEqual({ kind: "locked" });
+    expect(await readWorktreeLock(h.exec, h.path)).toBe(PROJECTION_LOCK_REASON);
+  }, timeout);
+  it("reports lock-only placement failure through the public handler without announcing readiness", async () => {
+    const h = await fixture(); await h.exec("git", ["branch", "feat/demo", "main"]);
+    const input = MaterializeCommandInputSchema.parse({ slug: "demo" });
+    const denied: GitExec = async (command, args, options) => {
+      if (args[0] === "worktree" && args[1] === "lock") {
+        throw makeGitProcessError({ command, args, exitCode: 128, stderr: "lock denied" });
+      }
+      return h.exec(command, args, options);
+    };
+    const settings = { ...(await readConfigSettings(h.root)).settings,
+      "branch.base": "main", "worktree.location_template": h.path };
+    const result = await runHandlerAt(h.root, () => handleStoreMaterialize(
+      { name: input.slug, here: input.here },
+      { cwd: h.root, identity: "starter", io: { ...createUserIOContext(), exec: h.exec },
+        executor: { ...h.ctx, exec: denied } }, settings,
+    ));
+    const output = result.stdout + result.stderr;
+    expect(result.exitCode, output).toBe(1);
+    expect(output).toContain(h.path);
+    expect(output).toContain("git worktree lock --reason");
+    expect(output).not.toContain("Done.");
+    expect(output).not.toContain("Materialized");
+    expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"], { cwd: h.path })).stdout).toBe("feat/demo");
+    expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+    expect(await lockSpawnedCheckout(h.exec, h.path)).toEqual({ kind: "locked" });
+    expect(await readWorktreeLock(h.exec, h.path)).toBe(PROJECTION_LOCK_REASON);
   }, timeout);
   it("materializes a remote-only link --here at its fetched tip", async () => {
     const h = await fixture(); await h.origin(); await h.exec("git", ["switch", "-c", "feat/demo"]);

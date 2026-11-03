@@ -3,6 +3,9 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { SubmissionBoundaryVersionConflictError } from "../store/kinds/review/errors.js";
+import { resolveSubmissionBoundaryPath } from "../store/kinds/review/paths.js";
+
 import { canonicalize, digestBytes } from "../kernel/canonical/canonical-json.js";
 import { atomicWriteFile } from "../fs.js";
 import { SlugSchema } from "../kernel/schema/slug.js";
@@ -11,6 +14,8 @@ import {
   parseIntegrationBoundaryLocus,
   type IntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
+
+export { resolveSubmissionBoundaryPath };
 
 export interface SubmissionBoundaryReader {
   readFile(path: string): Promise<string>;
@@ -32,17 +37,7 @@ export interface VersionedSubmissionBoundary {
   version: string | null;
 }
 
-export class SubmissionBoundaryVersionConflictError extends Error {
-  constructor() {
-    super("Submission boundary changed after it was read");
-    this.name = "SubmissionBoundaryVersionConflictError";
-  }
-}
-
-/** Resolve the repository-relative durable boundary path for one work unit. */
-export function resolveSubmissionBoundaryPath(name: string): string {
-  return `.arc/system/.internal/candidates/${SlugSchema.parse(name)}.boundary.json`;
-}
+export { SubmissionBoundaryVersionConflictError };
 
 /** Read one durable integration boundary, or null when none has been recorded. */
 export async function readSubmissionBoundary(

@@ -1,0 +1,163 @@
+/** Native working-state persistence isolated from repository-backed operation records. */
+import { reviewFactListingError } from "../../../../lib/store/kinds/review/fact-access.js";
+import { rethrowNativeRefusal } from "../../../../lib/store/native-refusal.js";
+import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
+import type { OwnerIdentity } from "../../../../lib/store/identity.js";
+import type { ReviewOutcomePort, ReviewEvidencePort, ReviewDecisionPort, NativeReviewFactPorts, ReviewInFlightPort, ReviewOperationStateSnapshot } from "../../core/ports.js";
+import type { ReviewOperationState } from "../../core/operation-state-schema.js";
+import { canonicalDigest, canonicalize } from "../../../../lib/kernel/index.js";
+import { composeReviewInFlightState, projectReviewInFlightState, ReviewInFlightRecordSchema,
+  type ReviewInFlightRecord } from "../../core/in-flight-state-schema.js";
+import { LocalOperationStateStoreError } from "./operation-state-store.js";
+import { composeOutcomeLane, outcomeLaneOperationId } from "./lane-outcome-composition.js";
+import type { ReviewEvidence } from "../../../../lib/store/kinds/review/evidence/schema.js";
+import type { ReviewOutcome } from "../../../../lib/store/kinds/review/outcome/schema.js";
+import { pruneEndedReviewExecution, assertReviewPassStillOpen } from "./in-flight-outcomes.js";
+
+interface InFlightContext { publisher: GitCommonStatePublisher; workItem: OwnerIdentity; outcomes: ReviewOutcomePort;
+  projectId: () => Promise<string>; evidence: ReviewEvidencePort; decisions: ReviewDecisionPort }
+const location = { root: "review-gate", namespace: "in-flight" } as const;
+
+function recordPrefix(uid: string): string { return `operation-${canonicalDigest({ uid }).slice(7)}-`; }
+
+/** The part of an execution record's name that every work item's record of one operation shares. */
+export function nativeReviewInFlightOperationPart(operationId: string): string {
+  return `${canonicalDigest({ operationId }).slice(7)}.json`;
+}
+
+/** Name one clone-local execution record by its exact admitted UID and operation. */
+export function nativeReviewInFlightRecordName(uid: string, operationId: string): string {
+  return `${recordPrefix(uid)}${nativeReviewInFlightOperationPart(operationId)}`;
+}
+
+/** A damaged or foreign native execution record, refused as the repository arm refuses a malformed operation record. */
+export function malformedNativeInFlightRecord(name: string, issue: string): LocalOperationStateStoreError {
+  return new LocalOperationStateStoreError("malformed-operation-state",
+    `Native execution record '${name}' is malformed: ${issue}. Repair or remove it, then retry.`);
+}
+
+/** Bind machine-local execution state to one exact operational owner. */
+export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
+  readonly stateOffBranch = true;
+  readonly outcomeWriter: ReviewOutcomePort;
+  readonly nativeFacts: NativeReviewFactPorts;
+  private readonly prefix: string;
+  private readonly uid: string;
+  constructor(private readonly input: InFlightContext) {
+    this.outcomeWriter = input.outcomes;
+    this.nativeFacts = { outcomes: input.outcomes, evidence: input.evidence, decisions: input.decisions, readProjectId: input.projectId };
+    if (input.workItem.type !== "work-item" || input.workItem.uid === undefined) {
+      throw new LocalOperationStateStoreError("work-item-uid-required");
+    }
+    this.uid = input.workItem.uid;
+    this.prefix = recordPrefix(this.uid);
+  }
+
+  private recordName(operationId: string): string {
+    return nativeReviewInFlightRecordName(this.uid, operationId);
+  }
+
+  private async parse(raw: string, name: string): Promise<ReviewInFlightRecord> {
+    const projectId = await this.input.projectId();
+    let record: ReviewInFlightRecord;
+    try {
+      record = ReviewInFlightRecordSchema.parse(JSON.parse(raw));
+    } catch (error) {
+      throw malformedNativeInFlightRecord(name, error instanceof Error ? error.message : String(error));
+    }
+    if (record.operationId !== record.state.operationId) throw malformedNativeInFlightRecord(name,
+      `envelope operation '${record.operationId}' differs from state operation '${record.state.operationId}'`);
+    if (name !== this.recordName(record.operationId)) throw malformedNativeInFlightRecord(name,
+      `its filename does not match operation '${record.operationId}'`);
+    if (record.state.workItem.type !== "work-item" || record.state.workItem.uid !== this.uid) {
+      throw malformedNativeInFlightRecord(name, "it names another work item");
+    }
+    if (record.state.repositoryId !== projectId) throw malformedNativeInFlightRecord(name, "it names another project");
+    return record;
+  }
+
+  private async outcomes() {
+    const listing = await this.input.outcomes.list();
+    if (listing.status !== "complete") throw listing.refusal === undefined ? new LocalOperationStateStoreError(listing.reason)
+      : reviewFactListingError(listing);
+    return listing.records.map(record => record.value);
+  }
+
+  private async evidence() {
+    const listing = await this.input.evidence.list();
+    if (listing.status !== "complete") throw listing.refusal === undefined ? new LocalOperationStateStoreError(listing.reason)
+      : reviewFactListingError(listing);
+    return listing.records.map(record => record.value);
+  }
+
+  private compose(operationId: string, state: ReviewOperationState | null, outcomes: readonly ReviewOutcome[], evidence: readonly ReviewEvidence[]): ReviewOperationState | null {
+    const pending = state === null ? null : pruneEndedReviewExecution(state, outcomes);
+    if (pending !== null && pending.kind !== "lane-progress") return pending;
+    return composeOutcomeLane(operationId, pending, outcomes, this.input.workItem, evidence);
+  }
+
+  private async readRetainedRecord(operationId: string): Promise<ReviewInFlightRecord | null> {
+    const name = this.recordName(operationId), raw = await this.input.publisher.read(location, name);
+    const record = raw === null ? null : await this.parse(raw, name);
+    return record;
+  }
+
+  /** Read only the original source locator without reviving ended execution. */
+  async readLocalSourceReference(operationId: string): Promise<string | null> {
+    const record = await this.readRetainedRecord(operationId);
+    return record?.state.kind === "local-review" ? record.state.sourceRef : null;
+  }
+
+  async readOperation(operationId: string): Promise<{ version: number; state: ReviewOperationState | null }> {
+    const record = await this.readRetainedRecord(operationId);
+    return { version: record?.version ?? 0, state: this.compose(operationId,
+      record === null ? null : composeReviewInFlightState(record.state), await this.outcomes(), await this.evidence()) };
+  }
+
+  async readOperationSnapshot(): Promise<ReviewOperationStateSnapshot> {
+    try {
+      const records = new Map<string, { version: number; state: ReviewOperationState | null }>();
+      const outcomes = await this.outcomes(), evidence = await this.evidence();
+      for (const entry of await this.input.publisher.snapshot(location)) {
+        if (!entry.name.startsWith(this.prefix)) continue;
+        if (entry.kind !== "file") return { status: "incomplete",
+          reason: `unexpected-in-flight-entry: Native execution entry '${entry.name}' is not a file. Repair or move aside this entry, then retry.` };
+        const record = await this.parse(entry.content, entry.name);
+        records.set(record.operationId, { version: record.version, state: composeReviewInFlightState(record.state) });
+      }
+      for (const outcome of outcomes) {
+        const id = outcomeLaneOperationId(outcome);
+        if (!records.has(id)) records.set(id, { version: 0, state: null });
+      }
+      return { status: "complete", records: [...records].flatMap(([id, record]) => {
+        const state = this.compose(id, record.state, outcomes, evidence);
+        return state === null ? [] : [{ version: record.version, state }];
+      }).sort((a, b) => a.state.operationId.localeCompare(b.state.operationId)) };
+    } catch (error) {
+      // A native typed refusal reaches the command whole; a damaged record stays unavailable.
+      rethrowNativeRefusal(error);
+      return { status: "unavailable", reason: error instanceof Error ? error.message : "in-flight-snapshot-failed" };
+    }
+  }
+
+  async publishOperation(state: ReviewOperationState, expectedVersion: number): Promise<{ version: number }> {
+    if (state.workItem !== undefined && (state.workItem.type !== "work-item" || state.workItem.uid !== this.uid)) {
+      throw new LocalOperationStateStoreError("work-item-mismatch");
+    }
+    const outcomes = await this.outcomes();
+    const pending = pruneEndedReviewExecution(state, outcomes);
+    if (pending === null) throw new LocalOperationStateStoreError("operation-already-ended");
+    assertReviewPassStillOpen(pending, outcomes);
+    const working = projectReviewInFlightState({ ...pending, workItem: this.input.workItem });
+    if (working.repositoryId !== await this.input.projectId()) throw new LocalOperationStateStoreError("project-identity-mismatch");
+    const name = this.recordName(state.operationId);
+    return this.input.publisher.update(location, name, async raw => {
+      const current = raw === null ? null : await this.parse(raw, name);
+      if (current !== null && canonicalize(current.state) === canonicalize(working)) return { kind: "keep", result: { version: current.version } };
+      if ((current?.version ?? 0) !== expectedVersion) throw new LocalOperationStateStoreError("version-conflict");
+      const record = ReviewInFlightRecordSchema.parse({ schemaVersion: 1, semanticsVersion: "review-in-flight/v1",
+        operationId: state.operationId, version: expectedVersion + 1, state: working });
+      return { kind: "write", content: `${JSON.stringify(record)}\n`, result: { version: record.version } };
+    });
+  }
+}

@@ -84,7 +84,7 @@ async function fixture(extraPath?: string,
     reservation: createStandardReviewReservation({ candidateId: attestation.candidateId, sourceId: "codex-pr",
       repository: "owner/repo", headSha: originatingHeadSha, obligation: { obligation: "required",
         reasons: ["routine-code"], rubricVersion: STANDARD_REVIEW_RUBRIC_IDENTITY.version,
-        rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest, retrigger: "full-final", count: 1 } }) });
+        rubricDigest: STANDARD_REVIEW_RUBRIC_IDENTITY.digest, retrigger: "full-final", count: 1 } }) }, 1);
   if (previousBoundary) await writeFile(join(cwd, boundaryPath), canonicalize(boundary));
   await git("add", ".");
   await git("commit", "-m", "attest");
@@ -120,6 +120,36 @@ async function fixture(extraPath?: string,
 }
 
 describe("committed Candidate response continuation", () => {
+  it("refuses a native response continuation made only of tracked record writes", async () => {
+    const { input } = await fixture();
+    expect(await confirmCandidateResponseHeadContinuation({ ...input, stateOffBranch: true })).toBe(false);
+  });
+
+  it.each(["add", "rewrite", "delete"] as const)("requires the native continuation to %s only the owning work unit's export", async operation => {
+    const { input, git } = await fixture();
+    await git("switch", "-c", "native-export", input.verifiedHeadSha);
+    await mkdir(join(input.cwd, ".arc/specs/example"), { recursive: true });
+    const copy = ".arc/specs/example/spec-example.md";
+    if (operation !== "add") {
+      await writeFile(join(input.cwd, copy), "# Initial specification\n");
+      await git("add", copy);
+      await git("commit", "-m", "Retain review copy at verified head");
+    }
+    const verifiedHeadSha = await git("rev-parse", "HEAD");
+    const native = { ...input, verifiedHeadSha, fromHeadSha: verifiedHeadSha, stateOffBranch: true };
+    if (operation === "delete") await rm(join(input.cwd, copy));
+    else await writeFile(join(input.cwd, copy), "# Reviewed specification\n");
+    await git("add", copy);
+    await git("commit", "-m", "Copy the reviewed specification");
+    const toHeadSha = await git("rev-parse", "HEAD");
+    expect(await confirmCandidateResponseHeadContinuation({ ...native, toHeadSha })).toBe(true);
+    await writeFile(join(input.cwd, ".arc/specs/example/code.ts"), "unrelated\n");
+    await git("add", ".arc/specs/example/code.ts");
+    await git("commit", "--amend", "--no-edit");
+    expect(await confirmCandidateResponseHeadContinuation({ ...native,
+      toHeadSha: await git("rev-parse", "HEAD") })).toBe(false);
+  });
+
   it("proves the required record-only commit against its exact verified response", async () => {
     const { input } = await fixture();
     await expect(confirmCandidateResponseHeadContinuation(input)).resolves.toBe(true);
@@ -207,8 +237,7 @@ describe("committed Candidate response continuation", () => {
     const unbound = await recordLaneResponsePerformance(store, performance);
     const beforeBinding = unbound.attempts[0]?.responsePerformance;
     const proof = createCandidateResponseHeadContinuationReader({ cwd: input.cwd, exec: bound, operationStore: store,
-      dispositionStore: { readDispositionRecord: async () => approvedRecord,
-        appendDispositionRecord: async () => { throw new Error("proof must not write approval"); } } });
+      dispositionStore: { readDispositionRecord: async () => approvedRecord } });
     const continuation = { repositoryId: "repo", lineage, producerId: "producer", dispositionSetId,
       originatingHeadSha: input.originatingHeadSha, fromHeadSha: input.verifiedHeadSha, toHeadSha: input.toHeadSha };
     await expect(proof(continuation)).resolves.toBe(false);

@@ -52,6 +52,7 @@ describe("repository command-input inventory", () => {
       syntaxCount + declaredInteractionCount + declaredSemanticSites.length,
     );
     expect(declaredSemanticSites).toEqual([
+      "agenda:semantic.interaction-context",
       "status:semantic.interaction-context",
     ]);
     expect(inventory.entries).toEqual(expect.arrayContaining([

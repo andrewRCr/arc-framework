@@ -239,7 +239,7 @@ it.each(["landed", "multi-commit-squash"])("classifies an externally %s complete
 
 it("projects the Candidate mutation owner from the store-derived subject", async () => {
   const h = await fixture();
-  expect(projectCandidateMutationOwner(await frame(h.io))).toEqual({ status: "owned", workUnit: h.reference.owner.name });
+  expect(projectCandidateMutationOwner(await frame(h.io))).toEqual({ status: "owned", workUnit: h.reference.owner.name, uid: h.uid });
 });
 
 it("reads a cohort document through the store and carries none when the document is missing", async () => {
@@ -324,12 +324,10 @@ it("recovers an Integrating Candidate's boundary and session type from its work-
   const owner = success(await h.fixture.store.read({ reference: h.reference })).reference.owner;
   await seed(h.fixture, recordReferences["review/candidate"](owner), candidate);
   const boundary = projectPublicationBoundary({ workUnit: name, branch: "main", candidateId: attestation.candidateId,
-    candidateSubjectDigest: subject.subjectDigest, reservation: null, changeRequest: null });
+    candidateSubjectDigest: subject.subjectDigest, reservation: null, changeRequest: null }, 1);
+  await seed(h.fixture, recordReferences["review/integration-boundary"](owner), JSON.stringify(boundary));
   const localIO: SubjectMetaIO = { ...subjectMetaIO, projectCandidateTarget: projectDurableCandidateTarget,
-    readFile: async path => {
-      if (path === `/repo/.arc/system/.internal/candidates/${name}.boundary.json`) return JSON.stringify(boundary);
-      throw Object.assign(new Error("Missing projection"), { code: "ENOENT" });
-    } };
+    readFile: async () => { throw new Error("Checkout projections are not authoritative"); } };
   expect((await frame(h.io, localIO)).active?.context).toMatchObject({ branch: "main", sessionType: "integration", integrationBoundary: boundary });
 });
 

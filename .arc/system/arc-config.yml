@@ -281,14 +281,16 @@ session.remote_sync: enabled
 #   prompt - Prompt before pulling. (default)
 # `always` is rejected for this channel — auto-pulling tracked working-tree
 # state silently is too invasive even on clean trees.
-# See session-init.md § Conditional Sync Pulls for dirty-tree precheck and prompt behavior.
+# Worktree and notes recommendations combine into one offer when both apply.
+# Accepted sync actions are followed by a fresh session-entry compile.
 session.init_pull.worktree: prompt
 
 # Notes pull policy at session init when the remote notes ref is ahead.
 #   manual - Surface the drift in orientation; user runs `arc user pull` when ready.
 #   prompt - Prompt before pulling. (default)
 #   always - Pull automatically (notes are gitignored personal context only).
-# See session-init.md § Conditional Sync Pulls for combined-prompt and post-pull re-probe behavior.
+# A pending worktree pull shares the offer with notes. Pulling recompiles entry
+# and re-evaluates whether local notes now need loading.
 session.init_pull.notes: prompt
 
 # Base-branch pull policy at session init when the local base ref (`branch.base`)
@@ -296,8 +298,8 @@ session.init_pull.notes: prompt
 # clone. Fast-forward-only; never resolves a diverged base.
 #   manual - Surface the staleness in orientation; user fast-forwards when ready.
 #   prompt - Prompt before fast-forwarding. (default)
-#   always - Fast-forward automatically when fast-forwardable (refused on a dirty tree).
-# See session-init.md § Conditional Sync Pulls for the base-ref pull behavior.
+#   always - Fast-forward automatically when fast-forwardable.
+# Accepted base sync recompiles session entry from fresh state.
 session.init_pull.base: always
 
 # Notes load policy at session init when the local notes ref is current but the
@@ -306,7 +308,8 @@ session.init_pull.base: always
 #   manual - Surface the load action in orientation; user runs `arc user load` when ready.
 #   prompt - Prompt before loading. (default)
 #   always - Load automatically (the pre-load backup snapshot is the safety net).
-# See session-init.md § Conditional Sync Pulls for the load cascade and dirty-tree refusal under `always`.
+# Retired-directory edits retain the CLI prompt recommendation even under always.
+# Loading creates a backup and recompiles session entry.
 session.init_load.notes: prompt
 
 # --- User Directory ---
@@ -340,6 +343,14 @@ sync.auto_pull: false
 # This project uses manual: a work unit merges while still Integrating under
 # .arc/active, and archival follows as its own post-merge change.
 archive.cadence: manual
+
+# --- Design export ---
+
+# Export the stored specification into the code repository for pull-request review.
+# Applies only where operational state is kept off the branch, which in-repo state already tracks.
+#   specs - Write and stage the spec at attestation and after a review fix. (default)
+#   none  - Keep design documents exclusively in operational storage.
+storage.track_design_docs: specs
 
 # --- Inbox ---
 

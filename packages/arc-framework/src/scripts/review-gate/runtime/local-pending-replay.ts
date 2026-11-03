@@ -1,11 +1,13 @@
 /** Recover one exact pending local admission before resolving fresh evaluator input. */
 
+import { projectDeliveryLocalReviewAdmissionIdentity } from "../policy/delivery-local-review-admission.js";
 import { localAttemptCoverageAdmission } from "../policy/local-review-coverage-selection.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 import { GitObjectIdSchema, type ReviewTarget } from "../core/gate-contract-v2-schema.js";
 import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "../core/lane-admission.js";
 import { assertLocalReviewClaimBinding } from "../core/local-operation.js";
-import type { LocalReviewCoverageAdmission } from "../core/local-review-coverage.js";
+import { LocalReviewCoverageAdmissionSchema, projectLocalReviewCoverageAdmission, type LocalReviewCoverageAdmission }
+  from "../core/local-review-coverage.js";
 import type { LocalReviewState } from "../core/operation-state-schema.js";
 import type { ReviewScopeMode } from "../core/review-primitives.js";
 import {
@@ -54,6 +56,30 @@ export function completedReplayAttemptMatches(
     && attempt.local.target.targetId === input.target.targetId;
 }
 
+/** The scope and coverage a request selects before its target or authority resolves. */
+export function localRequestScope(request: LocalPrepareRequest): Pick<StablePendingReplayContext, "scopeMode" | "coverageAdmission"> {
+  return { scopeMode: request.deliveryAdmission?.scopeSelection?.mode ?? request.policyJudgment?.scopeMode ?? "whole-target",
+    coverageAdmission: request.deliveryAdmission === undefined
+      ? request.coverageAdmission ?? LocalReviewCoverageAdmissionSchema.parse({ requestedCoverage: "complete" })
+      : projectLocalReviewCoverageAdmission(request.deliveryAdmission) };
+}
+
+/** A request naming no coverage replays an attempt at the coverage that attempt was admitted with. */
+export function replayAttemptCoverage(input: Pick<StablePendingReplayContext, "request" | "coverageAdmission">,
+  attempt: PendingAttempt | undefined): LocalReviewCoverageAdmission {
+  return input.request.coverageAdmission === undefined && input.request.deliveryAdmission === undefined
+    && attempt?.local !== undefined ? localAttemptCoverageAdmission(attempt.local) : input.coverageAdmission;
+}
+
+/** Whether a completed attempt on this target already answers the request, so its replay precedes any fresh judgment. */
+export function completedLocalAttemptAnswers(request: LocalPrepareRequest, attempts: readonly PendingAttempt[],
+  target: ReviewTarget): boolean {
+  const scope = localRequestScope(request);
+  return attempts.some(attempt => attempt.local?.target.targetId === target.targetId
+    && completedReplayAttemptMatches(attempt, { request, target, scopeMode: scope.scopeMode,
+      coverageAdmission: replayAttemptCoverage({ request, coverageAdmission: scope.coverageAdmission }, attempt) }));
+}
+
 async function pendingAdmissionMatches(
   state: LocalReviewState,
   subject: Awaited<ReturnType<LocalPrepareDependencies["resolveVehicle"]>>,
@@ -62,7 +88,8 @@ async function pendingAdmissionMatches(
   dependencies: LocalPrepareDependencies,
 ): Promise<boolean> {
   const sameDelivery = request.deliveryAdmission === undefined
-    || canonicalize(request.deliveryAdmission) === canonicalize(state.deliveryAdmission ?? null);
+    || canonicalize(projectDeliveryLocalReviewAdmissionIdentity(request.deliveryAdmission))
+      === canonicalize(projectDeliveryLocalReviewAdmissionIdentity(state.deliveryAdmission));
   return canonicalize(state.vehicle) === canonicalize(subject.vehicle)
     && state.request.authorIdentity === subject.authorIdentity
     && laneSubjectOwnerMatches(state.lineage, lineage)
@@ -107,7 +134,7 @@ async function retireStalePendingAdmission(
     lane: "standard", repositoryId: state.repositoryId, changeRequestId: attempt.changeRequestId,
     headSha: state.target.headSha, lineage: state.lineage, attemptId: state.operationId,
     sourceId: state.laneSourceId, logicalPass: state.logicalPass, retryGeneration: state.retryGeneration,
-    outcome: "stale-target", consumedPass: false, advancePendingAttempt: true,
+    outcome: "stale-target", consumedPass: false, advancePendingAttempt: true, localOutcome: { state },
     local: attempt.local, expectedOwnerVersion: ownerVersion, now: dependencies.now(),
   });
   return true;
@@ -190,4 +217,19 @@ export async function resolveStablePendingLocalReplay<T>(
     }
     return result;
   }));
+}
+
+/** Compare exact replay identity and grant constraints without treating transient decision references as identity. */
+export function localReplayAdmissionMatches(state: LocalReviewState, attempt: PendingAttempt,
+  binding: NonNullable<PendingAttempt["local"]>,
+  input: Pick<StablePendingReplayContext, "request" | "target" | "scopeMode" | "lineage" | "coverageAdmission">): boolean {
+  return state.operationId === attempt.attemptId && state.operationId === binding.operationId
+    && state.requestId === binding.requestId && state.targetId === input.target.targetId
+    && binding.target.targetId === input.target.targetId && canonicalize(state.target) === canonicalize(input.target)
+    && state.scopeMode === binding.scopeMode && state.scopeMode === input.scopeMode
+    && state.logicalPass === attempt.logicalPass && state.retryGeneration === attempt.retryGeneration
+    && canonicalize(state.coverageAdmission) === canonicalize(input.coverageAdmission)
+    && canonicalize(state.lineage) === canonicalize(input.lineage)
+    && canonicalize(projectDeliveryLocalReviewAdmissionIdentity(state.deliveryAdmission))
+      === canonicalize(projectDeliveryLocalReviewAdmissionIdentity(input.request.deliveryAdmission));
 }

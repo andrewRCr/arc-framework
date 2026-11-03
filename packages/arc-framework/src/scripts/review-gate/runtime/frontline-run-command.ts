@@ -9,7 +9,6 @@ import {
   type ReviewTarget,
 } from "../core/gate-contract-v2-schema.js";
 import type {
-  FrontlineOutcomeStore,
   ReviewOperationStateStore,
 } from "../core/ports.js";
 import {
@@ -17,10 +16,11 @@ import {
 } from "../core/review-command-envelope.js";
 import { FrontlineRunCommandRequestSchema } from "../core/frontline-run-command-schema.js";
 import type { ReviewPass } from "../core/review-pass.js";
-import { bindReviewSourceReference } from "../core/review-source-reference.js";
+import { bindReviewSourceReference, type ReviewSourceReferenceBinding } from "../core/review-source-reference.js";
 import {
   executeFrontlineRun,
   type FrontlineRunExecutionDependencies,
+  type FrontlineRunResultStores,
 } from "../policy/frontline-operation.js";
 import {
   normalizeFrontlineOutcome,
@@ -43,9 +43,10 @@ import { withFrontlineRetryAuthorization } from "./frontline-retry-remedy.js";
 const MAX_TIMER_DELAY_MS = 2_147_483_647;
 const OPERATION_LOCK_COMPLETION_MARGIN_MS = 30_000;
 
-export interface FrontlineRunCommandDependencies {
+interface FrontlineRunCommandPorts {
+  /** Encode source locators under the invocation's selected storage arm. */
+  bindSourceReference?: ReviewSourceReferenceBinding;
   operationStore: ReviewOperationStateStore;
-  outcomeStore: FrontlineOutcomeStore;
   withOperationLock<T>(
     operationId: string,
     maxWaitMs: number,
@@ -68,6 +69,9 @@ export interface FrontlineRunCommandDependencies {
   }): ReturnType<FrontlineRunExecutionDependencies["execute"]>;
   now(): string;
 }
+
+/** The run command's ports, with its storage arm's result store. */
+export type FrontlineRunCommandDependencies = FrontlineRunCommandPorts & FrontlineRunResultStores;
 
 /** Stable caller-input failure at the frontline run boundary. */
 export class FrontlineRunCommandError extends Error {
@@ -176,7 +180,8 @@ export async function runFrontlineReviewCommand(
   };
   const terminal = await withFrontlineRetryAuthorization(owner, admission, () => executeFrontlineRun({
     operationStore: dependencies.operationStore,
-    outcomeStore: dependencies.outcomeStore,
+    ...(dependencies.outcomes === undefined ? { outcomeStore: dependencies.outcomeStore }
+      : { outcomes: dependencies.outcomes }),
     withOperationLock: (operationId, maxWaitMs, action) => dependencies.withOperationLock(
       operationId,
       maxWaitMs,
@@ -195,12 +200,18 @@ export async function runFrontlineReviewCommand(
       MAX_TIMER_DELAY_MS,
       (request.timeoutMs ?? DEFAULT_FRONTLINE_TIMEOUT_MS) + OPERATION_LOCK_COMPLETION_MARGIN_MS,
     ),
-  }));
+  }), dependencies.operationStore.nativeFacts);
   await recordFrontlineAttempt(dependencies.operationStore, {
     admission,
     outcome: terminal.outcome,
     now: dependencies.now(),
   });
+  const outcomeRef = await (dependencies.bindSourceReference ?? bindReviewSourceReference)({ kind: "frontline",
+    operationId: terminal.operationId, durableRef: terminal.outcomeRef });
+  return frontlineRunEnvelope(terminal, outcomeRef);
+}
+
+function frontlineRunEnvelope(terminal: Awaited<ReturnType<typeof executeFrontlineRun>>, outcomeRef: string): z.infer<typeof FrontlineRunEnvelopeSchema> {
   const transition = actionFor(terminal.outcome);
   const diagnostics = transition.nextAction === "operator-repair"
     ? [{
@@ -218,12 +229,9 @@ export async function runFrontlineReviewCommand(
     payload: {
       operationId: terminal.operationId,
       persistedVersion: terminal.persistedVersion,
+      ...(terminal.operationRef === undefined ? {} : { operationRef: terminal.operationRef }),
       target: terminal.target,
-      outcomeRef: bindReviewSourceReference({
-        kind: "frontline",
-        operationId: terminal.operationId,
-        durableRef: terminal.outcomeRef,
-      }),
+      outcomeRef,
       outcomeDigest: terminal.outcomeDigest,
       ...(terminal.executableIdentity === null
         ? {}

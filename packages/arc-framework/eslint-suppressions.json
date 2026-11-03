@@ -119,15 +119,12 @@
   },
   "src/commands/active/status.ts": {
     "arc/store-raw-state": {
-      "count": 2
+      "count": 1
     },
     "arc/surface-names": {
       "count": 2
     },
     "jsdoc/require-jsdoc": {
-      "count": 1
-    },
-    "max-lines-per-function": {
       "count": 1
     },
     "sonarjs/cognitive-complexity": {
@@ -174,7 +171,7 @@
   },
   "src/commands/rename.ts": {
     "arc/store-raw-state": {
-      "count": 3
+      "count": 2
     },
     "arc/surface-names": {
       "count": 1
@@ -329,9 +326,6 @@
     }
   },
   "src/handlers/candidate.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     }
@@ -355,9 +349,6 @@
     }
   },
   "src/handlers/delivery-execution.ts": {
-    "arc/store-raw-state": {
-      "count": 3
-    },
     "arc/surface-names": {
       "count": 2
     },
@@ -403,7 +394,7 @@
       "count": 2
     },
     "arc/surface-names": {
-      "count": 2
+      "count": 1
     },
     "jsdoc/require-jsdoc": {
       "count": 9
@@ -452,10 +443,7 @@
   },
   "src/handlers/lifecycle-delivery-review.ts": {
     "arc/store-raw-state": {
-      "count": 3
-    },
-    "arc/work-unit-paths": {
-      "count": 1
+      "count": 2
     },
     "max-lines-per-function": {
       "count": 2
@@ -542,9 +530,6 @@
     }
   },
   "src/handlers/review.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "jsdoc/require-jsdoc": {
       "count": 3
     },
@@ -590,9 +575,6 @@
     }
   },
   "src/handlers/status/lifecycle.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "arc/surface-names": {
       "count": 1
     }
@@ -682,7 +664,7 @@
   },
   "src/lib/base-drift/current-adapters.ts": {
     "arc/store-raw-state": {
-      "count": 3
+      "count": 2
     },
     "arc/surface-names": {
       "count": 1
@@ -863,11 +845,6 @@
       "count": 3
     }
   },
-  "src/lib/delivery/lifecycle-contribution.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    }
-  },
   "src/lib/delivery/materialization.ts": {
     "max-lines-per-function": {
       "count": 1
@@ -931,11 +908,6 @@
       "count": 1
     }
   },
-  "src/lib/delivery/repository-entry.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    }
-  },
   "src/lib/delivery/residue-reaping.ts": {
     "max-lines-per-function": {
       "count": 1
@@ -971,9 +943,6 @@
     }
   },
   "src/lib/delivery/review-fix-record-effects.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     },
@@ -1374,13 +1343,10 @@
   },
   "src/lib/locus/subject-meta.ts": {
     "arc/store-raw-state": {
-      "count": 2
+      "count": 1
     },
     "arc/surface-names": {
       "count": 2
-    },
-    "max-depth": {
-      "count": 1
     },
     "max-lines-per-function": {
       "count": 1
@@ -1923,11 +1889,6 @@
       "count": 1
     }
   },
-  "src/lib/work-unit/candidate-record-store.ts": {
-    "sonarjs/cognitive-complexity": {
-      "count": 1
-    }
-  },
   "src/lib/work-unit/completed-index.ts": {
     "arc/surface-names": {
       "count": 2
@@ -2119,9 +2080,6 @@
     }
   },
   "src/lib/work-unit/git-candidate-subject.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "arc/surface-names": {
       "count": 1
     },
@@ -2571,17 +2529,9 @@
       "count": 1
     }
   },
-  "src/scripts/integration/candidate-response-confirmation.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "src/scripts/integration/checkpoint-composition.ts": {
     "arc/store-raw-state": {
-      "count": 3
+      "count": 2
     },
     "max-lines": {
       "count": 1
@@ -2629,12 +2579,6 @@
     }
   },
   "src/scripts/integration/lineage-review-composition.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
-    "max-lines-per-function": {
-      "count": 1
-    },
     "sonarjs/cognitive-complexity": {
       "count": 2
     }
@@ -2762,7 +2706,7 @@
   },
   "src/scripts/review-gate/lane-progress-conditional.ts": {
     "jsdoc/require-jsdoc": {
-      "count": 3
+      "count": 2
     },
     "sonarjs/cognitive-complexity": {
       "count": 2
@@ -2786,14 +2730,9 @@
       "count": 3
     }
   },
-  "src/scripts/review-gate/lane-progress-supersession.ts": {
-    "sonarjs/cognitive-complexity": {
-      "count": 1
-    }
-  },
   "src/scripts/review-gate/lane-progress.ts": {
     "jsdoc/require-jsdoc": {
-      "count": 3
+      "count": 2
     },
     "sonarjs/cognitive-complexity": {
       "count": 2
@@ -2867,14 +2806,9 @@
       "count": 1
     }
   },
-  "src/scripts/review-gate/policy/mechanical-review-applicability-carry.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    }
-  },
   "src/scripts/review-gate/policy/pre-publication-composition.ts": {
     "arc/store-raw-state": {
-      "count": 2
+      "count": 1
     },
     "arc/work-unit-paths": {
       "count": 1
@@ -2948,11 +2882,6 @@
       "count": 4
     },
     "sonarjs/cognitive-complexity": {
-      "count": 2
-    }
-  },
-  "src/scripts/review-gate/runtime/candidate-response-head-continuation.ts": {
-    "arc/store-raw-state": {
       "count": 1
     }
   },
@@ -2970,9 +2899,6 @@
     }
   },
   "src/scripts/review-gate/runtime/local-prepare-composition.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     }
@@ -2996,11 +2922,8 @@
     }
   },
   "src/scripts/review-gate/runtime/reduce-command.ts": {
-    "max-lines-per-function": {
-      "count": 2
-    },
     "sonarjs/cognitive-complexity": {
-      "count": 2
+      "count": 1
     }
   },
   "src/scripts/review-gate/runtime/respond-command.ts": {
@@ -3015,17 +2938,11 @@
     }
   },
   "src/scripts/review-gate/runtime/respond-composition.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 1
     }
   },
   "src/scripts/review-gate/status-composition.ts": {
-    "arc/store-raw-state": {
-      "count": 1
-    },
     "max-lines-per-function": {
       "count": 4
     },

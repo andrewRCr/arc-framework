@@ -14,7 +14,7 @@ export interface HelpPage {
 /** Task groups keyed by namespace path, with help-only member ordering. */
 export const HELP_GROUPS: Readonly<Record<string, readonly (readonly [string, readonly string[]])[]>> = {
   "": [
-    ["Inspect work and context:", ["status", "view", "active", "locus", "inbox", "log", "recover"]],
+    ["Inspect work and context:", ["status", "agenda", "view", "active", "locus", "inbox", "log", "recover"]],
     ["Plan and organize work:", ["start", "stub", "promote", "demote", "rename", "decompose", "plan", "set-class", "set-stage", "finalize", "repoint-design"]],
     ["Run and resume work:", ["activate", "deactivate", "park", "pause", "handover", "resume", "materialize", "reopen", "abandon", "task", "wu", "attest", "candidate"]],
     ["Review and land work:", ["review", "publish", "integrate", "merge", "base", "delivery", "release", "archive", "teardown"]],
@@ -22,7 +22,7 @@ export const HELP_GROUPS: Readonly<Record<string, readonly (readonly [string, re
     ["Set up and maintain ARC:", ["init", "join", "update", "health", "diff", "check", "config", "schema"]],
   ],
   review: [
-    ["Choose review work:", ["pre-publication", "resolve", "changeset", "lane"]],
+    ["Choose review work:", ["pre-publication", "resolve", "changeset", "lane", "adversarial"]],
     ["Run and respond:", ["frontline", "hosted", "local", "respond", "reduce", "terminus"]],
     ["Check readiness:", ["status", "readiness", "checks", "change-request", "merge-method"]],
     ["Clear planning changes:", ["planning-lane", "planning-grooming"]],
@@ -176,6 +176,8 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
     ],
     notes: requestNotes,
   },
+  "review adversarial": { summary: COMMAND_SUMMARIES["review adversarial"], notes: [["Related:", "arc review adversarial record --help"]] },
+  "review adversarial record": { summary: COMMAND_SUMMARIES["review adversarial record"], notes: requestNotes },
   "review lane": { summary: COMMAND_SUMMARIES["review lane"], notes: [["Related:", "arc review lane read --help"]] },
   "review lane read": { summary: COMMAND_SUMMARIES["review lane read"], notes: requestNotes },
   "review readiness": { summary: COMMAND_SUMMARIES["review readiness"], notes: requestNotes },

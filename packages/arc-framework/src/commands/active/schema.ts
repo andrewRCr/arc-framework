@@ -1,12 +1,12 @@
 import { z } from "zod";
-import { IntegrationBoundaryLocusSchema } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
+import { PublishedIntegrationBoundaryLocusSchema } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 
 const MetaFileCandidateSchema = z.strictObject({
   path: z.string(),
   filename: z.string(),
   branch: z.string().nullable(),
   candidateId: z.string().nullable().optional(),
-  integrationBoundary: IntegrationBoundaryLocusSchema.nullable().optional(),
+  integrationBoundary: PublishedIntegrationBoundaryLocusSchema.nullable().optional(),
   state: z.string().nullable(),
   nextTask: z.string().nullable(),
   taskList: z.string().nullable(),
@@ -31,6 +31,6 @@ export const ActiveSessionInitResultSchema = z.strictObject({
   currentWorkflow: z.string().nullable(),
   /** Resolved planning workflow for a single planning candidate; null otherwise. */
   planningStage: z.enum(["draft-design", "create-spec", "generate-tasks"]).nullable(),
-  integrationBoundary: IntegrationBoundaryLocusSchema.nullable(),
+  integrationBoundary: PublishedIntegrationBoundaryLocusSchema.nullable(),
   warnings: z.array(z.string()),
 });

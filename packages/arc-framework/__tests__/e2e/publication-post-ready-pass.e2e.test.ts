@@ -54,7 +54,7 @@ async function createReviewRepo(): Promise<string> {
     "review.standard_sources: []",
     "review.standard_sources: [delegated-agent]",
   ));
-  await git(root, ["add", ".arc", ".gitignore"]);
+  await git(root, ["add", ".arc", ".gitignore", ".ignore"]);
   await git(root, ["commit", "-m", "install ARC"]);
   await git(root, ["switch", "-c", "feat/example"]);
   await mkdir(join(root, ".arc", "active"), { recursive: true });

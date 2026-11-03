@@ -45,7 +45,7 @@ describe("stale lifecycle spawn registrations", () => {
         const cleared = await clearMissingWorktreeRegistrations({ ...request, exec: h.exec, primaryWorktreePath: h.root, folderExists: h.exists });
         if (cleared.kind === "refused") throw Error(cleared.reason);
       } }, { detached: true, locationTemplate: h.path, repo: "repo", placementName: "demo", base: "main" });
-    expect(result).toMatchObject({ kind: "error", reason: "stale-registration-refused", error: expect.objectContaining({ message: expect.stringContaining(`git worktree unlock ${h.path}`) }) });
+    expect(result).toMatchObject({ kind: "error", reason: "stale-registration-refused", error: expect.objectContaining({ message: expect.stringContaining(`git worktree unlock '${h.path}'`) }) });
     expect(await h.exists(h.path)).toBe(false);
     expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain("locked operator");
     await mkdir(h.path); // prove a folder restored before a later repair is preserved
@@ -78,7 +78,7 @@ describe("stale branch registrations", () => {
       { mutation: "spawn", inPlace: true, branch: "feat/demo", wuName: "demo", spawningIdentity: "starter",
         holder: { kind: "creation", slug: "demo" } });
     if (lock === "operator") {
-      await expect(attempt).rejects.toThrow(`git worktree unlock ${h.path}`);
+      await expect(attempt).rejects.toThrow(`git worktree unlock '${h.path}'`);
       expect((await h.exec("git", ["symbolic-ref", "--short", "HEAD"])).stdout).toBe("main");
     } else {
       expect(await attempt).toMatchObject({ mutation: "spawn", branch: "feat/demo", worktreePath: h.root });

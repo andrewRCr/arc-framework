@@ -5,8 +5,7 @@ import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { createRefReadFixture } from "../helpers/store/ref-read.js";
 import { plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
 import { createRefStore } from "../../src/lib/store/create.js";
-import { createKindRegistry } from "../../src/lib/store/registry.js";
-import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
+import { opaqueReviewRegistry } from "../helpers/store/opaque-review.js";
 import { inRepoContent } from "../helpers/store/in-repo-fixture.js";
 import { expandStoredPath } from "../../src/lib/store/stored-path.js";
 
@@ -47,7 +46,7 @@ describe.each(["files", "reftable"] as const)("ref metadata (%s)", (format) => {
     const f = await createRefReadFixture(format);
     const pass = RecordReferenceSchema.parse({ owner, kind: "review/adversarial-pass", key: { activity: "design-review", number: 2 } });
     const unlisted = RecordReferenceSchema.parse({ owner, kind: "review/evidence", key: "unlisted" });
-    const registry = createKindRegistry(PRODUCTION_REGISTRATIONS);
+    const registry = opaqueReviewRegistry();
     const store = createRefStore({ ...f.ports, registry: { ...registry,
       "review/adversarial-pass": { ...registry["review/adversarial-pass"], formatVersion: 2 },
       "review/evidence": { ...registry["review/evidence"], formatVersion: 2 },
@@ -96,7 +95,7 @@ describe.each(["files", "reftable"] as const)("ref metadata (%s)", (format) => {
   it("reads the exact escaped Unicode coordinate for a record's format annotation", async () => {
     const f = await createRefReadFixture(format);
     const pass = RecordReferenceSchema.parse({ owner, kind: "review/adversarial-pass", key: { activity: "café", number: 2 } });
-    const registry = createKindRegistry(PRODUCTION_REGISTRATIONS);
+    const registry = opaqueReviewRegistry();
     const store = createRefStore({ ...f.ports, registry: { ...registry,
       "review/adversarial-pass": { ...registry["review/adversarial-pass"], formatVersion: 2 },
     } });

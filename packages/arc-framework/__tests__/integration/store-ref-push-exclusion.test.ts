@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { refSyncFixture, type RefSyncFixture } from "../helpers/store/ref-sync.js";
 import { createRefClock } from "../helpers/store/ref-clock.js";
 import { parseGitVersion } from "../../src/lib/git/version-floor.js";
+import { withOpaqueReview } from "../helpers/store/opaque-review.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { plantRef, type PlantTreeEntry } from "../helpers/store/ref-plant.js";
@@ -18,7 +19,7 @@ afterEach(() => { vi.unstubAllEnvs(); });
 
 describe.each(["default", "separate"] as const)("publication exclusion in the %s layout", (layout) => {
   it.each(["linear", "merged"] as const)("holds back the transitive closure of unpublished batches with %s history", async (history) => {
-    const h = await refSyncFixture(layout);
+    const h = withOpaqueReview(await refSyncFixture(layout));
     const a = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("alpha"),
       reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "alpha" }, kind: "work-item/meta" }),
       placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "start" } }));
@@ -75,7 +76,7 @@ describe.each(["default", "separate"] as const)("publication exclusion in the %s
   });
 
   it("holds a batch sharing an item whose remote end has no retained history and resumes after restoration", async () => {
-    const h = await refSyncFixture(layout);
+    const h = withOpaqueReview(await refSyncFixture(layout));
     const made = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("pending"),
       reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "pending" }, kind: "work-item/meta" }),
       placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "start" } }));
@@ -114,7 +115,7 @@ describe.each(["default", "separate"] as const)("publication exclusion in the %s
   });
 
   it("publishes beside an item whose remote end has no retained history when this clone holds no write on it", async () => {
-    const h = await refSyncFixture(layout);
+    const h = withOpaqueReview(await refSyncFixture(layout));
     const made = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("unwritten"),
       reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "unwritten" }, kind: "work-item/meta" }),
       placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "start" } }));

@@ -133,7 +133,7 @@ export interface AdvisoryLockOptions {
   processInstance?: string;
   /** Observe live-holder contention without changing acquisition behavior. */
   onWait?: (contention: AdvisoryLockContention) => void;
-  /** Total bounded wait in ms; defaults to {@link DEFAULT_MAX_WAIT_MS}. */
+  /** Total bounded wait in ms; zero makes one immediate attempt. Defaults to {@link DEFAULT_MAX_WAIT_MS}. */
   maxWaitMs?: number;
   /** Staleness TTL for the break-lock itself; defaults to {@link DEFAULT_BREAK_LOCK_TTL_MS}. */
   breakLockTtlMs?: number;
@@ -206,24 +206,22 @@ export async function acquireAdvisoryLock(
   const leaseDurationMs = options.leaseDurationMs;
   const processScope = options.processScope;
   const processInstance = options.processInstance;
-  const maxWaitMs = options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS;
+  const maxWaitMs = requireWaitBudget(lockPath, options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS);
   const breakLockTtlMs = options.breakLockTtlMs ?? DEFAULT_BREAK_LOCK_TTL_MS;
   const breakLockPath = `${lockPath}${BREAK_LOCK_SUFFIX}`;
 
   const waitStartedAt = now();
   const deadline = waitStartedAt + maxWaitMs;
+  const acquisitionBudget = { now, deadline };
   let backoff = BACKOFF_INITIAL_MS;
-  let firstAttempt = maxWaitMs >= 0;
+  let afterBackoff = false;
 
   for (;;) {
-    // One deadline guards every contention path — break, back-off, and the
-    // re-race after a freed/broken lock alike — so an unclearable lockfile times
-    // out instead of spinning. Nonnegative waits admit their first create.
-    const observedAt = now();
-    if (!firstAttempt && observedAt >= deadline) {
-      throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
-    }
-    firstAttempt = false;
+    // Ordinary bounded backoff earns one last create even if its timer wakes late. Settling, reads and reclamation
+    // cannot earn that late attempt; a failed final create never starts more recovery.
+    const observedAt = observeAcquisitionAttempt(lockPath, maxWaitMs, acquisitionBudget, afterBackoff);
+    const finalAttempt = maxWaitMs === 0 || observedAt >= deadline;
+    afterBackoff = false;
 
     try {
       const acquiredAt = now();
@@ -246,8 +244,8 @@ export async function acquireAdvisoryLock(
       if (!isEexistError(err)) throw err;
     }
 
-    if (now() >= deadline) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
-    const holder = await readHolderSettled(readFile, sleep, lockPath);
+    if (finalAttempt) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
+    const holder = await readHolderSettled(readFile, sleep, lockPath, acquisitionBudget);
     if (holder === "absent") {
       // Freed between our failed create and the read — retry the create at once.
       continue;
@@ -279,14 +277,33 @@ export async function acquireAdvisoryLock(
         breakLockTtlMs,
         processScope,
         processInstance,
+        acquisitionBudget,
       });
     } else {
       options.onWait?.({ holder, waitedMs: Math.max(0, observedAt - waitStartedAt) });
     }
 
-    await sleep(backoff);
+    const remaining = deadline - now();
+    if (remaining <= 0) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
+    await sleep(Math.min(backoff, remaining));
+    afterBackoff = true;
     backoff = Math.min(backoff * 2, BACKOFF_CAP_MS);
   }
+}
+
+/** A negative remaining budget cannot authorize even an uncontended acquisition. */
+function requireWaitBudget(lockPath: string, maxWaitMs: number): number {
+  if (maxWaitMs < 0) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
+  return maxWaitMs;
+}
+
+/** Zero admits one immediate create; positive waits allow a late wake only after ordinary bounded backoff. */
+function observeAcquisitionAttempt(
+  lockPath: string, maxWaitMs: number, budget: LockReadBudget, afterBackoff: boolean,
+): number {
+  const observedAt = budget.now();
+  if (maxWaitMs !== 0 && observedAt > budget.deadline && !afterBackoff) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
+  return observedAt;
 }
 
 /** Optional acquisition and release primitives for an advisory critical section. */
@@ -437,16 +454,19 @@ interface SerializedBreakContext {
   breakLockTtlMs: number;
   processScope?: string;
   processInstance?: string;
+  acquisitionBudget?: LockReadBudget;
 }
 
 async function attemptSerializedBreak(context: SerializedBreakContext): Promise<void> {
+  if (budgetSpent(context.acquisitionBudget)) return;
   const breakHandle = await tryAcquireBreakLock(context);
   if (!breakHandle) return;
 
   try {
-    const currentHolder = await readHolderSettled(context.readFile, context.sleep, context.lockPath);
+    const currentHolder = await readHolderSettled(context.readFile, context.sleep, context.lockPath, context.acquisitionBudget);
     if (
-      isSameBreakTarget(context.observedHolder, currentHolder)
+      !budgetSpent(context.acquisitionBudget)
+      && isSameBreakTarget(context.observedHolder, currentHolder)
       && isMainLockBreakable(
         currentHolder,
         context.isProcessAlive,
@@ -475,9 +495,11 @@ type BreakLockContext = Pick<
   | "pid"
   | "token"
   | "breakLockTtlMs"
+  | "acquisitionBudget"
 >;
 
 async function tryAcquireBreakLock(context: BreakLockContext): Promise<AdvisoryLockHandle | null> {
+  if (budgetSpent(context.acquisitionBudget)) return null;
   const breakToken = `${context.token}:break`;
   try {
     await context.exclusiveCreate(
@@ -489,8 +511,9 @@ async function tryAcquireBreakLock(context: BreakLockContext): Promise<AdvisoryL
     if (!isEexistError(err)) throw err;
   }
 
-  const holder = await readHolderSettled(context.readFile, context.sleep, context.breakLockPath);
-  if (isBreakLockBreakable(holder, context.isProcessAlive, context.now, context.breakLockTtlMs)) {
+  const holder = await readHolderSettled(context.readFile, context.sleep, context.breakLockPath, context.acquisitionBudget);
+  if (!budgetSpent(context.acquisitionBudget)
+    && isBreakLockBreakable(holder, context.isProcessAlive, context.now, context.breakLockTtlMs)) {
     await tolerantRemove(context.removeFile, context.breakLockPath);
   }
   return null;
@@ -516,6 +539,41 @@ async function acquireBreakLockForRelease(
   }
 }
 
+/** A holder's identity as the reclaim rule reads it; an aside copy's writer carries no lease. */
+export type AdvisoryHolderIdentity = Pick<AdvisoryLockHolder, "pid" | "leaseUntil" | "processScope" | "processInstance">;
+
+/** The process judging a holder: its own identity, a liveness probe, and a clock. */
+export interface AdvisoryHolderObserver {
+  readonly pid: number;
+  readonly processScope?: string;
+  readonly processInstance?: string;
+  readonly isProcessAlive?: IsProcessAliveFn;
+  readonly now?: () => number;
+}
+
+/**
+ * Whether a holder is provably abandoned, by the rule the lock reclaims by: a dead process, the observer's own process
+ * ID under another instance, or, in another process scope, a lapsed lease.
+ * @param holder - The holder or writer judged.
+ * @param observer - The process judging it.
+ * @returns Whether it may be taken over.
+ */
+export function isAdvisoryHolderAbandoned(holder: AdvisoryHolderIdentity, observer: AdvisoryHolderObserver): boolean {
+  const distinctProcessScopes = holder.processScope !== undefined
+    && observer.processScope !== undefined
+    && holder.processScope !== observer.processScope;
+  if (distinctProcessScopes) return holder.leaseUntil !== undefined && (observer.now ?? Date.now)() >= holder.leaseUntil;
+  if (
+    holder.pid === observer.pid
+    && holder.processInstance !== undefined
+    && observer.processInstance !== undefined
+    && holder.processInstance !== observer.processInstance
+  ) {
+    return true;
+  }
+  return !(observer.isProcessAlive ?? realProcessAlive)(holder.pid);
+}
+
 function isMainLockBreakable(
   holder: AdvisoryLockHolder | "absent" | "corrupt" | "unreadable",
   isProcessAlive: IsProcessAliveFn,
@@ -526,19 +584,11 @@ function isMainLockBreakable(
 ): holder is AdvisoryLockHolder | "corrupt" {
   if (holder === "corrupt") return true;
   if (holder === "absent" || holder === "unreadable") return false;
-  const distinctProcessScopes = holder.processScope !== undefined
-    && processScope !== undefined
-    && holder.processScope !== processScope;
-  if (distinctProcessScopes) return holder.leaseUntil !== undefined && now() >= holder.leaseUntil;
-  if (
-    holder.pid === pid
-    && holder.processInstance !== undefined
-    && processInstance !== undefined
-    && holder.processInstance !== processInstance
-  ) {
-    return true;
-  }
-  return !isProcessAlive(holder.pid);
+  return isAdvisoryHolderAbandoned(holder, {
+    pid, isProcessAlive, now,
+    ...(processScope === undefined ? {} : { processScope }),
+    ...(processInstance === undefined ? {} : { processInstance }),
+  });
 }
 
 function isBreakLockBreakable(
@@ -763,6 +813,12 @@ async function readHolder(
   catch (error) { return classifyAdvisoryLockRead({ error }); }
 }
 
+interface LockReadBudget { now: () => number; deadline: number }
+
+function budgetSpent(budget: LockReadBudget | undefined): boolean {
+  return budget !== undefined && budget.now() >= budget.deadline;
+}
+
 /**
  * Read the holder, tolerating a create that opens the lockfile before writing it.
  * The default create links a complete record into place, but an injected create
@@ -772,17 +828,22 @@ async function readHolder(
  * partially-written live holder is never broken mid-write, while a genuinely
  * abandoned husk stays corrupt across the retries. A settled result — a parsed
  * holder, `absent`, or `unreadable` — returns at once.
+ * Acquisition supplies its remaining deadline; other consumers retain their own settling policy.
  * The injected `sleep` keeps the read-back deterministic under test.
  */
 async function readHolderSettled(
   readFile: (path: string) => Promise<string>,
   sleep: (ms: number) => Promise<void>,
   lockPath: string,
+  budget?: LockReadBudget,
 ): Promise<AdvisoryLockHolder | "absent" | "corrupt" | "unreadable"> {
   for (let attempt = 0; attempt < EMPTY_READBACK_ATTEMPTS; attempt++) {
+    // An unsettled record is never evidence for reclaim once acquisition's remaining budget is spent.
+    if (budgetSpent(budget)) return "unreadable";
     const holder = await readHolder(readFile, lockPath);
     if (holder !== "empty" && holder !== "corrupt") return holder;
-    await sleep(EMPTY_READBACK_DELAY_MS);
+    await sleep(budget === undefined ? EMPTY_READBACK_DELAY_MS : Math.min(EMPTY_READBACK_DELAY_MS,
+      Math.max(0, budget.deadline - budget.now())));
   }
   return "corrupt";
 }

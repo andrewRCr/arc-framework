@@ -33,6 +33,9 @@ after retirement. Multiple candidates refuse `ambiguous-match`. Backends retain 
 does not enumerate terminal primary histories. Name-only record reads, listings, and writes gain no alias behavior
 from this lookup guarantee.
 
+The `projection/` folder holds the projection's engine — the working copy of the store at the familiar `.arc/` paths
+— and the files it writes.
+
 The `concurrency/` library supplies pure entry and line merges, stable entry IDs, and rank keys. Conflicts preserve
 both labeled sides as separate records while the current side remains visible. A resolving write names the conflict
 references explicitly.
@@ -50,6 +53,9 @@ without physical paths. Its checkout agreement query is an interim read bridge; 
 The lifecycle storage adapter binds checkpoint and merge filesystem reads to one saved state. Its directories project
 selected meta records only, and its reads retain the existing lifecycle tree reader's trailing-whitespace behavior.
 `lifecycle-meta-content.ts` parses proposed metadata through the registered kind for prepared-write checks.
+
+Each snapshot also exposes the selected meta version by work-unit slug, independently of the namespace version; an
+unlisted work unit has no meta version.
 
 Reference backends and conformance fixtures live exclusively in test support. This module adds no package export
 or standalone build entry.
