@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "hosted-discharge-source-detail",
+  "claimId": "db0c6aa37191b3872b2f8a758c0402fb",
+  "createdAt": "2026-11-03T13:18:06.745Z",
+  "updatedAt": "2026-11-03T13:18:06.745Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make unchecked-material-fix discharge details name the selected review source.",
+  "branch": "chore/hosted-discharge-source-detail",
+  "origin": "inbox",
+  "originEntry": "Make hosted discharge's unchecked-material-fix detail name the source it routes to",
+  "originEntrySourceDigest": "sha256:b00bf88b7d6f0cc48898c96f0d611f71cd34f9476f511968504d518e24f043d5",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
