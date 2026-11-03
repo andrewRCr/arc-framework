@@ -37,7 +37,7 @@ export function createHostedSettlementHeadRegistration(exec: GitExec, cwd: strin
   };
 }
 
-/** Wait at most ten seconds for a proven ancestor to become the exact fix head; never authorize a mutation. */
+/** Poll for ten seconds plus one final read bounded to five seconds; never authorize a mutation. */
 export async function observeHostedFixHead(
   target: HostedTarget,
   port: HostedSettlementPort,

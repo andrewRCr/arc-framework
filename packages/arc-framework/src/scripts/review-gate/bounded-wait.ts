@@ -13,6 +13,8 @@ export interface BoundedWaitInput<T> {
   timeoutMs: number;
   pollIntervalMs: number;
   clock: BoundedWaitClock;
+  /** False when the deadline callback already performs its own bounded final observation. */
+  observeAtDeadline?: boolean;
   attempt(input: { signal: AbortSignal; elapsedMs: number }): Promise<BoundedWaitAttempt<T>>;
   deadline(elapsedMs: number): T | Promise<T>;
 }
@@ -27,17 +29,26 @@ function isDeadlineAbort(error: unknown, signal: AbortSignal): boolean {
     && ["AbortError", "TimeoutError"].includes(error.name);
 }
 
-/** Run one bounded observation loop. */
+const FINAL_OBSERVATION_TIMEOUT_MS = 5_000;
+
+function observationTimeout(remainingMs: number, finalAllowed: boolean): number {
+  if (remainingMs > 0) return remainingMs;
+  return finalAllowed ? FINAL_OBSERVATION_TIMEOUT_MS : 0;
+}
+
+/** Poll within the deadline, with one final observation bounded to five seconds after the last sleep. */
 export async function boundedWait<T>(input: BoundedWaitInput<T>): Promise<T> {
   const startedAt = input.clock.now();
   let attempt = 0;
+  let slept = false;
   for (;;) {
     const elapsedMs = input.clock.now() - startedAt;
     const remainingMs = input.timeoutMs - elapsedMs;
-    if (remainingMs <= 0) return await input.deadline(elapsedMs);
+    const timeoutMs = observationTimeout(remainingMs, slept && input.observeAtDeadline !== false);
+    if (timeoutMs <= 0) return await input.deadline(elapsedMs);
 
     let observation: BoundedWaitAttempt<T>;
-    const signal = AbortSignal.timeout(remainingMs);
+    const signal = AbortSignal.timeout(timeoutMs);
     try {
       observation = await input.attempt({ signal, elapsedMs });
     } catch (error) {
@@ -47,8 +58,9 @@ export async function boundedWait<T>(input: BoundedWaitInput<T>): Promise<T> {
     if (observation.kind === "return") return observation.value;
 
     const afterReadRemaining = input.timeoutMs - (input.clock.now() - startedAt);
-    if (afterReadRemaining <= 0) return await input.deadline(input.clock.now() - startedAt);
+    if (remainingMs <= 0 || afterReadRemaining <= 0) return await input.deadline(input.clock.now() - startedAt);
     await input.clock.sleep(nextDelay(attempt, input.pollIntervalMs, afterReadRemaining));
+    slept = true;
     attempt += 1;
   }
 }
