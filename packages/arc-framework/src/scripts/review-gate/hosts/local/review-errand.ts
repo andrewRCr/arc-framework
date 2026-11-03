@@ -1,4 +1,5 @@
 /** Resolve the checkout's exact Errand claim without borrowing an identity-ref snapshot. */
+import { storeRemedyText } from "../../../../lib/store/native-refusal.js";
 import { readWorktreeMarker, decodeWorktreeMarkerOwnership } from "../../../../lib/git/worktree-marker.js";
 import { deserializeTransientIdentityRecord, type TransientIdentityRecord } from "../../../../lib/errand/identity-record.js";
 import { acquireStoreErrandsWithFailure } from "../../../../lib/errand/store-discovery.js";
@@ -30,7 +31,7 @@ async function missingClaim(store: Store, claim: ErrandClaim): Promise<null> {
     const detail = inventory.diagnostics.map(item => `${item.key}: ${item.condition} ${item.remedy.text}`).join("; ");
     const missing = `Errand ${claim.slug} (${claim.claimId}) was not found in an incomplete inventory.`;
     if (!store.capabilities.stateOffBranch) throw new Error(`${missing} ${detail || "Restore the complete Errand inventory, then retry."}`);
-    const remedies = [...new Set(inventory.diagnostics.map(item => item.remedy.text))];
+    const remedies = [...new Set(inventory.diagnostics.map(item => storeRemedyText(store, item.remedy)))];
     throw new StoreRefusalError({ code: "record-malformed", class: "recoverable", rule: "review.errand-inventory-incomplete",
       condition: [missing, ...inventory.diagnostics.map(item => `${item.key}: ${item.condition}`)].join(" "),
       remedy: { text: remedies.length > 0 ? remedies.join(" ") : "Restore the complete Errand inventory, then retry." } }, true);

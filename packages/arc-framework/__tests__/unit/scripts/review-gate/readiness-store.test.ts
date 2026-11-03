@@ -1,4 +1,5 @@
 /** Native readiness reads lifecycle facts from operational records, independently of a projected tree. */
+import { storeRepairCases } from "../../../fixtures/store-repair-remedies.js";
 import { expect, it } from "vitest";
 import { evaluateReviewReadiness, ReviewReadinessRequestSchema, type ReviewReadinessFs } from "../../../../src/scripts/review-gate/readiness.js";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
@@ -294,5 +295,38 @@ it.each([["unreadable fields", "fields"], ["unresolved conflicts", "conflicts"]]
         ? "Metadata fields for `example` could not be read. Repair the work unit's metadata fields, then retry."
         : `The stored work-unit metadata has unresolved conflicts.${describeRecordConflicts([h.primary.reference])}` }] } });
     faulty = false;
+    expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
+  });
+
+
+it.each(["metadata", "lifecycle-refused", "lifecycle-unreadable", "lifecycle-diagnostics",
+  "cohort-refused", "cohort-unreadable", "cohort-diagnostics"] as const)(
+  "preserves all supplied commands in public native readiness %s facts", async fault => {
+    const h = await fixture({ state: "Shipped", cohort: "group" });
+    await completeCohorts(h);
+    const list = h.store.list.bind(h.store), read = h.store.read.bind(h.store), before = await h.store.version();
+    const repair = storeRepairCases[0]!, remedy = repair.remedy;
+    const refusal = StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal", namespace: "work-item",
+      condition: "Stored objects are unavailable.", remedy });
+    if (fault === "metadata") h.store.read = async input => input.reference.kind === "work-item/meta"
+      ? { status: "refused", refusal } : read(input);
+    else h.store.list = async input => {
+      const matches = fault.startsWith("cohort") ? input.family === "cohort" : input.kind === "work-item/meta";
+      if (!matches) return list(input);
+      if (fault.endsWith("refused")) return { status: "refused", refusal };
+      if (fault.endsWith("unreadable")) return { status: "ok", result: { status: "unreadable", condition: refusal.condition, remedy } };
+      return { status: "ok", result: { status: "complete", records: [], missed: true,
+        diagnostics: storeRepairCases.map(({ remedy: item }, i) => ({ kind: "unreadable", key: `entry-${i}`,
+          condition: `Entry ${i} is unavailable.`, remedy: item })) } };
+    };
+    const result = await evaluateReviewReadiness(h.request, { fs, store: h.store });
+    expect(result).toMatchObject({ state: "invalid", nextAction: "stop" });
+    if (result.state !== "invalid") throw new Error("Expected readiness refusal");
+    const messages = result.payload.facts.map(fact => fact.message).join("\n");
+    for (const { remedy: item, command } of fault.endsWith("diagnostics") ? storeRepairCases : [repair]) {
+      expect(messages).toContain(item.text); expect(messages).toContain(command);
+    }
+    expect(await h.store.version()).toEqual(before);
+    h.store.list = list; h.store.read = read;
     expect(await evaluateReviewReadiness(h.request, { fs, store: h.store })).toMatchObject({ state: "ready" });
   });

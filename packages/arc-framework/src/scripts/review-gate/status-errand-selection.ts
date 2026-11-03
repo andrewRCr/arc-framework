@@ -1,4 +1,5 @@
 /** Preserve the established identity and exact-branch selection for stored Errand status. */
+import { storeRemedyText } from "../../lib/store/native-refusal.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { OwnerIdentity } from "../../lib/store/identity.js";
 import { acquireStoreErrandsWithFailure } from "../../lib/errand/store-discovery.js";
@@ -52,7 +53,11 @@ export async function readStoredStatusErrandSelection(store: Store, identity: st
   }
   const inventory = acquired.acquisition;
   if (inventory.kind === "absent") return { kind: "none" };
-  if (inventory.kind === "error") return { kind: "blocked", detail: inventory.message };
+  if (inventory.kind === "error") {
+    const failure = "failure" in acquired ? acquired.failure : undefined;
+    return { kind: "blocked", detail: failure?.kind === "unreadable"
+      ? `${failure.condition} ${storeRemedyText(store, failure.remedy)}` : inventory.message };
+  }
   const claims = inventory.records.flatMap((saved) => {
     const record = inventory.decoded.get(saved.reference.owner.name);
     return record?.kind === "errand" && record.purpose === "errand" && record.owner === identity
@@ -60,7 +65,7 @@ export async function readStoredStatusErrandSelection(store: Store, identity: st
   });
   const selected = matchingOrdinaryErrand(claims.map(claim => claim.record), target);
   if (selected.kind === "none" && (inventory.missed || inventory.diagnostics.length > 0)) return { kind: "blocked",
-    detail: `The stored Errand inventory is incomplete. ${inventory.diagnostics.map(item => `${item.condition} ${item.remedy.text}`).join("; ") || "Restore the complete Errand inventory, then retry."}` };
+    detail: `The stored Errand inventory is incomplete. ${inventory.diagnostics.map(item => `${item.condition} ${storeRemedyText(store, item.remedy)}`).join("; ") || "Restore the complete Errand inventory, then retry."}` };
   if (selected.kind !== "matched") return selected;
   const claim = claims.find(claim => claim.record === selected.record);
   if (claim === undefined) throw new Error("The selected Errand primary is unavailable. Retry status.");

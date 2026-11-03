@@ -1,5 +1,6 @@
 /** Pinned integration merge behavior and fail-closed exits. */
 
+import { storeRepairCases } from "../../../fixtures/store-repair-remedies.js";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -176,7 +177,7 @@ function dependencies() {
 
 const request = { schemaVersion: 1 as const, workUnit: "example", checkpointHandle };
 
-async function storedLifecycleMerge() {
+async function storedLifecycleMerge(native = false) {
   const root = await mkdtemp(join(tmpdir(), "arc-merge-lifecycle-"));
   onTestFinished(async () => rm(root, { recursive: true, force: true }));
   await mkdir(join(root, ".arc/system"), { recursive: true });
@@ -200,7 +201,8 @@ async function storedLifecycleMerge() {
     checkpointHandle: await persistIntegrationCheckpointComposition(root,
       { workUnit, approvedHead, target, settlementPlan, mergeMethod, lifecycleVersion }) });
   value.readCheckpoint = (workUnit, handle) => readIntegrationCheckpointComposition(root, workUnit, handle);
-  value.readStatus = createIntegrationMergeDependencies({ cwd: root, exec, workUnit: "example", lifecycleStorage: storage,
+  value.readStatus = createIntegrationMergeDependencies({ cwd: root, exec, workUnit: "example", lifecycleStorage: native ? undefined : storage,
+    ...(native ? { store: h.store, workItem: meta.reference.owner } : {}),
     changeRequestPort: { resolveRepository: async () => target.repository,
       readHeadRef: async () => ({ local: null, remote: target.headSha }), searchByHeadSha: async () => [],
       listByHead: async () => [{ number: target.pullRequest, url: "https://example.test/owner/repo/pull/42", state: "OPEN",
@@ -1214,3 +1216,28 @@ it.each(["missing", "project", "generation"] as const)("refuses unmerged %s owne
   h.value.readCheckpoint = original;
   expect(await mergeIntegration(request, h.value)).toMatchObject({ state: "merged", payload: { landingLink: { state: "written" } } });
 });
+
+
+it.each(["version", "list", "unreadable", "diagnostics"] as const)(
+  "retains native default snapshot %s commands in the public merge refusal", async fault => {
+    const t = await storedLifecycleMerge(true), store = t.h.store;
+    const version = store.version.bind(store), list = store.list.bind(store), before = await version();
+    const repair = storeRepairCases[0]!, remedy = repair.remedy;
+    const refusal = StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal", namespace: "work-item",
+      condition: "Lifecycle objects are unavailable.", remedy });
+    if (fault === "version") store.version = async () => ({ status: "refused", refusal });
+    else store.list = async () => fault === "list" ? { status: "refused", refusal } : { status: "ok", result:
+      fault === "unreadable" ? { status: "unreadable", condition: refusal.condition, remedy } : {
+        status: "complete", records: [], missed: true, diagnostics: storeRepairCases.map(({ remedy: item }, i) => ({
+          kind: "unreadable", key: `entry-${i}`, condition: `Entry ${i} is unavailable.`, remedy: item })) } };
+    const result = await mergeIntegration(t.request, t.value);
+    expect(result).toMatchObject({ state: "blocked", nextAction: "stop", reason: "operation-failed" });
+    if (result.state !== "blocked") throw new Error("Expected merge refusal");
+    for (const { remedy: item, command } of fault === "diagnostics" ? storeRepairCases : [repair]) {
+      expect(result.detail).toContain(item.text); expect(result.detail).toContain(command);
+    }
+    expect(t.state).toEqual({ held: true, merged: false });
+    expect(await version()).toEqual(before);
+    store.version = version; store.list = list;
+    expect(await mergeIntegration(t.request, t.value)).toMatchObject({ state: "merged" });
+  });

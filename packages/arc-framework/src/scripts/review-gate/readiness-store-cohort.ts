@@ -1,4 +1,5 @@
 /** Cohort coordination and authored closeout checks over complete stored inventories. */
+import { storeRemedyText } from "../../lib/store/native-refusal.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { StoreRecord } from "../../lib/store/read.js";
 import type { LifecycleEntry } from "../../lib/store/lifecycle-index.js";
@@ -13,13 +14,13 @@ function fact(code: string, path: string, message: string): ReviewReadinessFact 
 async function readDocuments(store: Store): Promise<{ documents: Document[]; facts: ReviewReadinessFact[] }> {
   const result = await store.list({ family: "cohort", kind: "cohort/document" }), path = "cohort/document";
   if (result.status === "refused") {
-    return { documents: [], facts: [fact("unreadable-artifact", path, `${result.refusal.condition} ${result.refusal.remedy.text}`)] };
+    return { documents: [], facts: [fact("unreadable-artifact", path, `${result.refusal.condition} ${storeRemedyText(store, result.refusal.remedy)}`)] };
   }
   const listed = result.result;
-  if (listed.status === "unreadable") return { documents: [], facts: [fact("unreadable-artifact", path, `${listed.condition} ${listed.remedy.text}`)] };
+  if (listed.status === "unreadable") return { documents: [], facts: [fact("unreadable-artifact", path, `${listed.condition} ${storeRemedyText(store, listed.remedy)}`)] };
   if (listed.status === "absent") return { documents: [], facts: [] };
   const facts = listed.diagnostics.map(diagnostic => fact("malformed-artifact", diagnostic.key,
-    `${diagnostic.condition} ${diagnostic.remedy.text}`));
+    `${diagnostic.condition} ${storeRemedyText(store, diagnostic.remedy)}`));
   if (listed.missed) facts.push(fact("unreadable-artifact", path, "The cohort inventory missed records. Repair the cohort inventory, then retry."));
   const documents: Document[] = [];
   for (const record of listed.records) {

@@ -1,4 +1,6 @@
 /** Adversarial recording preserves caller input and derives durable coordinates. */
+import { storeRepairCases } from "../../fixtures/store-repair-remedies.js";
+import { StoreRefusalSchema } from "../../../src/lib/store/refusal.js";
 import { ReviewAdversarialRecordRequestSchema } from "../../../src/scripts/review-gate/core/adversarial-record-schema.js";
 import { expect, it } from "vitest";
 import { handleReviewAdversarialRecord } from "../../../src/handlers/review-adversarial.js";
@@ -159,3 +161,27 @@ it.each([
   held = false;
   expect(await record(h.store, input)).toMatchObject({ exitCode: 0, envelope: { payload: { key: { number: 1 } } } });
 });
+
+
+it.each(["read", "write", "unreadable", "diagnostics"] as const)(
+  "keeps supplied repair commands in a public adversarial-record %s refusal", async fault => {
+    const h = await nativeFixture(), before = await h.store.version();
+    const list = h.store.list.bind(h.store), read = h.store.read.bind(h.store), write = h.store.write.bind(h.store);
+    const repair = storeRepairCases[0]!, remedy = repair.remedy;
+    const refusal = StoreRefusalSchema.parse({ code: "record-malformed", class: "recoverable", reference: h.primary.reference,
+      rule: fault === "read" ? "lifecycle.work-unit" : "backend-record", condition: "Stored record needs repair.", remedy });
+    if (fault === "read") h.store.read = async input => input.reference.kind === "work-item/meta" ? { status: "refused", refusal } : read(input);
+    else if (fault === "write") h.store.write = async () => ({ status: "refused", refusal });
+    else h.store.list = async input => input.kind !== "review/adversarial-pass" ? list(input) : { status: "ok", result:
+      fault === "unreadable" ? { status: "unreadable", condition: "Pass inventory unavailable.", remedy } : {
+        status: "complete", records: [], missed: true, diagnostics: storeRepairCases.map(({ remedy: item }, i) => ({
+          kind: "unreadable", key: `entry-${i}`, condition: `Entry ${i} is unavailable.`, remedy: item })) } };
+    const result = await record(h.store, request());
+    expect(result).toMatchObject({ exitCode: 1, envelope: { error: { code: fault === "read" || fault === "write" ? "invalid-input" : "corrupt-state" } } });
+    for (const { remedy: item, command } of fault === "diagnostics" ? storeRepairCases : [repair]) {
+      expect(result.envelope.error.message).toContain(item.text); expect(result.envelope.error.message).toContain(command);
+    }
+    expect(await h.store.version()).toEqual(before);
+    h.store.list = list; h.store.read = read; h.store.write = write;
+    expect(await record(h.store, request())).toMatchObject({ exitCode: 0, envelope: { state: "recorded" } });
+  });

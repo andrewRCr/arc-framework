@@ -1,4 +1,5 @@
 /** Work-unit readiness over current operational records and repository-qualified branch links. */
+import { storeRemedyText } from "../../lib/store/native-refusal.js";
 import type { ReviewReadinessFact, ReviewReadinessRequest } from "./readiness-contract.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { StoreRecord } from "../../lib/store/read.js";
@@ -21,7 +22,7 @@ export async function evaluateStoredWorkUnitReadiness(request: WorkUnitRequest, 
   const selected = await readWorkUnit(store, request.vehicle.slug);
   if (selected.status === "refused") return [fact(selected.refusal.code === "not-found" ? "missing-artifact"
     : selected.refusal.code === "record-malformed" ? "malformed-artifact" : "unreadable-artifact",
-  `work-item/meta:${request.vehicle.slug}`, `${selected.refusal.condition} ${selected.refusal.remedy.text}`)];
+  `work-item/meta:${request.vehicle.slug}`, `${selected.refusal.condition} ${storeRemedyText(store, selected.refusal.remedy)}`)];
   // A planned meta's projected path reads its fields, so unreadable fields are reported under the record itself.
   const record = selected.result, fields = readLifecycleMetaFields(record);
   if (fields.status === "refused") return [fact("malformed-artifact", `work-item/meta:${request.vehicle.slug}`,
@@ -69,13 +70,13 @@ async function storedLinkFacts(request: WorkUnitRequest, record: StoreRecord, st
 async function readStoredLifecycleInventory(store: Store): Promise<{ entries: readonly LifecycleEntry[]; facts: ReviewReadinessFact[] }> {
   const result = await listLifecycleIndex(store), path = "work-item/meta";
   if (result.status === "refused") {
-    return { entries: [], facts: [fact("unreadable-artifact", path, `${result.refusal.condition} ${result.refusal.remedy.text}`)] };
+    return { entries: [], facts: [fact("unreadable-artifact", path, `${result.refusal.condition} ${storeRemedyText(store, result.refusal.remedy)}`)] };
   }
   const listed = result.result;
-  if (listed.status === "unreadable") return { entries: [], facts: [fact("unreadable-artifact", path, `${listed.condition} ${listed.remedy.text}`)] };
+  if (listed.status === "unreadable") return { entries: [], facts: [fact("unreadable-artifact", path, `${listed.condition} ${storeRemedyText(store, listed.remedy)}`)] };
   if (listed.status === "absent") return { entries: [], facts: [] };
   const facts = listed.diagnostics.map(diagnostic => fact("malformed-artifact", diagnostic.key,
-    `${diagnostic.condition} ${diagnostic.remedy.text}`));
+    `${diagnostic.condition} ${storeRemedyText(store, diagnostic.remedy)}`));
   if (listed.missed) {
     facts.push(fact("unreadable-artifact", path, "The lifecycle inventory missed records. Repair the work-unit inventory, then retry."));
   }

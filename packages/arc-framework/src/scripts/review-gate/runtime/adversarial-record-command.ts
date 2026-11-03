@@ -1,4 +1,5 @@
 /** Publish one caller-approved adversarial pass on its named work-unit generation. */
+import { storeRemedyText } from "../../../lib/store/native-refusal.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 import { readWorkUnit } from "../../../lib/store/lifecycle-write.js";
 import { resolveCurrentWorkUnit } from "../../../lib/store/current-work-unit.js";
@@ -73,7 +74,7 @@ function requireRead<T>(store: Store, result: StoreResult<T>, context = ""): T {
   if (result.status === "ok") return result.result;
   const refusal = result.refusal;
   if (refusal.code === "not-found" || (refusal.code === "record-malformed" && refusal.rule === "lifecycle.work-unit")) {
-    throw new AdversarialRecordError("invalid-input", `${context}${refusal.condition} ${refusal.remedy.text}`);
+    throw new AdversarialRecordError("invalid-input", `${context}${refusal.condition} ${storeRemedyText(store, refusal.remedy)}`);
   }
   throw new StoreRefusalError(refusal, store.capabilities.stateOffBranch);
 }
@@ -82,7 +83,7 @@ function requireRead<T>(store: Store, result: StoreResult<T>, context = ""): T {
 function requireWrite<T>(store: Store, result: StoreResult<T>): T {
   if (result.status === "ok") return result.result;
   if (result.refusal.code === "not-found" || result.refusal.code === "record-malformed") {
-    throw new AdversarialRecordError("invalid-input", `${result.refusal.condition} ${result.refusal.remedy.text}`);
+    throw new AdversarialRecordError("invalid-input", `${result.refusal.condition} ${storeRemedyText(store, result.refusal.remedy)}`);
   }
   throw new StoreRefusalError(result.refusal, store.capabilities.stateOffBranch);
 }
@@ -109,9 +110,9 @@ async function readArtifactVersions(store: Store, owner: OwnerIdentity, activity
 async function nextPassNumber(store: Store, owner: OwnerIdentity, activity: ReviewAdversarialRecordRequest["activity"]): Promise<number> {
   const listing = requireRead(store, await store.list({ family: "review", kind: "review/adversarial-pass", owner }));
   if (listing.status === "absent") return 1;
-  if (listing.status === "unreadable") throw new AdversarialRecordError("corrupt-state", `${listing.condition} ${listing.remedy.text}`);
+  if (listing.status === "unreadable") throw new AdversarialRecordError("corrupt-state", `${listing.condition} ${storeRemedyText(store, listing.remedy)}`);
   if (listing.missed || listing.diagnostics.length > 0) {
-    const details = listing.diagnostics.map(entry => `${entry.condition} ${entry.remedy.text}`).join(" ");
+    const details = listing.diagnostics.map(entry => `${entry.condition} ${storeRemedyText(store, entry.remedy)}`).join(" ");
     throw new AdversarialRecordError("corrupt-state", `Adversarial pass listing is incomplete. ${details} Restore a complete listing, then retry.`);
   }
   let highest = 0;

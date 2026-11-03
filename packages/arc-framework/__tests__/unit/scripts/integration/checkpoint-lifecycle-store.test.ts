@@ -1,4 +1,9 @@
 /** Integration lifecycle reads derive current authority from stored metadata. */
+import { handleIntegrationCheckpoint } from "../../../../src/handlers/integration.js";
+import { checkpointIntegration } from "../../../../src/scripts/integration/checkpoint.js";
+import { checkpointDependencies } from "../../../helpers/integration-checkpoint.js";
+import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
+import { storeRepairCases } from "../../../fixtures/store-repair-remedies.js";
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -159,3 +164,38 @@ it("reports an unpositioned stored meta as an artifact fact and resumes after re
   raw.content = selected.content;
   expect(await readSummary(h)).toHaveProperty("complete", true);
 });
+
+
+it.each(["version", "list", "unreadable", "diagnostics"] as const)(
+  "retains native default snapshot %s repair commands in the public checkpoint result", async fault => {
+    const h = await compositionFixture();
+    const production = createIntegrationCheckpointDependencies({ ...h.options, lifecycleStorage: undefined });
+    const dependencies = checkpointDependencies(), drift = await dependencies.readDrift("example");
+    if (drift.verdict !== "reconcile") throw new Error("Expected the fixture’s observed reconcile drift");
+    dependencies.readDrift = async () => ({ ...drift, verdict: "clean", state: "local-ahead", behind: 0,
+      movement: "disjoint", overlap: { status: "available", substantivePaths: [], regenerablePaths: [] }, register: null });
+    dependencies.readLifecycle = production.readLifecycle;
+    const version = h.store.version.bind(h.store), list = h.store.list.bind(h.store), before = await version();
+    const repair = storeRepairCases[0]!, remedy = repair.remedy;
+    const refusal = StoreRefusalSchema.parse({ code: "namespace-corrupt", class: "terminal", namespace: "work-item",
+      condition: "Lifecycle objects are unavailable.", remedy });
+    if (fault === "version") h.store.version = async () => ({ status: "refused", refusal });
+    else h.store.list = async () => fault === "list" ? { status: "refused", refusal } : { status: "ok", result:
+      fault === "unreadable" ? { status: "unreadable", condition: refusal.condition, remedy } : {
+        status: "complete", records: [], missed: true, diagnostics: storeRepairCases.map(({ remedy: item }, i) => ({
+          kind: "unreadable", key: `entry-${i}`, condition: `Entry ${i} is unavailable.`, remedy: item })) } };
+    let output = "", exitCode = 0;
+    await handleIntegrationCheckpoint("example", {}, undefined, { resolveRoot: () => h.cwd,
+      checkpoint: (_root, workUnit) => checkpointIntegration({ schemaVersion: 1, workUnit }, dependencies),
+      write: text => { output += text; }, setExitCode: code => { exitCode = code; } });
+    const result = JSON.parse(output) as { state: string; detail: string };
+    expect(exitCode).toBe(1);
+    expect(result).toMatchObject({ state: "blocked", nextAction: "stop", reason: "composition-unavailable" });
+    if (result.state !== "blocked") throw new Error("Expected checkpoint refusal");
+    for (const { remedy: item, command } of fault === "diagnostics" ? storeRepairCases : [repair]) {
+      expect(result.detail).toContain(item.text); expect(result.detail).toContain(command);
+    }
+    expect(await version()).toEqual(before);
+    h.store.version = version; h.store.list = list;
+    expect(await checkpointIntegration({ schemaVersion: 1, workUnit: "example" }, dependencies)).toMatchObject({ state: "ready" });
+  });

@@ -1,4 +1,6 @@
 /** Default local review handlers select native checkout authority before binding durable ports. */
+import { storeRepairCases } from "../../fixtures/store-repair-remedies.js";
+import { StoreRefusalSchema } from "../../../src/lib/store/refusal.js";
 import { createRepositoryReviewResultReader } from "../../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
 import { withReviewReport } from "../../fixtures/review-report-input.js";
 import type { LocalReviewEvaluatorResult } from "../../../src/scripts/review-gate/core/local-review-result.js";
@@ -773,4 +775,22 @@ it("reports an unreadable native review listing whole for respond and records th
   expect(refused, JSON.stringify(refused)).toMatchObject(unreadableListing);
   h.store.state.unreadable.clear();
   expect(await h.respond(request)).toMatchObject({ state: "awaiting-approval", nextAction: "obtain-approval" });
+});
+
+
+it("retains all supplied commands when native local preparation cannot find its exact Errand claim", async () => {
+  const h = await fixture(), lookup = h.store.lookup.bind(h.store), list = h.store.list.bind(h.store);
+  const before = await h.store.version();
+  h.store.lookup = async input => input.kind !== "claim" ? lookup(input) : { status: "refused", refusal: StoreRefusalSchema.parse({
+    code: "not-found", class: "recoverable", lookup: input, condition: "The claim is absent.", remedy: { text: "Restore it." } }) };
+  h.store.list = async input => input.kind !== "work-item/record" ? list(input) : { status: "ok", result: {
+    status: "complete", records: [], missed: true, diagnostics: storeRepairCases.map(({ remedy }, i) => ({
+      kind: "unreadable", key: `entry-${i}`, condition: `Entry ${i} is unavailable.`, remedy })) } };
+  const result = await h.run();
+  expect(result).toMatchObject({ error: { code: "store-refused" } });
+  const text = (result as { error: { message: string } }).error.message;
+  for (const { remedy: item, command } of storeRepairCases) { expect(text).toContain(item.text); expect(text).toContain(command); }
+  expect(await h.store.version()).toEqual(before);
+  h.store.lookup = lookup; h.store.list = list;
+  expect(await h.run()).toMatchObject({ state: "exempt" });
 });

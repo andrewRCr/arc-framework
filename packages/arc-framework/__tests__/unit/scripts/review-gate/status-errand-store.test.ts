@@ -1,4 +1,5 @@
 /** Native Errand status reads the stored claim without requiring checkout occupancy. */
+import { storeRepairCases } from "../../../fixtures/store-repair-remedies.js";
 import { appendFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it, onTestFinished } from "vitest";
@@ -256,4 +257,23 @@ it("refuses an injected different Errand generation before recording grants and 
   const foreignDecisions = await createReviewDecisionPort(h.store, other.reference.owner).list();
   expect(own).toMatchObject({ status: "complete", records: [expect.anything()] });
   expect(foreignDecisions).toMatchObject({ status: "complete", records: [] });
+});
+
+
+it.each(["unreadable", "diagnostics"] as const)("retains every native Errand inventory %s repair command", async fault => {
+  const h = await fixture(), list = h.store.list.bind(h.store), before = await h.store.version();
+  const target = { repository: "owner/repository", headRef: branch, headSha: head }, repair = storeRepairCases[0]!, remedy = repair.remedy;
+  h.store.list = async () => ({ status: "ok", result: fault === "unreadable"
+    ? { status: "unreadable", condition: "Errand inventory is unavailable.", remedy }
+    : { status: "complete", records: [], missed: true, diagnostics: storeRepairCases.map(({ remedy: item }, i) => ({
+        kind: "unreadable", key: `entry-${i}`, condition: `Entry ${i} is unavailable.`, remedy: item })) } });
+  const result = await readStoredStatusErrandSelection(h.store, "test-user", target);
+  expect(result).toMatchObject({ kind: "blocked" });
+  if (result.kind !== "blocked") throw new Error("Expected incomplete Errand inventory");
+  for (const { remedy: item, command } of fault === "diagnostics" ? storeRepairCases : [repair]) {
+    expect(result.detail).toContain(item.text); expect(result.detail).toContain(command);
+  }
+  expect(await h.store.version()).toEqual(before);
+  h.store.list = list;
+  expect(await readStoredStatusErrandSelection(h.store, "test-user", target)).toMatchObject({ kind: "matched", record: h.record });
 });

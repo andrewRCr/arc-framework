@@ -1,4 +1,5 @@
 /** Immutable lifecycle filesystem projection over the public storage contract. */
+import { storeRemedyText } from "./native-refusal.js";
 import type { z } from "zod";
 import { WorkUnitReadPlacementSchema } from "./placement.js";
 import { isAbsolute, relative, resolve, sep } from "node:path";
@@ -26,8 +27,8 @@ export interface StoreLifecycleStorage { readSnapshot(): Promise<StoreLifecycleS
  */
 export function createStoreLifecycleStorage(input: { store: Store; checkoutRoot: string }): StoreLifecycleStorage {
   return { readSnapshot: async () => {
-    const version = unwrap(await input.store.version());
-    const listing = unwrap(await listLifecycleIndex(input.store, { asOf: version }));
+    const version = unwrap(input.store, await input.store.version());
+    const listing = unwrap(input.store, await listLifecycleIndex(input.store, { asOf: version }));
     requireCompleteInventory(input.store, listing);
     const entries = listing.status === "complete" ? listing.index.entries() : [];
     const metaVersions = new Map<string, RecordVersion>(entries.map((entry) => [entry.reference.owner.name, entry.version]));
@@ -36,19 +37,19 @@ export function createStoreLifecycleStorage(input: { store: Store; checkoutRoot:
 }
 /** Refuse a write-driving inventory unless every lifecycle record was observed. */
 export function requireCompleteInventory(store: Pick<Store, "capabilities">, listing: LifecycleIndexOutcome): void {
-  if (listing.status === "unreadable") throw new ArcError(`${listing.condition} ${listing.remedy.text}`, "store.lifecycle-unreadable");
+  if (listing.status === "unreadable") throw new ArcError(`${listing.condition} ${storeRemedyText(store, listing.remedy)}`, "store.lifecycle-unreadable");
   if (listing.status !== "complete" || (!listing.missed && listing.diagnostics.length === 0)) return;
   const diagnostics = listing.diagnostics.filter((item) => store.capabilities.stateOffBranch
     || item.kind !== "malformed" || item.rule !== "placement");
   // A missed signal without any diagnostic has no established omission basis.
   if (diagnostics.length === 0 && listing.diagnostics.length > 0) return;
-  const evidence = diagnostics.map((item) => `${item.condition} ${item.remedy.text}`).join("; ")
+  const evidence = diagnostics.map((item) => `${item.condition} ${storeRemedyText(store, item.remedy)}`).join("; ")
     || "Lifecycle inventory reports missed records. Repair the missed lifecycle records, then retry the snapshot.";
   throw new ArcError(evidence, "store.lifecycle-incomplete", { cause: diagnostics });
 }
-function unwrap<T>(value: StoreResult<T>): T {
+function unwrap<T>(store: Pick<Store, "capabilities">, value: StoreResult<T>): T {
   if (value.status === "ok") return value.result;
-  throw new ArcError(`${value.refusal.condition} ${value.refusal.remedy.text}`, "store.lifecycle-refused", { cause: value.refusal });
+  throw new ArcError(`${value.refusal.condition} ${storeRemedyText(store, value.refusal.remedy)}`, "store.lifecycle-refused", { cause: value.refusal });
 }
 function missing(path: string): Error {
   return Object.assign(new Error(`Lifecycle record path is absent: ${path}`), { code: "ENOENT" });
@@ -98,7 +99,7 @@ function snapshotFs(input: { store: Store; checkoutRoot: string }, version: Stat
       const read = await input.store.read({ reference, asOf: version });
       if (read.status === "refused" && read.refusal.code === "not-found") throw missing(path);
       // The existing lifecycle tree reader exposes GitExec's trimmed stdout to its consumers.
-      return unwrap(read).content.trimEnd();
+      return unwrap(input.store, read).content.trimEnd();
     },
   };
 }
