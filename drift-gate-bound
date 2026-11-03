@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "drift-gate-bound",
+  "claimId": "e1e9253b14b079d9688c662a89278925",
+  "createdAt": "2026-11-03T23:07:25.232Z",
+  "updatedAt": "2026-11-03T23:07:25.232Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Give the pre-approval base drift read and the integration checkpoint's drift read a bound slow-but-working GitHub access meets",
+  "branch": "chore/drift-gate-bound",
+  "origin": "inbox",
+  "originEntry": "Give the pre-approval drift read and the integration checkpoint a bound slow-but-working GitHub access meets",
+  "originEntrySourceDigest": "sha256:130d5d0353198459dbee475c78d74531c2e80231040d8182afa2d1826dba3844",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
