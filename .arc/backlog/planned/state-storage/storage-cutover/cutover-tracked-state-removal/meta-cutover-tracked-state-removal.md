@@ -1,4 +1,4 @@
-# Metadata: cutover-tracked-state-removal
+# Metadata: Cutover Tracked-State Removal
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
@@ -7,7 +7,7 @@
 - **Cohort:** `state-storage/storage-cutover`
 - **Depends On:** `cutover-flip`
 
-- **Origin:** `[internal] — the state-storage re-cut (2026-09-28)`
+- **Origin:** [internal] — the `storage-cutover` cut (2026-11-03)
 - **Design:** `draft-cutover-tracked-state-removal.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]

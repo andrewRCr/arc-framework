@@ -23,7 +23,7 @@ Stage 2  storage-seam              every reader and writer through the contract;
                                    ref backend lands
          storage-projection/*      the working copy, in three members
          projected-markdown-checks Markdown checks over projected state; builds beside the projection
-Stage 3  storage-cutover           rehearse, quiesce, import, flip, retire notes; then deletion and documentation
+Stage 3  storage-cutover/*         the flip, then deletion and documentation, in five members
 ```
 
 Each member's `Depends On` edges are the source of truth. Three orderings are not edges:
@@ -43,8 +43,9 @@ Each member's `Depends On` edges are the source of truth. Three orderings are no
   whose interface `storage-projection`'s spec fixes; whichever of the two lands second connects them. `storage-cutover`
   depends on it, since from the flip no Markdown check reads projected state until it lands.
 
-After the cutover, deletion passes, documentation, `naming-conventions`, `wu-lifecycle-state-model`'s front half, and
-the follow-ons all run in parallel. The follow-ons are standalone work units, each tagged core or deferred by
+After the flip, the deletion and documentation members (`cohort-storage-cutover.md`), `wu-lifecycle-state-model`'s
+front half, and the follow-ons run in parallel, and `naming-conventions` follows the deletion and documentation
+members. The follow-ons are standalone work units, each tagged core or deferred by
 `storage-contract`. Three items once listed here moved into members: the backing-repository backend into
 `storage-ref-backend`, branchless planning into `storage-seam`, and the records engine into the parser `storage-seam`
 builds for each family it reroutes.
@@ -387,12 +388,6 @@ and this repository's Markdown checks and `lint:md:fix` over the selection.
 
 _Consumes:_ `storage-projection`'s selection of the projected Markdown files a checkout may edit, read from its index;
 whichever of the two lands second connects them.
-
-### `storage-cutover`
-
-_Exposes:_ the flipped repository — notes retired, state in the store — then the deletion passes and documentation.
-
-_Consumes:_ every other member, landed.
 
 ## ADR anchors
 
