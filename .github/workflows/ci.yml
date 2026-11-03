@@ -921,8 +921,9 @@ jobs:
   # Cross-platform legs keep their own install+build: OS-native deps make a
   # Linux node_modules cache unusable on Windows/macOS (Pass 1 is Linux-only).
   # Schedule and explicit dispatch opt-in retain native install/build per OS.
-  # Setup supplies the shared invocation forecast. Each OS divides the tier across six shards balanced by the
-  # integration durations; a timing-only or named-files run needs one job per OS.
+  # Setup supplies the shared invocation forecast. Each OS divides the tier across six shards balanced by its own
+  # recorded durations once a full run has saved them, and by the integration durations until then; a timing-only or
+  # named-files run needs one job per OS.
   portability-cross-platform:
     name: ${{ inputs.portability_timing_only && 'Portability timing diagnostic' || 'Portability targeted' }} (${{ matrix.os }}, ${{ matrix.shard }})
     permissions:
