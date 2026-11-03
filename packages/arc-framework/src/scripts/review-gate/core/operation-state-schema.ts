@@ -279,6 +279,15 @@ export function computeConditionalPassAuthorizationId(
   });
 }
 
+/** Whether a response-gated pass authorization exhausts exactly its producer's logical pass and names the next. */
+export function conditionalPassFollowsProducer(
+  authorization: { exhaustedPassCount: number; nextPass: number },
+  producerLogicalPass: number,
+): boolean {
+  return authorization.exhaustedPassCount === producerLogicalPass
+    && authorization.nextPass === producerLogicalPass + 1;
+}
+
 const ConditionalPassAuthorizationBaseShape = {
   schemaVersion: z.literal(1),
   authorizationId: CanonicalDigestSchema,
