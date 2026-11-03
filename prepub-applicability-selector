@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "prepub-applicability-selector",
+  "claimId": "481715e1013cdce21ae2c242c43bb533",
+  "createdAt": "2026-11-03T13:09:07.189Z",
+  "updatedAt": "2026-11-03T13:09:07.189Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Give pre-publication's candidate-unexplained-delta refusal the applicability selector, a remedy per choice, and a workflow route",
+  "branch": "chore/prepub-applicability-selector",
+  "origin": "inbox",
+  "originEntry": "Give pre-publication's unexplained-delta refusal the applicability selector it asks the Owner to resolve",
+  "originEntrySourceDigest": "sha256:160fa4a58e08afa208f5931858b5667b248c199e4a2d9f85145d281adc879d9e",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
