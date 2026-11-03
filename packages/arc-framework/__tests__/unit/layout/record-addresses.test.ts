@@ -10,6 +10,13 @@ import { join } from "node:path";
 
 const slug = (name: string) => SlugSchema.parse(name);
 
+it("resolves the work unit's export folder without a trailing separator", () => {
+  const folder = resolveArcPath({ kind: "work-unit-export", slug: slug("example") });
+  expect(folder).toBe(".arc/specs/example");
+  expect(`${folder}/spec-example.md`).toBe(".arc/specs/example/spec-example.md");
+  expect(ArcLayoutAddressSchema.safeParse({ kind: "work-unit-export", slug: "../outside" }).success).toBe(false);
+});
+
 describe("internal record addresses", () => {
   it.each(["sample", "renamed-work-item", "item-1"])("resolves Candidate records named %s as the existing store does", (name) => {
     expect(resolveArcPath({ kind: "candidate-record", slug: slug(name)})).toBe(resolveCandidateRecordRelativePath(name));

@@ -20,6 +20,8 @@
 
 import { z } from "zod";
 
+import { ProjectIdentityError } from "../../lib/store/project-identity.js";
+
 import {
   MergeLockHoldEnvelopeSchema,
   MergeLockReleaseEnvelopeSchema,
@@ -414,10 +416,14 @@ async function gateCandidateReadiness(
       pullRequest: live,
       vehicle: request.vehicle,
     }));
-  } catch {
+  } catch (error) {
+    // Readiness reports a native store's record refusals as facts; only an unavailable project identity is raised, and
+    // it keeps its condition and remedy for the operator.
     return {
       reason: "readiness-failed",
       message: "The lifecycle-readiness result was unavailable or malformed.",
+      ...(error instanceof ProjectIdentityError
+        ? { details: [{ code: "project-identity-unavailable", message: error.message }] } : {}),
     };
   }
   if (

@@ -5,6 +5,7 @@ import { z } from "zod";
 export const ReviewCommandModeSchema = z.enum([
   "review-readiness",
   "review-lane-read",
+  "review-adversarial-record",
   "review-resolve",
   "review-frontline-resolve",
   "review-chunking-resolve",

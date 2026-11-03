@@ -1,6 +1,7 @@
 /** Production composition for the typed integration checkpoint. */
 
 import { resolve } from "node:path";
+import { readStoredLifecycleSummary } from "./lifecycle-record.js";
 
 import { resolveTaskListPath } from "../../commands/active/status.js";
 import { parseMetaRecord } from "../../lib/active/meta-reader.js";
@@ -9,8 +10,8 @@ import {
   workUnitPathTreatmentContext,
 } from "../../lib/base-drift/current-adapters.js";
 import type { RawGitExec } from "../../lib/git/exec.js";
-import { createStore } from "../../lib/store/create.js";
-import { createDefaultStorePorts } from "../../lib/store/default-ports.js";
+import { createReviewCompositionContext } from "../review-gate/runtime/composition-context.js";
+import type { ReviewInvocationInput, ReviewInvocationContext } from "../review-gate/runtime/invocation.js";
 import { createStoreLifecycleStorage } from "../../lib/store/lifecycle-storage.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { runBaseDrift } from "../../lib/git/base-distance.js";
@@ -22,7 +23,8 @@ import {
 } from "../../lib/git/index.js";
 import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
-import type { CanonicalDigest } from "../../lib/kernel/canonical/canonical-json.js";
+import { RecordVersionSchema } from "../../lib/store/identity.js";
+import type { VersionedCandidateRecord } from "../../lib/store/kinds/review/candidate/schema.js";
 import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { resolveComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
 import {
@@ -37,8 +39,7 @@ import {
 import {
   readCandidateRecordVersion,
   readCandidateRecordVersioned,
-  type VersionedCandidateRecord,
-} from "../../lib/work-unit/candidate-record-store.js";
+} from "../../lib/store/kinds/review/candidate/access.js";
 import {
   projectGitCandidateEffectiveTarget,
   readGitCandidateTargetBase,
@@ -60,13 +61,11 @@ import {
   assessDeliveryTerminalTop,
   classifyDeliveryTerminalDrift,
 } from "../../lib/delivery/terminal-integration.js";
-import { RepositoryGitCommonStatePublisher } from "../../lib/git-common-state.js";
-import { canonicalize } from "../../lib/kernel/index.js";
+import { canonicalize, type CanonicalDigest } from "../../lib/kernel/index.js";
+import type { PublishedIntegrationBoundaryLocus } from "../review-gate/policy/integration-boundary-locus.js";
 import { resolveSlugQuery } from "../../lib/work-unit/lifecycle-query.js";
-import {
-  readSubmissionBoundary,
-  resolveSubmissionBoundaryPath,
-} from "../../lib/work-unit/submission-boundary-store.js";
+import { readSubmissionBoundary } from "../../lib/store/kinds/review/integration-boundary/access.js";
+import { resolveSubmissionBoundaryPath } from "../../lib/store/kinds/review/paths.js";
 import { GhDeliveryHostPort } from "../delivery/hosts/github.js";
 import {
   observeChangeRequestMergeAdmission,
@@ -84,8 +83,6 @@ import { resolveAcceptableDeliveryBaseRefs } from
 import { createGhMergeMethodPolicyPort } from "../review-gate/hosts/github/merge-method.js";
 import { resolveRepositoryIdentity } from "../review-gate/hosts/local/git-common-state.js";
 import { createGitTreeReadFs } from "../review-gate/hosts/local/git-tree-fs.js";
-import { LocalReviewOperationStateStore } from
-  "../review-gate/hosts/local/operation-state-store.js";
 import { RepositoryDeliveryMemberLookup } from
   "../review-gate/hosts/local/delivery-member-lookup.js";
 import { hostedGhRunner } from "../review-gate/hosted/gh-process.js";
@@ -99,7 +96,8 @@ import {
   type HostedReservationDischarge,
   type HostedReservationDischargeReader,
 } from "../review-gate/policy/hosted-reservation-discharge.js";
-import type { DeliveryReviewMemberTerminus } from
+import { readStoredDeliveryReviewMemberTermini } from "../review-gate/runtime/native-member-terminus.js";
+import type { ResolvedDeliveryReviewMemberTerminus } from
   "../review-gate/policy/review-terminus.js";
 import {
   projectHostedReservationPolicyProgress,
@@ -125,14 +123,22 @@ import {
   type DeliveryClassifierCommand,
   type DeliveryDriftClassificationEvidence,
 } from "./checkpoint.js";
-import { persistIntegrationCheckpointComposition } from "./checkpoint-store.js";
+import { requireReviewWorkItem } from "../../lib/store/kinds/review/access-shared.js";
+import { persistIntegrationCheckpointComposition, type IntegrationCheckpointCompositionInput } from "./checkpoint-store.js";
 import { createLineageReviewComposer } from "./lineage-review-composition.js";
 import { composeCanonicalSettlementPlan } from "./settlement-plan.js";
 import { composeDeliveryCheckpointArm } from "./delivery-checkpoint.js";
+import { rethrowNativeRefusal } from "../../lib/store/native-refusal.js";
+
+function nativePublicationReadiness(boundary: PublishedIntegrationBoundaryLocus): { readinessBinding?: CanonicalDigest | null } {
+  return boundary.schemaVersion === 1 ? {} : {
+    readinessBinding: "readinessBinding" in boundary ? boundary.readinessBinding : null,
+  };
+}
 
 export interface CachedCandidate {
   record: CandidateManagedRecordV1;
-  recordVersion: CanonicalDigest;
+  recordVersion: string;
   effective: CandidateEffectiveTargetProjection;
   currentness: CandidateEffectiveCurrentnessProjection;
 }
@@ -141,11 +147,11 @@ export interface CheckpointCandidateContext {
   readRecord(workUnit: string): Promise<VersionedCandidateRecord>;
   readEffective(workUnit: string, baseRevision: string): Promise<CachedCandidate | null>;
   assertRecordVersion(workUnit: string): Promise<
-    | { readonly status: "unchanged"; readonly recordVersion: CanonicalDigest }
+    | { readonly status: "unchanged"; readonly recordVersion: string }
     | {
         readonly status: "moved";
-        readonly expectedRecordVersion: CanonicalDigest;
-        readonly observedRecordVersion: CanonicalDigest | null;
+        readonly expectedRecordVersion: string;
+        readonly observedRecordVersion: string | null;
       }
   >;
 }
@@ -153,12 +159,12 @@ export interface CheckpointCandidateContext {
 /** Bind managed Candidate bytes and explicit-base projections to one checkpoint invocation. */
 export function createCheckpointCandidateContext(input: {
   readRecord(workUnit: string): Promise<VersionedCandidateRecord>;
-  readVersion(workUnit: string): Promise<CanonicalDigest | null>;
+  readVersion(workUnit: string): Promise<string | null>;
   project(input: {
     workUnit: string;
     baseRevision: string;
     record: CandidateManagedRecordV1;
-    recordVersion: CanonicalDigest;
+    recordVersion: string;
   }): Promise<{
     effective: CandidateEffectiveTargetProjection;
     currentness: CandidateEffectiveCurrentnessProjection;
@@ -226,7 +232,7 @@ export function deliveryCheckpointReviewIsDischarged(input: {
   readonly targets: readonly { readonly vehicle: DeliveryReviewMemberVehicle }[];
   readonly discharges: readonly HostedReservationDischarge[];
   readonly progress: readonly HostedReservationPolicyProgress[];
-  readonly ownerTermini?: readonly DeliveryReviewMemberTerminus[];
+  readonly ownerTermini?: readonly ResolvedDeliveryReviewMemberTerminus[];
   readonly ownerTerminusAdvances?: readonly DeliveryReviewOwnerTerminusAdvance[];
 }): boolean {
   return input.targets.length === input.discharges.length
@@ -295,6 +301,8 @@ export type IntegrationLifecycleReadFs = NonNullable<
 export interface IntegrationLifecycleStorageSnapshot {
   version: string;
   fs: IntegrationLifecycleReadFs;
+  /** Version of the selected work unit's meta record in this snapshot. */
+  metaVersion(workUnit: string): string | null;
 }
 
 export interface IntegrationLifecycleStoragePort {
@@ -436,13 +444,13 @@ async function readLifecycleArtifactFacts(
 }
 
 /**
- * Read the exact-tree lifecycle position and required archive products for one checkpoint.
+ * Read the selected lifecycle position and required archive products for one checkpoint.
  *
  * @param cwd - Repository root used to resolve managed artifact paths.
  * @param workUnit - Work-unit slug whose lifecycle is being checked.
  * @param archiveCadence - Cadence selecting the required pre-merge lifecycle position.
  * @param storageVersion - Immutable version identifying the supplied filesystem view.
- * @param fs - Exact-version filesystem projection.
+ * @param fs - Exact-version filesystem projection used by repository storage.
  * @returns A typed summary bound to the supplied storage version.
  */
 export async function readLifecycleSummary(
@@ -476,15 +484,16 @@ export async function readLifecycleSummary(
 /**
  * Bind canonical repository, lifecycle, Candidate, host, and policy reads to the checkpoint reducer.
  *
- * @param input - Repository root, Git adapter, and optional exact-version lifecycle storage.
+ * @param options - Repository root, Git adapter, and optional exact-version lifecycle storage.
  * @returns Production dependencies for checkpoint composition.
  */
-export function createIntegrationCheckpointDependencies(input: {
-  cwd: string;
-  exec: GitExec;
+export function createIntegrationCheckpointDependencies(options: ReviewInvocationInput & {
   rawExec?: RawGitExec;
   lifecycleStorage?: IntegrationLifecycleStoragePort;
 }): IntegrationCheckpointDependencies {
+  const context = createReviewCompositionContext(options);
+  const input = { ...options, ...context };
+  const reviewRecordStore = input.store;
   let settingsPromise: ReturnType<typeof readConfigSettings> | null = null;
   const settings = () => {
     settingsPromise ??= readConfigSettings(input.cwd);
@@ -492,8 +501,8 @@ export function createIntegrationCheckpointDependencies(input: {
   };
   const rawExec = input.rawExec ?? createRawGitExec(input.cwd);
   const candidateContext = createCheckpointCandidateContext({
-    readRecord: (workUnit) => readCandidateRecordVersioned(input.cwd, workUnit),
-    readVersion: (workUnit) => readCandidateRecordVersion(input.cwd, workUnit),
+    readRecord: (workUnit) => readCandidateRecordVersioned(input.cwd, workUnit, { store: reviewRecordStore, owner: input.workItem }),
+    readVersion: (workUnit) => readCandidateRecordVersion(input.cwd, workUnit, { store: reviewRecordStore, owner: input.workItem }),
     project: async ({ workUnit, baseRevision, record }) => {
       const config = await settings();
       const effective = await projectGitCandidateEffectiveTarget({
@@ -516,7 +525,7 @@ export function createIntegrationCheckpointDependencies(input: {
     identityPromise ??= resolveIdentity({ exec: input.exec });
     return identityPromise;
   };
-  const composeLineageReview = createLineageReviewComposer(input);
+  const composeLineageReview = createLineageReviewComposer({ ...input, store: reviewRecordStore });
   const deliveryLookup = new RepositoryDeliveryMemberLookup({ exec: input.exec, cwd: input.cwd });
   const deliveryHost = new GhDeliveryHostPort(hostedGhRunner);
   const readHostedReservationDischarge = createHostedReservationDischargeReader({
@@ -532,22 +541,25 @@ export function createIntegrationCheckpointDependencies(input: {
     return openChangeRequestPromise;
   };
   const lifecycleStorage = input.lifecycleStorage ?? createStoreLifecycleStorage({
-    store: createStore(createDefaultStorePorts({ checkoutRoot: input.cwd, exec: input.exec })),
+    store: reviewRecordStore,
     checkoutRoot: input.cwd,
   });
+  // Retain the record binding beside each published summary, including interleaved snapshot reads.
+  const lifecycleRecordVersions = new Map<string, string | null>();
   const candidate = (workUnit: string, baseRevision: string): Promise<CachedCandidate | null> =>
     candidateContext.readEffective(workUnit, baseRevision);
   const boundaries = new Map<string, ReturnType<typeof readSubmissionBoundary>>();
   const boundary = (workUnit: string) => {
     let value = boundaries.get(workUnit);
     if (value === undefined) {
-      value = readSubmissionBoundary(input.cwd, workUnit);
+      value = readSubmissionBoundary(input.cwd, workUnit, { store: reviewRecordStore, owner: input.workItem });
       boundaries.set(workUnit, value);
     }
     return value;
   };
 
   return {
+    boundarySchemaVersion: reviewRecordStore.capabilities.stateOffBranch ? 2 : 1,
     readDrift: async (workUnit) => {
       const config = await settings();
       return runBaseDrift({
@@ -607,7 +619,8 @@ export function createIntegrationCheckpointDependencies(input: {
       let managed: VersionedCandidateRecord;
       try {
         managed = await candidateContext.readRecord(workUnit);
-      } catch {
+      } catch (error) {
+        rethrowNativeRefusal(error);
         return unavailableDeliveryDrift(
           workUnit,
           "The managed delivery Candidate record could not be read or validated.",
@@ -777,6 +790,14 @@ export function createIntegrationCheckpointDependencies(input: {
     readLifecycle: async (workUnit) => {
       const config = await settings();
       const snapshot = await lifecycleStorage.readSnapshot();
+      if (reviewRecordStore.capabilities.stateOffBranch) {
+        const observed = await readStoredLifecycleSummary({ store: reviewRecordStore, workUnit, owner: input.workItem,
+          archiveCadence: config.settings["archive.cadence"] === "manual" ? "manual" : "with-integration",
+          storageVersion: snapshot.version });
+        lifecycleRecordVersions.set(JSON.stringify([workUnit, snapshot.version]), observed.recordVersion);
+        return observed.summary;
+      }
+      lifecycleRecordVersions.set(JSON.stringify([workUnit, snapshot.version]), snapshot.metaVersion(workUnit));
       return readLifecycleSummary(
         input.cwd,
         workUnit,
@@ -819,7 +840,7 @@ export function createIntegrationCheckpointDependencies(input: {
       }
       return {
         schemaVersion: 1,
-        expectedRecordVersion: value.recordVersion,
+        expectedRecordVersion: RecordVersionSchema.parse(value.recordVersion),
         candidateId: decision.candidateId,
         priorTarget,
         currentTarget,
@@ -1071,6 +1092,7 @@ export function createIntegrationCheckpointDependencies(input: {
             if (!sameDeliveryReviewMemberIdentity(record.vehicle, terminalTarget.vehicle)
               || record.vehicle.head === terminalTarget.vehicle.head) return [];
             const proof = await projectGitDeliveryTerminalRecordAdvance({
+              stateOffBranch: reviewRecordStore.capabilities.stateOffBranch,
               cwd: input.cwd,
               exec: input.exec,
               workUnitId: workUnit,
@@ -1094,9 +1116,9 @@ export function createIntegrationCheckpointDependencies(input: {
         vehicle: target.vehicle,
         candidate: value.record,
       })));
-      const publisher = new RepositoryGitCommonStatePublisher(input.exec, input.cwd);
-      const operationSnapshot = await new LocalReviewOperationStateStore(publisher).readOperationSnapshot();
-      const repositoryId = await resolveRepositoryIdentity(publisher);
+      const publisher = context.publisher;
+      const operationSnapshot = await context.family.ports.inFlight.readOperationSnapshot();
+      const repositoryId = await resolveRepositoryIdentity(publisher, undefined, input);
       const progress = deliveryTargets.map((target) => projectHostedReservationPolicyProgress({
         snapshot: operationSnapshot,
         repositoryId,
@@ -1111,7 +1133,7 @@ export function createIntegrationCheckpointDependencies(input: {
         targets: deliveryTargets,
         discharges,
         progress,
-        ownerTermini: publicationBoundary.deliveryReviewTermini,
+        ownerTermini: await readStoredDeliveryReviewMemberTermini(publicationBoundary, context.family.ports.inFlight),
         ownerTerminusAdvances,
       });
       const candidateCoordinate = await readCoordinate(input.exec, input.cwd, currentness.recognizedRevision);
@@ -1153,6 +1175,7 @@ export function createIntegrationCheckpointDependencies(input: {
       });
     },
     readShippedDeliveryPublicationCommit: async (workUnit, baseRevision) => {
+      if (reviewRecordStore.capabilities.stateOffBranch) return { status: "none" };
       const boundaryPath = resolveSubmissionBoundaryPath(workUnit);
       const [stagedPaths, unstagedPaths, untrackedPaths] = await Promise.all([
         readGitPaths(input.exec, input.cwd, ["diff", "--cached", "--name-only", "-z", "--"]),
@@ -1196,7 +1219,7 @@ export function createIntegrationCheckpointDependencies(input: {
       if (taskListPath === null) throw new Error("The shipped delivery task-list binding is unavailable.");
 
       const renewal = await inspectRepositoryDeliveryCandidateRenewal({
-        cwd: input.cwd,
+        ...input,
         taskListPath,
         workUnitId: workUnit,
         baseBranch: (await settings()).settings["branch.base"],
@@ -1240,6 +1263,7 @@ export function createIntegrationCheckpointDependencies(input: {
           throw new Error("The shipped delivery terminal coordinates are unavailable.");
         }
         const terminalCoordinateAdvance = await projectGitDeliveryTerminalCoordinateAdvance({
+          stateOffBranch: reviewRecordStore.capabilities.stateOffBranch,
           cwd: input.cwd,
           exec: input.exec,
           candidate: value.effective,
@@ -1323,11 +1347,12 @@ export function createIntegrationCheckpointDependencies(input: {
         candidateSubjectDigest: value.effective.recognizedTarget.subject.subjectDigest,
         reservation: publicationBoundary.reservation,
         terminus: publicationBoundary.terminus,
+        ...nativePublicationReadiness(publicationBoundary),
         changeRequest: {
           repository: changeRequest.targetRef.repository,
           pullRequest: changeRequest.candidate.number,
         },
-      });
+      }, publicationBoundary.schemaVersion);
       let discharge;
       if (delivery.status === "ready") {
         discharge = {
@@ -1417,11 +1442,16 @@ export function createIntegrationCheckpointDependencies(input: {
           observedRecordVersion: recordVersion.observedRecordVersion,
         };
       }
+      const lifecycleVersion = lifecycleRecordVersions.get(JSON.stringify([workUnit, statusSummary.lifecycle.storageVersion]));
+      if (lifecycleVersion === undefined || lifecycleVersion === null) {
+        throw new Error("The work unit's lifecycle record version was not established. Read its lifecycle snapshot and recompose the checkpoint before retrying.");
+      }
       const resolvedIdentity = await identity();
       if (resolvedIdentity === null) {
         throw new Error("An ARC identity is required to persist the integration checkpoint.");
       }
       const surfaces = createUserSurfaceResolver({ cwd: input.cwd, identity: resolvedIdentity });
+      const nativeOwnership = await checkpointNativeOwnership(input);
       const handle = await persistIntegrationCheckpointComposition(
         surfaces.workUnitRoot(SlugSchema.parse(workUnit)),
         {
@@ -1434,7 +1464,8 @@ export function createIntegrationCheckpointDependencies(input: {
             headRef: statusSummary.changeRequest.headRef,
             headSha: statusSummary.changeRequest.headSha,
           },
-          lifecycleVersion: statusSummary.lifecycle.storageVersion,
+          lifecycleVersion,
+          ...(nativeOwnership === undefined ? {} : { nativeOwnership }),
           settlementPlan,
           mergeMethod: ValidatedMergeMethodSchema.parse(mergeMethod),
         },
@@ -1442,4 +1473,14 @@ export function createIntegrationCheckpointDependencies(input: {
       return { status: "created", handle };
     },
   };
+}
+
+async function checkpointNativeOwnership(input: ReviewInvocationContext):
+  Promise<IntegrationCheckpointCompositionInput["nativeOwnership"]> {
+  if (!input.store.capabilities.stateOffBranch) return undefined;
+  const owner = requireReviewWorkItem(input.workItem, "A native integration checkpoint");
+  if (owner.type !== "work-item" || owner.uid === undefined) {
+    throw new Error("Resolve the checkpoint's exact work-item UID, then retry.");
+  }
+  return { projectId: await input.projectId(), workItemUid: owner.uid };
 }

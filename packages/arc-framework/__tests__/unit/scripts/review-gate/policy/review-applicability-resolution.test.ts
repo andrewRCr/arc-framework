@@ -1,6 +1,7 @@
 /** Canonical Candidate authority for bounded review-applicability residuals. */
 
 import { describe, expect, it } from "vitest";
+import { RecordVersionSchema } from "../../../../../src/lib/store/identity.js";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/canonical/canonical-json.js";
 import {
@@ -10,6 +11,8 @@ import {
   type CandidateManagedRecordV1,
 } from "../../../../../src/lib/work-unit/candidate-attestation.js";
 import {
+  ReviewApplicabilitySelectionOfferSchema,
+  ReviewApplicabilitySelectionBatchOfferSchema,
   resolveReviewApplicability,
   resolveReviewApplicabilityBatch,
   type ReviewApplicabilityResolutionContext,
@@ -20,7 +23,7 @@ import { classifyReviewContributionApplicability } from
 const oid = (character: string): string => character.repeat(40);
 const VERSION = canonicalDigest({ version: "candidate" });
 
-function harness() {
+function harness(version: string = VERSION) {
   const subject = createCandidateSubjectSnapshot([{
     path: "src/example.ts",
     mode: "100644",
@@ -76,7 +79,7 @@ function harness() {
   });
   if (projection.state !== "decision-required") throw new Error("expected decision fixture");
   const context: ReviewApplicabilityResolutionContext = {
-    readRecord: async () => ({ record, version: VERSION }),
+    readRecord: async () => ({ record, version }),
     projectApplicability: async () => projection,
     writeRecord: async (next) => {
       writes += 1;
@@ -86,7 +89,7 @@ function harness() {
   };
   const input = {
     schemaVersion: 1 as const,
-    expectedRecordVersion: VERSION,
+    expectedRecordVersion: RecordVersionSchema.parse(version),
     candidateId: attestation.candidateId,
     selector,
     projectionDigest: projection.projectionDigest,
@@ -139,7 +142,7 @@ describe("review applicability resolution", () => {
 
     await expect(resolveReviewApplicability(fixture.context, {
       ...fixture.input,
-      expectedRecordVersion: canonicalDigest({ version: "stale" }),
+      expectedRecordVersion: RecordVersionSchema.parse(canonicalDigest({ version: "stale" })),
     })).resolves.toMatchObject({ state: "exact-replay", choice: "covered" });
     expect(fixture.writes()).toBe(1);
     expect(fixture.record().transitions).toHaveLength(2);
@@ -169,7 +172,7 @@ describe("review applicability resolution", () => {
     })).resolves.toMatchObject({ state: "stale-bound-input", reason: "projection-changed" });
     await expect(resolveReviewApplicability(fixture.context, {
       ...fixture.input,
-      expectedRecordVersion: canonicalDigest({ version: "stale" }),
+      expectedRecordVersion: RecordVersionSchema.parse(canonicalDigest({ version: "stale" })),
     })).resolves.toMatchObject({ state: "version-conflict", nextAction: "rerun" });
     expect(fixture.writes()).toBe(0);
   });
@@ -235,4 +238,17 @@ describe("review applicability resolution", () => {
     expect(fixture.writes()).toBe(0);
     expect(fixture.record().transitions).toEqual([]);
   });
+});
+
+it.each([VERSION, "backend:candidate/7"])("keeps review applicability offers and selections bound to version %s", async (version) => {
+  const h = harness(version);
+  const offer = { schemaVersion: 1, kind: "review-applicability-selection", workUnitId: "example",
+    expectedRecordVersion: RecordVersionSchema.parse(version), candidateId: h.input.candidateId, projection: h.projection,
+    choices: ["covered", "review-required"], interactionText: "Select this exact residual." };
+  expect(ReviewApplicabilitySelectionOfferSchema.parse(offer).expectedRecordVersion).toBe(version);
+  const { projection, ...batchOffer } = offer;
+  expect(ReviewApplicabilitySelectionBatchOfferSchema.parse({ ...batchOffer, kind: "review-applicability-selection-batch",
+    projections: [projection, projection] }).expectedRecordVersion).toBe(version);
+  await expect(resolveReviewApplicability(h.context, h.input)).resolves.toMatchObject({ state: "resolved", choice: "covered" });
+  expect(h.record().transitions).toHaveLength(1);
 });

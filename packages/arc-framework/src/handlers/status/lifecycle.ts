@@ -8,12 +8,14 @@ import { runActiveStatus } from "../../commands/active.js";
 import { renderInFlightWarning } from "../../lib/git/in-flight-derivation.js";
 import type { GitExec } from "../../lib/git/index.js";
 import { readGitBlobEntry } from "../../lib/io-context.js";
-import type { StoreRefusal } from "../../lib/store/refusal.js";
+import type { Remedy } from "../../lib/store/refusal.js";
+import { isNativeTypedRefusal } from "../../lib/store/native-refusal.js";
 import type { LifecycleIndexOutcome } from "../../lib/store/lifecycle-index.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { StoreSyncPort } from "../../lib/store/operational-sync.js";
 import { renderLifecycleClashWarnings } from "../../lib/status/store-project-standing.js";
 import { readLifecycleDesign } from "../../lib/store/lifecycle-design.js";
+import { readSubmissionBoundary } from "../../lib/store/kinds/review/integration-boundary/access.js";
 import { readWorkUnit, usesOffBranchState } from "../../lib/store/lifecycle-write.js";
 import { MetaPauseSchema, ParsedMetaRecordSchema, type MetaPause, type ParsedMetaRecord } from "../../lib/active/meta-schema.js";
 import { ParsedDesignRecordSchema } from "../../lib/store/kinds/design/index.js";
@@ -29,9 +31,10 @@ import { resolveLifecycleSubject } from "../../lib/store/lifecycle-subject.js";
 import type { SlugStateQuery } from "../../lib/work-unit/lifecycle-query.js";
 import {
   parseIntegrationBoundaryLocus,
-  type IntegrationBoundaryLocus,
+  type PublishedIntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import { readIdentityPointers } from "../identity-pointers.js";
+import { StoreRefusalError } from "../../lib/store/refusal-error.js";
 import type { StatusCliOptions } from "./input.js";
 import type { SessionStatusContext } from "./session-context.js";
 
@@ -123,7 +126,7 @@ function formatSlugStateQuery(
   query: SlugStateQuery,
   enrichment: {
     purpose?: string | null;
-    integrationBoundary?: IntegrationBoundaryLocus | null;
+    integrationBoundary?: PublishedIntegrationBoundaryLocus | null;
     derivedPosition?: DerivedSlugPosition | null;
     scopeWindow?: ScopeWindowFact;
     worktreePath?: string;
@@ -183,7 +186,7 @@ async function resolveSlugOperationalBoundary(options: {
   worktreePath: string | undefined;
   exec: GitExec;
 }): Promise<{
-  integrationBoundary: IntegrationBoundaryLocus | null;
+  integrationBoundary: PublishedIntegrationBoundaryLocus | null;
   warnings: string[];
 }> {
   if (options.state !== "active" && options.state !== "integrating") {
@@ -238,6 +241,12 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
   const { view, record, query } = selection.result;
   const standing = view.standing;
   const fields = storeQueryMetaFields(record);
+  const boundaryRead = await readStoreStatusBoundary({ store, cwd: local.cwd, record, fields });
+  if ("refusal" in boundaryRead) {
+    renderStoreQueryRefusal(boundaryRead.refusal, opts, refreshWarnings);
+    return;
+  }
+  const integrationBoundary = boundaryRead.boundary;
   const design = record.status === "ok" ? await readLifecycleDesign(store, record.result) : { record: null, content: null, warnings: [] };
   const selected = record.status === "ok" ? { record: record.result, uid: ownerHolderRequest(record.result).uid } : undefined;
   const locus = await readStoreStatusLocus({ ...local, store, slug: query.slug, record: selected?.record }, ports);
@@ -249,14 +258,31 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
   const designFields = ParsedDesignRecordSchema.safeParse(design.record?.fields);
   const purpose = extractPurposeSentence(designFields.success ? designFields.data.purpose : null);
   const output = { ...query, purpose, owner: fields?.owner ?? null,
-    integrationBoundary: null, derivedPosition: derived.position, scopeWindow,
+    integrationBoundary, derivedPosition: derived.position, scopeWindow,
     ...(locus.worktreePath === undefined ? {} : { worktreePath: locus.worktreePath }), ...(warnings.length === 0 ? {} : { warnings: [...new Set(warnings)] }) };
   if (opts.json) process.stdout.write(`${JSON.stringify(output)}\n`);
   else {
     p.intro("arc status");
-    p.note(formatSlugStateQuery(query, { purpose, worktreePath: locus.worktreePath, warnings,
+    p.note(formatSlugStateQuery(query, { purpose, integrationBoundary, worktreePath: locus.worktreePath, warnings,
       derivedPosition: derived.position, scopeWindow }), "Lifecycle state");
     p.outro("Done.");
+  }
+}
+
+// A refused boundary read stops the query through its typed refusal rather than an untyped throw.
+type StatusQueryRefusal = { code: string; condition: string; remedy: Remedy };
+
+async function readStoreStatusBoundary(input: { store: Store; cwd: string; record: Awaited<ReturnType<typeof readWorkUnit>>;
+  fields?: ParsedMetaRecord }): Promise<{ boundary: PublishedIntegrationBoundaryLocus | null } | { refusal: StatusQueryRefusal }> {
+  if (input.record.status !== "ok" || (input.fields?.state !== "Active" && input.fields?.state !== "Integrating")) return { boundary: null };
+  const { owner } = input.record.result.reference;
+  try { return { boundary: await readSubmissionBoundary(input.cwd, owner.name, { store: input.store, owner }) }; }
+  catch (error) {
+    if (error instanceof StoreRefusalError) return { refusal: error.refusal };
+    if (isNativeTypedRefusal(error)) return { refusal: "refusal" in error ? error.refusal : "failure" in error
+      ? { code: "project-identity-unavailable", condition: error.failure.reason, remedy: error.failure.remedy }
+      : { code: error.code, condition: error.condition, remedy: error.remedy } };
+    throw error;
   }
 }
 
@@ -277,7 +303,7 @@ function lifecycleListingWarnings(listing: LifecycleIndexOutcome): string[] {
   return listing.status === "unreadable" ? [listing.condition] : [];
 }
 /** Preserve the exact refusal in machine output and its remedy in human output. */
-function renderStoreQueryRefusal(refusal: StoreRefusal, opts: StatusCliOptions, warnings: readonly string[] = []): void {
+function renderStoreQueryRefusal(refusal: StatusQueryRefusal, opts: StatusCliOptions, warnings: readonly string[] = []): void {
   if (!opts.json) for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
   if (opts.json) process.stdout.write(`${JSON.stringify({ status: "refused", refusal, ...(warnings.length ? { warnings } : {}) })}\n`);
   else p.log.error(`${refusal.condition} ${refusal.remedy.text}`);

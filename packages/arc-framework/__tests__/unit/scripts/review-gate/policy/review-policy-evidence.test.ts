@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { cleanHostedResult, findingsHostedResult, approvedRecord, performedFix } from "../../../../fixtures/review-response-proof.js";
 
 import { responsePolicyRequestFixture } from "../../../../fixtures/review-response-policy.js";
+import { nativeListingRefusal } from "../../../../fixtures/native-refusal.js";
 
 import { canonicalDigest } from "../../../../../src/lib/kernel/index.js";
 import { ApprovedDispositionRecordSchema } from
@@ -29,6 +30,7 @@ import { bindReviewSourceReference } from
   "../../../../../src/scripts/review-gate/core/review-source-reference.js";
 import {
   readIncrementalPredecessorResponseEvidence,
+  bindReviewPolicyContinuationEvidence,
   resolveEvidenceBoundReviewPolicy,
   resolveEvidenceBoundReviewPolicyContinuation,
 } from
@@ -298,6 +300,19 @@ describe("evidence-bound review policy", () => {
     });
   });
 
+  it("raises a native refusal from the lane performance read whole, and reads the response once readable", async () => {
+    const result = findingsHostedResult(["major"]);
+    const record = approvedRecord(result, [
+      { sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" },
+    ]);
+    const store = dependencies(result, record).dispositionStore, refusal = nativeListingRefusal();
+    await expect(readIncrementalPredecessorResponseEvidence(result, store, () => Promise.reject(refusal))).rejects.toBe(refusal);
+    await expect(readIncrementalPredecessorResponseEvidence(result, store, async () => ({
+      schemaVersion: 1, producerId: result.producerId, dispositionSetId: record.currentDispositionSetId,
+      originatingHeadSha: result.target.headSha, producedHeadSha: objectId("f"), performedAt: "2026-09-11T12:00:00Z",
+    }))).resolves.toMatchObject({ status: "performed" });
+  });
+
   it("recognizes exact durable lane performance for a Candidate-owned fix", async () => {
     const result = findingsHostedResult(["major"]);
     const record = approvedRecord(result, [
@@ -376,6 +391,44 @@ describe("evidence-bound review policy", () => {
     }, { terminalResponsePerformed: false }, evidence)).resolves.toMatchObject({
       state: "invalid-override", payload: { reason: "preceding-producer-mismatch" },
     });
+  });
+
+  it.each([false, true])("retains a whole-target predecessor for a chunked additional pass (native=%s)", async native => {
+    const result = cleanHostedResult();
+    const request = { ...cleanRequest(result), scopeSelection: { mode: "chunked" as const, target: policyTarget },
+      additionalPassAuthorization: { target: policyTarget, lane: "standard" as const,
+        precedingProducerId: result.producerId, completedPasses: 1, nextPass: 2 } };
+    const evidence = {
+      ...dependencies(result), sources: ["codex-pr", "delegated-agent"], selectionSources: ["delegated-agent"], maxPasses: 1,
+      ...(native ? { stateOffBranch: true as const } : {}),
+    };
+    for (const [authorization, reason] of [
+      [{ ...request.additionalPassAuthorization, precedingProducerId: "foreign-producer" }, "preceding-producer-mismatch"],
+      [{ ...request.additionalPassAuthorization, completedPasses: 0 }, "pass-count-mismatch"],
+      [{ ...request.additionalPassAuthorization, target: { ...policyTarget, headSha: "f".repeat(40) } }, "target-mismatch"],
+    ] as const) {
+      await expect(resolveEvidenceBoundReviewPolicyContinuation({ ...request, additionalPassAuthorization: authorization },
+        { terminalResponsePerformed: false }, evidence)).resolves.toMatchObject({ state: "invalid-override", payload: { reason } });
+    }
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: false }, evidence))
+      .resolves.toMatchObject({ state: "ready", nextAction: "local-prepare",
+      payload: { pass: 2, scope: "chunked", sourceId: "delegated-agent", ceilingOverrideApplied: true } });
+  });
+
+  it.each([false, true])("retains an unmarked whole-target local predecessor for a chunked additional pass (native=%s)", async native => {
+    const chunked = chunkedLocalAggregateResult({ clean: true });
+    const { deliveryAdmission: ignored, ...producer } = chunked;
+    void ignored;
+    const result = { ...producer, admission: { ...chunked.admission, scopeMode: "whole-target" as const } };
+    const request = { ...cleanRequest(result),
+      attempts: [{ sourceId: "delegated-agent", outcome: "clean" as const, reviewOperationId: result.producerId }],
+      scopeSelection: { mode: "chunked" as const, target: policyTarget },
+      additionalPassAuthorization: { target: policyTarget, lane: "standard" as const,
+        precedingProducerId: result.producerId, completedPasses: 1, nextPass: 2 } };
+    const evidence = { ...dependencies(result), sources: ["delegated-agent"], maxPasses: 1,
+      ...(native ? { stateOffBranch: true as const } : {}) };
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: false }, evidence))
+      .resolves.toMatchObject({ state: "ready", nextAction: "local-prepare", payload: { pass: 2, scope: "chunked" } });
   });
 
   it("waits for the approved minor response before an elective successor pass", async () => {
@@ -627,6 +680,49 @@ describe("evidence-bound review policy", () => {
     await expect(resolveEvidenceBoundReviewPolicyContinuation(request, {
       terminalResponsePerformed: true,
     }, evidence)).resolves.toMatchObject({ state: "ready", payload: { pass: 2 } });
+  });
+
+  it.each([false, true])("drops a spent override before a post-fix check (native=%s)", async native => {
+    const original = findingsHostedResult(["major"]);
+    const result = { ...original, admission: { ...original.admission, logicalPass: 3 } };
+    const record = approvedRecord(result, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
+    const request = { ...findingsRequest(result), completedPasses: 3,
+      ceilingOverride: { target: policyTarget, lane: "standard" as const, exhaustedPassCount: 2, nextPass: 3 } };
+    const evidence = { ...dependencies(result, record), sources: ["codex-pr", "delegated-agent"],
+      selectionSources: ["delegated-agent"], maxPasses: 2,
+      ...(native ? { stateOffBranch: true as const } : {}),
+      readResponsePerformance: async () => performedFix(result, record),
+      nextPassContext: { completePasses: 3, convergence: "unconverged" as const, responseDue: false,
+        incremental: { basis: "fix-check" as const, scope: { schemaVersion: 1 as const,
+          predecessorProducerId: result.producerId, predecessorHeadSha: result.target.headSha,
+          basisHeadSha: result.target.headSha, headSha: result.target.headSha,
+          requiredFindings: [{ producerId: result.producerId, findingId: "finding-1", locus: "src/example.ts:7" }] } } } };
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: true }, evidence))
+      .resolves.toMatchObject({ state: "ready", nextAction: "local-prepare", payload: { pass: 4, ceilingOverrideApplied: false } });
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: true },
+      { ...evidence, chosenCoverage: "complete" as const }))
+      .resolves.toMatchObject({ state: "approval-required", nextAction: "obtain-ceiling-override" });
+  });
+
+  it.each([false, true])("retains an unspent conditional authorization on the fresh fix-check route, native=%s", async (native) => {
+    const original = findingsHostedResult(["major"]);
+    const result = { ...original, admission: { ...original.admission, logicalPass: 3 } };
+    const record = approvedRecord(result, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
+    const request = { ...findingsRequest(result), completedPasses: 3,
+      ceilingOverride: { target: policyTarget, lane: "standard" as const, exhaustedPassCount: 3, nextPass: 4, conditionalPassAuthorizationId: digest("unspent-conditional") } };
+    const evidence = { ...dependencies(result, record), sources: ["codex-pr", "delegated-agent"],
+      selectionSources: ["delegated-agent"], maxPasses: 2,
+      ...(native ? { stateOffBranch: true as const } : {}),
+      readResponsePerformance: async () => performedFix(result, record),
+      nextPassContext: { completePasses: 3, convergence: "unconverged" as const, responseDue: false,
+        incremental: { basis: "fix-check" as const, scope: { schemaVersion: 1 as const,
+          predecessorProducerId: result.producerId, predecessorHeadSha: result.target.headSha,
+          basisHeadSha: result.target.headSha, headSha: result.target.headSha,
+          requiredFindings: [{ producerId: result.producerId, findingId: "finding-1", locus: "src/example.ts:7" }] } } } };
+    const bound = await bindReviewPolicyContinuationEvidence(request, { terminalResponsePerformed: true }, evidence);
+    expect(bound.ceilingOverride).toEqual(request.ceilingOverride);
+    await expect(resolveEvidenceBoundReviewPolicyContinuation(request, { terminalResponsePerformed: true }, evidence))
+      .resolves.toMatchObject({ state: "ready", nextAction: "local-prepare", payload: { pass: 4, ceilingOverrideApplied: false } });
   });
 
   it("applies a ceiling override only after the terminal response opens the fresh pass", async () => {

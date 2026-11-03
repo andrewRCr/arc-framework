@@ -21,7 +21,7 @@ import {
   type LocalReviewCoverageSelectionAction,
 } from "../core/local-review-coverage.js";
 import type {
-  ApprovedDispositionRecordStore,
+  ApprovedDispositionRecordReader,
 } from "../core/ports.js";
 import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
 import type { ReviewResult } from "../core/review-result.js";
@@ -46,6 +46,7 @@ import { nextPassConsiderations } from "./next-pass-offer-text.js";
 import type { NextPassFacts } from "./next-pass-facts-schema.js";
 import type { StandardReviewObligationProjection } from
   "./standard-review-projection-schema.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 
 export { confirmPrivateCandidateCorrectionBasis } from "./candidate-correction-proof.js";
 
@@ -134,6 +135,7 @@ function standardPredecessorSourceId(
 
 /** Prove a non-delivery predecessor against current contribution and exact Candidate authority. */
 export async function confirmNonDeliveryIncrementalApplicability(input: {
+  readonly stateOffBranch?: boolean;
   readonly predecessor: ReviewResult;
   readonly currentTarget: ReviewTarget;
   readonly currentLineage: LaneSubjectLineage;
@@ -194,7 +196,8 @@ export async function confirmNonDeliveryIncrementalApplicability(input: {
         projection,
         selections,
         projectSelector,
-        ownRecord: gitCandidateRecordAtHead(input.exec, input.candidate.attestation.workUnit),
+        ownRecord: input.stateOffBranch === true ? undefined
+          : gitCandidateRecordAtHead(input.exec, input.candidate.attestation.workUnit),
       });
   const authority = reduceReviewApplicabilityAuthorityWithMechanicalCarry(
     currentLineage.candidateId,
@@ -246,7 +249,8 @@ export async function confirmDeliveryMemberIncrementalApplicability(input: {
     if (proof.status === "accepted") return "applicable";
     return (proof.reason === "contribution-diverged" || proof.reason === "contribution-conflicted")
       && proof.paths.length > 0 ? "review-required" : "unavailable";
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return "unavailable";
   }
 }
@@ -258,7 +262,7 @@ type ErrandFixApplicabilityInput = {
   readonly currentClaimId: string | null;
   readonly currentResult?: ReviewResult;
   readonly observeTarget: () => Promise<ReviewTarget>;
-  readonly dispositionStore: ApprovedDispositionRecordStore;
+  readonly dispositionStore: ApprovedDispositionRecordReader;
   readonly readResponsePerformance: (
     predecessor: ReviewResult,
   ) => Promise<LaneResponsePerformance | null>;
@@ -326,7 +330,8 @@ export async function confirmErrandFixResponseApplicability(
     if (response.status !== "performed") return "unavailable";
     return historicalSuccessor || canonicalize(await input.observeTarget()) === canonicalize(currentTarget)
       ? "applicable" : "unavailable";
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return "unavailable";
   }
 }

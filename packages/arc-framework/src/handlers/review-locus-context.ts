@@ -1,5 +1,6 @@
 /** Locus lookups used to bind review handlers to their current checkout. */
 
+import type { ReviewInvocationOptions } from "../scripts/review-gate/runtime/invocation.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import type { GitExec } from "../lib/git/exec.js";
 import {
@@ -43,12 +44,14 @@ export async function readCompletedReviewTerminusOwner(
   root: string,
   workUnitId: string,
   exec: GitExec,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<CompletedReviewTerminusOwner | null> {
   const [{ settings }, identity] = await Promise.all([
     readConfigSettings(root),
     resolveUserIdentity(exec),
   ]);
   const frame = await runDerivedLocusStateProbe({
+    ...invocation,
     cwd: root,
     identity,
     baseBranch: settings["branch.base"],
@@ -72,9 +75,11 @@ export async function resolveCurrentHostedReviewErrand(
   branch: string,
   baseRef: string,
   exec: GitExec,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<ActiveHostedReviewErrand> {
   const identity = await resolveUserIdentity(exec);
   const frame = await runDerivedLocusStateProbe({
+    ...invocation,
     cwd: root,
     identity,
     baseBranch: baseRef,
@@ -93,9 +98,11 @@ export async function resolveCurrentHostedReviewErrand(
 export async function readIndexedHostedReviewErrand(
   root: string,
   exec: GitExec,
+  invocation: ReviewInvocationOptions = {},
 ): Promise<ActiveHostedReviewErrand> {
   const branch = (await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: root })).stdout.trim();
   const frame = await runDerivedLocusStateProbe({
+    ...invocation,
     cwd: root,
     identity: await resolveUserIdentity(exec),
     baseBranch: (await readConfigSettings(root)).settings["branch.base"],

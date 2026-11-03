@@ -46,6 +46,13 @@ export function architectureRuleFor(predicate: ArchitecturePredicate): string {
  */
 const RAW_STATE_MODULES = [
   "lib/store/kinds/registrations.ts",
+  "lib/store/kinds/in-repo-registrations.ts",
+  "lib/store/kinds/review/outcome/registration.ts",
+  "lib/store/kinds/review/decision/registration.ts",
+  "lib/store/kinds/review/evidence/registration.ts",
+  "lib/store/kinds/review/adversarial-pass/registration.ts",
+  "lib/store/kinds/review/candidate/registration.ts",
+  "lib/store/kinds/review/integration-boundary/registration.ts",
   "lib/store/kinds/entry-registration.ts",
   "lib/store/kinds/meta/registration.ts",
   "lib/store/kinds/errand-record/registration.ts",
@@ -62,6 +69,7 @@ const RAW_STATE_MODULES = [
   "lib/git/ref-tree.ts",
   "lib/errand/ref-tree.ts",
   "lib/work-unit/candidate-record-store.ts",
+  "lib/work-unit/submission-boundary-store.ts",
   "lib/work-unit/transition-record-store.ts",
   "lib/work-unit/git-transition-record-enumeration.ts",
   "lib/errand/identity-snapshot.ts",

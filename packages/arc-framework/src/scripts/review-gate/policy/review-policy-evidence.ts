@@ -1,12 +1,13 @@
 /** Evidence composition for terminal review-policy attempts. */
 
+import { isCleanFixCheckCompleteSuccessor } from "./review-additional-pass.js";
 import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 
 import { validateReviewTarget } from "../core/gate-contract-v2.js";
 import { currentApprovedDispositionNode } from "../core/advisory-records.js";
 import type {
-  ApprovedDispositionRecordStore,
+  ApprovedDispositionRecordReader,
   ReviewResultReader,
 } from "../core/ports.js";
 import { validateApprovedDispositionRecordForResult } from
@@ -21,9 +22,11 @@ import {
 import type { LaneResponsePerformance } from "../core/operation-state-schema.js";
 import {
   ReviewPolicyCommandRequestSchema,
+  ReviewPolicyBoundRequestSchema,
   ReviewPolicyRequestSchema,
   resolveReviewPolicy,
   type ReviewPolicyCommandRequest,
+  type ReviewPolicyBoundRequest,
   type ReviewPolicyRequest,
   type ReviewResolveEnvelope,
 } from "./review-policy-driver.js";
@@ -32,8 +35,11 @@ import {
   type IncrementalPredecessorApplicability,
   type IncrementalPredecessorResponseEvidence,
 } from "./incremental-coverage-basis.js";
+import { projectReviewPolicyCommandRequest } from "./review-policy-command-projection.js";
 import { requireDriverAdmission } from "./review-execution-admission.js";
 import { reconcileReviewFallbackAttempts, reconcileReviewSourceInvocation } from "./review-policy-fallbacks.js";
+import { omitSpentReviewCeilingOverride } from "./review-ceiling-override.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 
 /** Trusted inputs needed to bind one command request to immutable producer evidence. */
 export interface EvidenceBoundReviewPolicyDependencies {
@@ -44,7 +50,7 @@ export interface EvidenceBoundReviewPolicyDependencies {
   readonly nextPassContext?: ReviewNextPassContext;
   readonly chosenCoverage?: ReviewPolicyRequest["chosenCoverage"];
   readonly resultReader: ReviewResultReader;
-  readonly dispositionStore: ApprovedDispositionRecordStore;
+  readonly dispositionStore: ApprovedDispositionRecordReader;
   readonly confirmTarget: (attemptedTarget: ReviewResult["target"])
   => Promise<ReviewResult["target"]>;
   readonly confirmIncrementalApplicability?: (
@@ -62,11 +68,21 @@ export interface EvidenceBoundReviewPolicyDependencies {
   readonly terminalResponseSettled?: boolean;
   /** The owning composition proved the subject's opening frontline phase closed from its recorded history. */
   readonly frontlinePhaseClosed?: boolean;
+  /** Backend context retained from the selected invocation; never caller authority. */
+  readonly stateOffBranch?: true;
   /** The owning composition proved the invoking checkout is the subject's own Errand. */
   readonly errandVehicle?: boolean;
 }
 
-function requestScope(request: ReviewPolicyCommandRequest): "whole-target" | "chunked" {
+function parseEvidenceBoundInput(input: unknown, dependencies: EvidenceBoundReviewPolicyDependencies): ReviewPolicyBoundRequest {
+  const request = ReviewPolicyBoundRequestSchema.parse(input);
+  if (request.terminus?.schemaVersion === 2 && dependencies.stateOffBranch !== true) {
+    throw new Error("Native terminus requires trusted state-off-branch context; resolve it on its owning backend.");
+  }
+  return request;
+}
+
+function requestScope(request: ReviewPolicyBoundRequest): "whole-target" | "chunked" {
   return request.scopeSelection?.mode ?? "whole-target";
 }
 
@@ -128,7 +144,7 @@ function standardProjection(result: Exclude<ReviewResult, { kind: "frontline" }>
   };
 }
 
-function resultMatchesPolicy(result: ReviewResult, request: ReviewPolicyCommandRequest): boolean {
+function resultMatchesPolicy(result: ReviewResult, request: ReviewPolicyBoundRequest): boolean {
   if (result.kind === "frontline") return true;
   return canonicalize({ ...standardProjection(result), reasons: [...result.requirement.reasons].sort() })
     === canonicalize({ ...request.standardReview, reasons: [...request.standardReview.reasons].sort() });
@@ -152,7 +168,7 @@ function compatibleTerminalGrants(
 
 function correctedTerminalRequest(
   result: ReviewResult,
-  request: ReviewPolicyCommandRequest,
+  request: ReviewPolicyBoundRequest,
   sources: readonly string[],
 ): ReviewPolicyCommandRequest {
   const lane = result.kind === "frontline" ? "frontline" : "standard";
@@ -177,14 +193,14 @@ function correctedTerminalRequest(
     scopeSelection: { mode: scope, target: request.scopeSelection?.target ?? request.target },
     standardReview: result.kind === "frontline" ? request.standardReview : standardProjection(result),
     ...(correctedInvocation === undefined ? {} : { invocation: correctedInvocation }),
-    ...(lane === "standard" && terminus !== undefined ? { terminus } : {}),
+    ...(lane === "standard" && terminus?.schemaVersion === 1 ? { terminus } : {}),
     ...compatibleTerminalGrants({ ceilingOverride, additionalPassAuthorization }, lane, result.admission.logicalPass),
   });
 }
 
 function producerTargetMatches(
   result: ReviewResult,
-  request: ReviewPolicyCommandRequest,
+  request: ReviewPolicyBoundRequest,
   currentTarget: ReviewResult["target"],
   operationId: string,
   historicalProducerId?: string,
@@ -198,7 +214,7 @@ function producerTargetMatches(
     && (historical || canonicalize(result.target) === canonicalize(currentTarget));
 }
 
-function hostedTargetMatches(result: ReviewResult, request: ReviewPolicyCommandRequest): boolean {
+function hostedTargetMatches(result: ReviewResult, request: ReviewPolicyBoundRequest): boolean {
   return result.kind !== "hosted"
     || (result.hostedTarget.repository.toLowerCase() === request.target.repository.toLowerCase()
       && result.hostedTarget.pullRequest === request.target.pullRequest
@@ -207,7 +223,7 @@ function hostedTargetMatches(result: ReviewResult, request: ReviewPolicyCommandR
 
 function validateTerminalResult(
   result: ReviewResult,
-  request: ReviewPolicyCommandRequest,
+  request: ReviewPolicyBoundRequest,
   currentTargetInput: ReviewResult["target"],
   operationId: string,
   dependencies: Pick<EvidenceBoundReviewPolicyDependencies, "sources" | "maxPasses" | "historicalProducerId">,
@@ -271,7 +287,7 @@ function greaterSeverity(left: ReviewSeverity | null, right: ReviewSeverity): Re
 /** Resolve approved and performed response evidence for one immutable predecessor result. */
 export async function readIncrementalPredecessorResponseEvidence(
   predecessor: ReviewResult,
-  dispositionStore: ApprovedDispositionRecordStore,
+  dispositionStore: ApprovedDispositionRecordReader,
   readResponsePerformance?: (
     predecessor: ReviewResult,
   ) => Promise<LaneResponsePerformance | null>,
@@ -298,7 +314,7 @@ export async function readIncrementalPredecessorResponseEvidence(
     });
   const hasFix = dispositions.some(({ disposition }) => disposition === "fix");
   const performance = hasFix && readResponsePerformance !== undefined
-    ? await readResponsePerformance(predecessor).catch(() => null)
+    ? await readResponsePerformance(predecessor).catch((error: unknown) => { rethrowNativeRefusal(error); return null; })
     : null;
   const laneFixPerformed = performance !== null
     && performance.producerId === predecessor.producerId
@@ -390,12 +406,13 @@ async function deriveVerifiedTerminalSignal(
 /** The repository-proven subject facts the owning composition supplied, as reducer request fields. */
 function provenSubjectFacts(
   dependencies: EvidenceBoundReviewPolicyDependencies,
-): Pick<ReviewPolicyRequest, "frontlinePhaseClosed" | "errandVehicle" | "nextPassContext" | "selectionSources" | "configuredSources" | "chosenCoverage"> {
+): Pick<ReviewPolicyRequest, "stateOffBranch" | "frontlinePhaseClosed" | "errandVehicle" | "nextPassContext" | "selectionSources" | "configuredSources" | "chosenCoverage"> {
   return {
     ...(dependencies.selectionSources === undefined ? {} : { selectionSources: dependencies.selectionSources }),
     ...(dependencies.configuredSources === undefined ? {} : { configuredSources: dependencies.configuredSources }),
     ...(dependencies.nextPassContext === undefined ? {} : { nextPassContext: dependencies.nextPassContext }),
     ...(dependencies.chosenCoverage === undefined ? {} : { chosenCoverage: dependencies.chosenCoverage }),
+    ...(dependencies.stateOffBranch === true ? { stateOffBranch: true } : {}),
     ...(dependencies.frontlinePhaseClosed === true ? { frontlinePhaseClosed: true } : {}),
     ...(dependencies.errandVehicle === true ? { errandVehicle: true } : {}),
   };
@@ -412,7 +429,7 @@ export async function bindReviewPolicyEvidence(
   input: unknown,
   dependencies: EvidenceBoundReviewPolicyDependencies,
 ): Promise<ReviewPolicyRequest> {
-  const request = ReviewPolicyCommandRequestSchema.parse(input);
+  const request = parseEvidenceBoundInput(input, dependencies);
   if (dependencies.frontlinePhaseClosed === true && request.lane !== "frontline") {
     throw new Error("frontline phase closure can be applied only to the frontline lane");
   }
@@ -494,13 +511,15 @@ export function continuationChoice(input: {
   terminal: ReviewResolveEnvelope;
   additionalPass: ReviewResolveEnvelope | null;
   terminalOutcome?: string;
+  completeFixCheckSuccessor?: boolean;
   currentResponsePerformed: boolean;
   coverageSelected: boolean;
   nextPassContext?: ReviewNextPassContext;
   retrigger?: "none" | "full-final" | "incremental";
 }): "terminal" | "additional" | "fresh" {
   const { terminal, additionalPass, terminalOutcome, currentResponsePerformed, coverageSelected } = input;
-  if (additionalPass !== null && terminal.state === "pass-complete"
+  if (additionalPass !== null && (terminal.state === "pass-complete"
+    || (terminal.state === "coverage-required" && input.completeFixCheckSuccessor === true))
     && (terminalOutcome === "clean" || currentResponsePerformed)) return "additional";
   if (terminal.state === "findings" && currentResponsePerformed) return "fresh";
   const completeSuccessor = input.retrigger === "full-final"
@@ -526,7 +545,7 @@ export async function bindReviewPolicyContinuationEvidence(
   },
   dependencies: EvidenceBoundReviewPolicyDependencies,
 ): Promise<ReviewPolicyRequest> {
-  const request = ReviewPolicyCommandRequestSchema.parse(input);
+  const request = parseEvidenceBoundInput(input, dependencies);
   const terminalAttempt = request.attempts.at(-1);
   const terminalOperationId = terminalAttempt?.outcome === "findings" || terminalAttempt?.outcome === "clean"
     ? terminalAttempt.reviewOperationId : undefined;
@@ -541,7 +560,7 @@ export async function bindReviewPolicyContinuationEvidence(
     },
   };
   const producer = terminalOperationId === undefined ? undefined : await resultReader.readResult(terminalOperationId);
-  const terminalRequest = producer === undefined ? request : ReviewPolicyCommandRequestSchema.parse({
+  const terminalRequest = producer === undefined ? omitSpentReviewCeilingOverride(request) : ReviewPolicyBoundRequestSchema.parse({
     ...request,
     scopeSelection: { mode: producer.admission.scopeMode, target: request.target },
     ceilingOverride: undefined,
@@ -569,6 +588,7 @@ export async function bindReviewPolicyContinuationEvidence(
   );
   const choice = continuationChoice({
     terminal, additionalPass, terminalOutcome: terminalAttempt?.outcome,
+    completeFixCheckSuccessor: isCleanFixCheckCompleteSuccessor(boundTerminal),
     currentResponsePerformed, coverageSelected: response.coverageSelected === true,
     nextPassContext: dependencies.nextPassContext, retrigger: request.standardReview.retrigger,
   });
@@ -578,7 +598,7 @@ export async function bindReviewPolicyContinuationEvidence(
     additionalPassAuthorization: request.additionalPassAuthorization,
   };
   return ReviewPolicyRequestSchema.parse({
-    ...request,
+    ...omitSpentReviewCeilingOverride(request),
     attempts: [],
     sources: dependencies.sources,
     maxPasses: dependencies.maxPasses,
@@ -616,8 +636,8 @@ export async function assertEvidenceBoundReviewExecutionAdmission(
   },
   dependencies: EvidenceBoundReviewPolicyDependencies,
 ): Promise<Extract<ReviewResolveEnvelope, { state: "ready" }>> {
-  const request = ReviewPolicyCommandRequestSchema.parse(input);
+  const request = parseEvidenceBoundInput(input, dependencies);
   const resolution = await resolveEvidenceBoundReviewPolicyContinuation(request, response, dependencies);
-  requireDriverAdmission(resolution, expectation, { request });
+  requireDriverAdmission(resolution, expectation, { request: projectReviewPolicyCommandRequest(request) });
   return resolution;
 }

@@ -10,6 +10,7 @@ import { canonicalDigest, canonicalize } from "../../lib/kernel/canonical/canoni
 import { atomicCreateFile } from "../../lib/fs.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
 import { CanonicalDigestSchema } from "../../lib/kernel/schema/vocabulary.js";
+import { StoredUidSchema } from "../../lib/store/identity.js";
 import { ValidatedMergeMethodSchema } from "./checkpoint.js";
 import { CanonicalSettlementPlanSchema } from "./settlement-plan.js";
 
@@ -28,6 +29,8 @@ export const IntegrationCheckpointTargetSchema = z.strictObject({
 });
 export type IntegrationCheckpointTarget = z.infer<typeof IntegrationCheckpointTargetSchema>;
 
+const NativeCheckpointOwnershipSchema = z.strictObject({ projectId: StoredUidSchema, workItemUid: StoredUidSchema });
+
 export const IntegrationCheckpointCompositionRecordSchema = z.strictObject({
   schemaVersion: z.literal(1),
   semanticsVersion: z.literal("integration-checkpoint-composition/v1"),
@@ -36,6 +39,7 @@ export const IntegrationCheckpointCompositionRecordSchema = z.strictObject({
   approvedHead: ObjectIdSchema,
   target: IntegrationCheckpointTargetSchema,
   lifecycleVersion: z.string().min(1),
+  nativeOwnership: NativeCheckpointOwnershipSchema.optional(),
   settlementPlan: CanonicalSettlementPlanSchema,
   mergeMethod: ValidatedMergeMethodSchema,
   compositionDigest: DigestSchema,
@@ -57,6 +61,7 @@ export interface IntegrationCheckpointCompositionInput {
   approvedHead: string;
   target: IntegrationCheckpointTarget;
   lifecycleVersion: string;
+  nativeOwnership?: z.infer<typeof NativeCheckpointOwnershipSchema>;
   settlementPlan: z.infer<typeof CanonicalSettlementPlanSchema>;
   mergeMethod: z.infer<typeof ValidatedMergeMethodSchema>;
 }
@@ -83,6 +88,7 @@ function digestComposition(input: {
   checkpointId: string;
   target: IntegrationCheckpointTarget;
   lifecycleVersion: string;
+  nativeOwnership?: z.infer<typeof NativeCheckpointOwnershipSchema>;
   settlementPlan: z.infer<typeof CanonicalSettlementPlanSchema>;
   mergeMethod: z.infer<typeof ValidatedMergeMethodSchema>;
 }): string {
@@ -91,6 +97,7 @@ function digestComposition(input: {
     checkpointId: input.checkpointId,
     target: input.target,
     lifecycleVersion: input.lifecycleVersion,
+    ...(input.nativeOwnership === undefined ? {} : { nativeOwnership: input.nativeOwnership }),
     settlementPlan: input.settlementPlan,
     mergeMethod: input.mergeMethod,
   });

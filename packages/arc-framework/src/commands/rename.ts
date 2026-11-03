@@ -72,8 +72,8 @@ import {
   type RunRenameResult,
 } from "../lib/work-unit/verbs/rename.js";
 import { reconcileRoadmap } from "../lib/work-unit/side-effects/readiness-regen.js";
-import { readCandidateRecord } from "../lib/work-unit/candidate-record-store.js";
-import { readSubmissionBoundary } from "../lib/work-unit/submission-boundary-store.js";
+import { readCandidateRecord } from "../lib/store/kinds/review/candidate/access.js";
+import { readSubmissionBoundary } from "../lib/store/kinds/review/integration-boundary/access.js";
 import { usesOffBranchState } from "../lib/store/lifecycle-write.js";
 import { storeRenameAdapters } from "./rename-store.js";
 import type { LocusPorts } from "../lib/work-unit/locus-ports.js";
@@ -121,8 +121,8 @@ async function runInRepoRenameCommand(
     onPrepared: async (plan) => {
       if (!plan.resuming) {
         const [candidate, boundary] = await Promise.all([
-          readCandidateRecord(command.cwd, plan.sourceSlug),
-          readSubmissionBoundary(command.cwd, plan.sourceSlug),
+          readCandidateRecord(command.cwd, plan.sourceSlug, { store: command.store, exec }),
+          readSubmissionBoundary(command.cwd, plan.sourceSlug, { store: command.store, exec }),
         ]);
         if (candidate !== null || boundary !== null) {
           throw new Error("A work unit with Candidate publication state cannot be renamed.");

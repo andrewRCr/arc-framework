@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
+import { withOpaqueReview } from "../helpers/store/opaque-review.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
@@ -27,7 +28,7 @@ describe.each(["default", "separate"] as const)("distinct record coordinates in 
 
   it.each((["review/evidence", "review/adversarial-pass"] as const).flatMap(kind =>
     (["ascii", "unicode"] as const).map(spelling => ({ kind, spelling }))))("keeps independent $spelling $kind additions with identical bytes", async ({ kind, spelling }) => {
-    const h = await refSyncFixture(layout);
+    const h = withOpaqueReview(await refSyncFixture(layout));
     const made = success(await h.a.store.write({ action: "put", expected: null,
       reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "coordinate-owner" } }),
       content: makeMetaFixture("coordinate-owner"), placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "activate" } }));
@@ -48,7 +49,9 @@ describe.each(["default", "separate"] as const)("distinct record coordinates in 
   }, 60_000);
 
   it.each(["review/evidence", "review/adversarial-pass"] as const)("isolates current and saved formats for distinct %s keys", async kind => {
-    const f = await createRefFixture({ [kind]: { formatVersion: 2 } }, layout);
+    // The pass kind carries the composite key here; its production create-only rule would refuse the rewrite and removal.
+    const f = await createRefFixture({ [kind]: { formatVersion: 2,
+      ...kind === "review/adversarial-pass" ? { writerRule: "single-writer" as const } : {} } }, layout);
     const owner = success(await f.store.write({ action: "put", reference: f.reference("work-item/meta"), expected: null,
       content: f.content(f.reference("work-item/meta")), placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "activate" } }));
     const refs = ["caf\u00e9", "cafe\u0301"].map(activity => RecordReferenceSchema.parse({ owner: owner.reference.owner, kind,

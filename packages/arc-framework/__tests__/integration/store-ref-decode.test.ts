@@ -13,10 +13,21 @@ import { cutMapFixture, rebindCutFixture } from "../fixtures/decompose-v4.js";
 import { storedCutMapFixture } from "../fixtures/stored-cut-map.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
+import { candidateRecordFixture } from "../fixtures/review-candidate.js";
+import { boundaryV2Fixture } from "../fixtures/review-boundary.js";
+import { reviewEvidenceFixture } from "../fixtures/review-evidence.js";
+import { localOutcome } from "../fixtures/review-outcome.js";
+import { terminusDecision } from "../fixtures/review-decision.js";
+import { adversarialPassFixture } from "../fixtures/review-adversarial-pass.js";
 
 const uid = "12345678-1234-4234-8234-123456789abc";
 const retiredUid = "abcdef12-1234-4234-8234-123456789abc";
 const owner = { type: "work-item", name: "alpha", uid } as const;
+const REVIEW_CONTENT: Partial<Record<RecordReference["kind"], () => unknown>> = {
+  "review/candidate": () => candidateRecordFixture().record, "review/integration-boundary": () => boundaryV2Fixture(),
+  "review/evidence": () => reviewEvidenceFixture(), "review/outcome": () => localOutcome(),
+  "review/decision": terminusDecision, "review/adversarial-pass": () => adversarialPassFixture(),
+};
 function machineContent(reference: RecordReference): string | undefined {
   if (reference.kind === "work-item/cut-map") {
     const map = cutMapFixture();
@@ -24,6 +35,8 @@ function machineContent(reference: RecordReference): string | undefined {
     rebindCutFixture(map);
     return writeCutMapRecord(storedCutMapFixture(map));
   }
+  const review = REVIEW_CONTENT[reference.kind];
+  if (review) return JSON.stringify(review());
   if (reference.kind.endsWith("/routing-receipt")) return writeRoutingReceipt({ entryId: "12345678",
     source: null, destination: { list: reference.kind === "personal/routing-receipt" ? "personal/inbox" : "project-inbox/inbox",
       ...(reference.owner.type === "person" ? { identity: reference.owner.name } : {}) }, time: "2026-01-01T00:00:00Z" });

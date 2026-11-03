@@ -6,7 +6,7 @@ import type { StoreWorkUnitEvidence } from "./store-work-unit-evidence.js";
 import { WorkUnitReadPlacementSchema } from "../store/placement.js";
 import { workItemArtifactPath } from "../store/lifecycle-storage.js";
 import { cohortDocumentPath } from "../store/lifecycle-record-path.js";
-import { recordReferences, OwnerIdentitySchema } from "../store/identity.js";
+import { recordReferences, OwnerIdentitySchema, type OwnerIdentity } from "../store/identity.js";
 import { ParsedMetaPauseSchema, type ParsedMetaPause } from "../active/meta-schema.js";
 import { join, relative, sep } from "node:path";
 
@@ -30,7 +30,8 @@ import {
   type CandidateEffectiveChangedProjection,
   type CandidateTargetProjector,
 } from "../work-unit/candidate-effective-target.js";
-import { resolveCandidateRecordRelativePath } from "../work-unit/candidate-record-store.js";
+import { resolveCandidateRecordRelativePath } from "../store/kinds/review/paths.js";
+import { readSubmissionBoundary } from "../store/kinds/review/integration-boundary/access.js";
 import {
   resolveLoadSetManifest,
   type LoadSetWorkUnitStage,
@@ -43,13 +44,12 @@ import {
   type TaskListCursorFileResult,
 } from "../task-list/file-cursor.js";
 import type { DormantMetaEvidence } from "./derived-lifecycle-evidence.js";
-import { readSubmissionBoundary } from "../work-unit/submission-boundary-store.js";
 import {
   projectCandidateFixResumeBoundary,
   projectCandidateReviewBoundary,
   recoverPrePublicationBoundary,
   recoverIntegratingBoundary,
-  type IntegrationBoundaryLocus,
+  type PublishedIntegrationBoundaryLocus,
 } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import type { PendingCandidateReviewFixAuthority } from
   "../../scripts/review-gate/policy/candidate-review-fix-continuation.js";
@@ -62,11 +62,13 @@ export interface SubjectMetaIO {
   projectCandidateTarget: CandidateTargetProjector;
   readPendingCandidateReviewFixAuthority(input: {
     cwd: string;
+    workItem?: OwnerIdentity;
     workUnitId: string;
     candidate: NonNullable<ReturnType<typeof parseCandidateManagedRecord>>;
   }): Promise<PendingCandidateReviewFixAuthority>;
   projectDeliveryCorrection(input: {
     cwd: string;
+    workItem?: OwnerIdentity;
     workUnitId: string;
     taskListPath: string;
   }): Promise<DeliveryCorrectionProjection>;
@@ -103,7 +105,7 @@ export type SubjectMetaProjection =
       workUnitStage?: LoadSetWorkUnitStage | null;
       cohortDocPath: string | null;
       loadSet: LoadSetManifest;
-      integrationBoundary: IntegrationBoundaryLocus | null;
+      integrationBoundary: PublishedIntegrationBoundaryLocus | null;
     };
 
 /** Select one exact subject meta and derive its workflow state with reads pinned to its checkout. */
@@ -173,17 +175,34 @@ export async function projectCheckoutSubjectMeta(options: {
   let candidateSubjectDigest: string | null = null;
   let requireExactDurableBoundary = false;
   let pendingCandidateFix = false;
+  let candidateId = record.candidateId;
+  const candidateStore = options.store?.capabilities.stateOffBranch === true ? options.store : null;
   const candidateAuthorityRequired = record.state === "Integrating"
     || (record.state === "Active" && record.currentWorkflow === "prepare-work-unit");
-  if (record.candidateId !== null && candidateAuthorityRequired) {
+  // Off the branch the Candidate record alone carries Candidate authority, so a work unit holding none has no Candidate.
+  let storedCandidate: { path: string; content: string } | null = null;
+  if (candidateStore !== null && candidateAuthorityRequired) {
     try {
-      const candidateStore = options.store?.capabilities.stateOffBranch === true ? options.store : null;
+      if (options.workUnit === undefined) throw new Error("The work-unit authority for this Candidate is unavailable. Re-read the work unit through the Store, then retry.");
+      const content = await readStoreSubjectCandidate(candidateStore, options.workUnit.record.reference.owner);
+      storedCandidate = content === null ? null : { path: `review/candidate for ${options.workUnit.record.reference.owner.name}`, content };
+    } catch (error) {
+      return {
+        kind: "unresolved",
+        code: "subject-unresolved",
+        message: error instanceof Error ? error.message : String(error),
+        metaPath: expectedPath,
+      };
+    }
+    if (storedCandidate === null) candidateId = null;
+  }
+  if ((storedCandidate !== null || (candidateStore === null && candidateId !== null)) && candidateAuthorityRequired) {
+    try {
       let candidatePath: string;
       let candidateContent: string;
-      if (candidateStore !== null) {
-        if (options.workUnit === undefined) throw new Error("The work-unit authority for this Candidate is unavailable. Re-read the work unit through the Store, then retry.");
-        candidatePath = `review/candidate for ${options.workUnit.record.reference.owner.name}`;
-        candidateContent = await readStoreSubjectCandidate(candidateStore, options.workUnit.record.reference.owner);
+      if (storedCandidate !== null) {
+        candidatePath = storedCandidate.path;
+        candidateContent = storedCandidate.content;
       } else {
         candidatePath = resolveCandidateRecordRelativePath(options.subjectKey);
         candidateContent = await options.io.readFile(join(options.cwd, candidatePath));
@@ -204,7 +223,9 @@ export async function projectCheckoutSubjectMeta(options: {
         throw new Error(`Candidate record could not be read under this build's schema: ${candidatePath}`
           + (candidateStore === null ? "" : ". Repair the stored Candidate record, then retry."));
       }
-      if (candidateRecord.attestation.candidateId !== record.candidateId) {
+      if (candidateStore !== null) {
+        candidateId = candidateRecord.attestation.candidateId;
+      } else if (candidateRecord.attestation.candidateId !== candidateId) {
         throw new Error("Candidate metadata does not match the managed Candidate record.");
       }
       const effective = await options.io.projectCandidateTarget({
@@ -220,6 +241,7 @@ export async function projectCheckoutSubjectMeta(options: {
       } else if (effective.state === "changed" || effective.state === "decision-required") {
         const pending = await options.io.readPendingCandidateReviewFixAuthority({
           cwd: options.cwd,
+          ...(options.workUnit === undefined ? {} : { workItem: options.workUnit.record.reference.owner }),
           workUnitId: options.subjectKey,
           candidate: candidateRecord,
         });
@@ -261,11 +283,10 @@ export async function projectCheckoutSubjectMeta(options: {
   const inferredSessionType = options.metaRoot.kind === "completed" || options.workUnit?.record.placement?.kind === "completed"
     ? "integration"
     : inferSessionType(record.state, taskListPath, record.branch);
-  let integrationBoundary: IntegrationBoundaryLocus | null = null;
-  if (record.candidateId !== null && candidateSubjectDigest !== null && record.state === "Integrating") {
-    const stored = await readSubmissionBoundary(options.cwd, options.subjectKey, {
-      readFile: (path) => options.io.readFile(path),
-    });
+  let integrationBoundary: PublishedIntegrationBoundaryLocus | null = null;
+  const boundaryVersion = options.store?.capabilities.stateOffBranch === true ? 2 : 1;
+  if (candidateId !== null && candidateSubjectDigest !== null && record.state === "Integrating") {
+    const stored = await readHeldSubmissionBoundary(options);
     const exactDurableBoundary = !requireExactDurableBoundary
       || stored?.candidateSubjectDigest === candidateSubjectDigest;
     integrationBoundary = record.branch === null || !exactDurableBoundary
@@ -274,31 +295,29 @@ export async function projectCheckoutSubjectMeta(options: {
           stored,
           workUnit: options.subjectKey,
           branch: record.branch,
-          candidateId: record.candidateId,
+          candidateId,
           candidateSubjectDigest,
         });
-  } else if (record.candidateId !== null && candidateSubjectDigest !== null && record.state === "Active") {
+  } else if (candidateId !== null && candidateSubjectDigest !== null && record.state === "Active") {
     if (pendingCandidateFix) {
       integrationBoundary = projectCandidateFixResumeBoundary({
         workUnit: options.subjectKey,
-        candidateId: record.candidateId,
+        candidateId,
         candidateSubjectDigest,
-      });
+      }, boundaryVersion);
     } else {
-      const stored = await readSubmissionBoundary(options.cwd, options.subjectKey, {
-        readFile: (path) => options.io.readFile(path),
-      });
+      const stored = await readHeldSubmissionBoundary(options);
       const recovered = recoverPrePublicationBoundary({
         stored,
         workUnit: options.subjectKey,
-        candidateId: record.candidateId,
+        candidateId,
         candidateSubjectDigest,
       });
       integrationBoundary = recovered ?? projectCandidateReviewBoundary({
         workUnit: options.subjectKey,
-        candidateId: record.candidateId,
+        candidateId,
         candidateSubjectDigest,
-      });
+      }, boundaryVersion);
     }
   }
   let deliveryCorrection: DeliveryCorrectionProjection = { status: "none" };
@@ -309,6 +328,7 @@ export async function projectCheckoutSubjectMeta(options: {
     try {
       deliveryCorrection = await options.io.projectDeliveryCorrection({
         cwd: options.cwd,
+        ...(options.workUnit === undefined ? {} : { workItem: options.workUnit.record.reference.owner }),
         workUnitId: options.subjectKey,
         taskListPath,
       });
@@ -489,4 +509,15 @@ async function readStoreTaskCursor(store: Store, primary: import("../store/read.
     `The task list has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry session entry.` };
   const path = workItemArtifactPath(slug, "tasks", WorkUnitReadPlacementSchema.parse(primary.placement), cohort);
   return { kind: "read", path, cursor: resolveTaskListCursor(read.result.content) };
+}
+
+async function readHeldSubmissionBoundary(options: Pick<Parameters<typeof projectCheckoutSubjectMeta>[0],
+  "cwd" | "subjectKey" | "io" | "store" | "workUnit">): Promise<PublishedIntegrationBoundaryLocus | null> {
+  const { cwd, subjectKey: workUnit, io, store } = options;
+  if (store?.capabilities.stateOffBranch === true) {
+    const owner = options.workUnit?.record.reference.owner;
+    if (owner === undefined) throw new Error("Restore the selected work-unit authority before reading its boundary.");
+    return readSubmissionBoundary(cwd, workUnit, { store, owner });
+  }
+  return readSubmissionBoundary(cwd, workUnit, { readFile: path => io.readFile(path) });
 }

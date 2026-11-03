@@ -1,0 +1,219 @@
+/** Select pre-publication replay codecs and preserve only the selected backend's call inputs. */
+import { spineRemedy } from "../scripts/integration/spine-refusal.js";
+import { ReviewCommandErrorEnvelopeSchema } from "../scripts/review-gate/core/review-command-envelope.js";
+import { canonicalize, type CanonicalDigest } from "../lib/kernel/index.js";
+import type { PrePublicationSavedGrantChecks, PrePublicationCompositionInput } from "../scripts/review-gate/policy/pre-publication-contract.js";
+import type { ReviewTarget } from "../scripts/review-gate/core/gate-contract-v2-schema.js";
+import { PrePublicationLaneJudgmentsSchema, consumeFrontlineCeilingOverride } from "../scripts/review-gate/policy/pre-publication-request.js";
+import { decodePrePublicationReplay, encodePrePublicationReplay, type PrePublicationReplayInput,
+  type PrePublicationReplayInputV2 } from "../scripts/review-gate/policy/pre-publication-replay.js";
+
+/** The caller's parsed judgment inputs, each absent unless its option named a source. */
+export interface ReviewPrePublicationJudgment {
+  selfReview: "settled" | undefined;
+  changeSet: unknown;
+  lanes: unknown;
+  frontlineCeilingHeadSha: string | undefined;
+  scopeJudgmentTarget?: ReviewTarget;
+  /** Internal read-only checks, excluded from every persisted replay projection. */
+  savedGrantChecks?: PrePublicationSavedGrantChecks;
+}
+
+interface CallInput {
+  resume?: string;
+  selfReview?: "settled";
+  changeSet?: string;
+  lanes?: string;
+}
+
+/** The handler dependencies reading a call needs: its root, its caller-supplied sources, and the selected backend. */
+interface ReplayAccess {
+  resolveRoot(cwd: string): string | null;
+  readText(source: string): Promise<string>;
+  boundarySchemaVersion?(root: string): 1 | 2;
+}
+
+function replayJudgment(replay: PrePublicationReplayInput): ReviewPrePublicationJudgment {
+  return { selfReview: replay.selfReview, changeSet: replay.changeSet, lanes: replay.lanes,
+    frontlineCeilingHeadSha: replay.frontlineCeilingHeadSha, scopeJudgmentTarget: replay.scopeJudgmentTarget };
+}
+
+/** Read caller sources and the selected strict replay contract with the existing request/execution error boundary. */
+export async function readPrePublicationCall(input: CallInput, access: ReplayAccess): Promise<
+  | { status: "ready"; root: string; schemaVersion: 1 | 2; replay: PrePublicationReplayInput | null; judgment: ReviewPrePublicationJudgment }
+  | { status: "failed"; error: unknown; stage: "request" | "execution" }
+> {
+  let replay: PrePublicationReplayInput | null;
+  let judgment: ReviewPrePublicationJudgment;
+  try {
+    replay = input.resume === undefined ? null : decodePrePublicationReplay(input.resume);
+    const read = async (source: string | undefined): Promise<unknown> =>
+      source === undefined ? undefined : JSON.parse(await access.readText(source));
+    judgment = replay === null ? { selfReview: input.selfReview, changeSet: await read(input.changeSet),
+      lanes: await read(input.lanes), frontlineCeilingHeadSha: undefined } : replayJudgment(replay);
+  } catch (error) { return { status: "failed", error, stage: "request" }; }
+  let root: string;
+  let schemaVersion: 1 | 2;
+  try {
+    const resolved = access.resolveRoot(process.cwd());
+    if (resolved === null) throw new Error("Not inside an ARC project.");
+    root = resolved;
+    schemaVersion = access.boundarySchemaVersion?.(root) ?? 1;
+  } catch (error) { return { status: "failed", error, stage: "execution" }; }
+  try {
+    if (input.resume !== undefined && schemaVersion === 2) {
+      replay = decodePrePublicationReplay(input.resume, 2);
+      judgment = replayJudgment(replay);
+    }
+    return { status: "ready", root, schemaVersion, replay, judgment };
+  } catch (error) { return { status: "failed", error, stage: "request" }; }
+}
+
+/**
+ * Whether a saved scope judgment still binds this call: its target is one the call examined. A singleton call examines
+ * its one target; a delivery call examines each member its selection passed through.
+ */
+export function scopeJudgmentTargetExamined(examined: readonly (ReviewTarget | null)[], saved: ReviewTarget): boolean {
+  const key = canonicalize(saved);
+  return examined.some(target => target !== null && canonicalize(target) === key);
+}
+
+type ReplayLaneJudgment = NonNullable<ReturnType<typeof PrePublicationLaneJudgmentsSchema.parse>["standard"]>;
+
+/** Keep one lane's call inputs, and its grants only when no subject has recorded them. */
+function nativeReplayLane(judgment: ReplayLaneJudgment, retainGrants: boolean) {
+  const { ceilingOverride, additionalPassAuthorization } = retainGrants ? judgment : {};
+  return { ...(judgment.scopeMode === undefined ? {} : { scopeMode: judgment.scopeMode }),
+    ...(judgment.invocation === undefined ? {} : { invocation: judgment.invocation }),
+    ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
+    ...(additionalPassAuthorization === undefined ? {} : { additionalPassAuthorization }) };
+}
+
+/** Project the native token's call inputs, retaining only grants no subject has recorded when requested. */
+export function nativeReplayLanes(input: unknown, retainGrants: boolean): PrePublicationReplayInputV2["lanes"] {
+  if (input === undefined) return undefined;
+  const supplied = PrePublicationLaneJudgmentsSchema.parse(input);
+  const lanes: NonNullable<PrePublicationReplayInputV2["lanes"]> = {};
+  for (const lane of ["frontline", "standard"] as const) {
+    const judgment = supplied[lane];
+    if (judgment === undefined) continue;
+    const call = nativeReplayLane(judgment, retainGrants);
+    if (Object.keys(call).length > 0) lanes[lane] = call;
+  }
+  return Object.keys(lanes).length === 0 ? undefined : lanes;
+}
+
+type RecordedGrantMatch = (lane: "frontline" | "standard", judgment: unknown) => Promise<boolean>;
+
+async function nativeLaneGrantsMatch(lane: "frontline" | "standard", supplied: ReplayLaneJudgment | undefined,
+  retained: ReplayLaneJudgment | undefined, recordedGrant?: RecordedGrantMatch): Promise<boolean> {
+  for (const field of ["ceilingOverride", "additionalPassAuthorization"] as const) {
+    const value = supplied?.[field];
+    if (value === undefined) continue;
+    const prior = retained?.[field];
+    if (prior === undefined) {
+      if (!await recordedGrant?.(lane, { [field]: value })) return false;
+    } else if (canonicalize(value) !== canonicalize(prior)) return false;
+  }
+  return true;
+}
+
+/** Require explicit inputs to retain saved authority while comparing native routing in its normalized form. */
+export async function prePublicationJudgmentMatchesSaved(caller: ReviewPrePublicationJudgment,
+  saved: PrePublicationReplayInput, schemaVersion: 1 | 2, recordedGrant?: RecordedGrantMatch): Promise<boolean> {
+  const projection = (value: Pick<ReviewPrePublicationJudgment, "selfReview" | "changeSet" | "lanes" | "frontlineCeilingHeadSha">) => {
+    const lanes = schemaVersion === 2 ? nativeReplayLanes(value.lanes, false) : value.lanes;
+    return { ...(value.selfReview === undefined ? {} : { selfReview: value.selfReview }),
+      ...(value.changeSet === undefined ? {} : { changeSet: value.changeSet }),
+      ...(lanes === undefined ? {} : { lanes }),
+      ...(schemaVersion === 2 || value.frontlineCeilingHeadSha === undefined ? {}
+        : { frontlineCeilingHeadSha: value.frontlineCeilingHeadSha }) };
+  };
+  if (canonicalize(projection(caller)) !== canonicalize(projection({ ...saved, selfReview: saved.selfReview,
+    changeSet: saved.changeSet, lanes: saved.lanes, frontlineCeilingHeadSha: saved.frontlineCeilingHeadSha }))) return false;
+  if (schemaVersion === 1) return true;
+  if (caller.frontlineCeilingHeadSha !== undefined && caller.frontlineCeilingHeadSha !== saved.frontlineCeilingHeadSha) return false;
+  if (caller.scopeJudgmentTarget !== undefined
+    && canonicalize(caller.scopeJudgmentTarget) !== canonicalize(saved.scopeJudgmentTarget ?? null)) return false;
+  const supplied = PrePublicationLaneJudgmentsSchema.parse(caller.lanes ?? {});
+  const retained = PrePublicationLaneJudgmentsSchema.parse(saved.lanes ?? {});
+  for (const lane of ["frontline", "standard"] as const) {
+    if (!await nativeLaneGrantsMatch(lane, supplied[lane], retained[lane], recordedGrant)) return false;
+  }
+  return true;
+}
+
+/** Defer stripped-grant comparison until composition has selected its exact subject and progress. */
+export async function prepareSavedPrePublicationJudgment(caller: ReviewPrePublicationJudgment,
+  saved: PrePublicationReplayInput, schemaVersion: 1 | 2, judgment: ReviewPrePublicationJudgment,
+  binding: Omit<PrePublicationSavedGrantChecks, "checks">): Promise<ReviewPrePublicationJudgment | null> {
+  const checks: PrePublicationSavedGrantChecks["checks"][number][] = [];
+  const matches = await prePublicationJudgmentMatchesSaved(caller, saved, schemaVersion, (lane, grant) => {
+    const parsed = PrePublicationLaneJudgmentsSchema.parse({ [lane]: grant })[lane];
+    if (parsed === undefined) return Promise.resolve(false);
+    checks.push({ lane, judgment: parsed });
+    return Promise.resolve(true);
+  });
+  return !matches ? null : checks.length === 0 ? judgment : { ...judgment, savedGrantChecks: { ...binding, checks } };
+}
+
+/** Project only composition inputs; internal checks never enter a replay token. */
+export function prePublicationCompositionInput(workUnit: string, judgment: ReviewPrePublicationJudgment): PrePublicationCompositionInput {
+  return { workUnit,
+    ...(judgment.scopeJudgmentTarget === undefined ? {} : { scopeJudgmentTarget: judgment.scopeJudgmentTarget }),
+    ...(judgment.selfReview === undefined ? {} : { selfReview: judgment.selfReview }),
+    ...(judgment.changeSet === undefined ? {} : { changeSet: judgment.changeSet }),
+    ...(judgment.lanes === undefined ? {} : { lanes: judgment.lanes }),
+    ...(judgment.frontlineCeilingHeadSha === undefined ? {} : { frontlineCeilingHeadSha: judgment.frontlineCeilingHeadSha }),
+    ...(judgment.savedGrantChecks === undefined ? {} : { savedGrantChecks: judgment.savedGrantChecks }) };
+}
+
+/**
+ * Emit an exact continuation, retaining decisions only in the repository replay contract. A native continuation keeps
+ * the call's ceiling-override and additional-pass grants only when `retainGrants` says no subject has recorded them.
+ */
+export function buildPrePublicationResumeCommand(input: {
+  workUnit: string; candidateId: CanonicalDigest; candidateSubjectDigest: CanonicalDigest;
+  judgment: ReviewPrePublicationJudgment; replaySelfReview: "settled" | undefined; replayLanes: unknown;
+  scopeJudgmentTarget?: ReviewTarget; currentFrontlineHeadSha: string; frontlineCeilingOverrideApplied: boolean;
+  schemaVersion: 1 | 2; retainGrants?: boolean;
+}): string {
+  const common = { candidateId: input.candidateId, candidateSubjectDigest: input.candidateSubjectDigest,
+    ...(input.replaySelfReview === undefined ? {} : { selfReview: input.replaySelfReview }),
+    ...(input.judgment.changeSet === undefined ? {} : { changeSet: input.judgment.changeSet }),
+    ...(input.scopeJudgmentTarget === undefined ? {} : { scopeJudgmentTarget: input.scopeJudgmentTarget }) };
+  if (input.schemaVersion === 2) {
+    const lanes = nativeReplayLanes(input.replayLanes, input.retainGrants === true);
+    return `arc review pre-publication ${input.workUnit} --resume ${encodePrePublicationReplay({ ...common,
+      ...(lanes === undefined ? {} : { lanes }),
+      ...(input.retainGrants !== true || input.judgment.frontlineCeilingHeadSha === undefined ? {}
+        : { frontlineCeilingHeadSha: input.judgment.frontlineCeilingHeadSha }) }, 2)}`;
+  }
+  let replayLanes = input.replayLanes;
+  let replayFrontlineCeilingHeadSha = input.judgment.frontlineCeilingHeadSha;
+  if (input.frontlineCeilingOverrideApplied) replayFrontlineCeilingHeadSha = input.currentFrontlineHeadSha;
+  else if (replayFrontlineCeilingHeadSha !== undefined && replayFrontlineCeilingHeadSha !== input.currentFrontlineHeadSha) {
+    replayLanes = consumeFrontlineCeilingOverride(replayLanes);
+    replayFrontlineCeilingHeadSha = undefined;
+  }
+  const resume = encodePrePublicationReplay({ ...common,
+    ...(replayLanes === undefined ? {} : { lanes: replayLanes }),
+    ...(replayFrontlineCeilingHeadSha === undefined ? {} : { frontlineCeilingHeadSha: replayFrontlineCeilingHeadSha }) }, 1);
+  return `arc review pre-publication ${input.workUnit} --resume ${resume}`;
+}
+
+/** Preserve the saved command as the remedy when explicit post-attestation judgment differs. */
+export function postAttestJudgmentMismatch(command: string): ReturnType<typeof ReviewCommandErrorEnvelopeSchema.parse> {
+  const message = "The explicit Owner judgment differs from the pending post-attest continuation for this Candidate and head.";
+  return ReviewCommandErrorEnvelopeSchema.parse({
+    schemaVersion: 1,
+    mode: "review-pre-publication",
+    diagnostics: [{ code: "post-attest-judgment-mismatch", message }],
+    error: { code: "post-attest-judgment-mismatch", message },
+    remedy: spineRemedy(
+      "The pending continuation retains the recorded Owner judgment.",
+      "Run the saved resume command",
+      command.split(" "),
+    ),
+  });
+}

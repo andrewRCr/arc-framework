@@ -97,8 +97,7 @@ it.each(([undefined, "complete", "incremental"] as const).flatMap(coverage =>
     const freshContext = await deriveReviewNextPassContext({ completePasses: 0, completedPasses: 0, predecessor: null, currentTarget: handle.admission.reviewTarget,
       currentLineage: handle.admission.lineage, standardReview,
       resultReader: { readResult: async () => { throw new Error("No predecessor exists."); } },
-      dispositionStore: { readDispositionRecord: async () => null,
-        appendDispositionRecord: async () => { throw new Error("Read-only context."); } },
+      dispositionStore: { readDispositionRecord: async () => null },
       readResponsePerformance: async () => null });
     const readDischarge = Object.assign(async () => ({ discharged: false, nextSource: "delegated-agent",
       detail: "The singleton requires a fresh local pass.", requestCoverage: "complete" as const,

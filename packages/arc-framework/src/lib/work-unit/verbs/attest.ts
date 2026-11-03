@@ -1,6 +1,7 @@
 /** Candidate proposal orchestration over storage-neutral repository boundaries. */
 
 import { z } from "zod";
+import { RecordVersionSchema } from "../../store/identity.js";
 import { CanonicalDigestSchema } from "../../kernel/schema/vocabulary.js";
 import type { CanonicalDigest } from "../../kernel/canonical/canonical-json.js";
 
@@ -22,11 +23,11 @@ import {
   projectStagedCandidateCurrentness,
   type CandidateEffectiveTargetProjection,
 } from "../candidate-effective-target.js";
-import type { VersionedCandidateRecord } from "../candidate-record-store.js";
+import type { VersionedCandidateRecord } from "../../store/kinds/review/candidate/schema.js";
 import { SlugSchema } from "../../kernel/schema/slug.js";
 import {
-  IntegrationBoundaryLocusSchema,
-  type IntegrationBoundaryLocus,
+  PublishedIntegrationBoundaryLocusSchema,
+  type PublishedIntegrationBoundaryLocus,
 } from "../../../scripts/review-gate/policy/integration-boundary-locus.js";
 
 const ATTESTED_ORIENTATION = {
@@ -78,7 +79,7 @@ const AttestScopeSchema = z.enum(["focused", "full"]);
 const AttestConvergenceVerificationActionSchema = z.strictObject({
   kind: z.literal("run-verification"),
   scope: AttestScopeSchema,
-  verificationKind: z.enum(["focused", "tier-3"]),
+  verificationKind: z.enum(["focused", "tier-3", "merge"]),
   verificationEvidenceRequired: z.literal(true),
   attestArgv: z.tuple([
     z.literal("arc"),
@@ -91,8 +92,8 @@ const AttestConvergenceVerificationActionSchema = z.strictObject({
     z.literal("--json"),
   ]),
 }).superRefine((action, context) => {
-  const expectedKind = action.scope === "focused" ? "focused" : "tier-3";
-  if (action.verificationKind !== expectedKind) {
+  const allowedKinds = action.scope === "focused" ? ["focused"] : ["tier-3", "merge"];
+  if (!allowedKinds.includes(action.verificationKind)) {
     context.addIssue({
       code: "custom",
       path: ["verificationKind"],
@@ -110,7 +111,7 @@ const AttestConvergenceVerificationActionSchema = z.strictObject({
 const AttestRootVerificationActionFields = {
   kind: z.literal("run-verification"),
   scope: z.literal("full"),
-  verificationKind: z.literal("tier-3"),
+  verificationKind: z.enum(["tier-3", "merge"]),
   verificationEvidenceRequired: z.literal(false),
 };
 const AttestRootVerificationActionSchema = z.discriminatedUnion("operation", [
@@ -177,26 +178,31 @@ const AttestScopedRefusalResultSchema = z.strictObject({
   }
 });
 
+const AttestDesignExportSchema = z.strictObject({ path: z.string().trim().min(1), overwritten: z.boolean() });
+
 export const AttestResultSchema = z.union([
   z.strictObject({
     status: z.literal("attested"),
     operation: z.enum(["root", "re-root"]),
-    recordPath: z.string().trim().min(1),
+    designExport: AttestDesignExportSchema.optional(),
+    recordPath: z.string().trim().min(1).optional(),
     metaPath: z.string().trim().min(1),
-    locus: IntegrationBoundaryLocusSchema,
+    locus: PublishedIntegrationBoundaryLocusSchema,
   }),
   z.strictObject({
     status: z.literal("attested"),
     operation: z.literal("convergence"),
+    designExport: AttestDesignExportSchema.optional(),
     scope: AttestScopeSchema,
     verificationEvidenceRef: z.string().trim().min(1),
-    recordPath: z.string().trim().min(1),
+    recordPath: z.string().trim().min(1).optional(),
     metaPath: z.string().trim().min(1),
-    locus: IntegrationBoundaryLocusSchema,
+    locus: PublishedIntegrationBoundaryLocusSchema,
   }),
   z.strictObject({
     status: z.literal("unchanged"),
-    locus: IntegrationBoundaryLocusSchema,
+    designExport: AttestDesignExportSchema.optional(),
+    locus: PublishedIntegrationBoundaryLocusSchema,
   }),
   z.strictObject({
     status: z.literal("blocked"),
@@ -218,11 +224,11 @@ export const AttestResultSchema = z.union([
     attemptId: z.string().trim().min(1),
     outcome: z.enum(["pending", "partial", "findings", "ambiguous-delivery"]),
     reviewHeadSha: CandidateGitObjectIdSchema,
-    recordRevision: CandidateGitObjectIdSchema,
+    recordRevision: RecordVersionSchema,
     nextAction: z.strictObject({
       kind: z.literal("recover-owning-branch-review"),
       reviewHeadSha: CandidateGitObjectIdSchema,
-      candidateRecordRevision: CandidateGitObjectIdSchema,
+      candidateRecordRevision: RecordVersionSchema,
       reviewArgv: z.tuple([z.literal("arc"), z.literal("review"),
         z.literal("pre-publication"), SlugSchema]),
     }),
@@ -248,6 +254,7 @@ export const AttestResultSchema = z.union([
 export type AttestResult = z.infer<typeof AttestResultSchema>;
 
 export interface AttestContext {
+  boundarySchemaVersion: 1 | 2;
   actor: string;
   now(): string;
   verificationEvidenceRef(name: string): string;
@@ -270,7 +277,7 @@ export interface AttestContext {
     nextAction: string;
     expectedRecordVersion: string | null;
     repairCurrent: boolean;
-  }): Promise<{ recordPath: string; metaPath: string; locus: IntegrationBoundaryLocus }>;
+  }): Promise<{ recordPath?: string; metaPath: string; locus: PublishedIntegrationBoundaryLocus }>;
 }
 
 /**
@@ -328,6 +335,7 @@ export async function runAttest(
     if (currentness.status === "blocked") {
       if (requestedScope === "focused") {
         return scopedRefusal({
+          boundarySchemaVersion: context.boundarySchemaVersion,
           reason: "focused-scope-inapplicable",
           name,
           candidateId: currentness.candidateId,
@@ -340,6 +348,7 @@ export async function runAttest(
       }
       if (verificationEvidenceRef !== undefined) {
         return scopedRefusal({
+          boundarySchemaVersion: context.boundarySchemaVersion,
           reason: "verification-evidence-inapplicable",
           name,
           candidateId: currentness.candidateId,
@@ -372,19 +381,7 @@ export async function runAttest(
       }
       const liveReview = await context.inspectReRootReviewAuthority(name, currentness.candidateId);
       if (liveReview !== null) {
-        return AttestResultSchema.parse({
-          status: "refused",
-          reason: "re-root-live-review",
-          candidateId: currentness.candidateId,
-          ...liveReview,
-          nextAction: {
-            kind: "recover-owning-branch-review",
-            reviewHeadSha: liveReview.reviewHeadSha,
-            candidateRecordRevision: liveReview.recordRevision,
-            reviewArgv: ["arc", "review", "pre-publication", name],
-          },
-          recommendedActionText: "The predecessor Candidate still owns a live review attempt. With approval for branch restoration, preserve the changed HEAD on a temporary ref, restore the same owning branch and checkout to the exact review head, settle review there, merge the preserved changed ref back (never rebase), run full verification, then retry re-root. Use the Candidate record commit to confirm the predecessor record at the review head.",
-        });
+        return liveReviewReRootRefusal(name, currentness.candidateId, liveReview, context.boundarySchemaVersion === 2);
       }
       return establishRoot(context, name, current, orientation, currentness.candidateId, existing.version);
     }
@@ -394,6 +391,7 @@ export async function runAttest(
     if (currentness.convergenceVerification === "satisfied") {
       if (requestedScope === "focused" || verificationEvidenceRef !== undefined) {
         return scopedRefusal({
+          boundarySchemaVersion: context.boundarySchemaVersion,
           reason: requestedScope === "focused"
             ? "focused-scope-inapplicable"
             : "verification-evidence-inapplicable",
@@ -423,6 +421,7 @@ export async function runAttest(
     const requiredScope = currentness.convergenceScope;
     if (!candidateConvergenceScopeCovers(requestedScope, requiredScope)) {
       return scopedRefusal({
+        boundarySchemaVersion: context.boundarySchemaVersion,
         reason: "verification-scope-insufficient",
         name,
         candidateId: currentness.candidateId,
@@ -435,6 +434,7 @@ export async function runAttest(
     }
     if (verificationEvidenceRef === undefined) {
       return scopedRefusal({
+        boundarySchemaVersion: context.boundarySchemaVersion,
         reason: "verification-evidence-required",
         name,
         candidateId: currentness.candidateId,
@@ -453,6 +453,7 @@ export async function runAttest(
       || record.lineageAttestations.some((attestation) =>
         attestation.verificationEvidenceRef === verificationEvidenceRef)) {
       return scopedRefusal({
+        boundarySchemaVersion: context.boundarySchemaVersion,
         reason: "verification-evidence-reused",
         name,
         candidateId: currentness.candidateId,
@@ -503,6 +504,7 @@ export async function runAttest(
   }
   if (requestedScope === "focused" || verificationEvidenceRef !== undefined) {
     return scopedRefusal({
+      boundarySchemaVersion: context.boundarySchemaVersion,
       reason: requestedScope === "focused"
         ? "focused-scope-inapplicable"
         : "verification-evidence-inapplicable",
@@ -520,6 +522,7 @@ export async function runAttest(
 }
 
 interface ScopedRefusalInput {
+  boundarySchemaVersion: 1 | 2;
   reason:
     | "verification-evidence-required"
     | "verification-evidence-reused"
@@ -533,6 +536,18 @@ interface ScopedRefusalInput {
   requiredScope: "focused" | "full";
   verificationEvidenceRef: string | undefined;
   newRoot: boolean;
+}
+
+function liveReviewReRootRefusal(name: string, candidateId: string,
+  liveReview: NonNullable<Awaited<ReturnType<AttestContext["inspectReRootReviewAuthority"]>>>, native: boolean): AttestResult {
+  return AttestResultSchema.parse({ status: "refused", reason: "re-root-live-review", candidateId, ...liveReview,
+    nextAction: { kind: "recover-owning-branch-review", reviewHeadSha: liveReview.reviewHeadSha,
+      candidateRecordRevision: liveReview.recordRevision, reviewArgv: ["arc", "review", "pre-publication", name] },
+    recommendedActionText: "The predecessor Candidate still owns a live review attempt. With approval for branch restoration, "
+      + "preserve the changed HEAD on a temporary ref, restore the same owning branch and checkout to the exact review head, "
+      + "settle review there, merge the preserved changed ref back (never rebase), run full verification, then retry re-root. "
+      + `Use the Candidate record ${native ? "store version" : "commit"} to confirm the predecessor record at the review head.`,
+  });
 }
 
 function scopedRefusal(input: ScopedRefusalInput): AttestResult {
@@ -570,7 +585,8 @@ function scopedRefusal(input: ScopedRefusalInput): AttestResult {
     nextAction: {
       kind: "run-verification",
       scope: input.requiredScope,
-      verificationKind: input.requiredScope === "focused" ? "focused" : "tier-3",
+      verificationKind: input.requiredScope === "focused" ? "focused"
+        : input.boundarySchemaVersion === 2 ? "merge" : "tier-3",
       verificationEvidenceRequired: convergence,
       ...(convergence
         ? {}

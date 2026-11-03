@@ -37,12 +37,22 @@ export async function readStoreRenameSubject(store: Store, request: { sourceSlug
   if (collision.status === "refused" && collision.refusal.code !== "not-found") return collision;
   const fields = ParsedMetaRecordSchema.parse(primary.fields);
   const resuming = primary.reference.owner.name === target;
-  if (!resuming && primary.placement?.kind !== "completed" && fields.candidateId !== null) return malformed(primary, "A work unit with Candidate publication state cannot be renamed.");
+  const publication = await checkRenamePublication(store, primary, resuming, fields.candidateId);
+  if (publication !== undefined) return publication;
   const origin = resuming ? await renameOrigin(store, primary, source) : { status: "ok" as const, result: primary.reference.owner.name };
   if (origin.status === "refused") return origin;
   const advisories = view.result.entries.filter((entry) => entry.fields.state === "Integrating" && entry.fields.dependsOn.includes(origin.result))
     .map((entry) => `Work unit \`${entry.reference.owner.name}\` is Integrating with a live \`Depends On\` edge to \`${origin.result}\`. Coordinate before transforming the origin; this transform will not mutate that dependent.`);
   return { status: "ok", result: { primary, resuming, originName: origin.result, advisories } };
+}
+async function checkRenamePublication(store: Store, primary: StoreRecord, resuming: boolean,
+  legacyCandidateId: string | null): Promise<StoreResult<never> | undefined> {
+  if (resuming) return undefined;
+  if (!store.capabilities.stateOffBranch) return primary.placement?.kind !== "completed" && legacyCandidateId !== null
+    ? malformed(primary, "A work unit with Candidate publication state cannot be renamed.") : undefined;
+  const candidate = await store.read({ reference: recordReferences["review/candidate"](primary.reference.owner) });
+  if (candidate.status === "ok") return malformed(primary, "A work unit with Candidate publication state cannot be renamed.");
+  return candidate.refusal.code === "not-found" ? undefined : candidate;
 }
 async function renameOrigin(store: Store, primary: StoreRecord, fallback: string): Promise<StoreResult<string>> {
   const history = await store.history({ reference: primary.reference }); if (history.status === "refused") return history;

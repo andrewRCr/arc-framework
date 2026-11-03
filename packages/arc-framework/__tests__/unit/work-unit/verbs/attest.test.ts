@@ -46,6 +46,7 @@ function harness(record: CandidateManagedRecordV1 | null = null) {
   let publicationCount = 0;
   let currentTarget = { revision: REVISION, subject: subject() };
   const context: AttestContext = {
+    boundarySchemaVersion: 1,
     actor: "andrew",
     now: () => "2026-08-12T14:00:00.000Z",
     verificationEvidenceRef: (name) => `tasks-${name}.md#verification`,
@@ -111,7 +112,28 @@ async function pendingHarness(approvedVerification: "focused" | "full") {
 }
 
 describe("runAttest", () => {
-  it("keeps the predecessor Candidate current while a review attempt needs settlement", async () => {
+  it.each(["absent", "insufficient", "reused"] as const)(
+    "requests merge verification for native full convergence when evidence is %s", async mode => {
+      const { fixture, response } = await pendingHarness("full");
+      const context = { ...fixture.context, boundarySchemaVersion: 2 as const };
+      const params = { name: "example", lifecycle: "Active" as const,
+        scope: mode === "insufficient" ? "focused" as const : "full" as const,
+        ...(mode === "reused" ? { verificationEvidenceRef: response.verificationEvidenceRefs[0] } : {}) };
+      const refused = await runAttest(context, params);
+      expect(refused).toMatchObject({ status: "refused",
+        reason: mode === "absent" ? "verification-evidence-required"
+          : mode === "insufficient" ? "verification-scope-insufficient" : "verification-evidence-reused",
+        requiredScope: "full", nextAction: { kind: "run-verification", scope: "full", verificationKind: "merge",
+          attestArgv: ["arc", "attest", "example", "--scope", "full", "--verification-evidence-ref",
+            "{verificationEvidenceRef}", "--json"] } });
+      expect(fixture.state().publicationCount).toBe(1);
+      expect(await runAttest(context, { name: "example", lifecycle: "Active", scope: "full",
+        verificationEvidenceRef: "verification://fresh-native-convergence" })).toMatchObject({
+        status: "attested", operation: "convergence", scope: "full" });
+      expect(fixture.state().publicationCount).toBe(2);
+    });
+
+  it.each([REVISION, "backend:candidate/7"])("keeps the live predecessor current at record version %s", async (version) => {
     const fixture = harness();
     await runAttest(fixture.context, { name: "example", lifecycle: "Active" });
     const predecessorId = fixture.state().storedRecord?.attestation.candidateId;
@@ -121,16 +143,16 @@ describe("runAttest", () => {
       ...fixture.context,
       inspectReRootReviewAuthority: async () => ({
         lane: "standard", attemptId: "pending-review", outcome: "pending",
-        reviewHeadSha: CHANGED_REVISION, recordRevision: REVISION,
+        reviewHeadSha: CHANGED_REVISION, recordRevision: version,
       }),
     }, { name: "example", lifecycle: "Active", newRoot: true });
     expect(refused).toMatchObject({
       status: "refused", reason: "re-root-live-review", candidateId: predecessorId,
       lane: "standard", attemptId: "pending-review", outcome: "pending",
-      reviewHeadSha: CHANGED_REVISION, recordRevision: REVISION,
+      reviewHeadSha: CHANGED_REVISION, recordRevision: version,
       nextAction: {
         kind: "recover-owning-branch-review",
-        reviewHeadSha: CHANGED_REVISION, candidateRecordRevision: REVISION,
+        reviewHeadSha: CHANGED_REVISION, candidateRecordRevision: version,
         reviewArgv: ["arc", "review", "pre-publication", "example"],
       },
     });
@@ -916,4 +938,17 @@ describe("runAttest", () => {
     });
     expect(content).toContain("- **Next Action:** —\n");
   });
+});
+
+it.each(["root", "re-root", "convergence"] as const)("accepts merge verification for a published %s refusal", async operation => {
+  const h = operation === "convergence" ? (await pendingHarness("full")).fixture : harness();
+  if (operation === "re-root") {
+    await runAttest(h.context, { name: "example", lifecycle: "Active" });
+    h.setCurrentTarget({ revision: CHANGED_REVISION, subject: subject("unexplained") });
+  }
+  const result = await runAttest(h.context, { name: "example", lifecycle: "Active", scope: "focused" });
+  if (result.status !== "refused" || !("requiredScope" in result)) throw new Error("Expected full verification refusal");
+  expect(result.requiredScope).toBe("full");
+  expect(AttestResultSchema.parse({ ...result, nextAction: { ...result.nextAction, verificationKind: "merge" } }))
+    .toMatchObject({ nextAction: { verificationKind: "merge" } });
 });

@@ -10,7 +10,7 @@ import { resolveGitCommonDir, type GitExec } from "./git/exec.js";
 import { acquireAdvisoryLock, releaseAdvisoryLock } from "./advisory-lock.js";
 
 /** Closed review-state namespace vocabulary. */
-export type ReviewStateNamespace = "evidence" | "identity" | "operations" | "outcomes" | "sources";
+export type ReviewStateNamespace = "evidence" | "identity" | "in-flight" | "operations" | "outcomes" | "sources";
 
 /** Closed delivery-state namespace vocabulary. */
 export type DeliveryStateNamespace = "plans" | "state" | "authoring";
@@ -19,7 +19,7 @@ export type DeliveryStateNamespace = "plans" | "state" | "authoring";
 export const GitCommonStateLocationSchema = z.discriminatedUnion("root", [
   z.strictObject({
     root: z.literal("review-gate"),
-    namespace: z.enum(["evidence", "identity", "operations", "outcomes", "sources"]),
+    namespace: z.enum(["evidence", "identity", "in-flight", "operations", "outcomes", "sources"]),
   }),
   z.strictObject({
     root: z.literal("delivery"),

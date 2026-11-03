@@ -18,15 +18,18 @@ import {
   ReviewAdditionalPassAuthorizationSchema,
   ReviewPolicyTargetSchema,
   invalidAdditionalPassReason,
+  isCleanFixCheckCompleteSuccessor,
+  verifiedAdditionalPassPredecessor,
 } from "./review-additional-pass.js";
 export { ReviewAdditionalPassAuthorizationSchema } from "./review-additional-pass.js";
 export type { ReviewAdditionalPassAuthorization } from "./review-additional-pass.js";
-import { ReviewCeilingOverrideSchema } from "./review-ceiling-override.js";
+import { ReviewCeilingOverrideSchema, ReviewCeilingJudgmentSchema } from "./review-ceiling-override.js";
 export { ReviewCeilingOverrideSchema } from "./review-ceiling-override.js";
 export type { ReviewCeilingOverride } from "./review-ceiling-override.js";
 import {
   OwnerAcceptedReviewTerminusJudgmentSchema,
   OwnerAcceptedReviewTerminusSchema,
+  ResolvedOwnerAcceptedReviewTerminusSchema,
 } from "./review-terminus.js";
 import { StandardReviewObligationProjectionSchema } from "./standard-review-projection-schema.js";
 import { HostedRequestEnvelopeSchema } from "../hosted/request.js";
@@ -62,9 +65,13 @@ interface ReviewPassProgressInput {
   completedPasses: number;
   attempts: readonly ReviewAttempt[];
   scopeSelection?: { mode: z.infer<typeof ReviewScopeModeSchema> };
+  additionalPassAuthorization?: { precedingProducerId: string };
+  verifiedTerminalSignal?: VerifiedTerminalReviewSignal;
 }
 
 function lastEligibleAttempt(request: ReviewPassProgressInput): ReviewAttempt | undefined {
+  const predecessor = verifiedAdditionalPassPredecessor(request);
+  if (predecessor !== undefined) return predecessor;
   const scope = request.scopeSelection?.mode ?? "whole-target";
   for (let index = request.attempts.length - 1; index >= 0; index -= 1) {
     const attempt = request.attempts[index];
@@ -79,14 +86,18 @@ function lastEligibleAttempt(request: ReviewPassProgressInput): ReviewAttempt | 
 function validateTerminalPassProgress(
   request: ReviewPassProgressInput,
   context: z.RefinementCtx,
+  deferPredecessorScope = false,
 ): void {
   const lastAttempt = lastEligibleAttempt(request);
   if (lastAttempt === undefined) return;
   const terminalOutcome = lastAttempt.outcome === "clean"
     || lastAttempt.outcome === "findings";
-  if (terminalOutcome
-    && request.scopeSelection?.mode === "chunked"
-    && lastAttempt.chunkSeriesComplete !== true) {
+  const predecessorScopeIndependent = verifiedAdditionalPassPredecessor(request) !== undefined
+    || (deferPredecessorScope && terminalOutcome && "reviewOperationId" in lastAttempt && request.additionalPassAuthorization !== undefined
+      && lastAttempt.reviewOperationId === request.additionalPassAuthorization.precedingProducerId);
+  const incompleteAggregate = lastAttempt.chunkSeriesComplete === false
+    || (!predecessorScopeIndependent && request.scopeSelection?.mode === "chunked" && lastAttempt.chunkSeriesComplete !== true);
+  if (terminalOutcome && incompleteAggregate) {
     context.addIssue({
       code: "custom",
       message: "chunked terminal attempt requires one complete aggregate producer",
@@ -94,7 +105,8 @@ function validateTerminalPassProgress(
     });
   }
   const completedTerminalPass = terminalOutcome
-    && (request.scopeSelection?.mode !== "chunked" || lastAttempt.chunkSeriesComplete === true);
+    && (predecessorScopeIndependent
+      || request.scopeSelection?.mode !== "chunked" || lastAttempt.chunkSeriesComplete === true);
   if (completedTerminalPass && request.completedPasses === 0) {
     context.addIssue({
       code: "custom",
@@ -202,10 +214,15 @@ const ReviewPolicyRequestBaseShape = {
   terminus: OwnerAcceptedReviewTerminusSchema.optional(),
 };
 
-export const ReviewPolicyCommandRequestSchema = z.strictObject({
-  ...ReviewPolicyRequestBaseShape,
-}).superRefine((request, context) => {
-  validateTerminalPassProgress(request, context);
+function validatePolicyCommandInput(
+  request: ReviewPassProgressInput & {
+    invocation?: z.infer<typeof ReviewPolicyInvocationSchema>;
+    terminus?: unknown;
+  },
+  context: z.RefinementCtx,
+  deferPredecessorScope = false,
+): void {
+  validateTerminalPassProgress(request, context, deferPredecessorScope);
   if (request.lane === "standard" && request.invocation?.mode === "skip") {
     context.addIssue({
       code: "custom",
@@ -227,8 +244,19 @@ export const ReviewPolicyCommandRequestSchema = z.strictObject({
       path: ["terminus"],
     });
   }
-}).readonly();
+}
+
+export const ReviewPolicyCommandRequestSchema = z.strictObject({
+  ...ReviewPolicyRequestBaseShape,
+}).superRefine((request, context) => { validatePolicyCommandInput(request, context, true); }).readonly();
 export type ReviewPolicyCommandRequest = z.infer<typeof ReviewPolicyCommandRequestSchema>;
+
+/** Authority-bound policy input; native termini are supplied only by the owning composition. */
+export const ReviewPolicyBoundRequestSchema = z.strictObject({
+  ...ReviewPolicyRequestBaseShape,
+  terminus: ResolvedOwnerAcceptedReviewTerminusSchema.optional(),
+}).superRefine((request, context) => { validatePolicyCommandInput(request, context, true); }).readonly();
+export type ReviewPolicyBoundRequest = z.infer<typeof ReviewPolicyBoundRequestSchema>;
 
 /**
  * The per-lane inputs above that are judgment rather than repository state.
@@ -241,16 +269,13 @@ export type ReviewPolicyCommandRequest = z.infer<typeof ReviewPolicyCommandReque
 export const ReviewLaneJudgmentSchema = z.strictObject({
   scopeMode: ReviewScopeModeSchema.optional(),
   invocation: ReviewPolicyInvocationSchema.optional(),
-  ceilingOverride: z.strictObject({
-    exhaustedPassCount: CompletedReviewPassCountSchema,
-    nextPass: ReviewPassSchema,
-    conditionalPassAuthorizationId: ReviewCanonicalDigestSchema.optional(),
-  }).readonly().optional(),
+  ceilingOverride: ReviewCeilingJudgmentSchema.optional(),
   additionalPassAuthorization: z.strictObject({
     headSha: GitObjectIdSchema,
     precedingProducerId: ReviewIdentifierSchema,
     completedPasses: CompletedReviewPassCountSchema,
     nextPass: ReviewPassSchema,
+    decisionKey: ReviewCanonicalDigestSchema.optional(),
   }).readonly().optional(),
   terminus: OwnerAcceptedReviewTerminusJudgmentSchema.optional(),
 }).readonly();
@@ -262,11 +287,12 @@ function validateConfiguredAttempts(
 ): number {
   let previousSourceIndex = -1;
   const scope = request.scopeSelection?.mode ?? "whole-target";
+  const predecessor = verifiedAdditionalPassPredecessor(request);
   for (const [attemptIndex, attempt] of request.attempts.entries()) {
     const sourceIndex = request.sources.indexOf(attempt.sourceId);
     const diagnostic = sourceDiagnostic(attempt.sourceId, request.lane, scope, request.target.pullRequest);
     const historicalScopeAttempt = diagnostic?.code === "source-scope-ineligible"
-      && attempt.outcome !== "clean" && attempt.outcome !== "findings";
+      && ((attempt.outcome !== "clean" && attempt.outcome !== "findings") || attempt === predecessor);
     if (sourceIndex <= previousSourceIndex) {
       context.addIssue({
         code: "custom",
@@ -297,6 +323,7 @@ function validateConfiguredAttempts(
 
 export const ReviewPolicyRequestSchema = z.strictObject({
   ...ReviewPolicyRequestBaseShape,
+  terminus: ResolvedOwnerAcceptedReviewTerminusSchema.optional(),
   sources: z.array(ReviewSourceIdSchema).readonly(),
   /** Fresh-pass selection order, independently of historical terminal binding. */
   selectionSources: z.array(ReviewSourceIdSchema).readonly().optional(),
@@ -308,33 +335,21 @@ export const ReviewPolicyRequestSchema = z.strictObject({
   chosenCoverage: z.enum(["complete", "incremental"]).optional(),
   /** Repository-proven settlement of the terminal findings response; never a command input. */
   terminalResponseSettled: z.literal(true).optional(),
+  /** Backend context supplied by the owning composition; never a command input. */
+  stateOffBranch: z.literal(true).optional(),
   /** Repository-proven closure of the subject's opening frontline phase; the standard lane ignores it. */
   frontlinePhaseClosed: z.literal(true).optional(),
   /** Repository-proven: the invoking checkout is the subject's own Errand; never a command input. */
   errandVehicle: z.literal(true).optional(),
 }).superRefine((request, context) => {
-  validateTerminalPassProgress(request, context);
+  validatePolicyCommandInput(request, context);
   validateVerifiedTerminalSignal(request, context);
   validateReviewNextPassContext(request, context);
   validateTerminalResponseSettlement(request, context);
-  if (request.lane === "standard" && request.invocation?.mode === "skip") {
+  if (request.terminus?.schemaVersion === 2 && request.stateOffBranch !== true) {
     context.addIssue({
       code: "custom",
-      message: "frontline invocation override cannot be applied to the standard lane",
-      path: ["invocation"],
-    });
-  }
-  if (request.lane === "frontline" && request.invocation?.mode === "force") {
-    context.addIssue({
-      code: "custom",
-      message: "standard source invocation cannot be applied to the frontline lane",
-      path: ["invocation"],
-    });
-  }
-  if (request.lane !== "standard" && request.terminus !== undefined) {
-    context.addIssue({
-      code: "custom",
-      message: "owner-accepted terminus can be applied only to the standard lane",
+      message: "native terminus requires trusted state-off-branch context; resolve it on its owning backend",
       path: ["terminus"],
     });
   }
@@ -391,7 +406,7 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
       completedPasses: CompletedReviewPassCountSchema,
       consumedPass: z.literal(false),
       attemptedSources: z.array(ReviewAttemptSchema).readonly(),
-      terminus: OwnerAcceptedReviewTerminusSchema,
+      terminus: ResolvedOwnerAcceptedReviewTerminusSchema,
     }),
   }),
   z.strictObject({
@@ -712,7 +727,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
         attemptedSources: request.attempts,
         reason: "phase-closed",
       },
-    }, [{ code: "frontline-phase-closed", message: closedPhase }]);
+    }, [{ code: request.stateOffBranch === true ? "frontline-window-closed" : "frontline-phase-closed", message: closedPhase }]);
   }
   if (request.lane === "standard"
     && (request.sources.length === 0 || request.standardReview.obligation === "exempt")) {
@@ -735,6 +750,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       authorization: request.additionalPassAuthorization,
       terminal: lastAttempt,
       signal: request.verifiedTerminalSignal,
+      successor: request,
     });
   if (invalidOverrideReason !== null) {
     return resolveEnvelope({
@@ -800,7 +816,8 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
     if (!signal.coverageAdequate && request.terminus !== undefined && request.nextPassContext?.responseDue === false) {
       return ownerAcceptedEnvelope(request, scope);
     }
-    if (!signal.coverageAdequate) {
+    if (!signal.coverageAdequate
+      && !(request.additionalPassAuthorization !== undefined && isCleanFixCheckCompleteSuccessor(request))) {
       return resolveEnvelope({
         state: "coverage-required",
         nextAction: "select-coverage",

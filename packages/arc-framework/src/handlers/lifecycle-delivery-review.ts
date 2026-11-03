@@ -6,18 +6,23 @@ import { declareCliOptionSite, type CommandInputDeclaration } from "../lib/comma
 import { formatValue, parseMetaRecord, setMetaBulletFields, setMetaCandidate } from "../lib/active/meta-reader.js";
 import { checkCurrentWorkflowConsistency } from "../lib/active/current-workflow-consistency.js";
 import { checkAdvancingPause } from "../lib/store/lifecycle-pause.js";
+import { writeStoredAttestation, type StoredAttestationInput } from "../lib/store/attest-publication.js";
 import type { StoreRecord } from "../lib/store/read.js";
+import type { RecordObservation } from "../lib/store/write.js";
+import { isOffBranchStoreRefusal, StoreRefusalError } from "../lib/store/refusal-error.js";
 import type { Store } from "../lib/store/contract.js";
+import { retryEndedItemHistory } from "../lib/store/history-retry.js";
 import { usesOffBranchState, readWorkUnit } from "../lib/store/lifecycle-write.js";
 import { lifecycleRecordPath } from "../lib/store/lifecycle-record-path.js";
-import { recordReferences, type RecordReference } from "../lib/store/identity.js";
+import { recordReferences, type OwnerIdentity, type RecordReference } from "../lib/store/identity.js";
 import { ParsedMetaRecordSchema } from "../lib/active/meta-schema.js";
 import { resolveTaskListPath } from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { canonicalize } from "../lib/kernel/canonical/canonical-json.js";
+import { exportWorkUnitSpec } from "../lib/work-unit/design-export.js";
+import { createPublicationBoundaryAccess, openPublicationReviewContext } from "./lifecycle-publication-boundary.js";
 import { CanonicalDigestSchema } from "../lib/kernel/schema/vocabulary.js";
-import { RepositoryGitCommonStatePublisher } from "../lib/git-common-state.js";
-import { LocalReviewOperationStateStore } from "../scripts/review-gate/hosts/local/operation-state-store.js";
+import { resolveReviewInvocation } from "../scripts/review-gate/runtime/invocation.js";
+import { createReviewCompositionContext } from "../scripts/review-gate/runtime/composition-context.js";
 import {
   resolveRepositoryIdentity,
   withRepositoryReviewOperationLock,
@@ -25,11 +30,10 @@ import {
 import {
   laneContinuationOperationId,
   readLaneProgressOwner,
-  readLaneProgressOwnerVersioned,
 } from "../scripts/review-gate/lane-progress.js";
 import { livePredecessorReviewAttempt } from "../scripts/review-gate/lane-progress-supersession.js";
 import { createRawGitExec } from "../lib/io-context.js";
-import { materializeArcPath, resolveArcPath } from "../lib/layout/index.js";
+import { materializeArcPath } from "../lib/layout/index.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { runPublish } from "../lib/work-unit/verbs/publish.js";
 import { AttestResultSchema, runAttest, type AttestContext } from "../lib/work-unit/verbs/attest.js";
@@ -40,35 +44,36 @@ import {
   collectUnstagedReviewablePaths,
 } from "../lib/work-unit/git-candidate-subject.js";
 import {
-  readCandidateRecord,
   readCandidateRecordVersioned,
-  readRepositoryCandidateRecordRevision,
   writeCandidateRecord,
-} from "../lib/work-unit/candidate-record-store.js";
+} from "../lib/store/kinds/review/candidate/access.js";
+import { readRepositoryCandidateRecordRevision } from "../lib/store/kinds/review/candidate/history.js";
 import { projectGitCandidateEffectiveTarget } from "../lib/work-unit/git-candidate-effective-target.js";
 import {
   inspectRepositoryDeliveryCandidateRenewal,
   inspectRepositoryDeliveryReopen,
 } from "../lib/delivery/repository-entry.js";
-import {
-  resolveLastCompletedTask,
-  resolveTaskListCursor,
-} from "../lib/task-list/cursor.js";
+import { readAttestInput } from "../lib/store/attest-input.js";
+import { bindDeliveryWorkItem } from "./delivery-review-fix-entry.js";
 import {
   readSubmissionBoundaryVersioned,
   writeSubmissionBoundary,
-} from "../lib/work-unit/submission-boundary-store.js";
+} from "../lib/store/kinds/review/integration-boundary/access.js";
 import {
   projectCandidateReviewBoundary,
   projectCandidateReviewResumeBoundary,
   projectCorrectiveDeliveryStatusBoundary,
   recoverAttestedOwnerTerminusBoundary,
   recoverAttestedSingletonPublicationBoundary,
-  type IntegrationBoundaryLocus,
+  type PublishedIntegrationBoundaryLocus,
 } from "../scripts/review-gate/policy/integration-boundary-locus.js";
 import { attestArgv, attestNewRootArgv, spineRemedy } from "../scripts/integration/spine-refusal.js";
 import { SlugSchema, validateManagedPath } from "../lib/kernel/index.js";
 import { type InteractionContext } from "../lib/command-input/interaction-context.js";
+import { ProjectIdentityError } from "../lib/store/project-identity.js";
+import { ReviewOwnerSelectionError } from "../lib/store/kinds/review/errors.js";
+import { isNativeTypedRefusal, rethrowNativeRefusal } from "../lib/store/native-refusal.js";
+import { resolveNamedReviewWorkUnitInvocation } from "../scripts/review-gate/runtime/review-work-unit.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import type { PublishOptions } from "./lifecycle.js";
 import {
@@ -87,11 +92,41 @@ class DeliveryCandidateRenewalRefusal extends Error {}
 
 class CandidateReviewRecoveryRefusal extends Error {}
 
+function refuseProjectIdentityFailure(error: unknown, json: boolean, notice = ""): boolean {
+  if (!(error instanceof ProjectIdentityError)) return false;
+  refuseWithRemedy(error.failure.reason + notice, error.failure.remedy, json);
+  return true;
+}
+
+function refuseAttestationStateFailure(error: unknown, json: boolean, notice = ""): boolean {
+  if (error instanceof ReviewOwnerSelectionError) {
+    refuseWithRemedy(error.condition + notice, error.remedy, json);
+    return true;
+  }
+  if (!(error instanceof StoreRefusalError) || !error.offBranch) return refuseProjectIdentityFailure(error, json, notice);
+  refuseWithRemedy(error.refusal.condition + notice, error.refusal.remedy, json, error.refusal);
+  return true;
+}
+
+/** Adapt the exact Store batch to attestation's publication callback. */
+async function publishStoredAttestation(store: Store | undefined, primary: StoreRecord | undefined,
+  taskListObservation: RecordObservation | undefined,
+  input: Omit<StoredAttestationInput, "store" | "primary" | "taskListObservation">): Promise<Awaited<ReturnType<AttestContext["publish"]>>> {
+  if (store === undefined || primary === undefined || taskListObservation === undefined) {
+    throw new Error("Native attestation requires its selected metadata, checked task-list basis, and Store.");
+  }
+  const written = await writeStoredAttestation({ ...input, store, primary, taskListObservation });
+  if (written.status === "refused") throw new StoreRefusalError(written.refusal, store.capabilities.stateOffBranch);
+  return written.result;
+}
+
 /** Name a bounded sample of paths so a wide refusal stays readable without hiding its scale. */
 function summarizePaths(paths: readonly string[], limit = 5): string {
   const shown = paths.slice(0, limit).map((path) => `\`${path}\``).join(", ");
   return paths.length <= limit ? shown : `${shown}, and ${paths.length - limit} more`;
 }
+
+const candidateRevisionKinds = { 1: "commit", 2: "store version" } as const;
 
 /** Schema-owned Candidate attestation input. */
 export const AttestCommandInputSchema = z.object({
@@ -131,12 +166,24 @@ export interface AttestOptions {
 
 /** Attest the current verified work-unit subject without changing lifecycle State. */
 function convergenceResumeAfterAttest(
-  existingBoundary: IntegrationBoundaryLocus | null,
+  existingBoundary: PublishedIntegrationBoundaryLocus | null,
   publication: Parameters<AttestContext["publish"]>[0],
   boundaryMatches: boolean,
-): IntegrationBoundaryLocus | null {
+): PublishedIntegrationBoundaryLocus | null {
   if (existingBoundary === null || !boundaryMatches
     || existingBoundary.locus !== "candidate-convergence-verification-pending") return null;
+  const subject = {
+    workUnit: publication.name,
+    candidateId: publication.candidateId,
+    candidateSubjectDigest: publication.candidateSubjectDigest,
+  };
+  if (existingBoundary.schemaVersion === 2) return projectCandidateReviewResumeBoundary({
+    ...subject,
+    reservation: existingBoundary.reservation,
+    terminus: existingBoundary.terminus,
+    deliveryReviewTermini: existingBoundary.deliveryReviewTermini,
+    postAttestContinuation: existingBoundary.nextAction.postAttestContinuation,
+  }, 2);
   return projectCandidateReviewResumeBoundary({
     workUnit: publication.name,
     candidateId: publication.candidateId,
@@ -178,123 +225,52 @@ export async function handleAttest(
   if (input === null) return;
   const base = await resolveVerbBase(context, input.json === true);
   if (base === null) return;
-  const { settings } = await buildExecutor(base);
-  let metaPath = resolveArcPath({
-    kind: "work-unit-artifact",
-    placement: { kind: "active", scope: { kind: "project" } },
-    slug: input.name,
-    artifact: "meta",
+  await attestCandidateWithReviewBoundary(base, input);
+}
+
+/** Execute attestation using the command's resolved checkout, identity, and operational Store. */
+export async function attestCandidateWithReviewBoundary(base: VerbBase,
+  input: z.infer<typeof AttestCommandInputSchema>): Promise<void> {
+  await refusingStoreFailures(input.json === true, () => attestCandidate(base, input));
+}
+
+/** Render a native store, project-identity, or owner refusal raised by any of a verb's reads or writes. */
+async function refusingStoreFailures(json: boolean, run: () => Promise<void>): Promise<void> {
+  try { await run(); }
+  catch (error) { if (!isNativeTypedRefusal(error) || !refuseAttestationStateFailure(error, json)) throw error; }
+}
+
+async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestCommandInputSchema>): Promise<void> {
+  const attesting = base.store === undefined ? base : { ...base, store: retryEndedItemHistory(base.store) };
+  const { executor, settings } = await buildExecutor(attesting);
+  const boundarySchemaVersion = executor.store?.capabilities.stateOffBranch === true ? 2 : 1;
+  const reviewInvocation = resolveReviewInvocation({ ...base, exec: base.io.exec, store: executor.store, projectId: executor.projectId });
+  await bindDeliveryWorkItem(base.cwd, base.io.exec, reviewInvocation, input.name);
+  const subjectInput = await readAttestInput({ cwd: base.cwd, store: executor.store, workItem: reviewInvocation.workItem,
+    readFile: path => base.io.readFile(path), activeMetaPath: projectActiveMetaPath,
+    readArchivedMeta: async slug => (await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs })).get(slug),
+  }, input.name, input.newRoot === true);
+  if (subjectInput.status === "rejected") {
+    refuseWithRemedy(subjectInput.reason, subjectInput.remedy, input.json === true, subjectInput.refusal);
+    return;
+  }
+  const { metaPath, meta, taskListPath, lastCompleted } = subjectInput;
+  let metaContent = subjectInput.metaContent;
+  const absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
+  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, input.name, { store: executor.store, owner: reviewInvocation.workItem });
+  const inspectRenewal = () => inspectRepositoryDeliveryCandidateRenewal({
+    ...reviewInvocation, cwd: base.cwd, taskListPath: validateManagedPath(taskListPath),
+    workUnitId: input.name, baseBranch: settings["branch.base"], exec: base.io.exec,
+    sourceBoundary: boundarySnapshot.boundary,
   });
-  let absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
-  let metaContent: string;
-  try {
-    metaContent = await base.io.readFile(absoluteMetaPath);
-  } catch {
-    const archived = (await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs })).get(input.name);
-    if (input.newRoot !== true || archived?.location !== "completed") {
-      refuseWithRemedy(
-        `\`arc attest\` requires an active record, or an archived record with \`--new-root\`, for \`${input.name}\`.`,
-        spineRemedy(
-          "Candidate attestation requires a resolvable work-unit record.",
-          "Inspect the work-unit lifecycle state",
-          ["arc", "status", input.name, "--json"],
-        ),
-        input.json === true,
-      );
-      return;
-    }
-    metaPath = validateManagedPath(archived.path);
-    absoluteMetaPath = materializeArcPath(base.cwd, metaPath);
-    metaContent = await base.io.readFile(absoluteMetaPath);
-  }
-  const meta = parseMetaRecord(metaContent);
-  if (meta.state !== "Active" && meta.state !== "Integrating" && !(meta.state === "Shipped" && input.newRoot === true)) {
-    refuseWithRemedy(
-      `\`arc attest\` requires \`${input.name}\` to be Active or Integrating, or Shipped with \`--new-root\`.`,
-      spineRemedy(
-        "Candidate attestation runs only from an active publication lifecycle.",
-        "Inspect the work-unit lifecycle state",
-        ["arc", "status", input.name, "--json"],
-      ),
-      input.json === true,
-    );
-    return;
-  }
-  let lastCompleted: string | null = null;
-  const taskListPath = resolveTaskListPath(metaPath, meta.taskList);
-  if (taskListPath === null) {
-    refuseWithRemedy(
-      `\`arc attest\` requires a canonical task-list binding for \`${input.name}\`.`,
-      spineRemedy(
-        "Candidate attestation requires a resolvable, structurally closed task list.",
-        "Restore the task-list binding and close execution before attesting",
-        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
-      ),
-      input.json === true,
-    );
-    return;
-  }
-  let taskList: string;
-  try {
-    taskList = await base.io.readFile(materializeArcPath(base.cwd, validateManagedPath(taskListPath)));
-  } catch {
-    refuseWithRemedy(
-      `\`arc attest\` requires the canonical task list for \`${input.name}\` to be readable.`,
-      spineRemedy(
-        "Candidate attestation requires a resolvable, structurally closed task list.",
-        "Restore the task list and close execution before attesting",
-        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
-      ),
-      input.json === true,
-    );
-    return;
-  }
-  const taskCursor = resolveTaskListCursor(taskList);
-  if (taskCursor.status === "malformed") {
-    refuseWithRemedy(
-      `\`arc attest\` cannot use the malformed task list for \`${input.name}\` at line `
-        + `${taskCursor.error.line}: ${taskCursor.error.message}`,
-      spineRemedy(
-        "Candidate attestation requires a structurally closed task list.",
-        "Repair the task-list structure and close execution before attesting",
-        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
-      ),
-      input.json === true,
-    );
-    return;
-  }
-  if (taskCursor.status === "found") {
-    const current = `Task ${taskCursor.cursor.leaf.id} — ${taskCursor.cursor.leaf.title}`;
-    refuseWithRemedy(
-      `\`arc attest\` cannot attest \`${input.name}\` while task remains open: ${current}.`,
-      spineRemedy(
-        "Candidate attestation begins only after canonical task execution is closed.",
-        "Complete the current task and work-unit verification, then attest",
-        input.newRoot === true ? attestNewRootArgv(input.name) : attestArgv(input.name),
-      ),
-      input.json === true,
-    );
-    return;
-  }
-  const terminal = resolveLastCompletedTask(taskList);
-  if (terminal.status === "found") {
-    lastCompleted = `Task ${terminal.item.id} — ${terminal.item.title}`;
-  }
-  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, input.name);
   let deliveryRenewal: Awaited<ReturnType<typeof inspectRepositoryDeliveryCandidateRenewal>> = {
     status: "not-applicable",
   };
   if (meta.state === "Integrating" || meta.state === "Shipped") {
     try {
-      deliveryRenewal = await inspectRepositoryDeliveryCandidateRenewal({
-        cwd: base.cwd,
-        taskListPath: validateManagedPath(taskListPath),
-        workUnitId: input.name,
-        baseBranch: settings["branch.base"],
-        exec: base.io.exec,
-        sourceBoundary: boundarySnapshot.boundary,
-      });
-    } catch {
+      deliveryRenewal = await inspectRenewal();
+    } catch (error) {
+      if (isOffBranchStoreRefusal(error)) throw error;
       deliveryRenewal = { status: "refused", reason: "evidence-unavailable" };
     }
     if (deliveryRenewal.status === "refused") {
@@ -356,13 +332,15 @@ export async function handleAttest(
     return;
   }
 
+  const designExport: { result: Awaited<ReturnType<typeof exportWorkUnitSpec>> } = { result: null };
   let result: Awaited<ReturnType<typeof runAttest>>;
   try {
     result = await runAttest({
+      boundarySchemaVersion,
       actor: base.identity,
       now: () => new Date().toISOString(),
       verificationEvidenceRef: (slug) => `tasks-${slug}.md#verification`,
-      readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug),
+      readRecord: (slug) => readCandidateRecordVersioned(base.cwd, slug, { store: executor.store, owner: reviewInvocation.workItem }),
       currentTarget: () => Promise.resolve(subject.target),
       effectiveTarget: (slug, record) => projectGitCandidateEffectiveTarget({
         cwd: base.cwd,
@@ -373,9 +351,9 @@ export async function handleAttest(
         rawExec: createRawGitExec(base.cwd),
       }),
       inspectReRootReviewAuthority: async (_slug, candidateId) => {
-        const publisher = new RepositoryGitCommonStatePublisher(base.io.exec, base.cwd);
-        const store = new LocalReviewOperationStateStore(publisher);
-        const repositoryId = await resolveRepositoryIdentity(publisher);
+        const { publisher, family } = createReviewCompositionContext({ ...reviewInvocation, cwd: base.cwd, exec: base.io.exec });
+        const store = family.ports.inFlight;
+        const repositoryId = await resolveRepositoryIdentity(publisher, undefined, reviewInvocation);
         for (const lane of ["frontline", "standard"] as const) {
           const owner = await readLaneProgressOwner(store, {
             lane, repositoryId, headSha: subject.target.revision,
@@ -387,10 +365,12 @@ export async function handleAttest(
             let recordRevision: string;
             try {
               recordRevision = await readRepositoryCandidateRecordRevision({
-                cwd: base.cwd, workUnit: input.name, candidateId,
+                ...reviewInvocation, cwd: base.cwd, workUnit: input.name, candidateId,
                 reviewHeadSha: live.reviewHeadSha, exec: base.io.exec,
               });
             } catch (error) {
+              // A native store's refusal carries its own remedy, not the local Git history one below.
+              rethrowNativeRefusal(error);
               throw new CandidateReviewRecoveryRefusal(
                 error instanceof Error ? error.message : String(error),
               );
@@ -403,14 +383,7 @@ export async function handleAttest(
       publish: async (publication) => {
         let deliveryLocus: ReturnType<typeof projectCorrectiveDeliveryStatusBoundary> | null = null;
         if (deliveryRenewal.status === "ready") {
-          const fresh = await inspectRepositoryDeliveryCandidateRenewal({
-            cwd: base.cwd,
-            taskListPath: validateManagedPath(taskListPath),
-            workUnitId: input.name,
-            baseBranch: settings["branch.base"],
-            exec: base.io.exec,
-            sourceBoundary: boundarySnapshot.boundary,
-          });
+          const fresh = await inspectRenewal();
           if (fresh.status !== "ready") {
             throw new DeliveryCandidateRenewalRefusal(
               fresh.status === "refused" ? fresh.reason : "delivery evidence disappeared",
@@ -434,11 +407,15 @@ export async function handleAttest(
             );
           }
         }
-        const recordPath = await writeCandidateRecord(
+        designExport.result = await exportWorkUnitSpec({ cwd: base.cwd, workUnit: publication.name, store: executor.store,
+          owner: reviewInvocation.workItem, exec: base.io.exec, trackDesignDocs: settings["storage.track_design_docs"],
+          stageMatching: true });
+        const recordPath = boundarySchemaVersion === 2 ? null : await writeCandidateRecord(
           base.cwd,
           publication.name,
           publication.record,
           publication.expectedRecordVersion,
+          { store: executor.store, owner: reviewInvocation.workItem },
         );
         const priorMeta = parseMetaRecord(metaContent);
         const existingBoundary = boundarySnapshot.boundary;
@@ -466,15 +443,17 @@ export async function handleAttest(
                 workUnit: publication.name,
                 candidateId: publication.candidateId,
                 candidateSubjectDigest: publication.candidateSubjectDigest,
-              }));
+              }, boundarySchemaVersion));
+        const nextAction = locus === singletonPublication
+          ? locus.nextAction.interactionText
+          : boundaryMatches || priorMeta.state === "Shipped" ? publication.nextAction : locus.nextAction.interactionText;
+        if (recordPath === null) return publishStoredAttestation(executor.store, subjectInput.primary, subjectInput.taskListObservation, {
+          publication, boundary: locus, expectedBoundaryVersion: boundarySnapshot.version, boundaryMatches, nextAction });
         const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
         const orientation: Record<string, string> = {};
         if (!publication.repairCurrent || priorMeta.currentWorkflow !== publication.currentWorkflow) {
           orientation["Current Workflow"] = formatValue(publication.currentWorkflow, "identifier");
         }
-        const nextAction = locus === singletonPublication
-          ? locus.nextAction.interactionText
-          : boundaryMatches || priorMeta.state === "Shipped" ? publication.nextAction : locus.nextAction.interactionText;
         if (!publication.repairCurrent || !boundaryMatches || priorMeta.nextAction === null) {
           orientation["Next Action"] = formatValue(nextAction, "narrative");
         }
@@ -493,14 +472,15 @@ export async function handleAttest(
           base.cwd,
           locus,
           boundarySnapshot.version,
+          { store: executor.store, owner: reviewInvocation.workItem },
         );
         await base.io.writeFile(absoluteMetaPath, metaContent);
-        await base.io.exec("git", ["add", "--", recordPath, metaPath, boundaryPath], { cwd: base.cwd });
+        await base.io.exec("git", ["add", "--", recordPath, metaPath, ...(boundaryPath === null ? [] : [boundaryPath])], { cwd: base.cwd });
         return { recordPath, metaPath, locus };
       },
     }, {
       name: input.name,
-      lifecycle: meta.state,
+      lifecycle: subjectInput.lifecycle,
       newRoot: input.newRoot === true,
       scope: input.scope,
       verificationEvidenceRef: input.verificationEvidenceRef,
@@ -514,9 +494,12 @@ export async function handleAttest(
           }),
     });
   } catch (error) {
+    const notice = designExport.result?.overwritten === true
+      ? `\nReplaced design review copy: ${designExport.result.path}` : "";
+    if (refuseAttestationStateFailure(error, input.json === true, notice)) return;
     if (error instanceof CandidateReviewRecoveryRefusal) {
       refuseWithRemedy(
-        `\`arc attest\` cannot bind the live review to its Candidate record: ${error.message}`,
+        `\`arc attest\` cannot bind the live review to its Candidate record: ${error.message}${notice}`,
         spineRemedy(
           "The review-owning Candidate record must be verified at the exact live review head before re-root.",
           "Restore that review head and its managed Candidate record in local Git history, then retry re-root",
@@ -529,7 +512,7 @@ export async function handleAttest(
     if (!(error instanceof DeliveryCandidateRenewalRefusal)) throw error;
     refuseWithRemedy(
       `\`arc attest\` refused stale or mismatched public delivery Candidate renewal for \`${input.name}\`: `
-        + error.message,
+        + error.message + notice,
       spineRemedy(
         "Corrective attestation writes only one exact version-bound public member-review continuation.",
         "Restore the exact public Candidate, plan, state, member, and review evidence, then re-attest",
@@ -540,16 +523,20 @@ export async function handleAttest(
     return;
   }
 
+  if ((result.status === "attested" || result.status === "unchanged") && designExport.result !== null) {
+    result = { ...result, designExport: designExport.result };
+  }
   if (result.status === "unchanged") {
-    const currentBoundary = await readSubmissionBoundaryVersioned(base.cwd, input.name);
+    const currentBoundary = await readSubmissionBoundaryVersioned(base.cwd, input.name, { store: executor.store, owner: reviewInvocation.workItem });
     if (currentBoundary.boundary?.candidateId !== result.locus.candidateId
       || currentBoundary.boundary.candidateSubjectDigest !== result.locus.candidateSubjectDigest) {
       const boundaryPath = await writeSubmissionBoundary(
         base.cwd,
         result.locus,
         currentBoundary.version,
+        { store: executor.store, owner: reviewInvocation.workItem },
       );
-      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
+      if (boundaryPath !== null) await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
     }
   }
 
@@ -564,7 +551,7 @@ export async function handleAttest(
         `Candidate: ${result.candidateId}`,
         `Live ${result.lane} attempt: ${result.attemptId} (${result.outcome})`,
         `Review head: ${result.reviewHeadSha}`,
-        `Predecessor Candidate record commit: ${result.recordRevision}`,
+        `Predecessor Candidate record ${candidateRevisionKinds[boundarySchemaVersion]}: ${result.recordRevision}`,
         `Next after restoring this owning checkout to the review head: ${result.nextAction.reviewArgv.join(" ")}`,
       ].join("\n"));
     } else if ("expected" in result) {
@@ -596,6 +583,7 @@ export async function handleAttest(
       `Candidate: ${result.locus.candidateId}`,
       `Locus:     ${result.locus.locus}`,
     ];
+    if (result.designExport?.overwritten === true) lines.push(`Replaced design review copy: ${result.designExport.path}`);
     if ("operation" in result && result.operation === "convergence") {
       lines.push(`Scope:     ${result.scope}`);
       lines.push(`Evidence:  ${result.verificationEvidenceRef}`);
@@ -635,13 +623,21 @@ export async function publishCandidateWithReviewBoundary(
   primary?: StoreRecord,
   reference?: RecordReference,
 ): Promise<void> {
+  await refusingStoreFailures(input.json === true, () => publishCandidate(base, target, input, primary, reference));
+}
+
+async function publishCandidate(base: VerbBase, target: string, input: PublishOptions, primary?: StoreRecord,
+  reference?: RecordReference): Promise<void> {
   const { lastCompleted, action } = input;
 
   const { executor, settings } = await buildExecutor(base);
   if (!await permitUnpausedPublication(executor.store, target, input.json === true, primary)) return;
+  const reviewInvocation = await resolveNamedReviewWorkUnitInvocation({ ...base, exec: base.io.exec,
+    store: executor.store, projectId: executor.projectId, ...(primary === undefined ? {} : { workItem: primary.reference.owner }) }, target);
   const rawGit = createRawGitExec(base.cwd);
   const readCandidateAuthorization = async () => {
-    const record = await readCandidateRecord(base.cwd, target);
+    const snapshot = await readCandidateRecordVersioned(base.cwd, target, { store: executor.store, owner: reviewInvocation.workItem });
+    const record = snapshot.record;
     if (record === null) return null;
     const effective = await projectGitCandidateEffectiveTarget({
       cwd: base.cwd,
@@ -659,6 +655,7 @@ export async function publishCandidateWithReviewBoundary(
     return {
       record,
       candidateId: record.attestation.candidateId,
+      candidateVersion: snapshot.version,
       candidateSubjectDigest,
       candidateCurrent: effective.state === "current"
         && effective.convergenceVerification === "satisfied",
@@ -678,17 +675,11 @@ export async function publishCandidateWithReviewBoundary(
     return;
   }
   const record = candidate.record;
-  const publisher = new RepositoryGitCommonStatePublisher(base.io.exec, base.cwd);
-  const repositoryId = await resolveRepositoryIdentity(publisher);
-  const operationStore = new LocalReviewOperationStateStore(publisher);
-  const currentHead = async () => (await base.io.exec("git", ["rev-parse", "HEAD"], {
-    cwd: base.cwd,
-  })).stdout.trim();
-  const readStandardLaneOwnerVersion = async () => (await readLaneProgressOwnerVersioned(operationStore, {
-    lane: "standard", repositoryId, headSha: await currentHead(),
-    lineage: { kind: "candidate", candidateId: candidate.candidateId },
-  })).version;
-  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, target);
+  let review: Awaited<ReturnType<typeof openPublicationReviewContext>>;
+  try { review = await openPublicationReviewContext({ cwd: base.cwd, exec: base.io.exec, invocation: reviewInvocation, candidateId: candidate.candidateId }); }
+  catch (error) { if (!refuseProjectIdentityFailure(error, input.json === true)) throw error; return; }
+  const { repositoryId, currentHead, readStandardLaneOwnerVersion, readReadinessBinding } = review;
+  const boundarySnapshot = await readSubmissionBoundaryVersioned(base.cwd, target, { store: executor.store, owner: reviewInvocation.workItem });
   const boundary = boundarySnapshot.boundary;
   if (boundary === null) {
     refuseWithRemedy(
@@ -702,47 +693,44 @@ export async function publishCandidateWithReviewBoundary(
     );
     return;
   }
+  const boundaryAccess = createPublicationBoundaryAccess({ cwd: base.cwd, exec: base.io.exec, invocation: reviewInvocation,
+    snapshot: { ...boundarySnapshot, boundary }, readStandardLaneOwnerVersion, readReadinessBinding,
+    candidateVersion: candidate.candidateVersion });
   const result = await withRepositoryReviewOperationLock(
     base.io.exec, base.cwd,
     laneContinuationOperationId({
       lane: "standard", repositoryId, headSha: await currentHead(),
       lineage: { kind: "candidate", candidateId: candidate.candidateId },
     }),
-    10_000, () => runPublish(executor, {
-    name: target,
-    reference,
-    ...(lastCompleted === undefined ? {} : { lastCompleted }),
-    ...(action === undefined ? {} : { nextAction: action }),
-    candidateId: candidate.candidateId,
-    candidateSubjectDigest: candidate.candidateSubjectDigest,
-    candidateCurrent: candidate.candidateCurrent,
-    boundary,
-    refreshCandidateAuthorization: async () => {
-      const refreshed = await readCandidateAuthorization();
-      if (refreshed === null) {
-        return {
-          candidateId: record.attestation.candidateId,
-          candidateSubjectDigest: candidate.candidateSubjectDigest,
-          candidateCurrent: false,
-        };
-      }
-      return refreshed;
-    },
-    readStandardLaneOwnerVersion,
-    claimPublicationBoundary: async (publicationBoundary) => {
-      if ((boundary.locus === "candidate-publish-ready" || boundary.locus === "publication-pending")
-        && boundary.standardLaneOwnerVersion !== await readStandardLaneOwnerVersion()) {
-        throw new Error("standard review progress changed after publication readiness was recorded");
-      }
-      const boundaryPath = await writeSubmissionBoundary(
-        base.cwd,
-        publicationBoundary,
-        boundarySnapshot.version,
-      );
-      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
-    },
-    ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
-  }));
+    10_000, async () => {
+      const outcome = await runPublish(executor, {
+        name: target,
+        reference,
+        ...(lastCompleted === undefined ? {} : { lastCompleted }),
+        ...(action === undefined ? {} : { nextAction: action }),
+        candidateId: candidate.candidateId,
+        candidateSubjectDigest: candidate.candidateSubjectDigest,
+        candidateCurrent: candidate.candidateCurrent,
+        candidateVersion: candidate.candidateVersion,
+        boundary,
+        refreshCandidateAuthorization: async () => {
+          const refreshed = await readCandidateAuthorization();
+          if (refreshed === null) {
+            return {
+              candidateId: record.attestation.candidateId,
+              candidateSubjectDigest: candidate.candidateSubjectDigest,
+              candidateCurrent: false,
+            };
+          }
+          return refreshed;
+        },
+        readStandardLaneOwnerVersion, readReadinessBinding,
+        ...boundaryAccess.ports,
+        ...(input.allowAdvisories === true ? { allowAdvisories: true } : {}),
+      });
+      if (outcome.status === "unchanged") await boundaryAccess.persistUnchanged(outcome.boundary);
+      return outcome;
+    });
   if (result.status === "rejected") {
     if (!usesOffBranchState(executor.store)) refuseWithRemedy(result.reason, result.remedy, input.json === true);
     else if (input.json === true) { process.stdout.write(`${JSON.stringify(result)}\n`); process.exitCode = 1; }
@@ -750,10 +738,6 @@ export async function publishCandidateWithReviewBoundary(
     return;
   }
   if (result.status === "unchanged") {
-    if (canonicalize(result.boundary) !== canonicalize(boundary)) {
-      const boundaryPath = await writeSubmissionBoundary(base.cwd, result.boundary, boundarySnapshot.version);
-      await base.io.exec("git", ["add", "--", boundaryPath], { cwd: base.cwd });
-    }
     if (input.json === true) {
       process.stdout.write(`${JSON.stringify(result)}\n`);
     } else {
@@ -800,6 +784,13 @@ export async function publishCandidateWithReviewBoundary(
   reportOutcome("Integrating", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
 }
 
+/** Refuse ordinary reopen as missing delivery evidence. */
+function refuseUnavailableDeliveryEvidence(target: string): false {
+  refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
+    + "the plan, state, or transition evidence is unavailable.");
+  return false;
+}
+
 /**
  * Check exact delivery composition before a lifecycle withdrawal.
  * @param base - Resolved checkout, identity, and I/O.
@@ -814,17 +805,20 @@ export async function permitDeliveryReopen(
   record?: StoreRecord,
 ): Promise<boolean> {
   let taskListPath: string | null;
+  let workItem = base.workItem;
   try {
     if (base.store !== undefined && usesOffBranchState(base.store)) {
-      const path = await readStoreReopenTaskPath(base.store, target, record);
-      if (path === undefined) return false;
-      taskListPath = path;
+      const read = await readStoreReopenTaskPath(base.store, target, record);
+      if (read === undefined) return false;
+      workItem = read.owner;
+      taskListPath = read.taskListPath;
     } else {
       const metaPath = projectActiveMetaPath(target);
       const meta = parseMetaRecord(await base.io.readFile(materializeArcPath(base.cwd, metaPath)));
       taskListPath = resolveTaskListPath(metaPath, meta.taskList);
     }
-  } catch {
+  } catch (error) {
+    if (isOffBranchStoreRefusal(error)) { refuse(error.refusal.condition, error.refusal); return false; }
     refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
       + "the active metadata is unavailable.");
     return false;
@@ -837,16 +831,16 @@ export async function permitDeliveryReopen(
   let delivery;
   try {
     delivery = await inspectRepositoryDeliveryReopen({
+      ...resolveReviewInvocation({ ...base, workItem, exec: base.io.exec }),
       cwd: base.cwd,
       taskListPath,
       workUnitId: target,
       baseBranch: settings["branch.base"],
       exec: base.io.exec,
     });
-  } catch {
-    refuse(`Ordinary reopen cannot establish exact delivery composition for \`${target}\`: `
-      + "the plan, state, or transition evidence is unavailable.");
-    return false;
+  } catch (error) {
+    if (isOffBranchStoreRefusal(error)) { refuse(error.refusal.condition, error.refusal); return false; }
+    return refuseUnavailableDeliveryEvidence(target);
   }
   if (delivery.status !== "reopen-permitted") {
     refuse(delivery.recommendedActionText);
@@ -856,14 +850,16 @@ export async function permitDeliveryReopen(
   return true;
 }
 
-async function readStoreReopenTaskPath(store: Store, target: string, record?: StoreRecord): Promise<string | null | undefined> {
+async function readStoreReopenTaskPath(store: Store, target: string, record?: StoreRecord): Promise<{
+  owner: OwnerIdentity; taskListPath: string | null } | undefined> {
   const primary = record === undefined ? await readWorkUnit(store, target) : { status: "ok" as const, result: record };
   if (primary.status === "refused") { refuse(primary.refusal.condition, primary.refusal); return undefined; }
   const meta = ParsedMetaRecordSchema.parse(primary.result.fields);
-  const task = await store.read({ reference: recordReferences["work-item/task-list"](primary.result.reference.owner) });
+  const owner = primary.result.reference.owner;
+  const task = await store.read({ reference: recordReferences["work-item/task-list"](owner) });
   if (task.status === "refused") { refuse(task.refusal.condition, task.refusal); return undefined; }
   const projected = lifecycleRecordPath(primary.result, task.result);
-  return projected !== null && meta.taskList === projected.split("/").at(-1) ? projected : null;
+  return { owner, taskListPath: projected !== null && meta.taskList === projected.split("/").at(-1) ? projected : null };
 }
 
 /** Command-owned Candidate attestation input. */

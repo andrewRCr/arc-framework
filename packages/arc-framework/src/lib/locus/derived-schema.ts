@@ -8,7 +8,7 @@ import { z } from "zod";
 import { RegisteredWorktreeSchema } from "../git/worktree-roster.js";
 import { LoadSetManifestSchema, LoadSetPathSchema } from "../load-set/types.js";
 import { TaskListCursorFileResultSchema } from "../task-list/file-cursor.js";
-import { IntegrationBoundaryLocusSchema } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
+import { PublishedIntegrationBoundaryLocusSchema } from "../../scripts/review-gate/policy/integration-boundary-locus.js";
 import { LocusIdentityV1Schema } from "./schema/identity.js";
 
 const text = z.string().min(1);
@@ -33,7 +33,7 @@ const context = z.strictObject({
   taskListPath: LoadSetPathSchema.nullable(), taskCursor: TaskListCursorFileResultSchema.nullable(),
   workUnitStage: z.enum(["task-work", "verification-closeout", "delivery-correction"]).nullable().optional(),
   cohortDocPath: LoadSetPathSchema.nullable(), loadSet: LoadSetManifestSchema,
-  integrationBoundary: IntegrationBoundaryLocusSchema.nullable(),
+  integrationBoundary: PublishedIntegrationBoundaryLocusSchema.nullable(),
 });
 const row = {
   checkout: RegisteredWorktreeSchema, markerGeneration: z.string().nullable(),

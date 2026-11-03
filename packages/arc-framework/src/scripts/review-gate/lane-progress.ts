@@ -1,5 +1,7 @@
 /** Durable per-attempt lane progress at the fidelity the review-policy driver reads. */
 
+import { frontlineLaneOutcome } from "./core/frontline-lane-outcome.js";
+import { recordNativeResponsePerformance, settleNativeLaneFindings } from "./runtime/native-response-transitions.js";
 import { createHash } from "node:crypto";
 
 import { canonicalize, type CanonicalDigest } from "../../lib/kernel/index.js";
@@ -18,13 +20,14 @@ import {
   laneSubjectOwnerMatches,
   type LaneSubjectLineage,
 } from "./core/lane-admission.js";
-import type { ReviewOperationStateStore } from "./core/ports.js";
+import { confirmStoredFrontlineOutcome, publishEndedLaneOutcome, type LocalLaneOutcomeSource } from "./lane-progress-outcomes.js";
+import type { ReviewLaneTransitionStore, ReviewOperationStateStore } from "./core/ports.js";
 import {
   isReviewVersionConflict,
   REVIEW_VERSION_RETRY_ATTEMPTS,
 } from "./core/version-conflict.js";
 export { hostedLaneAttemptId } from "./hosted/request.js";
-import type { FrontlineExecutionOutcome } from "./policy/frontline-outcome.js";
+import type { FrontlineReviewOutcome } from "./policy/frontline-outcome.js";
 
 import { completeHostedAttemptIfReady } from "./hosted-response-completion.js";
 export { completeHostedAttemptIfReady } from "./hosted-response-completion.js";
@@ -313,6 +316,7 @@ export async function recordLocalReceiptConclusion(
     consumedPass,
     chunkSeriesComplete: consumedPass,
     advancePendingAttempt: true,
+    localOutcome: { state, receipt },
     local: {
       operationId: state.operationId,
       requestId: state.requestId,
@@ -446,6 +450,7 @@ function buildLaneAttempt(
     terminalProducer: input.consumedPass,
     sourceId: input.sourceId,
     outcome: input.outcome,
+    ...(replay?.admittedBy === undefined ? {} : { admittedBy: replay.admittedBy }),
     ...(input.chunkSeriesComplete === undefined ? {} : { chunkSeriesComplete: input.chunkSeriesComplete }),
     ...(input.hosted === undefined ? {} : { hosted: input.hosted }),
     ...(input.local === undefined ? {} : { local: input.local }),
@@ -490,7 +495,7 @@ function buildNextLaneProgress(
 }
 
 async function publishLaneAttemptVersion(
-  store: ReviewOperationStateStore,
+  store: ReviewLaneTransitionStore,
   input: RecordLaneAttemptInput,
   operationId: string, lineage: LaneSubjectLineage,
   existing: LaneProgressState | null, replay: LaneAttempt | undefined,
@@ -506,6 +511,7 @@ async function publishLaneAttemptVersion(
     return null;
   }
   try {
+    await publishEndedLaneOutcome(store, { attempt, lane: next, endedAt: input.now, local: input.localOutcome });
     await store.publishOperation(next, version);
     return next;
   } catch (error) {
@@ -518,7 +524,7 @@ async function publishLaneAttemptVersion(
 }
 
 export async function recordLaneAttempt(
-  store: ReviewOperationStateStore,
+  store: ReviewLaneTransitionStore,
   input: {
     lane: LaneProgressState["lane"];
     repositoryId: string;
@@ -532,6 +538,7 @@ export async function recordLaneAttempt(
     chunkSeriesComplete?: boolean;
     hosted?: LaneAttempt["hosted"];
     local?: LaneAttempt["local"];
+    localOutcome?: LocalLaneOutcomeSource;
     frontline?: LaneAttempt["frontline"];
     now: string;
     advancePendingAttempt?: boolean;
@@ -633,44 +640,6 @@ export { captureConditionalNextPassAuthorization, withdrawConditionalNextPassAut
 export type { ConditionalPassWithdrawalResult } from "./lane-progress-conditional.js";
 
 /**
- * Frontline reason classes keyed to the driver's outcome vocabulary.
- *
- * The four retryable carrier failures map onto `transient-unavailable` because that is the lane's
- * own classification of them — the frontline run command routes exactly these to a retry action —
- * and it is the only value in the driver's vocabulary carrying that meaning.
- */
-const FRONTLINE_REASON_OUTCOMES = {
-  "rate-limited": "rate-limited",
-  "transient-unavailable": "transient-unavailable",
-  "source-unbound": "source-unbound",
-  "capability-unsupported": "capability-unsupported",
-  "execution-timeout": "timed-out",
-  "head-mismatch": "stale-target",
-  "target-mismatch": "stale-target",
-  "invalid-output": "malformed",
-  "authorization-rejected": "terminal-failure",
-  "transient-transport": "transient-unavailable",
-  "process-failure": "transient-unavailable",
-  "signal-termination": "transient-unavailable",
-  "unexpected-adapter-failure": "transient-unavailable",
-} as const satisfies Record<string, LaneAttemptOutcome>;
-
-/**
- * Map one frontline execution outcome onto the driver's attempt vocabulary.
- *
- * @param outcome - The outcome discriminator.
- * @param reasonClass - The outcome's reason class, or `null` for a verdict-bearing outcome.
- * @returns The driver-grade outcome, or `null` when the outcome concluded no attempt.
- */
-export function frontlineLaneOutcome(outcome: string, reasonClass: string | null): LaneAttemptOutcome | null {
-  if (outcome === "clean" || outcome === "findings") return outcome;
-  if (reasonClass !== null && reasonClass in FRONTLINE_REASON_OUTCOMES) {
-    return FRONTLINE_REASON_OUTCOMES[reasonClass as keyof typeof FRONTLINE_REASON_OUTCOMES];
-  }
-  return null;
-}
-
-/**
  * Record one concluded frontline execution against its lane progress.
  *
  * @param store - Versioned operation-state storage boundary.
@@ -678,10 +647,15 @@ export function frontlineLaneOutcome(outcome: string, reasonClass: string | null
  * @returns The published record, or `null` when the outcome concluded no attempt.
  */
 export async function recordFrontlineAttempt(
-  store: ReviewOperationStateStore,
-  input: { admission: FrontlineAdmission; outcome: FrontlineExecutionOutcome; now: string },
+  store: ReviewLaneTransitionStore,
+  input: { admission: FrontlineAdmission; outcome: FrontlineReviewOutcome; now: string },
 ): Promise<LaneProgressState | null> {
   const { admission, outcome } = input;
+  if (store.outcomeWriter !== undefined) {
+    await confirmStoredFrontlineOutcome(store.outcomeWriter, admission, outcome);
+    return await readLaneProgressOwner(store, { lane: "frontline", repositoryId: outcome.target.repositoryId,
+      headSha: outcome.target.headSha, lineage: admission.lineage });
+  }
   const admittedSource = admission.frontlineReview.source;
   if (admittedSource === null
     || canonicalize(outcome.target) !== canonicalize(admission.target)
@@ -760,6 +734,7 @@ export async function settleLaneAttempt(
     now: string;
   },
 ): Promise<LaneProgressState> {
+  if (store.nativeFacts !== undefined) return settleNativeLaneFindings(store.nativeFacts, store, input);
   const operationId = laneProgressOperationId(input);
   const { version, state } = await store.readOperation(operationId);
   if (state === null
@@ -789,7 +764,7 @@ export async function settleLaneAttempt(
 }
 
 /** Record the durable head produced by a fully performed approved response and retain direct predecessors. */
-type LaneResponsePerformanceInput = Parameters<typeof recordLaneResponsePerformance>[1];
+type LaneResponsePerformanceInput = Parameters<typeof recordRepositoryLaneResponsePerformance>[1];
 
 function responsePerformanceOwnerMatches(
   state: LaneProgressState | null,
@@ -818,7 +793,7 @@ function validateCandidateResponseBinding(input: {
   }
 }
 
-export async function recordLaneResponsePerformance(
+async function recordRepositoryLaneResponsePerformance(
   store: ReviewOperationStateStore,
   input: {
     lane: LaneProgressState["lane"];
@@ -834,7 +809,6 @@ export async function recordLaneResponsePerformance(
     now: string;
   },
 ): Promise<LaneProgressState> {
-  validateCandidateResponseBinding(input);
   const operationId = laneProgressOperationId(input);
   for (let writeAttempt = 0; writeAttempt < REVIEW_VERSION_RETRY_ATTEMPTS; writeAttempt += 1) {
     const { version, state } = await store.readOperation(operationId);
@@ -880,6 +854,14 @@ export async function recordLaneResponsePerformance(
     }
   }
   throw new Error("lane response performance exceeded version-conflict retry attempts");
+}
+
+/** Record complete response performance through the selected evidence or repository substrate. */
+export async function recordLaneResponsePerformance(store: ReviewOperationStateStore,
+  input: LaneResponsePerformanceInput): Promise<LaneProgressState> {
+  validateCandidateResponseBinding(input);
+  if (store.nativeFacts !== undefined) return recordNativeResponsePerformance(store.nativeFacts, store, input);
+  return recordRepositoryLaneResponsePerformance(store, input);
 }
 
 type LanePolicyLocalBinding = Omit<
@@ -953,7 +935,7 @@ export { readCandidateInheritedLaneProgress } from "./lane-progress-supersession
 
 /** Read exact performed-response evidence from its existing lane-owner attempt. */
 export async function readLaneResponsePerformance(
-  store: ReviewOperationStateStore,
+  store: Pick<ReviewOperationStateStore, "readOperation">,
   predecessor: ReviewResult,
 ): Promise<LaneResponsePerformance | null> {
   const owner = await readLaneProgressOwner(store, {
@@ -997,7 +979,7 @@ export async function readAdmittedLocalLaneAttempt(
  * @returns The recorded pass count and ordered attempts, or an unrecorded result.
  */
 export async function readLaneProgress(
-  store: ReviewOperationStateStore,
+  store: Pick<ReviewOperationStateStore, "readOperation">,
   input: {
     lane: LaneProgressState["lane"];
     repositoryId: string;

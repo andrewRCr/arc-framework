@@ -116,6 +116,7 @@ describe("checkpoint lifecycle composition", () => {
           reads += 1;
           return {
             version: "lifecycle-store:v7",
+            metaVersion: (workUnit) => workUnit === "example" ? "meta-example:v2" : null,
             fs: {
               readFile: (path) => readFile(path, "utf8"),
               readdir: (path) => readdir(path, { withFileTypes: true }),

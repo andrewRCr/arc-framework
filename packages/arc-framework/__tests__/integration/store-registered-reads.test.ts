@@ -4,8 +4,8 @@ import { createInRepoFixture } from "../helpers/store/in-repo-fixture.js";
 import { seed, success } from "../helpers/store/suite-tools.js";
 
 const behavior = vi.hoisted(() => ({ reject: false }));
-vi.mock("../../src/lib/store/kinds/registrations.js", () => ({
-  PRODUCTION_REGISTRATIONS: [{
+vi.mock("../../src/lib/store/kinds/in-repo-registrations.js", () => ({
+  IN_REPO_REGISTRATIONS: [{
     kind: "work-item/meta",
     parser: (content: string) => behavior.reject
       ? { success: false, error: "Registration rejected the content" }

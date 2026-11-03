@@ -15,6 +15,7 @@ import type { StandardReviewObligationProjection } from "./standard-review-proje
 import type { ReviewResultReader } from "../core/ports.js";
 
 import { type ReviewNextPassContext } from "./review-next-pass-schema.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 export { ReviewNextPassContextSchema, type ReviewNextPassContext } from "./review-next-pass-schema.js";
 
 /** Record evidence and optional checkout-bound Git proof for a correction-chain leg. */
@@ -63,7 +64,10 @@ async function predecessorFacts(input: Pick<PerformedResponseProofInput,
 export async function confirmReviewCorrectionLeg(input: ReviewCorrectionLegInput & {
   readonly confirmGrounds?: () => Promise<IncrementalPredecessorApplicability>;
 }): Promise<IncrementalPredecessorApplicability> {
-  const grounds = await input.confirmGrounds?.().catch(() => "unavailable" as const) ?? "unavailable";
+  const grounds = await input.confirmGrounds?.().catch((error: unknown) => {
+    rethrowNativeRefusal(error);
+    return "unavailable" as const;
+  }) ?? "unavailable";
   if (input.predecessor.target.kind !== "change-set") return confirmDeliveryCorrectionLeg(input, grounds);
   const findings = await approvedFindings(input);
   const existing = findings?.some(finding => finding.disposition === "fix") === true

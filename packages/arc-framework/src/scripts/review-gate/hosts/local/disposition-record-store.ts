@@ -7,6 +7,7 @@ import {
   isExactDeliveryMemberBindingAdvance,
   type ApprovedDispositionRecord,
 } from "../../core/advisory-records.js";
+import { parseApprovedDispositionRecord } from "../../core/approved-disposition-codec.js";
 import { validateDispositionState } from "../../core/dispositions.js";
 import type {
   ApprovedDispositionRecordIndex,
@@ -23,13 +24,7 @@ function recordName(operationId: string): string {
 
 function parseRecord(raw: string): ApprovedDispositionRecord {
   try {
-    const record = ApprovedDispositionRecordSchema.parse(JSON.parse(raw));
-    const approvedDispositionLineage = record.approvedDispositionLineage.map((node) => {
-      const approvedDisposition = validateDispositionState(node.approvedDisposition);
-      if (approvedDisposition.state !== "approved") throw new Error("disposition record requires approval");
-      return { ...node, approvedDisposition };
-    });
-    return ApprovedDispositionRecordSchema.parse({ ...record, approvedDispositionLineage });
+    return parseApprovedDispositionRecord(raw);
   } catch (error) {
     throw new LocalReviewRecordStoreError("malformed-local-disposition", { cause: error });
   }

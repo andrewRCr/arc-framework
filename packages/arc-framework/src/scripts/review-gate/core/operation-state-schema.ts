@@ -1,6 +1,7 @@
 /** Registered non-evidentiary state for resumable review operations. */
 
 import { z } from "zod";
+import { OwnerIdentitySchema } from "../../../lib/store/identity.js";
 import { CanonicalDigestSchema } from "../../../lib/kernel/schema/vocabulary.js";
 
 import { canonicalDigest, canonicalize, type CanonicalDigest, type KernelRegistry } from "../../../lib/kernel/index.js";
@@ -18,6 +19,7 @@ import {
 } from "./gate-contract-v2-schema.js";
 import { LocalAttestationBindingSchema } from "./local-carrier.js";
 import { FrontlineAdmissionSchema } from "./frontline-admission.js";
+import { PortableFrontlineAdmissionSchema } from "./portable-frontline-admission.js";
 import { validateLaneProgressState } from "./lane-progress-state-validation.js";
 import { validateLaneAttempt } from "./lane-attempt-validation.js";
 import { BoundFrontlineResponseBindingSchema } from "./frontline-response-binding.js";
@@ -52,6 +54,8 @@ const OperationEnvelopeShape = {
   semanticsVersion: z.literal("review-operation/v1"),
   operationId: IdentifierSchema,
   updatedAt: z.iso.datetime({ offset: true }),
+  /** Exact operational owner retained by native admission for later operation-based re-entry. */
+  workItem: OwnerIdentitySchema.refine(owner => owner.type === "work-item", "Expected a work-item owner").optional(),
 };
 const ReviewVehicleSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("work-unit"), identity: IdentifierSchema }),
@@ -217,7 +221,7 @@ function localStateMatchesDeliveryAdmission(state: LocalReviewState): boolean {
  * progress, so an unusable value is refused at write rather than discovered at read.
  */
 const LaneSourceIdSchema = z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u);
-const LaneAttemptOutcomeSchema = z.enum([
+export const LaneAttemptOutcomeSchema = z.enum([
   "pending",
   "clean",
   "findings",
@@ -458,15 +462,17 @@ export const HostedSettlementEvidenceSchema = z.discriminatedUnion("channelActio
 ]);
 export type HostedSettlementEvidence = z.infer<typeof HostedSettlementEvidenceSchema>;
 
+export const HostedDispositionFindingActionSchema = z.strictObject({
+  findingId: z.string().trim().min(1),
+  disposition: z.enum(["fix", "defer", "reject"]),
+  channelAction: z.enum(["record-only", "reply-and-resolve"]),
+});
+
 const HostedDispositionSetLineageNodeSchema = z.strictObject({
   dispositionSetId: CanonicalDigestSchema,
   predecessorDispositionSetId: CanonicalDigestSchema.nullable(),
   successorDispositionSetId: CanonicalDigestSchema.nullable(),
-  findingActions: z.array(z.strictObject({
-    findingId: z.string().trim().min(1),
-    disposition: z.enum(["fix", "defer", "reject"]),
-    channelAction: z.enum(["record-only", "reply-and-resolve"]),
-  })),
+  findingActions: z.array(HostedDispositionFindingActionSchema),
 });
 
 const HostedResultDigestPreimageSchema = z.strictObject({
@@ -537,15 +543,6 @@ const HostedLaneAttemptBindingSchema = z.strictObject({
       message: "effective coverage must not weaken requested complete coverage",
     });
   }
-  const evidenceKeys = hosted.settlementEvidence.map((evidence) =>
-    `${evidence.dispositionSetId}\u0000${evidence.findingId}`);
-  if (new Set(evidenceKeys).size !== evidenceKeys.length) {
-    context.addIssue({
-      code: "custom",
-      path: ["settlementEvidence"],
-      message: "hosted settlement evidence must be unique per disposition set and finding",
-    });
-  }
   const lineageIds = hosted.dispositionSetLineage.map(({ dispositionSetId }) => dispositionSetId);
   if (new Set(lineageIds).size !== lineageIds.length) {
     context.addIssue({
@@ -580,37 +577,51 @@ const HostedLaneAttemptBindingSchema = z.strictObject({
         message: "hosted disposition-set lineage edges must be exact and ordered",
       });
     }
-    const findingIds = node.findingActions.map(({ findingId }) => findingId);
-    if (new Set(findingIds).size !== findingIds.length) {
-      context.addIssue({
-        code: "custom",
-        path: ["dispositionSetLineage", index, "findingActions"],
-        message: "hosted disposition-set finding actions must be unique",
-      });
-    }
   });
   validateHostedSettlementEvidence(hosted, context);
 });
+
+/** Validate one approved set's finding actions and settlement entries without consulting aggregate lane state. */
+export function validateHostedDispositionSetSettlement(input: {
+  dispositionSetId: CanonicalDigest;
+  predecessorDispositionSetId: CanonicalDigest | null;
+  findingActions: readonly z.infer<typeof HostedDispositionFindingActionSchema>[];
+  evidence: readonly HostedSettlementEvidence[];
+}): readonly { field: "findingActions" | "evidence"; message: string }[] {
+  const issues: { field: "findingActions" | "evidence"; message: string }[] = [];
+  if (new Set(input.findingActions.map(({ findingId }) => findingId)).size !== input.findingActions.length) {
+    issues.push({ field: "findingActions", message: "hosted disposition-set finding actions must be unique" });
+  }
+  if (new Set(input.evidence.map(({ findingId }) => findingId)).size !== input.evidence.length) {
+    issues.push({ field: "evidence", message: "hosted settlement evidence must be unique per disposition set and finding" });
+  }
+  for (const evidence of input.evidence) {
+    const action = input.findingActions.find(({ findingId }) => findingId === evidence.findingId);
+    if (evidence.dispositionSetId !== input.dispositionSetId || action?.disposition !== evidence.disposition
+      || action.channelAction !== evidence.channelAction
+      || (evidence.carriedFromDispositionSetId !== null
+        && evidence.carriedFromDispositionSetId !== input.predecessorDispositionSetId)) {
+      issues.push({ field: "evidence", message: "hosted settlement evidence must bind one lineage node and its direct predecessor" });
+    }
+  }
+  return issues;
+}
 
 function validateHostedSettlementEvidence(
   hosted: z.infer<typeof HostedLaneAttemptBindingSchema>,
   context: z.RefinementCtx,
 ): void {
-  for (const evidence of hosted.settlementEvidence) {
-    const node = hosted.dispositionSetLineage.find(({ dispositionSetId }) =>
-      dispositionSetId === evidence.dispositionSetId);
-    const action = node?.findingActions.find(({ findingId }) => findingId === evidence.findingId);
-    if (node === undefined
-      || action?.disposition !== evidence.disposition
-      || action.channelAction !== evidence.channelAction
-      || (evidence.carriedFromDispositionSetId !== null
-        && evidence.carriedFromDispositionSetId !== node.predecessorDispositionSetId)) {
-      context.addIssue({
-        code: "custom",
-        path: ["settlementEvidence"],
-        message: "hosted settlement evidence must bind one lineage node and its direct predecessor",
-      });
-    }
+  for (const [index, node] of hosted.dispositionSetLineage.entries()) {
+    const issues = validateHostedDispositionSetSettlement({ ...node,
+      evidence: hosted.settlementEvidence.filter(({ dispositionSetId }) => dispositionSetId === node.dispositionSetId) });
+    for (const issue of issues) context.addIssue({ code: "custom",
+      path: issue.field === "findingActions" ? ["dispositionSetLineage", index, "findingActions"] : ["settlementEvidence"],
+      message: issue.message });
+  }
+  if (hosted.settlementEvidence.some((evidence) => !hosted.dispositionSetLineage
+    .some(({ dispositionSetId }) => dispositionSetId === evidence.dispositionSetId))) {
+    context.addIssue({ code: "custom", path: ["settlementEvidence"],
+      message: "hosted settlement evidence must bind one lineage node and its direct predecessor" });
   }
 }
 
@@ -681,11 +692,11 @@ function localAttemptMatchesDeliveryAdmission(local: z.infer<typeof LocalLaneAtt
 }
 
 const FrontlineLaneAttemptBindingSchema = z.strictObject({
-  admission: FrontlineAdmissionSchema,
+  admission: z.union([FrontlineAdmissionSchema, PortableFrontlineAdmissionSchema]),
   effectiveCoverage: z.literal("complete").nullable(),
 });
 
-const LaneAttemptSchema = z.strictObject({
+export const LaneAttemptSchema = z.strictObject({
   attemptId: IdentifierSchema,
   logicalPass: z.number().int().positive(),
   retryGeneration: z.number().int().nonnegative(),
@@ -694,6 +705,7 @@ const LaneAttemptSchema = z.strictObject({
   terminalProducer: z.boolean(),
   sourceId: LaneSourceIdSchema,
   outcome: LaneAttemptOutcomeSchema,
+  admittedBy: z.string().trim().min(1).optional(),
   conditionalPassAuthorizations: ConditionalPassAuthorizationsSchema.optional(),
   // Superseded non-hosted approved sets retain their performed-response evidence in order.
   responsePerformanceHistory: z.array(LaneResponsePerformanceSchema).optional(),

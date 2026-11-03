@@ -1134,7 +1134,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
       candidateSubjectDigest: subjectDigest,
       reservation,
       changeRequest: null,
-    });
+    }, 1);
     const boundaryDir = join(fixture.root, ".arc", "system", ".internal", "candidates");
     await mkdir(boundaryDir, { recursive: true });
     await writeFile(join(boundaryDir, "foo.boundary.json"), JSON.stringify(storedBoundary));

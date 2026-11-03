@@ -55,8 +55,8 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
 
   // Keep this expected count hand-maintained: a catalog addition or omission must not
   // change both sides of the completeness check.
-  it("enumerates the 39 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(39);
+  it("enumerates the 40 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(40);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -195,6 +195,7 @@ describe("readConfigSettings — user-supplied values", () => {
       "session.init_load.notes: always",
       "sync.auto_pull: true",
       "archive.cadence: manual",
+      "storage.track_design_docs: none",
       "user.notes_push: manual",
       "inbox.remind_after_days: 7",
       "inbound.retriage_after_entries: 8",
@@ -230,6 +231,7 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["session.init_load.notes"]).toBe("always");
     expect(result.settings["sync.auto_pull"]).toBe("true");
     expect(result.settings["archive.cadence"]).toBe("manual");
+    expect(result.settings["storage.track_design_docs"]).toBe("none");
     expect(result.settings["inbox.remind_after_days"]).toBe("7");
     expect(result.settings["integration.stale_after_days"]).toBe("5");
     expect(result.defaultsApplied).toHaveLength(0);

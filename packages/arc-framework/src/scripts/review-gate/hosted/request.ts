@@ -1,6 +1,7 @@
 /** Typed request contract for hosted pull-request review sources. */
 
 import { z } from "zod";
+import { NativeReviewOperationRefSchema, nativeReviewOperationReferenceMatches } from "../core/review-operation-reference.js";
 
 import { canonicalDigest, canonicalize } from "../../../lib/kernel/index.js";
 import {
@@ -250,7 +251,10 @@ export function hostedLaneAttemptId(handle: HostedRequestHandle): string {
 export const HostedAwaitActionSchema = z.strictObject({
   schemaVersion: z.literal(1),
   handle: HostedRequestHandleSchema,
-}).readonly();
+  operationRef: NativeReviewOperationRefSchema.optional(),
+}).refine(action => action.operationRef === undefined
+  || nativeReviewOperationReferenceMatches(action.operationRef, action.handle.admission.admissionId),
+{ path: ["operationRef"], message: "reference must match the hosted admission" }).readonly();
 export type HostedAwaitAction = z.infer<typeof HostedAwaitActionSchema>;
 
 /**
@@ -259,8 +263,9 @@ export type HostedAwaitAction = z.infer<typeof HostedAwaitActionSchema>;
  * @param handle - Durable identity and target binding for the acknowledged request.
  * @returns A schema-validated action accepted directly by the hosted-await command.
  */
-export function hostedAwaitAction(handle: HostedRequestHandle): HostedAwaitAction {
-  return HostedAwaitActionSchema.parse({ schemaVersion: 1, handle });
+export function hostedAwaitAction(handle: HostedRequestHandle, operationRef?: string): HostedAwaitAction {
+  return HostedAwaitActionSchema.parse({ schemaVersion: 1, handle,
+    ...(operationRef === undefined ? {} : { operationRef }) });
 }
 
 /** Compare a durable hosted request handle with its lane-progress binding. */
@@ -393,11 +398,10 @@ const HostedRequestResultBaseShape = {
 };
 
 export const HostedRequestResultSchema = z.union([
-  z.strictObject({
+  HostedAwaitActionSchema.unwrap().safeExtend({
     ...HostedRequestResultBaseShape,
     state: z.literal("requested"),
     nextAction: z.literal("await"),
-    handle: HostedRequestHandleSchema,
     action: HostedAwaitActionSchema,
   }),
   z.strictObject({

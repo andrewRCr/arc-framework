@@ -11,6 +11,13 @@ import type { WriteCheckInput } from "../../../../src/lib/store/write-check.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 
 describe("production kind registrations", () => {
+  it.each(["review/outcome", "review/decision", "review/evidence", "review/adversarial-pass",
+    "review/candidate", "review/integration-boundary"] as const)("installs the %s codec and its owned write rules", (kind) => {
+    const registration = createKindRegistry(PRODUCTION_REGISTRATIONS)[kind];
+    expect(registration.parser?.("{")).toMatchObject({ success: false, error: expect.any(String) });
+    if (kind === "review/candidate") expect(registration.check).toBeNull();
+    else expect(registration.check).toBeTypeOf("function");
+  });
   it("derives exactly the projecting stored kinds and preserves one registration per kind", () => {
     const derived = (Object.keys(KIND_MECHANISMS) as KindId[]).filter(kind =>
       KIND_MECHANISMS[kind].projection !== "never" && FAMILY_REGISTRY[familyOf(kind)].ref !== null

@@ -5,6 +5,8 @@
  * Command logic lives in `src/handlers/`, orchestrators in `src/commands/`,
  * and I/O adapters in `src/lib/io-context.ts`.
  */
+import { rejectUnsupportedReviewJson, rejectUnsupportedReviewOutputJson } from "./lib/command-input/review-json-option.js";
+import { formatCommandPath } from "./lib/command-input/command-path.js";
 
 import { fileURLToPath } from "node:url";
 
@@ -2039,24 +2041,6 @@ const reviewCmd = program
   .command("review")
   .description("Resolve and execute review workflows");
 
-function rejectUnsupportedReviewJson(_command: Command, actionCommand: Command): void {
-  if (actionCommand.opts().json !== true) return;
-  actionCommand.error(
-    `error: option '--json' is unsupported for ${formatCommandPath(actionCommand)}; `
-      + "pass a JSON request file or '-' for stdin. JSON output is automatic.",
-    { exitCode: 1, code: "arc.review.unsupportedJsonOption" },
-  );
-}
-
-function rejectUnsupportedReviewOutputJson(this: Command): void {
-  const commandPath = formatCommandPath(this);
-  this.error(
-    `error: option '--json' is unsupported for ${commandPath}; JSON output is automatic. `
-      + `See '${commandPath} --help' for accepted inputs.`,
-    { exitCode: 1, code: "arc.review.unsupportedJsonOption" },
-  );
-}
-
 reviewCmd
   .command("change-request")
   .description("Exact-head change-request operations")
@@ -2152,6 +2136,16 @@ reviewCmd
   .action(withInteractionContext({ machineReadable: () => true }, async (context, options: ReviewChecksAwaitOptions) => {
     await (await import("./handlers/review.js")).handleReviewChecksAwait(options, {}, context);
   }));
+
+reviewCmd.command("adversarial").description("Record approved adversarial passes").command("record")
+  .description("Record one approved adversarial pass as JSON")
+  .usage("[file | -] [--schema]")
+  .argument("[input]", "Versioned JSON request file, or - for stdin")
+  .option("--schema", "Print the registered public request schema bundle")
+  .addOption(new Option("--json").hideHelp())
+  .hook("preAction", rejectUnsupportedReviewJson)
+  .action(withInteractionContext({ machineReadable: () => true }, reviewRequestAction("review-adversarial-record-request",
+    async (input, context) => (await import("./handlers/review-adversarial.js")).handleReviewAdversarialRecord(input, {}, context))));
 
 reviewCmd.command("lane").description("Read review lineage history").command("read")
   .description("Read lineage rejections and standard-lane facts as JSON")
@@ -2514,16 +2508,6 @@ program.hook("postAction", async () => {
   );
   process.exitCode = 1;
 });
-
-function formatCommandPath(cmd: Command): string {
-  const parts: string[] = [];
-  let cur: Command | null = cmd;
-  while (cur !== null) {
-    parts.unshift(cur.name());
-    cur = cur.parent;
-  }
-  return parts.join(" ");
-}
 
 // --- Entry ---
 

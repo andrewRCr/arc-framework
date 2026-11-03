@@ -1,5 +1,6 @@
 /** Real sync-produced conflicts on lineage-ended work items. */
 import { refSyncFixture } from "./ref-sync.js";
+import { withOpaqueReview } from "./opaque-review.js";
 import { success } from "./suite-tools.js";
 import { makeMetaFixture } from "../meta-fixture.js";
 import { RecordReferenceSchema } from "../../../src/lib/store/index.js";
@@ -8,7 +9,7 @@ import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/index.j
 const provenance = { verb: "save", lifecycleAction: "save" };
 
 export async function retainedConflictFixture(layout: "default" | "separate", kind: "abandon" | "decompose") {
-  const h = await refSyncFixture(layout);
+  const h = withOpaqueReview(await refSyncFixture(layout));
   const primary = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("retained"),
     reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "retained" } }),
     placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "activate" } }));

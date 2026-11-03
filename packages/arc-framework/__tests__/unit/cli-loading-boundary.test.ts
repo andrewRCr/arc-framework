@@ -49,6 +49,7 @@ const expectedImplementationModules = [
   "./handlers/user-sync.js",
   "./handlers/log.js",
   "./handlers/integration.js",
+  "./handlers/review-adversarial.js",
   "./handlers/review.js",
   "./handlers/reconcile.js",
   "./commands/check.js",
@@ -60,9 +61,10 @@ const expectedImplementationModules = [
   "./scripts/validate-frontmatter.js",
 ] as const;
 const deferredActiveProjectionModules = [
+  "../../lib/store/active-review-access.js",
   "../../lib/config/status-reader.js",
-  "../../lib/work-unit/submission-boundary-store.js",
-  "../../lib/work-unit/candidate-record-store.js",
+  "../../lib/store/kinds/review/integration-boundary/access.js",
+  "../../lib/store/kinds/review/candidate/access.js",
   "../../lib/work-unit/candidate-attestation.js",
   "../../lib/work-unit/git-candidate-effective-target.js",
   "../../scripts/review-gate/policy/integration-boundary-locus.js",

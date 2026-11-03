@@ -294,12 +294,16 @@ vi.mock("../../../src/lib/work-unit/verbs/publish.js", () => ({
 }));
 
 const mockReadCandidateRecord = vi.fn();
+const mockReadCandidateRecordVersioned = vi.fn();
 const mockReadRepositoryCandidateRecordRevision = vi.fn();
 const mockWriteCandidateRecord = vi.fn();
-vi.mock("../../../src/lib/work-unit/candidate-record-store.js", () => ({
+vi.mock("../../../src/lib/store/kinds/review/candidate/access.js", () => ({
   readCandidateRecord: (...a: unknown[]) => mockReadCandidateRecord(...a),
-  readRepositoryCandidateRecordRevision: (...a: unknown[]) => mockReadRepositoryCandidateRecordRevision(...a),
+  readCandidateRecordVersioned: (...a: unknown[]) => mockReadCandidateRecordVersioned(...a),
   writeCandidateRecord: (...a: unknown[]) => mockWriteCandidateRecord(...a),
+}));
+vi.mock("../../../src/lib/store/kinds/review/candidate/history.js", () => ({
+  readRepositoryCandidateRecordRevision: (...a: unknown[]) => mockReadRepositoryCandidateRecordRevision(...a),
 }));
 const mockResolveRepositoryIdentity = vi.fn();
 vi.mock("../../../src/scripts/review-gate/hosts/local/git-common-state.js", async (orig) => ({
@@ -332,7 +336,7 @@ vi.mock("../../../src/lib/work-unit/git-candidate-effective-target.js", () => ({
 }));
 const mockReadSubmissionBoundaryVersioned = vi.fn();
 const mockWriteSubmissionBoundary = vi.fn();
-vi.mock("../../../src/lib/work-unit/submission-boundary-store.js", () => ({
+vi.mock("../../../src/lib/store/kinds/review/integration-boundary/access.js", () => ({
   readSubmissionBoundaryVersioned: (...a: unknown[]) => mockReadSubmissionBoundaryVersioned(...a),
   writeSubmissionBoundary: (...a: unknown[]) => mockWriteSubmissionBoundary(...a),
 }));
@@ -499,6 +503,7 @@ beforeEach(() => {
     reservation: null,
   };
   mockReadCandidateRecord.mockResolvedValue({ attestation: { candidateId } });
+  mockReadCandidateRecordVersioned.mockResolvedValue({ record: { attestation: { candidateId } }, version: "candidate-v1" });
   mockResolveRepositoryIdentity.mockResolvedValue("repository-id");
   mockReadLaneProgressOwner.mockResolvedValue(null);
   mockCollectGitCandidateSubject.mockResolvedValue({
@@ -1388,7 +1393,11 @@ describe("handlePublish", () => {
       name: "foo",
       lastCompleted: "Phase 7 — verification",
       nextAction: "open the PR",
+      candidateVersion: "candidate-v1",
     });
+    const params = mockRunPublish.mock.calls[0]?.[1] as import("../../../src/lib/work-unit/verbs/publish.js").PublishParams;
+    mockReadCandidateRecordVersioned.mockResolvedValueOnce({ record: { attestation: { candidateId: params.candidateId } }, version: "candidate-v2" });
+    expect(await params.refreshCandidateAuthorization()).toMatchObject({ candidateVersion: "candidate-v2" });
   });
 
   it("reports the unchanged durable publication resume point as JSON", async () => {
@@ -2153,7 +2162,7 @@ describe("handleAttest", () => {
       reservation: null,
       terminus,
       changeRequest: null,
-    });
+    }, 1);
     mockParseMetaRecord.mockReturnValue({
       branch: "feat/foo",
       state: "Active",
@@ -2251,7 +2260,7 @@ describe("handleAttest", () => {
         candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
         reservation,
         changeRequest: null,
-      }),
+      }, 1),
       deliveryReviewTermini: [memberTerminus],
     };
     const deliveryContinuation = {
@@ -2360,7 +2369,7 @@ describe("handleAttest", () => {
       candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
       reservation,
       changeRequest: null,
-    });
+    }, 1);
     const deliveryContinuation = {
       schemaVersion: 1 as const,
       semanticsVersion: "delivery-public-review-continuation/v1" as const,
@@ -2483,7 +2492,7 @@ describe("handleAttest", () => {
       candidateSubjectDigest: `sha256:${"e".repeat(64)}`,
       reservation,
       changeRequest: null,
-    });
+    }, 1);
     let boundaryVersion = "source-boundary-version";
     let stateRevision = 7;
     const continuation = () => ({

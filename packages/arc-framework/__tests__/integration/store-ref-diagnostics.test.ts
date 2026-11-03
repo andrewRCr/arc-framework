@@ -9,6 +9,8 @@ import { createRefReadFixture } from "../helpers/store/ref-read.js";
 import { plantRef, removeLooseObject } from "../helpers/store/ref-plant.js";
 import { LineageRecordSchema } from "../../src/lib/store/kinds/lineage/index.js";
 import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
+import { reviewEvidenceFixture } from "../fixtures/review-evidence.js";
+import { opaqueReviewRegistry } from "../helpers/store/opaque-review.js";
 
 const uid = "12345678-1234-4234-8234-123456789abc";
 const owner = { type: "work-item", name: "alpha", uid } as const;
@@ -17,6 +19,7 @@ const metadata = { formatVersion: 1, slug: "alpha", formats: {},
   primary: { role: "work-item/meta", placement: { kind: "active" } } };
 const good = RecordReferenceSchema.parse({ owner, kind: "review/evidence", key: "good" });
 const future = RecordReferenceSchema.parse({ owner, kind: "review/evidence", key: "future" });
+const evidence = JSON.stringify(reviewEvidenceFixture());
 
 describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) => {
   it("reports a ref whose nested tree is missing unreadable in a fresh process, keeping every other ref", async () => {
@@ -24,12 +27,12 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
     const damagedUid = "87654321-4321-4321-8321-cba987654321";
     await plantRef(f.root, ref, [
       { path: `metadata-${uid}.json`, content: canonicalize(metadata) }, { path: "meta-alpha.md", content: "# Alpha\n" },
-      { path: `review/evidence-good-${uid}.json`, content: "{}" },
+      { path: `review/evidence-good-${uid}.json`, content: evidence },
     ]);
     const damaged = await plantRef(f.root, `refs/arc/work/${damagedUid}`, [
       { path: `metadata-${damagedUid}.json`, content: canonicalize({ ...metadata, slug: "beta" }) },
       { path: "meta-beta.md", content: "# Beta\n" },
-      { path: `review/evidence-good-${damagedUid}.json`, content: "{}" },
+      { path: `review/evidence-good-${damagedUid}.json`, content: evidence },
     ]);
     await removeLooseObject(f.root, (await f.exec("git", ["rev-parse", `${damaged.tree}:review`])).stdout.trim());
     expect(await createRefStore(f.ports).list({ family: "review" })).toMatchObject({ status: "ok", result: { status: "complete",
@@ -44,13 +47,13 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
 
   it("keeps readable records beside each malformed, missing, newer, and mismatched entry", async () => {
     const f = await createRefReadFixture(format);
-    const lostPath = `review/terminus-lost-${uid}.json`;
+    const lostPath = `review/decision-lost-${uid}.json`;
     const wrongPath = "review/evidence-wrong-abcdef12-1234-4234-8234-123456789abc.json";
     const planted = await plantRef(f.root, ref, [
       { path: `metadata-${uid}.json`, content: canonicalize({ ...metadata,
         formats: { [canonicalize({ kind: future.kind, key: future.key })]: 2 } }) },
-      { path: `review/evidence-good-${uid}.json`, content: "{}" },
-      { path: `review/evidence-future-${uid}.json`, content: "{}" },
+      { path: `review/evidence-good-${uid}.json`, content: evidence },
+      { path: `review/evidence-future-${uid}.json`, content: evidence },
       { path: `review/outcome-bad-${uid}.json`, content: "not JSON" },
       { path: lostPath, content: '{"lost":true}' },
       { path: "review/unknown.json", content: "{}" }, { path: wrongPath, content: "{}" },
@@ -71,7 +74,7 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
     const f = await createRefReadFixture(format);
     await plantRef(f.root, ref, [{ path: `metadata-${uid}.json`, content: canonicalize({ ...metadata,
       formats: { [canonicalize({ kind: future.kind, key: future.key })]: 2 } }) },
-      { path: `review/evidence-future-${uid}.json`, content: "{}" }]);
+      { path: `review/evidence-future-${uid}.json`, content: evidence }]);
     expect(await f.store.read({ reference: future })).toMatchObject({ status: "refused", refusal: {
       code: "record-malformed", class: "recoverable", reference: future, rule: expect.stringContaining("format"),
       remedy: { text: expect.stringMatching(/merge base|rebuild/u) },
@@ -93,8 +96,8 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
     const personal = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" }, kind: "personal/document", key: "notes.json" });
     await plantRef(f.root, "refs/arc/user/andrew/personal", [{ path: "andrew/metadata-andrew.json", content: canonicalize({ formatVersion: 1, formats: {} }) },
       { path: "andrew/notes.json.andrew", content: bytes }]);
-    expect(await f.store.read({ reference: good })).toMatchObject({ status: "ok", result: { content: '{"a":1,"z":"café"}' } });
-    expect(await f.store.list({ family: "review" })).toMatchObject({ status: "ok", result: { status: "complete",
+    expect(await createRefStore({ ...f.ports, registry: opaqueReviewRegistry() }).read({ reference: good })).toMatchObject({ status: "ok", result: { content: '{"a":1,"z":"café"}' } });
+    expect(await createRefStore({ ...f.ports, registry: opaqueReviewRegistry() }).list({ family: "review" })).toMatchObject({ status: "ok", result: { status: "complete",
       records: [expect.objectContaining({ content: '{"a":1,"z":"café"}' })], diagnostics: [], missed: false } });
     expect(await f.store.read({ reference: personal })).toMatchObject({ status: "ok", result: { content: bytes } });
   });
@@ -110,8 +113,8 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
     expect(await f.store.list({ family: "work-item" })).toMatchObject({ status: "ok", result: { status: "complete",
       records: [expect.objectContaining({ content: boundary })], missed: true,
       diagnostics: [expect.objectContaining({ kind: "oversized", key: "large-alpha.md" })] } });
-    expect(await f.store.read({ reference: good })).toMatchObject({ status: "ok", result: { content: machine } });
-    expect(await f.store.list({ family: "review" })).toMatchObject({ status: "ok", result: { status: "complete",
+    expect(await createRefStore({ ...f.ports, registry: opaqueReviewRegistry() }).read({ reference: good })).toMatchObject({ status: "ok", result: { content: machine } });
+    expect(await createRefStore({ ...f.ports, registry: opaqueReviewRegistry() }).list({ family: "review" })).toMatchObject({ status: "ok", result: { status: "complete",
       records: [expect.objectContaining({ content: machine })], diagnostics: [], missed: false } });
   });
 

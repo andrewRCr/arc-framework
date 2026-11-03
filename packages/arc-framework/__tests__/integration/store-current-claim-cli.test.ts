@@ -22,7 +22,11 @@ async function fixture(second: boolean, verb = "") {
   const other = await h.seedMeta("other", verb === "" ? { dependsOn: ["other-dependency"] } : {});
   const primary = second ? other : first, owner = primary.reference.owner;
   if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Expected the checkout owner's UID");
-  if (verb === "publish") await attestStorePublication({ ...f, ...h, live: primary, name: "example", repository });
+  const store = createClashDouble(h.store, { slug: "example", holders: [first.reference, other.reference] });
+  if (verb === "publish") {
+    const live = lifecycleSuccess(await store.read({ reference: primary.reference }));
+    await attestStorePublication({ ...f, ...h, store, live, name: "example", repository });
+  }
   if (verb === "reopen") {
     lifecycleSuccess(await h.store.write({ ...recordPut(primary, { content: renderMetaFile(owner.name,
       { state: "Integrating", owner: "test-user", workClass: "Light", currentWorkflow: "integrate-work-unit", taskList: "tasks-example.md" }) }),
@@ -32,7 +36,6 @@ async function fixture(second: boolean, verb = "") {
     await mkdir(join(f.cwd, ".arc/active"), { recursive: true });
     await writeFile(join(f.cwd, ".arc/active/tasks-example.md"), tasks);
   }
-  const store = createClashDouble(h.store, { slug: "example", holders: [first.reference, other.reference] });
   await ensureWorktreeMarkerIgnored(f.cwd, f.exec, nodeWorktreeMarkerIgnoreFs);
   await writeWorktreeMarker(f.cwd, { spawnedByArc: false, createdFor: { kind: "work-unit", name: "example", uid: owner.uid },
     spawningIdentity: "test-user", createdAt: "2026-10-24T00:00:00Z" });

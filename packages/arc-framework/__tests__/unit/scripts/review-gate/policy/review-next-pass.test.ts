@@ -36,8 +36,7 @@ function input(predecessor: ReviewResult | null, severity: "major" | "minor" = "
     predecessor, currentTarget, currentLineage: result.admission.lineage,
     standardReview: { obligation, reasons, rubricVersion, rubricDigest, retrigger, count },
     resultReader: { readResult: async () => { throw new Error("no earlier producer"); } },
-    dispositionStore: { readDispositionRecord: async () => record,
-      appendDispositionRecord: async () => { throw new Error("read-only derivation"); } },
+    dispositionStore: { readDispositionRecord: async () => record },
     readResponsePerformance: async () => record === null || !performed ? null
       : { ...performedFix(result, record), producedHeadSha: currentTarget.headSha },
   };

@@ -6,6 +6,7 @@ import { validateApprovedDispositionRecordForResult } from "../core/review-resul
 import type { IncrementalPredecessorApplicability } from "./incremental-coverage-basis.js";
 import type { PerformedResponseProofInput } from "./performed-response-proof.js";
 import { readIncrementalPredecessorResponseEvidence } from "./review-policy-evidence.js";
+import { rethrowNativeRefusal } from "../../../lib/store/native-refusal.js";
 
 /** Keep ordinary contribution grounds, but prove an approved member fix from its performed exact response. */
 export async function confirmDeliveryCorrectionLeg(
@@ -41,7 +42,8 @@ export async function confirmDeliveryCorrectionLeg(
       () => Promise.resolve(performance));
     return evidence.status === "performed" && performance?.producedHeadSha === currentTarget.headSha
       ? "applicable" : "unavailable";
-  } catch {
+  } catch (error) {
+    rethrowNativeRefusal(error);
     return "unavailable";
   }
 }
