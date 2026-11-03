@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "repeated-fix-check-successor",
+  "claimId": "dbab5d595b7b08bc9a443afe9adf87b2",
+  "createdAt": "2026-11-03T17:51:21.643Z",
+  "updatedAt": "2026-11-03T17:51:21.643Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Extend the repeated fix-check test through ceiling approval and complete successor admission.",
+  "branch": "chore/repeated-fix-check-successor",
+  "origin": "inbox",
+  "originEntry": "Carry the repeated fix-check test through the ceiling approval and the complete successor",
+  "originEntrySourceDigest": "sha256:82e46958627a51da9d9abb6e7a134037b9f9d976313a18e4da81c282295e6a35",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
