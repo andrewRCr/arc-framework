@@ -130,3 +130,15 @@ it("names both bound and unbound retirement holders before changing refs without
   expect(JSON.stringify(result)).toContain("arc locus release");
   expect([...h.refs]).toEqual(refs);
 });
+
+it("keeps a retiring branch and reports each live holder's link repair", async () => {
+  const h = await fixture();
+  const first = await h.seedMeta("one", {}, { kind: "active" }, { branches: [link()] });
+  const second = await h.seedMeta("two", {}, { kind: "active" }, { branches: [link()] });
+  const result = await runTeardown(h.ctx, { subject: { kind: "owner", owner: h.meta.reference.owner }, base: "main" });
+  expect(result).toMatchObject({ status: "torn-down", branchDeleted: false, remoteBranchDeleted: false });
+  expect(h.refs.has("refs/heads/feat/demo")).toBe(true);
+  if (result.status !== "torn-down") throw new Error("Expected retained branch");
+  for (const record of [first, second]) expect(result.notices.join(" ")).toContain(
+    `arc rename ${record.reference.owner.type === "work-item" ? record.reference.owner.uid : ""} ${record.reference.owner.name}`);
+});

@@ -1,8 +1,9 @@
 /** Metadata-based lookup of names, code links, and claims over captured state trees. */
 
+import { branchLinkRepair, clashRepair } from "../clash-repair.js";
 import type { LookupInput, LookupResult } from "../lookup.js";
 import { restartOnVanishedStore } from "./repository.js";
-import type { StoreResult, StoreRefusal } from "../refusal.js";
+import type { StoreResult, StoreRefusal, Remedy } from "../refusal.js";
 import { RecordReferenceSchema, StoredUidSchema, type RecordReference } from "../identity.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefMetadata } from "./metadata.js";
@@ -44,10 +45,17 @@ export function lookupCapturedRefTrees(context: Pick<RefBackendContext, "registr
   if (skipped) return { status: "refused", refusal: skipped };
   if (candidates.length > 1) return { status: "refused", refusal: {
     code: "ambiguous-match", class: "recoverable", candidates: candidates.map(({ reference }) => reference), ...(tie ? { tie } : {}), condition: "The lookup matches more than one record generation.",
-    remedy: { text: "Name the intended owner by UID and rename one to a free slug, then repeat the lookup." },
+    remedy: ambiguityRemedy(input, selection),
   } };
   const result = candidates[0];
   return result ? { status: "ok", result } : missingLookup(input);
+}
+
+function ambiguityRemedy(input: LookupInput, { candidates, tie }: LookupSelection): Remedy {
+  const references = candidates.map(({ reference }) => reference);
+  if (input.kind === "slug" && tie) return clashRepair(references, tie);
+  if (input.kind === "ref" && tie) return branchLinkRepair(references, tie, input.ref);
+  return { text: "Name the intended owner by UID, then repeat the lookup." };
 }
 
 function missingLookup(input: LookupInput): StoreResult<LookupResult> {

@@ -1,3 +1,4 @@
+import { clashRepair } from "../../src/lib/store/clash-repair.js";
 import { describe, expect, it } from "vitest";
 import { createRefFixture } from "../helpers/store/ref-fixture.js";
 import { seed, success, update } from "../helpers/store/suite-tools.js";
@@ -29,6 +30,7 @@ describe("ref lookup refusal tiers", () => {
     expect(await f.store.lookup({ kind: "slug", slug: target })).toMatchObject({ status: "refused", refusal: {
       code: "ambiguous-match", tie: { liveness: "completed", name: holders === "former Errands" ? "former" : "current" },
       candidates: expect.arrayContaining(references),
+      remedy: { text: expect.stringContaining("No lifecycle repair is available for completed holders:"), argv: ["arc", "status", "--json"] },
     } });
   });
   it.each(["claim", "commit", "lineage"] as const)("leaves %s ambiguity without ranked tier facts", async (kind) => {
@@ -56,7 +58,34 @@ describe("ref lookup refusal tiers", () => {
     }
     const result = await f.store.lookup(input);
     expect(result).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match" } });
-    if (result.status === "refused") expect(result.refusal).not.toHaveProperty("tie");
+    if (result.status === "refused") {
+      expect(result.refusal).not.toHaveProperty("tie");
+      expect(result.refusal.remedy.text).toBe("Name the intended owner by UID, then repeat the lookup.");
+    }
   });
 
+});
+
+it.each([
+  ["work-item/meta", "work-item/meta"], ["work-item/meta", "cohort/document"],
+  ["work-item/meta", "work-item/record"], ["work-item/record", "work-item/record"],
+  ["cohort/document", "cohort/document"],
+] as const)("repairs a live slug clash between %s and %s", async (left, right) => {
+  const f = await createRefFixture();
+  const references = [];
+  for (const [index, kind] of [left, right].entries()) {
+    const uid = `00000000-0000-4000-8000-00000000000${index + 1}`;
+    const cohort = kind === "cohort/document";
+    const reference = RecordReferenceSchema.parse({ kind, owner: { type: cohort ? "cohort" : "work-item", name: "shared", uid } });
+    await plantRef(f.root, `refs/arc/${cohort ? "cohort" : "work"}/${uid}`, [
+      { path: `metadata-${uid}.json`, content: JSON.stringify({ formatVersion: 1, formats: {}, slug: "shared", formerSlugs: [],
+        ...(cohort ? {} : { primary: { role: kind, placement: { kind: "active" } } }) }) },
+      { path: kind === "work-item/record" ? `errand-${uid}.json` : `${cohort ? "cohort" : "meta"}-shared.md`, content: f.content(reference) },
+    ]);
+    references.push(reference);
+  }
+  const result = await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("shared") });
+  expect(result).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match", candidates: expect.arrayContaining(references) } });
+  if (result.status !== "refused" || result.refusal.code !== "ambiguous-match") throw new Error("Expected clash");
+  expect(result.refusal.remedy).toEqual(clashRepair(result.refusal.candidates, { liveness: "live", name: "current" }));
 });

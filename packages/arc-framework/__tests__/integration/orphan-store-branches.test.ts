@@ -166,3 +166,14 @@ it.each(["snapshot", "run"] as const)("%s offers the archived branch holder's UI
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
   expect((await h.exec("git", ["rev-parse", branch])).stdout.trim()).toBe(h.head);
 });
+
+it.each(["snapshot", "run"] as const)("%s warns with each live branch holder's catch-up repair", async path => {
+  const h = await fixture(), name = "topic/shared";
+  await h.branch(name);
+  const links = { branches: [{ repository, ref: name, linkedAs: "created" as const, excluded: [] }] };
+  const first = await h.seedMeta("one", {}, { kind: "active" }, links);
+  const second = await h.seedMeta("two", {}, { kind: "active" }, links);
+  const result = await h.sweep(path, [name]);
+  for (const record of [first, second]) expect(result.warnings?.join(" ")).toContain(
+    `arc rename ${record.reference.owner.type === "work-item" ? record.reference.owner.uid : ""} ${record.reference.owner.name}`);
+});

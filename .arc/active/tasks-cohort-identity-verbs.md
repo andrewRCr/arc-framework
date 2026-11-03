@@ -26,44 +26,26 @@ former slug naming the current one and admit a completed meta's rewrite onto a c
 - _Outcome:_ Added `branchLinkRepair` with per-holder rename, catch-up, and Errand-close instructions on the holding
   machine; completed holders retain the UID-bearing no-repair result.
 
-### `[ ]` **1.2 Give each lookup arm's ambiguity its repair in both backends — § 3.1, § 3.3**
+### `[x]` **1.2 Give each lookup arm's ambiguity its repair in both backends — § 3.1, § 3.3**
 
 - _Goal:_ Every reader that meets a clash through the lookup prints a repair that names a command which ends it: the slug
   arm's `clashRepair`, the branch-link arm's `branchLinkRepair`, and the lineage, commit, and claim arms' narrowed text.
 
-    - `[ ]` **1.2.a The ref backend**
+    - `[x]` **1.2.a The ref backend**
 
-        - In `lookupCapturedRefTrees` (`lib/store/ref/lookup.ts`), build the `ambiguous-match` remedy by arm: the slug arm
-          with `clashRepair(candidates, tie)`, the `ref` arm with `branchLinkRepair(candidates, tie, input.ref)`, and the
-          lineage, commit, and claim arms with "Name the intended owner by UID, then repeat the lookup."
+        - Lookup ambiguities use slug-tier repairs, branch-link repairs, or the UID-only instruction by lookup arm.
 
-    - `[ ]` **1.2.b The reference backend**
+    - `[x]` **1.2.b The reference backend**
 
-        - The same three remedies in `__tests__/helpers/store/lookup.ts`, replacing "Disambiguate the stored names or
-          links", so the conformance suites assert one text over both backends.
+        - The reference lookup carries the same remedies and ranking facts over every supported holder pair.
 
-    - `[ ]` **1.2.c The readers that print it**
+    - `[x]` **1.2.c The readers that print it**
 
-        - `refuse` and `refuseWithRemedy` (`handlers/lifecycle-shared.ts`) and the paused-work disposition
-          (`lib/session-init/paused-work.ts`, its refusal arm) print the refusal's own remedy in place of rebuilding
-          `clashRepair` from any `tie`, so a branch-link tie keeps `branchLinkRepair`'s text; paused work's standing-clash
-          actions keep building `clashRepair` from their holders.
-        - `resolveStoreViewTarget` (`handlers/view-store.ts`) appends its completed-holder text only to a completed tie.
-        - The other readers already print the remedy as given — session entry, `arc status <slug>`, archive's cohort
-          read, decomposition's refusals, teardown's branch gate, the orphan-branch sweep (`readOrphanStoreCandidates`),
-          and the missing-worktree check (`readStoreMissingFolderActions`) — and take no change.
-        - The fixtures that hardcode the old text take the store's remedy: `createClashDouble`
-          (`__tests__/helpers/store/clash-double.ts`) and `rule-view.ts`, whose planted ambiguity gains a `tie`.
+        - Lifecycle and paused-work renderers preserve the supplied remedy; view adds projected-file guidance only for
+          completed ties. Clash fixtures now carry the store's own recovery instruction.
 
-    - Build `test-first` (one behavior at a time):
-        - over both backends, a slug clash of each holder pair § 1 of Success Criteria lists refuses with `clashRepair`'s
-          remedy for those types (`store-ref-lookup-ties.test.ts`, `reference-lookup-ranking.test.ts`)
-        - a live branch-link tie of two work units refuses with `branchLinkRepair`'s per-holder moves
-        - a lineage, commit, or claim tie refuses with the narrowed text, which no longer says to rename
-        - the orphan-branch sweep, the missing-worktree check, and teardown's branch gate warn with the branch-link
-          remedy under a live tie
-        - given an `ambiguous-match` refusal carrying a tie and `branchLinkRepair`'s remedy, `refuse` and
-          `refuseWithRemedy` print that remedy, in text and `--json`, rather than rebuilding `clashRepair`
+- _Outcome:_ Both backends give every lookup arm its applicable recovery; orphan, missing-worktree, and teardown reports
+  preserve the branch-link instructions, including catch-up moves for renamed holders.
 
 ### `[ ]` **1.3 Carry the tie and its repair on a refusal of a name — § 3.2, § 3.7**
 

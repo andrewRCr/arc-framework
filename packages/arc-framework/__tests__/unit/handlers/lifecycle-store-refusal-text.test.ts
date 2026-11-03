@@ -25,6 +25,6 @@ it.each([false, true].flatMap(ranked => [false, true].map(wrapped => ({ ranked, 
     expect(process.exitCode).toBe(1);
     expect(output).toContain("work unit `example`"); expect(output).toContain("cohort `example`");
     expect(output).toContain(uidA); expect(output).toContain(uidB);
-    expect(output).toContain(ranked ? `arc rename ${uidB} <new-slug>` : "Repair the recorded links.");
-    if (!ranked) expect(output).not.toContain("arc rename");
+    expect(output).toContain("Repair the recorded links.");
+    expect(output).not.toContain("arc rename");
   });

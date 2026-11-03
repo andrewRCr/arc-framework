@@ -41,7 +41,8 @@ describe("ref lookup through code links", () => {
     const other = await seed(f, f.reference("work-item/meta", "other"), undefined, { kind: "active" }, links);
     const result = await f.store.lookup(input);
     expect(result).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match",
-      tie: { liveness: "live" }, candidates: expect.arrayContaining([live.reference, other.reference]) } });
+      tie: { liveness: "live" }, candidates: expect.arrayContaining([live.reference, other.reference]),
+      remedy: { text: expect.stringContaining(`arc rename ${live.reference.owner.type === "work-item" ? live.reference.owner.uid : ""} ${live.reference.owner.name}`), argv: ["arc", "status", "--json"] } } });
     if (result.status === "refused" && result.refusal.code === "ambiguous-match") {
       expect(result.refusal.candidates).toHaveLength(2);
       expect(result.refusal.tie).not.toHaveProperty("name");

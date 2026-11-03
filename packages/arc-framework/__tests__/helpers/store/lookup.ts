@@ -1,5 +1,6 @@
 /** Source-grounded reverse lookup over references, parsed claims and stored links. */
 
+import { branchLinkRepair, clashRepair, type ClashTie } from "../../../src/lib/store/clash-repair.js";
 import type { LookupInput, LookupResult, StoreResult } from "../../../src/lib/store/index.js";
 import type { CheckoutClaim } from "../../../src/lib/store/lookup.js";
 import type { ReferenceContext } from "./context.js";
@@ -113,12 +114,18 @@ export function lookupReference(context: ReferenceContext, input: LookupInput): 
     const fault = recordAdmission(context.state, candidate.reference, context.environment.identity);
     if (fault) return refused(fault);
   }
-  if (candidates.length > 1) return refused({
-    code: "ambiguous-match", class: "recoverable", candidates: candidates.map((candidate) => candidate.reference),
-    ...(ranked === undefined ? {} : { tie: { liveness: ranked[0]!.placement?.kind === "completed" ? "completed" : "live",
-      ...(input.kind === "slug" ? { name: ranked[0]!.reference.owner.name === input.slug ? "current" : "former" } : {}) } }),
-    condition: "The lookup matches more than one record generation.",
-    remedy: { text: "Disambiguate the stored names or links, then repeat the lookup." },
-  });
+  if (candidates.length > 1) {
+    const references = candidates.map(candidate => candidate.reference);
+    const tie: ClashTie | undefined = ranked === undefined ? undefined : {
+      liveness: ranked[0]!.placement?.kind === "completed" ? "completed" : "live",
+      ...(input.kind === "slug" ? { name: ranked[0]!.reference.owner.name === input.slug ? "current" as const : "former" as const } : {}),
+    };
+    return refused({ code: "ambiguous-match", class: "recoverable", candidates: references,
+      ...(tie === undefined ? {} : { tie }), condition: "The lookup matches more than one record generation.",
+      remedy: input.kind === "slug" && tie ? clashRepair(references, tie)
+        : input.kind === "ref" && tie ? branchLinkRepair(references, tie, input.ref)
+        : { text: "Name the intended owner by UID, then repeat the lookup." },
+    });
+  }
   return ok(structuredClone(candidates[0]!));
 }
