@@ -307,6 +307,20 @@ jobs:
         path: packages/arc-framework/.test-cost-runs/duration-input
         key: arc-test-durations-Linux-${{ github.run_id }}
         restore-keys: arc-test-durations-Linux-
+    # Each portability platform's own recorded durations travel in the same handed input, restored once here so every
+    # shard of the run partitions the same file.
+    - name: Restore Windows duration cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: packages/arc-framework/.test-cost-runs/duration-input/Windows
+        key: arc-test-durations-Windows-${{ github.run_id }}
+        restore-keys: arc-test-durations-Windows-
+    - name: Restore macOS duration cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: packages/arc-framework/.test-cost-runs/duration-input/macOS
+        key: arc-test-durations-macOS-${{ github.run_id }}
+        restore-keys: arc-test-durations-macOS-
     - name: Prepare duration input
       run: node --import tsx packages/arc-framework/__tests__/helpers/prepare-duration-input.ts packages/arc-framework/.test-cost-runs/duration-input
     - name: Upload duration input
@@ -907,8 +921,9 @@ jobs:
   # Cross-platform legs keep their own install+build: OS-native deps make a
   # Linux node_modules cache unusable on Windows/macOS (Pass 1 is Linux-only).
   # Schedule and explicit dispatch opt-in retain native install/build per OS.
-  # Setup supplies the shared invocation forecast. Each OS divides the tier across six shards balanced by the
-  # integration durations; a timing-only or named-files run needs one job per OS.
+  # Setup supplies the shared invocation forecast. Each OS divides the tier across six shards balanced by its own
+  # recorded durations once a full run has saved them, and by the integration durations until then; a timing-only or
+  # named-files run needs one job per OS.
   portability-cross-platform:
     name: ${{ inputs.portability_timing_only && 'Portability timing diagnostic' || 'Portability targeted' }} (${{ matrix.os }}, ${{ matrix.shard }})
     permissions:
@@ -956,11 +971,24 @@ jobs:
       with:
         name: test-duration-input
         path: packages/arc-framework/.test-cost-runs/duration-input/
+    # Balance by this platform's recorded durations from the handed input once a full run has saved them, and by the
+    # Linux integration durations until then.
+    - name: Select duration input
+      id: durations
+      if: ${{ !inputs.portability_timing_only && !inputs.portability_files }}
+      shell: bash
+      run: |
+        name=integration.json
+        if [ -s "packages/arc-framework/.test-cost-runs/duration-input/$RUNNER_OS/portability.json" ]; then
+          name="$RUNNER_OS/portability.json"
+        fi
+        echo "Duration input: $name"
+        echo "name=$name" >> "$GITHUB_OUTPUT"
     - id: test
       if: ${{ !inputs.portability_timing_only && !inputs.portability_files }}
       run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform test --shard ${{ matrix.shard }}
       env:
-        ARC_TEST_DURATION_FILE: ${{ github.workspace }}/packages/arc-framework/.test-cost-runs/duration-input/integration.json
+        ARC_TEST_DURATION_FILE: ${{ github.workspace }}/packages/arc-framework/.test-cost-runs/duration-input/${{ steps.durations.outputs.name }}
         ARC_E2E_SKIP_BUILD: '1'
         ARC_STORE_BURSTS: '1'
         ARC_STORE_PROFILE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
@@ -1001,6 +1029,66 @@ jobs:
       run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform macos
       env:
         ARC_E2E_SKIP_BUILD: '1'
+
+  # Each platform keeps its own portability durations. Only a run that took every store suite writes, replacing the
+  # platform's file whole: a dispatch that left unreached store suites out, or ran named files or timing alone, would
+  # drop the heaviest files from it. A platform writes once all its shards report results, whatever their tests'
+  # outcome, so a failing shard's durations still count and one platform's failure never holds the other's file.
+  merge-portability-durations:
+    name: Merge & save portability durations (${{ matrix.os }})
+    permissions:
+      contents: read
+      actions: read
+    needs: portability-cross-platform
+    if: ${{ !cancelled() && needs.portability-cross-platform.result != 'skipped' && !inputs.portability_timing_only && !inputs.portability_files && (github.event_name == 'schedule' || github.ref == 'refs/heads/main' || inputs.portability_store_full) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [Windows, macOS]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: 'lts/*'
+        cache: 'npm'
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      id: nm-cache
+      with:
+        path: |
+          node_modules
+          packages/arc-framework/node_modules
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
+    - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
+      run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
+    - name: Download platform results
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+      with:
+        pattern: portability-results-${{ matrix.os }}-*
+        path: portability-results
+    # Six is the portability job's shard count; a shard that never reached its tests leaves no results file.
+    - name: Require every shard's results
+      id: complete
+      shell: bash
+      run: |
+        reported="$(find portability-results -path '*/vitest/*' -name results.json | wc -l)"
+        echo "Shards reporting results: $reported of 6"
+        echo "complete=$([ "$reported" -eq 6 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+    - name: Merge disjoint duration memberships
+      if: ${{ steps.complete.outputs.complete == 'true' }}
+      run: >-
+        node --import tsx packages/arc-framework/__tests__/helpers/merge-duration-input.ts portability-results
+        packages/arc-framework/.test-cost-runs/duration-input/${{ matrix.os }}
+    - name: Save platform duration cache
+      if: ${{ steps.complete.outputs.complete == 'true' }}
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: packages/arc-framework/.test-cost-runs/duration-input/${{ matrix.os }}
+        key: arc-test-durations-${{ matrix.os }}-${{ github.run_id }}
 
   git-floor-integration:
     name: Git floor (integration, ${{ matrix.shard }})
