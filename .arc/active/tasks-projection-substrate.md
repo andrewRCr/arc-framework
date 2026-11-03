@@ -578,7 +578,7 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
 
 - `[x]` Ready for integration
 
-- `[x]` An aside copy empty at its writer's second check is neither sent nor deleted there, and the next command's sweep
+- `[~]` An aside copy empty at its writer's second check is neither sent nor deleted there, and the next command's sweep
   settles it as any copy it takes over; and on Linux and in a dispatched run of the portability pair, the save-loss
   harness loses no save, one that left the file empty past the settle window included.
 
@@ -610,7 +610,7 @@ lock when it is next spawned, and `storage-cutover` locks any left before the fl
   without clearing recovery entries; repair permits retry. Native npm root overrides, child negations and main/bin
   entries exclude personal files while retaining a publishable control (A8).
 
-- `[ ]` The save-loss harness uses the production settle gate for all 3,000 randomized saves and completes each
+- `[x]` The save-loss harness uses the production settle gate for all 3,000 randomized saves and completes each
   trial's save before the final check, retaining the strict zero-loss assertion, deterministic within-window and
   empty-copy/next-sweep coverage. Preserved probes demonstrate the excluded final-read-to-unlink and after-unlink
   losses (A10; criterion 19).
