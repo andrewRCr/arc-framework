@@ -1,8 +1,8 @@
 # Metadata: Projection Substrate
 
-| **State** | **Owner** | **Branch**                  | **Class** | **Priority** |
-| --------- | --------- | --------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/projection-substrate` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                  | **Class** | **Priority** |
+| ------------- | --------- | --------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/projection-substrate` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-projection`
 - **Depends On:** [none]
@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:83564838a59030eba181b95579265e4cc82ae4a0b0b9ef2562ee53cc819557ff`
 
-- **Current Workflow:** `prepare-work-unit`
+- **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 5.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run or resume the typed pre-publication review procedure.
+- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
 
 - **PR URL:** [none]
 - **Completed:** [none]
