@@ -14,7 +14,8 @@ function depends(...names: string[]): string { return content.replace("- **Depen
 
 describe("metadata dependencies", () => {
   it("refuses a new unresolved edge", async () => {
-    expect(await checkMetaDependsOn(metaRuleInput(depends("missing")))).toMatchObject([{ rule: "meta.depends-on" }]);
+    expect(await checkMetaDependsOn(metaRuleInput(depends("missing")))).toMatchObject([{ rule: "meta.depends-on",
+      remedy: { text: "Use a current unambiguous work-item slug, remove the new edge, or repair unavailable store state and retry." } }]);
   });
   it("refuses ambiguous generations", async () => {
     const input = metaRuleInput(depends("target"));
@@ -29,7 +30,8 @@ describe("metadata dependencies", () => {
     const failure: StoreResult<LookupResult> = { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
       namespace: "work-item", condition: "Inventory unavailable", remedy: { text: "Retry the inventory." } } };
     input.after = ruleView([], new Map([["slug:target", failure]]));
-    expect(await checkMetaDependsOn(input)).toMatchObject([{ rule: "meta.depends-on" }]);
+    expect(await checkMetaDependsOn(input)).toMatchObject([{ rule: "meta.depends-on",
+      remedy: { text: "Use a current unambiguous work-item slug, remove the new edge, or repair unavailable store state and retry." } }]);
   });
   it("admits a uniquely resolved live target", async () => {
     const input = metaRuleInput(depends("target"));

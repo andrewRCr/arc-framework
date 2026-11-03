@@ -4,7 +4,8 @@ import { resolveArcPath } from "../../../layout/index.js";
 import { parseCohortDocument } from "../cohort/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../identity.js";
 import { SlugSchema } from "../../../kernel/index.js";
-import { brokenRule, observeRecord } from "../rule-support.js";
+import type { Remedy } from "../../refusal.js";
+import { brokenRule, observeRecord, observeNamedRecord } from "../rule-support.js";
 import { metaFieldChanged, metaFieldVersions } from "./check-support.js";
 import type { BrokenRule, WriteCheckInput } from "../../write-check.js";
 /** Check newly introduced dependency edges.
@@ -20,15 +21,26 @@ export async function checkMetaDependsOn(input: WriteCheckInput): Promise<readon
   const wait = next.pause?.waitsOn, priorWait = versions.prior?.pause?.waitsOn;
   if (metaFieldChanged(versions, "pause") && wait?.kind === "work-unit"
     && !(priorWait?.kind === "work-unit" && priorWait.slug === wait.slug)) changed.push(wait.slug);
-  const problems: string[] = [];
+  const problems: string[] = [], repairs: Remedy[] = [];
   for (const edge of changed) {
     const slug = SlugSchema.safeParse(edge);
     if (!slug.success) { problems.push(`${edge}: expected a slug`); continue; }
     const resolved = await input.after.lookup({ kind: "slug", slug: slug.data });
-    if (resolved.status === "refused") problems.push(`${edge}: ${resolved.refusal.condition}`);
+    if (resolved.status === "refused") {
+      problems.push(`${edge}: ${resolved.refusal.condition}`);
+      if (resolved.refusal.code === "ambiguous-match") repairs.push(resolved.refusal.remedy);
+    }
   }
-  return problems.length === 0 ? [] : [brokenRule("meta.depends-on", `Unresolved new dependencies: ${problems.join("; ")}.`,
-    "Use a current unambiguous work-item slug, remove the new edge, or repair unavailable store state and retry.")];
+  return problems.length === 0 ? [] : [{ rule: "meta.depends-on", condition: `Unresolved new dependencies: ${problems.join("; ")}.`,
+    remedy: dependencyRemedy(repairs, problems.length) }];
+}
+function dependencyRemedy(repairs: readonly Remedy[], problems: number): Remedy {
+  const fixed = "Use a current unambiguous work-item slug, remove the new edge, or repair unavailable store state and retry.";
+  if (repairs.length === 0) return { text: fixed };
+  const single = repairs[0];
+  if (single !== undefined && problems === 1) return single;
+  return { text: [...repairs.map(repair => repair.text), ...(problems > repairs.length ? [fixed] : [])].join(" "),
+    argv: ["arc", "status", "--json"] };
 }
 /** Check newly introduced Design entries.
  * @param input - Proposed metadata write.
@@ -64,7 +76,8 @@ export async function checkMetaCohort(input: WriteCheckInput): Promise<readonly 
   if (parts.length > 2 || !parts.every((part) => SlugSchema.safeParse(part).success)) problem = "expected one or two cohort slugs";
   else {
     const reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: parts.at(-1) }));
-    const record = await observeRecord(input.after, reference);
+    const record = await observeNamedRecord(input.after, reference);
+    if (record.status === "ambiguous") return [{ rule: "meta.cohort", condition: `${path}: ${record.condition}.`, remedy: record.remedy }];
     if (record.status !== "known") problem = record.status === "unavailable" ? record.condition : "cohort document is absent";
     else if (record.value.placement?.kind === "completed") problem = "cohort is completed";
     else {

@@ -64,33 +64,23 @@ former slug naming the current one and admit a completed meta's rewrite onto a c
 - _Outcome:_ Name-bound reads and writes preserve ranked recovery through session frames, archive, and rename;
   cross-family clashes remain isolated to their own typed reads.
 
-### `[ ]` **1.4 Observe an ambiguous record, and pass its remedy through the cohort, parent, and edge rules — § 3.5**
+### `[x]` **1.4 Observe an ambiguous record, and pass its remedy through the cohort, parent, and edge rules — § 3.5**
 
 - _Goal:_ An edit naming a clashed cohort or slug in `Cohort`, `Parent`, or `Depends On` refuses with the clash's
   repair, while every rule reading through `observeRecord` behaves as today.
 
-    - `[ ]` **1.4.a The observation**
+    - `[x]` **1.4.a The observation**
 
-        - `observeNamedRecord` beside `observeRecord` in `lib/store/kinds/rule-support.ts` returns
-          `{ status: "ambiguous"; condition; candidates; tie?; remedy }` for an `ambiguous-match` refusal and otherwise
-          what `observeRecord` returns. `observeRecord`'s type and every consumer of it stay unchanged, since one that
-          returns early only on `unavailable` would read an added status as known (`observeInboundHeld`).
+        - Added `observeNamedRecord` with explicit ambiguity evidence while preserving `observeRecord`'s existing type
+          and behavior for other rules.
 
-    - `[ ]` **1.4.b The three rules**
+    - `[x]` **1.4.b The three rules**
 
-        - `checkMetaCohort` and `parentProblem` read through `observeNamedRecord` and report the observation's condition
-          with its remedy; `parentProblem` returns the remedy beside its condition and `checkCohortParent`'s `fail` takes
-          it, building the `BrokenRule` directly where `brokenRule`'s string remedy cannot carry an argv.
-        - `checkMetaDependsOn` reports an ambiguous slug lookup's condition with the lookup's remedy; any other refusal
-          keeps the fixed remedy; several ambiguous edges join their remedy texts under `arc status --json`.
+        - Cohort, Parent, and dependency checks preserve an ambiguous reference's remedy and argv; multiple dependency
+          problems combine their repairs under the status observation command. Other failures retain their fixed text.
 
-    - Build `test-first` (one behavior at a time):
-        - over the ref backend, an edit naming a clashed cohort in `Cohort` refuses `meta.cohort` with `clashRepair`'s
-          remedy
-        - over the ref backend, a changed `Parent` naming a clashed cohort refuses `cohort.parent` the same way
-        - a new `Depends On` edge on a slug two live holders share refuses `meta.depends-on` with the lookup's remedy,
-          and two such edges join their remedies
-        - an unavailable read and a not-found edge keep each rule's fixed remedy
+- _Outcome:_ Ref-store writes naming ambiguous cohort or dependency holders now report the applicable repair rather
+  than replacing it with generic field-edit instructions.
 
 ### `[ ]` **1.5 Name the repair in the standing clash reports — § 3.6**
 

@@ -1,6 +1,7 @@
 /** Cohort Purpose, Parent, and retirement integrity over the proposed state. */
 import { OwnerIdentitySchema, recordReferences } from "../../identity.js";
-import { brokenRule, observeRecord, type RuleObservation } from "../rule-support.js";
+import type { Remedy } from "../../refusal.js";
+import { brokenRule, observeRecord, observeNamedRecord, type RuleObservation } from "../rule-support.js";
 import { changedCohortFields, observeOpenCohorts, observeOpenMembers, observeOpenCohortHoldings, type OpenCohort, type OpenMember } from "./check-support.js";
 import { parseCohortDocument } from "./parser.js";
 import type { BrokenRule, StoreView, WriteCheckInput } from "../../write-check.js";
@@ -22,11 +23,11 @@ export function checkCohortPurpose(input: WriteCheckInput): readonly BrokenRule[
 export async function checkCohortParent(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
   const next = changedCohortFields(input, "parent");
   if (next === undefined) return [];
-  const fail = (condition: string): readonly BrokenRule[] => [brokenRule("cohort.parent", condition,
-    "Use an open top-level parent, keep nesting to one level, and settle all open member paths in the same batch.")];
+  const fail = (condition: string, remedy?: Remedy): readonly BrokenRule[] => [{ rule: "cohort.parent", condition,
+    remedy: remedy ?? { text: "Use an open top-level parent, keep nesting to one level, and settle all open member paths in the same batch." } }];
   if (next.parent !== null) {
     const problem = await parentProblem(input.after, next.parent);
-    if (problem !== undefined) return fail(problem);
+    if (problem !== undefined) return fail(problem.condition, problem.remedy);
   }
   const [cohorts, members] = await Promise.all([observeOpenCohorts(input.after), observeOpenMembers(input.after)]);
   if (cohorts.status !== "known") return fail(cohorts.status === "unavailable" ? cohorts.condition : "Open cohort evidence is unavailable.");
@@ -74,13 +75,16 @@ export async function checkCohortArchiveCloseout(input: WriteCheckInput): Promis
   return before.value.length > 0 && after.value.length === 0
     ? fail(`The archive batch removes the final open member or subcohort of ${name} without completing its document.`) : [];
 }
-async function parentProblem(view: StoreView, name: string): Promise<string | undefined> {
-  const parent = await observeRecord(view, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name })));
-  if (parent.status !== "known") return parent.status === "unavailable" ? parent.condition : "The named parent cohort is absent.";
-  if (parent.value.placement?.kind === "completed") return "The named parent cohort is completed.";
+async function parentProblem(view: StoreView, name: string): Promise<{ condition: string; remedy?: Remedy } | undefined> {
+  const parent = await observeNamedRecord(view, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name })));
+  if (parent.status === "ambiguous") return { condition: parent.condition, remedy: parent.remedy };
+  if (parent.status !== "known") return { condition: parent.status === "unavailable" ? parent.condition : "The named parent cohort is absent." };
+  if (parent.value.placement?.kind === "completed") return { condition: "The named parent cohort is completed." };
   const parsed = parseCohortDocument(parent.value.content);
-  return !parsed.success ? parsed.error : parsed.data.parent !== null ? "The named parent is already nested below another cohort." : undefined;
+  return !parsed.success ? { condition: parsed.error } : parsed.data.parent !== null
+    ? { condition: "The named parent is already nested below another cohort." } : undefined;
 }
+
 function memberAgrees(member: OpenMember, name: string, parent: string | null, cohorts: readonly OpenCohort[]): boolean {
   const parts = member.cohort?.split("/") ?? [];
   if (!parts.includes(name)) return true;
