@@ -870,7 +870,7 @@ before its fix and passes after it in the store suites.
   new member's verbatim Design entry. The retained probe and closure evidence are recorded under A3 in
   `notes-storage-ref-hardening.md`.
 
-### `[ ]` **7.R2 Select competing approval roots — § 9.1 (A4)**
+### `[x]` **7.R2 Select competing approval roots — § 9.1 (A4)**
 
 - _Goal:_ A competing-root lineage with an eligible explicit choice resumes composed approval reads and native response
   authority without changing approved evidence, while stale choices, selector conflicts, and excluded performed/settled
@@ -878,56 +878,43 @@ before its fix and passes after it in the store suites.
 
 **Additional Context:** `notes-storage-ref-hardening.md` § A4 — Explicit repair of competing approval roots.
 
-- _Note:_ Execute after 5.12 and 5.13 and before 8.1. Subtasks a–f form one implementation review increment and atomic
-  commit; the selector ships with its admission, composition, command, and executable recovery path.
+    - `[x]` **7.R2.a Reproduce and register the exact repair state**
+        - Native producers in independent clones reproduce competing roots. The selector kind, stable key, codec,
+          registration, path and machine-record fixtures are integrated; structural/property assertions supplement the
+          native behavioral witness. Raw codec JSON and keys derive from canonical producer-bound branch constructors.
 
-- _Approach:_ Build `test-first` (one behavior at a time):
+    - `[x]` **7.R2.b Select one valid branch across native readers**
+        - One loader validates complete branches at the original manifest. Native response snapshots route operation,
+          settlement/pass, hosted-result and approval authority through selected facts, retaining immutable-only access,
+          orphan detection, missing-producer behavior and original refusal attribution.
 
-    - `[ ]` **7.R2.a Reproduce and register the exact repair state**
-        - Native two-clone producer-generated approvals first demonstrate the current second-root refusal. Add the one
-          selector kind, codec, stable key, and necessary native, memory-conformance, and machine-record fixture
-          coverage. No fake approval content or opaque production registry.
+    - `[x]` **7.R2.c Apply a choice atomically and preserve provenance**
+        - Raw preview and locked selector admission bind the complete evidence/result inventory and current policy.
+          Selected advances continue without rewriting retained approvals; excluded native authority replay refuses while
+          raw exact replay remains available. Valid remote intake retains facts without a spurious local-advance warning.
 
-    - `[ ]` **7.R2.b Select one valid branch across native readers**
-        - Implement the shared selection loader/validator and additive native response capability; propagate it through
-          family composition, reader/writer input types, and fixtures. Preserve evidence-first composed reads and
-          outcome-first native snapshots. Route lane reconstruction, settlement/pass derivation, hosted settled-result
-          projection, and approval-based authorization through selected authority. Cover absence, single roots, selected
-          reads, missing producers with orphan evidence/selectors, and formerly excluded branches remaining alone.
-          Distinguish loaded empty authority from not-requested immutable-only result access.
+    - `[x]` **7.R2.d Repair competing selections**
+        - Opposite choices produce ordinary whole-record conflicts. The real command restores damaged alternatives at
+          their exact coordinates, refuses partial or conflict-only raced bases, and resumes through fresh preview/apply
+          without losing any approval or conflict alternative.
 
-    - `[ ]` **7.R2.c Apply a choice atomically and preserve provenance**
-        - Implement preview/basis/apply, admission checks, exact-version observations, and eligible-root policy. Show
-          byte-identical retained evidence and successful normal continuation. Cover a new root or changed performance
-          between preview and apply. Validate excluded authority on current-tail and authority-bearing replay paths
-          while retaining allowed exact physical fact replay.
+    - `[x]` **7.R2.e Exercise the real CLI seam**
+        - Built-command file/stdin requests select exact owner generations in both native layouts without usable legacy
+          files. Native invocation-bound consumers exercise selected pending-fix continuation, excluded authority refusal,
+          late offline effects and consistent reads across live-ref movement. Strict command/schema inventories and
+          the existing real-CLI no-input matrix include the new command and request/result roots. Lazy-loading and
+          factory boundaries, command help and declared source/build reach cover the explicit CLI adapter.
 
-    - `[ ]` **7.R2.d Repair competing selections**
-        - Produce opposite selections in real clones, pull their whole-record conflict, and resolve it through the same
-          command. Exercise partial/stale conflict refusal followed by successful fresh preview/apply. Evidence
-          conflicts, missing data, and protected branches retain their refusal.
+    - `[x]` **7.R2.f Close the amended boundary**
+        - Retained native runs and reconstructed controls cover refusal and executable restoration. Before/after native
+          traces cover every amended reader class, ordinary/selected controls, raw advances, approval replay and sync;
+          final measurements preserve the stated access and process bounds. Final work-unit criteria remain unmarked.
 
-    - `[ ]` **7.R2.e Exercise the real CLI seam**
-        - Run preview/apply and conflict recovery through the built command in temporary native repositories, in both
-          layouts, without usable legacy review files. Cover exact UID selection, wrong/stale owner/result inputs,
-          selected-branch continuation, rejected excluded advances, and late offline facts. Use production
-          invocation-bound native family ports for operation reads/snapshots and response continuation after repair.
-          Select pending-fix over approved no-fix branches in local and frontline cases: reads succeed while remaining
-          unsettled, excluded approval grants no authority, and performing the selected response permits normal
-          continuation. Exercise live-ref movement between snapshot-dependent reads and invalid-selector refusal before
-          authority is returned. Ordinary `createStore` still selects the in-repo backend today; the built repair CLI
-          proves the direct ref-store route, while native consumer tests prove its continuation without inventing a
-          post-cutover backend flag.
-
-    - `[ ]` **7.R2.f Close the amended boundary**
-        - Re-run the native scenarios and source/lint checks and both type checks, measure and retain process deltas for
-          every reader class in the cost bounds, ordinary/selected controls, evidence advances, and sync checks, and
-          verify the amended criteria. Check that immutable-only result reads avoid evidence/selector access and that
-          snapshot reuse avoids duplicate outcome discovery. Reuse captured write views for admission; an extra native
-          process outside the expressly permitted response-selection changes requires a new decision. Original
-          refusal/property cases may use narrow reconstructed controls; unknown-command/import/type errors alone are not
-          fail-first witnesses. Preserve the unresolved policy boundary explicitly. Final work-unit criteria remain
-          unmarked until Phase 8.
+- _Outcome:_ Explicit root selection resumes eligible native review authority while preserving every approved fact.
+  Snapshot validation and complete locked observations refuse stale or unsafe choices; the same command repairs
+  selector conflicts. Multiple performed/settled branches retain their explicit policy block. The selector, native
+  consumers, command and recovery path land together; detailed corrections and measurements are recorded in
+  A4’s implementation and recovery evidence in `notes-storage-ref-hardening.md`.
 
 ## **Phase 8:** Verification
 

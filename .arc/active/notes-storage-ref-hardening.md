@@ -633,6 +633,125 @@ this capture and the agreed remaining execution. Fresh notes-save/personal-write
 for 5.12/5.13; the earlier hold was released. No trial, repair implementation, or process-cost measurement is attested
 by these planning results. The post-settle capture reread compares the authored record with the reviewed proposal.
 
+### Implementation and recovery evidence
+
+Task 7.R2 adds the registered `review/evidence-root-selection` machine record and the direct-ref JSON command
+`arc store repair-review-roots`. Its preview inventories raw facts even when ordinary composed reads refuse. Apply
+binds the exact owner, immutable result, complete evidence inventory, selector, and every conflict alternative;
+locked admission validates the final inventory and resolves only the observed complete conflict set. The selector
+retains every approved record and uses ordinary whole-record merging, version observations, and owner-ref admission.
+
+The shared loader preserves the evidence-first composed snapshot and outcome-first native snapshot. Native
+`responses` supplies selected authority to operation reconstruction, settlement/pass derivation, hosted results,
+conditional authority, performance, approval/successor replay, and settlement continuation. Local/frontline immutable
+producer-result reads keep outcome-only access. Raw evidence access continues to expose every branch. The physical
+selector path uses `root-selection-` so it cannot collide with the existing evidence path decoder.
+
+The final focused run, `storage-a4-native-closure.log`, passes 91 cases across nine native integration suites and
+three unit suites. The broader `storage-a4-native-unit-closure.log` passes 1,698 cases in 150 existing/new unit files.
+Both native layouts exercise producer-generated competing approvals, real built CLI preview/apply, exact UID/name
+selection, pending-fix continuation, raw evidence retention, opposite-selector conflict resolution, changed evidence,
+new/missing roots, missing outcomes, orphan/malformed selectors, canonical fact keys, late offline performance, and
+repair followed by normal continuation. Snapshot interleavings cover safe selector movement and an unsafe captured
+choice that a later valid choice must not conceal. Actual hosted approvals contain settlement, including empty
+settlement: competing protected branches return non-retryable policy-blocked and preserve every fact. No selectable
+hosted fixture is invented by stripping its producer's settlement. Multiple performed/settled branches remain outside
+this repair.
+
+Narrow reconstruction controls preserve exported interfaces and run to behavioral failures before exact source
+restoration. Retained logs cover selected native authority and current-tail replay; missing/malformed producer facts;
+selector observations, keys, bindings, removal and new-root admission; excluded performed/settled nodes; complete
+snapshot reuse and immutable-only access; stale/new inventory; and partial selector conflict resolution. The final
+request-basis control fails eight real-CLI cases when exact basis comparison is disabled: wrong immutable-result
+coordinates and omitted selector conflicts otherwise apply. The restored implementation passes those cases in the
+final focused run. Registration, parser/path, and generic kind-conformance assertions are structural/property checks,
+not independent pre-fix behavioral witnesses. The early conflict-race attempt changed the selector version and was
+already refused; it is not an unsafe-acceptance witness. The corrected race keeps selector content/version unchanged
+while adding a conflict and fails twice without the complete conflict observation/final-state guard. Compile/import
+errors and the early invalid hosted fixture are not counted as fail-first evidence.
+
+### In-range corrections
+
+Known-cause failures were repaired within § 9.1 and the approved 7.R2 range, then rerun:
+
+- **7.R2.a:** Native codec qualification supplies the new selector's canonical JSON/key fixture, deriving its branch
+  IDs from the existing producer-bound approval constructors instead of falling back to projected prose content.
+- **7.R2.b:** Fault injection follows the new public Store boundary. Malformed-selector listing diagnostics reuse the
+  registered path decoder without another capture. Missing-producer performed-fix judgment retains its original
+  restore-approved-response stop. Existing reciprocal-edge ordering, missing-outcome classification, context remedies,
+  and ordinary successor-admission remedies retain their prior refusal attribution; the nine broader regression
+  failures clear without weakening their assertions.
+- **7.R2.c:** Selected evidence admission was pulled forward when continuation reached the competing-root write check.
+  Sync validates the resulting complete selection without treating retained remote intake as a local excluded advance.
+  Preview now shares canonical evidence/outcome key validation with authority readers; four misplaced-key cases fail
+  before this correction and resume after exact forward restoration. Preview permits only the existing snapshot-token
+  ref to advance while authoritative refs remain unchanged.
+- **7.R2.c:** The bounded advisor consultation identified native approval replay as authority-bearing: append success
+  feeds settlement/policy continuation. Source inspection confirmed those callers. The publisher now uses one selected
+  authority snapshot, reuses its outcome/evidence, rejects excluded or superseded approval replay, and retains exact raw
+  physical replay. Six native cases expose the prior acknowledgement; selected replay and normal continuation pass
+  after repair. This consultation supplies advice, not independent verification or standard-review attestation.
+- **7.R2.d:** Damaged selector alternatives retain their actual conflict-record coordinates for restoration. Apply
+  observes the selector's complete conflict set, and the kind check rejects a local final selector with unresolved
+  conflicts, covering conflict-only races and alternate direct Store writers. Both recover through fresh preview/apply.
+- **7.R2.e:** Broad related feedback identified four stale command/schema inventory assertions. The strict raw-Git
+  command list, authored request roots, production schema IDs, and executable no-input matrix now include the new
+  command and request/result roots. The real stdin matrix case retains the structured malformed-request refusal;
+  its added pipe invocation also updates the matrix's fixed platform counts without changing transport selection.
+  The full merge gate also exposed missing lazy-module/factory inventory entries, command help, and CLI artifact
+  reach. The explicit adapter is now included in those boundaries, and reach includes the launcher plus its CLI
+  source/build closure rather than treating generated bundle bytes as tracked inputs.
+- **7.R2.f:** Pure helper extraction meets the existing complexity limits while retaining admission and lineage rules.
+  No suppression or test assertion was relaxed.
+
+### Native process measurements
+
+Raw probes, before/after traces, JSON summaries, reconstructed-control logs, and final runs are retained under
+`~/dev/arc-evidence/storage-ref-hardening/approval-root-repair/implementation/`. Git Trace2 start events count actual
+native child processes within each logical operation, including transport helpers; fixture/build work lies outside
+the measurement. Each row uses a fresh Store/family binding. All comparisons ran on the same registered `m4-mini`
+runner against baseline `deb116df5d`. Counts include the existing snapshot-retention token where its first acquisition
+creates one. These measurements do not qualify hosted Windows behavior.
+
+`storage-a4-process-deltas.json` contains 80 ordinary before/after rows. `storage-a4-process-final.json` contains those
+80 ordinary rows plus 38 selected rows. The final source rerun matches every command count and Store-call sequence
+from the earlier 118-row measurement. `storage-a4-approval-process-deltas.json` adds 12 initial/replay rows per version
+after the native approval correction. Temporary probes and the detached baseline checkout are removed.
+
+| Operation                                   | Native process change or retained count                           |
+| ------------------------------------------- | ----------------------------------------------------------------- |
+| Composed absence, keyed/aggregate           | +3: one each `cat-file`, `config`, `diff-tree`                    |
+| Composed single root, keyed/aggregate       | +5: `cat-file` +1, `config` +2, `diff-tree` +2                    |
+| Native owner lane/snapshot                  | +3: `cat-file` +1, `config` +2, `diff-tree` +1, `for-each-ref` −1 |
+| Hosted producer result                      | 9 → 12 in either layout; same scoped authority pattern            |
+| Immutable local/frontline producer result   | No added process or evidence/selector call                        |
+| Raw evidence read / exact replay            | Unchanged: 1 / 8 processes in either layout                       |
+| Raw physical performance                    | Unchanged: 11 default / 13 separate                               |
+| Ordinary and selected sync                  | Unchanged: 32 default / 34 separate                               |
+| Public performance                          | 18 → 23 default / 20 → 25 separate                                |
+| Conditional capture                         | 22 → 27 default / 24 → 29 separate                                |
+| Selected composed keyed / aggregate         | 11 / 9 processes                                                  |
+| Selected native owner lane/snapshot         | 10 processes each                                                 |
+| Selected keyed authority / immutable result | 9 / 6 processes                                                   |
+| Selected public performance                 | 23 default / 25 separate                                          |
+| Local/frontline approval initial            | 24 → 25 default / 26 → 27 separate                                |
+| Local/frontline approval replay             | 9 → 14 in either layout                                           |
+| Hosted approval initial                     | 27 → 25 default / 29 → 27 separate                                |
+| Hosted approval replay                      | 12 → 14 in either layout                                          |
+
+The reader increases stay within A4's explicit response-authority access changes. Keyed native authority uses one
+outcome listing, evidence at that manifest, and one targeted selector read; it reuses those facts instead of adding
+old raw/result lookups. Owner authority lists O/E/S once each. Composed reads retain evidence-first anchoring and
+point outcome scope. Immutable local/frontline reads request O only. Approval publication also retains its existing
+project-identity validation. No added version capture, duplicate outcome discovery, or unrelated-family enumeration
+appears in these sequences. Admission uses captured write views; the extra selector observation/final-state check
+adds no native process to raw advances or sync. A2's completed-quarter exception remains separate.
+
+The amended boundary is revalidated by 7.R2.f's source/test/type/lint and process evidence. Final work-unit criteria
+remain unmarked until 8.1, including their exact-head hosted qualification and fresh real-state import trial. The
+5.12/5.13 personal-file hold is released; no hold is active during this implementation. The final trial requires a
+fresh notes save and coordinated personal-write hold because registered checkouts' personal files are read live.
+
 ## Bound-mapping trial rehearsal
 
 Task 5.12 ran the real built CLI at `045aaa8bae` under a confirmed universal personal-write hold. Notes were saved

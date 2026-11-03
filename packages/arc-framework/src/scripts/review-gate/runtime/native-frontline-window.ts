@@ -93,6 +93,16 @@ function matchingApprovedFix(value: ReviewDecision, input: Parameters<typeof rea
     && (input.producerId === undefined || choice.precondition.producerId === input.producerId);
 }
 
+async function selectedFixPerformance(facts: NativeReviewFactPorts, precondition: ApprovedFixChoice["precondition"]) {
+  const response = await facts.responses.read(precondition.producerId, "authority");
+  if (response.status === "missing-producer" || response.evidence.length === 0) {
+    throw new Error("Restore the approved fix response before retrying its frontline continuation.");
+  }
+  const approval = response.evidence.find(record => record.value.dispositionSet.dispositionSetId === precondition.dispositionSetId);
+  return approval?.value.successorDispositionSetId === null && approval.value.dispositionSet.producerId === precondition.producerId
+    ? approval.value.performance : undefined;
+}
+
 /** Observe a live performed-fix grant that continues the current subject beyond its producer's original cap. */
 export async function readNativeApprovedFixPassJudgment(facts: NativeReviewFactPorts, input: {
   repositoryId: string; lineage: LaneSubjectLineage; lane: "frontline" | "standard"; producerId?: string; passCount: number; headSha: string;
@@ -108,12 +118,10 @@ export async function readNativeApprovedFixPassJudgment(facts: NativeReviewFactP
     const precondition = value.choice.precondition;
     const key = reviewDecisionKey(value);
     if (listing.records.some(({ value: other }) => other.choice.kind === "withdrawal" && other.choice.decisionKey === key)) continue;
-    const approval = await facts.evidence.read(precondition.dispositionSetId);
-    if (approval === null) throw new Error("Restore the approved fix response before retrying its frontline continuation.");
-    if (approval.value.successorDispositionSetId !== null || approval.value.performance === undefined
-      || approval.value.dispositionSet.producerId !== precondition.producerId) continue;
+    const performance = await selectedFixPerformance(facts, precondition);
+    if (performance === undefined) continue;
     if (await approvedFixPassConsumed(facts, key)) continue;
-    const fromHeadSha = approval.value.performance.producedHeadSha;
+    const fromHeadSha = performance.producedHeadSha;
     if (fromHeadSha === input.headSha || await input.confirmResponseHeadContinuation?.({
       repositoryId: input.repositoryId, lineage: input.lineage, producerId: precondition.producerId,
       dispositionSetId: precondition.dispositionSetId, originatingHeadSha: precondition.originatingHeadSha,

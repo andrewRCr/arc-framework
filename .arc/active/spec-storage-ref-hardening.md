@@ -1506,6 +1506,6 @@ wrapper are implementation detail.
   _Supersedes:_ § 10 ¶1. _Trigger:_ 7.5 must-stop. _Work:_ 7.5.R. _Revalidated:_ 7.5.R.
 
 - **A4** — 2026-11-03 — design: select roots. _Supersedes:_ Goals ¶10, Cross-cutting ¶2/4, SC 4.
-  _Trigger:_ 8.1 must-stop. _Work:_ 7.R2. _Revalidated:_ pending → 7.R2.f.
+  _Trigger:_ 8.1 must-stop. _Work:_ 7.R2. _Revalidated:_ 7.R2.f.
 
 ---

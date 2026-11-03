@@ -7,6 +7,7 @@ import { isReviewEvidenceAdvance } from "./advances.js";
 import { readEvidenceHistory } from "./history.js";
 import { checkEvidenceSuccession } from "./succession.js";
 import { checkEvidenceSettlementCarry } from "./settlement-check.js";
+import { checkSelectedEvidenceAdvance } from "../evidence-root-selection/evidence-admission.js";
 
 /** Admit complete evidence and only its permitted in-place advances. */
 export async function checkReviewEvidence(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
@@ -26,7 +27,11 @@ export async function checkReviewEvidence(input: WriteCheckInput): Promise<reado
       "The write changes approved evidence outside its permitted in-place advances.",
       "Preserve existing evidence and perform one permitted monotonic advance."));
   }
-  return [...rules, ...checkEvidenceSuccession(value, prior ?? undefined, before.value, after.value),
+  const selection = await checkSelectedEvidenceAdvance(input, value, prior ?? undefined, after.value);
+  if (selection.rules.length > 0) return [...rules, ...selection.rules];
+  const allowSelectedRoot = selection.validSelection && (prior !== undefined && prior !== null
+    || input.writer.kind === "verb" && input.writer.verb === "sync");
+  return [...rules, ...checkEvidenceSuccession(value, prior ?? undefined, before.value, after.value, allowSelectedRoot),
     ...checkEvidenceSettlementCarry(value, after.value),
     ...await checkReviewEvidenceResult(input, value)];
 }

@@ -106,6 +106,16 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
   ...Object.fromEntries(automaticRequestPaths.map((path) => [path, {
     summary: COMMAND_SUMMARIES[path], notes: requestSourceNotes,
   }])),
+  "store repair-review-roots": {
+    summary: COMMAND_SUMMARIES["store repair-review-roots"],
+    purpose: "Preview competing approvals and explicitly select one eligible branch while retaining every approved response.",
+    notes: requestNotes,
+    examples: [
+      ["arc store repair-review-roots --schema", "Read the preview/apply request schema"],
+      ["arc store repair-review-roots preview.json", "Preview an exact owner's producer before choosing a root"],
+      ["arc store repair-review-roots - < apply.json", "Apply an explicit choice using its fresh preview basis"],
+    ],
+  },
   "errand merge": {
     summary: COMMAND_SUMMARIES["errand merge"],
     notes: [["Input and output:", "Read the exact approved merge request from a JSON file or - for stdin. "

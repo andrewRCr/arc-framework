@@ -15,7 +15,7 @@ it.each(["local", "frontline", "hosted"] as const)("captures a %s conditional pa
   onTestFinished(checkout.cleanup);
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
   const operations = new NativeReviewInFlightStateStore({ publisher, workItem: f.primary.reference.owner,
-    outcomes: f.input.outcomes, evidence: f.input.evidence, decisions: f.input.decisions, projectId: f.input.readProjectId });
+    outcomes: f.input.outcomes, evidence: f.input.evidence, decisions: f.input.decisions, projectId: f.input.readProjectId, responses: f.input.responses });
   const captured = await captureConditionalNextPassAuthorization(operations, f.input.capture);
   const decision = await f.input.decisions.read(captured.authorizationId);
   expect(decision?.value).toMatchObject({ choice: { kind: "extra-pass", passCount: f.outcome.logicalPass,

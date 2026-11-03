@@ -265,6 +265,12 @@ program
   });
 
 const storeCmd = program.command("store", { hidden: true }).description("Operate on the ref store explicitly");
+storeCmd.command("repair-review-roots").argument("[file]", "JSON request file, or - for stdin")
+  .option("--schema", "Emit the versioned JSON request schema")
+  .action(withInteractionContext({ machineReadable: () => true },
+    async (_context, file: string | undefined, options: import("./commands/store-review-root-repair.js").StoreReviewRootRepairOptions) => {
+      await (await import("./commands/store-review-root-repair.js")).handleStoreReviewRootRepair(file, options);
+    }));
 storeCmd.command("conflict").argument("<uid>", "Owner UID").argument("<kind>", "Registered work-item conflict kind")
   .argument("<id>", "Exact conflict ID")
   .option("--discard", "Accept the current state and discard this retained alternative")

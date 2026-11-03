@@ -389,6 +389,7 @@ describe("repository command-input inventory", () => {
       "store conflict",
       "store migrate",
       "store remote",
+      "store repair-review-roots",
       "stub",
       "task close",
       "task defer",

@@ -529,6 +529,7 @@ function responseDispositionDependencies(input: ReviewInvocationInput & ReviewIn
   const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({ ...input, dispositionStore: family.ports.dispositions, operationStore: operationStore });
   const dispositionStore = family.mode === "stored" ? new NativeApprovedDispositionRecordStore({
     store: input.store, inFlight: operationStore, outcomes: family.ports.outcomes, evidence: family.ports.evidence,
+    responses: family.ports.responses,
     readProjectId: input.projectId, now: () => new Date().toISOString(), confirmResponseHeadContinuation,
   }) : family.ports.dispositions;
   return { dispositionStore, confirmResponseHeadContinuation };

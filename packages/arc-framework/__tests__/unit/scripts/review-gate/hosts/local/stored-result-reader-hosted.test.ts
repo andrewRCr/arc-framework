@@ -16,6 +16,7 @@ import { createMemoryRemote } from "../../../../../helpers/store/sync.js";
 import { ReferenceBackend } from "../../../../../helpers/store/reference-backend.js";
 import { hostedOutcome } from "../../../../../fixtures/review-outcome.js";
 import { ReviewOutcomeSchema } from "../../../../../../src/lib/store/kinds/review/outcome/schema.js";
+import { createReviewResponsePort } from "../../../../../../src/lib/store/kinds/review/evidence-root-selection/responses.js";
 
 async function portableHosted() {
   const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -31,25 +32,26 @@ async function portableHosted() {
   })), provenance: { verb: "review", lifecycleAction: "create" } }));
   const outcomes = createReviewOutcomePort(h.store, primary.reference.owner);
   const evidence = createReviewEvidencePort(h.store, primary.reference.owner);
-  return { h, primary, fixture, outcomes, evidence };
+  const responses = createReviewResponsePort(h.store, primary.reference.owner);
+  return { h, primary, fixture, outcomes, evidence, responses };
 }
 
 it("reproduces the original hosted result from its portable admission and sealed outcome", async () => {
-  const { h, primary, fixture, outcomes, evidence } = await portableHosted();
+  const { h, primary, fixture, responses } = await portableHosted();
   const original = await fixture.resultReader.readResult(fixture.ended.attemptId);
-  const reader = new StoredReviewResultReader({ outcomes, evidence, readProjectId: h.projectId });
+  const reader = new StoredReviewResultReader({ responses, readProjectId: h.projectId });
   expect(await reader.readResult(original.producerId)).toEqual({ ...original, workItem: primary.reference.owner });
 });
 
 it("derives hosted settlement from the current stored evidence without changing its sealed result", async () => {
-  const { h, fixture, outcomes, evidence } = await portableHosted();
+  const { h, fixture, outcomes, evidence, responses } = await portableHosted();
   const listed = await outcomes.list();
   if (listed.status !== "complete" || listed.records[0] === undefined) throw new Error("Expected portable outcome");
   const stored = listed.records[0], outcome = stored.value, hosted = outcome.hosted;
   const finding = hosted?.sealedResult?.findings[0];
   if (hosted === undefined || finding?.origin !== "review-thread") throw new Error("Expected sealed thread finding");
   const value = reviewEvidenceFixture(outcome), approval = await evidence.create(value);
-  const reader = new StoredReviewResultReader({ outcomes, evidence, readProjectId: h.projectId });
+  const reader = new StoredReviewResultReader({ responses, readProjectId: h.projectId });
   expect(await reader.readResult(fixture.ended.attemptId)).toMatchObject({ settled: false });
   const entry = HostedSettlementEvidenceSchema.parse({ findingId: finding.findingId, disposition: "defer",
     channelAction: "reply-and-resolve", dispositionSetId: value.dispositionSet.dispositionSetId,
@@ -66,7 +68,7 @@ it("derives hosted settlement from the current stored evidence without changing 
 });
 
 it("refuses conflicted hosted evidence and returns the result after resolution", async () => {
-  const { h, primary, fixture, outcomes, evidence } = await portableHosted();
+  const { h, primary, fixture, outcomes, evidence, responses } = await portableHosted();
   const listed = await outcomes.list();
   if (listed.status !== "complete" || listed.records[0] === undefined) throw new Error("Expected hosted outcome");
   const value = reviewEvidenceFixture(listed.records[0].value), remote = createMemoryRemote();
@@ -79,7 +81,7 @@ it("refuses conflicted hosted evidence and returns the result after resolution",
   lifecycleSuccess(await h.store.push());
   const record = lifecycleSuccess(await h.store.read({ reference: stored.reference }));
   expect(record.conflicts.length).toBeGreaterThan(0);
-  const reader = new StoredReviewResultReader({ outcomes, evidence, readProjectId: h.projectId });
+  const reader = new StoredReviewResultReader({ responses, readProjectId: h.projectId });
   await expect(reader.readResult(fixture.ended.attemptId)).rejects.toMatchObject({
     refusal: { code: "record-malformed", class: "recoverable", rule: "review.record-conflict" },
     message: expect.stringContaining("Resolve the named conflict records") });
@@ -92,13 +94,13 @@ it("refuses conflicted hosted evidence and returns the result after resolution",
 });
 
 it("retains unestablished hosted coverage without claiming its incremental correction scope", async () => {
-  const { h, outcomes, evidence } = await portableHosted();
+  const { h, outcomes, responses } = await portableHosted();
   const outcome = ReviewOutcomeSchema.parse(hostedOutcome({ repositoryId: await h.projectId(), requestedCoverage: "incremental",
     coverageEvidence: { schemaVersion: 1, kind: "provider-native-incremental", sourceId: "coderabbit-pr",
       requestArtifactId: "comment-1", status: "unestablished", reason: "provider-incremental-range-missing" } }));
   expect(outcome.hosted?.admission.correctionScope).toBeDefined();
   await outcomes.create(outcome);
-  const result = await new StoredReviewResultReader({ outcomes, evidence, readProjectId: h.projectId }).readResult(outcome.attemptId);
+  const result = await new StoredReviewResultReader({ responses, readProjectId: h.projectId }).readResult(outcome.attemptId);
   expect(result).toMatchObject({ kind: "hosted", producerId: outcome.attemptId,
     admission: { requestedCoverage: "incremental", effectiveCoverage: null },
     coverageEvidence: { status: "unestablished", reason: "provider-incremental-range-missing" } });
@@ -106,10 +108,10 @@ it("retains unestablished hosted coverage without claiming its incremental corre
 });
 
 it("retains established hosted incremental coverage and its admitted correction scope", async () => {
-  const { h, outcomes, evidence } = await portableHosted();
+  const { h, outcomes, responses } = await portableHosted();
   const outcome = ReviewOutcomeSchema.parse(hostedOutcome({ repositoryId: await h.projectId(), requestedCoverage: "incremental" }));
   await outcomes.create(outcome);
-  expect(await new StoredReviewResultReader({ outcomes, evidence, readProjectId: h.projectId }).readResult(outcome.attemptId))
+  expect(await new StoredReviewResultReader({ responses, readProjectId: h.projectId }).readResult(outcome.attemptId))
     .toMatchObject({ kind: "hosted", admission: { requestedCoverage: "incremental", effectiveCoverage: "incremental",
       correctionScope: outcome.hosted?.admission.correctionScope }, coverageEvidence: { status: "established" } });
 });
