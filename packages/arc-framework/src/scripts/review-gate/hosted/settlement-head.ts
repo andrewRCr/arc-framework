@@ -37,7 +37,9 @@ export function createHostedSettlementHeadRegistration(exec: GitExec, cwd: strin
   };
 }
 
-/** Poll for ten seconds plus one final read bounded to five seconds; never authorize a mutation. */
+/**
+ * Poll for ten seconds, then give the final observation an abort deadline of five seconds; never authorize a mutation.
+ */
 export async function observeHostedFixHead(
   target: HostedTarget,
   port: HostedSettlementPort,

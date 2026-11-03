@@ -15,6 +15,7 @@ export interface BoundedWaitInput<T> {
   clock: BoundedWaitClock;
   /** False when the deadline callback already performs its own bounded final observation. */
   observeAtDeadline?: boolean;
+  /** Observe with the supplied abort signal; implementations must honor cancellation. */
   attempt(input: { signal: AbortSignal; elapsedMs: number }): Promise<BoundedWaitAttempt<T>>;
   deadline(elapsedMs: number): T | Promise<T>;
 }
@@ -36,7 +37,10 @@ function observationTimeout(remainingMs: number, finalAllowed: boolean): number 
   return finalAllowed ? FINAL_OBSERVATION_TIMEOUT_MS : 0;
 }
 
-/** Poll within the deadline, with one final observation bounded to five seconds after the last sleep. */
+/**
+ * Poll within the deadline, then observe once more after the last sleep.
+ * The final observation receives an abort deadline of five seconds; attempts must honor the supplied signal.
+ */
 export async function boundedWait<T>(input: BoundedWaitInput<T>): Promise<T> {
   const startedAt = input.clock.now();
   let attempt = 0;
