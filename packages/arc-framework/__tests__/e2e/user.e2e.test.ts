@@ -10,9 +10,10 @@ import { execFile } from "node:child_process";
 import { access, mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, onTestFinished } from "vitest";
 import { runArc, runArcNoTty, createTempRepo, cleanupTempDir } from "./helpers.js";
 import { initializedRepository } from "../helpers/initialized-repository.js";
+import { removeGitBackedDirs } from "../helpers/temp-repo.js";
 import { LocalSyncStateSchema } from "../../src/lib/user-sync/sync-state.js";
 
 const execFileAsync = promisify(execFile);
@@ -268,13 +269,15 @@ describe("user push/pull portability", () => {
 
 describe("user open / close lifecycle", () => {
   let tmpDir: string;
+  const directories: string[] = [];
 
   beforeEach(async () => {
     tmpDir = await initializedRepository("initialized");
+    directories.push(tmpDir);
   });
 
   afterEach(async () => {
-    await cleanupTempDir(tmpDir);
+    await removeGitBackedDirs(directories.splice(0));
   });
 
   it("opens a per-WU subdir and seeds SESSION-NOTES.md from template", async () => {
@@ -347,6 +350,11 @@ describe("user open / close lifecycle", () => {
     // Stand up a bare remote and publish `main`, then archive old-wu into
     // origin/main's `completed/` tree (the shipped oracle) and drop it locally.
     const bareDir = `${tmpDir}-bare.git`;
+    directories.push(bareDir);
+    onTestFinished(async () => {
+      expect(await pathExists(tmpDir), tmpDir).toBe(false);
+      expect(await pathExists(bareDir), bareDir).toBe(false);
+    });
     await git(["init", "--bare", bareDir], tmpDir);
     await git(["remote", "add", "origin", bareDir], tmpDir);
     await git(["add", "."], tmpDir);
