@@ -5,7 +5,15 @@ import type { CanonicalDigest } from "../../../lib/kernel/canonical/canonical-js
 import type { CandidateApplicabilityDecisionSelection } from
   "../../../lib/work-unit/candidate-applicability-resolution.js";
 import { projectCandidateReRootContinuation } from "../../../lib/work-unit/candidate-effective-target.js";
+import { routingReasonDifference } from "../policy/routing-reason-facts.js";
+import type { StandardReviewObligationProjection } from "../policy/standard-review-projection-schema.js";
 import type { ReviewPrePublicationRefusalCode } from "./review-command-envelope.js";
+
+/** The standard-review routing a refused review producer was admitted with, beside the one this call composed. */
+export interface PrePublicationRoutingMismatch {
+  readonly producerReview: StandardReviewObligationProjection;
+  readonly requestReview: StandardReviewObligationProjection;
+}
 
 /** How pre-publication continues past a Candidate whose current subject it cannot recognize. */
 export type PrePublicationCandidateContinuation =
@@ -141,6 +149,54 @@ export function prePublicationCandidateRefusal(
         ),
       };
   }
+}
+
+function routingMismatchCorrection({ producerReview, requestReview }: PrePublicationRoutingMismatch): string {
+  const routed = `the review was prepared routing as ${[...producerReview.reasons].sort().join(", ")}; this call `
+    + `routes as ${[...requestReview.reasons].sort().join(", ")}`;
+  const difference = routingReasonDifference(producerReview.reasons, requestReview.reasons);
+  const changed = (["obligation", "retrigger", "rubricVersion", "rubricDigest", "count"] as const)
+    .filter(field => producerReview[field] !== requestReview[field]);
+  // A rubric change or a reason only the repository produces is one no change set can reproduce.
+  if (difference.repositoryReasons.length > 0) {
+    return `Prepare a fresh review under the current routing (${routed}; ${difference.repositoryReasons.join(", ")} `
+      + "come from method activity or project policy, not --change-set), then re-run";
+  }
+  if (changed.some(field => field === "rubricVersion" || field === "rubricDigest")) {
+    return `Prepare a fresh review under the current rubric (${changed.join(", ")} changed after the review was `
+      + "prepared), then re-run";
+  }
+  if (difference.unestablished === "prepared") {
+    return `Omit --change-set, as the review was prepared without established change-set facts (${routed}), then re-run`;
+  }
+  if (difference.unestablished === "current") {
+    const asPrepared = difference.facts.length > 0 ? `, ${difference.facts.join(", ")} as the review was prepared` : "";
+    return `Supply --change-set with every fact${asPrepared} (${routed}; an absent or rejected fact leaves the change `
+      + "set unestablished), then re-run";
+  }
+  if (difference.facts.length > 0) {
+    return `Set ${difference.facts.join(", ")} in --change-set as the review was prepared (${routed}), then re-run`;
+  }
+  return `Prepare a fresh review under the current review policy (${changed.join(", ")} changed after the review `
+    + "was prepared), then re-run";
+}
+
+/**
+ * Compose the remedy for a review producer whose admitted routing this call's routing does not reproduce.
+ *
+ * The caller cannot set the standard-review projection the producer's own correction names, only the change-set facts
+ * it is routed from, so the remedy names those facts; a difference no fact explains names a fresh review instead.
+ *
+ * @param workUnit - The refused work unit, interpolated into the resume command.
+ * @param mismatch - The producer's admitted routing and this call's.
+ * @returns The remedy naming the differing facts, or the fresh review a policy change needs.
+ */
+export function prePublicationRoutingMismatchRemedy(workUnit: string, mismatch: PrePublicationRoutingMismatch): SpineRemedy {
+  return spineRemedy(
+    "Pre-publication settles a review only under the routing it was prepared with.",
+    routingMismatchCorrection(mismatch),
+    prePublicationResumeArgv(workUnit),
+  );
 }
 
 /**

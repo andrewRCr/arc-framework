@@ -73,8 +73,10 @@ export type { ReviewCommandErrorCode, ReviewPrePublicationRefusalCode } from "./
 export {
   prePublicationCandidateRefusal,
   prePublicationRemedy,
+  prePublicationRoutingMismatchRemedy,
   prePublicationTargetRemedy,
   type PrePublicationCandidateContinuation,
+  type PrePublicationRoutingMismatch,
 } from "./pre-publication-remedy.js";
 
 const TargetPairPayloadSchema = z.strictObject({
