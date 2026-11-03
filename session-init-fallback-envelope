@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "session-init-fallback-envelope",
+  "claimId": "0410c73f006fe0b13c11fc4f4db94b62",
+  "createdAt": "2026-11-03T01:35:51.498Z",
+  "updatedAt": "2026-11-03T01:35:51.498Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep dependency-failure session-init recommendations valid in the existing envelope while withholding unsafe actions.",
+  "branch": "chore/session-init-fallback-envelope",
+  "origin": "inbox",
+  "originEntry": "Keep session-init recommendation fallbacks inside the served envelope contract",
+  "originEntrySourceDigest": "sha256:2dc51e7782203db24683332851ab7a3594d0d2e4abec10d0f769ed5c511d103b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
