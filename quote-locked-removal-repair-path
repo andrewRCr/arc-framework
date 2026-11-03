@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "quote-locked-removal-repair-path",
+  "claimId": "6ab9ff516f72cbb8e1798603d6d4489c",
+  "createdAt": "2026-11-03T00:48:25.543Z",
+  "updatedAt": "2026-11-03T00:48:25.543Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Quote only the locked-worktree unlock repair operand with the existing shell-argument helper and verify a literal path with spaces and a quote",
+  "branch": "chore/quote-locked-removal-repair-path",
+  "origin": "inbox",
+  "originEntry": "Quote the locked-removal repair's checkout path",
+  "originEntrySourceDigest": "sha256:7f535aa2384ddbdfd5ad14159e5851baa267c939a48941598601ca6f7c9085e5",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
