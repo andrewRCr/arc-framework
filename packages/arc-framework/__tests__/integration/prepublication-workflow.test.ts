@@ -416,6 +416,7 @@ describe("prepublication workflow boundary", () => {
         expect(route).toContain(`\`applicability.${text}\``);
       }
       expect(route).toContain("`applicability.resolutionSelector`");
+      for (const key of ["selectedBy", "choice", "targetedEvidenceRef"]) expect(route).toContain(`\`${key}\``);
       expect(route).toContain("arc candidate applicability resolve {name} -");
       expect(route).toMatch(softWrappedPattern(/commit-selection[\s\S]*`commit-interlock`\s+release/iu));
       expect(route).toContain("chore(arc): record Candidate applicability for {name}");

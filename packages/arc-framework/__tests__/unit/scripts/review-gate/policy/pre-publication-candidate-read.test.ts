@@ -69,7 +69,10 @@ describe("pre-publication Candidate continuations", () => {
         selectionPromptText: fixture.decision.selectionPromptText,
         resolutionSelector: fixture.selection.resolutionSelector,
       },
-      remedy: { argv: ["arc", "candidate", "applicability", "resolve", "example", "-"] },
+      remedy: {
+        argv: ["arc", "candidate", "applicability", "resolve", "example", "-"],
+        text: expect.stringMatching(/selectedBy and choice[\s\S]*targetedEvidenceRef[\s\S]*resolutionSelector/u),
+      },
     });
     // The Owner's choice completes the input, so the remedy carries no replayable stdin.
     expect(refusal).not.toHaveProperty("remedy.stdin");

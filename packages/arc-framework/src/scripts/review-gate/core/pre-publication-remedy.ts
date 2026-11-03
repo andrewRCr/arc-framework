@@ -114,7 +114,8 @@ export function prePublicationCandidateRefusal(
         remedy: spineRemedy(
           "Pre-publication review requires an explicit authority selection for a Candidate delta it cannot settle "
             + "mechanically.",
-          "Select covered, targeted-check, or changed, compose the resolution input from the carried selector, then run",
+          "Add selectedBy and choice (covered, targeted-check, or changed; targeted-check also takes "
+            + "targetedEvidenceRef) to the carried resolutionSelector, then run",
           ["arc", "candidate", "applicability", "resolve", workUnit, "-"],
         ),
         applicability: continuation.applicability,

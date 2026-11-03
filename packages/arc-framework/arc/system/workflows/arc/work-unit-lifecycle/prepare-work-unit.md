@@ -101,9 +101,9 @@ A `candidate-unexplained-delta` refusal names the Candidate's continuation. When
 current subject holds a delta no recorded response explains: render `applicability.selectionOfferText`,
 `applicability.recommendedActionText`, and `applicability.selectionPromptText` verbatim, then stop for the named
 authority's explicit `covered`, `targeted-check`, or `changed` choice. Do not infer a selection from the
-recommendation. Compose the strict input from `applicability.resolutionSelector`, the selecting actor, and that choice;
-for `targeted-check`, add the completed check's evidence reference. Then invoke
-`arc candidate applicability resolve {name} -` with that input. For `covered` or `targeted-check`,
+recommendation. Compose the strict input from `applicability.resolutionSelector`, adding `selectedBy` (the selecting
+actor) and `choice`; for `targeted-check`, also add `targetedEvidenceRef`, the completed check's evidence reference.
+Then invoke `arc candidate applicability resolve {name} -` with that input. For `covered` or `targeted-check`,
 `resolved / commit-selection` and `exact-replay / commit-selection` leave the Candidate selection staged. Request
 `arc check gate commit` over that selection, then commit:
 
