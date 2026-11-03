@@ -310,7 +310,7 @@
     "system/methods/adversarial-review.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "af65f783952bdd143cd09876cbc32c1aae29c95a27a87d5e7e9b5fe194626461"
+      "pristine_hash": "99a09b4485f43683c95a1a09657d7da09c77cded8f4ad440a5d811b83b9ebc71"
     },
     "system/methods/classify-review-risk.md": {
       "classification": "Configurable",
@@ -381,6 +381,11 @@
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "0f0390a9cb3a7b8139132719ef36c4a3c509287970ac7ae9dafd0ec1362da16b"
+    },
+    "system/methods/read-load-set.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "4161e7c759af9cd729a26d95f8d07e0358fcad08e187a6a76b3810cb35103154"
     },
     "system/methods/source-grounding.md": {
       "classification": "Configurable",
@@ -480,7 +485,7 @@
     "system/.internal/skills/arc-session/SKILL.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "7d6790c459ff704a543afd0a0b2f5a1550b8ed1aa5a9994ba45aaa92f1e5568b"
+      "pristine_hash": "74ff6d463ca76e80f1b0a89efbbc246f79a8ed4f9f8b151676fb25ebd46db0cb"
     },
     "system/.internal/skills/arc-task-audit/SKILL.md": {
       "classification": "Framework",
@@ -537,20 +542,10 @@
       "layer": "core",
       "pristine_hash": "8a5bbffd59cdc52e694d0293fc51751a966ba8c9b8684ea647c52170c1177e51"
     },
-    "system/workflows/arc/session-lifecycle/session-init.contributor.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "946a0bf813ca126247275a0ce8af00ac9652763396a7cab60f2250ca6e5c7815"
-    },
-    "system/workflows/arc/session-lifecycle/session-init/probe-envelope.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "3886df1b8714ce7ce14855bf223a116cff5ba0b0d49274b5ec99bc0c975700d1"
-    },
     "system/workflows/arc/session-lifecycle/session-init.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "f69ca53655180e21d0da22674c5680ff4ad99d8d9aebb0b9f1fee7d1408149d3"
+      "pristine_hash": "86e80117b2c4464511757d919b48a756b1f7a0091a7164791c68352b2db721a2"
     },
     "system/workflows/arc/session-lifecycle/session-loop.md": {
       "classification": "Framework",
@@ -632,6 +627,11 @@
       "layer": "core",
       "pristine_hash": "dba7b9251cffeb666a1dbc43f8b8ff5e7324dd13441de6a8ca86836ac74ada89"
     },
+    "system/workflows/arc/work-unit-lifecycle/in-flight-scope-check.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "d0074b9738240668349f2e6c734f03ef2c4a30900e3891f35bd9898a884ff7d6"
+    },
     "system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md": {
       "classification": "Framework",
       "layer": "core",
@@ -710,7 +710,7 @@
     "system/methods/review-model.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "4466ed604130d158f790d6e6602ce37b48517c4a649bbdc0ba519392e2da06fa"
+      "pristine_hash": "0573887916264b16fe5e0e6d553a171e319ea2dd7e42f0c74aeebd9b1c4cac50"
     },
     "system/methods/planning-review.md": {
       "classification": "Configurable",
@@ -720,7 +720,7 @@
     "system/methods/code-review.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "44b6cecb6dfef75f2d538a7edadc69a2a3547143d23c980c3fe03e5efdd8ce5f"
+      "pristine_hash": "1edb0a16e34afe513c432fc764f6249a336bd3ed06daba4c359806f86175360e"
     },
     "system/methods/verification-review.md": {
       "classification": "Configurable",
@@ -751,6 +751,21 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "597e96777cd46892c44a9ac5ceae8d7ece891cce270e718293ea5dee8dfee139"
+    },
+    "system/methods/assess-start-readiness.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "f0704e7cf6a929d134c7bfa8c376ee44e10868ef23a78eda5405b47ebaf2e9da"
+    },
+    "system/methods/discover-next-work.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "64d3707c53b383c222d4cf6ae16945876fb6ee424af7f0f7481e9c0035932378"
+    },
+    "system/methods/assess-parallel-fit.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "e45c89e5918ec7455f58485ff48b56d71571524c7617a3db5c9928d5cd9ce8b0"
     }
   }
 }

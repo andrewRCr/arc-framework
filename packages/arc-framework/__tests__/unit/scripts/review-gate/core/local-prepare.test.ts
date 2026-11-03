@@ -175,12 +175,13 @@ describe("local prepare incremental reviewer instructions", () => {
 
   async function preparedInstructions(requiredFindings: CorrectionScopeInput["requiredFindings"] | undefined,
     incrementalBasis?: "fix-check" | "delta-check",
-    fixedFindingPointers?: readonly { locus: string; title?: string }[]) {
+    fixedFindingPointers?: readonly { locus: string; title?: string }[],
+    coveredBasisHeadSha = basisHeadSha) {
     const records = fixture(requiredFindings === undefined ? undefined : {
       schemaVersion: 1,
       predecessorProducerId: "local-predecessor",
       predecessorHeadSha,
-      basisHeadSha,
+      basisHeadSha: coveredBasisHeadSha,
       requiredFindings,
     });
     const preparation = await publishLocalReviewPreparation(records.admission, records.source, {
@@ -194,7 +195,11 @@ describe("local prepare incremental reviewer instructions", () => {
       cleanupTtlMs: 60_000,
       guidance: projectLocalReviewGuidance(), incrementalBasis, fixedFindingPointers,
     });
-    return { instructions: preparation.state.reviewerInstructions, headSha: records.target.headSha };
+    return {
+      instructions: preparation.state.reviewerInstructions,
+      diffBaseSha: records.target.diffBaseSha,
+      headSha: records.target.headSha,
+    };
   }
 
   it("keeps the configured rubric and asks complete reviewers for failure anchors", async () => {
@@ -241,6 +246,27 @@ describe("local prepare incremental reviewer instructions", () => {
     expect(instructions).toContain("apply the coverage and clean rules to it");
     expect(instructions).toContain("local-predecessor / finding-1 at src/a.ts:10");
     expect(instructions).toMatch(/original loci, including loci outside the changed lines/u);
+  });
+
+  it("names the complete covered span on the first fix check after a complete review", async () => {
+    const { instructions, diffBaseSha } = await preparedInstructions([
+      { producerId: "local-predecessor", findingId: "finding-1", locus: "src/a.ts:10" },
+    ], "fix-check", undefined, predecessorHeadSha);
+
+    expect(instructions).toContain(`The changes from ${diffBaseSha} to ${predecessorHeadSha} were covered`);
+    expect(instructions).not.toContain(`from ${predecessorHeadSha} to ${predecessorHeadSha}`);
+    expect(instructions).not.toContain("Earlier incremental passes covered");
+  });
+
+  it("names the full covered span and its incremental portion on a chained fix check", async () => {
+    const { instructions, diffBaseSha } = await preparedInstructions([
+      { producerId: "local-predecessor", findingId: "finding-1", locus: "src/a.ts:10" },
+    ], "fix-check");
+
+    expect(instructions).toContain(`The changes from ${diffBaseSha} to ${predecessorHeadSha} were covered`);
+    expect(instructions).toContain(
+      `Earlier incremental passes covered the changes from ${basisHeadSha} to ${predecessorHeadSha}.`,
+    );
   });
 
   it("defines the pass's requested change set as the predecessor-to-head range", async () => {

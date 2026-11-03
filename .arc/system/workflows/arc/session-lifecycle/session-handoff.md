@@ -304,7 +304,7 @@ Update session state files before ending session:
 **Task List**: [filename of task list, e.g., tasks-config-parser.md]
   [OR: [none associated] for planning/boundary work between task lists]
 **Next Task**: Task 3.3 — Write unit tests (line ~247)
-  [REQUIRED when following task list — triple-anchor format enables graduated lookup at session init]
+  [REQUIRED when following task list — use triple-anchor format]
   [Always points to the next task to work on (or continue if mid-task). Never [none] when incomplete tasks remain.]
   [Omit only when no task list exists or all tasks are complete.]
 **Last Completed**: Task 3.2 — Add validation logic

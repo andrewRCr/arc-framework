@@ -279,6 +279,7 @@ const PORTABILITY_SUITES = [
   "ci-build-recovery.test.ts",
   "local-test-admission.test.ts",
   "worktree-marker.test.ts",
+  "atomic-graduation.test.ts",
   "commit-message-retry-store.test.ts",
   "advisory-lock",
   "user-sync-notes-lock",

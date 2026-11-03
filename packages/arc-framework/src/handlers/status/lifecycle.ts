@@ -3,17 +3,16 @@ import { ownerHolderRequest } from "../../lib/work-unit/locus-ports.js";
 
 import { pullStoreStatus, readStoreStatusLocus, type StoreLifecycleStatusPorts } from "./store-locus.js";
 import * as p from "../../lib/terminal.js";
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { runActiveStatus } from "../../commands/active.js";
 import { renderInFlightWarning } from "../../lib/git/in-flight-derivation.js";
 import type { GitExec } from "../../lib/git/index.js";
 import { readGitBlobEntry } from "../../lib/io-context.js";
-import type { StoreRefusal, Remedy } from "../../lib/store/refusal.js";
+import type { Remedy } from "../../lib/store/refusal.js";
 import { isNativeTypedRefusal } from "../../lib/store/native-refusal.js";
 import type { LifecycleIndexOutcome } from "../../lib/store/lifecycle-index.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { StoreSyncPort } from "../../lib/store/operational-sync.js";
-import { readLifecycleView } from "../../lib/store/lifecycle-view.js";
 import { renderLifecycleClashWarnings } from "../../lib/status/store-project-standing.js";
 import { readLifecycleDesign } from "../../lib/store/lifecycle-design.js";
 import { readSubmissionBoundary } from "../../lib/store/kinds/review/integration-boundary/access.js";
@@ -28,8 +27,8 @@ import {
   type ScopeWindowFact,
 } from "../../lib/status/slug-position.js";
 import { readStatusCheckoutRoster } from "./checkout-roster.js";
-import { resolveCallerComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
-import { resolveSlugQuery, type SlugStateQuery } from "../../lib/work-unit/lifecycle-query.js";
+import { resolveLifecycleSubject } from "../../lib/store/lifecycle-subject.js";
+import type { SlugStateQuery } from "../../lib/work-unit/lifecycle-query.js";
 import {
   parseIntegrationBoundaryLocus,
   type PublishedIntegrationBoundaryLocus,
@@ -63,15 +62,11 @@ export async function handleLifecycleStatus(
   // Transient identities still feed the oracle so recorded Errand
   // branches are not mis-emitted as `no-record-or-meta` residue.
   const { identity } = await readIdentityPointers(exec);
-  const composed = await resolveCallerComposedLifecycleIndex({
-    cwd, exec, identity,
-    acquisitionPolicy: opts.fetch === true ? "passive-live" : "local",
-    fs: {
-      readdir: (path) => readdir(path, { withFileTypes: true }),
-      readFile: (path) => readFile(path, "utf8"),
-    },
-  });
-  const query = resolveSlugQuery(composed.index, slug);
+  const selection = await resolveLifecycleSubject({ cwd, exec, identity }, slug,
+    opts.fetch === true ? "passive-live" : "local");
+  if (selection.status === "refused") { renderStoreQueryRefusal(selection.refusal, opts); return; }
+  if (selection.result.backend !== "legacy") throw new Error("Expected legacy lifecycle selection");
+  const { composed, query } = selection.result;
   const record = composed.recordsBySlug.get(slug)?.selected;
   const purpose = record === undefined ? null : await readWorkUnitPurpose(record.source, {
     fs: { readFile: (path) => readFile(path, "utf8") },
@@ -240,19 +235,11 @@ async function resolveSlugOperationalBoundary(options: {
 async function handleStoreLifecycleStatus(store: Store, slug: string, opts: StatusCliOptions,
   local: { cwd: string; exec: GitExec; identity: string | null; sync?: StoreSyncPort }, ports?: StoreLifecycleStatusPorts): Promise<void> {
   const refreshWarnings = opts.fetch === true && !opts.local ? (await pullStoreStatus(local)).map(warning => warning.rendered) : [];
-  const view = await readLifecycleView(store);
-  if (view.status === "refused") {
-    renderStoreQueryRefusal(view.refusal, opts, refreshWarnings);
-    return;
-  }
-  const record = await readWorkUnit(store, slug);
-  const recordRefusal = storeQueryRecordRefusal(record);
-  if (recordRefusal !== null) {
-    renderStoreQueryRefusal(recordRefusal, opts, refreshWarnings);
-    return;
-  }
-  const standing = view.result.standing;
-  const query = resolveSlugQuery(view.result.index, record.status === "ok" ? record.result.reference.owner.name : slug);
+  const selection = await resolveLifecycleSubject({ ...local, store }, slug);
+  if (selection.status === "refused") { renderStoreQueryRefusal(selection.refusal, opts, refreshWarnings); return; }
+  if (selection.result.backend !== "store") throw new Error("Expected Store lifecycle selection");
+  const { view, record, query } = selection.result;
+  const standing = view.standing;
   const fields = storeQueryMetaFields(record);
   const boundaryRead = await readStoreStatusBoundary({ store, cwd: local.cwd, record, fields });
   if ("refusal" in boundaryRead) {
@@ -266,8 +253,8 @@ async function handleStoreLifecycleStatus(store: Store, slug: string, opts: Stat
   const derived = await readDerivedSlugPosition({ slug: query.slug, uid: selected?.uid, worktreePath: locus.worktreePath, identity: local.identity,
     readRoster: ports?.readRoster ?? (identity => readStatusCheckoutRoster({ ...local, store }, identity)) });
   const scopeWindow = projectScopeWindow(query.state, derived.position, storeQueryPause(fields));
-  const warnings = [...design.warnings, ...lifecycleListingWarnings(view.result.listing),
-    ...renderLifecycleClashWarnings(standing.clashes, view.result.entries).map(warning => warning.rendered), ...locus.warnings, ...derived.warnings, ...refreshWarnings];
+  const warnings = [...design.warnings, ...lifecycleListingWarnings(view.listing),
+    ...renderLifecycleClashWarnings(standing.clashes, view.entries).map(warning => warning.rendered), ...locus.warnings, ...derived.warnings, ...refreshWarnings];
   const designFields = ParsedDesignRecordSchema.safeParse(design.record?.fields);
   const purpose = extractPurposeSentence(designFields.success ? designFields.data.purpose : null);
   const output = { ...query, purpose, owner: fields?.owner ?? null,
@@ -297,15 +284,6 @@ async function readStoreStatusBoundary(input: { store: Store; cwd: string; recor
       : { code: error.code, condition: error.condition, remedy: error.remedy } };
     throw error;
   }
-}
-
-// A missing primary still reports its listing position; any other refusal or a conflicted primary stops the query.
-function storeQueryRecordRefusal(record: Awaited<ReturnType<typeof readWorkUnit>>): StoreRefusal | null {
-  if (record.status === "refused") return record.refusal.code === "not-found" ? null : record.refusal;
-  if (record.result.conflicts.length === 0) return null;
-  return { code: "record-malformed", class: "recoverable", reference: record.result.reference,
-    rule: "lifecycle.meta-conflict", condition: `The named work-unit primary has unresolved conflicts: ${record.result.conflicts.map((reference) => JSON.stringify(reference)).join(", ")}.`,
-    remedy: { text: "Resolve the named conflict records, then retry this status query." } };
 }
 
 function storeQueryMetaFields(record: Awaited<ReturnType<typeof readWorkUnit>>): ParsedMetaRecord | undefined {

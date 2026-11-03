@@ -11,7 +11,8 @@ import { readFile, writeFile, access } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { runArc, createTempRepo, cleanupTempDir, commitAll } from "./helpers.js";
+import { runArc, cleanupTempDir, commitAll } from "./helpers.js";
+import { initializedRepository } from "../helpers/initialized-repository.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -41,12 +42,7 @@ describe("arc init --reconfigure", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(
-      ["init", "--yes", "--name", "test-project", "--tools", "claude"],
-      tmpDir,
-    );
-    expect(init.exitCode).toBe(0);
+    tmpDir = await initializedRepository("claude-initialized");
     await commitAll(tmpDir);
   });
 
@@ -262,12 +258,7 @@ describe("arc join --reconfigure", () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await createTempRepo("arc-reconf-join-");
-    const init = await runArc(
-      ["init", "--yes", "--name", "test-project"],
-      tmpDir,
-    );
-    expect(init.exitCode).toBe(0);
+    tmpDir = await initializedRepository("initialized");
   });
 
   afterEach(async () => {

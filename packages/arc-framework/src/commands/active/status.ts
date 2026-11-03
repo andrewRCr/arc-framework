@@ -5,7 +5,7 @@
  *
  * - {@link runActiveStatus} — full per-WU enumeration for default rendering.
  * - {@link runActiveSessionInitStatus} — resolved path / null / candidate
- *   list for the session-init harness (Step 3 item 7 consumer).
+ *   list for structured session entry.
  *
  * Both share the filesystem work through {@link readActiveMetaCandidates};
  * the session-init variant applies a thin resolution-state shaping on top.
@@ -138,20 +138,11 @@ export async function runActiveStatus(
 }
 
 /**
- * Produce the session-init-scoped result for
- * `arc active status --session-init`.
+ * Project active-namespace evidence as none, single, or multiple candidates.
  *
- * Resolution states map to session-init.md Step 3 item 7:
- *
- * - `none` — zero-file case; session-init reports no active work.
- * - `single` — one-file case; the harness loads the resolved path.
- * - `multiple` — many-file case; the harness applies the documented
- *   precedence (SESSION-NOTES `**Working On:**`, branch match,
- *   `**State:** In Progress`, user prompt) over the returned candidates.
- *
- * The probe does not apply the precedence itself — SESSION-NOTES lives
- * in the user workspace and requires identity-scoped path resolution
- * the agent already does.
+ * Only a single resolved candidate populates the selected path. Context consumers
+ * use the composition layer's bound checkout and subject rather than selecting
+ * agent context from this projection alone.
  */
 export async function runActiveSessionInitStatus(
   options: ActiveSessionInitOptions,

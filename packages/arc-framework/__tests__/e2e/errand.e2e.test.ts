@@ -24,10 +24,10 @@ import {
   runArcWithStdin,
 } from "./helpers.js";
 import { advanceBaseStep, movementPaths } from "../helpers/base-advance.js";
+import { initializedRepository } from "../helpers/initialized-repository.js";
 import {
   copyPreparedRepository,
   prepareRepositoryTemplate,
-  type PreparedRepositoryShape,
   type PreparedRepositoryTemplate,
 } from "../helpers/prepared-repository.js";
 import { inProcessReview, localReviewResult, type PreparedLocalReview } from "../helpers/in-process-review.js";
@@ -208,48 +208,6 @@ function inspectIdentityCommand(slug: string): readonly string[] {
       + "process.stdout.write(JSON.stringify(value));",
   ];
 }
-
-/**
- * The initialized repositories most describe blocks start from: `arc init` alone, `arc init` with an empty `init`
- * commit, and the same in arc-in-git mode.
- */
-type InitializedStart = "initialized" | "initialized-and-committed" | "arc-in-git-and-committed";
-
-const initializedTemplates = new Map<InitializedStart, Promise<PreparedRepositoryTemplate>>();
-
-function initializedShape(start: InitializedStart): PreparedRepositoryShape {
-  return { kind: "plain", key: `errand-e2e-${start}-v1` };
-}
-
-/** Run `arc init` once for one start, so each test copies the result instead of initializing its own. */
-async function buildInitializedStart(start: InitializedStart): Promise<string> {
-  const root = await createTempRepo();
-  try {
-    const pmMode = start === "arc-in-git-and-committed" ? ["--pm-mode", "arc-in-git"] : [];
-    const init = await runArc(["init", "--yes", "--name", "test-project", ...pmMode], root);
-    expect(init.exitCode, init.stderr || init.stdout).toBe(0);
-    if (start !== "initialized") await git(root, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
-    return root;
-  } catch (error) {
-    await cleanupTempDir(root);
-    throw error;
-  }
-}
-
-/** An independent copy of one initialized start, built on first use. */
-async function initializedRepository(start: InitializedStart): Promise<string> {
-  let template = initializedTemplates.get(start);
-  if (template === undefined) {
-    template = prepareRepositoryTemplate(initializedShape(start), () => buildInitializedStart(start));
-    initializedTemplates.set(start, template);
-  }
-  return copyPreparedRepository(await template, initializedShape(start));
-}
-
-afterAll(async () => {
-  const built = await Promise.allSettled(initializedTemplates.values());
-  await Promise.all(built.flatMap((result) => result.status === "fulfilled" ? [cleanupTempDir(result.value.root)] : []));
-});
 
 describe("arc errand merge", () => {
   let tmpDir: string;

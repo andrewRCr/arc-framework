@@ -12,6 +12,7 @@ const activeStatusPath = join(packageRoot, "src", "commands", "active", "status.
 const viewHandlerPath = join(packageRoot, "src", "handlers", "view.ts");
 const implementationPrefixes = ["./handlers/", "./commands/", "./scripts/"] as const;
 const expectedImplementationModules = [
+  "./commands/agenda/index.js",
   "./handlers/init.js",
   "./handlers/schema.js",
   "./handlers/join.js",
