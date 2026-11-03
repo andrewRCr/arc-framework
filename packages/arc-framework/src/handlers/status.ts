@@ -199,13 +199,28 @@ export async function handleStatus(
   await handleCompositeStatus(context, opts);
 }
 
-/**
- * Execute the session init status mode.
- * @param context - Request-scoped I/O, identity, and personal-surface readers.
- * @param opts - Validated status options.
- * @returns Completion after writing the selected status output.
- */
+/** Execute the session-init probe and retain its existing seed/output boundary. */
 async function handleSessionInitStatus(context: SessionStatusContext, opts: StatusCliOptions): Promise<void> {
+  const { result, seedInputs } = await composeSessionInitStatus(context, { writeCompactionSeed: opts.writeCompactionSeed });
+  if (seedInputs !== null) await writeSessionCompactionSeed({ ...seedInputs, result });
+  assertSessionInitProbeResult(result);
+  if (opts.json) { process.stdout.write(`${JSON.stringify(result)}\n`); return; }
+  p.intro("arc status");
+  p.note(buildSessionInitStatusSummary(result), "Session Init");
+  p.outro("Done.");
+}
+
+/** Probe values and deferred seed inputs from one request-scoped composition. */
+export interface SessionInitComposition {
+  result: Awaited<ReturnType<typeof runSessionInitStatus>>;
+  seedInputs: Omit<Parameters<typeof writeSessionCompactionSeed>[0], "result"> | null;
+}
+
+/** Compose the shared session-init probes without writing a seed or rendering output. */
+export async function composeSessionInitStatus(
+  context: SessionStatusContext,
+  options: { writeCompactionSeed?: boolean } = {},
+): Promise<SessionInitComposition> {
   const {
     cwd,
     exec,
@@ -218,7 +233,6 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
     userSurfacesFor,
     readUserInbox,
   } = context;
-  const json = Boolean(opts.json);
   const store = context.store ?? openDefaultStore(cwd, exec);
   const stateOffBranch = store.capabilities.stateOffBranch;
   const projectId = store.capabilities.stateOffBranch ? createProjectIdentityReader(store) : undefined;
@@ -278,7 +292,7 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
   }) : null;
   let storeUserPull: ReturnType<NonNullable<typeof operational>["user"]> | undefined;
   const getStoreUser = () => storeUserPull ??= operational?.user() ?? Promise.resolve(null);
-  const compactionSeedGitSnapshotP = opts.writeCompactionSeed
+  const compactionSeedGitSnapshotP = options.writeCompactionSeed
     ? readCompactionSeedGitSnapshot(cwd, exec)
     : null;
   // Shared in-flight oracle slice over the request's immutable remote context.
@@ -921,19 +935,10 @@ async function handleSessionInitStatus(context: SessionStatusContext, opts: Stat
     ? null
     : (await userSurfacesFor(identity)).workingMemoryPath;
   const result = await runSessionInitStatus({ identity, role, probes, workingMemoryPath, stateOffBranch });
-  if (opts.writeCompactionSeed && compactionSeedGitSnapshotP !== null) {
-    await writeSessionCompactionSeed({ cwd, exec, store, result, gitSnapshot: compactionSeedGitSnapshotP,
-      snapshot: derivedLocusStatePromises.get(identity ?? "") });
-  }
-  assertSessionInitProbeResult(result);
-  if (json) {
-    process.stdout.write(`${JSON.stringify(result)}\n`);
-    return;
-  }
-  p.intro("arc status");
-  p.note(buildSessionInitStatusSummary(result), "Session Init");
-  p.outro("Done.");
-  return;
+  return { result, seedInputs: compactionSeedGitSnapshotP === null ? null : {
+    cwd, exec, store, gitSnapshot: compactionSeedGitSnapshotP,
+    snapshot: derivedLocusStatePromises.get(identity ?? ""),
+  } };
 }
 
 async function writeSessionCompactionSeed(input: {

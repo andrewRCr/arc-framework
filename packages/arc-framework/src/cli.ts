@@ -90,6 +90,7 @@ import type {
   ActiveInFlightCliOptions,
 } from "./handlers/active.js";
 import type { StatusCliOptions } from "./handlers/status.js";
+import type { AgendaCliOptions } from "./commands/agenda/index.js";
 import type { SchemaListOptions, SchemaInstallOptions } from "./handlers/schema.js";
 import type { LocusCliOptions } from "./handlers/locus.js";
 import type { ViewCliOptions } from "./handlers/view.js";
@@ -1654,6 +1655,28 @@ program
   ));
 
 // --- Status (composite) ---
+
+program
+  .command("agenda")
+  .description("Compile session initialization steps")
+  .argument("<ceremony>", "Ceremony to compile: session-init")
+  .argument("[seed]", "Optional entry seed")
+  .option("--plan [stub]", "Enter planning for a backlog stub")
+  .option("--errand [concern]", "Enter an isolated errand")
+  .option("--next", "Proceed to the next action when the session permits")
+  .option("--isolate", "Give an errand its own checkout")
+  .option("--start <slug>", "Assess a named work unit for launch")
+  .option("--housekeep", "Enter inbox housekeeping")
+  .option("--context", "Load context without discovering next work")
+  .option("--answered <key=answer>", "Carry a recorded answer (repeatable)",
+    (value: string, previous: string[]) => [...previous, value], [])
+  .option("--done <id>", "Carry a completed action id (repeatable)",
+    (value: string, previous: string[]) => [...previous, value], [])
+  .option("--json", "Emit the compiled agenda as JSON")
+  .action(withInteractionContext({ machineReadable: opts => opts.json === true },
+    async (context, ceremony: string, seed: string | undefined, opts: AgendaCliOptions) => {
+      await (await import("./commands/agenda/index.js")).handleAgenda(ceremony, seed, opts, context);
+    }));
 
 program
   .command("status")

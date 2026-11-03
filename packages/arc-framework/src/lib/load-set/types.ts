@@ -76,7 +76,7 @@ export const LoadSetManifestReaderSchema = z.object({
 /** Version of the load-set manifest vocabulary. */
 export type LoadSetManifestVersion = z.infer<typeof LOAD_SET_MANIFEST_SHAPE.manifestVersion>;
 
-/** Read discipline mirroring session-init Step 3's context-load modes. */
+/** Read discipline carried by each context-manifest entry. */
 export type ReadMode = z.infer<typeof ReadModeSchema>;
 
 /** One context document in the ordered load set. */

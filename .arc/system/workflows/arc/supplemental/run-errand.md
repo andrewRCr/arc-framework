@@ -16,6 +16,10 @@ arc:
 
 # Workflow: Run Errand
 
+**Session-init entry:** Launch receives `mode: "launch"`, an optional `seed` or `fromInbox`, and `isolate`. Use the
+seed as the concern and pass a supplied `fromInbox` selector unchanged to adoption. Resume receives `mode: "resume"`,
+`subjectKind`, `subjectKey`, and `generation` for the exact checkout session-init selected.
+
 Execution body for an **errand** — a single **atomic** concern (one indivisible unit of work, bounded to one
 session) — entered warm from an active session via the `arc-errand` skill, cold via `arc-session` (`--errand`, or
 adopted from session-init's discovery arm), or from a [`drain-inbox`][drain-inbox] hand-off. For the
@@ -83,26 +87,24 @@ Confirm the work is an Errand, check for in-flight overlap, then open or resume 
 
 3. **Open or resume the Errand checkout.**
 
-   - **Launch mode:** invoke `arc errand open <slug> --intent <text> --json`. For an originating
-     `USER-INBOX § Errand` capture, add `--from-inbox <entry-title>` or `--inbox-title-file <path>` (`-` reads
-     stdin). The verb owns both protection modes: full protection allocates the free primary or a provisioned
-     transient and mints the exact v3 identity; partial protection occupies only a safe free primary and creates no
-     branch or portable identity. A warm entry never moves the session home or repurposes its WU checkout.
+   - **Launch mode:** invoke `arc errand open <slug> --intent <text> --json`. For an originating capture, add
+     `--from-inbox <capture-selector>`, passing a supplied `fromInbox` unchanged; manual title-file adoption uses
+     `--inbox-title-file <path>` (`-` reads stdin). Render the result's `recommendedPromptText`, then work from its
+     exact `allocation.checkoutPath`. Full protection allocates the free primary or a provisioned transient and mints
+     the exact v3 identity; partial protection occupies only a safe free primary and creates no branch or portable
+     identity. A warm entry never moves the session home or repurposes its WU checkout.
    - **Isolate posture:** when the session was started with `--isolate`, or the developer asks to keep the primary
      free, add `--isolate` to this and every later `arc errand open` the session makes. Each Errand then gets its
      own provisioned transient and the primary stays free for another session; partial protection refuses it.
-   - **Resume mode:** consume the exact current checkout selected by session-init; its derived transient role is the
-     re-entry authority, so do not invoke `arc errand open` again. A remote-only eligible generation first runs
-     `arc errand materialize <slug> --claim-id <claimId> --expected-head <expectedHead> --json`, using the selected
-     candidate's claim ID and expected head; accept only its exact returned generation and path. A recorded head
-     that no longer matches the fetched remote or open change request refuses materialization. Open identities,
-     legacy branch-only candidates, closed or missing change requests, and partial Errands are not materializable.
+   - **Resume mode:** consume only the exact current checkout, `subjectKind`, `subjectKey`, and `generation` selected
+     by session-init.
+     Its derived transient role is the re-entry authority; do not open or materialize another checkout here.
 
-   Execute every subsequent command from `allocation.checkoutPath`. Retain `parentCheckoutPath` when present as the
-   warm-return parent; terminal results own the actual restoration outcome.
+   In Launch mode, execute subsequent commands from `allocation.checkoutPath`; in Resume mode, remain in the selected
+   checkout. Retain `parentCheckoutPath` when present as the warm-return parent; terminal results own restoration.
 
 4. **Late inbox adoption, when needed.** If an in-flight ordinary full-mode Errand acquires a matching capture
-   after open, run `arc errand link <slug> --from-inbox <entry-title> --json` (or `--inbox-title-file`). It may add
+   after open, run `arc errand link <slug> --from-inbox <capture-selector> --json` (or `--inbox-title-file`). It may add
    only one exact origin back-pointer to an otherwise linkable v3 claim. Conflicts, legacy records, missing
    captures, and partial mode refuse; never edit the identity or inbox by hand.
 

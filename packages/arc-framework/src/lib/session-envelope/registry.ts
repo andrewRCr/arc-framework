@@ -48,6 +48,7 @@ import { RetiredSubdirDetectionResultSchema } from "../session-init/retired-subd
 import { ClassCompositionSchema } from "../status/class-composition.js";
 import { TaskListCursorSchema } from "../task-list/cursor.js";
 import { TaskListCursorFileResultSchema } from "../task-list/file-cursor.js";
+import { SessionInitAgendaSchema } from "../../commands/agenda/schema.js";
 
 /** Stable identities for the currently registered session-envelope roots. */
 export const SESSION_ENVELOPE_SCHEMA_IDS = {
@@ -86,6 +87,7 @@ export const SESSION_ENVELOPE_SCHEMA_IDS = {
   recoveryAuditReport: "recovery-audit-report",
   releaseRouting: "release-routing",
   retiredSubdirDetection: "retired-subdir-detection",
+  sessionInitAgenda: "session-init-agenda",
   sessionInitEnvelope: "session-init-envelope",
   sessionRecoverEnvelope: "session-recover-envelope",
   taskListCursor: "task-list-cursor",
@@ -137,6 +139,7 @@ const SESSION_ENVELOPE_SCHEMAS = [
   [SESSION_ENVELOPE_SCHEMA_IDS.recoveryAuditReport, RecoverAuditReportSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.releaseRouting, ReleaseRoutingValueSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.retiredSubdirDetection, RetiredSubdirDetectionResultSchema],
+  [SESSION_ENVELOPE_SCHEMA_IDS.sessionInitAgenda, SessionInitAgendaSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.sessionInitEnvelope, SessionInitProbeResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.sessionRecoverEnvelope, SessionRecoverProbeResultSchema],
   [SESSION_ENVELOPE_SCHEMA_IDS.worktreeRoster, WorktreeRosterResultSchema],
