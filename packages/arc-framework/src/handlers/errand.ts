@@ -60,7 +60,6 @@ import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { createGitExec, createUserIOContext } from "../lib/io-context.js";
 import { resolveInboxEntryOperand } from "../lib/inbox-entry-operand.js";
 import {
-  openOrdinaryErrandAtRuntime,
   openOrdinaryErrandAtRuntimeWithDisposition,
 } from "../lib/errand/open-runtime.js";
 import { ERRAND_SLUG_INPUT_REMEDY } from "../lib/errand/open.js";
@@ -122,6 +121,7 @@ import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { requireArcProjectRoot } from "./shared.js";
 import { runDerivedLocusStateProbe } from "./derived-locus-state-probe.js";
+import { warnSpawnLock } from "./spawn-lock.js";
 
 type ErrandHandlerOperation = "errand-leave" | "errand-close" | "errand-abandon";
 type ErrandResultEmitter = (result: ErrandTerminalResult, json: boolean) => void;
@@ -619,7 +619,7 @@ async function runErrandOpenHandler(
   const createdAt = new Date().toISOString();
   let result: ErrandOperationResult;
   try {
-    result = await openOrdinaryErrandAtRuntime({
+    const execution = await openOrdinaryErrandAtRuntimeWithDisposition({
       store,
       companionWrites: entryWrites,
       provenanceVerb: "errand-open",
@@ -648,6 +648,8 @@ async function runErrandOpenHandler(
       exec: io.exec,
       execInput: io.execInput,
     });
+    ({ result } = execution);
+    warnSpawnLock(execution.spawnLock?.checkoutPath, execution.spawnLock?.lock);
   } catch (err) {
     result = createErrandOperationResult({
       outcome: "error",
@@ -1007,6 +1009,7 @@ export async function handleErrandMaterialize(
           execInput: io.execInput,
         });
         const { result } = execution;
+        warnSpawnLock(execution.spawnLock?.checkoutPath, execution.spawnLock?.lock);
         const materialized = createErrandOperationResult({
           ...result,
           operation: "errand-materialize",

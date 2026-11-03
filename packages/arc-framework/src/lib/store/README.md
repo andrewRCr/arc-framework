@@ -33,6 +33,9 @@ after retirement. Multiple candidates refuse `ambiguous-match`. Backends retain 
 does not enumerate terminal primary histories. Name-only record reads, listings, and writes gain no alias behavior
 from this lookup guarantee.
 
+The `projection/` folder holds the projection's engine — the working copy of the store at the familiar `.arc/` paths
+— and the files it writes.
+
 The `concurrency/` library supplies pure entry and line merges, stable entry IDs, and rank keys. Conflicts preserve
 both labeled sides as separate records while the current side remains visible. A resolving write names the conflict
 references explicitly.

@@ -60,7 +60,7 @@ describe("held recovery context", () => {
 
   it("preserves the complete held explanation across carried recovery decisions", async () => {
     const path = "/wt/recover elsewhere";
-    const remedies = missingRegistrationActions("/wt/missing", { locked: true });
+    const remedies = missingRegistrationActions("/wt/missing", { lock: null });
     const recorded: AgendaAnswers[] = [
       { answered: {}, done: [] },
       { answered: { "branch-gone:resolved": "decline" }, done: [] },
@@ -87,6 +87,27 @@ describe("held recovery context", () => {
       texts.push(render.text);
     }
     expect(new Set(texts).size).toBe(1);
+  });
+
+  it("offers carried missing-folder teardown without running it during held recovery", async () => {
+    const typed = missingRegistrationActions("/wt/gone", { lock: undefined, workUnitName: "gone" });
+    const manual = missingRegistrationActions("/wt/other lock", { lock: "another tool", workUnitName: "locked" });
+    const input = await createRecoveryAgendaFixture({ kind: "resolved", remoteEvidence: "exact",
+      candidate: { branch: "feat/recover", proposedAction: "switch", worktreePath: "/wt/recover elsewhere" },
+      missingFolders: [
+        { worktreePath: "/wt/gone", branch: "feat/gone", actions: typed },
+        { worktreePath: "/wt/other lock", branch: "feat/locked", actions: manual },
+      ],
+    }, true);
+    const agenda = await compile(input);
+    const choices = agenda.steps.flatMap(step => step.type === "offer" ? step.choices : []);
+    expect(choices.flatMap(choice => choice.kind === "actions" ? choice.actions.map(action => action.argv) : [])).toEqual([
+      ["arc", "teardown", "gone"],
+    ]);
+    expect(agenda.steps).toEqual(expect.arrayContaining([expect.objectContaining({ type: "render", surface: "branch-gone",
+      text: expect.stringContaining(manual[0]!.text) })]));
+    expect(agenda.steps.some(step => step.type === "exec")).toBe(false);
+    expect(agenda.steps.at(-1)).toEqual({ type: "gate", kind: "stop", autoProceed: false });
   });
 
 

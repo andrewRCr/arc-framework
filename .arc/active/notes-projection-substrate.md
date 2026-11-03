@@ -7,7 +7,7 @@
 - [Spike 1b — moving the file aside](#spike-1b--moving-the-file-aside)
 - [Spike 3 — how editors and agent tools write](#spike-3--how-editors-and-agent-tools-write)
 - [Spike 7 — aside copies against a stale buffer's record](#spike-7--aside-copies-against-a-stale-buffers-record)
-- [Spec review carry-forward](#spec-review-carry-forward)
+- [A1 — an emptied aside copy waits for the next sweep](#a1--an-emptied-aside-copy-waits-for-the-next-sweep)
 
 ## Spike evidence
 
@@ -406,37 +406,305 @@ the person could delete the file, and then lost saves in both; with the mark bes
 reading the copies in the persist step's order, it loses nothing in either bound and agrees with the persist step.
 Option 1 amended was not run with the file deleted.
 
-## Spec review carry-forward
+## A1 — an emptied aside copy waits for the next sweep
 
-The decomposition's specification review (2026-10-30) found these gaps, each inherited from the origin specification,
-which settled them in the task list or not at all. Fold each into this member's specification at its next planning
-review. Task numbers are `tasks-projection-substrate.md`'s.
+**The evidence.** The save-loss harness's first full run on desktop Windows lost one truncate-then-write save in 1,000,
+before the harness recorded timelines. Its mechanism was then reproduced deterministically: a save that truncates the
+file, its move into the aside folder, and its write landing after the command's second check, the copy's empty window
+past § 4's 50 ms. The second check reads such a copy as a deleted file (`gateRead`, `read-gate.ts`), so
+`settleAsideCopy` deletes it and the write goes to an unlinked file. The one loss fits that mechanism but was never
+traced, so its cause stays suspected. Eight later local Windows runs and three hosted runs of the portability pair lost
+none. The harness counted such a save as "emptied past the settle window", apart from a loss.
 
-- **Success criteria for the engine's state.** None tests the racy rule catching a same-tick, same-size save, smudging
-  included (§ 3.3); base-stamp recovery choosing an exact, closest, or empty base (§ 3.5); the stale-buffer base
-  (§ 3.6); the projection lock's 200 ms skip and its rule never to recreate a removed Git directory (§ 3.2); the § 12.6
-  remedies; or the § 11.5 `.gitignore` change. The task list's criterion that the worktree lock, the managed `.ignore`
-  block, and the `.gitignore` change are live before the flip has no specification counterpart.
-- **The configuration read's requirements.** Task 2.5.b settles the keys read, the precedence (the last occurrence
-  wins), `git config`'s exit status 1 for no match, the multi-valued `arc.inflightPin`, and the no-identity verdict's
-  shape; § 15.3 states only the keys.
-- **Design settled only in tasks.** The notice line's form, `<!-- arc-notice: ...`, in the block directly after the
-  stamp (Task 2.5.c); base-stamp recovery's window of the five newest versions (Task 2.6); the `resolveCheckoutGitDir`
-  fallback where `readGitDirectories` throws (Task 2.2.b); and `listArcFiles` skipping `system/.local/`, so `arc health`
-  reports no aside file as new (Task 2.2.c).
-- **§ 1.2's inventory.** It omits `lib/fs.ts`, `lib/advisory-lock.ts` (the exported liveness predicate),
-  `lib/local-vitest-runner.ts`, `lib/change-facts.ts`, and `__tests__/helpers/store/projection/`, which the tasks
-  change.
-- **A refused `history` read for a stopped replacement.** § 3.7 reads the version a stopped replacement replaced, which
-  a file other than Markdown needs to take the closer of the two versions as its base. Where that read refuses
-  `state-unresolvable`, § 3.5 pulls nothing, since only a merge in the checkout for a write is pulled, but says which
-  base the file then takes only for recovery, placement, and a conflicted file, and Task 2.8 tests no refusal. The lean:
-  the file stays pending and reported, written back nowhere, until the read succeeds, as a conflicted file keeps its
-  version, since taking either version without reading it would break § 3.7's rule that old content a stop left is never
-  written back over the newer version.
-- **The guard before a command's first writes.** § 11.2 runs the guard before the projection writes into a root, and its
-  named callers are materialization, refresh, and fan-out, but a command's start writes before its refresh: the sweep
-  links aside copies back (§ 5.4), and write-back's read-back replaces files by the swap
-  (`spec-projection-write-back.md` § 7.1). Nothing names a guard run before those writes. The lean: the start runs the
-  guard's skip check before its sweep, so every write it makes follows the guard, at no cost while no ignore file may
-  have changed.
+**What it changes.** The writer's second check keeps any copy that is an empty regular file, neither sending nor
+deleting it, and the next command's sweep settles it as it settles any copy: a save written into it since is taken in,
+or kept where its path has moved on, and a Markdown copy still empty is deleted as a deleted file. This covers files
+other than Markdown too. Today an old empty one reaches the take-in port as an edit emptying the file, which loses a
+late write and takes in an edit no one made. The swap's first check deletes nothing and is unchanged. A removal's or
+release's takeover (`spec-projection-worktrees.md` § 12.2, § 12.3) is not the command that made the copy, and residual 1
+still names it.
+
+**The cost.** An empty copy lingers in the aside folder until the next command, and for a file other than Markdown the
+entry's in-progress record stays until then, widening residual 2's window by the same span. The harness can now count a
+save emptied past the window as lost: it waits for each save to finish before the next command's sweep, so the
+"emptied past the settle window" outcome retires.
+
+**Superseded text.** § 5.2, The second check: "A copy is deleted only once its check finds no edit or the edit it took
+in has landed whole; one whose edit write-back defers or leaves pending stays in the aside folder, and the next
+command's sweep sends it again while its path has not moved on." § 17 item 1: "A write through a handle opened before a
+replacement and landing after the command's second check, or after a persist or release step took the aside copy over,
+goes to a deleted aside copy and is lost (§ 5.2). Reasoned, not measured: no tested editor or agent holds a file open
+across saves."
+
+## A2 — observations remain racy through index publication
+
+`commitProjectionIndex` must protect observations of files already visible to editors: a clean hash, a linked
+replacement's stat, and an ignore snapshot. Their pre-publication observation does not constrain a later same-tick
+save. Only `swapBatch`'s first write exempts staged files that are linked afterward. Its second write has no exemption.
+The regression cases preserve inode, size, and modification time across the intervening save.
+
+**Superseded § 3.3 text:**
+
+> - **Smudging.** Every index write smudges each entry it carries over unchanged that is racy against the reference it
+>   replaces — its cached size zeroed, so the next check hashes it — after Git's index write
+>   (`ce_smudge_racily_clean_entry`), which hashes first and smudges only a changed entry; the entries a write records
+> are
+>   racy against the new reference instead. Without the smudge a later write, a sibling's fan-out among them, would make
+>   the entry read clean and hide a same-tick save. A command that hashes a smudged entry clean re-records its stats,
+>   writing the index.
+
+## A3 — the ignore cache records its effective excludes source
+
+`readProjectionConfiguration` reads `core.excludesFile` in its existing Git query; `checkIgnores` compares that value
+with the last passing guard's value before considering file snapshots. `sweepAsideFolder` publishes both together.
+A changed or unset setting invalidates the cache even while the old source still exists unchanged. No extra Git call
+is added to the no-change path. Tests use real Git configuration and cover refusal plus continuation after repair.
+
+**Superseded § 11.2 paragraph:**
+
+> Before a write into a root the guard runs only when an ignore file may have changed. When it passes, the index
+> records,
+> for `.git/info/exclude`, each `.gitignore` on the path from the repository root to every projected root and the aside
+> folder, and any other file the call names as a match's source, a `core.excludesFile` among them, whether it exists,
+> its
+> stat, and its blob id, and a command skips the call only when each still matches and none is racy against the index's
+> reference (§ 3.3), so a refresh or fan-out pays nothing for it. These records take the smudge rule as entries do, each
+> against the blob id recorded beside it: an index write that carries one over unchanged while it is racy against the
+> reference it replaces smudges it, so the next write into a root runs the call, an ignore file truncated to empty in
+> the
+> guard's tick included.
+
+**Superseded § 15.3 configuration paragraph:**
+
+> - **The one configuration read.** It is `git config --null --get-regexp
+> '^(arc\.|user\.name$|extensions\.objectformat$)'`,
+>   which prints each match as its lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and
+>   exits 1 where no key is set, read as none set. A single-valued key takes its last occurrence, as `git config --get`
+>   returns it, and `arc.inflightPin` takes every occurrence. It returns the settings, or the no-identity verdict § 2.5
+>   states, naming the remedy that sets `arc.identity`.
+
+## A4 — bind a cached guard pass to the source it evaluated
+
+The first cache correction carried a setting read before Git's guard without binding it to that guard. A configuration
+change could make the guard evaluate another source and publish its pass under the earlier setting. An unset key and
+a valueless key also collapsed to one cache value, although Git refuses the latter. The correction binds the guard to
+the captured effective path and confirms selection before accepting its pass. A changed selection refuses recoverably;
+only a freshly run guard pays for confirmation. The default path follows the invocation environment, and invalid
+configuration names a repair. The original two-call budget continues to govern unchanged cached checks.
+
+**Superseded § 11.2 cache paragraph (A3):**
+
+> Before a write into a root `checkIgnores` runs the guard when an ignore file or its effective excludes source may have
+> changed (A3). When it passes, the index records the effective `core.excludesFile` value from
+> `readProjectionConfiguration`, including its absence, and, for `.git/info/exclude`, each `.gitignore` on the path from
+> the repository root to every projected root and the aside folder, and every match source, each file's existence, stat,
+> and blob id. A command skips Git's guard only when the effective setting still matches and every file still matches
+> without being racy against the index's reference (§ 3.3). Changing or unsetting the setting forces a fresh verdict
+> even
+> if the former source's bytes are unchanged. Every snapshot takes § 3.3's smudge rule, including one just recorded, so
+> publication cannot hide a same-tick change after the snapshot (A2).
+
+**Superseded § 15.3 configuration paragraph (A3):**
+
+> - **The one configuration read (A3).** `readProjectionConfiguration` runs `git config --null --get-regexp` with the
+>   expression `^(arc\.|user\.name$|extensions\.objectformat$|core\.excludesfile$)`. It prints each match as its
+>   lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and exits 1 where no key is set,
+> read
+>   as none set. A single-valued key takes its last occurrence, as `git config --get` returns it, and `arc.inflightPin`
+>   takes every occurrence. It returns the settings, the effective excludes source (null where unset), and the identity
+> or
+>   no-identity verdict § 2.5 states, naming the remedy that sets `arc.identity`.
+
+The cache correction validates every excludes occurrence before selecting the last value (`excludesFileOf`), since
+Git refuses an earlier valueless occurrence too. Home/default expansion concatenates path components without
+collapsing a symlink followed by `..`. `ignoreFiles` anchors each matched source's root prefix through `sourcePath`,
+leaving its traversal components for the filesystem. This keeps the cached snapshot on the file Git actually read.
+
+## A5 — cache the complete excludes selection
+
+The path-only basis in `checkIgnores` discarded earlier values that Git still parses. An earlier path naming a
+nonexistent home user could therefore reuse a pass while `guardProjectionIgnores` refused the same configuration.
+`readProjectionConfiguration` retains the ordered raw values beside the effective path; `checkIgnores` compares both
+on reuse and confirmation, and `sweepAsideFolder` persists both. A changed raw sequence forces native Git validation
+without adding a call to an unchanged cached start. Valueless occurrences still refuse before reuse.
+
+Superseded § 11.2 paragraph:
+
+> Before a write into a root `checkIgnores` compares the effective excludes source with the last passing guard's source
+> before considering file snapshots (A4). `readProjectionConfiguration` resolves an unset `core.excludesFile` to Git's
+> default excludes path from the invocation environment; an explicit string, including an empty string, stays explicit.
+> Any valueless excludes occurrence is invalid, including one before a later valid value, and refuses every root with a
+> configuration-repair remedy, never reusing a passing cache. Path expansion and source snapshots preserve traversal
+> components so the filesystem follows a symlink before a following `..`. A newly run guard receives the captured source
+> as a command-local Git setting, so its verdict and snapshots describe the same selection. Before accepting that pass,
+> `checkIgnores` confirms the current selection through another configuration read; a changed or invalid selection
+> refuses
+> every root recoverably, for a retry with fresh settings. The passed result carries its source, and `sweepAsideFolder`
+> records that source with its snapshots. This confirmation runs only with a fresh guard; an unchanged cached pass adds
+> no
+> call to the two-call start budget. As with an ignore-file edit after the guard's final snapshot, a configuration edit
+> after its last observation is seen on the next command.
+
+Superseded § 15.3 read:
+
+> - **The one configuration read (A4).** `readProjectionConfiguration` runs `git config --null --get-regexp` with the
+>   expression `^(arc\.|user\.name$|extensions\.objectformat$|core\.excludesfile$)`. It prints each match as its
+>   lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and exits 1 where no key is set,
+> read
+>   as none set. A single-valued key takes its last occurrence, as `git config --get` returns it, and `arc.inflightPin`
+>   takes every occurrence. It returns the settings, the effective excludes path or an invalid-setting verdict, and the
+>   identity or no-identity verdict § 2.5 states, naming the remedy that sets `arc.identity`. An unchanged start makes
+>   this call once. A fresh ignore guard makes a confirming read before its pass is accepted, with the same invocation
+>   environment; this does not add a call to an unchanged cached check.
+
+## A6 — bind the complete demonstrated guard basis
+
+The approved correction gives a guard pass its own root set, independently of `projectedUnder.identity`, and retains
+ordered `core.ignoreCase` values alongside the excludes selection. `checkIgnores` compares that basis before reuse;
+`guardProjectionIgnores` pins its captured effective settings and `checkIgnores` confirms them before accepting a
+fresh pass. The unchanged-start budget remains two Git calls. Git validates case-policy values, including valueless
+true entries; ARC preserves the raw sequence rather than implementing another boolean parser.
+
+Superseded § 11.2 cache basis:
+
+> Before a write into a root `checkIgnores` compares the effective excludes source and the complete ordered raw
+> `core.excludesFile` values with the last passing guard's basis before considering file snapshots (A5).
+> `readProjectionConfiguration` resolves an unset `core.excludesFile` to Git's default excludes path from the invocation
+> environment; an explicit string, including an empty string, stays explicit. Any valueless excludes occurrence is
+> invalid, including one before a later valid value, and refuses every root with a configuration-repair remedy, never
+> reusing a passing cache. Path expansion and source snapshots preserve traversal components so the filesystem follows a
+> symlink before a following `..`. A newly run guard receives the captured source as a command-local Git setting, so its
+> verdict and snapshots describe the same selection. Before accepting that pass, `checkIgnores` confirms the source and
+> all raw values through another configuration read; any change or invalid selection refuses every root recoverably, for
+> a retry with fresh settings. The passed result carries its source and raw values, and `sweepAsideFolder` records both
+> with its snapshots. This confirmation runs only with a fresh guard; an unchanged cached pass adds no call to the
+> two-call start budget. As with an ignore-file edit after the guard's final snapshot, a configuration edit after its
+> last observation is seen on the next command.
+
+Superseded § 15.3 read:
+
+> - **The one configuration read (A5).** `readProjectionConfiguration` runs `git config --null --get-regexp` with the
+>   expression `^(arc\.|user\.name$|extensions\.objectformat$|core\.excludesfile$)`. It prints each match as its
+>   lowercased key, a newline, and its value, NUL-terminated, in Git's scope order, and exits 1 where no key is set,
+>   read as none set. A single-valued key takes its last occurrence, as `git config --get` returns it, and
+>   `arc.inflightPin` takes every occurrence. It retains every excludes value in order for cache comparison, and returns
+>   the settings, the effective excludes path or an invalid-setting verdict, and the identity or no-identity verdict §
+>   2.5 states, naming the remedy that sets `arc.identity`. An unchanged start makes this call once. A fresh ignore
+>   guard makes a confirming read before its pass is accepted, with the same invocation environment; this does not add a
+>   call to an unchanged cached check.
+
+## A7 — prove personal ignores in worktree context
+
+A relative `core.excludesFile` can name a regular ancestor `.gitignore` while applying its patterns relative to the
+repository, rather than to that file's directory. `isIgnoredAsRequired` checked the filename and file kind, which did
+not establish the worktree semantics `npm pack` needs. `guardProjectionIgnores` must retain the configured all-roots
+query and add a personal-roots query with global excludes disabled and the captured case policy unchanged.
+`checkIgnores` brackets both queries with source snapshots and confirms the configuration after them; its guard basis
+requires `personalRules: "worktree"` before reuse. Existing development index fixtures change in place, with no
+migration reader or deletion of recovery entries. An unchanged start still makes no guard or confirmation call.
+
+Superseded § 11.2 opening:
+
+> The guard runs where those entries are written and before the projection writes into a root: one
+> `git check-ignore -z -v --non-matching --no-index --stdin` over the roots and the aside folder refuses a path no rule
+> ignores, and `.arc/user/*/` must match a rule whose source is `.gitignore` itself, since `npm pack` reads only
+> `.gitignore`.
+
+The two-query guard replaces the single-query cost in the portability and no-change-budget sections. Its source
+union uses the same ancestor and matched-source snapshots; lifecycle roots may still rely on global excludes.
+The regression boundary includes refusal and repaired retry, package exclusion, valid nested worktree rules,
+captured case policy, cache-proof invalidation and the unchanged-start budget.
+
+## A8 — prove npm exclusion independently of Git
+
+**Evidence and decision.** `guardProjectionIgnores` accepts worktree Git rules while ordinary npm root `.npmignore` or
+`package.json` `files` rules include personal files. Eighteen native `npm pack --dry-run --json --ignore-scripts` cases
+support a strict nested `.arc/user/.npmignore` containing `*`, including child negations and `main`/`bin` targets, with
+`public.txt` retained. This is a bounded proof of npm's normal project-root walk; other packagers, separate package
+roots and edits after the last check are explicitly outside the guarantee. The policy composes existing managed setup,
+exclusive creation and ignore snapshots; no package interpreter, new dependency or npm process runs at command start.
+
+**Superseded statements.** Goal 7 names only the worktree lock, root `.ignore` and this repository's `.gitignore` change
+as live exceptions. § 11.2 says personal roots require worktree rules “since `npm pack` reads worktree rules rather than
+global excludes”; its cache basis requires `personalRules: "worktree"`. Cross-cutting Considerations' Ignore integrity
+claims “no packaging tool ships personal state”. A8 adds the live policy exception, a distinct npm proof and an opaque
+proof discriminator, and bounds that packaging claim. Original Goal 7 and passed criteria remain preserved, with a
+forward amendment and new criteria. Criterion 17 bounds criterion 16's packaging clause while retaining its Git proof;
+no corrective task parent exists at this review site.
+
+**Propagation.** § 1.4, § 11.2–11.3, § 15.3, Ignore integrity and Rollout now carry the policy and boundary; the module
+reference and all five setup callers must agree. The root `.gitignore` continues to ignore identity directories while
+allowing the container policy. The unpublished proof value changes in place: an old proof forces a fresh guard without
+removing or migrating recovery entries. Policy absence, type and content share the existing before/after bracket and
+smudge discipline. Medium-depth author checks cover this footprint and affected Phase 1/2 tests; independent amendment
+review was declined, while the independent code fix check was approved separately.
+
+## A9 — preserve search traversal through ignored ancestors
+
+`arcSearchIgnoreEntries` negates the four leaf patterns, but a root `.gitignore` ignoring `.arc/` or `.arc/user/`
+prevents native repository-root ripgrep traversal. `guardProjectionIgnores` accepts those ancestor rules; exact-source
+setup/guard probes find zero or three of four sentinels instead of four. The correction first negates the two parent
+directories, retaining the leaf rules and repository-owned lines. Native proposal controls restore all four roots
+without changing Git/npm exclusion or a separate internal exclusion. Explicitly searching `.arc` skips this traversal
+boundary and is not the regression's entry point.
+
+Superseded § 11.3 opening:
+
+> The ripgrep family of search tools reads `.ignore` above `.gitignore` and `.git/info/exclude`, so a root `.ignore`
+> re-including all four projected roots makes them searchable there (D13). It negates the pattern that ignores each root,
+> `.arc/user/*/` for every identity's personal root, since a negation re-includes only the path its pattern names.
+> `arc init` (with `--reconfigure`), `join`, and `update` write it as ARC's managed block through `writeArcGitignoreBlock`
+> (`lib/template/files.ts`), which already takes the file's path and rewrites only its own block, so a repository's own
+> lines stay; the file is tracked. It lands live before the flip in every repository the verbs run in (§ 1.4), where it
+> changes only what search finds: the three shared roots are tracked and no rule ignores them, and `.arc/user/*/`, the one
+> root ignored before the flip, becomes searchable as it will be from the flip.
+
+This is a determinate correction to the search mechanism, at low amendment depth. The original Goals and criteria
+remain preserved; criterion 18 makes the accepted ancestor cases explicit. `writeArcIgnoreBlocks` supplies every
+setup entrypoint, so its generator, this repository's managed block and existing block expectations change together.
+Author checks cover the amended paragraph, root-pattern definitions, setup callers and existing criterion 3; the
+separately approved code fix check covers both corrections. No new dependency or packager behavior is added.
+
+## A10 — bound the save-loss assurance
+
+Normal CI 41548750614 at `149279e52d` lost one randomized in-place save on Linux. The trace records the save's
+open/write/close and check-return times but not unlink, so its exact final-read/unlink ordering is unknown. Controlled
+source-import probes reproduce a write after unlink and a write completed after the final content read but before
+unlink, using `SYSTEM_READ_GATE` in both. A separate deterministic 1 ms/15 ms schedule yields different outcomes;
+it establishes a harness distortion, not the historical cause.
+
+`runSaveLoss` had substituted a 1 ms timer for the production gate's 15 ms timer, and awaited the worker only after
+`runSecondCheck`. A single in-place save can be descheduled after opening its handle and write past the final content
+read; retaining a handle across multiple saves is unnecessary. `settleAsideCopy` and `deleteAsideCopy` do not
+synchronize with that writer. No finite wait closes arbitrary late writes. The accepted design keeps production
+behavior unchanged, makes this residual explicit, and bounds the randomized zero-loss assurance: use the production
+gate and finish the trial's save before its destructive final check. Every raw loss still fails; no outcome is
+filtered or reclassified. All 3,000 randomized saves, deterministic within-window cases, empty-copy/next-sweep
+coverage and timeouts remain. Criterion 19 supersedes criterion 10's unbounded assurance; Goal 2 and original
+criteria/task Goals stay preserved.
+
+Superseded residual and criterion, verbatim:
+
+> 1. **A write through a held handle.** A write through a handle opened before a replacement goes to a deleted aside copy
+>    and is lost (§ 5.2) where it lands after the command's second check deleted a copy that was not empty, after a later
+>    sweep deleted one left empty, or after a persist or release step took the copy over. An empty copy waits for the
+>    next command's sweep (A1), so a save that truncates the file first is lost only where its write lands after that
+>    sweep. Reasoned, not measured: no tested editor or agent holds a file open across saves.
+
+Superseded criterion 10:
+
+> 10. **An emptied copy waits for the sweep.** An aside copy empty at its writer's second check is neither sent nor
+>     deleted there, and the next command's sweep settles it as any copy it takes over; on Linux and in the portability
+>     lane, the save-loss harness loses no save, one that left the file empty past the settle window included (§ 5.2,
+>     § 17) (A1).
+
+The amendment footprint is § 1.5, § 5.2, § 17 item 1 and criteria 10/19, the affected completed task/verification
+claims, and `runSaveLoss`. Review-site correction has no new corrective parent or lifecycle move. Medium-depth author
+checks cover reader independence, binding completeness, coherence, source grounding and the affected task derivation.
+The standing direction uses author amendment checks; an independent code fix check is separately approved. Preserved
+filesystem probes retain the excluded schedules as explicit evidence.
+
+Keeping an aside handle open across unlink could detect writes before a subsequent handle read, but later writes
+still escape. Reliable recovery is a medium change: `TakeInRequest` takes a pathname, so late bytes need a durable
+aside name and index/copy state before finalization, or a different take-in contract, plus crash and Windows sharing
+coverage. This was assessed read-only; no handle-retention implementation is included.

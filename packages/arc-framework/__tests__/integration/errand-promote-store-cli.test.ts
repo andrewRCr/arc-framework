@@ -14,6 +14,8 @@ import { readWorktreeMarker, readWorktreeMarkerGeneration, removeWorktreeMarkerG
   writeWorktreeMarker, ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs } from "../../src/lib/git/worktree-marker.js";
 import { ErrandPromotionResultSchema } from "../../src/lib/errand/promotion-result.js";
 import { makeGitExec } from "../helpers/integration.js";
+import { readWorktreeLock } from "../helpers/worktree-lock.js";
+import { PROJECTION_LOCK_REASON } from "../../src/lib/git/worktree-removal.js";
 
 async function openedFixture(slug: string, isolate = false) {
   let f = await repairCliFixture();
@@ -49,6 +51,14 @@ it.each([false, true])("promotion binds the promoted owner in its marker, isolat
   expect(result).toMatchObject({ result: { outcome: "applied", checkoutPath: f.cwd } });
   expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present",
     marker: { spawnedByArc: isolate, createdFor: { kind: "work-unit", name, uid: f.uid } } });
+}, 30_000);
+
+it("keeps an isolated Errand's projection lock on its checkout through promotion to a work unit", async () => {
+  const f = await openedFixture("lock-promotion", true);
+  expect(await readWorktreeLock(f.exec, f.cwd)).toBe(PROJECTION_LOCK_REASON);
+  const result = await repairCli(f, promoteArgs(f.slug, "locked-promotion"));
+  expect(result).toMatchObject({ result: { outcome: "applied", checkoutPath: f.cwd } });
+  expect(await readWorktreeLock(f.exec, f.cwd)).toBe(PROJECTION_LOCK_REASON);
 }, 30_000);
 
 it("refuses registered promotion by a foreign owner without changing state and lets the source owner retry", async () => {

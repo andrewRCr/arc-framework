@@ -47,16 +47,26 @@ async function resolveMarkerPath(base: string, value: string, fs: GitDirectoryFi
   return resolve(coordinate, ...components);
 }
 
-/** Follow a checkout's .git marker and its optional commondir marker. */
-export async function readGitDirectories(checkoutRoot: string, fs: GitDirectoryFileAccess): Promise<GitDirectories> {
-  const marker = resolve(checkoutRoot, ".git");
-  const gitDir = (await fs.lstat(marker)).isDirectory() ? marker : await readMarkedGitDir(marker, fs);
+/**
+ * Follow a Git directory's optional commondir marker.
+ * @param gitDir - A checkout's private Git directory.
+ * @param fs - File access for the marker.
+ * @returns The common directory, or `gitDir` itself where it holds no commondir.
+ */
+export async function readCommonDirectory(gitDir: string, fs: GitDirectoryFileAccess): Promise<string> {
   let common: string;
   try {
     common = (await fs.readFile(join(gitDir, "commondir"))).replace(/[\r\n]+$/u, "");
   } catch (error) {
     if (!hasCode(error, "ENOENT")) throw error;
-    return { gitDir, commonDir: gitDir };
+    return gitDir;
   }
-  return { gitDir, commonDir: await resolveMarkerPath(await fs.realpath(gitDir), common, fs) };
+  return resolveMarkerPath(await fs.realpath(gitDir), common, fs);
+}
+
+/** Follow a checkout's .git marker and its optional commondir marker. */
+export async function readGitDirectories(checkoutRoot: string, fs: GitDirectoryFileAccess): Promise<GitDirectories> {
+  const marker = resolve(checkoutRoot, ".git");
+  const gitDir = (await fs.lstat(marker)).isDirectory() ? marker : await readMarkedGitDir(marker, fs);
+  return { gitDir, commonDir: await readCommonDirectory(gitDir, fs) };
 }

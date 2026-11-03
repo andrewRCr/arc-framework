@@ -7,6 +7,7 @@ import type { StaleWorktreeSweepResult } from "../../../src/lib/session-init/sta
 import { SlugSchema } from "../../../src/lib/kernel/index.js";
 import type { OrphanBranchReport } from "../../../src/lib/session-init/orphan-branch-sweep.js";
 import { missingRegistrationActions } from "../../../src/lib/session-init/missing-worktree-folders.js";
+import { PROJECTION_LOCK_REASON } from "../../../src/lib/git/worktree-removal.js";
 import { projectRenameMoveRemedy } from "../../../src/lib/session-init/lifecycle-residue-sweep.js";
 import { projectSuccessorReadiness } from "../../../src/lib/work-unit/retirement-lifecycle-result.js";
 import { deriveCurrentHuskAdvisory } from "../../../src/lib/session-init/current-husk-advisory.js";
@@ -52,9 +53,14 @@ describe("agenda current husk cleanup", () => {
     expect(steps).toEqual([expect.objectContaining({ type: "render", surface: "husk", text: expect.stringContaining("arc teardown") })]);
   });
 
-  it("renders only the manual-only reason without any cleanup offer", async () => {
+  it("keeps manual-only cleanup subject to inspection and saving personal state", async () => {
     const steps = orderOrientationSurfaces(compileCleanupOrientation(await huskInput("manual-only")));
-    expect(steps).toEqual([{ type: "render", surface: "husk", text: "**Husk:** pre-store-husk" }]);
+    expect(steps).toEqual([expect.objectContaining({ type: "render", surface: "husk", text: expect.stringContaining("pre-store-husk") })]);
+    const render = steps[0];
+    if (render?.type !== "render") throw new Error("Expected manual cleanup guidance");
+    expect(render.text).toMatch(/inspect[\s\S]*manual decision[\s\S]*arc user save[\s\S]*git worktree unlock[\s\S]*git worktree remove/iu);
+    expect(render.text).toContain("primary checkout");
+    expect(offers(steps)).toEqual([]);
   });
 });
 
@@ -179,21 +185,42 @@ describe("agenda stale worktree cleanup", () => {
     expect(steps[0]).toMatchObject({ text: expect.stringContaining("reserved") });
     expect(offers(steps)).toEqual([]);
   });
+
+  it.each([false, true])("quotes manual husk commands and keeps them non-executable (linked: %s)", async linked => {
+    const worktreePath = "/repo/alice's $(save) husk";
+    const quotedPath = `'/repo/alice'"'"'s $(save) husk'`;
+    const report = huskReport(linked ? { kind: "branch", ref: "feat/manual" } : { kind: "errand", slug: "manual" }, linked);
+    const steps = orderOrientationSurfaces(compileCleanupOrientation(await sweepInput({ worktrees: [{ ...report, worktreePath }] }, linked)));
+    const render = steps[0];
+    if (render?.type !== "render") throw new Error("Expected manual cleanup guidance");
+    expect(render.text).toContain(`git worktree unlock ${quotedPath}`);
+    expect(render.text).toContain(`git worktree remove ${quotedPath}`);
+    expect(render.text).toMatch(/arc user save[\s\S]*primary checkout/u);
+    expect(steps.every(step => step.type === "render")).toBe(true);
+  });
 });
 
 
 describe("agenda missing checkout registrations", () => {
-  it("renders every published remedy as text, including teardown argv and owner-held unlocks", async () => {
-    const unlocked = missingRegistrationActions("/repo/gone", { locked: false, workUnitName: "gone" });
-    const locked = missingRegistrationActions("/repo/locked path", { locked: true, workUnitName: "locked" });
+  it("offers typed teardown actions while owner-held unlocks stay manual", async () => {
+    const unlocked = missingRegistrationActions("/repo/gone", { lock: undefined, workUnitName: "gone" });
+    const projection = missingRegistrationActions("/repo/projected", { lock: PROJECTION_LOCK_REASON, workUnitName: "projected" });
+    const locked = missingRegistrationActions("/repo/locked path", { lock: null, workUnitName: "locked" });
     const steps = orderOrientationSurfaces(compileCleanupOrientation(await sweepInput({ missingFolders: [
       { worktreePath: "/repo/gone", branch: "feat/gone", outcome: "missing", actions: unlocked },
+      { worktreePath: "/repo/projected", branch: "feat/projected", outcome: "missing", actions: projection },
       { worktreePath: "/repo/locked path", branch: "feat/locked", outcome: "locked", actions: locked },
     ] })));
-    expect(steps).toEqual([{ type: "render", surface: "missing-folders", text: expect.stringContaining(unlocked[0]!.text) }]);
+    expect(steps[0]).toMatchObject({ type: "render", surface: "missing-folders", text: expect.stringContaining(unlocked[0]!.text) });
     expect(steps[0]).toMatchObject({ text: expect.stringContaining(locked[0]!.text) });
-    expect(offers(steps)).toEqual([]);
+    const choices = offers(steps)[0]?.choices;
+    expect(choices?.flatMap(choice => choice.kind === "actions" ? choice.actions.map(action => action.argv) : [])).toEqual([
+      ["arc", "teardown", "gone"], ["arc", "teardown", "projected"],
+    ]);
+    expect(choices?.every(choice => choice.kind === "actions" && choice.then.kind === "recompile")).toBe(true);
+    expect(steps.some(step => step.type === "exec")).toBe(false);
   });
+
 });
 
 it("keeps cleanup silent when a failed roster leaves the sweep absent", async () => {

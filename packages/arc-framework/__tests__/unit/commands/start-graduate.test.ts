@@ -8,6 +8,8 @@
  * leg + guard is asserted without a real worktree.
  */
 
+import { scriptGitExec } from "../../helpers/git-exec-fake.js";
+import { worktreePorcelainZ } from "../../helpers/worktree-porcelain.js";
 import { describe, it, expect } from "vitest";
 import { normalize } from "node:path";
 
@@ -209,6 +211,11 @@ function buildCtx(
 
   const makeCtx = (cwd: string): ExecuteTransitionContext => ({
     cwd,
+    exec: scriptGitExec([
+      { match: ["worktree", "list", "--porcelain", "-z"], responses: [{ stdout:
+        worktreePorcelainZ(`worktree /repo/../wt\nHEAD ${"a".repeat(40)}\nbranch refs/heads/plan/widget\n`) }] },
+      { match: { prefix: ["worktree", "lock"] }, responses: [{ stdout: "" }] },
+    ]).exec,
     withCwd: (nextCwd) => makeCtx(nextCwd),
     indexFs: buildIndexFs(metas, cwd),
     setPhase: async () => ({ phase: "Planning" }),

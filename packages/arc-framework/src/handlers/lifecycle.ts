@@ -21,6 +21,7 @@
 import { runTeardownForOperand } from "./teardown-operand.js";
 import type { UnboundMarkerClassification } from "../lib/locus/unbound-marker.js";
 import { handleStoreAbandon } from "./abandon-store.js";
+import { warnSpawnLock } from "./spawn-lock.js";
 
 
 import { collaborationCommandInputRegistrations, handleStoreResume } from "./lifecycle-collaboration.js";
@@ -1171,6 +1172,7 @@ export async function handleResume(
     repo: basename(primaryWorktreePath),
     spawningIdentity: base.identity,
   });
+  warnSpawnLock(result.worktreePath, result.spawnLock);
   if (result.status === "rejected") {
     refuse(result.reason);
     return;
@@ -1349,6 +1351,7 @@ export async function handleMaterialize(
       return;
     }
     spinner.stop("Worktree ready.");
+    warnSpawnLock(result.worktreePath, result.spawnLock);
     reportMaterializeOutcome(
       "Materialized",
       [

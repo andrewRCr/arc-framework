@@ -30,10 +30,13 @@ export { retryTransientFileSystemRefusal } from "./kernel/fs-retry.js";
  *
  * @param targetPath - Absolute path to the file
  * @param content - Complete text or byte content to write
+ * @param options - `createParents: false` writes only into a folder that exists, failing with `ENOENT` otherwise
  */
-export async function atomicWriteFile(targetPath: string, content: string | Uint8Array): Promise<void> {
+export async function atomicWriteFile(
+  targetPath: string, content: string | Uint8Array, options: { createParents?: boolean } = {},
+): Promise<void> {
   const dir = dirname(targetPath);
-  await mkdir(dir, { recursive: true });
+  if (options.createParents !== false) await mkdir(dir, { recursive: true });
   const tmpPath = join(dir, `.${basename(targetPath)}.${randomBytes(8).toString("hex")}.tmp`);
 
   try {
@@ -187,8 +190,9 @@ export async function listArcFiles(dir: string): Promise<string[]> {
     for (const entry of entries) {
       const fullPath = join(current, entry);
       const relPath = toForwardSlash(relative(dir, fullPath));
-      // Skip system/.internal directory (framework bookkeeping)
+      // Skip system/.internal (framework bookkeeping) and system/.local (machine-local files)
       if (relPath === "system/.internal" || relPath.startsWith("system/.internal/")) continue;
+      if (relPath === "system/.local" || relPath.startsWith("system/.local/")) continue;
       // Skip per-identity user directories (e.g., user/alice/) — these are
       // gitignored personal workspaces. Top-level user/ files like README.md
       // are included since they are tracked framework content.

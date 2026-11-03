@@ -1,14 +1,17 @@
 /** Read-only removal authorization and projection-aware checkout retirement. */
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
-import type { Remedy } from "../store/refusal.js";
 import { quoteShellArgument } from "../release/commit-message-retry.js";
+import type { Remedy } from "../store/refusal.js";
 import type { GitExec } from "./exec.js";
 import { readWorktreeMarker, type WorktreeMarkerReadResult } from "./worktree-marker.js";
 import { decodeGitQuotedText, parseGitWorktreePorcelainZ } from "./worktree-porcelain.js";
 
-/** Exact lock reason owned by the projection rather than an operator. */
-export const PROJECTION_LOCK_REASON = "arc:projection";
+/**
+ * The exact lock reason the projection owns, as distinct from a lock anyone else sets. Git prints it in its refusal of a
+ * plain removal, so it names the exits that remove such a checkout.
+ */
+export const PROJECTION_LOCK_REASON = "arc: remove with 'arc teardown' (work unit) or 'arc errand close|abandon|leave' (Errand)";
 /** Projection hooks; dormant until the projection binds them. */
 export interface ProjectionRemovalSlots {
   check: (checkout: string) => Promise<{ kind: "passes" } | { kind: "would-refuse"; remedy: Remedy } | { kind: "unobservable"; detail: string }>;
@@ -79,6 +82,7 @@ export async function removeWorktreeCheckout(options: RemoveWorktreeCheckoutOpti
     return { kind: "failed", step: "remove", detail: `Checkout folder has returned at ${options.checkoutPath}; its registration was left intact.` };
   }
   let step: "persist" | "unlock" | "remove" = "persist";
+  let unlocked = false;
   try {
     if (check.kind !== "missing") {
       const persisted = await slots.persist(options.checkoutPath);
@@ -89,15 +93,30 @@ export async function removeWorktreeCheckout(options: RemoveWorktreeCheckoutOpti
     await options.beforeRetire?.();
     if (registration?.locked === PROJECTION_LOCK_REASON) {
       await options.exec("git", ["worktree", "unlock", options.checkoutPath], { cwd: options.primaryWorktreePath });
+      unlocked = true;
     }
     step = "remove";
     if (options.onlyMissing && await (options.folderExists ?? folderExists)(options.checkoutPath)) {
-      return { kind: "failed", step, detail: `Checkout folder has returned at ${options.checkoutPath}; its registration was left intact.` };
+      return await relock(options, unlocked,
+        { kind: "failed", step, detail: `Checkout folder has returned at ${options.checkoutPath}; its registration was left intact.` });
     }
     await options.beforeRetire?.();
     await options.exec("git", ["worktree", "remove", options.checkoutPath], { cwd: options.primaryWorktreePath });
     return { kind: check.kind === "missing" ? "pruned" : "removed" };
-  } catch (error) { return { kind: "failed", step, detail: message(error) }; }
+  } catch (error) { return relock(options, unlocked, { kind: "failed", step, detail: message(error) }); }
+}
+/** A retirement that unlocked the projection's lock and kept the checkout locks it again before it reports failing. */
+async function relock(
+  options: RemoveWorktreeCheckoutOptions, unlocked: boolean, failed: Extract<WorktreeRemovalResult, { kind: "failed" }>,
+): Promise<WorktreeRemovalResult> {
+  if (!unlocked) return failed;
+  try {
+    await options.exec("git", ["worktree", "lock", "--reason", PROJECTION_LOCK_REASON, options.checkoutPath], { cwd: options.primaryWorktreePath });
+    return failed;
+  } catch (error) {
+    return { ...failed, detail: `${failed.detail}; locking the checkout again failed too (${message(error)}): `
+      + `lock it with git worktree lock --reason ${quoteShellArgument(PROJECTION_LOCK_REASON)} ${quoteShellArgument(options.checkoutPath)}` };
+  }
 }
 /** Persist a retained checkout before its caller touches its marker. */
 export async function releaseWorktreeCheckout(options: RemoveWorktreeCheckoutOptions): Promise<{ kind: "released" } | { kind: "refused"; check: Extract<RemovalCheck, { kind: "refused" }> }> {
@@ -106,6 +125,37 @@ export async function releaseWorktreeCheckout(options: RemoveWorktreeCheckoutOpt
   if (check.kind === "refused") return { kind: "refused", check };
   const released = await slots.release(options.checkoutPath, resolve(options.checkoutPath) === resolve(options.primaryWorktreePath));
   return released.kind === "released" ? released : { kind: "refused", check: { kind: "refused", reason: "persist-would-refuse", remedy: released.remedy } };
+}
+
+/** What a spawn's lock left: the projection's lock, a lock another tool set first, or no lock. */
+export type SpawnLock =
+  | { kind: "locked" }
+  | { kind: "kept"; lockReason: string | null }
+  | { kind: "failed"; detail: string };
+/**
+ * Lock a checkout a verb spawned with the projection's reason, as the spawn's last step.
+ * @param exec - Git boundary.
+ * @param checkoutPath - A linked checkout the verb placed, never the primary or one claimed in place.
+ * @returns Locked, already or now; kept under another tool's lock; or left unlocked because locking failed.
+ */
+export async function lockSpawnedCheckout(exec: GitExec, checkoutPath: string): Promise<SpawnLock> {
+  try {
+    const registration = await readRegistration(exec, checkoutPath);
+    if (registration?.locked === PROJECTION_LOCK_REASON) return { kind: "locked" };
+    if (registration?.locked !== undefined) return { kind: "kept", lockReason: registration.locked };
+    await exec("git", ["worktree", "lock", "--reason", PROJECTION_LOCK_REASON, checkoutPath]);
+    return { kind: "locked" };
+  } catch (error) { return { kind: "failed", detail: message(error) }; }
+}
+/** The warning a spawn prints where its checkout lacks the projection's lock, or null where it carries it. */
+export function describeSpawnLock(checkoutPath: string, lock: SpawnLock): string | null {
+  switch (lock.kind) {
+    case "locked": return null;
+    case "kept": return `${checkoutPath} was already locked by another tool${lock.lockReason === null ? "" : ` (${lock.lockReason})`}; `
+      + `ARC left that lock, so its exits refuse this checkout until that tool's owner runs git worktree unlock ${quoteShellArgument(checkoutPath)}`;
+    case "failed": return `could not lock ${checkoutPath}: ${lock.detail}; `
+      + `lock it with git worktree lock --reason ${quoteShellArgument(PROJECTION_LOCK_REASON)} ${quoteShellArgument(checkoutPath)}`;
+  }
 }
 
 /** Human repairs for refused removal observations. */

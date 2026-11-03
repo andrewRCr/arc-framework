@@ -15,6 +15,7 @@ import {
   nodeEditorDocumentsFs, writeEditorDocumentsOrThrow, type EditorDocumentsWriter,
 } from "../schema-command/editor-documents.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
+import { lockSpawnedCheckout } from "../git/worktree-removal.js";
 import {
   createWorktreeMarkerGeneration,
   ensureWorktreeMarkerIgnored,
@@ -128,6 +129,7 @@ export function createNodeProvisioningDependencies(
     rollbackPrimary: (checkoutPath, receipt) => rollbackPrimary(options.exec, checkoutPath, receipt),
     rollbackSpawned: (receipt, rosterHead, primaryWorktreePath) =>
       rollbackSpawned(options.exec, receipt, rosterHead, primaryWorktreePath),
+    lockSpawnedCheckout: (worktreePath) => lockSpawnedCheckout(options.exec, worktreePath),
   };
 }
 
