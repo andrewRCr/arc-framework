@@ -956,11 +956,22 @@ jobs:
       with:
         name: test-duration-input
         path: packages/arc-framework/.test-cost-runs/duration-input/
+    # This platform's own recorded durations, once a full run has saved them; until then the shards balance by the
+    # Linux integration durations. The Linux merge job saves the file, so the cache is shared across platforms.
+    - name: Restore platform duration cache
+      id: platform-durations
+      if: ${{ !inputs.portability_timing_only && !inputs.portability_files }}
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: packages/arc-framework/.test-cost-runs/platform-duration-input
+        key: arc-test-durations-${{ runner.os }}-${{ github.run_id }}
+        restore-keys: arc-test-durations-${{ runner.os }}-
+        enableCrossOsArchive: true
     - id: test
       if: ${{ !inputs.portability_timing_only && !inputs.portability_files }}
       run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform test --shard ${{ matrix.shard }}
       env:
-        ARC_TEST_DURATION_FILE: ${{ github.workspace }}/packages/arc-framework/.test-cost-runs/duration-input/integration.json
+        ARC_TEST_DURATION_FILE: ${{ github.workspace }}/packages/arc-framework/.test-cost-runs/${{ steps.platform-durations.outputs.cache-matched-key && 'platform-duration-input/portability' || 'duration-input/integration' }}.json
         ARC_E2E_SKIP_BUILD: '1'
         ARC_STORE_BURSTS: '1'
         ARC_STORE_PROFILE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
@@ -1001,6 +1012,56 @@ jobs:
       run: node --import tsx scripts/run-ci-checks.mjs run portability-cross-platform macos
       env:
         ARC_E2E_SKIP_BUILD: '1'
+
+  # Each platform keeps its own portability durations. Only a run that took every store suite writes, replacing the
+  # platform's file whole: a dispatch that left unreached store suites out, or ran named files or timing alone, would
+  # drop the heaviest files from it.
+  merge-portability-durations:
+    name: Merge & save portability durations (${{ matrix.os }})
+    permissions:
+      contents: read
+      actions: read
+    needs: portability-cross-platform
+    if: ${{ !cancelled() && needs.portability-cross-platform.result == 'success' && !inputs.portability_timing_only && !inputs.portability_files && (github.event_name == 'schedule' || github.ref == 'refs/heads/main' || inputs.portability_store_full) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [Windows, macOS]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: 'lts/*'
+        cache: 'npm'
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      id: nm-cache
+      with:
+        path: |
+          node_modules
+          packages/arc-framework/node_modules
+        key: ${{ runner.os }}-${{ runner.arch }}-nm-${{ hashFiles('package-lock.json') }}
+    - if: ${{ steps.nm-cache.outputs.cache-hit != 'true' }}
+      run: npm ci
+    - name: Initialize approved dependency tools
+      run: npm run setup
+    - name: Download platform results
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+      with:
+        pattern: portability-results-${{ matrix.os }}-*
+        path: portability-results
+    - name: Merge disjoint duration memberships
+      run: >-
+        node --import tsx packages/arc-framework/__tests__/helpers/merge-duration-input.ts portability-results
+        packages/arc-framework/.test-cost-runs/platform-duration-input
+    - name: Save platform duration cache
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: packages/arc-framework/.test-cost-runs/platform-duration-input
+        key: arc-test-durations-${{ matrix.os }}-${{ github.run_id }}
+        enableCrossOsArchive: true
 
   git-floor-integration:
     name: Git floor (integration, ${{ matrix.shard }})

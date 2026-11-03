@@ -1,9 +1,10 @@
 /** Duration-weighted assignment partitions discovery independently of input order. */
 import { expect, it } from "vitest";
+import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { TestSpecification, Vitest } from "vitest/node";
 import { assignDurationShards, sortDurationFiles, readResultsDurations, HeavyFirstSequencer } from "../helpers/heavy-first-sequencer.js";
-import { PROJECT_DURATION_ESTIMATES } from "../helpers/heavy-first-durations.js";
+import { PROJECT_DURATION_ESTIMATES, SERIAL_PROJECT_WEIGHTS } from "../helpers/heavy-first-durations.js";
 
 const identify = (entry: { project: string; file: string }) => entry;
 it("orders equal weights by project and path independently of discovery order", () => {
@@ -96,4 +97,44 @@ it("gives the burst suite a shard of its own and keeps the timing suite off it a
   const bursts = shards.find((shard) => shard.some((file) => file.project === "integration-bursts"));
   expect(bursts?.map((file) => file.project)).toEqual(["integration-bursts"]);
   expect(shards.find((shard) => shard.some((file) => file.project === "integration-timing"))).not.toBe(bursts);
+});
+
+it("scales only a serial file's recorded duration, never its project estimate", () => {
+  const files = [{ project: "serial", file: "recorded.ts" }, { project: "serial", file: "unrecorded.ts" },
+    { project: "parallel", file: "a.ts" }];
+  const source = { recorded: new Map<string, unknown>([["serial:recorded.ts", 4], ["parallel:a.ts", 10]]),
+    estimates: { serial: 5 }, serialWeights: { serial: 3 } };
+  // Shard weights: the recorded serial file 12, the parallel file 10, the unrecorded serial file its estimate of 5.
+  expect(assignDurationShards(files, 2, source, identify)).toEqual([[files[0]], [files[2], files[1]]]);
+});
+
+it("leaves an assignment with no serial project where its recorded durations alone place it", () => {
+  const files = [3, 6, 9, 4, 8, 5, 7].map((duration) => ({ project: "integration", file: `${duration}.ts` }));
+  const recorded = new Map<string, unknown>(files.map((file) => [`integration:${file.file}`, Number.parseInt(file.file, 10)]));
+  expect(assignDurationShards(files, 3, { recorded, estimates: PROJECT_DURATION_ESTIMATES,
+    serialWeights: SERIAL_PROJECT_WEIGHTS }, identify))
+    .toEqual(assignDurationShards(files, 3, { recorded, estimates: PROJECT_DURATION_ESTIMATES }, identify));
+});
+
+it("keeps the burst suite on a shard of its own at recorded Windows durations only when serial files are weighted", () => {
+  // Hosted Windows durations, in seconds, from a full portability run.
+  const parallel = [657, 650, 578, 451, 439, 430, 395, 388, 306, 275, 267, 185, 139, 105, 96, 85, 74, 73, 70]
+    .map((seconds, index) => ({ project: "integration", file: `parallel-${index}.test.ts`, seconds }));
+  const files = [...parallel, { project: "integration-bursts", file: "bursts.test.ts", seconds: 593 },
+    { project: "integration-timing", file: "timing.test.ts", seconds: 59 }];
+  const recorded = new Map<string, unknown>(files.map((file) => [`${file.project}:${file.file}`, file.seconds * 1000]));
+  const burstShard = (shards: (typeof files)[]) => shards.find((shard) =>
+    shard.some((file) => file.project === "integration-bursts"))?.map((file) => file.file);
+  expect(burstShard(assignDurationShards(files, 6, { recorded, estimates: PROJECT_DURATION_ESTIMATES,
+    serialWeights: SERIAL_PROJECT_WEIGHTS }, identify))).toEqual(["bursts.test.ts"]);
+  expect(burstShard(assignDurationShards(files, 6, { recorded, estimates: PROJECT_DURATION_ESTIMATES }, identify)))
+    .not.toEqual(["bursts.test.ts"]);
+});
+
+it("weights exactly the projects the configuration runs one file at a time", async () => {
+  // Read the declarations rather than loading the configuration, whose module probes the host.
+  const config = await readFile(join(packageRoot, "vitest.config.ts"), "utf8");
+  const serial = config.split(/\bname: "/u).slice(1).flatMap((project) =>
+    /\bmaxWorkers: 1\b/u.test(project) ? [project.slice(0, project.indexOf("\""))] : []);
+  expect(serial.sort()).toEqual(Object.keys(SERIAL_PROJECT_WEIGHTS).sort());
 });

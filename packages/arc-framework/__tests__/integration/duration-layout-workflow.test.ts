@@ -129,3 +129,31 @@ it("merges and saves after the writer shards succeeded, a push updating the inpu
   expect(value.jobs.unit?.steps.find((entry) => entry.name === "Upload unit test report")?.with?.name)
     .toBe("unit-test-report-${{ matrix.node.label }}-${{ matrix.shard }}");
 });
+
+it("balances each platform's portability shards by its own durations, saved only by runs that took every store suite", async () => {
+  const value = await workflow();
+  const steps = value.jobs["portability-cross-platform"]?.steps ?? [];
+  const restore = steps.find((entry) => entry.id === "platform-durations");
+  expect(restore?.uses).toMatch(/^actions\/cache\/restore@/u);
+  expect(restore?.with).toMatchObject({ path: "packages/arc-framework/.test-cost-runs/platform-duration-input",
+    "restore-keys": "arc-test-durations-${{ runner.os }}-", enableCrossOsArchive: true });
+  const run = steps.find((entry) => entry.id === "test");
+  expect(run?.env?.ARC_TEST_DURATION_FILE).toBe("${{ github.workspace }}/packages/arc-framework/.test-cost-runs/"
+    + "${{ steps.platform-durations.outputs.cache-matched-key && 'platform-duration-input/portability' "
+    + "|| 'duration-input/integration' }}.json");
+  const everyStoreSuite = "(github.event_name == 'schedule' || github.ref == 'refs/heads/main' || inputs.portability_store_full)";
+  expect(run?.env?.ARC_STORE_CHECK).toBe(`\${{ ${everyStoreSuite} && 'full' || '' }}`);
+  const merger = value.jobs["merge-portability-durations"];
+  expect(merger?.needs).toBe("portability-cross-platform");
+  expect(merger?.strategy?.matrix.os).toEqual(["Windows", "macOS"]);
+  for (const condition of ["needs.portability-cross-platform.result == 'success'", "!inputs.portability_timing_only",
+    "!inputs.portability_files", everyStoreSuite]) expect(merger?.if).toContain(condition);
+  expect(merger?.steps.find((entry) => entry.name === "Download platform results")?.with?.pattern)
+    .toBe("portability-results-${{ matrix.os }}-*");
+  expect(merger?.steps.find((entry) => entry.name === "Merge disjoint duration memberships")?.run)
+    .toContain("portability-results packages/arc-framework/.test-cost-runs/platform-duration-input");
+  const save = merger?.steps.find((entry) => entry.name === "Save platform duration cache");
+  expect(save?.uses).toMatch(/^actions\/cache\/save@/u);
+  expect(save?.with).toMatchObject({ path: restore?.with?.path, key: "arc-test-durations-${{ matrix.os }}-${{ github.run_id }}",
+    enableCrossOsArchive: true });
+});

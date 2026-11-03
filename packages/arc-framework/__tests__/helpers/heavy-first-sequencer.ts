@@ -4,19 +4,27 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { BaseSequencer, type TestSpecification, type Vitest } from "vitest/node";
 import { z } from "zod";
-import { PROJECT_DURATION_ESTIMATES } from "./heavy-first-durations.js";
+import { PROJECT_DURATION_ESTIMATES, SERIAL_PROJECT_WEIGHTS } from "./heavy-first-durations.js";
 
 const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
 
-/** One run's recorded durations and measured project fallback weights. */
+/** One run's recorded durations, measured project fallback weights, and serial projects' recorded multipliers. */
 export interface DurationSource {
   readonly recorded: ReadonlyMap<string, unknown>;
   readonly estimates: Readonly<Record<string, number>>;
+  readonly serialWeights?: Readonly<Record<string, number>>;
 }
 
 function recordedDuration(source: DurationSource, project: string, file: string): number | undefined {
   const duration = source.recorded.get(`${project}:${file}`);
   return typeof duration === "number" && Number.isFinite(duration) && duration >= 0 ? duration : undefined;
+}
+
+/** A file's share of its shard: its recorded duration, scaled when its project runs serially, or its project estimate. */
+function shardWeight(source: DurationSource, project: string, file: string): number {
+  const duration = recordedDuration(source, project, file);
+  if (duration === undefined) return source.estimates[project] ?? 0;
+  return duration * (source.serialWeights?.[project] ?? 1);
 }
 
 function lexical(left: string, right: string): number { return left < right ? -1 : left > right ? 1 : 0; }
@@ -52,8 +60,9 @@ export function readResultsDurations(content: string): ReadonlyMap<string, unkno
 }
 
 function loadDurationSource(env: NodeJS.ProcessEnv): DurationSource {
-  if (!env.ARC_TEST_DURATION_FILE) return { recorded: new Map(), estimates: PROJECT_DURATION_ESTIMATES };
-  return { recorded: readResultsDurations(readFileSync(env.ARC_TEST_DURATION_FILE, "utf8")), estimates: PROJECT_DURATION_ESTIMATES };
+  const recorded = env.ARC_TEST_DURATION_FILE ? readResultsDurations(readFileSync(env.ARC_TEST_DURATION_FILE, "utf8"))
+    : new Map<string, unknown>();
+  return { recorded, estimates: PROJECT_DURATION_ESTIMATES, serialWeights: SERIAL_PROJECT_WEIGHTS };
 }
 
 /**
@@ -70,8 +79,7 @@ export function assignDurationShards<T>(files: readonly T[], count: number, sour
   const loads = shards.map(() => 0);
   const ordered = files.map((entry) => {
     const identity = identify(entry);
-    return { entry, ...identity,
-      weight: recordedDuration(source, identity.project, identity.file) ?? source.estimates[identity.project] ?? 0 };
+    return { entry, ...identity, weight: shardWeight(source, identity.project, identity.file) };
   }).sort((left, right) => right.weight - left.weight || lexical(left.project, right.project) || lexical(left.file, right.file));
   for (const file of ordered) {
     let target = 0;
