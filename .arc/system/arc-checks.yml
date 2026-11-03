@@ -508,9 +508,9 @@ checks:
     shards:
       count: 4
       argument: --shard={index}/{count}
-  # The hosted Windows/macOS job divides the tier among shards balanced by the integration durations; the Linux job
-  # runs it whole. Outside a pull request, a change that reaches none of the store suites leaves them all out; any other
-  # run takes them all.
+  # The hosted Windows/macOS job divides the tier among shards balanced by each platform's own recorded durations, or
+  # by the integration durations until a full run has saved them; the Linux job runs it whole. Outside a pull request,
+  # a change that reaches none of the store suites leaves them all out; any other run takes them all.
   test:portability:
     environment_inputs:
       ARC_TEST_DURATION_FILE: file

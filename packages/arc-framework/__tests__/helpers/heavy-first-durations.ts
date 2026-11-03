@@ -1,4 +1,8 @@
-/** Fallback weights for project files with no recorded duration, in milliseconds of Linux duration. */
+/**
+ * Fallback weights for project files with no recorded duration, in milliseconds of Linux duration. A portability shard
+ * balancing by its platform's recording gives a file missing from it this Linux-scale weight beside platform-scale
+ * neighbours, so a newly added heavy file is underweighted until a run that saves the recording has measured it.
+ */
 export const PROJECT_DURATION_ESTIMATES: Readonly<Record<string, number>> = {
   // Hosted reference medians.
   "integration": 995.0,
@@ -16,8 +20,9 @@ export const PROJECT_DURATION_ESTIMATES: Readonly<Record<string, number>> = {
 /**
  * Multipliers for the recorded durations of projects whose files run one at a time after their shard's parallel work.
  * Parallel files share a shard's workers, so a serial file holds its shard about as many times longer as there are
- * workers. The factor is the hosted runners' worker count, fixed rather than read from the machine so that every
- * shard of a run computes the same assignment.
+ * workers. The factor is hosted Windows's three workers, fixed rather than read from the machine so that every shard of
+ * a run computes the same assignment. Hosted macOS runs two, so there it weights the timing suite, about a minute long,
+ * half as heavily again as that model would; the burst suite takes a shard by rule and needs no factor.
  */
 export const SERIAL_PROJECT_WEIGHTS: Readonly<Record<string, number>> = {
   "integration-timing": 3,
