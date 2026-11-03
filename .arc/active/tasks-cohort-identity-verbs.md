@@ -42,9 +42,6 @@ former slug naming the current one and admit a completed meta's rewrite onto a c
 - _Goal:_ Every reader that meets a clash through the lookup prints a repair that names a command which ends it: the slug
   arm's `clashRepair`, the branch-link arm's `branchLinkRepair`, and the lineage, commit, and claim arms' narrowed text.
 
-- _Note:_ `handlers/lifecycle-shared.ts` also changes on `feat/seam-delivery-review`, outside `refuse` and
-  `refuseWithRemedy`; expect a merge there (§ 11.2).
-
     - `[ ]` **1.2.a The ref backend**
 
         - In `lookupCapturedRefTrees` (`lib/store/ref/lookup.ts`), build the `ambiguous-match` remedy by arm: the slug arm
@@ -140,15 +137,21 @@ former slug naming the current one and admit a completed meta's rewrite onto a c
           and two such edges join their remedies
         - an unavailable read and a not-found edge keep each rule's fixed remedy
 
-### `[ ]` **1.5 Name the repair in status's clash warning — § 3.6**
+### `[ ]` **1.5 Name the repair in the standing clash reports — § 3.6**
 
-- _Goal:_ Status's `slug-clash` warning for two live work units names `arc rename <uid> <new-slug>` for each holder.
+- _Goal:_ Status's `slug-clash` warning for two live work units, and Start readiness withholding a target under a clash
+  the standing selection reports, name `arc rename <uid> <new-slug>` for each holder.
 
     - `clashWarning` (`lib/status/store-project-standing.ts`) keeps each holder's UID, owner, and location and replaces
       "Rename one holder to repair the clash" with `clashRepair`'s text for its holders under a live current-name tie.
+    - `qualityFailure` (`commands/agenda/start-target.ts`) appends to its "Lifecycle holders for '<slug>' are
+      ambiguous." reason `clashRepair`'s text for the matching clash's holders, under a live tie of the clash's kind, as
+      `readPausedWork` (`lib/session-init/paused-work.ts`) builds it.
 
     - Build `test-first` (one behavior at a time):
         - the warning for two live work units names the rename for each by UID (`store-project-standing.test.ts`)
+        - a Start target named by a work unit's former slug, whose current name another live work unit shares, is
+          withheld naming the rename for each by UID (`agenda/start-target.test.ts`)
 
 ### `[ ]` **1.6 Admit a cohort path segment only by its current slug — § 6.1**
 
@@ -217,9 +220,6 @@ former slug naming the current one and admit a completed meta's rewrite onto a c
 - _Goal:_ The new commands and operand forms exist, and before the flip every verb behaves as today but for one refusal
   order: `arc cohort close` and `arc cohort remove` refuse `unsupported` naming what serves, and every operand is a slug.
 
-- _Note:_ `cli.ts` also changes on `feat/seam-delivery-review`; merge base after it lands, before this task edits it
-  (§ 11.2).
-
     - `[ ]` **1.9.a The `arc cohort` group**
 
         - `arc cohort close <cohort>` and `arc cohort remove <cohort>` in `cli.ts`, each with `--yes` and `--json`,
@@ -282,6 +282,10 @@ that ordering returns to the Owner. The resolver built here serves Phases 3–5.
 
 - _Goal:_ One scan selects an owner by exact UID across the primary kinds its caller names, a cohort among them, and
   refuses a UID that selects more than one owner, naming each.
+
+- _Note:_ Before this task, merge base holding `storage-ref-hardening` and re-check § 11.1's three contracts against
+  it, with the history refs `resolveArchivedReferences` and `checkRefWrites` name on a missing object, which § 2.6's
+  rounds pull.
 
     - `readWorkItemByUid` (`lib/store/work-item-uid.ts`) takes the primary kinds it lists as a parameter, today's
       `work-item/meta` and `work-item/record` by default for teardown (`runTeardownForOperand`) and the inbox list
@@ -600,9 +604,6 @@ nothing without `--yes`; and a member a pull lands naming a removed cohort refus
 - _Goal:_ A member a pull lands naming a removed cohort is told how to repair it, where the store's not-found remedy
   names a pull that cannot.
 
-- _Note:_ `lib/store/lifecycle-rename.ts` also changes on `feat/seam-delivery-review`; merge base after it lands, before
-  this task edits it (§ 11.2).
-
     - Archive's cohort read (`prepareObservedCohorts`) and the rename's member-heading read (`acquireRenameGroups`,
       `lib/store/lifecycle-rename.ts`) refuse a `Cohort` naming no document, naming the member and the edit that clears
       or re-points it, in place of `resolveCapturedReference`'s "Pull state or name the owner by UID, then retry".
@@ -639,8 +640,9 @@ its history refs, discharging the edges naming it.
 - _Goal:_ `arc rename <slug|uid> <new-slug>` starts from the record Task 2.2's resolver selects, never reads its subject
   by name again, and repeats the operand the person gave in every retry and continuation it prints.
 
-- _Note:_ `lib/store/lifecycle-rename.ts` also changes on `feat/seam-delivery-review`; merge base after it lands, before
-  this task edits it (§ 11.2), and read its `VerbBase.workItem`, the work item an invocation selects, beside this task's.
+- _Note:_ `VerbBase.workItem` (`handlers/lifecycle-shared.ts`), the work item an invocation selects, is read only by the
+  delivery and review verbs (`handlers/lifecycle-delivery-review.ts`); the rename selects inside `runStoreRename`, so it
+  neither sets nor reads it.
 
 - _Note:_ The Integrating advisories match the origin name as text, so under a clash they may name the other holder's
   dependents; they stay advisory, as § 2.1 keeps them.
@@ -672,9 +674,6 @@ its history refs, discharging the edges naming it.
 
 - _Goal:_ Everything a rename leaves to the person — references, a member heading, a former-slug tie, a kept branch —
   reaches them in one typed report, in text and in `arc rename --json`, a failed push included.
-
-- _Note:_ `cli.ts` also changes on `feat/seam-delivery-review`; merge base after it lands, before this task edits it
-  (§ 11.2).
 
     - `[ ]` **4.2.a The report**
 
@@ -926,9 +925,6 @@ old name refuses naming the current one.
   heading and its own `Parent` rewritten so its members' rewritten paths agree with it, in one version-checked batch
   that writes only what changes.
 
-- _Note:_ `lib/store/lifecycle-rename.ts` and `cli.ts` also change on `feat/seam-delivery-review`; merge base after it
-  lands, before this task edits them (§ 11.2).
-
     - `[ ]` **5.1.a The arm and its batch**
 
         - The cohort arm, in its own module, takes Task 4.1.a's dispatch in place of its `unsupported` refusal. Its batch
@@ -1043,8 +1039,9 @@ Over the ref backend and, where it can form the state, the reference backend, fr
   `meta.depends-on`'s refusal of an edge naming the slug carry `clashRepair`'s remedy for those types; for two cohorts so
   do `meta.cohort`'s and `cohort.parent`'s refusals and session entry's, archive's, and a member's rename's.
 
-- `[ ]` Status's `slug-clash` warning for two work units names `arc rename <uid> <new-slug>` for each, and a live
-  former-slug tie's remedy names the intended holder by its current name.
+- `[ ]` Status's `slug-clash` warning for two work units names `arc rename <uid> <new-slug>` for each, as does Start
+  readiness withholding a target named by the former slug of one, and a live former-slug tie's remedy names the
+  intended holder by its current name.
 
 - `[ ]` `arc rename <uid> <new-slug>` renames the named work unit or cohort under the clash, after which the slug resolves
   to the other holder.

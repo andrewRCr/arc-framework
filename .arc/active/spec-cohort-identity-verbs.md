@@ -81,7 +81,7 @@ The lifecycle's slug selection shipped before this change (PR #1191), and this d
   work-item primaries (`readWorkItemByUid`, `lib/store/work-item-uid.ts`), which teardown's `<slug|uid>` operand uses
   (`runTeardownForOperand`, `handlers/teardown-operand.ts`).
 
-`storage-cutover` depends on this change: from the flip these commands are the only routes to the repairs their
+`cutover-flip` depends on this change: from the flip these commands are the only routes to the repairs their
 refusals name, and a recoverable refusal must keep its repair reachable (`DEV-RULES.PROJECT`, "Recovery-complete
 refusals").
 
@@ -396,7 +396,7 @@ cohort or slug names the repair. `observeRecord` and its other consumers stay as
 returns early only on `unavailable` would read an added status as known (`observeInboundHeld`); § 7.1 reads the
 `ambiguous` observation's candidates.
 
-#### 3.6 Status's clash warning
+#### 3.6 The standing clash reports
 
 Status's `slug-clash` warning (`clashWarning`, `lib/status/store-project-standing.ts`) keeps naming each work-unit
 holder by UID, owner, and location, and replaces "Rename one holder to repair the clash" with
@@ -404,6 +404,13 @@ holder by UID, owner, and location, and replaces "Rename one holder to repair th
 units only, since the standing selection (`selectStandingLifecycleEntries`, `lib/store/lifecycle-standing.ts`) groups
 the lifecycle view's work-unit entries and status warns on its current-name clashes alone; a clash involving a cohort
 reaches status through the slug lookup's refusal at the reads that meet it.
+
+Start readiness withholds a `--start` target the standing selection reports clashed with "Lifecycle holders for '<slug>'
+are ambiguous." (`qualityFailure`, `commands/agenda/start-target.ts`), and appends `clashRepair`'s text for that clash's
+holders, under a live tie of the clash's kind, as paused work's standing-clash actions build it (`readPausedWork`,
+`lib/session-init/paused-work.ts`). A live tie of the target's own slug refuses earlier, at the slug lookup its subject
+read makes (`readStoreSubject`, `lib/store/lifecycle-subject.ts`), with the lookup's own remedy (§ 3.1); the arm meets
+a clash of the name that slug resolves to, as when the slug is one holder's former name and its current name is shared.
 
 #### 3.7 Where a clash surfaces
 
@@ -778,13 +785,7 @@ registrations and pre-flip refusals, the remedy builders, the cohort writers, an
 Should the dependent phases be ready while more than about a week of the hardening remains, the hardening's decision
 to land whole returns to the Owner.
 
-#### 11.2 Shared files
-
-`cli.ts` and `lib/store/lifecycle-rename.ts` also change on `feat/seam-delivery-review`, which has not landed: merge base
-after it lands, before implementing in those files. `handlers/lifecycle-shared.ts` changes there too, outside the
-renderers § 3.2 changes, so work there does not wait for it; expect a merge.
-
-#### 11.3 Shared-decision records
+#### 11.2 Shared-decision records
 
 This change alters four of the storage seam's shared decisions and one of the storage program's, recorded beside each
 item in the cohort documents' § Shared contracts, dated and stating the decision as it now stands: in
@@ -900,8 +901,8 @@ migrates.
 New commands: `arc cohort close`, `arc cohort remove`. New operand forms: `arc rename <uid>`, `arc errand close <uid>`,
 `arc errand abandon <uid>`. New flag: `arc rename --json`, which emits the rename's typed result with its report, a
 refusal through the lifecycle refusal's JSON form. Changed text: every clash refusal's remedy, status's clash warning,
-and rename's report of the references it leaves and of a former-slug tie. Help text for the new operands states the UID
-form.
+Start readiness's clash reason, and rename's report of the references it leaves and of a former-slug tie. Help text for
+the new operands states the UID form.
 
 ### Security
 
@@ -916,8 +917,9 @@ Over the ref backend and, where it can form the state, the reference backend, fr
    and `arc rename`'s refusals, and the write rules' refusal of an edit naming the slug in `Depends On` carry
    `clashRepair`'s remedy for those holders' types, and for two cohorts so do the write rules' refusals of an edit
    naming the slug in `Cohort` or `Parent`, and session entry's, archive's, and a member's rename's refusals; status's
-   `slug-clash` warning for two work units names `arc rename <uid> <new-slug>` for each; a live former-slug tie's remedy
-   names the intended holder by its current name.
+   `slug-clash` warning for two work units names `arc rename <uid> <new-slug>` for each, and so does Start readiness
+   withholding a target named by the former slug of one; a live former-slug tie's remedy names the intended holder
+   by its current name.
 2. **The repair lands.** `arc rename <uid> <new-slug>` renames the named holder — a work unit or a cohort — under the
    clash, after which the slug resolves to the other holder; `arc errand close <uid>` closes the named Errand of two,
    after which the slug resolves to the other; `arc errand abandon <uid>` lands the same way; a retry `arc errand close`
