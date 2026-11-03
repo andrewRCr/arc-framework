@@ -102,8 +102,10 @@ import {
   ReduceEnvelopeSchema,
   RespondEnvelopeSchema,
   ReviewCommandErrorEnvelopeSchema,
+  prePublicationCandidateRefusal,
   prePublicationRemedy,
   prePublicationTargetRemedy,
+  type PrePublicationCandidateContinuation,
   type ReviewCommandErrorCode,
   type ReviewPrePublicationRefusalCode,
 } from "../scripts/review-gate/core/review-command-envelope.js";
@@ -4486,6 +4488,7 @@ export async function handleReviewPrePublication(
       ReviewPrePublicationRefusalCode,
       "candidate-unexplained-delta" | "attestation-ordering-conflict"
     >,
+    candidate?: PrePublicationCandidateContinuation,
   ): void => {
     const envelope = code === undefined
       ? reviewCommandError(
@@ -4503,7 +4506,9 @@ export async function handleReviewPrePublication(
             code,
             message: error instanceof Error ? error.message : String(error),
           },
-          remedy: remedyFor(code),
+          ...(candidate !== undefined && target.success
+            ? prePublicationCandidateRefusal(target.data, candidate)
+            : { remedy: remedyFor(code) }),
         });
     dependencies.write(`${JSON.stringify(envelope)}\n`);
     dependencies.setExitCode(1);
@@ -4782,7 +4787,9 @@ export async function handleReviewPrePublication(
         ? "The current Candidate must be established at the root Git head before attestation-ordering recovery."
         : composition.reason), "execution", orderingRecovery !== undefined
         ? "attestation-ordering-conflict"
-        : composition.code === "candidate-unexplained-delta" ? composition.code : undefined);
+        : composition.code === "candidate-unexplained-delta" ? composition.code : undefined,
+      orderingRecovery === undefined && composition.code === "candidate-unexplained-delta"
+        ? composition.candidateContinuation : undefined);
       return;
     }
     if (judgment.scopeJudgmentTarget !== undefined && !scopeJudgmentTargetExamined(

@@ -34,6 +34,8 @@ import {
 import { FrontlineSemanticRecordSchema } from "../policy/frontline-semantic.js";
 import { ReviewPassSchema } from "./review-pass.js";
 import { PrePublicationScopeMismatchSchema } from "./pre-publication-scope-mismatch.js";
+import { CandidateApplicabilityDecisionSelectionSchema } from
+  "../../../lib/work-unit/candidate-applicability-resolution.js";
 import { ReviewCommandErrorCodeSchema, ReviewPrePublicationRefusalCodeSchema } from
   "./review-command-error-codes.js";
 import type { ReviewPrePublicationRefusalCode } from "./review-command-error-codes.js";
@@ -68,7 +70,12 @@ export {
 } from "./review-command-error-codes.js";
 export type { ReviewCommandErrorCode, ReviewPrePublicationRefusalCode } from "./review-command-error-codes.js";
 
-export { prePublicationRemedy, prePublicationTargetRemedy } from "./pre-publication-remedy.js";
+export {
+  prePublicationCandidateRefusal,
+  prePublicationRemedy,
+  prePublicationTargetRemedy,
+  type PrePublicationCandidateContinuation,
+} from "./pre-publication-remedy.js";
 
 const TargetPairPayloadSchema = z.strictObject({
   attemptedTarget: ReviewTargetSchema,
@@ -947,10 +954,14 @@ export const ReviewCommandErrorEnvelopeSchema = z.union([
   // The pre-publication verb is the review spine's middle verb, so its refusals carry the same
   // corrective guidance the checkpoint and merge verbs do.
   ...ReviewPrePublicationRefusalCodeSchema.options
-    .filter((code) => code !== "scope-judgment-required" && code !== "store-refused")
+    .filter((code) => code !== "scope-judgment-required" && code !== "store-refused"
+      && code !== "candidate-unexplained-delta")
     .map((code) => remedialErrorVariant("review-pre-publication", code)),
   remedialErrorVariant("review-pre-publication", "scope-judgment-required")
     .extend({ scopeMismatch: PrePublicationScopeMismatchSchema }),
+  // A bounded decision carries its exact resolution selector; other unrecognized Candidates carry none.
+  remedialErrorVariant("review-pre-publication", "candidate-unexplained-delta")
+    .extend({ applicability: CandidateApplicabilityDecisionSelectionSchema.optional() }),
   // Corrective continuations for uncommitted fixes, moved heads, unavailable producers, and stale admissions.
   ...(["review-respond", "review-resolve", "review-local-prepare",
     "review-hosted-request", "review-frontline-run"] as const)

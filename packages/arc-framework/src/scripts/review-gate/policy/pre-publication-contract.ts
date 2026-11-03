@@ -11,6 +11,7 @@ import type { ReviewScopeMode } from "../core/review-primitives.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { ApprovedDispositionRecordReader, ReviewResultReader } from "../core/ports.js";
 import type { ReviewPrePublicationRefusalCode } from "../core/review-command-envelope.js";
+import type { PrePublicationCandidateContinuation } from "../core/pre-publication-remedy.js";
 import type { PreBindingDeliveryReviewTargets } from "./pre-publication-delivery-targets.js";
 import type { PrePublicationReviewRequest } from "./pre-publication-procedure.js";
 import type { ReviewLaneJudgment } from "./review-policy-driver.js";
@@ -34,7 +35,7 @@ export type ReviewPolicyTarget = PrePublicationReviewRequest["frontline"]["targe
 
 export type CandidateRead =
   | { status: "missing" }
-  | { status: "blocked"; reason: string }
+  | { status: "blocked"; reason: string; continuation: PrePublicationCandidateContinuation }
   | ({
     status: "current";
     candidateId: CanonicalDigest;
@@ -199,6 +200,8 @@ export type PrePublicationComposition =
     savedJudgmentMismatch?: true;
     savedScopeMismatch?: true;
     code?: Extract<ReviewPrePublicationRefusalCode, "candidate-unexplained-delta" | "scope-judgment-required">;
+    /** How a `candidate-unexplained-delta` refusal continues: its remedy, and any decision it carries. */
+    candidateContinuation?: PrePublicationCandidateContinuation;
     scopeMismatch?: {
       lane: ReviewLane;
       observedScope: ReviewScopeMode;

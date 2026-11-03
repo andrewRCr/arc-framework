@@ -13,6 +13,7 @@ import {
 import { classifyCandidateApplicability } from "../../../src/lib/work-unit/candidate-applicability.js";
 import {
   CandidateApplicabilityResolutionInputSchema,
+  composeCandidateApplicabilityResolutionSelector,
   resolveCandidateApplicability,
   type CandidateApplicabilityResolutionContext,
 } from "../../../src/lib/work-unit/candidate-applicability-resolution.js";
@@ -242,4 +243,50 @@ it.each([VERSION, "backend:candidate/7"])("resolves Candidate applicability with
   const h = harness(version);
   await expect(resolveCandidateApplicability(h.context, h.input)).resolves.toMatchObject({ state: "resolved", choice: "covered" });
   expect(h.record().transitions).toHaveLength(1);
+});
+
+describe("composeCandidateApplicabilityResolutionSelector", () => {
+  it("binds the exact resolution input the resolver accepts for its decision", async () => {
+    const fixture = harness();
+    const composed = composeCandidateApplicabilityResolutionSelector({
+      record: fixture.record(),
+      recordVersion: VERSION,
+      decision: fixture.decision,
+      currentTarget: fixture.request.currentTarget,
+    });
+    if (composed.status !== "composed") throw new Error("expected a resolution selector");
+    const input = { ...composed.selector, selectedBy: "andrew", choice: "covered" as const };
+
+    expect(input).toEqual(fixture.input);
+    await expect(resolveCandidateApplicability(fixture.context, input)).resolves.toMatchObject({ state: "resolved" });
+  });
+
+  it.each([
+    ["collected subject", { currentTarget: { revision: SHA_B, subject: subject("moved") } }],
+    ["collected revision", { currentTarget: { revision: SHA_C, subject: subject("current") } }],
+  ] as const)("reports a decision whose %s moved as changed", (_label, moved) => {
+    const fixture = harness();
+
+    expect(composeCandidateApplicabilityResolutionSelector({
+      record: fixture.record(),
+      recordVersion: VERSION,
+      decision: fixture.decision,
+      ...moved,
+    })).toEqual({ status: "changed" });
+  });
+
+  it("reports a decision read against another baseline as changed", () => {
+    const fixture = harness();
+    const decision = {
+      ...fixture.decision,
+      baselineTarget: { revision: SHA_C, subjectDigest: fixture.decision.baselineTarget.subjectDigest },
+    };
+
+    expect(composeCandidateApplicabilityResolutionSelector({
+      record: fixture.record(),
+      recordVersion: VERSION,
+      decision,
+      currentTarget: fixture.request.currentTarget,
+    })).toEqual({ status: "changed" });
+  });
 });
