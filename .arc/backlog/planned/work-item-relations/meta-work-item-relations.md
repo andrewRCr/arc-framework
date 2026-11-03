@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
-- **Depends On:** `storage-cutover`
+- **Depends On:** `cutover-flip`
 
 - **Origin:** [internal]
 - **Design:** `draft-work-item-relations.md`
