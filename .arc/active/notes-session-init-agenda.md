@@ -2,6 +2,8 @@
 
 ## Contents
 
+- [A4 — Store Start evidence](#a4--store-start-evidence)
+
 **Design and coordination**
 
 - [Today's workflow, step by step](#todays-workflow-step-by-step)
@@ -813,3 +815,21 @@ probes refuse all four reported malformed answer forms. Hosted CI run `415356564
 `fb60176f0c7aade524b8cdcc854711250bbc9ca0` without diagnostic inputs. It qualifies build, both Node unit matrices,
 lint/type checks, all integration and E2E shards, all six full-store shards, and Linux concurrency portability. The
 optional Windows/macOS pair and Git-floor jobs were not requested. No deployment or merge authorization is claimed.
+
+## A4 — Store Start evidence
+
+Standard finding `R-1` exposed a backend boundary: `resolveAgendaStartTarget` kept diagnostic paths after reading
+authoritative metadata, and `compileStartSignal` sent those paths through filesystem-only reads. The agreed design
+uses existing scalar fragment arguments for the acquired records; it adds no generic read or resolver vocabulary.
+
+`readAgendaStartRecords` reads the task-list singleton with the selected metadata's exact owner/UID. A missing task
+record is explicit absence; another refusal or a returned conflict withholds Start readiness. `resolveAgendaStartTarget`
+keeps diagnostic coordinates and these acquired records. `compileStartSignal` omits target file reads in store mode,
+and `compileStartRecordArguments` supplies exact contents, references and versions to `assess-start-readiness`.
+The method consumes that evidence while retaining dependency queries, baseline checks, judgment and launch interlocks.
+Legacy Start still uses completed reads of its actual metadata and task-list files.
+
+The amendment's depth is medium: a bounded record-to-method contract with an explicit absence/refusal policy. Its
+scope covers the Start row and method arguments, method source/instance/pristine hash, backend and legacy regressions,
+and the appended criterion. Reader independence and binding completeness retain all evidence and launch boundaries.
+The approved independent fix check includes this written footprint and its surrounding contract.

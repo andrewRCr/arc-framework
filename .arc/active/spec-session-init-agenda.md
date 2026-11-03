@@ -664,7 +664,8 @@ without an offer.
 |                              | and a decline that clears the signal and recompiles; an answer still not found is asked   |
 |                              | again under its own key                                                                   |
 | `--housekeep`                | prefix, checkout renders, `fragment` `drain-inbox` (no arguments)                         |
-| `--start <slug>`, resolved   | prefix, target meta and task-list (when present) `read`s, readiness renders (dirty tree,  |
+| `--start <slug>`, resolved   | prefix, legacy target `read`s or supplied store evidence (§ 8.2, A4), readiness renders   |
+|                              | (dirty tree,                                                                              |
 |                              | the freshness note (§ 4.9), the worktree's states and `stale-base` as readiness input,    |
 |                              | never a sync step, the notes channel's surfaces, and the concurrent-workload note),       |
 |                              | `fragment` `assess-start-readiness`, `gate launch`                                        |
@@ -1025,9 +1026,18 @@ any offsets needed.
 #### 8.2 `assess-start-readiness`
 
 The `--start` readiness vet and launch, moved from today's focused-recon arm. Its arguments are the target `slug`, its
-meta path, and its task-list path when present. It resolves the target's readiness best-effort — a recorded
-ready-attestation when the meta carries one, else whether its tasks are finalized, else dependencies only — then layers
-two passes over the result:
+meta path, and its task-list path when present. Before the flip, target evidence comes from completed file reads.
+After the flip, `resolveAgendaStartTarget` preserves the selected metadata record, and `readAgendaStartRecords` reads
+the logical task-list singleton using that record's exact owner, including UID. No target checkout file supplies
+evidence in this mode; paths remain diagnostic. `compileStartRecordArguments` supplies scalar arguments:
+`evidenceBackend: "store"`, `metaReference`, `metaVersion`, `metaContent`, `taskListReference`, `taskListVersion`,
+`taskListContent`, and `taskListStatus: "present" | "absent"`. References are JSON-serialized record references;
+versions and contents are exact acquired values. Task `not-found` becomes `absent` with null content/version; another
+refusal or a conflicted task record makes Start unresolved, carrying its condition and remedy. The method consumes
+these supplied records instead of files and retains the same judgment and launch interlocks. (A4)
+
+It resolves the target's readiness best-effort — a recorded ready-attestation when the meta carries one, else whether
+its tasks are finalized, else dependencies only — then layers two passes over the result:
 
 - **Tier 1 — deterministic, can gate.** Each dependency edge, resolved by slug with `arc status <slug>`, never a
   state-blind `Depends On` read, gates the launch when unmet. Base-drift staleness gates as a second signal wherever the
@@ -1400,6 +1410,11 @@ compiler compiles both arms from whichever the probe's readers return.
     personal or project IDs reach adoption unchanged, retaining missing, moved, conflicted, and held refusals. Other
     text seeds remain new concerns, including text equal to a flagged title. The agenda schema is unchanged. (A3)
 
+18. **Store Start evidence.** Store-backed Start supplies exact metadata and logical task-list contents, references
+    and versions to readiness, preserving the selected owner/UID. Absent or contradictory checkout projections never
+    supply target evidence. A missing task record is explicit absence; another refusal or conflict makes Start
+    unresolved. Legacy file reads and the agenda schema remain unchanged. (A4)
+
 ## Open Questions
 
 None blocks starting. The per-group read budget's value, the surface ids' spelling, and the compiler's module split are
@@ -1413,3 +1428,5 @@ implementation detail.
   _Supersedes:_ § 5.3 free rule. _Trigger:_ 4.1.c must-stop. _Work:_ 4.R. _Revalidated:_ 4.7.
 - **A3** — 2026-11-02 — design: use backend capture keys for Errand entry. _Supersedes:_
   § 5.4 Errand rows. _Trigger:_ 4.2.c must-stop. _Work:_ 4.R2. _Revalidated:_ 4.7.
+- **A4** — 2026-11-02 — design: carry Start record evidence in method arguments.
+  _Supersedes:_ § 5.4 Start; § 8.2 ¶1. _Trigger:_ R-1 review. _Work:_ review-fix. _Revalidated:_ review-fix.

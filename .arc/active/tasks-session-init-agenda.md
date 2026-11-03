@@ -418,6 +418,7 @@ rehearsals reach today's orientation except where the specification states a cha
 
 - _Goal:_ A resolvable `--start` target compiles to its reads, the readiness renders, the `assess-start-readiness`
   fragment, and a `gate launch`; an unresolved one to a `start-target` note and the entry row as if absent.
+    - _Amended in:_ review-fix (A4).
 
     - `[x]` **4.4.a Compile the row**
         - Shared local lifecycle selection with status, retaining backend quality and exact refusals. Start admits only
@@ -534,6 +535,7 @@ tier pass against the new text.
 ### `[x]` **5.4 Measure the done-signal — Success Criteria 1–3**
 
 - _Goal:_ Both parts of the done-signal are measured by the Phase 1 instruments and recorded beside the baseline.
+    - _Amended in:_ review-fix (A4).
 
 - _Outcome:_ Matched kit measurements put the three rows at 17.25–20.96% itemized and approximately 18.15–22.44%
   real-session baseline input. Full Orient is 47.70% itemized and approximately 54.75% real-session, below both
@@ -622,3 +624,7 @@ tier pass against the new text.
 - `[x]` Before the flip, Errand capture titles retain selection and adoption; after it, flagged personal picker labels
   include title and ID, choices carry qualified IDs, and personal/project ID seeds retain adoption refusal checks.
   Other text remains a new concern, including a flagged title; the agenda schema is unchanged (A3)
+
+- `[x]` Store-backed Start supplies exact metadata and task-record contents, references and versions under the
+  selected owner/UID, without reading target checkout projections; missing tasks remain explicit, refusals/conflicts
+  withhold readiness, and legacy file reads and the agenda schema remain unchanged (A4)

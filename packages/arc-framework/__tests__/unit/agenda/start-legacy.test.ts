@@ -10,6 +10,7 @@ import { activeSessionInit, configSessionInit, userSessionInit, type SessionInit
 import { compileSessionInitAgenda } from "../../../src/commands/agenda/compile.js";
 import { resolveLifecycleSubject } from "../../../src/lib/store/lifecycle-subject.js";
 import { resolveAgendaStartTarget } from "../../../src/commands/agenda/start-target.js";
+import { createAgendaReadPort } from "../../../src/commands/agenda/compile-input.js";
 
 async function fixture(indeterminate: boolean, probes: SessionInitProbeOverrides = {}) {
     const cwd = await mkdtemp(join(tmpdir(), "arc-start-legacy-"));
@@ -42,6 +43,23 @@ describe("legacy local Start evidence", () => {
       expect(target).toMatchObject({ kind: "unresolved", reason: expect.stringContaining("Unable to enumerate active metas") });
     } else expect(target).toMatchObject({ kind: "resolved", slug: "target", metaPath: join(directory, "meta-target.md"), taskListPath: null });
   });
+});
+
+it("reads real legacy target files before readiness without store arguments", async () => {
+  const { input, cwd, exec, directory } = await fixture(false);
+  const metaPath = join(directory, "meta-target.md"), taskListPath = join(directory, "tasks-target.md");
+  await writeFile(metaPath, makeMetaFixture("target", { state: "Planning", currentWorkflow: null, taskList: "tasks-target.md" }));
+  await writeFile(taskListPath, "# Tasks\n\n## **Phase 1:** Build\n\n### `[ ]` **1.1 Build**\n");
+  input.read = createAgendaReadPort(cwd, exec);
+  input.signals = { start: "target" };
+  const result = await compileSessionInitAgenda(input);
+  if (!result.ok) throw new Error(JSON.stringify(result.refusal));
+  expect(result.agenda.steps.filter(step => step.type === "read")).toEqual(expect.arrayContaining([
+    { type: "read", path: metaPath, readMode: { kind: "full" }, group: expect.any(Number) },
+    { type: "read", path: taskListPath, readMode: { kind: "full" }, group: expect.any(Number) },
+  ]));
+  expect(result.agenda.steps.at(-2)).toEqual({ type: "fragment", target: { kind: "method", name: "assess-start-readiness" },
+    args: { slug: "target", metaPath, taskListPath } });
 });
 
 

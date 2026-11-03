@@ -755,7 +755,7 @@
     "system/methods/assess-start-readiness.md": {
       "classification": "Configurable",
       "layer": "core",
-      "pristine_hash": "74649f4a2f075348046a052de28e544a2a56391bff057e0f3b912f7996a9faae"
+      "pristine_hash": "f0704e7cf6a929d134c7bfa8c376ee44e10868ef23a78eda5405b47ebaf2e9da"
     },
     "system/methods/discover-next-work.md": {
       "classification": "Configurable",

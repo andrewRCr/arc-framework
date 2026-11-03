@@ -17,9 +17,14 @@ override-active: false
 
 ## assess-start-readiness.default
 
-Use the supplied `slug`, `metaPath`, and optional `taskListPath`, reusing the agenda's completed reads. Surface missing
-or unreadable evidence. Resolve readiness on the strongest available basis: a recorded ready-attestation in the meta;
-otherwise whether the task list is finalized; otherwise dependencies alone. State the basis and its limits.
+Use the supplied `slug`. With `evidenceBackend: "store"`, assess `metaContent` and `taskListContent` directly;
+`metaReference` and `taskListReference` are JSON record references, and their `metaVersion` and `taskListVersion`
+identify the reads. `taskListStatus: "absent"` pairs null task content/version and means no task record was available.
+Paths are diagnostic in this mode: never replace record evidence with checkout files. Otherwise use `metaPath` and
+optional `taskListPath`, reusing the agenda's completed file reads.
+
+Surface missing or unreadable evidence. Resolve readiness on the strongest available basis: a recorded ready-attestation
+in the meta; otherwise whether the task list is finalized; otherwise dependencies alone. State the basis and its limits.
 
 **Tier 1 — deterministic, can gate.** Resolve each dependency by slug with `arc status <slug>`; never treat a
 state-blind `Depends On` edge as satisfied. An unmet dependency blocks the green launch path. Where the target carries
