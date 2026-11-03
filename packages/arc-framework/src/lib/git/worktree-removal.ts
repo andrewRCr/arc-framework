@@ -2,6 +2,7 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { Remedy } from "../store/refusal.js";
+import { quoteShellArgument } from "../release/commit-message-retry.js";
 import type { GitExec } from "./exec.js";
 import { readWorktreeMarker, type WorktreeMarkerReadResult } from "./worktree-marker.js";
 import { decodeGitQuotedText, parseGitWorktreePorcelainZ } from "./worktree-porcelain.js";
@@ -112,7 +113,7 @@ export function describeRemovalRefusal(check: Extract<RemovalCheck, { kind: "ref
   switch (check.reason) {
     case "dirty": return `refusing to remove a dirty worktree; commit or discard changes: ${check.paths.join(", ")}`;
     case "unobservable": return `cannot observe worktree removal safety: ${check.detail}; retry the observation`;
-    case "locked": return `worktree is locked${check.lockReason === null ? "" : ` (${check.lockReason})`}: ${check.path}; its owner may run git worktree unlock ${check.path}`;
+    case "locked": return `worktree is locked${check.lockReason === null ? "" : ` (${check.lockReason})`}: ${check.path}; its owner may run git worktree unlock ${quoteShellArgument(check.path)}`;
     case "persist-would-refuse": return check.remedy.text;
   }
 }
