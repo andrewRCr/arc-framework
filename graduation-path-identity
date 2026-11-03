@@ -3,7 +3,7 @@
   "slug": "graduation-path-identity",
   "claimId": "155c5c21371eb8390d1cf7d80d610144",
   "createdAt": "2026-11-03T00:08:08.566Z",
-  "updatedAt": "2026-11-03T00:08:08.566Z",
+  "updatedAt": "2026-11-03T01:24:35.843Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Compare Git and native checkout paths by local path identity during in-place graduation",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Compare Git and native checkout paths consistently during in-place graduation",
   "originEntrySourceDigest": "sha256:854cd2cc68bcae1d7b8d6428f83cdf249c9362cea0ee25fd463f223883331893",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "fix/graduation-path-identity",
+    "headSha": "0dea87e2a9d490a55730867f9503540cbd6409f1"
+  }
 }
