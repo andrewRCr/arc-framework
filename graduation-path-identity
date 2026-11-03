@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "graduation-path-identity",
+  "claimId": "155c5c21371eb8390d1cf7d80d610144",
+  "createdAt": "2026-11-03T00:08:08.566Z",
+  "updatedAt": "2026-11-03T00:08:08.566Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Compare Git and native checkout paths by local path identity during in-place graduation",
+  "branch": "fix/graduation-path-identity",
+  "origin": "inbox",
+  "originEntry": "Compare Git and native checkout paths consistently during in-place graduation",
+  "originEntrySourceDigest": "sha256:854cd2cc68bcae1d7b8d6428f83cdf249c9362cea0ee25fd463f223883331893",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
