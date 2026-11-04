@@ -10,6 +10,10 @@ rather than building index entries by hand; tests of full materialization use ma
 owner's stored UID, which the reference backend, holding no history refs, cannot return. Every other call passes
 through unchanged, and each operation's calls are counted, so a test can show nothing was pulled or written.
 
+`createRefusingStore` injects schema-checked refusals at store operations and restores the underlying operation when
+the refusal is cleared. It supplies missing-state refusals without history refs, namespace corruption, unhomed kinds
+and pull-lock refusals, with call counts to prove a refusal caused no automatic pull or write.
+
 `prepareSwap` readies one projected file's swap over a seeded projection: the record's next version stored and staged,
 the replace guard's decision to replace it, and a batch that swaps it, taking the take-in, hooks, and file-system
 operations a test passes. `deferring` is a take-in that defers every edit, and `landingCopies` one that lands a copy's

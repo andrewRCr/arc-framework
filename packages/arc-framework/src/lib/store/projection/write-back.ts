@@ -34,6 +34,7 @@ export interface WriteBackContext {
   readonly location: ProjectionLocation;
   readonly format: ObjectFormat;
   readonly memo?: HistoryMemo;
+  readonly verb?: typeof HAND_EDIT_VERBS[number];
   readonly report?: (diagnostic: WriteBackDiagnostic) => void;
 }
 
@@ -82,7 +83,7 @@ export async function prepareWriteBack(context: WriteBackContext, request: TakeI
   return { kind: "ready", read: file.read, stamp, ...(random === undefined ? {} : { random }), write: {
     action: "put", reference: request.entry.reference, content, expected: base.version,
     ...(placement.result === undefined ? {} : { placement: placement.result }),
-    provenance: { verb: HAND_EDIT_VERBS[0], lifecycleAction: "edit" },
+    provenance: { verb: context.verb ?? HAND_EDIT_VERBS[0], lifecycleAction: "edit" },
   } };
 }
 
@@ -128,8 +129,13 @@ function pendingRead(request: TakeInRequest, refusal: StoreRefusal): HeldWriteBa
 }
 
 function refusedPreparation(entry: RecordEntry, refusal: StoreRefusal): HeldWriteBack {
-  const mark = { reason: refusal.condition, remedy: refusal.remedy };
+  const mark = markStoreRefusal(refusal);
   return { kind: "held", result: { answer: "refused", entry: { ...entry, refused: mark }, mark } };
+}
+
+function markStoreRefusal(refusal: StoreRefusal): RefusedMark {
+  return { reason: refusal.code === "record-malformed" ? `${refusal.rule}: ${refusal.condition}` : refusal.condition,
+    remedy: refusal.remedy };
 }
 
 async function restoreIds(context: WriteBackContext, request: TakeInRequest, content: string, selected: RecoveredBase): Promise<StoreResult<{
@@ -177,7 +183,7 @@ export async function sendWriteBack(context: WriteBackContext, request: TakeInRe
   const entry = await markOtherCopies(context, request);
   const sent = await context.store.write(prepared.write);
   if (sent.status === "refused") {
-    const mark = { reason: sent.refusal.condition, remedy: sent.refusal.remedy };
+    const mark = markStoreRefusal(sent.refusal);
     context.report?.({ path: request.path, copy: request.copy, mark });
     return { kind: "held", result: { answer: "refused", entry: { ...entry, refused: mark }, mark } };
   }

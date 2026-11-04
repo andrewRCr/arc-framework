@@ -92,38 +92,15 @@ among them, has one.
           lookups with landed writes across projecting kinds, apart from backend-assigned versions, conflicts and entry
           IDs. It runs in the reference suite and both ref layouts; registration ranges and inventories follow.
 
-### `[ ]` **1.3 Persist under hand-edit provenance, and extend the test stores — § 7.4–§ 7.6, § 1.5**
+### `[x]` **1.3 Persist under hand-edit provenance, and extend the test stores — § 7.4–§ 7.6, § 1.5**
 
 - _Goal:_ Every persist of a hand edit lands under `write-back`, or `save` at `arc save`, with the lifecycle action
   `edit`, set by write-back and never read from the file; a serialization or unhomed-kind refusal is a refused edit with
   its remedy; and test stores wrapping the reference backend return the refusals it cannot.
 
-    - Provenance imports `HAND_EDIT_VERBS` (`lib/store/links.ts`); the persist and release steps
-      (`projection-worktrees`) use `write-back`.
-    - `checkSerializationRules` (`lib/store/serialization.ts`) runs in the ref backend's `write` and `batch` alone;
-      write-back keeps no copy of the rules and reports the backend's `record-malformed` refusal as it reports any, so
-      its test runs over the ref backend's fixture (`refRegistration`). A kind with no parser and no rules of its own
-      still carries the link rules (1.2.a), and otherwise persists unvalidated; an `unsupported` `unhomed-kind` refusal
-      is a refused edit carrying the backend's remedy.
-    - The test stores: `createHistoryRefusingStore` (`__tests__/helpers/store/projection/history-refusing-store.ts`)
-      refuses `history` for the records it names, naming each one's history ref whatever is pulled, and counts every
-      call; `lackingEndedHistory` (`__tests__/helpers/store/ended-history.ts`) refuses an ended item's writes, batches,
-      and `history` naming its history ref until a `pull({ history })` names it, answering a pull result
-      `PullResultSchema` parses, after which the retry lands (2.3). This task adds, beside them, a wrapper returning the
-      refusals neither does — `unsupported` `unhomed-kind`, which the reference fixture excludes; `state-unresolvable`
-      naming no history ref (`historyRefs: []`) on a write or on `history`, as the ref backend refuses a captured
-      object it cannot read under a ref it holds or an anchor naming a state version it cannot resolve;
-      `namespace-corrupt` (1.6); and a `pull` refused `lock-held` (2.3) — each as `StoreRefusalSchema`
-      (`lib/store/refusal.ts`) parses it.
-    - Build `test-first` (one behavior at a time):
-        - write-back's write carries `write-back` and `edit`, and `arc save`'s carries `save`
-        - a file naming another verb in its content still persists under `write-back`
-        - an `unhomed-kind` refusal leaves a refused edit carrying the backend's remedy
-        - a serialization rule's refusal over the ref backend's fixture leaves a refused edit with its rule, and the
-          edit lands once the rule is met
-        - the write check's `history` read refused `state-unresolvable` naming no history ref, or `namespace-corrupt`,
-          leaves a refused edit carrying the backend's remedy, nothing pulled, and the same edit lands once the read
-          succeeds
+- _Outcome:_ The operation selects `write-back` or `save` with `edit`; backend malformed-record refusals retain their
+  rule ID and remedy. The schema-checked refusal store covers unhomed kinds, missing state without history refs,
+  namespace corruption and pull locks, with explicit repair and call counts.
 
 ### `[ ]` **1.4 Render conflict markers and parse them back — § 6.1, § 6.2, § 6.4**
 

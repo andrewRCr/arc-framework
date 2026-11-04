@@ -133,6 +133,8 @@ the edit is sent against its carried base. An unreadable candidate or differing 
 missing entry IDs through the shared matcher and repairs later duplicates from the repeatable stream in
 `write-back-ids.ts`. The take-in port records a landing and its read-back without swapping. `read-back.ts` owns the file
 walk's guarded read-back batch, using the exact bytes read as its baseline and retaining any earlier pending mark.
+The operation supplies `write-back` or `save`, each with `edit`; editable bytes supply neither provenance field.
+Backend record-malformed refusals retain their rule ID with the condition and remedy.
 
 `check-edit.ts` runs the kind's production check over merged content, with current parsed fields or raw prior content
 when parsing fails. It stamps only the entry merge's check copy and reports every broken rule with its remedy.
