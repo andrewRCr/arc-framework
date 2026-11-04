@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "projection-lock-test",
+  "claimId": "08fb249d0fe5e5262b0d013e9e51accc",
+  "createdAt": "2026-11-04T00:58:04.151Z",
+  "updatedAt": "2026-11-04T00:58:04.151Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make the projection-lock holder timeout test deterministic, and stop a budget-spent holder read from replacing the holder the timeout reports",
+  "branch": "chore/projection-lock-test",
+  "origin": "inbox",
+  "originEntry": "Make the projection-lock holder timeout test deterministic",
+  "originEntrySourceDigest": "sha256:8a51a24d3a5a9403dda69318a24bf28c1db780ebda18c14920ca6ceeeffc2597",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
