@@ -924,6 +924,25 @@ A second hold needs a specific later change that materially invalidates the tria
 The earlier trial remains historical evidence; final-head trial qualification stays outstanding until the consolidated
 run. Task 8.1 remains open throughout this deferral, with no criterion superseded or Candidate attested.
 
+#### Carried-code transport observation
+
+`observeRefCarryCommitRace` resolves its target through the same completed-failure boundary as the other transport
+consumers. A failed target lookup or missing effective URL returns the existing carried-code `unreachable/error`
+outcome with URL repair text. Combined and ordered publication retain their state results; cancellation, signals,
+and unrelated errors propagate. Receiver listing and ancestry errors keep their own policies. The resolver performs
+the same lookups, with no additional Git discovery or cache invalidation.
+
+The native witness uses a modern client with the current receiver for combined publication and a files-format
+Git 2.43 receiver for ordered publication. Both real lookup failures are followed by exact configuration restoration
+and successful retry. The permanent separate-layout test explicitly replays the complete captured legacy receiver
+rejection at `GitExec`, with its receiver ref and object side effects, while lookup, restoration, and retry use real
+Git.
+
+The native fixture version, paired raw runs, captured legacy receipt, source bindings, and contract counterfactuals
+are retained in `criteria-pass-1-fixes/round-1-carry-fix/` under the existing `verification-6429ca093c/` evidence root.
+Ordinary CI exercises the labelled legacy-response contract. The retained native run records the older receiver's
+Git version separately.
+
 ## Fault-site inventory
 
 § 1.4's search, run at `e334006519` under `lib/store/ref/`, `import/` included. Each site that refuses, reports, or

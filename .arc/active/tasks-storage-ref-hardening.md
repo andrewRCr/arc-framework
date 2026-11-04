@@ -414,6 +414,8 @@ transport failure is a per-remote outcome.
           admission, and candidate designation retain typed repairs; canceled, signaled, and unrelated errors propagate.
           Full store feedback aligns completed transport-lookup expectations in configuration, carried-code, import,
           and source-off cases with those typed outcomes, retaining state-preservation and repaired-retry checks.
+          Fix-check Round 1 extends that boundary to the carried-code race observer: transport failure keeps the
+          independent unreachable/error carried outcome and gathered state results; other errors still propagate.
 
     - `[x]` **4.3.b Follow**
         - Resume, cleanup, and candidate judgment convert comparison-witness URL failures through the existing
