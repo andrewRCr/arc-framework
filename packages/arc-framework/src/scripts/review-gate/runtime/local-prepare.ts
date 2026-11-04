@@ -490,13 +490,17 @@ async function resolveSettlementPolicyAdmission(
     return { state: "ready" as const, pass: request.deliveryAdmission.pass,
       coverageAdmission: input.coverageAdmission, incrementalBasis: undefined };
   }
-  const policyAttempts = currentAttempts.filter((attempt) => (
+  const eligibleAttempts = currentAttempts.filter((attempt) => (
     retryingLocalAttempt === undefined
     || attempt.outcome !== "terminal-failure"
     || attempt.local === undefined
     || attempt.sourceId !== dependencies.laneSourceId
     || attempt.logicalPass !== retryingLocalAttempt.logicalPass
-  )).map(projectReviewPolicyAttempt);
+  ));
+  // Fallback order belongs to one logical pass; the owner retains all history for counts and coverage.
+  const currentPass = eligibleAttempts.at(-1)?.logicalPass;
+  const policyAttempts = eligibleAttempts.filter(attempt => attempt.logicalPass === currentPass)
+    .map(projectReviewPolicyAttempt);
   const predecessorOperationId = [...(owner?.attempts ?? [])].reverse().find((attempt) => (
     attempt.terminalProducer
     && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")
