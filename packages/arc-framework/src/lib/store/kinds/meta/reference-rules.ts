@@ -2,7 +2,7 @@
 import { posix } from "node:path";
 import { resolveArcPath } from "../../../layout/index.js";
 import { parseCohortDocument } from "../cohort/index.js";
-import { OwnerIdentitySchema, recordReferences } from "../../identity.js";
+import { OwnerIdentitySchema, recordReferences, sameOwner, type OwnerIdentity } from "../../identity.js";
 import { SlugSchema } from "../../../kernel/index.js";
 import type { Remedy } from "../../refusal.js";
 import { brokenRule, observeRecord, observeNamedRecord } from "../rule-support.js";
@@ -63,7 +63,7 @@ export async function checkMetaDesignEntry(input: WriteCheckInput): Promise<read
   return problems.length === 0 ? [] : [brokenRule("meta.design-entry", problems.join("; "),
     "Use at most two own draft/spec filenames, or store the matching own paired-spec companion before retrying.")];
 }
-/** Check a changed cohort path against its open document.
+/** Check a changed cohort path against its document and existing membership.
  * @param input - Proposed metadata write.
  * @returns Violations of full-path cohort membership.
  */
@@ -80,11 +80,26 @@ export async function checkMetaCohort(input: WriteCheckInput): Promise<readonly 
   if (record.status === "ambiguous") return fail(record.condition, record.remedy);
   if (record.status !== "known") return fail(record.status === "unavailable" ? record.condition : "cohort document is absent");
   if (record.value.reference.owner.name !== leaf) return fail(`cohort '${leaf}' is now named '${record.value.reference.owner.name}'`);
-  if (record.value.placement?.kind === "completed") return fail("cohort is completed");
+  if (record.value.placement?.kind === "completed") {
+    const problem = await completedCohortProblem(input, record.value.reference.owner, versions.prior?.cohort);
+    if (problem !== undefined) return fail(problem.condition, problem.remedy);
+  }
   const fields = parseCohortDocument(record.value.content);
   if (!fields.success) return fail(fields.error);
   const problem = await cohortPathParentProblem(input.after, parts, fields.data.parent);
   return problem === undefined ? [] : fail(problem.condition, problem.remedy);
+}
+
+async function completedCohortProblem(input: WriteCheckInput, cohort: OwnerIdentity, priorPath: string | null | undefined): Promise<{ condition: string; remedy?: Remedy } | undefined> {
+  const own = await observeRecord(input.after, input.reference);
+  if (own.status !== "known") return { condition: own.status === "unavailable" ? own.condition : "meta record is absent" };
+  if (own.value.placement?.kind === "completed") return undefined;
+  const leaf = priorPath?.split("/").at(-1);
+  if (leaf === undefined || !SlugSchema.safeParse(leaf).success) return { condition: "cohort is completed" };
+  const prior = await observeNamedRecord(input.before, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: leaf })));
+  if (prior.status === "ambiguous") return { condition: prior.condition, remedy: prior.remedy };
+  if (prior.status === "unavailable") return { condition: prior.condition };
+  return prior.status === "known" && sameOwner(prior.value.reference.owner, cohort) ? undefined : { condition: "cohort is completed" };
 }
 
 async function cohortPathParentProblem(view: StoreView, parts: readonly string[], parent: string | null): Promise<{ condition: string; remedy?: Remedy } | undefined> {

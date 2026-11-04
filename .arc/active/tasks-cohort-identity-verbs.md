@@ -99,28 +99,14 @@ former slug naming the current one and admit a completed meta's rewrite onto a c
   Parent writes apply the same rule. Absent first-segment documents retain the prior comparison, while unavailable
   observations refuse the write. Flattened the path check to keep the canonical-name and Parent checks separate.
 
-### `[ ]` **1.7 Let a completed meta, and an open meta re-pointing its holding, name a completed cohort — § 6.2**
+### `[x]` **1.7 Let a completed meta, and an open meta re-pointing its holding, name a completed cohort — § 6.2**
 
 - _Goal:_ A cohort rename can rewrite a closed subcohort's completed members and its open straggler, while an open meta
   still cannot join a completed cohort.
 
-    - In `checkMetaCohort`, a completed meta's changed `Cohort` names an existing cohort by its current slug, open or
-      completed, agreeing with that cohort's `Parent`; an open meta's changed `Cohort` may name a completed cohort only
-      where its prior `Cohort`'s leaf, resolved in the view before the write, is the owner the new leaf names in the view
-      after it.
-    - `checkCohortParent` already admits a closed subcohort's `Parent` rewrite onto its open, top-level renamed parent,
-      its open members taking the rewritten path in the same batch; the task adds its test.
-    - Read the meta's own placement only on the completed-cohort branch, since existing unit cases replace
-      `input.after` without the meta (`reference-rules.test.ts`).
-    - No checked local write forms an open meta in a completed cohort, so those fixtures land the meta through a
-      two-clone pull or a direct ref plant.
-
-    - Build `test-first` (one behavior at a time):
-        - a completed meta's `Cohort` rewritten onto a completed cohort's current path lands
-        - an open meta joining a completed cohort refuses, as today
-        - an open meta re-pointing a completed cohort it already held, from a former slug to the current one, lands
-        - a closed subcohort's `Parent` rewritten to its renamed parent's new slug, with its open straggler's path in the
-          same batch, lands
+- _Outcome:_ Completed metas may name completed cohorts; open metas may only re-point an existing holding proved by
+  the prior leaf's resolved owner. Closed-subcohort Parent and open-straggler path rewrites land together, while new
+  joins and malformed prior holdings refuse.
 
 ### `[ ]` **1.8 Add the cohort heading and `Parent` writers — § 5.2**
 

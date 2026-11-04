@@ -120,6 +120,14 @@ describe("metadata cohort references", () => {
       placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4"), sequence: "01", closeout: "a" } })]);
     expect(await checkMetaCohort(input)).toMatchObject([{ rule: "meta.cohort" }]);
   });
+  it("refuses a completed-cohort join when the prior holding has an invalid name", async () => {
+    const input = metaRuleInput(cohort("parent"), cohort("Not a slug"));
+    const own = await input.after.read({ reference: input.reference });
+    if (own.status !== "ok") throw new Error("Expected the proposed meta");
+    input.after = ruleView([own.result, StoreRecordSchema.parse({ ...cohortDocument("parent"),
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4"), sequence: "01", closeout: "a" } })]);
+    expect(await checkMetaCohort(input)).toMatchObject([{ rule: "meta.cohort", condition: expect.stringContaining("cohort is completed") }]);
+  });
   it("refuses an unreadable named document", async () => {
     const input = metaRuleInput(cohort("parent")), good = cohortDocument("parent");
     input.after = ruleView([{ ...good, content: good.content.replace("**Purpose:**", "**Parent:** bare\n\n**Purpose:**") }]);
