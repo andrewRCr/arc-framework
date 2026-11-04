@@ -943,6 +943,24 @@ are retained in `criteria-pass-1-fixes/round-1-carry-fix/` under the existing `v
 Ordinary CI exercises the labelled legacy-response contract. The retained native run records the older receiver's
 Git version separately.
 
+#### Second complete criteria review
+
+Criteria Pass 2 of 2 covers head `59e7828a4b37d1e4553b2f8738060ba3140e86f4` against the same base. Twelve bounded
+contexts, a dedicated seam, and a fresh aggregate cover all 389 changed paths. Source verification confirms two major
+configuration-consumer gaps under criterion 7: `readComparisonSource` reads designation before normalization, and
+`refFetchNeedsCompleteness` remains untyped at its consumers. The combined report has 18 met and 3 unresolved criteria:
+7, the final-head trial at 12, and readiness at 15. The complete correction set and one later independent fix check
+are approved. No additional complete pass is authorized. Evidence is under `verification-59e7828a4b/criteria-pass-2/`.
+
+The first correction includes designation/configuration resolution in `readComparisonSource`'s existing transport
+boundary. Acquisition retains typed publication/follow results; finalization remains unbound after completed remote
+work when fresh configuration cannot authorize comparison updates. The lower lookup and its lock-sensitive cache
+retain their throwing behavior. Native malformed-configuration cases restore exact bytes and retry across publication,
+follow judgment, recorded resume, and switched cleanup in both layouts. Cancellation, signals, and unrelated errors
+retain their identity. The first native run distinguishes ten previously uncaught failures; the overbroad-catch control
+distinguishes all twelve propagation cases. Raw logs and source bindings are under `criteria-pass-2-fixes/` beside the
+review evidence. The completeness-consumer correction remains pending. The consolidated trial and hold stay deferred.
+
 ## Fault-site inventory
 
 § 1.4's search, run at `e334006519` under `lib/store/ref/`, `import/` included. Each site that refuses, reports, or

@@ -416,6 +416,8 @@ transport failure is a per-remote outcome.
           and source-off cases with those typed outcomes, retaining state-preservation and repaired-retry checks.
           Fix-check Round 1 extends that boundary to the carried-code race observer: transport failure keeps the
           independent unreachable/error carried outcome and gathered state results; other errors still propagate.
+          Criteria Pass 2 F1 includes the fresh designation/configuration read in comparison-source normalization.
+          Native acquisition and accepted-work finalization retain typed results and repair/retry in both layouts.
 
     - `[x]` **4.3.b Follow**
         - Resume, cleanup, and candidate judgment convert comparison-witness URL failures through the existing
@@ -423,6 +425,8 @@ transport failure is a per-remote outcome.
           paths continue after URL repair. Existing cleanup object and capacity refusals retain their own remedies.
           Criteria-review F2 includes completed Git lookup failures and preserves completed-work finalization as
           unbound when current transport cannot authorize a comparison write, retaining its observed refs.
+          Criteria Pass 2 F1 covers native malformed configuration during resume, candidate judgment, and switched
+          cleanup; the recorded move and remote state survive, and exact configuration restoration permits retry.
 
 ### `[x]` **4.4 Exercise the caller-observable group through public calls** — validate exit criterion at segment scope
 

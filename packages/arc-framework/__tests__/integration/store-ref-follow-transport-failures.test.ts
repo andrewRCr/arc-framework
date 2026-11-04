@@ -1,5 +1,6 @@
 /** Native follows retain their recorded work when comparison evidence cannot resolve its configured source. */
 import { join, resolve } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
 import { expect, it } from "vitest";
 import type { RefStorePorts } from "../../src/lib/store/ports.js";
 import { followFixture } from "../helpers/store/follow.js";
@@ -10,10 +11,10 @@ import { isCompletedGitFailure, isGitProcessError } from "../../src/lib/git/proc
 
 const move = "refs/arc/tmp/migrate/move";
 const cases = (["code", "backing"] as const).flatMap(source =>
-  (["line-break", "missing-url"] as const).map(fault => ({ source, fault })));
+  (["line-break", "missing-url", "malformed-config"] as const).map(fault => ({ source, fault })));
 
 async function witnessUrlFault(ports: RefStorePorts, directory: string, remote: string, initiallyArmed = true,
-  fault: "line-break" | "missing-url" = "line-break") {
+  fault: "line-break" | "missing-url" | "malformed-config" = "line-break") {
   const key = `remote.${remote}.url`, gitDir = `--git-dir=${directory}`;
   const original = (await ports.exec("git", [gitDir, "config", "--get", key])).stdout.replace(/\r?\n$/u, "");
   const settings = (await ports.exec("git", [gitDir, "config", "--null", "--get-regexp", `^remote\\.${remote}\\.`])).stdout
@@ -26,8 +27,17 @@ async function witnessUrlFault(ports: RefStorePorts, directory: string, remote: 
     heldLayouts++;
     return async () => { try { await release(); } finally { heldLayouts--; } };
   }, rawExec: async (args, options) => {
-    const result = await ports.rawExec(args, options);
     const owner = args.find(arg => arg.startsWith("--git-dir="))?.slice("--git-dir=".length);
+    if (fault === "malformed-config" && armed && heldLayouts > 0 && !flags.injected && owner && resolve(owner) === resolve(directory)
+      && args.includes("config") && args.includes("--list") && args.includes("--includes")) {
+      flags.injected = true;
+      const path = join(directory, "config"), original = await readFile(path);
+      await writeFile(path, Buffer.concat([original, Buffer.from("\n[unclosed\n")]));
+      try { return await ports.rawExec(args, options); }
+      catch (error) { flags.validated = isGitProcessError(error) && isCompletedGitFailure(error); throw error; }
+      finally { await writeFile(path, original); }
+    }
+    const result = await ports.rawExec(args, options);
     if (fault === "line-break" && armed && heldLayouts > 0 && !flags.injected && owner && resolve(owner) === resolve(directory)
       && args.includes("config") && args.includes("--list") && args.includes("--includes")) {
       flags.injected = true;
@@ -53,7 +63,7 @@ async function witnessUrlFault(ports: RefStorePorts, directory: string, remote: 
   return { ports: faulty, flags, arm: () => { armed = true; },
     repair: async () => {
       if (fault === "line-break") await ports.exec("git", [gitDir, "config", key, original]);
-      else for (const [setting, value] of settings) await ports.exec("git", [gitDir, "config", "--add", setting, value]);
+      else if (fault === "missing-url") for (const [setting, value] of settings) await ports.exec("git", [gitDir, "config", "--add", setting, value]);
     } };
 }
 

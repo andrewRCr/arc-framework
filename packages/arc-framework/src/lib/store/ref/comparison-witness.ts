@@ -91,17 +91,19 @@ function comparisonWaitRemaining(context: RefBackendContext, lease: string, end:
 
 async function readComparisonSource(physical: RefBackendContext, expected: NamedSource,
   publication: boolean): Promise<ComparisonSource | null> {
-  const source = physical.repository?.source ?? physical;
-  const designation = await readRefDesignation(source, physical.repository?.commonDir);
-  const remote = expected.repository === "code" ? designation.codeRemotes.find(row => row.name === expected.name) : designation.backing;
-  if (!remote || remote.name !== expected.name || remote.url !== expected.url) return null;
-  const owner = remote.repository === "backing" ? physical : source;
-  const transport = await resolveTransport(remote.name, publication ? "push" : "fetch", async () => publication
-    ? readRemoteTransports(owner, remote.name) : { fetchUrl: (await readNamedTransport(owner, remote.name, "fetch"))[0] ?? "" });
-  if (!transport.fetchUrl) throw new EffectiveTransportError(remote.name, "fetch", "has no effective URL");
-  if (expected.fetchUrl !== undefined && transport.fetchUrl !== expected.fetchUrl) return null;
-  return { name: remote.name, repository: remote.repository, url: remote.url, fetchUrl: transport.fetchUrl,
-    ..."pushUrls" in transport ? { pushUrls: publicationReceivers(remote, designation.codeRemote, transport.pushUrls) } : {} };
+  return resolveTransport(expected.name, publication ? "push" : "fetch", async () => {
+    const source = physical.repository?.source ?? physical;
+    const designation = await readRefDesignation(source, physical.repository?.commonDir);
+    const remote = expected.repository === "code" ? designation.codeRemotes.find(row => row.name === expected.name) : designation.backing;
+    if (!remote || remote.name !== expected.name || remote.url !== expected.url) return null;
+    const owner = remote.repository === "backing" ? physical : source;
+    const transport = publication ? await readRemoteTransports(owner, remote.name)
+      : { fetchUrl: (await readNamedTransport(owner, remote.name, "fetch"))[0] ?? "" };
+    if (!transport.fetchUrl) throw new EffectiveTransportError(remote.name, "fetch", "has no effective URL");
+    if (expected.fetchUrl !== undefined && transport.fetchUrl !== expected.fetchUrl) return null;
+    return { name: remote.name, repository: remote.repository, url: remote.url, fetchUrl: transport.fetchUrl,
+      ..."pushUrls" in transport ? { pushUrls: publicationReceivers(remote, designation.codeRemote, transport.pushUrls) } : {} };
+  });
 }
 
 function publicationReceivers(remote: RefRemoteDesignation, codeRemote: string | null, pushUrls: string[]): string[] {
