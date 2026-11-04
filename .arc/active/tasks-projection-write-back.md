@@ -68,79 +68,29 @@ among them, has one.
           interrupted-replacement versions survive the read; unreadable or differing candidates stay pending. Stored
           candidates de-duplicate by version, kept copies by blob; one candidate needs no content read.
 
-### `[ ]` **1.2 Check an edit with the kind's write check and the `after` view — § 7.2, § 7.3**
+### `[x]` **1.2 Check an edit with the kind's write check and the `after` view — § 7.2, § 7.3**
 
 - _Goal:_ An edit persists only if its kind's write check, run as a hand edit over the merged result, admits it — a
   change to a verb-owned field refused there and kept in its file — and an `after` view answers as the backend will once
   the write lands, which a conformance case holds.
 
-    - `[ ]` **1.2.a The check's input**
+    - `[x]` **1.2.a The check's input**
 
-        - `writer: { kind: "hand-edit" }`; the record's reference; `prior`, the store's current version with its content
-          and parsed fields, or its content alone where it fails to parse, and absent for an adopted file; `next`, the
-          merged content and its fields — for a merge kind with a stale base, the store's merge run in the checkout with
-          the same library over the base's content, read through `history` by way of the command's memo
-          (`createHistoryMemo`, `lib/store/projection/base-recovery.ts`); for a meta or task list over a verb's newer
-          write, 1.5's merge; never the file alone; `before`, which also answers `history`, and `after`; and
-          `observations: []`, a hand edit observing no other record, with `proposedCreatedOwners` absent
-          (`WriteCheckInput`, `lib/store/write-check.ts`). The hand-edit writer carries no `lifecycleAction`, which only
-          a verb's writer takes.
-        - Before an entry merge in the checkout, the copy it merges is stamped (`stampEntryIds`,
-          `lib/store/concurrency/stamp.ts`), its random source 1.1.c's seeded stream, since `entryFrame` throws on an
-          entry with no `_Id:_` (`lib/store/concurrency/entry-frame.ts`); the write sends the edit as it is, unstamped,
-          for the backend to stamp.
-        - Every rule the check returns is reported with its remedy and sets the refused mark; the edit stays in its
-          file. A `history` read that refuses `state-unresolvable` naming a history ref takes 2.3's path; one naming
-          none, or refusing `namespace-corrupt`, leaves a refused edit carrying the backend's remedy, nothing pulled,
-          which 1.3 tests over its wrapper.
-        - Build `test-first` (one behavior at a time):
-            - an edit changing a verb-owned field is refused with the check's rule, the file keeping its content, and
-              lands once the field is restored
-            - an entry kind's stale-base edit is checked over the merged entries
-            - an entry typed by hand over a stale stored base is checked over the merged entries, its copy stamped, and
-              the edit is sent unstamped
-            - an edit repairing a record stored unparseable is checked against its content alone
-            - an edit breaking a record link is refused by the link rules every linked kind's check carries
-              (`RECORD_LINK_KINDS` and `composeLinkChecks`, `lib/store/kinds/in-repo-registrations.ts`), and lands
-              once the link is repaired
+        - Write-back checks production-parsed merged content as a hand edit, retaining raw prior content when its
+          parser fails. Entry merges stamp a seeded check copy while the backend receives the unstamped edit;
+          every broken rule is reported with its remedy, and refused edits remain available for repair.
 
-    - `[ ]` **1.2.b The `after` view**
+    - `[x]` **1.2.b The `after` view**
 
-        - In `lib/store/projection/`, built from `before`, the written record's reference, and the pending write's
-          content and parsed fields — the check's `next` — never a parser of its own: `read` and `list` answer the
-          written record from the pending write, its `conflicts` as `before` holds them, and everything else from
-          `before`; a record absent from `before`, never a primary record or a cohort document since write-back creates
-          neither, takes a placeholder version and its owner's placement; `lookup` is `before`'s for every kind.
-        - Build `test-first` (one behavior at a time):
-            - `read` of the written record returns the pending content, and of any other record `before`'s
-            - `list` of the written record's family returns the pending record in its place
-            - a record absent from `before` reads and lists from the pending write
+        - `createWriteBackAfterView` overlays caller-parsed pending content while preserving existing envelopes,
+          conflicts, unrelated reads, listing completeness, and lookup results. New companions inherit their owner's
+          placement and receive a placeholder version; saved-state queries retain the backend's saved view.
 
-    - `[ ]` **1.2.c The conformance case**
+    - `[x]` **1.2.c The conformance case**
 
-        - A new item in the store's conformance suite (`registerStoreConformanceSuite`,
-          `__tests__/helpers/store/conformance-suite.ts`), item 18, which widens `SuiteItem`
-          (`__tests__/helpers/store/fixture-contract.ts`) and the `conformanceItems` map, and joins the `sync` range
-          beside item 17's registered write checks: `[16, 18]` in the ref fixture's ranges and its three separate-layout
-          parts (`wholeRunRanges`, `separateWholeRunRanges`, `__tests__/helpers/store/ref-fixture.ts`), so no test file
-          is added. In the same change the registration unit test's item literals
-          (`__tests__/unit/lib/store/conformance-registration.test.ts`), which its casts hide from the compiler, follow
-          — `[7, 18]` for each `[7, 17]`, and both unknown-item cases moved past the new last item, the range case's
-          `[7, 18]` to `[7, 19]` and the exclusion case's `18` to `19` — and the item counts the file comments state
-          follow: `conformance-suite.ts`, `fixture-contract.ts`, `__tests__/helpers/store/README.md`,
-          `conformance-reference.test.ts`, and the four `sync` files' items 16–17. Over each backend that runs checks,
-          for each kind that projects which its fixture serves — every kind whose mechanism's `projection` is not
-          `never` (`KIND_MECHANISMS`, `lib/store/registry.ts`) but `personal/errand-queue`, `project-machinery/prose`,
-          and `constitution/prose`, which hold no layout address and so project nothing (spec § 10.1) — the `after` view
-          built before a write answers `read`, `list`, and the slug, lineage, claim, and ref lookups as the backend does
-          once the write lands, compared apart from each result's `version` and `asOf`, the written record's
-          `conflicts`, the conflict records the landing files or removes, and the `_Id:_` values the landing stamps. The
-          pending fields come from the fixture's parser override, as `suite-write-checks.ts`'s `checked` builds them.
-          The commit lookup stays outside it.
-        - Build `test-first` (one behavior at a time):
-            - the case passes over the reference backend for every hand-editable kind
-            - the case passes over the ref backend's fixture (`refRegistration`,
-              `__tests__/helpers/store/ref-fixture.ts`) for every hand-editable kind it serves
+        - Conformance item 18 compares pending reads, family listings and slug, lineage, claim and ref lookups with
+          landed writes for every projecting kind the backend serves, apart from backend-assigned versions, conflicts
+          and entry IDs. It runs in the reference suite and both ref layouts; registration ranges and inventories follow.
 
 ### `[ ]` **1.3 Persist under hand-edit provenance, and extend the test stores — § 7.4–§ 7.6, § 1.5**
 

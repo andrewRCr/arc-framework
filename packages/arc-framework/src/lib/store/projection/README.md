@@ -134,6 +134,11 @@ missing entry IDs through the shared matcher and repairs later duplicates from t
 `write-back-ids.ts`. The take-in port records a landing and its read-back without swapping. `read-back.ts` owns the file
 walk's guarded read-back batch, using the exact bytes read as its baseline and retaining any earlier pending mark.
 
+`check-edit.ts` runs the kind's production check over merged content, with current parsed fields or raw prior content
+when parsing fails. It stamps only the entry merge's check copy and reports every broken rule with its remedy.
+`after-view.ts` overlays that caller-parsed pending record on reads and family listings, retaining its prior envelope
+or inheriting a new companion's owner placement. Other reads, saved-state queries, and all lookups remain the backend's.
+
 `read-gate.ts` gates every read of a projected file on its stats alone, so write-back never reads one mid-save. An empty
 file younger than 50 ms waits for the next command, since an editor that truncates before writing leaves it empty
 mid-save. An empty Markdown file older than that is a deleted file and no edit, since every projected one carries its

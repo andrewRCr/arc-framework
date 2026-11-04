@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { createReferenceFixture } from "../reference-fixture.js";
+import type { ConformanceFixture } from "../fixture-contract.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import type { KindId } from "../../../../src/lib/store/catalog.js";
 import { ENTRY_CONFIGS } from "../../../../src/lib/store/kinds/entry-configs.js";
@@ -22,20 +23,21 @@ import { runSecondCheck } from "../../../../src/lib/store/projection/second-chec
 import { readReference } from "../../../../src/lib/store/projection/change-detection.js";
 
 /** Seed a store record and its projected copy; callers dispose of the checkout when finished. */
-export async function createWriteBackFixture(input: { kind?: KindId; path?: string; content?: string } = {}) {
+export async function createWriteBackFixture(input: { kind?: KindId; path?: string; content?: string; fixture?: ConformanceFixture } = {}) {
   const checkout = await mkdtemp(join(tmpdir(), "arc-read-back-"));
   const gitDir = join(checkout, ".git");
   const location: ProjectionLocation = { gitDir, commonDir: gitDir, primary: true, stateDir: join(gitDir, "arc-projection") };
   await mkdir(location.stateDir, { recursive: true });
-  const fixture = createReferenceFixture(ENTRY_CONFIGS);
+  const fixture = input.fixture ?? createReferenceFixture(ENTRY_CONFIGS);
   const reference = fixture.reference(input.kind ?? "personal/document");
-  if (reference.owner.type === "work-item") {
+  if (reference.owner.type === "work-item" && reference.kind !== "work-item/meta") {
     const primary = fixture.reference("work-item/record");
     const result = await fixture.store.write({ action: "put", reference: primary, expected: null,
       content: fixture.content(primary), placement: { kind: "active" }, provenance: { verb: "errand-open", lifecycleAction: "create" } });
     if (result.status !== "ok") throw new Error("primary seed refused");
   }
   const seeded = await fixture.store.write({ action: "put", reference, expected: null,
+    ...(reference.kind === "work-item/meta" ? { placement: { kind: "active" as const } } : {}),
     content: input.content ?? "opening\nbase\nclosing\n", provenance: { verb: "seed", lifecycleAction: "seed" } });
   if (seeded.status !== "ok") throw new Error(`seed refused: ${seeded.refusal.condition}`);
   const read = await fixture.store.read({ reference: seeded.result.reference });

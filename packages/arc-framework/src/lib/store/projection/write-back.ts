@@ -24,6 +24,7 @@ import { restoreWriteBackIds } from "./write-back-ids.js";
 import { selectWriteBackBase } from "./base-selection.js";
 import { readBaseContent } from "./base-content.js";
 import type { RecoveredBase } from "./base-recovery.js";
+import { checkWriteBackEdit } from "./check-edit.js";
 
 const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
@@ -47,7 +48,8 @@ export interface WriteBackDiagnostic {
 export type PreparedWriteBack =
   | { readonly kind: "ready"; readonly write: Extract<WriteInput, { action: "put" }>; readonly read: TakeInRead;
       readonly stamp: string; readonly random?: () => number }
-  | { readonly kind: "held"; readonly result: TakeInResult; readonly diagnostic?: RefusedMark };
+  | { readonly kind: "held"; readonly result: TakeInResult; readonly diagnostic?: RefusedMark;
+      readonly diagnostics?: readonly RefusedMark[] };
 
 /** Read and parse an edit without writing a file, publishing an index, or acquiring a lock. */
 export async function prepareWriteBack(context: WriteBackContext, request: TakeInRequest): Promise<PreparedWriteBack> {
@@ -70,6 +72,11 @@ export async function prepareWriteBack(context: WriteBackContext, request: TakeI
     const mark: RefusedMark = { reason: parsed.error, remedy: { text: `Repair ${request.path} so its record parser accepts the edit, then save again.` } };
     return { kind: "held", result: { answer: "unparseable", entry: { ...request.entry, refused: mark }, mark } };
   }
+  const checked = await checkWriteBackEdit({ context, request, base, content, random });
+  if (checked.status === "refused") return refusedPreparation(request.entry, checked.refusal);
+  const mark = checked.result[0];
+  if (mark !== undefined) return { kind: "held", diagnostics: checked.result,
+    result: { answer: "refused", entry: { ...request.entry, refused: mark }, mark } };
   const placement = await currentWritePlacement(context.store, request);
   if (placement.status === "refused") return refusedPreparation(request.entry, placement.refusal);
   return { kind: "ready", read: file.read, stamp, ...(random === undefined ? {} : { random }), write: {
@@ -162,7 +169,9 @@ export async function sendWriteBack(context: WriteBackContext, request: TakeInRe
   const prepared = await prepareWriteBack(context, request);
   if (prepared.kind === "held") {
     const mark = "mark" in prepared.result ? prepared.result.mark : prepared.diagnostic;
-    if (mark !== undefined) context.report?.({ path: request.path, copy: request.copy, mark });
+    for (const diagnostic of prepared.diagnostics ?? (mark === undefined ? [] : [mark])) {
+      context.report?.({ path: request.path, copy: request.copy, mark: diagnostic });
+    }
     return { kind: "held", result: prepared.result };
   }
   const entry = await markOtherCopies(context, request);

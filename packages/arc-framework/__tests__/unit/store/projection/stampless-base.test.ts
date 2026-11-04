@@ -18,6 +18,7 @@ import { readReference } from "../../../../src/lib/store/projection/change-detec
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { TAKEN_IN_FOLDER } from "../../../../src/lib/store/projection/taken-in.js";
 import { createHistoryRefusingStore } from "../../../helpers/store/projection/history-refusing-store.js";
+import { selectWriteBackBase } from "../../../../src/lib/store/projection/base-selection.js";
 
 type Fixture = Awaited<ReturnType<typeof createWriteBackFixture>>;
 let fixture: Fixture | undefined;
@@ -78,7 +79,8 @@ describe("stampless base agreement", () => {
     const counted = createCountingStore(fixture.store);
     const context = { ...fixture.context, store: counted.store, memo: createHistoryMemo(counted.store) };
     const request = { ...fixture.request, entry, base: { kind: "blob" as const, blob: entry.base.blob } };
-    expect(await prepareWriteBack(context, request)).toMatchObject({ kind: "ready", write: { expected: entry.base.version } });
+    expect(await selectWriteBackBase(context, request, "opening repaired\nhand edit\nclosing\n", null))
+      .toMatchObject({ status: "ok", result: { kind: "selected", base: { kind: "stored", version: entry.base.version } } });
     expect(counted.observations()).toEqual([]);
   });
 
