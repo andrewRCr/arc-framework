@@ -58,6 +58,8 @@ import type {
 import { isReviewVersionConflict, REVIEW_VERSION_RETRY_ATTEMPTS } from "../core/version-conflict.js";
 import type { LocalReviewPolicyBinding } from "../policy/local-review-policy.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
+import { requireSettledErrandPredecessor } from "../hosted-settlement-stop.js";
+import { selectErrandCorrectionPredecessor } from "../status-errand.js";
 import type { CandidateSupersessionAncestor } from
   "../../../lib/work-unit/candidate-attestation.js";
 import {
@@ -501,6 +503,7 @@ async function resolveSettlementPolicyAdmission(
   const currentPass = eligibleAttempts.at(-1)?.logicalPass;
   const policyAttempts = eligibleAttempts.filter(attempt => attempt.logicalPass === currentPass)
     .map(projectReviewPolicyAttempt);
+  requireSettledErrandPredecessor(lineage, selectErrandCorrectionPredecessor(owner?.attempts ?? [], target.headSha));
   const predecessorOperationId = [...(owner?.attempts ?? [])].reverse().find((attempt) => (
     attempt.terminalProducer
     && (attempt.outcome === "clean" || attempt.outcome === "settled-findings")

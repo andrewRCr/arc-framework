@@ -19,6 +19,7 @@ import { ReviewPolicyCommandRequestSchema, ReviewResolveEnvelopeSchema, type Rev
 
 import { ReviewPolicyContextError } from "./review-policy-context.js";
 import { ReviewTerminalAttemptInputError } from "../policy/review-policy-evidence.js";
+import { PendingHostedSettlementError, hostedSettlementRemedy } from "../hosted-settlement-stop.js";
 
 const RESOLVE_ARGV = ["arc", "review", "resolve", "-"] as const;
 
@@ -171,6 +172,7 @@ export function staleLaneAttemptsRemedy(error: unknown, request: unknown): Spine
 
 /** Return a corrected terminal input replay, or the existing stale-attempt recovery route. */
 export function reviewResolveRemedy(error: unknown, request: unknown): SpineRemedy | undefined {
+  if (error instanceof PendingHostedSettlementError) return hostedSettlementRemedy(error.pending, "re-resolving the lane");
   if (error instanceof ReviewPolicyContextError) return spineRemedy(error.message, error.correction, RESOLVE_ARGV, request);
   if (error instanceof ReviewDriverAdmissionError && incrementalOverride(error)) return incrementalOverrideRemedy(request, RESOLVE_ARGV);
   if (error instanceof ReviewDriverAdmissionError && localSourceCorrection(error, false) !== null) {
@@ -225,6 +227,9 @@ export function reviewResolveError(error: unknown, request: unknown): unknown {
  * @returns The remedy re-resolving the exact policy request the driver evaluated; otherwise `undefined`.
  */
 export function localPrepareAdmissionRemedy(error: unknown, submittedRequest?: unknown): SpineRemedy | undefined {
+  if (error instanceof PendingHostedSettlementError) {
+    return hostedSettlementRemedy(error.pending, "preparing the local review again");
+  }
   if (!(error instanceof ReviewDriverAdmissionError)) return undefined;
   if (submittedRequest !== undefined && incrementalOverride(error)) {
     return incrementalOverrideRemedy(submittedRequest, ["arc", "review", "local", "prepare", "-"]);
@@ -245,6 +250,9 @@ export function localPrepareAdmissionRemedy(error: unknown, submittedRequest?: u
  * @returns The remedy re-reading the open change request's review status; otherwise `undefined`.
  */
 export function hostedRequestAdmissionRemedy(error: unknown): SpineRemedy | undefined {
+  if (error instanceof PendingHostedSettlementError) {
+    return hostedSettlementRemedy(error.pending, "requesting the hosted review again");
+  }
   if (error instanceof HostedIncrementalCoverageError) {
     return spineRemedy(HOSTED_COMPLETE_INVARIANT, "Run the local fix check through arc review local prepare; "
       + "re-read status for the next complete hosted pass", ["arc", "review", "status", "--target", JSON.stringify(error.statusTarget)]);
