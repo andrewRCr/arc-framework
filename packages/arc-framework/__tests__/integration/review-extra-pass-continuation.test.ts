@@ -21,13 +21,14 @@ import { projectCandidateReviewBoundary } from "../../src/scripts/review-gate/po
 import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { publishNativeReviewApproval } from "../../src/scripts/review-gate/runtime/native-review-approval.js";
 import { composeReviewDispositionRecord } from "../../src/lib/store/kinds/review/evidence/composed-record.js";
-import { readLaneResponsePerformance, recordLaneResponsePerformance } from "../../src/scripts/review-gate/lane-progress.js";
+import { readLaneResponsePerformance, recordLaneResponsePerformance, settleLaneAttempt } from "../../src/scripts/review-gate/lane-progress.js";
 import { createRepositoryReviewResultReader } from "../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
 import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-state.js";
 import { readIncrementalPredecessorResponseEvidence } from "../../src/scripts/review-gate/policy/review-policy-evidence.js";
 import { handleReviewPrePublication, handleReviewLocalPrepare, handleReviewLocalAttest, handleReviewReduce } from "../../src/handlers/review.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import type { ReviewLaneJudgment } from "../../src/scripts/review-gate/policy/review-policy-driver.js";
+import type { ReviewResult } from "../../src/scripts/review-gate/core/review-result.js";
 
 async function subject(native: boolean) {
   const h = await createReviewRepositoryHarness(); onTestFinished(h.cleanup);
@@ -123,19 +124,21 @@ async function subject(native: boolean) {
   const result = await review({ ceilingOverride: spent, additionalPassAuthorization: { headSha: first.target.headSha,
     precedingProducerId: first.producerId, completedPasses: 1, nextPass: 2 } }, true);
   expect(result.admission.logicalPass).toBe(2);
-  let approval;
-  if (context.family.mode === "stored") {
-    const outcome = await context.family.ports.outcomes.read(result.producerId);
-    if (outcome === null) throw new Error("Expected immutable producer");
-    await publishNativeReviewApproval({ ...context.family.ports, readProjectId: context.projectId,
-      record: composeReviewDispositionRecord(outcome.value, [{ ...reviewEvidenceFixture(outcome.value, "fix"), binding: {
-        kind: "candidate", candidate: { workUnit: candidate.attestation.workUnit, candidateId: candidate.attestation.candidateId } } }], owner),
-      now: () => "2026-10-27T12:01:00Z" });
-    approval = await context.family.ports.dispositions.readDispositionRecord(result.producerId);
-  } else {
-    approval = approvedRecord(result, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
-    await context.family.ports.dispositions.appendDispositionRecord(approval);
-  }
+  const approve = async (producer: ReviewResult, severity: "major" | "minor", disposition: "fix" | "defer", approvedAt: string) => {
+    if (context.family.mode === "stored") {
+      const outcome = await context.family.ports.outcomes.read(producer.producerId);
+      if (outcome === null) throw new Error("Expected immutable producer");
+      await publishNativeReviewApproval({ ...context.family.ports, readProjectId: context.projectId,
+        record: composeReviewDispositionRecord(outcome.value, [{ ...reviewEvidenceFixture(outcome.value, disposition), binding: {
+          kind: "candidate", candidate: { workUnit: candidate.attestation.workUnit, candidateId: candidate.attestation.candidateId } } }], owner),
+        now: () => approvedAt });
+      return await context.family.ports.dispositions.readDispositionRecord(producer.producerId);
+    }
+    const record = approvedRecord(producer, [{ sourceVerification: "verified", verifiedSeverity: severity, disposition }]);
+    await context.family.ports.dispositions.appendDispositionRecord(record);
+    return record;
+  };
+  const approval = await approve(result, "major", "fix", "2026-10-27T12:01:00Z");
   if (approval === null) throw new Error("Expected approved response");
   await writeFile(join(cwd, "source.ts"), "export const value = 2;\n");
   await git("commit", "-am", "Apply approved fix");
@@ -174,7 +177,7 @@ async function subject(native: boolean) {
     if (grant === undefined) throw new Error("Expected the original ceiling decision");
     retained = { ...spent, decisionKey: reviewDecisionKey(grant.value) };
   }
-  return { ...input, candidate, result, spent: retained, context, prepublish, invoke, reader, routingFacts };
+  return { ...input, candidate, result, spent: retained, context, prepublish, invoke, reader, routingFacts, approve };
 }
 
 it.each([false, true])("public post-fix re-entry omits the consumed complete-pass override (native=%s)", async native => {
@@ -246,4 +249,44 @@ it.each([false, true].flatMap(native => (["whole-target", "chunked"] as const).m
   }
   const settled = await h.prepublish({ frontline: { invocation: { mode: "skip" } } });
   expect(["candidate-convergence-verification-pending", "candidate-publish-ready"]).toContain(settled.locus);
+}, 45_000);
+
+it.each([false, true])("public additional pass admits the complete successor of a fix check converged on a deferred minor finding (native=%s)", async native => {
+  const h = await subject(native);
+  const request = { schemaVersion: 1, evaluatorIdentity: "independent-reviewer", routingFacts: h.routingFacts,
+    policyJudgment: { scopeMode: "whole-target" } };
+  const offer = LocalPrepareEnvelopeSchema.parse(await h.invoke(handleReviewLocalPrepare, request));
+  if (offer.state !== "coverage-required") throw new Error(JSON.stringify(offer));
+  const coverageAdmission = offer.payload.coverageSelectionAction.choices.find(choice => choice.requestedCoverage === "incremental");
+  if (coverageAdmission === undefined) throw new Error("Expected the approved fix-check choice");
+  const prepared = LocalPrepareEnvelopeSchema.parse(await h.invoke(handleReviewLocalPrepare, { ...request, coverageAdmission }));
+  if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
+  const attested = LocalAttestEnvelopeSchema.parse(await h.invoke(handleReviewLocalAttest, localReviewResult(prepared.payload,
+    "minor-fix-check", [{ findingId: "finding-minor", severity: "minor", locus: "source.ts:1", evidenceUrlOrId: "source.ts:1" }])));
+  if (attested.state !== "attested-current") throw new Error(JSON.stringify(attested));
+  const predecessor = await h.reader.readResult(prepared.payload.operationId);
+  expect(predecessor).toMatchObject({ admission: { logicalPass: 3, effectiveCoverage: "incremental" }, originalOutcome: "findings" });
+  const deferred = await h.approve(predecessor, "minor", "defer", "2026-10-27T12:03:00Z");
+  if (deferred === null) throw new Error("Expected approved response");
+  await settleLaneAttempt(h.context.family.ports.inFlight, { lane: "standard", repositoryId: predecessor.repositoryId,
+    headSha: predecessor.target.headSha, lineage: predecessor.admission.lineage, attemptId: predecessor.producerId,
+    dispositionSetId: deferred.currentDispositionSetId, producedHeadSha: predecessor.target.headSha,
+    now: "2026-10-27T12:04:00Z" });
+  const lanes = (standard: ReviewLaneJudgment) => ({ frontline: { invocation: { mode: "skip" } }, standard });
+  let judgment: ReviewLaneJudgment = { scopeMode: "whole-target", additionalPassAuthorization: {
+    precedingProducerId: predecessor.producerId, headSha: predecessor.target.headSha, completedPasses: 3, nextPass: 4 } };
+  const result = await h.prepublish(lanes(judgment));
+  expect(result, JSON.stringify(result)).toMatchObject({ locus: "candidate-review-pending", policy: { state: "ready",
+    nextAction: "local-prepare", payload: { pass: 4, coverage: "complete", ceilingOverrideApplied: true } } });
+  if (h.context.family.mode === "stored") {
+    const listing = await h.context.family.ports.decisions.list();
+    if (listing.status !== "complete") throw new Error(listing.reason);
+    const grant = listing.records.find(({ value }) => value.choice.kind === "extra-pass" && value.choice.passCount === 3
+      && value.choice.precondition.kind === "additional");
+    if (grant === undefined || judgment.additionalPassAuthorization === undefined) throw new Error("Expected the successor decision");
+    judgment = { ...judgment, additionalPassAuthorization: { ...judgment.additionalPassAuthorization, decisionKey: reviewDecisionKey(grant.value) } };
+  }
+  const successor = LocalPrepareEnvelopeSchema.parse(await h.invoke(handleReviewLocalPrepare, { ...request,
+    policyJudgment: judgment, coverageAdmission: { requestedCoverage: "complete" } }));
+  expect(successor, JSON.stringify(successor)).toMatchObject({ state: "ready", payload: { request: { logicalPass: 4 } } });
 }, 45_000);
