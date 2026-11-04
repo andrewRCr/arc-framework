@@ -5,9 +5,9 @@
  * the driver no longer admits refuses before anything is spent; re-reading the lane names what it admits instead,
  * including when the lane is complete or the next pass needs an Owner decision. A lane's attempts belong to the
  * head they reviewed, so re-resolving at a new head while still carrying them refuses; concluded attempts
- * carry forward in the logical count, and dropping the attempts reaches the ordinary resolution. A request still naming
- * a head the checkout has moved past resolves to the driver's stale-target state, naming both heads, so the caller
- * recomposes it at the current head. Hosted requests take
+ * carry forward in the logical count, and dropping the attempts reaches the ordinary resolution. A request carrying a
+ * review result whose head the checkout has moved past resolves to the driver's stale-target state, naming both heads,
+ * so the caller recomposes it at the current head. Hosted requests take
  * complete coverage; the local fix check re-examines an approved fix before another hosted complete pass.
  *
  * @module
