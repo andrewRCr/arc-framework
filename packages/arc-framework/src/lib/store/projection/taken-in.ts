@@ -13,7 +13,7 @@ import { atomicWriteFile } from "../../fs.js";
 import type { RecordVersion } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
-import { lineDistance, type HistoryMemo } from "./base-recovery.js";
+import { type HistoryMemo } from "./base-recovery.js";
 import type { RecordEntry } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
 
@@ -117,43 +117,24 @@ export type PersistedBase =
 export interface PersistedBaseInput {
   readonly location: ProjectionLocation;
   readonly entry: RecordEntry;
-  /** The stamp the file carries, null for a file other than Markdown, which carries none. */
+  /** A Markdown file's stamp, null where it was lost or the file carries none. */
   readonly stamp: string | null;
-  /** The file's content as the store would hold it. */
-  readonly content: string;
-  readonly memo: HistoryMemo;
 }
 
 /**
- * Select the base of a save from what the file's last persisted write-back took in: for Markdown, where the save carries
- * the stamp that write-back read; for a file other than Markdown, the closer of a kept copy and the version the write
- * landed.
- * @param input - The file's entry, stamp, and content, and how to reach copies and `history`.
- * @returns The base, null where the rule does not select one, or the store's refusal of `history`.
+ * Select the base of a Markdown save carrying the stamp its last persisted write-back read. Files without a stamp
+ * select no base here; their recorded candidates are compared by agreement.
+ * @param input - The file's entry, stamp, and location of its kept copies.
+ * @returns The matching persisted base, or null where the stamp does not select one.
  */
 export async function selectPersistedBase(input: PersistedBaseInput): Promise<StoreResult<PersistedBase | null>> {
   const persisted = input.entry.persisted;
   if (persisted === null) return { status: "ok", result: null };
   const { takenIn } = persisted;
-  if (input.stamp === null) return takenIn.kind === "copy" ? closerOfCopyAndLanded(input, takenIn.name, takenIn.version) : { status: "ok", result: null };
+  if (input.stamp === null) return { status: "ok", result: null };
   if (input.stamp !== persisted.stamp) return { status: "ok", result: null };
   if (takenIn.kind === "landed") return { status: "ok", result: { kind: "stored", version: takenIn.version } };
   return { status: "ok", result: { kind: "copy", content: await readTakenInCopy(input.location, takenIn.name) } };
-}
-
-/**
- * A file with no stamp cannot tell a stale buffer's save from an edit of what the read-back laid, so it takes whichever
- * is closer: the kept copy, which wins a tie, or the version that write landed, regardless of later read-backs or refreshes.
- */
-async function closerOfCopyAndLanded(input: PersistedBaseInput, name: string, version: RecordVersion): Promise<StoreResult<PersistedBase>> {
-  const copy = await readTakenInCopy(input.location, name);
-  const history = await input.memo.read(input.entry.reference);
-  if (history.status === "refused") return history;
-  const landed = history.result.find((entry) => entry.version === version)?.content ?? null;
-  const lines = input.content.split("\n");
-  const closerToLanded = landed !== null
-    && lineDistance(lines, landed.split("\n")).changed < lineDistance(lines, copy.split("\n")).changed;
-  return { status: "ok", result: closerToLanded ? { kind: "stored", version } : { kind: "copy", content: copy } };
 }
 
 /** How a write-back ended: a landing, which persists, or an outcome that lands nothing. */
@@ -165,7 +146,7 @@ export type WriteBackOutcome =
 export interface WriteBackRecording {
   readonly location: ProjectionLocation;
   readonly entry: RecordEntry;
-  /** The stamp write-back read from the file. */
+  /** The Markdown stamp read, or the base blob id the take-in carried for a file without a stamp. */
   readonly stamp: string;
   /** What write-back read from the file after parse-back. */
   readonly takenIn: string;

@@ -37,7 +37,7 @@ edit to a record no longer there, which stays a refused edit at its path until t
 `spec-projection-substrate.md` § 5.6) — has none, and every other, `namespace-corrupt` and a backend's key refusals
 among them, has one.
 
-### `[ ]` **1.1 Parse an edit and send it against its base — § 7.1**
+### `[x]` **1.1 Parse an edit and send it against its base — § 7.1**
 
 - _Goal:_ Each hand-edited file reaches the store as its own write: its IDs restored, parsed by its kind's parser, sent
   against the record version its base names, merged by the store where it has moved on, and replaced by the record read
@@ -50,173 +50,23 @@ among them, has one.
           The caller owns swaps and publication; the pre-send raw index write marks other aside copies without advancing
           the racy reference, and an aside landing records the bytes it read.
 
-    - `[ ]` **1.1.b Read back**
+    - `[x]` **1.1.b Read back**
 
-        - After a write lands, write-back reads the record back and records what it took in (`recordWriteBack`,
-          `lib/store/projection/taken-in.ts`) — the stamp it read; for a Markdown file whose stamp was lost, the
-          recovered base's blob id (`recoverBase`, `lib/store/projection/base-recovery.ts`); for a file other than
-          Markdown, which carries none, the base blob id its take-in carried (`TakeInBase`'s `blob`): its entry's
-          `base.blob` for the file at its path, which write-back reads from the entry at the command's start and the
-          guard's re-check hands it (`baseOf`, `lib/store/projection/replace-guard.ts`), and the blob an aside copy's
-          name carries for a copy, which 1.1.d's revert rules compare with the entry's base and the version a
-          replacement in progress replaces — and the content taken in, the version written or a kept copy, either way a
-          persisted write-back; the copy it releases, and one a stop left before an index named it, is removed by the
-          command's end (1.9.a), never before the index that stops naming it is written (`commitProjectionIndex`,
-          `lib/store/projection/index-file.ts`). Where it refused nothing the file held, it clears the refused mark and
-          replaces the file through the swap (`swapBatch`, `lib/store/projection/swap.ts`), laid by the one renderer
-          (1.7.c), the record read back — its stored content's blob id and record version — becoming the file's base,
-          never what was sent, its conflicts drawn in once 1.7 draws them, the re-check's baseline the stat and blob id
-          write-back read (`ReplaceGuardInput.baseline`, `lib/store/projection/replace-guard.ts`), which the batch's
-          first index write records beside the aside copy, as a read-back's batch: its second index write clears the
-          pending mark it set, and a file already pending keeps its mark for the next refresh. Where it refused a
-          malformed entry's persist while the rest landed, which 1.4.b builds and tests, the file keeps the person's
-          content, its stamp, and the base it was rendered from, pending, its refused mark and remedy kept, and its
-          entry records the record's open conflicts, reported beside the refusal; no swap runs, since the entry's text
-          exists nowhere else. Where the sweep's ignore verdict refuses the file's root, which 1.9.a builds and tests,
-          the file keeps its content and is pending in the same way, since nothing may be written into that root for the
-          command, and the guard's refusal is reported.
-        - The one renderer's core, which this task builds in `lib/store/projection/`, 1.5 and 1.7 extend, and 1.7.c
-          completes: given the record, the content being written, and the marker length the sets that content holds are
-          at (1.7.c), it lays the content under the stored content's stamp (`renderStampedFile`,
-          `lib/store/projection/stamp.ts`), a file other than Markdown as it is, and stages it as `stageRecordFile`
-          (`staging.ts`) stages the stored content, its stamp and `base.blob` the stored content's and `written` the
-          laid bytes' blob id.
-        - Two blob ids are kept apart: the file's own bytes' (`written`, a `taken-in` answer's `read.blob`, and an aside
-          copy's moving, linked, and landed blobs), and the stored content's (`base.blob`, the stamp).
-        - Build `test-first` (one behavior at a time):
-            - a stale edit the store merges is replaced by the merged record, and the index's base is the merge's
-              version
-            - an entry the backend stamped shows its `_Id:_` in the file after read-back
-            - a landed edit's read-back stamps the stored content's blob id, and the index records the laid bytes' as
-              `written`
-            - a read-back holding the content taken in records the version written, and a merged one keeps a copy with
-              the landed IDs
-            - a save landing between write-back's read and its read-back replacement is taken in, and the sent content
-              is not sent again
-            - a landed edit's read-back leaves no pending mark on the file it put in place
-            - a file other than Markdown whose edit landed has its read-back's aside copy deleted as no edit, nothing
-              sent again
-            - a file pending before its edit landed is still pending after the read-back
+        - The shared send reads and records the landed content without swapping; `writeBackFile` stages that record
+          through the guarded read-back batch, keeping the exact read baseline and prior pending state. The shared
+          renderer separates stored-base stamps from laid bytes; a failed read-back preserves a reported, pending edit.
 
-    - `[ ]` **1.1.c Entries typed by hand**
+    - `[x]` **1.1.c Entries typed by hand**
 
-        - Before sending, and before any merge in the checkout, once the duplicated-`_Id:_` rule below has run, an entry
-          with no `_Id:_` takes an ID its base carries, through the engine's one matcher (`restoreEntryIds`,
-          `lib/store/projection/taken-in.ts`): from the base entries whose `_Id:_` no entry in the file carries, the one
-          whose text, apart from its `_Id:_` line, equals the entry's, else the one whose heading — in a field-header
-          list, its field header — the entry shares, each only where exactly one base entry matches; a base entry's ID
-          goes to one entry at most, and where two entries match it the same way, neither takes it. An entry its base
-          lacks is left for the stamp. A duplicated `_Id:_` left by an editor's "accept both" gives the second entry a
-          fresh ID drawn from a seeded stream this task builds, so a retry after a stop sends the same one: a SHA-256
-          stream in `lib/store/projection/` over `digestBytes` (`lib/kernel/canonical/canonical-json.ts`), seeded by the
-          record's reference, the base content, and the file's content, which 1.2.a's stamp draws from too.
-        - Build `test-first` (one behavior at a time):
-            - an entry whose `_Id:_` line was deleted takes its base's ID back by its heading
-            - a heading the base holds twice matches nothing, and the entry is left for the stamp
-            - an entry whose text equals a base entry's takes that entry's ID though another base entry shares its
-              heading
-            - two ID-less entries matching one base entry by heading both take none, and a base entry whose ID an entry
-              in the file still carries gives it to no other
-            - an "accept both" duplicate gives its second copy a fresh ID, and sent again after a stop it lands once
+        - Restore missing IDs through the shared matcher against the selected base. Later duplicate IDs draw from a
+          SHA-256 stream seeded by the reference, base, and edited content; preparation retains the remaining stream for
+          stamping, and a retry after an unrecorded landing sends the same replacement identity.
 
-    - `[ ]` **1.1.d Select the base**
+    - `[x]` **1.1.d Select the base**
 
-        - The base an edit is sent against or merged from is chosen in the order `spec-projection-substrate.md`
-          § 3.5–§ 3.7 gives, as spec § 16.5 amends it for a file other than Markdown, over the content parse-back
-          returns, before each entry parse-back refused is put in as that base holds it and before the ID restore, which
-          takes the base's entries. For a Markdown file, at its path or as an aside copy, by the stamp it carries: a
-          stamp equal to the one its last persisted write-back read takes what that write-back took in
-          (`selectPersistedBase`, `lib/store/projection/taken-in.ts`); a stamp naming the index's base takes its
-          version, reading no `history`; a stamp naming another stored version takes that version, found through the
-          command's `history` memo by its stored blob id; and a stamp lost, or naming no stored version, goes to stamp
-          recovery (`recoverBase`, `lib/store/projection/base-recovery.ts`), the read-back restoring the stamp. A file
-          other than Markdown at its path is read against its entry at the read step, on the text as read
-          (`readStamplessFile`, `lib/store/projection/stampless.ts`): young and empty, it waits; holding what was
-          written, or the version a replacement in progress replaces, it is unedited, except where the path's last
-          persisted write-back recorded the base blob id its entry holds (1.1.b), where content equal to what was
-          written is the person's revert of what was taken in, and, while a replacement in progress replaces that
-          recorded base, so is content equal to the version it replaces; where neither version of a stopped replacement
-          can be read, it stays pending and reported. This task changes `readStamplessFile` to answer those reverts as
-          edits, taking the record they compare with from the entry's `persisted`, and to return for an edit the version
-          a replacement in progress replaces beside the entry's base in place of the closer of them, keeping its
-          `history` read of that version and its pending answer, with its tests. An edit of a file other than Markdown,
-          at its path or in an aside copy holding a save that landed in it, takes its base by agreement. Its candidates
-          are the base its take-in carries (`TakeInBase`'s `blob`) — at its path its entry's `base.blob`, which
-          write-back reads from the entry at the command's start and the guard's re-check hands it (`baseOf`,
-          `lib/store/projection/replace-guard.ts`), and in a copy the base its name carries (`copyBase`,
-          `lib/store/projection/aside-copies.ts`), each swap naming its copy for the base of the file it moves (`plan`,
-          `lib/store/projection/swap.ts`, and `putBack`, through `nameAsideFile`), resolved as a stamp is: the index's
-          base, reading no `history`, where it names it; the version a replacement in progress replaces where its blob
-          id matches; a stored version found through the `history` memo by that blob id; and stamp recovery
-          (`recoverBase`) where it names no stored version — then, at its path, the version a replacement in progress
-          replaces; and, where the path's last persisted write-back is recorded, the version it landed and the copy it
-          kept (`readTakenInCopy`, `lib/store/projection/taken-in.ts`). Candidates holding the same content count once:
-          a stored version by its record version, which names one content, so the version a write-back landed, whose
-          blob id the index does not hold (`PersistedSchema`, `lib/store/projection/index-schema.ts`), counts with the
-          entry's base or the version a replacement replaces where it names the same version; the copy a write-back kept
-          counts apart from every stored version, by its blob id, never by the version it records, which is the version
-          it landed (`recordWriteBack`); where one remains, the edit is sent against it with no content read or merge.
-          Otherwise write-back reads each candidate's content, a stored version through the `history` memo, and one it
-          cannot read leaves the file pending and reported; it merges the edit from each onto the store's current
-          version, which it reads with `store.read` as the guard's restage does (`restage`,
-          `lib/store/projection/replace-guard.ts`), with the library the store's merge uses for the kind. Where every
-          merge gives the same content and files the same clashes, a merge that finds no edit counting as the store's
-          content unchanged, the edit is sent against the base its take-in carries. Merges are compared as their texts
-          with each clash drawn inline, through the option 1.5 adds to `mergeLineText`, at one length over every
-          candidate's plain result and under one set of labels, a clash found in the checkout naming `checkout` (1.4.a),
-          so two clashes are the same where they fall at the same place with the same two sides, and no base, base
-          version, or base line range is compared, but a merge from a kept copy, which the store never held, that files
-          any clash counts as differing, since its clash is one found in the checkout (1.5); until 1.5 builds the option
-          and routes this comparison through it, a merge that files any clash counts as differing. Where they differ,
-          nothing is sent and the file is held, drawn once at its path by write-back's own walk and answered `clashed`
-          with no mark through the take-in port (1.5); until 1.5 draws, a hold sends nothing and leaves the file pending
-          and reported. No candidate is chosen by closeness: this task removes `selectPersistedBase`'s arm for a file
-          other than Markdown and `closerOfCopyAndLanded`, and corrects the docs of `selectPersistedBase`, of
-          `PersistedBaseInput`'s `stamp`, which serves Markdown alone, of `WriteBackRecording`'s `stamp` and
-          `PersistedSchema` (`lib/store/projection/index-schema.ts`), which hold the take-in's base blob id for a file
-          other than Markdown, and the projection `README.md`'s closer-of rules for a kept copy and a replacement in
-          progress and its sentence that content equal to the version a replacement replaces always reads as unedited.
-        - A stored version goes to the store as the write's expected version, but a meta or task list, which the store
-          refuses over a newer version rather than merging, merges in the checkout onto the current version (1.5) where
-          its base is stale, and is sent against that version; a kept copy or an empty base, which the store never held,
-          merges in the checkout (1.5). A `history` refusal here takes 1.2.a's `history` arm, but where `recoverBase`
-          chooses without `history` on `state-unresolvable` and where `readStamplessFile`, or a candidate of a file
-          other than Markdown it cannot read, leaves the file pending.
-        - Build `test-first` (one behavior at a time):
-            - a stamp naming the index's base sends that base's version and reads no `history`
-            - a stale buffer's save after a write-back that landed as a fast-forward, carrying the stamp that write-back
-              read, sends against the landed version, and the person's own removal stays removed
-            - a Markdown file whose stamp an agent's whole-file write dropped, its content equal to a stored version,
-              sends against that version, and the read-back restores the stamp
-            - a stamp naming an older stored version sends against that version, found through `history`, and a stamp
-              naming no stored version goes to stamp recovery
-            - an aside copy of a Markdown file is taken in against its own stamp, and one of a file other than Markdown
-              whose path has no persisted write-back against the base its name carries, even where its content is closer
-              to the entry's newer version
-            - a file other than Markdown whose candidates all give the same merge is sent against the base its take-in
-              carries
-            - the entry's base and the landed version its read-back laid count once, the edit sent against it with no
-              content read or merge, and the copy a write-back kept, recording the landed version, counts apart from it
-            - after a write-back the store merged and its read-back laid, a reloaded save of a file other than Markdown
-              deleting what the merge brought in is held, never sent as a merge from the kept copy
-            - after a write-back the store merged, a stale buffer's unchanged save of a file other than Markdown is held
-              at the other writer's change, never sent to revert it
-            - a save landing in the read-back's own aside copy of a file other than Markdown, after a write-back that
-              landed as a fast-forward, is sent, and the person's own removal away from the landed change stays removed
-            - a save at the path of a file other than Markdown before a read-back is laid, its content equal to what was
-              written, is the person's revert, held rather than refreshed over as unedited, left pending with no mark
-              for the next command's start
-            - while a read-back replaces the base the last persisted write-back recorded, content equal to the replaced
-              version is the person's revert, and content equal to what was written is unedited
-            - a stale buffer's save landing in a later refresh's aside copy of a file other than Markdown, after a
-              write-back the store merged and kept as a copy, is held, never reverting the other writer's change
-            - an aside copy of a file other than Markdown naming the index's base reads no `history`, and one naming no
-              stored version goes to stamp recovery
-            - a file other than Markdown at its path, while a stopped replacement is in progress, is unedited holding
-              the replaced version, and an edit merges from both the entry's base and the replaced version, sent only
-              where they agree
-            - a file other than Markdown whose stopped replacement's versions, or whose kept copy, cannot be read stays
-              pending and reported
+        - Added stamp, persisted, history, and recovery base selection with stampless candidate agreement. Both
+          interrupted-replacement versions survive the read; unreadable or differing candidates stay pending. Stored
+          candidates de-duplicate by version, kept copies by blob; one candidate needs no content read.
 
 ### `[ ]` **1.2 Check an edit with the kind's write check and the `after` view — § 7.2, § 7.3**
 

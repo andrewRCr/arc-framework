@@ -109,18 +109,30 @@ matcher: an entry carrying no ID takes the ID of the one reference entry whose t
 own, else of the one sharing its heading or complete field-header paragraph, and a reference entry two entries match the
 same way goes to neither. Where the record read back is at the write's version and holds that content apart from the IDs
 the store stamped, the version is the content taken in; otherwise the content is kept as a copy under
-`arc-projection/taken-in/` until a later landing releases it. A save carrying the recorded stamp takes that content as
-its base, and a file other than Markdown takes the closer of a kept copy and the version that write landed, recorded
-alongside the copy so a later refresh cannot change the comparison's basis.
+`arc-projection/taken-in/` until a later landing releases it. A Markdown save carrying the recorded stamp takes that
+content as its base. For a file without a stamp, the take-in records its carried base blob id and retains both the
+landed version and any kept copy as candidates, independently of later refreshes.
 
 `stampless.ts` reads a file other than Markdown, which carries no stamp, against its entry: the entry's version is its
 base, so a file restored to an older version is an edit, and an empty file is read only once its modification time is
 50 ms old. While a replacement is in progress, the entry also names the version it replaces and the aside copy its batch
-makes: content equal to that version reads as unedited, so it is refreshed and never written back over the newer
-version, and content matching neither version merges from the closer of the two, read through `history`; where that
-read refuses `state-unresolvable`, the file takes neither and stays pending, reported with the refusal. Every deleter
-of an aside copy deletes through `deleteAsideCopy`, which clears the copy's record, and the in-progress record where it
-names that copy and the file holds what the batch linked there, by the file identity the entry records.
+makes. Content equal to what was written, or to the replaced version, is unedited unless the last persisted take-in
+recorded that version's base blob id, which makes it the person's revert. An edit retains both replacement versions,
+read through `history`; where that read refuses `state-unresolvable` or neither version is readable, the file stays
+pending, reported with the refusal. Every deleter of an aside copy deletes through `deleteAsideCopy`, which clears the
+copy's record, and the in-progress record where it names that copy and the file holds what the batch linked there, by the
+file identity the entry records.
+
+`base-selection.ts` resolves a Markdown save's stamp, falling back to recovery when it was lost or names no stored
+version. `stampless-base.ts` compares a stampless save's carried base, the replaced version at its path, the last
+take-in's landed version, and its kept copy. Stored candidates count once by record version, while a kept copy counts
+separately by blob id. One candidate needs no content read; otherwise every candidate must give the same merge before
+the edit is sent against its carried base. An unreadable candidate or differing merge keeps the file pending.
+
+`write-back.ts` prepares an edit without writing, then sends it as one content put with hand-edit provenance. It restores
+missing entry IDs through the shared matcher and repairs later duplicates from the repeatable stream in
+`write-back-ids.ts`. The take-in port records a landing and its read-back without swapping. `read-back.ts` owns the file
+walk's guarded read-back batch, using the exact bytes read as its baseline and retaining any earlier pending mark.
 
 `read-gate.ts` gates every read of a projected file on its stats alone, so write-back never reads one mid-save. An empty
 file younger than 50 ms waits for the next command, since an editor that truncates before writing leaves it empty
@@ -142,9 +154,10 @@ lock records a holder, with the process scope digested since a scope holds chara
 and `aside` or `staged`, so no name ends in `.md` and none grows with its path. A location parses back to what it
 records, and a staged file is created exclusively.
 
-`staging.ts` stages a record's file in the aside folder, created exclusively under the name `aside.ts` gives it: a
-Markdown file stamped with its stored content's blob id, any other as stored, with the blob id of its bytes and the
-version it lays. A protected file is staged read-only, and a link shares that mode.
+`staging.ts` stages rendered content in the aside folder, created exclusively under the name `aside.ts` gives it. A
+Markdown file carries its stored content's blob id as its stamp, while its `written` blob identifies the rendered bytes;
+its base keeps the stored version. A file without a stamp carries the rendered content directly. A protected file is
+staged read-only, and a link shares that mode.
 
 `take-in-port.ts` is the port reading and replacing hand every edit they meet to, and write-back answers once bound: the
 worktree whose file holds the edit, the path or the aside copy, its entry, and its base — the stamp it carries, or, for

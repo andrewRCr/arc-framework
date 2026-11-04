@@ -42,7 +42,7 @@ const MarkersSchema = z.strictObject({
   ])).min(1),
 });
 
-/** What the file's last persisted write-back read: its stamp, and the content it took in. */
+/** What the last persisted write-back read: its Markdown stamp or stampless take-in base blob, and content taken in. */
 const PersistedSchema = z.strictObject({
   stamp: BlobIdSchema,
   takenIn: z.discriminatedUnion("kind", [

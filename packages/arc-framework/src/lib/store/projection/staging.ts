@@ -25,9 +25,17 @@ export async function stageRecordFile(input: {
   checkout: string; path: string; record: StoreRecord; replacing: string; writer: AsideWriterInput; format: ObjectFormat;
   readOnly?: boolean;
 }): Promise<StagedFile> {
+  return stageRenderedRecordFile({ ...input, content: input.record.content });
+}
+
+/** Stage rendered content under the stored record's base stamp and version. */
+export async function stageRenderedRecordFile(input: {
+  checkout: string; path: string; record: StoreRecord; replacing: string; writer: AsideWriterInput; format: ObjectFormat;
+  content: string; markerLength?: number; readOnly?: boolean;
+}): Promise<StagedFile> {
   const { record, format } = input;
   const blob = gitBlobId(record.content, format);
-  const text = input.path.endsWith(".md") ? renderStampedFile({ content: record.content, stamp: blob }) : record.content;
+  const text = input.path.endsWith(".md") ? renderStampedFile({ content: input.content, stamp: blob }) : input.content;
   const location = nameAsideFile({ path: input.path, base: input.replacing, writer: input.writer, role: "staged" });
   await createStagedFile(input.checkout, location, text);
   // A link shares its file's mode, so a protected file is staged read-only and linked in that way.
