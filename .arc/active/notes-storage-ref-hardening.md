@@ -1535,6 +1535,23 @@ fails both cases at cleanup's raw Git error. Six cancellation, signal and untype
 retains gathering for every error; the scoped correction preserves their original errors, clears the gathering and
 permits retry. The eighteen existing transport cases remain controls.
 
+The first independent fix check at `60b49fcb34` finds one remaining major branch: an unavailable source enters
+departed-source remedy construction with ordinary refusal provenance, and that fallback consumes a candidate's
+transport-refusal marker before cleanup sees it. Owner, 2026-11-04 — the bounded correction and qualification are
+approved; independent fix checks remain authorized until convergence, without a fourth complete pass.
+
+The fallback now reports only typed transport retention to its owning judgment before returning the existing
+departed-source refusal and remedy. Pointer and named candidates share this boundary; cancellation, signals and
+unrelated errors still propagate and clean up. No public contract, successful-path process or general move-loop
+policy changes. This completes the same 4.3.b correction without a design amendment.
+
+Native cases make the old source unavailable, leave code configuration damaged during fallback candidate lookup,
+observe the typed refusal before repair and retain a real acquired forwarding tip. They then restore configuration
+and source access, verify unchanged remote state and designation, and complete the follow with unpublished data
+intact. The original behavior loses the refusal in both candidate routes. Six interruption controls distinguish
+scoped retention from a reconstruction retaining every fallback error. The first pointer injection matched Git's
+wrong argument spelling; that run remains diagnostic only, followed by the corrected native failure witness.
+
 ### F2: retain notices across supplemental history failure
 
 The lifecycle producer now reports already gathered lifecycle and shared-merge notices through the existing observer

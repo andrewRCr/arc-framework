@@ -59,14 +59,14 @@ export async function judgeRefFollow(context: RefBackendContext, due: RefFollowD
   } catch (error) {
     retainGathering = error instanceof MigrationTransportRefusal;
     if (!(error instanceof MigrationRefusal)) throw error;
-    return await failedFollowJudgment(context, code, due, error, readingSource);
+    return await failedFollowJudgment(context, code, due, error, readingSource, () => { retainGathering = true; });
   } finally { if (!retainGathering) await clearMigrationRefs(code, "refs/arc/tmp/follow/"); }
 }
 
 async function failedFollowJudgment(context: RefBackendContext, code: RefBackendContext, due: RefFollowDue,
-  error: MigrationRefusal, readingSource: boolean): Promise<Extract<RefFollowJudgment, { status: "refused" }>> {
+  error: MigrationRefusal, readingSource: boolean, retainTransport: () => void): Promise<Extract<RefFollowJudgment, { status: "refused" }>> {
   if (readingSource && error.refusal.code === "store" && error.refusal.refusal.code === "unreachable") {
-    return { status: "refused", refusal: await departedSourceRemedy(context, code, due, error.refusal) };
+    return { status: "refused", refusal: await departedSourceRemedy(context, code, due, error.refusal, retainTransport) };
   }
   return { status: "refused", refusal: error.refusal };
 }
@@ -86,7 +86,7 @@ async function followCandidates(context: RefBackendContext, code: RefBackendCont
 }
 
 async function departedSourceRemedy(context: RefBackendContext, code: RefBackendContext, due: RefFollowDue,
-  failure: Extract<StoreCommandRefusal, { code: "store" }>): Promise<StoreCommandRefusal> {
+  failure: Extract<StoreCommandRefusal, { code: "store" }>, retainTransport: () => void): Promise<StoreCommandRefusal> {
   const off = `arc store remote ${due.remote.name} off`;
   if (due.remote.repository === "code" && due.remote.role === "read") return { ...failure,
     refusal: { ...failure.refusal, remedy: { text: `Stop fetching the deleted read source with ${off}, then designate the remote the state moved to.` } } };
@@ -101,13 +101,18 @@ async function departedSourceRemedy(context: RefBackendContext, code: RefBackend
         if ((await readMigrationRemote(candidate.name, followReadRemedy(candidate.name, due.remote.name), () => judgeCandidate(code, candidate, record))).accepted) destinations.push(candidate);
       }
     }
-  } catch (error) { if (!(error instanceof MigrationRefusal)) throw error; }
+  } catch (error) { retainCandidateRefusal(error, retainTransport); }
   const targets = destinations.map(remote => remote.repository === "backing" ? remote.url : remote.name);
   const commands = (targets.length ? targets : ["<remote>"]).map(target => `arc store migrate --leave-source --to ${target}`);
   return { ...failure, refusal: { ...failure.refusal, remedy: {
     text: `Repair the old remote and retry arc store migrate, or leave it from this clone's last view with ${commands.join(" or ")}. To publish nothing, use ${off}.`,
     ...(targets.length === 1 ? { argv: ["arc", "store", "migrate", "--leave-source", "--to", targets[0] ?? ""] } : {}),
   } } };
+}
+
+function retainCandidateRefusal(error: unknown, retainTransport: () => void): void {
+  if (!(error instanceof MigrationRefusal)) throw error;
+  if (error instanceof MigrationTransportRefusal) retainTransport();
 }
 
 async function judgeCandidate(code: RefBackendContext, remote: MoveRemote, record: ForwardingRecord): Promise<

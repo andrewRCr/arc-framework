@@ -1,6 +1,6 @@
 /** Native follows retain their recorded work when comparison evidence cannot resolve its configured source. */
 import { join, resolve } from "node:path";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import { expect, it } from "vitest";
 import type { RefStorePorts } from "../../src/lib/store/ports.js";
 import { followFixture } from "../helpers/store/follow.js";
@@ -103,6 +103,60 @@ it.each(cases)("retains a recorded follow resume after $fault from $source", asy
   await broken.repair();
   expect(await invokeStoreMigrate([], broken.ports)).toMatchObject({ status: "ok" });
   expect((await follower.exec("git", ["for-each-ref", "--format=%(refname)", move])).stdout).toBe("");
+  expect(success(await follower.store.read({ reference: follower.unpublished })).content).toBe("Unpublished follower data.\n");
+}, 60_000);
+
+it.each((["pointer", "named"] as const).flatMap(candidate =>
+  (["persistent", "canceled", "signaled", "untyped"] as const).map(fault => ({ candidate, fault }))))(
+  "preserves departed-source fallback policy for $candidate $fault lookup", async ({ candidate, fault }) => {
+  const h = await followFixture(), follower = h.follower, remote = candidate === "pointer" ? "backing" : "next";
+  if (candidate === "named") {
+    await writeFile(follower.config, "# The destination is a code remote.\n");
+    await follower.exec("git", ["remote", "add", remote, h.destinationDirectory]);
+  }
+  const gathering = "refs/arc/tmp/follow/candidate/retained/project/moved";
+  await follower.exec("git", ["fetch", "--no-tags", h.origin, `+refs/arc/project/moved:${gathering}`]);
+  const held = (await follower.exec("git", ["rev-parse", gathering])).stdout.trim();
+  const before = await remoteRefs(h), config = join(follower.root, ".git", "config"), original = await readFile(config);
+  const roles = (await follower.exec("git", ["config", "--get-regexp", "arc-state$"])).stdout;
+  let armed = false, injected = false, validated = false, failure: unknown;
+  const ports: RefStorePorts = { ...follower.ports, exec: async (command, args, options) => {
+    if (armed && !injected && (args.includes("get-url") || args.includes("--get-url"))
+      && args.at(-1) === (candidate === "pointer" ? h.destinationDirectory : remote)) {
+      injected = true;
+      if (fault !== "persistent") {
+        failure = fault === "untyped" ? new Error("Unrelated fallback lookup failure") : makeGitProcessError({ command: "git", args,
+          ...fault === "canceled" ? { isCanceled: true } : { signal: "SIGTERM" }, stderr: "Interrupted fallback lookup" });
+        throw failure;
+      }
+      await writeFile(config, Buffer.concat([original, Buffer.from("\n[unclosed\n")]));
+      try { return await follower.ports.exec(command, args, options); }
+      catch (error) { validated = isGitProcessError(error) && isCompletedGitFailure(error); throw error; }
+    }
+    try { return await follower.ports.exec(command, args, options); }
+    finally { if (args.includes("fetch") && options?.input?.includes("refs/arc/tmp/follow/source/")) armed = true; }
+  } };
+  await rename(h.origin, h.origin + ".offline");
+  try {
+    const observed: unknown = await invokeStoreMigrate([], ports).catch(error => error);
+    expect(injected).toBe(true);
+    if (fault === "persistent") {
+      expect(validated).toBe(true);
+      expect(await readFile(config, "utf8")).toContain("[unclosed");
+      expect(observed).toMatchObject({ status: "refused", refusal: { code: "store", refusal: {
+        code: "unreachable", class: "recoverable", remedy: { text: expect.stringContaining("Repair the old remote") },
+      } } });
+    } else expect(observed).toBe(failure);
+  } finally {
+    await writeFile(config, original);
+    await rename(h.origin + ".offline", h.origin);
+  }
+  expect((await follower.exec("git", ["for-each-ref", "--format=%(objectname)", gathering])).stdout.trim())
+    .toBe(fault === "persistent" ? held : "");
+  expect((await follower.exec("git", ["config", "--get-regexp", "arc-state$"])).stdout).toBe(roles);
+  expect(await remoteRefs(h)).toEqual(before);
+  expect(await invokeStoreMigrate([], ports)).toMatchObject({ status: "designation-needed", remote });
+  expect((await invokeStoreRemote([remote, "push", "--json"], { cwd: follower.root, ports })).result).toMatchObject({ status: "ok" });
   expect(success(await follower.store.read({ reference: follower.unpublished })).content).toBe("Unpublished follower data.\n");
 }, 60_000);
 

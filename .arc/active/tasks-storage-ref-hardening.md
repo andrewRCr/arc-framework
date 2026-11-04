@@ -455,6 +455,10 @@ transport failure is a per-remote outcome.
           Typed transport refusal retains its gathering; canceled, signaled, and untyped lookup failures retain
           propagation and cleanup. Native cases observe the refusal before repair and complete the retry afterward.
 
+        - _Note:_ Pass 3 fix-check round 1 carries transport-retention provenance through departed-source fallback
+          remedy construction, including pointer and named candidates. Native cases retain the original source
+          refusal and acquisition until configuration repair, while interrupted and unrelated lookups still clean up.
+
 ### `[x]` **4.4 Exercise the caller-observable group through public calls** — validate exit criterion at segment scope
 
 - _Goal:_ Through public store calls and their consumers, the § 1–§ 4 group behaves as Phase 4's exit criterion
