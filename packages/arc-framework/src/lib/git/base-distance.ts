@@ -37,7 +37,7 @@ import type {
 import { BaseDriftResultSchema } from "./base-drift-types.js";
 import {
   countAheadBehindRef,
-  DEFAULT_FETCH_TIMEOUT_MS,
+  MATERIALIZING_FETCH_TIMEOUT_MS,
   type WorktreeSyncState,
 } from "./worktree-sync.js";
 
@@ -84,6 +84,10 @@ export const BaseDistanceSnapshotResultSchema = z.union([
 export interface RunBaseDriftOptions {
   exec: GitExec;
   baseBranch: string;
+  /**
+   * Bounds the base fetch. Defaults to {@link MATERIALIZING_FETCH_TIMEOUT_MS}: an authoritative read is one a
+   * requested operation acts on, never a quick status probe.
+   */
   fetchTimeoutMs?: number;
   /**
    * Acquiring base drift is authoritative-only; an advisory reading analyzes supplied
@@ -252,7 +256,7 @@ async function runAuthoritativeBaseDrift(options: RunBaseDriftOptions): Promise<
   const {
     exec,
     baseBranch,
-    fetchTimeoutMs = DEFAULT_FETCH_TIMEOUT_MS,
+    fetchTimeoutMs = MATERIALIZING_FETCH_TIMEOUT_MS,
     resolver,
     resolverFactory,
     classifyReconciliation = () => "reviewable",

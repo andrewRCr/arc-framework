@@ -12,8 +12,7 @@ import {
   createCurrentBaseDriftAdapters,
   workUnitPathTreatmentContext,
 } from "../../lib/base-drift/current-adapters.js";
-import { runBaseDrift, type BaseDriftResult, type RunBaseDriftOptions } from "../../lib/git/base-distance.js";
-import { MATERIALIZING_FETCH_TIMEOUT_MS } from "../../lib/git/worktree-sync.js";
+import { runBaseDrift, type BaseDriftResult } from "../../lib/git/base-distance.js";
 import {
   getCurrentBranch,
   observeGitMergeFeasibility,
@@ -88,19 +87,6 @@ const GitHubMergeConfirmationSchema = z.object({
   base: z.object({ ref: z.string().min(1) }).loose(),
   head: z.object({ ref: z.string().min(1), sha: z.string().min(1) }).loose(),
 }).loose();
-
-/**
- * Read a merge verb's authoritative base drift under a requested operation's fetch bound.
- *
- * A merge acts on what this read establishes, so it waits as long as an explicit materialization rather than
- * failing at the short bound a status probe uses.
- *
- * @param options - The drift read, without a fetch bound of its own.
- * @returns The authoritative base drift.
- */
-export function readMergeBaseDrift(options: Omit<RunBaseDriftOptions, "fetchTimeoutMs">): Promise<BaseDriftResult> {
-  return runBaseDrift({ ...options, fetchTimeoutMs: MATERIALIZING_FETCH_TIMEOUT_MS });
-}
 
 /**
  * Explain why a final merge plan has no exact base movement, naming the drift read's own cause when it has one.
@@ -424,7 +410,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
     readFinalPlan: async (target, admissionOverride) => {
       const config = await readConfigSettings(input.cwd);
       const [drift, observedTarget] = await Promise.all([
-        readMergeBaseDrift({
+        runBaseDrift({
           exec: input.exec,
           baseBranch: config.settings["branch.base"],
           mode: "authoritative",
@@ -523,7 +509,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
           AbortSignal.timeout(60_000),
         );
         if (policy.strictCurrentness) {
-          const drift = await readMergeBaseDrift({
+          const drift = await runBaseDrift({
             exec: input.exec,
             baseBranch: target.baseRef,
             mode: "authoritative",

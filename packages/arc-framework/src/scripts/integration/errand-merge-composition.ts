@@ -14,6 +14,7 @@ import {
   createCurrentBaseDriftAdapters,
 } from "../../lib/base-drift/current-adapters.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
+import { runBaseDrift } from "../../lib/git/base-distance.js";
 import type { BaseDriftResult, OverlapEvidence } from "../../lib/git/base-drift-types.js";
 import {
   observeGitMergeFeasibility,
@@ -47,7 +48,6 @@ import {
 import {
   createIntegrationMergeDependencies,
   finalBaseMovementUnavailableDetail,
-  readMergeBaseDrift,
 } from "./merge-composition.js";
 import { IntegrationBindingChangedError, type IntegrationMergeTarget } from "./merge.js";
 import type {
@@ -262,7 +262,7 @@ export function createErrandMergeDependencies(input: {
     readFinalPlan: async (target, admissionOverride) => {
       const config = await readConfigSettings(input.cwd);
       const [drift, observedTarget] = await Promise.all([
-        readMergeBaseDrift({
+        runBaseDrift({
           exec: input.exec,
           baseBranch: config.settings["branch.base"],
           mode: "authoritative",
