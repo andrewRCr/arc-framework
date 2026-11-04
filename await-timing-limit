@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "await-timing-limit",
+  "claimId": "a02a750cbef5e59d126d980af98ddaeb",
+  "createdAt": "2026-11-04T21:17:46.948Z",
+  "updatedAt": "2026-11-04T21:17:46.948Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Wait up to the limit when a hosted or required-check await asks for a longer timeout or poll interval, instead of refusing it",
+  "branch": "chore/await-timing-limit",
+  "origin": "inbox",
+  "originEntry": "Apply an await verb's timeout limit to an over-limit request instead of refusing it",
+  "originEntrySourceDigest": "sha256:6700aba0fccc6494cc4e036a9de291c7e7f10e62ea1a6a4de9c6718d6fcf47a4",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
