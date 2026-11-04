@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Stub created at the work-routing-discipline `BACKLOG-INBOX` retirement (2026-06-01) from a
-  routed capture.
+- **Last Completed:** Draft captured; `spec-adr-accept-timing.md` saved (uncommitted) and author-checked.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** create-spec Finalize — run the independent adversarial pass over the saved spec (approved), then
+  Gate 1.
 
 - **PR URL:** [none]
 - **Completed:** [none]
