@@ -3,7 +3,7 @@
   "slug": "fixcheck-successor",
   "claimId": "111c91461d2cc6641d756877dee0d233",
   "createdAt": "2026-11-04T01:35:05.624Z",
-  "updatedAt": "2026-11-04T01:35:05.624Z",
+  "updatedAt": "2026-11-04T02:56:13.476Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Widen the converged fix-check successor to minor-only fix checks and mark a complete successor on the review driver's ready payload",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Have pre-publication name a converged fix check's complete successor before admitting it",
   "originEntrySourceDigest": "sha256:82a18bc121da459bd4e504971dfd8cc17f93687f86254d90f6cceae5994abf56",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/fixcheck-successor",
+    "headSha": "f4c5af691ab7e6323393dd9904b2628403aec215"
+  }
 }
