@@ -230,6 +230,21 @@ it("continues a hosted request using the exact native await input emitted by pre
   expect(await h.pending()).not.toMatchObject({ error: { code: "review-in-progress" } });
 });
 
+it("waits up to the hosted limits for an over-limit await and names them outside the sealed result", async () => {
+  const h = await fixture(true);
+  const requested = HostedRequestResultSchema.parse(await h.run());
+  if (requested.state !== "requested") throw new Error(JSON.stringify(requested));
+  h.complete();
+  const limited = await h.awaitResult({ ...requested.action, timeoutSeconds: 2_700, initialPollIntervalSeconds: 90 });
+  expect(limited, JSON.stringify(limited)).toMatchObject({ state: "clean", nextAction: "complete", diagnostics: [
+    { code: "await-timing-limited", message: expect.stringContaining("timeoutSeconds is above the 30-minute limit") },
+    { code: "await-timing-limited", message: expect.stringContaining("initialPollIntervalSeconds is above the 60-second limit") },
+  ] });
+  const replayed = await h.awaitResult(requested.action);
+  expect(replayed).toMatchObject({ state: "clean", hostedResultId: (limited as { hostedResultId: string }).hostedResultId });
+  expect(replayed).not.toHaveProperty("diagnostics");
+});
+
 it.each([false, true])("checks the fresh hosted owner before grants or dispatch (work unit: %s)", async workUnit => {
   const h = await fixture(workUnit), foreign = await h.seedMeta("elsewhere");
   const request = { ...h.request, ceilingOverride: { target: h.request.target, lane: "standard" as const,
