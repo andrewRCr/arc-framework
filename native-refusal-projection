@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "native-refusal-projection",
+  "claimId": "56170385615f4521f6e69756c9e00c95",
+  "createdAt": "2026-11-04T18:29:33.816Z",
+  "updatedAt": "2026-11-04T18:29:33.816Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Give review commands one projection of native typed refusals carrying the owner-selection remedy, and give the no-vehicle refusals that typed reason and remedy",
+  "branch": "chore/native-refusal-projection",
+  "origin": "inbox",
+  "originEntry": "Give review commands one projection of native typed refusals, carrying the owner-selection remedy",
+  "originEntrySourceDigest": "sha256:6e2664fe3b53072dc8665adfe9110a0a0ee5548898d93c1245d5a355cbd16e50",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
