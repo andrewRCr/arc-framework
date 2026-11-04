@@ -138,6 +138,8 @@ walk's guarded read-back batch, using the exact bytes read as its baseline and r
 when parsing fails. It stamps only the entry merge's check copy and reports every broken rule with its remedy.
 `after-view.ts` overlays that caller-parsed pending record on reads and family listings, retaining its prior envelope
 or inheriting a new companion's owner placement. Other reads, saved-state queries, and all lookups remain the backend's.
+Name-only queries resolve through the backend's canonical record or owner, so a reused name retains the generation the
+backend selects.
 
 `read-gate.ts` gates every read of a projected file on its stats alone, so write-back never reads one mid-save. An empty
 file younger than 50 ms waits for the next command, since an editor that truncates before writing leaves it empty

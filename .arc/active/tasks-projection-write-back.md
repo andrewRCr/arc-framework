@@ -82,15 +82,15 @@ among them, has one.
 
     - `[x]` **1.2.b The `after` view**
 
-        - `createWriteBackAfterView` overlays caller-parsed pending content while preserving existing envelopes,
-          conflicts, unrelated reads, listing completeness, and lookup results. New companions inherit their owner's
-          placement and receive a placeholder version; saved-state queries retain the backend's saved view.
+        - `createWriteBackAfterView` overlays caller-parsed pending content, preserving envelopes, conflicts, saved
+          views and lookup results. Name-only reads and listings retain the backend's generation authority; new
+          companions inherit their owner's placement and receive a placeholder version.
 
     - `[x]` **1.2.c The conformance case**
 
-        - Conformance item 18 compares pending reads, family listings and slug, lineage, claim and ref lookups with
-          landed writes for every projecting kind the backend serves, apart from backend-assigned versions, conflicts
-          and entry IDs. It runs in the reference suite and both ref layouts; registration ranges and inventories follow.
+        - Conformance item 18 compares canonical and named reads, family listings, and slug, lineage, claim and ref
+          lookups with landed writes across projecting kinds, apart from backend-assigned versions, conflicts and entry
+          IDs. It runs in the reference suite and both ref layouts; registration ranges and inventories follow.
 
 ### `[ ]` **1.3 Persist under hand-edit provenance, and extend the test stores — § 7.4–§ 7.6, § 1.5**
 

@@ -24,18 +24,24 @@ export function registerAfterViewAssertions(context: SuiteContext): void {
     const content = fixture.content(prior.reference, "changed").replace(entryIds, "");
     const next = { content, fields: { content } };
     const after = createWriteBackAfterView({ before: fixture.store, reference: prior.reference, prior, next });
+    const named = RecordReferenceSchema.parse({ ...prior.reference,
+      owner: { type: prior.reference.owner.type, name: prior.reference.owner.name } });
     const queries: LookupInput[] = [
       { kind: "slug", slug: other.reference.owner.name },
       { kind: "lineage", origin: other.reference.owner.name },
       { kind: "claim", claim: { kind: "work-unit", slug: other.reference.owner.name } },
       { kind: "ref", repository: "repo", ref: "feat/pending-view" },
     ];
-    const pending = [await after.read({ reference: prior.reference }), await after.read({ reference: other.reference }),
+    const pending = [await after.read({ reference: prior.reference }), await after.read({ reference: named }),
+      await after.read({ reference: other.reference }),
       await after.list({ family: familyOf(prior.reference.kind) }),
+      await after.list({ family: familyOf(prior.reference.kind), owner: named.owner }),
       ...await Promise.all(queries.map(query => after.lookup(query)))];
     success(await fixture.store.write({ ...update(fixture, prior, content), provenance: { verb: "write-back", lifecycleAction: "edit" } }));
-    const landed = [await fixture.store.read({ reference: prior.reference }), await fixture.store.read({ reference: other.reference }),
+    const landed = [await fixture.store.read({ reference: prior.reference }), await fixture.store.read({ reference: named }),
+      await fixture.store.read({ reference: other.reference }),
       await fixture.store.list({ family: familyOf(prior.reference.kind) }),
+      await fixture.store.list({ family: familyOf(prior.reference.kind), owner: named.owner }),
       ...await Promise.all(queries.map(query => fixture.store.lookup(query)))];
     expect(normalize(pending, prior.reference)).toEqual(normalize(landed, prior.reference));
   }, projects, context.registration.declarations.runsWriteChecks ? undefined : "This fixture runs no write checks.");
