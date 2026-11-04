@@ -8,6 +8,7 @@ import type {
 import {
   resolveLocalReviewAuthority,
 } from "../../../../../../src/scripts/review-gate/hosts/local/review-authority.js";
+import { ReviewVehicleUnresolvedError } from "../../../../../../src/lib/store/kinds/review/errors.js";
 
 const MEMBER_HEAD = "c".repeat(40);
 const DELIVERABLE_ID = `sha256:${"a".repeat(64)}`;
@@ -120,7 +121,7 @@ describe("local review actor authority", () => {
       await expect(resolveLocalReviewAuthority(
         { evaluatorIdentity: "fresh-reviewer" },
         { readLiveContext: async () => context, resolveRuntimeBinding: runtimeBinding },
-      )).rejects.toThrow(/vehicle-unresolved/u);
+      )).rejects.toThrow(ReviewVehicleUnresolvedError);
     }
   });
 
@@ -205,7 +206,7 @@ describe("local review actor authority", () => {
       },
     );
     await expect(attempt).rejects.toThrow(/delivery-member-requires-work-unit/u);
-    await expect(attempt).rejects.not.toThrow(/vehicle-unresolved/u);
+    await expect(attempt).rejects.not.toMatchObject({ reason: "vehicle-unresolved" });
   });
 
   it("refuses the plan's final member", async () => {

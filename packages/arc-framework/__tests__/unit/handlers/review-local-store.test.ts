@@ -250,11 +250,12 @@ it("checks a cached local subject before a dependency-builder grant write and re
   expect(await createReviewDecisionPort(h.store, selected.workItem).list()).toMatchObject({ status: "complete", records: [{ value: {
     subject: { lineage: { vehicleIdentity: h.claimId } }, choice: { kind: "extra-pass" } } }] });
 });
-it("keeps the vehicle refusal and completes exempt preparation after marker repair", async () => {
+it("names the ways to get a review vehicle and completes exempt preparation after marker repair", async () => {
   const h = await fixture();
   await unlink(resolveWorktreeMarkerPath(h.cwd));
   const version = lifecycleSuccess(await h.store.version());
-  expect(await h.run()).toMatchObject({ error: { code: "invalid-input", message: "vehicle-unresolved" } });
+  expect(await h.run()).toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("work unit or Errand") },
+    remedy: { text: expect.stringContaining("arc errand open"), argv: ["arc", "review", "local", "prepare", "-"], stdin: h.request } });
   expect(lifecycleSuccess(await h.store.version())).toBe(version);
   await h.occupy("chore/repair", { kind: "errand", slug: "repair", claimId: h.claimId });
   expect(await h.run()).toMatchObject({ state: "exempt", nextAction: "none" });

@@ -33,3 +33,16 @@ export class ReviewOwnerSelectionError extends Error {
     this.name = "ReviewOwnerSelectionError";
   }
 }
+
+const REVIEW_VEHICLE_REMEDY: Remedy = { text: "Run the command from the checkout of the work unit or Errand under review, "
+  + "open an Errand for the change with arc errand open, or name the delivery member the request reviews." };
+
+/** A review command whose checkout holds neither exactly one work unit or Errand nor a named delivery member to review. */
+export class ReviewVehicleUnresolvedError extends ReviewOwnerSelectionError {
+  readonly reason = "vehicle-unresolved" as const;
+
+  constructor(condition: string) {
+    super("invalid-input", condition, REVIEW_VEHICLE_REMEDY);
+    this.name = "ReviewVehicleUnresolvedError";
+  }
+}

@@ -67,7 +67,9 @@ it("requires owner selection before reading readiness and continues after the bo
   const current = await createPrePublicationCompositionDependencies({ ...h, workItem: owner }).readCandidate("example");
   const version = await h.store.version();
   expect(await h.run(false, {}, undefined, { readBoundary: async () => snapshot, readCandidate: async () => current }))
-    .toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("exact work item") } });
+    .toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("exact work item") },
+      remedy: { text: expect.stringContaining("Run the command from the work unit's checkout"),
+        argv: ["arc", "review", "pre-publication", "example"] } });
   expect(await h.store.version()).toEqual(version);
   expect(await h.run()).toMatchObject({ nextAction: { kind: "run-self-review" } });
 });

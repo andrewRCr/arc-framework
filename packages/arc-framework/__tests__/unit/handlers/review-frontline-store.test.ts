@@ -300,10 +300,12 @@ it("reports missing project identity and resolves normally after repair", async 
   expect(await h.resolve()).toMatchObject({ state: "skipped", nextAction: "none" });
 });
 
-it("keeps the unresolved-lineage refusal and resolves normally after marker repair", async () => {
+it("names the ways to get a review vehicle and resolves normally after marker repair", async () => {
   const h = await fixture();
   await unlink(resolveWorktreeMarkerPath(h.cwd));
-  expect(await h.resolve()).toMatchObject({ error: { message: "frontline review lineage authority is unavailable" } });
+  expect(await h.resolve()).toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("work unit or Errand") },
+    remedy: { text: expect.stringContaining("arc errand open"), argv: ["arc", "review", "frontline", "resolve", "-"],
+      stdin: h.request("skip") } });
   await h.occupy("chore/repair", { kind: "errand", slug: "repair", claimId: h.claimId });
   expect(await h.resolve()).toMatchObject({ state: "skipped", nextAction: "none" });
 });

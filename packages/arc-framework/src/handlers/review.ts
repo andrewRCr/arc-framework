@@ -7,6 +7,7 @@ import { readPrePublicationProgress, bindPrePublicationProgress, readAdvancedPre
 import { defaultReviewHandlerBoundary, executeReviewHandler, ReviewCommandInputSchema, reviewCommandInputSchema, type ReviewHandlerBoundary } from "./review-handler.js";
 import { reviewCommandError, type ReviewHandlerErrorPhase } from "./review-handler-errors.js";
 import { rethrowNativeRefusal } from "../lib/store/native-refusal.js";
+import { ReviewVehicleUnresolvedError } from "../lib/store/kinds/review/errors.js";
 export { ReviewCommandInputSchema } from "./review-handler.js";
 import { ProjectIdentityError } from "../lib/store/project-identity.js";
 import { requireNativeReviewDecisionReferences } from "../scripts/review-gate/policy/review-grant-references.js";
@@ -15,7 +16,7 @@ import { decodePrePublicationReplay, encodePrePublicationReplay, replayTokenFrom
 import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
 import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInvocationOptions, type ReviewInvocationContext, type ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
 import { resolveHostedAwaitInvocation, resolveHostedRequestInvocation, retainHostedRequestReference, retainHostedAwaitReference,
-  hostedRequestIndexWorkItem } from "../scripts/review-gate/runtime/hosted-invocation.js";
+  hostedRequestIndexWorkItem, hostedVehicleUnresolved } from "../scripts/review-gate/runtime/hosted-invocation.js";
 import { resolveReviewSourceInvocation } from "../scripts/review-gate/runtime/source-invocation.js";
 import { retainReviewOperationReference, reviewContinuationRequestError, resolveReviewOperationInvocation, ReviewContinuationReferenceError } from "../scripts/review-gate/runtime/continuation-invocation.js";
 import { resolveNativeOwnerlessReviewPolicy } from "../scripts/review-gate/runtime/review-policy-context.js";
@@ -2348,7 +2349,7 @@ async function resolveHostedProgressContext(input: ReviewInvocationOptions & {
   const workUnitId = member?.workUnitId
     ?? (active?.status === "resolved" && active.name !== "" ? active.name : null);
   if (workUnitId === null) {
-    throw new Error("Hosted review progress requires one active work unit or an explicit vehicle.");
+    throw hostedVehicleUnresolved();
   }
   const reviewRecordStore = bound.store;
   const boundary = (await readSubmissionBoundaryVersioned(input.root, workUnitId, { store: reviewRecordStore, owner: bound.workItem })).boundary;
@@ -2652,6 +2653,8 @@ async function resolveCandidateFrontlineLineage(input: ReviewInvocationOptions &
   return lineage;
 }
 
+const FRONTLINE_VEHICLE_UNRESOLVED = "Frontline review needs one work unit or Errand active at this checkout.";
+
 function defaultFrontlineResolveDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewFrontlineResolveHandlerDependencies {
   const exec = invocation.exec ?? createGitExec(context.subprocess);
   const invocationFor = createReviewInvocationResolver(exec, invocation);
@@ -2667,7 +2670,7 @@ function defaultFrontlineResolveDependencies(context: InteractionContext, invoca
         if (selectedLive !== null && selectedOwner === undefined) {
           if (request.vehicle !== undefined) throw new PlannedFrontlineMemberRefreshError(request.vehicle.workUnitId,
             "The owning work unit is no longer active in this checkout.");
-          throw new Error("frontline review lineage authority is unavailable");
+          throw new ReviewVehicleUnresolvedError(FRONTLINE_VEHICLE_UNRESOLVED);
         }
         const bound = selectedLive === null ? initial : { ...initial, workItem: selectedOwner };
         const { publisher, family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
@@ -2715,7 +2718,7 @@ function defaultFrontlineResolveDependencies(context: InteractionContext, invoca
             });
           }
           if (live.context.errand === null) {
-            throw new Error("frontline review lineage authority is unavailable");
+            throw new ReviewVehicleUnresolvedError(FRONTLINE_VEHICLE_UNRESOLVED);
           }
           return errandFrontlineLineage(live.context.errand.claimId, target.headSha);
         },

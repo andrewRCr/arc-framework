@@ -1,5 +1,4 @@
 /** Read-only checkout composition for lineage facts and rejected findings. */
-import { isOffBranchStoreRefusal } from "../../../lib/store/refusal-error.js";
 import type { RawGitExec } from "../../../lib/git/exec.js";
 import { resolveReviewInvocation, type ReviewInvocationInput } from "./invocation.js";
 import { createReviewCompositionContext } from "./composition-context.js";
@@ -27,9 +26,9 @@ import { createLocalReviewSubjectResolver } from "./local-review-subject.js";
 import { resolveLocalPolicyTarget, createLocalContributionConfirmation } from "./local-correction-context.js";
 import { readReviewLaneHistory } from "./lane-history.js";
 import { readLocalDeltaAdmissionSurface } from "./local-reserved-obligation.js";
-import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
-import { ReviewOwnerSelectionError } from "../../../lib/store/kinds/review/errors.js";
-import { projectIdentitySpineRemedy, reviewFailureSpineRemedy } from "./project-identity-remedy.js";
+import { ReviewVehicleUnresolvedError } from "../../../lib/store/kinds/review/errors.js";
+import { nativeRefusalReport } from "../../../lib/store/native-refusal.js";
+import { reviewFailureSpineRemedy } from "./project-identity-remedy.js";
 
 type LaneReadBoundary = ReviewInvocationInput & { rawGit?: RawGitExec };
 
@@ -107,20 +106,12 @@ function refusedLaneRead(code: string, detail: string, remedy: SpineRemedy): Rev
     payload: { code, detail, remedy } };
 }
 
-// A native typed refusal reports under its own code, carrying its condition and remedy.
+// A native typed refusal reports under its own code, carrying its condition and remedy. A missing vehicle keeps its
+// reason as the code and the lane read's own correction, which names this checkout.
 function nativeLaneReadRefusal(error: unknown, request: ReviewLaneReadRequest): ReviewLaneReadEnvelope | null {
-  if (error instanceof ProjectIdentityError) {
-    return refusedLaneRead("project-identity-unavailable", error.failure.reason,
-      projectIdentitySpineRemedy(error, LANE_READ_RETRY, request));
-  }
-  if (isOffBranchStoreRefusal(error)) {
-    return refusedLaneRead("store-refused", error.refusal.condition,
-      reviewFailureSpineRemedy(error.refusal.condition, error.refusal.remedy, LANE_READ_RETRY, request));
-  }
-  if (error instanceof ReviewOwnerSelectionError) {
-    return refusedLaneRead(error.code, error.condition, reviewFailureSpineRemedy(error.condition, error.remedy, LANE_READ_RETRY, request));
-  }
-  return null;
+  const report = error instanceof ReviewVehicleUnresolvedError ? null : nativeRefusalReport(error);
+  return report === null ? null : refusedLaneRead(report.code, report.condition,
+    reviewFailureSpineRemedy(report.condition, report.remedy, LANE_READ_RETRY, request));
 }
 
 /** Read the authenticated checkout subject without publishing any review state. */
