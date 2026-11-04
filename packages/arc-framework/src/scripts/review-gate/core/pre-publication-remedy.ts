@@ -151,7 +151,16 @@ export function prePublicationCandidateRefusal(
   }
 }
 
-function routingMismatchCorrection({ producerReview, requestReview }: PrePublicationRoutingMismatch): string {
+/** A mismatch correction, and whether the retry it names must carry the corrected change set. */
+interface RoutingMismatchCorrection {
+  readonly text: string;
+  readonly carriesChangeSet: boolean;
+}
+
+function routingMismatchCorrection(
+  { producerReview, requestReview }: PrePublicationRoutingMismatch,
+): RoutingMismatchCorrection {
+  const rerun = (text: string): RoutingMismatchCorrection => ({ text, carriesChangeSet: false });
   const routed = `the review was prepared routing as ${[...producerReview.reasons].sort().join(", ")}; this call `
     + `routes as ${[...requestReview.reasons].sort().join(", ")}`;
   const difference = routingReasonDifference(producerReview.reasons, requestReview.reasons);
@@ -159,43 +168,56 @@ function routingMismatchCorrection({ producerReview, requestReview }: PrePublica
     .filter(field => producerReview[field] !== requestReview[field]);
   // A rubric change or a reason only the repository produces is one no change set can reproduce.
   if (difference.repositoryReasons.length > 0) {
-    return `Prepare a fresh review under the current routing (${routed}; ${difference.repositoryReasons.join(", ")} `
-      + "come from method activity or project policy, not --change-set), then re-run";
+    return rerun(`Prepare a fresh review under the current routing (${routed}; `
+      + `${difference.repositoryReasons.join(", ")} come from method activity or project policy, not --change-set), `
+      + "then re-run");
   }
   if (changed.some(field => field === "rubricVersion" || field === "rubricDigest")) {
-    return `Prepare a fresh review under the current rubric (${changed.join(", ")} changed after the review was `
-      + "prepared), then re-run";
+    return rerun(`Prepare a fresh review under the current rubric (${changed.join(", ")} changed after the review was `
+      + "prepared), then re-run");
   }
   if (difference.unestablished === "prepared") {
-    return `Omit --change-set, as the review was prepared without established change-set facts (${routed}), then re-run`;
+    return rerun(`Omit --change-set, as the review was prepared without established change-set facts (${routed}), `
+      + "then re-run");
   }
   if (difference.unestablished === "current") {
     const asPrepared = difference.facts.length > 0 ? `, ${difference.facts.join(", ")} as the review was prepared` : "";
-    return `Supply --change-set with every fact${asPrepared} (${routed}; an absent or rejected fact leaves the change `
-      + "set unestablished), then re-run";
+    return {
+      text: `Supply --change-set with every fact${asPrepared} (${routed}; an absent or rejected fact leaves the change `
+        + "set unestablished), then re-run",
+      carriesChangeSet: true,
+    };
   }
   if (difference.facts.length > 0) {
-    return `Set ${difference.facts.join(", ")} in --change-set as the review was prepared (${routed}), then re-run`;
+    return {
+      text: `Set ${difference.facts.join(", ")} in --change-set as the review was prepared (${routed}), then re-run`,
+      carriesChangeSet: true,
+    };
   }
-  return `Prepare a fresh review under the current review policy (${changed.join(", ")} changed after the review `
-    + "was prepared), then re-run";
+  return rerun(`Prepare a fresh review under the current review policy (${changed.join(", ")} changed after the review `
+    + "was prepared), then re-run");
 }
 
 /**
  * Compose the remedy for a review producer whose admitted routing this call's routing does not reproduce.
  *
  * The caller cannot set the standard-review projection the producer's own correction names, only the change-set facts
- * it is routed from, so the remedy names those facts; a difference no fact explains names a fresh review instead.
+ * it is routed from, so the remedy names those facts; a difference no fact explains names a fresh review instead. A
+ * correction to the facts retries with the corrected change set on stdin, since the prepared facts themselves cannot
+ * be recovered from the producer's routing reasons.
  *
  * @param workUnit - The refused work unit, interpolated into the resume command.
  * @param mismatch - The producer's admitted routing and this call's.
  * @returns The remedy naming the differing facts, or the fresh review a policy change needs.
  */
 export function prePublicationRoutingMismatchRemedy(workUnit: string, mismatch: PrePublicationRoutingMismatch): SpineRemedy {
+  const correction = routingMismatchCorrection(mismatch);
   return spineRemedy(
     "Pre-publication settles a review only under the routing it was prepared with.",
-    routingMismatchCorrection(mismatch),
-    prePublicationResumeArgv(workUnit),
+    correction.text,
+    correction.carriesChangeSet
+      ? [...prePublicationResumeArgv(workUnit), "--change-set", "-"]
+      : prePublicationResumeArgv(workUnit),
   );
 }
 

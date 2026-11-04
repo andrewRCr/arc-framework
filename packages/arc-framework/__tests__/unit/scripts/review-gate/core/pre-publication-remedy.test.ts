@@ -16,28 +16,32 @@ const prepared: StandardReviewObligationProjection = {
   count: 1,
 };
 
+const RERUN = ["arc", "review", "pre-publication", "example"];
+const RERUN_WITH_CHANGE_SET = [...RERUN, "--change-set", "-"];
+
+/** The remedy's text, after asserting it retries with exactly `argv`. */
 function correction(producer: Partial<StandardReviewObligationProjection>,
-  request: Partial<StandardReviewObligationProjection>): string {
+  request: Partial<StandardReviewObligationProjection>, argv: readonly string[] = RERUN): string {
   const remedy = prePublicationRoutingMismatchRemedy("example", {
     producerReview: { ...prepared, ...producer },
     requestReview: { ...prepared, ...request },
   });
   expect(remedy).toMatchObject({
     invariant: "Pre-publication settles a review only under the routing it was prepared with.",
-    argv: ["arc", "review", "pre-publication", "example"],
+    argv,
   });
   return remedy.text;
 }
 
 describe("prePublicationRoutingMismatchRemedy", () => {
-  it("names the change-set facts that differ from the ones the review was prepared with", () => {
-    expect(correction({}, { reasons: ["routine-code"] })).toContain("Set contentKind, reviewRisk in --change-set as the "
+  it("names the change-set facts that differ from the ones the review was prepared with, retrying with them", () => {
+    expect(correction({}, { reasons: ["routine-code"] }, RERUN_WITH_CHANGE_SET)).toContain("Set contentKind, reviewRisk in --change-set as the "
       + "review was prepared (the review was prepared routing as sensitive-change-set; this call routes as "
       + "routine-code), then re-run");
   });
 
-  it("asks for every fact when this call's change set is unestablished", () => {
-    expect(correction({}, { reasons: ["unknown-change-set"] }))
+  it("asks for every fact when this call's change set is unestablished, retrying with them", () => {
+    expect(correction({}, { reasons: ["unknown-change-set"] }, RERUN_WITH_CHANGE_SET))
       .toContain("Supply --change-set with every fact, reviewRisk as the review was prepared (");
   });
 

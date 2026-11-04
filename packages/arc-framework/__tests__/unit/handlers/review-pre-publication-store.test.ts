@@ -655,7 +655,7 @@ it("refuses a producer prepared under other routing with the facts to correct an
     routingMismatch: { producerReview: prepared, requestReview: { ...prepared, reasons: ["unknown-change-set"] } } }) });
   expect(refused).toMatchObject({ error: { code: "invalid-input", message: reason },
     diagnostics: [{ code: "routing-input-rejected", message: "Rejected or missing routing input: contentKind" }],
-    remedy: { argv: ["arc", "review", "pre-publication", "example"],
+    remedy: { argv: ["arc", "review", "pre-publication", "example", "--change-set", "-"],
       text: expect.stringContaining("Supply --change-set with every fact, reviewRisk as the review was prepared") } });
 });
 
