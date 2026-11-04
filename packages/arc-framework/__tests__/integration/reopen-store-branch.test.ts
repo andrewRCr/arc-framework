@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { cleanupTempDir, createTempRepo, makeGitExec } from "../helpers/integration.js";
+import { createReviewHarness } from "../helpers/store/review-harness.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
@@ -64,4 +65,49 @@ it.each(["merged", "mid-verb"] as const)("retains the logical work request throu
   }
   expect(host.get("chore/retained")).toBe("OPEN");
   expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(other);
+}, 30_000);
+
+
+it("reports the missing native project identity and reopens after the identity is restored", async () => {
+  root = await createTempRepo();
+  const git = makeGitExec(root), projectId = "123e4567-e89b-42d3-a456-426614174099";
+  await git("git", ["branch", "-M", "main"]);
+  await writeFile(join(root, "base"), "base\n");
+  await git("git", ["add", "base"]); await git("git", ["commit", "-m", "base"]);
+  await git("git", ["switch", "-c", "feat/demo"]);
+  const h = createReviewHarness();
+  const meta = await h.seedMeta("demo", { state: "Integrating", currentWorkflow: "integrate-work-unit", taskList: "tasks-demo.md" },
+    { kind: "active" }, { branches: [{ repository: projectId, ref: "feat/demo", linkedAs: "created", excluded: [] }] });
+  const content = "# Task List: demo\n\n### `[x]` **1.1 Done**\n";
+  await h.seed(recordReferences["work-item/task-list"](meta.reference.owner), content);
+  await mkdir(join(root, ".arc", "active"), { recursive: true });
+  await writeFile(join(root, ".arc", "active", "tasks-demo.md"), content);
+  let hostState = "OPEN";
+  const io = { ...createUserIOContext(), exec: async (...args: Parameters<typeof git>) => {
+    if (args[0] !== "gh") return git(...args);
+    if (args[1][1] === "view") return { stdout: JSON.stringify({ state: hostState, isDraft: false }), stderr: "" };
+    if (args[1][1] === "close") { hostState = "CLOSED"; return { stdout: "closed", stderr: "" }; }
+    throw Error(`Unexpected host operation: ${args[1].join(" ")}`);
+  } };
+  state.base = { cwd: root, identity: "test-user", io, store: h.store };
+  const invoke = async () => {
+    state.executor = buildExecutorContext({ cwd: root!, io, store: h.store, identity: "test-user",
+      teamMode: false, internalTemplateDir: "/templates" });
+    await handleReopen("demo", {});
+  };
+  const output: string[] = [];
+  vi.spyOn(process.stdout, "write").mockImplementation(chunk => { output.push(String(chunk)); return true; });
+  vi.spyOn(process.stderr, "write").mockImplementation(chunk => { output.push(String(chunk)); return true; });
+  await invoke();
+  expect(process.exitCode).toBe(1);
+  expect(output.join("")).toContain("Project identity record is missing.");
+  expect(output.join("")).toContain("Restore the project's unique, valid identity record");
+  expect(lifecycleSuccess(await h.store.read({ reference: meta.reference }))).toEqual(meta);
+  expect(hostState).toBe("OPEN");
+  await h.seedProject(projectId);
+  output.length = 0; process.exitCode = undefined;
+  await invoke();
+  expect(process.exitCode, output.join("")).toBeUndefined();
+  expect(lifecycleSuccess(await h.store.read({ reference: meta.reference })).fields).toMatchObject({ state: "Active" });
+  expect(hostState).toBe("CLOSED");
 }, 30_000);

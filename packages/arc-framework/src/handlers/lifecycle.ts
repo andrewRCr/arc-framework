@@ -27,6 +27,7 @@ import { warnSpawnLock } from "./spawn-lock.js";
 import { collaborationCommandInputRegistrations, handleStoreResume } from "./lifecycle-collaboration.js";
 export { handlePause, handleHandover } from "./lifecycle-collaboration.js";
 import { linkedWorkBranch } from "../lib/work-unit/linked-work-branch.js";
+import { ProjectIdentityError } from "../lib/store/project-identity.js";
 import { taskCommandInputRegistrations } from "./task.js";
 import { basename, join, posix, win32 } from "node:path";
 import { lstat, mkdir, readFile, readdir, rename, rm, rmdir, writeFile } from "node:fs/promises";
@@ -145,7 +146,7 @@ import {
   resolveVerbBase,
   type VerbBase,
 } from "./lifecycle-shared.js";
-import { permitDeliveryReopen, publishCandidateWithReviewBoundary } from "./lifecycle-delivery-review.js";
+import { permitDeliveryReopen, publishCandidateWithReviewBoundary, refuseProjectIdentityFailure } from "./lifecycle-delivery-review.js";
 
 /** Resolve this checkout's identity through the invocation's operational store. */
 async function resolveCurrentWuSlug(cwd: string, store?: Store): Promise<string | UnboundMarkerClassification | null> {
@@ -1453,7 +1454,8 @@ export interface ReopenOptions {
  * `gh`. Returns `undefined` (unknown) when the branch is unresolved or `gh` / the
  * remote is unavailable; the `pr-unmerged` guard then refuses the reopen rather
  * than risk reopening a WU whose merge state can't be confirmed. Only a
- * positively-unmerged PR (`false`) clears the guard.
+ * positively-unmerged PR (`false`) clears the guard. Native project-identity
+ * failures propagate so the handler can report their condition and remedy.
  */
 async function resolvePrMerged(base: VerbBase, slug: string, executor: Awaited<ReturnType<typeof buildExecutor>>["executor"], record?: StoreRecord): Promise<boolean | undefined> {
   let branch: string | null;
@@ -1463,7 +1465,8 @@ async function resolvePrMerged(base: VerbBase, slug: string, executor: Awaited<R
       if (read.status === "refused") return undefined;
       branch = await linkedWorkBranch({ exec: base.io.exec, cwd: base.cwd, projectId: executor.projectId }, read.result);
     } else branch = parseMetaRecord(await base.io.readFile(materializeActiveMetaPath(base.cwd, slug))).branch;
-  } catch {
+  } catch (error) {
+    if (error instanceof ProjectIdentityError) throw error;
     return undefined;
   }
   if (branch === null) return undefined;
@@ -1516,7 +1519,9 @@ export async function handleReopen(
   }
   if (!await permitDeliveryReopen(bound, target, settings, record)) return;
 
-  const prMerged = await resolvePrMerged(bound, target, executor, record);
+  let prMerged: boolean | undefined;
+  try { prMerged = await resolvePrMerged(bound, target, executor, record); }
+  catch (error) { if (!refuseProjectIdentityFailure(error, false)) throw error; return; }
   const result = await runReopen(executor, {
     name: target,
     ...(input.slug === undefined || record === undefined ? {} : { reference: record.reference }),
