@@ -5,7 +5,7 @@ import { DeliveryLocalReviewAdmissionSchema } from "../../../../../src/scripts/r
 import { createDeliveryLocalReviewAdmission } from "../../../../fixtures/local-review-preparation.js";
 import { nativeLocalReview } from "../../../../fixtures/native-local-review.js";
 import { createReviewReceipt, createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
-import { recordLocalReceiptConclusion } from "../../../../../src/scripts/review-gate/lane-progress.js";
+import { readLaneProgressOwner, recordLocalReceiptConclusion } from "../../../../../src/scripts/review-gate/lane-progress.js";
 import { prepareLocalReview } from "../../../../../src/scripts/review-gate/runtime/local-prepare.js";
 import { readLocalReviewReceipts } from "../../../../../src/scripts/review-gate/runtime/local-outcome-receipts.js";
 import { LocalForwardReviewReceiptStore } from "../../../../../src/scripts/review-gate/hosts/local/receipt-store.js";
@@ -22,10 +22,14 @@ import type { CandidateManagedRecordV1 } from "../../../../../src/lib/work-unit/
 import { localOutcome } from "../../../../fixtures/review-outcome.js";
 import { ReviewOutcomeSchema } from "../../../../../src/lib/store/kinds/review/outcome/schema.js";
 import { scriptGitExec, scriptRawGitExec } from "../../../../helpers/git-exec-fake.js";
+import { transientContent } from "../../../../helpers/store/in-repo-substrates.js";
+import { OwnerIdentitySchema, recordReferences } from "../../../../../src/lib/store/identity.js";
+import { TransientIdentityRecordSchema, type TransientIdentityRecord } from "../../../../../src/lib/errand/identity-record.js";
 import type { GitExec } from "../../../../../src/lib/git/exec.js";
 
-async function completedReview(result: "clean" | "findings" = "clean", candidate?: CandidateManagedRecordV1) {
-  const h = await nativeLocalReview(undefined, candidate);
+async function completedReview(result: "clean" | "findings" = "clean", candidate?: CandidateManagedRecordV1,
+  errand?: Extract<TransientIdentityRecord, { kind: "errand" }>) {
+  const h = await nativeLocalReview(undefined, candidate, errand);
   onTestFinished(h.cleanup);
   const state = h.state;
   const receipt = createReviewReceipt({ target: state.target, requirement: state.requirement, request: state.request,
@@ -210,4 +214,64 @@ it.each([["ceilingOverride", "keyless"], ["ceilingOverride", "keyed"], ["additio
     deliveryAdmission: form === "keyless" ? admission : { ...admission, [field]: { ...grant, decisionKey } } }, dependencies);
   expect(replay, JSON.stringify(replay)).toMatchObject({ state: "review-complete", payload: { operationId: h.state.operationId } });
   expect(await h.store.version()).toEqual(version);
+});
+
+
+it("admits and replays a third native same-head complete pass through real policy without collapsing history", async () => {
+  const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "review-errand" }));
+  const errand = TransientIdentityRecordSchema.parse(JSON.parse(transientContent(reference)));
+  if (errand.kind !== "errand") throw new Error("Expected the Errand record");
+  const { h, state, dependencies, request } = await completedReview("clean", undefined, errand);
+  const scripted = scriptGitExec([
+    { match: ["check-ref-format", "--branch", errand.branch], responses: [{ stdout: "" }] },
+    { match: ["rev-parse", "--verify", `refs/heads/${errand.branch}^{commit}`], responses: [{ stdout: state.target.headSha }] },
+    { match: ["ls-remote", "--heads", "origin", `refs/heads/${errand.branch}`],
+      responses: [{ stdout: `${state.target.headSha}\trefs/heads/${errand.branch}` }] },
+    { match: ["rev-parse", "HEAD"], responses: [{ stdout: state.target.headSha }] },
+    { match: ["config", "--get", "remote.origin.url"], responses: [{ stdout: "https://github.com/owner/repository.git" }] },
+    { match: ["config", "--get-all", "arc.frontlineSources"], responses: [{ failure: { exitCode: 1 } }] },
+    { match: ["check-ref-format", "--branch", "main"], responses: [{ stdout: "" }] },
+    { match: ["rev-parse", "--verify", "refs/heads/main^{commit}"], responses: [{ stdout: state.target.diffBaseSha }] },
+    { match: ["ls-remote", "--heads", "origin", "refs/heads/main"], responses: [{ stdout: "" }] },
+    { command: "gh", match: { prefix: ["pr", "list"] }, responses: [{ stdout: "[]" }] },
+  ]).exec;
+  const exec: GitExec = (command, args, options) => command === "gh" || args[0] === "ls-remote"
+    || args[0] === "check-ref-format" || args[0] === "config" && args[1] !== "--null"
+    || args[0] === "rev-parse" && args[1] !== "--git-common-dir" && args[1] !== "--abbrev-ref"
+    ? scripted(command, args, options) : h.exec(command, args, options);
+  const input = { ...h, exec, rawGit: scriptRawGitExec([]).exec, workItem: h.primary.reference.owner };
+  const deriveTarget = async () => state.target;
+  const actual = { ...dependencies, materialize: h.prepared.dependencies.materialize,
+    validatePolicyAdmission: createLocalPrepareDependencies(input).validatePolicyAdmission,
+    resolvePassJudgments: createNativeLocalPassJudgmentResolver({ input, operationStore: h.operations,
+      subjects: dependencies, deriveTarget, validateDeliveryAdmission: dependencies.validateDeliveryAdmission }) };
+  let previous = state;
+  for (const pass of [2, 3]) {
+    const next = { ...request, coverageAdmission: { requestedCoverage: "complete" }, policyJudgment: { scopeMode: "whole-target", additionalPassAuthorization: {
+      headSha: previous.target.headSha, precedingProducerId: previous.operationId,
+      completedPasses: pass - 1, nextPass: pass,
+    } } };
+    const prepared = await prepareLocalReview(next, actual);
+    expect(prepared).toMatchObject({ state: "ready", nextAction: "launch-review" });
+    if (prepared.state !== "ready") throw new Error("Expected authorized native admission");
+    const operation = (await h.operations.readOperation(prepared.payload.operationId)).state;
+    if (operation?.kind !== "local-review") throw new Error("Expected native local operation");
+    expect(operation.logicalPass).toBe(pass);
+    const beforeReplay = await h.store.version();
+    expect(await prepareLocalReview(next, actual)).toMatchObject({ state: "ready",
+      payload: { operationId: operation.operationId } });
+    expect(await h.store.version()).toEqual(beforeReplay);
+    const receipt = createReviewReceipt({ target: operation.target, requirement: operation.requirement, request: operation.request,
+      applicabilityId: null, reviewRunId: `review-${pass}`, evaluatorIdentity: operation.request.evaluatorIdentity,
+      attestingRuntimeIdentity: operation.attestation.runtimeIdentity, attestationMechanism: operation.attestation.mechanism,
+      providerEventIdentity: null, result: "clean", findings: [] });
+    await recordLocalReceiptConclusion(h.operations, { state: operation, receipt, now: actual.now() });
+    expect(await prepareLocalReview(next, actual)).toMatchObject({ state: "review-complete",
+      payload: { operationId: operation.operationId } });
+    previous = operation;
+  }
+  const history = await readLaneProgressOwner(h.operations, { lane: "standard", repositoryId: state.repositoryId,
+    headSha: state.target.headSha, lineage: state.lineage });
+  expect(history).toMatchObject({ completedPasses: 3 });
+  expect(history?.attempts.map(attempt => attempt.logicalPass)).toEqual([1, 2, 3]);
 });
