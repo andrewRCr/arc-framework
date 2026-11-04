@@ -3,7 +3,7 @@
   "slug": "settlement-stop",
   "claimId": "5a2229e1248ea830e5b6e8c8c9703acd",
   "createdAt": "2026-11-04T03:28:53.412Z",
-  "updatedAt": "2026-11-04T03:28:53.412Z",
+  "updatedAt": "2026-11-04T05:00:23.205Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Stop an Errand's review at a pending hosted settlement instead of routing past it",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Stop an Errand's review at a pending hosted settlement instead of routing past it",
   "originEntrySourceDigest": "sha256:b052d42f82c01662697abbc8d4b5b884ae589f672ef450f1f37fe83aa3203645",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/settlement-stop",
+    "headSha": "6e3c0ccc2ef512d0dac70fa6a782d5e614cc92c0"
+  }
 }
