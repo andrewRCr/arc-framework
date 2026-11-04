@@ -8,9 +8,9 @@ import { pendingHostedSettlement, type PendingHostedSettlement } from "./hosted-
 const SETTLEMENT_INVARIANT = "An approved hosted response is complete only once each finding it answers on the host is "
   + "settled there, and the next look follows the completed response.";
 
-/** Describe an approved hosted response's unsettled findings. */
+/** Describe an approved hosted response's unsettled fixes. */
 export function pendingHostedSettlementDetail(pending: PendingHostedSettlement): string {
-  return `Hosted review ${pending.attemptId} has approved findings not yet settled on the host: `
+  return `Hosted review ${pending.attemptId} has fixed findings not yet settled on the host: `
     + `${pending.findingIds.join(", ")}.`;
 }
 

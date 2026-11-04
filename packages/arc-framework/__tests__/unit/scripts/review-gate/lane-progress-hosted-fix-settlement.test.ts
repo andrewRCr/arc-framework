@@ -413,23 +413,22 @@ describe("hosted await lane recording", () => {
     }
   });
 
-  it.each([true, false])("names unsettled host findings once a performed fix leaves only settlement, fix=%s", async fix => {
+  it("names a performed fix's unsettled thread and never a deferred one", async () => {
     const store = createStore();
     await seedAcknowledgedRequest(store, handle);
+    const thread = (id: string, sourceOrdinal: number) => ({ findingId: id, origin: "review-thread" as const,
+      commentId: `comment-${id}`, threadId: id, settlement: "reply-and-resolve" as const, severity: "minor" as const,
+      locus: "src/index.ts:7", url: `https://example.invalid/${id}`, sourceOrdinal });
     const progress = await recordHostedAwaitAttempt(store, {
       repositoryId: "repo-1",
       ...hostedContext,
       result: {
         schemaVersion: 1, mode: "review-hosted-await", handle, state: "findings", nextAction: "triage",
         reviewUrl: "https://example.invalid/review",
-        findings: [{
-          findingId: "thread-1", origin: "review-thread", commentId: "comment-1", threadId: "thread-1",
-          settlement: "reply-and-resolve", severity: "minor", locus: "src/index.ts:7",
-          url: "https://example.invalid/thread-1", sourceOrdinal: 1,
-        }, {
+        findings: [thread("thread-fix", 1), thread("thread-defer", 2), {
           findingId: "body-1", origin: "review-body", reviewId: "review-1", fingerprint: "body-fingerprint",
           settlement: "not-applicable", severity: "minor", locus: "pull-request review body",
-          url: "https://example.invalid/review-1", body: "Body finding", sourceOrdinal: 2,
+          url: "https://example.invalid/review-1", body: "Body finding", sourceOrdinal: 3,
         }],
       },
       now: "2026-08-15T12:00:00Z",
@@ -439,17 +438,18 @@ describe("hosted await lane recording", () => {
     const dispositionSetId = digest(`sha256:${"f".repeat(64)}`);
     const bound = await bindHostedAttemptDisposition(store, {
       operationId: progress.operationId, attemptId, dispositionSetId,
-      findingDispositions: [{ findingId: "thread-1", disposition: "defer", channelAction: "reply-and-resolve" },
-        { findingId: "body-1", disposition: fix ? "fix" : "defer", channelAction: "record-only" }],
+      findingDispositions: [{ findingId: "thread-fix", disposition: "fix", channelAction: "reply-and-resolve" },
+        { findingId: "thread-defer", disposition: "defer", channelAction: "reply-and-resolve" },
+        { findingId: "body-1", disposition: "fix", channelAction: "record-only" }],
       now: "2026-08-15T12:00:30Z",
     });
-    const pending = { attemptId, dispositionSetId, findingIds: ["thread-1"] };
-    expect(pendingHostedSettlement(bound.attempts[0]!)).toEqual(fix ? null : pending);
-    const responded = fix ? await recordLaneResponsePerformance(store, {
+    expect(pendingHostedSettlement(bound.attempts[0]!)).toBeNull();
+    const performed = await recordLaneResponsePerformance(store, {
       lane: "standard", repositoryId: "repo-1", headSha: handle.target.headSha, lineage: hostedAdmission.lineage,
       attemptId, dispositionSetId, producedHeadSha: objectId("d"), now: "2026-08-15T12:01:00Z",
-    }) : bound;
-    const awaiting = responded.attempts[0]!;
+    });
+    const awaiting = performed.attempts[0]!;
+    const pending = { attemptId, dispositionSetId, findingIds: ["thread-fix"] };
     expect(pendingHostedSettlement(awaiting)).toEqual(pending);
 
     const errand = { kind: "head-bound" as const, vehicleKind: "errand", vehicleIdentity: "claim-1",
@@ -461,15 +461,15 @@ describe("hosted await lane recording", () => {
       return undefined;
     })();
     expect(stop).toBeInstanceOf(PendingHostedSettlementError);
-    expect(stop).toMatchObject({ code: "invalid-input", pending, message: expect.stringContaining("thread-1") });
+    expect(stop).toMatchObject({ code: "invalid-input", pending, message: expect.stringContaining("thread-fix") });
 
     const settled = await settleHostedAttemptFinding(store, {
-      operationId: progress.operationId, attemptId, dispositionSetId, findingId: "thread-1", disposition: "defer",
-      actorIdentity: hostedContext.actorIdentity, target: handle.target, fixTarget: null,
-      commentId: "comment-1", threadId: "thread-1", replyDigest: digest(`sha256:${"1".repeat(64)}`),
-      replyId: "reply-1", now: "2026-08-15T12:02:00Z",
+      operationId: progress.operationId, attemptId, dispositionSetId, findingId: "thread-fix", disposition: "fix",
+      actorIdentity: hostedContext.actorIdentity, target: handle.target,
+      fixTarget: { ...handle.target, headSha: objectId("d") }, commentId: "comment-thread-fix", threadId: "thread-fix",
+      replyDigest: digest(`sha256:${"1".repeat(64)}`), replyId: "reply-1", now: "2026-08-15T12:02:00Z",
     });
-    expect(settled.attempts[0]?.outcome).toBe("settled-findings");
+    expect(settled.attempts[0]?.outcome).toBe("findings");
     expect(pendingHostedSettlement(settled.attempts[0]!)).toBeNull();
     expect(() => requireSettledErrandPredecessor(errand, settled.attempts[0])).not.toThrow();
   });

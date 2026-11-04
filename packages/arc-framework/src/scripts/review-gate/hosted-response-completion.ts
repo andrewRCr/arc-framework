@@ -23,7 +23,7 @@ function hostedSettlementComplete(attempt: LaneAttempt): boolean {
   return findingCount > 0 && attempt.hosted?.settledFindingIds.length === findingCount;
 }
 
-/** An approved hosted response's findings that still owe their reply on the host. */
+/** An approved hosted response's performed fixes that still owe their reply on the host. */
 export interface PendingHostedSettlement {
   readonly attemptId: string;
   readonly dispositionSetId: string;
@@ -31,17 +31,22 @@ export interface PendingHostedSettlement {
 }
 
 /**
- * Name the findings an approved hosted response still owes host settlement, once settlement is its next step.
+ * Name the performed fixes an approved hosted response still owes host settlement.
  *
- * @returns The pending findings, or null when nothing is owed or an approved fix has not yet been performed.
+ * A deferred or rejected thread settles before its fix changes the head; once the head moves the host refuses it as
+ * stale, so it is never reported here.
+ *
+ * @returns The unsettled fix findings, or null when none is owed or the response is not yet performed.
  */
 export function pendingHostedSettlement(attempt: LaneAttempt): PendingHostedSettlement | null {
   const hosted = attempt.hosted;
-  if (attempt.outcome !== "findings" || hosted === undefined || hosted.dispositionSetId === null) return null;
-  if (hostedDispositionHasFix(attempt) && attempt.responsePerformance === undefined) return null;
+  if (attempt.outcome !== "findings" || hosted === undefined || hosted.dispositionSetId === null
+    || attempt.responsePerformance?.dispositionSetId !== hosted.dispositionSetId) return null;
   const settled = new Set(hosted.settledFindingIds);
-  const findingIds = (hosted.sealedResult?.findings ?? []).map(({ findingId }) => findingId)
-    .filter((findingId) => !settled.has(findingId));
+  const findingIds = (hosted.dispositionSetLineage.at(-1)?.findingActions ?? [])
+    .filter(({ findingId, disposition, channelAction }) => disposition === "fix"
+      && channelAction === "reply-and-resolve" && !settled.has(findingId))
+    .map(({ findingId }) => findingId);
   return findingIds.length === 0 ? null
     : { attemptId: attempt.attemptId, dispositionSetId: hosted.dispositionSetId, findingIds };
 }

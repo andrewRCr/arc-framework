@@ -14,7 +14,9 @@ import { createRespondDependencies } from "../../src/scripts/review-gate/runtime
 import { createLocalAttestDependencies } from "../../src/scripts/review-gate/runtime/local-attest-composition.js";
 import { prepareLocalReview } from "../../src/scripts/review-gate/runtime/local-prepare.js";
 import { attestLocalReviewCommand } from "../../src/scripts/review-gate/runtime/local-attest-command.js";
-import { handleReviewLocalPrepare, handleReviewLocalAttest, handleReviewHostedRequest, handleReviewResolve } from "../../src/handlers/review.js";
+import { handleReviewLocalPrepare, handleReviewLocalAttest, handleReviewHostedRequest, handleReviewHostedSettle, handleReviewResolve }
+  from "../../src/handlers/review.js";
+import type { HostedProcessRunner } from "../../src/scripts/review-gate/hosted/gh-process.js";
 import { readResolveNextPassContext } from "../../src/handlers/review-next-pass-context.js";
 import { createRepositoryReviewResultReader } from "../../src/scripts/review-gate/hosts/local/review-result-reader-composition.js";
 import { execFile } from "node:child_process";
@@ -56,9 +58,7 @@ import {
   recordHostedAwaitAttempt,
   recordHostedRequestAdmission,
   recordLaneResponsePerformance,
-  settleHostedAttemptFinding,
 } from "../../src/scripts/review-gate/lane-progress.js";
-import { CanonicalDigestSchema } from "../../src/lib/kernel/index.js";
 import { responsePolicyRequestFixture } from "../fixtures/review-response-policy.js";
 import {
   readErrandRoutedObligation,
@@ -204,13 +204,17 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
         lineage: { kind: "head-bound", vehicleKind: "errand", vehicleIdentity: claimId, headSha: input.headSha },
         logicalPass: input.pass, sourceId: provider, target, requestedCoverage: coverage,
         ...(input.correctionScope === undefined ? {} : { correctionScope: input.correctionScope }),
-        vehicle, reviewTarget, requirement, actorIdentity: "github-user-1",
+        vehicle, reviewTarget, requirement, actorIdentity: "1",
       }),
     };
   };
   const first = handleAt({ headSha: firstHead, headTree: firstTree, pass: 1 });
   await recordHostedPendingRequest(store, { repositoryId, handle: first, now: "2026-10-08T00:01:00Z" });
-  const finding = {
+  const finding = options.settlementPending === true ? {
+    findingId: "finding-1", origin: "review-thread" as const, commentId: "123", threadId: "thread-finding-1",
+    settlement: "reply-and-resolve" as const, severity, locus: "change.txt:1",
+    url: "https://example.test/thread-finding-1", sourceOrdinal: 1,
+  } : {
     findingId: "finding-1", origin: "review-body" as const, reviewId: "review-1",
     fingerprint: "fingerprint-1", settlement: "not-applicable" as const,
     severity, locus: "change.txt:1", url: "https://example.test/review-1",
@@ -286,16 +290,14 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
   const statusTarget = { repository: "owner/repo", headRef: branch, headSha: fixedHead };
   return {
     root, exec, dispositionStore, firstAttemptId, publisher, store, provider, standardReview, statusTarget, reviewTargetAt,
-    /** Settle the approved finding on the host, completing the hosted response. */
-    settleFinding: () => settleHostedAttemptFinding(store, {
-      operationId: firstProgress.operationId, attemptId: firstAttemptId, dispositionSetId, findingId: finding.findingId,
-      disposition: "fix", actorIdentity: "github-user-1",
+    /** The host settlement request for the approved fix, as its settle command takes it. */
+    settlementRequest: { schemaVersion: 1,
+      response: { attemptRef: bindReviewSourceReference({ kind: "hosted", operationId: firstProgress.operationId,
+        durableRef: firstAttemptId }), dispositionSetId, findingId: finding.findingId },
       target: { repository: "owner/repo", pullRequest: 42, headSha: firstHead },
       fixTarget: { repository: "owner/repo", pullRequest: 42, headSha: fixedHead },
-      commentId: "comment-finding-1", threadId: "thread-finding-1",
-      replyDigest: CanonicalDigestSchema.parse(`sha256:${"e".repeat(64)}`), replyId: "reply-finding-1",
-      now: "2026-10-08T00:01:55Z",
-    }),
+      actorIdentity: "1", finding: { commentId: "123", threadId: "thread-finding-1" }, disposition: "fix",
+      reply: "Fixed in the follow-up commit." },
     errand: { slug, claimId, branch },
     fixedReviewTarget: reviewTargetAt(fixedHead, fixedTree),
     readStatus: (withBaseRef = true, sourceId?: string, additionalPassAuthorization?: ReviewAdditionalPassAuthorization) => readErrandRoutedObligation({
@@ -496,6 +498,41 @@ async function withErrandHost<T>(errand: FixedErrand, open: boolean, run: () => 
     process.chdir(priorCwd);
     if (priorPath === undefined) delete process.env.PATH; else process.env.PATH = priorPath;
   }
+}
+
+/** Settle the Errand's approved fix through the settle command against a host that accepts the reply. */
+async function settleErrandFinding(errand: FixedErrand) {
+  const fixedHead = errand.statusTarget.headSha;
+  let reply: string | null = null;
+  let resolved = false;
+  const threads = () => ({ data: { repository: { pullRequest: { reviewThreads: { nodes: [{ id: "thread-finding-1",
+    isResolved: resolved, comments: { nodes: [{ fullDatabaseId: 123, pullRequestReview: { id: "review-1" },
+      replyTo: null, author: { databaseId: 2 }, body: "The reviewed change needs a correction.", path: "change.txt",
+      line: 1, url: "https://example.test/thread-finding-1", commit: { oid: fixedHead } }],
+    pageInfo: { hasNextPage: false, endCursor: null } } }], pageInfo: { hasNextPage: false, endCursor: null } } } } } });
+  const hostedRunner: HostedProcessRunner = { run: async args => {
+    const endpoint = args[0] === "api" ? args[1] : undefined;
+    let value: unknown;
+    if (endpoint === "user") value = { id: 1 };
+    else if (endpoint === "repos/owner/repo/pulls/42") value = { head: { sha: fixedHead } };
+    else if (endpoint === "repos/owner/repo/pulls/42/comments/123/replies") {
+      reply = args.find(arg => arg.startsWith("body="))?.slice(5) ?? null;
+      value = { id: 456 };
+    } else if (endpoint?.startsWith("repos/owner/repo/pulls/42/comments?") === true) {
+      value = [reply === null ? [] : [{ id: 456, in_reply_to_id: 123, user: { id: 1 }, body: reply }]];
+    } else if (endpoint === "graphql" && args.some(arg => arg.includes("resolveReviewThread"))) {
+      resolved = true;
+      value = { data: { resolveReviewThread: { thread: { id: "thread-finding-1", isResolved: true } } } };
+    } else if (endpoint === "graphql") value = threads();
+    else throw new Error(`unexpected host invocation: ${args.join(" ")}`);
+    return { stdout: JSON.stringify(value), stderr: "" };
+  } };
+  const output: string[] = []; const exitCodes: number[] = [];
+  await handleReviewHostedSettle("-", { readText: async () => JSON.stringify(errand.settlementRequest),
+    write: text => output.push(text), setExitCode: code => exitCodes.push(code) }, undefined,
+  { cwd: errand.root, exec: errand.exec, hostedRunner });
+  return { result: JSON.parse(output.join("")), failed: exitCodes.some(code => code !== 0), replied: reply !== null,
+    resolved };
 }
 
 async function performHostedRequest(errand: FixedErrand, coverage: "complete" | "incremental" = "complete",
@@ -753,7 +790,8 @@ describe("Errand pending hosted settlement", () => {
       expect(refused.exitCodes).toEqual([1]);
       expect(JSON.parse(refused.output.join(""))).toMatchObject(stop);
       await expect(performHostedRequest(errand)).resolves.toMatchObject({ exitCodes: [1], result: stop });
-      await errand.settleFinding();
+      await expect(settleErrandFinding(errand)).resolves.toMatchObject({ failed: false, replied: true, resolved: true,
+        result: { state: "settled", nextAction: "complete" } });
       await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required" });
       await expect(prepareErrandLocal(errand)).resolves.toMatchObject({ state: "coverage-required", payload: {
         coverageSelectionAction: { choices: expect.arrayContaining([expect.objectContaining({ requestedCoverage: "incremental" })]) } } });
