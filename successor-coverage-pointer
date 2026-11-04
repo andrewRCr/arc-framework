@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "successor-coverage-pointer",
+  "claimId": "7155729bbeb61d2e0b71355d6685febc",
+  "createdAt": "2026-11-04T02:58:08.916Z",
+  "updatedAt": "2026-11-04T02:58:08.916Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Point code-review's successor decision at the ready result's coverage field",
+  "branch": "chore/successor-coverage-pointer",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
