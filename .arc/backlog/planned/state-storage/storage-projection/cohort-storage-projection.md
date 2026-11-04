@@ -54,7 +54,11 @@ After the cut, `projection-write-back`'s specification ran 1,635 lines and its t
 change-set forecast against the third mark, about 10,000 changed lines. The Owner kept the three members (2026-10-31):
 each sits at its marks rather than well past them, its task list holds only the origin's tasks for its sections, and its
 specification's growth past them is the terms and sibling contracts a member needs to stand alone, not added scope, so
-one review of each member's change set can hold it.
+one review of each member's change set can hold it. Task generation and its review grew `projection-write-back`'s
+specification to about 1,930 lines and its task list to about 1,620, past both marks, with the same 24 parent tasks
+across two phases: the growth is the tests, the repaired cases, and the mechanism the reviews settled, not added scope.
+The Owner kept that member whole (2026-11-04), its change set reviewed in its chunks (§ Review chunks), which hold one
+past about 5,000 changed lines.
 
 ### Review chunks
 

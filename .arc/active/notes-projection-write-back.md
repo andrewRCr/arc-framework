@@ -6,7 +6,8 @@
 - [Spike 4 — conflict markers in practice](#spike-4--conflict-markers-in-practice)
 - [Spike 5 — write-back through the store](#spike-5--write-back-through-the-store)
 - [Spike 6 — finding a stored clash again](#spike-6--finding-a-stored-clash-again)
-- [Spec review carry-forward](#spec-review-carry-forward)
+- [The base of a file other than Markdown](#the-base-of-a-file-other-than-markdown)
+- [Grounding against `storage-ref-hardening`](#grounding-against-storage-ref-hardening)
 
 ## Spike evidence
 
@@ -131,30 +132,140 @@ place with a line merge's own residual, and reports the rest as an overlap rathe
 clash's base range with a check on the current side, its line count known, and the lines beside it keeps the silent
 residual within a line merge's at every age, for clashes later edits left untouched.
 
-## Spec review carry-forward
+## The base of a file other than Markdown
 
-The decomposition's specification review (2026-10-30) found these gaps, each inherited from the origin specification,
-which settled them in the task list or not at all. Fold each into this member's specification at its next planning
-review. Task numbers are `tasks-projection-write-back.md`'s.
+Run 2026-11-03 on Linux (`spike8/`, `model.py`, with `trace.py` to replay a trace). A file other than Markdown carries
+no stamp, and its index entry's fields — its base, the version a replacement in progress replaces, its last persisted
+write-back — are each written on their own schedule (`spec-projection-substrate.md` § 3.3, § 3.6, § 3.7), so where more
+than one could be the base of a save, nothing in the file says which. Spike 8 model-checks the choice: Spike 7's model
+extended to a file other than Markdown, those fields on the shipped schedule, an editor that may reload, another writer
+who changes a region and adds one, and an oracle merging from the base the saving buffer actually started from, which
+loses nothing.
 
-- **`arc save --resolve`'s refusals and token rule.** Task 1.10 settles the refusal set — an unknown conflict, one
-  already closed, no projected file in this checkout, one shown with markers, one ambiguous across owners — and the rule
-  that the conflict is found in the index's mappings, whose references carry the owner's UID, never from the token
-  alone, a listing used only to choose the refusal; § 6.5 names only the withheld and held refusals.
-- **The marker renderer.** Task 1.5 gives `mergeLineText` (`lib/store/concurrency/line-merge.ts`, documented today as
-  merging without inline markers) a marker-rendering option taking as a callback the renderer Task 1.4.a builds; § 7.7
-  says only that the markers render as `mergeLineText` builds its result, and § 1.2 does not list
-  `lib/store/concurrency/`.
-- **Adoption's verdict without minting.** Task 2.8.b moves `runStub`'s parameter checks into a pure function the removal
-  check also calls; § 9 does not say so.
-- **Failure cases decided only in tasks.** The `after` view's placeholder version for a record absent from `before`
-  (Task 1.2.b); an unknown `arc.inflightView` value read as `mine` and named in status (Task 2.6); `arc editor` refusing
-  an unparseable file and creating a missing one (Task 2.10); the holding-checkout lookup's rejection on two holders or
-  a failed scan (Task 2.2); and an entry conflict whose ID is absent shown as a notice line (Task 1.7.a).
-- **The capability recorders' order.** § 10.2 names three recorders and no order; Task 2.4.c's test fixes that the
-  engine's start over an off-branch store wins over `createStore`'s composition recording false.
-- **The guard before the start's writes.** The start sweeps the aside folder and runs write-back, whose read-back
-  replaces files by the swap (§ 7.1), before its refresh (§ 2.2), while `spec-projection-substrate.md` § 11.2 runs the
-  guard before the projection writes into a root and names materialization, refresh, and fan-out as its callers. Nothing
-  names a guard run before the read-back's write. The lean, recorded with `notes-projection-substrate.md`'s matching
-  item: the start runs the guard's skip check before its sweep.
+### Every rule that picks one base loses an ordinary edit
+
+| Rule                                                  | Loss, stops and windows | Loss, reloads | Loss, no save or stop inside a command | Held, no save or stop inside a command |
+| ----------------------------------------------------- | ----------------------- | ------------- | -------------------------------------- | -------------------------------------- |
+| The shipped helpers as they stand                     | 3,594                   | 70,835        | 2,285                                  | 0                                      |
+| The closer base, version-exact where the index can be | 0                       | 38,619        | 2,285                                  | 0                                      |
+| Agreement (spec § 7.1)                                | 0                       | 0             | 0                                      | 5,952                                  |
+
+Counts are model states, not frequencies (`spike8/out/final6-table.txt`); the first column's bound has two commands, two
+saves, and a stop, the others' three commands, two saves, and a reload. A hold counts as keeping what it holds, as it
+does in the design: a held file stays pending until a later save makes its candidates agree or the person resolves it
+(below).
+
+The ordinary case every single-base rule loses: a write-back lands, the store merging another writer's change into it,
+so the index keeps the content taken in as a copy (`recordWriteBack`, `lib/store/projection/taken-in.ts`); the read-back
+lays the merged version; the person reloads and deletes what the merge brought in. The file now equals the kept copy
+exactly, the closer-of rule takes it as the base (`closerOfCopyAndLanded`, which applies "regardless of later read-backs
+or refreshes"), and the deletion is undone. A removal of what one candidate lacks makes the file look like that
+candidate, so no measure of closeness can tell it from a stale buffer's save.
+
+### What the index holds, by state
+
+| Index state                                         | Candidates                                                                                                 | Agreement                               |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| No persisted write-back, no replacement in progress | the entry's base                                                                                           | sent against it                         |
+| A replacement in progress                           | the entry's base; the version it replaces                                                                  | sent where both merges agree, else held |
+| A persisted write-back that landed as it was sent   | as above, and the version it landed                                                                        | as above                                |
+| A persisted write-back the store merged             | as above, and the copy it kept                                                                             | as above                                |
+| An aside copy                                       | the base its name carries, resolved as a stamp is; the persisted write-back's landed version and kept copy | as above                                |
+
+Merges agree where they give the same content and file the same clashes, one that finds no edit leaving the store's
+content as it is; two clashes are the same where they fall at the same place with the same two sides, as the model
+compares a region's two sides, whatever base each merged from, and a merge from a kept copy that files any clash differs
+from every other, as the model's does (`simulate`; spec § 7.1). Before any of this, the read step's unedited tests stand
+(`readStamplessFile`): young and empty it waits; equal to what was written, or to the version a replacement in progress
+replaces, it is unedited — except that, where the last persisted write-back recorded the base the entry still holds (a
+landing its read-back has not yet laid), content equal to what was written is the person's revert, and while that
+read-back replaces the recorded base, content equal to the replaced version is. The model compared that record by blob,
+as the index holds it, and by record version: the results were identical in every bound (`spike8/out/final2.txt`), so
+the blob stays and the index schema does not change.
+
+### Where agreement holds
+
+Every hold with no save or stop inside a command is one shape (`spike8/out/char3-agreeb-3x2-s0.txt`): at the path, after
+a persisted write-back, no replacement in progress, the entry's base (laid since) and what was taken in give different
+merges, at one region in 4,832 of the 5,952 states and two in the rest. They fire on a stale buffer's save — even an
+unchanged one, which would otherwise revert another writer's change — and on a reloaded buffer's save that touches a
+region another writer changed since the content taken in. Every region they mark is one where the file and the store's
+current version differ, and the drawing marks every such difference as an ordinary clash between them (spec § 7.7), so a
+hold whose merges give the same text but file different clashes is drawn too. The model merges by region; the line merge
+takes an identical change cleanly only where a whole region matches (`mergeLineText`), so in use an edit beside another
+writer's change can disagree where the model agreed: more holds, never fewer.
+
+### How a hold ends
+
+The first hold write-back's own walk finds — at a command's start, or in a persist or release step — draws the clash
+into the file once, as markers around every line where the file and the store's current version differ, the store's
+lines on one side and the file's on the other, and records the hold as the entry's refused mark, typed `bases-disagree`,
+its remedy naming `arc save --resolve <token>` (spec § 7.7). A hold found through the take-in port, at the replace
+guard's re-check of a path or in an aside copy, draws nothing and mints no mark, since the guard and the copy's
+settlement keep any mark the answer carries: a file at its path waits, pending, until write-back's own walk next takes
+it in, which draws it unless its mark already stands, and a copy goes back to its path, where the path's own candidates
+decide, or is kept. The mark is set on the entry the guard hands the drawing's swap, and only where the guard still
+stages the drawing, so a save the drawing's own re-check holds or sends leaves none. Nothing retires the persisted
+write-back but the next landing, as shipped, because no state of the index or the file proves a reload: Zed reloads no
+file changed on disk and saves over it without asking (`spec-projection-substrate.md` § 3.6), so its next save removes
+the markers unseen, and a person who resolves every region in their own favour leaves the same bytes. A later save whose
+candidates agree is sent — the person kept the store's side, or edited elsewhere. One whose candidates still disagree is
+not drawn again: the file stays as the person left it, pending and reported with the token, and
+`arc save --resolve <token>` sends its text as the resolution against the store's current version (spec § 6.5). A
+reloading editor shows the markers; Zed never does, and its saves are held and reported until the person reopens the
+file or runs the command. A save that displaces the drawing while its own swap lays it, or a swap that cannot move the
+file aside or link the drawing in, leaves the same state: the swap batch records an entry carrying the mark, the one it
+planned or the guard's `replace` entry it restores, over a file that never showed the markers (spec § 17 item 13).
+Nothing is sent on a reading the person has not confirmed.
+
+### Residuals the model separates
+
+- A buffer that never reloaded saving over a version a refresh laid, with no persisted write-back to record its base:
+  sent against the refreshed version (`spec-projection-substrate.md` § 3.7; spec § 17 item 12).
+- An exact revert read as unedited, at the path's check, an aside copy's check, or the check that a copy's path has
+  moved on (`spec-projection-substrate.md` § 17 item 2).
+- The sweep linking back the oldest of a path's copies where the path is absent (`sweepAsideFolder`, record order).
+- A replacement stopped before its link leaves the path holding the version it replaced; the next replacement's `plan`
+  records the entry's base, never laid there, as the version it replaces (`swap.ts`), so a save of the file as the path
+  holds it has no candidate that is its base. Carrying the older record forward where the moving file still equals it
+  was modelled and rejected (`spike8/out/final4-carry.txt`): a person who reloads and removes what a refresh brought in
+  leaves the file equal to the replaced version exactly, and the carried record then displaces the true base in an
+  ordinary flow, not only after a stop.
+- A save whose base the shipped schedule discarded: a buffer that reloads mid-swap and saves in place keeps the linked
+  inode, so `finalizeAsideCopy`, which clears the replacement record on inode identity
+  (`lib/store/projection/stampless.ts`), drops the replaced version that was its base. A consequence of that schedule,
+  not a limit on a rule over these fields.
+
+A residual class marks a whole state once it arises, so a design loss later in the same state would count as the
+residual's. To rule that out, the agreement rule was run again with every save over a version the buffer never loaded
+forbidden — at the path, into an aside copy, and recreating a path a swap had moved — leaving the save over the version
+its own landing laid (`spike8/out/final7-fresh-nocarry.txt`): no design loss; the stale class empty; what stayed
+unknowable was the overwritten record and the discarded base above.
+
+Not covered: a second buffer writing the same path; another writer editing a region the person edits (the model's other
+writer overwrites the store's region rather than merging, so its loss measure cannot apply there); the rebuild of an
+absent path and the window between a landing and its index write, which the model takes in one step; and an aside copy
+put back at its path after a hold, a clash, or a refusal, which the model treats as final: `putBack` keeps the path's
+base and drops the one the copy's name carried (`lib/store/projection/aside-copies.ts`), so the path's next take-in of
+the copy's save has no candidate that is its base (spec § 17 item 12).
+
+## Grounding against `storage-ref-hardening`
+
+Task generation (2026-11-03) grounded the arms that observe `storage-ref-hardening` against its branch,
+`fix/storage-ref-hardening`: its code at `78f15a6357`, then its planning head `deb116df5d`, whose amendment A4 adds a
+review machine record with no projection and keeps every refusal code and class. What the plan takes from it:
+
+- **Which refusals name a history ref.** A missing object refuses `state-unresolvable`, naming a history ref only where
+  the clone holds no live ref for the item (`missingHistoryRefs`, `lib/store/ref/missing-history.ts`): a write to a
+  completed item names one, a live item's object missing under a ref the clone holds names none, and `prepareAnchor`
+  names none. So spec § 7.8's ref-naming arm is § 8.4's, and its arm naming none is Task 1.6's.
+- **`namespace-corrupt`.** Unparseable stored data or a misplaced folder refuses terminal `namespace-corrupt`, repaired
+  by hand; a listing reports a misplaced folder as a `malformed` diagnostic under the rule `placement`, adding no
+  diagnostic kind.
+- **The history retry.** `pullHistoryForRetry` consumes the pull's result (`consumePull`) and answers false where the
+  pull is refused, a state or candidate outcome fails, or a store designation is left unanswered; a failed read source
+  does not stop it. `retryEndedItemHistory` keeps its shape and retries only `state-unresolvable` naming a ref.
+- **`StoreFileAccess.lstat`** requires `mtimeMs`, which any test double of the file access must supply.
+
+Once `storage-ref-hardening` lands, a diff of those surfaces from `deb116df5d` to its merge confirms them before Tasks
+1.6 and 2.3 are built.

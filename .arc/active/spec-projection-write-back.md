@@ -197,7 +197,8 @@ change and orders it. § 2–§ 7 build the engine: one command's sequence, what
 how a file is replaced, how conflicts show and resolve, and how write-back sends an edit for the store to merge and
 check. § 8–§ 11 settle edit rights, adoption, the `active/` layout, and ignoring. § 12 covers worktrees: the lock, the
 removal slots, and every worktree's own copy. § 13–§ 15 cover Windows, a second source, and cost. § 16 states the
-amendments to the shipped contract, § 17 the residuals the design accepts, and § 18 the expected contracts it consumes.
+amendments to the shipped contract and to `projection-substrate`'s specification, § 17 the residuals the design accepts,
+and § 18 the expected contracts it consumes.
 
 ### 1. Boundary, scope, and order
 
@@ -232,7 +233,11 @@ observe hardening's surfaces, and the third builds the cross-worktree machinery 
 change-set forecast against the third mark, about 10,000 changed lines. The Owner kept the three members (2026-10-31):
 each sits at its marks rather than well past them, its task list holds only the origin's tasks for its sections, and its
 specification's growth past them is the terms and sibling contracts a member needs to stand alone, not added scope, so
-one review of each member's change set can hold it.
+one review of each member's change set can hold it. Task generation and its review grew this specification to about
+1,930 lines and its task list to about 1,620, past both marks, with the same 24 parent tasks across two phases: the
+growth is the tests, the repaired cases, and the mechanism the reviews settled, not added scope. The Owner kept this
+member whole (2026-11-04), its change set reviewed in the chunks § 1.3 gives, which hold one past about 5,000 changed
+lines.
 
 **Order.** The first depends on nothing outstanding: `seam-lifecycle`, `seam-locus`, and `storage-ref-backend`, which
 the whole design consumes, have shipped. The second depends on the first and on `storage-ref-hardening`, whose listing
@@ -246,9 +251,12 @@ it. Every part of a member that consumes another change therefore finds it on ba
 #### 1.2 What this change takes
 
 - **`lib/store/projection/`** — the engine's process-wide state (§ 2.1), write-back, conflicts and their placement,
-  adoption, and the `after` view, over `projection-substrate`'s engine.
-- **`lib/store/create.ts`** — the store `createStore` builds, the one place every caller's store is composed, gains a
-  hook recording that store's capability for each checkout root (§ 10.2).
+  the one renderer every replacement lays its file through (§ 6.3), adoption, and the `after` view, over
+  `projection-substrate`'s engine.
+- **`lib/store/concurrency/`** — an option on `mergeLineText` that renders a clash's markers through a renderer it
+  takes as a callback (§ 7.7).
+- **`lib/store/create.ts`** — the composition `createStore` and `createRefStore` share (`lazyStore`) gains a hook
+  recording each store's capability for its checkout root (§ 10.2).
 - **`cli.ts`** — the root `preAction` and `postAction` hooks call the engine's start and end (§ 2.2), and every command
   accepts the skip switch (§ 2.3).
 - **New verbs and options** — `arc save`, with `--resolve <conflict>` (§ 2.4, § 6.5), `arc selection`, with `--changed`
@@ -301,9 +309,9 @@ The three pieces that run live before the flip — the worktree lock, ARC's mana
   `record-malformed`, `version-conflict`, and `lock-held` (§ 7.8). It holds no history refs — its `state-unresolvable`
   refusal names none (`stateUnavailable`, `__tests__/helpers/store/read.ts`), and its `pull` ignores what it is asked to
   fetch (`ReferenceBackend`, `reference-backend.ts`) — and serves every registered kind (`reference-fixture.ts`), so the
-  refusals it cannot return — `state-unresolvable` naming a missing history ref, on a write or on `history`, and
-  `unsupported` `unhomed-kind` — and the history pull that answers the first (§ 8.4) are exercised through a test store
-  that wraps it and returns them.
+  refusals it cannot return — `state-unresolvable` on a write or on `history`, naming a missing history ref or naming
+  none, `namespace-corrupt`, and `unsupported` `unhomed-kind` — and the history pull that answers a named ref (§ 8.4)
+  are exercised through test stores that wrap it and return them.
 - **No CLI process runs over either backend before the flip,** since `createStore` builds the in-repo implementation
   alone until then: the engine's entry points, `arc save`'s handler, and the removal slots take the store they run over,
   and the integration tier drives them over the reference backend, while end-to-end tests cover the dark path and the
@@ -347,23 +355,34 @@ binds nothing, fans out nothing, and each sibling refreshes at its next command.
   Git call, so the configuration read, `version()`, and the stat walk all start once it holds the lock, together, the
   personal root's walk waiting for the identity the read returns (`spec-projection-worktrees.md` § 2.5,
   `spec-projection-substrate.md` § 15.3); the sweep runs once the identity is known, and write-back re-reads the stats
-  of each path the sweep linked back or replaced (`spec-projection-substrate.md` § 5.4). The start runs from the root
-  `preAction` hook `cli.ts` registers on the program for every command; `arc save`'s start is its own write-back
-  (§ 2.4).
+  of each path the sweep linked back or replaced (`spec-projection-substrate.md` § 5.4). The sweep returns the ignore
+  guard's verdict before any of the start's writes, and the start honors it (`spec-projection-substrate.md` § 11.2): a
+  root it refuses takes no write for the command, so write-back still sends that root's edits but neither replaces nor
+  draws into a file there, which keeps its content, pending, as a landing beside a refused entry keeps it (§ 6.4), and
+  the guard's refusal is reported. The start runs from the root `preAction` hook `cli.ts` registers on the program for
+  every command; `arc save`'s start is its own write-back (§ 2.4).
 - **A start that cannot take its lock.** Where the lock stays held until `AdvisoryLockTimeoutError`
   (`lib/advisory-lock.ts`), the command runs as under the skip switch (§ 2.3), its edits left pending for the next, and
   reports the holder the lock records; a start whose lease is lost (`spec-projection-substrate.md` § 3.2) does the same
-  from its next step, reporting the loss. Nothing is lost: write-back runs at the next command, and fan-out carries no
-  correctness. `arc save` and `arc selection` refuse instead, naming the holder or the lost lease and a retry (§ 2.4,
-  § 11.7), as the persist and release steps refuse when they cannot take or keep a target's lock
+  from its next step, reporting the loss, and a start whose worktree's Git directory is gone, which the lock answers
+  (`withProjectionLock`, `lib/store/projection/lock.ts`), does the same, reporting the missing Git directory. A lost
+  lease ends the operation by throwing at its next step, so the start tracks its unsent edits outside the operation, to
+  mark them pending. Nothing is lost: write-back runs at the next command, and fan-out carries no correctness.
+  `arc save` and `arc selection` refuse instead, naming the holder, the lost lease, or the missing Git directory, and a
+  retry (§ 2.4, § 11.7), as the persist and release steps refuse when they cannot take or keep a target's lock
   (`spec-projection-worktrees.md` § 12.2, § 12.3).
 - **The end.** At the command's end the writer takes each worktree's lock again for the second check of its aside copies
-  (`spec-projection-substrate.md` § 5.2), and clears the in-progress record naming each aside copy it deletes, once the
-  file holds what the batch linked (`spec-projection-substrate.md` § 3.7), and each aside copy's record
-  (`spec-projection-substrate.md` § 5.2); each swap batch's second index write has already cleared the pending marks it
-  settled (`spec-projection-substrate.md` § 3.3). The end runs from the root `postAction` hook, which Commander skips
-  when an action fails, so the second check is best-effort: the next command's sweep takes over the copies it leaves
-  (`spec-projection-substrate.md` § 5.4).
+  (`spec-projection-substrate.md` § 5.2) — the copies the start's sweep and every swap batch made, and each batch's
+  removals (`runSecondCheck`, `lib/store/projection/second-check.ts`), an empty copy kept for the next sweep — and
+  clears the in-progress record naming each aside copy it deletes, once the file holds what the batch linked
+  (`spec-projection-substrate.md` § 3.7), and each aside copy's record (`spec-projection-substrate.md` § 5.2); each swap
+  batch's second index write has already cleared the pending marks it settled (`spec-projection-substrate.md` § 3.3).
+  Then, under the same lock and after reading the worktree's index on disk, it lists the copies persisted write-backs
+  kept under `taken-in/` against that index and hands each that no entry names to `removeTakenInCopies`
+  (`lib/store/projection/taken-in.ts`), which removes the copies it is given, whether a landing released it, through the
+  take-in port or write-back's own read-back, or a stop left it before an index named it. The end runs from the root
+  `postAction` hook, which Commander skips when an action throws, though not when it sets an exit code, so the second
+  check is best-effort: the next command's sweep takes over the copies it leaves (`spec-projection-substrate.md` § 5.4).
 - **The report.** Write-back's report — each file it refused, skipped, deferred, withheld at an index rebuild
   (`spec-projection-worktrees.md` § 2.5), or kept as a conflict, and each aside copy it kept because the copy's path
   moved on (`spec-projection-substrate.md` § 5.2), with its typed reason and each rule's remedy, argv included, each
@@ -393,16 +412,17 @@ it (§ 17). It is an escape hatch, not what keeps ARC's own machinery checkouts 
   write-back: the root hook runs it under `save` (§ 7.4), every projected root included, attaching each `--resolve`
   conflict to its subject file's write, where every other command's start writes back under `write-back`. At it, unlike
   any other command's start, a refusal naming a missing history ref is pulled and retried once (§ 8.4), a lock held past
-  its bound or a lease lost refuses with a retry (§ 2.2, `spec-projection-substrate.md` § 3.2), and `arc save` refuses
-  `--skip-projection`, since its start is its whole work. Each edited file persists as its own write, so one refused
-  edit blocks no other: D13's "at once" means in one command, not one batch, which D3 makes all-or-none. A refusal
-  another file's pending edit would cure clears at the next command, once that edit has landed. Where a write to a
-  completed item, or the `history` read its merge in the checkout makes (`spec-projection-substrate.md` § 3.5), refuses
-  `state-unresolvable` naming its history ref, `arc save` pulls the ref and retries once (§ 8.4). `--resolve <conflict>`
-  resolves a conflict shown without markers, and refuses while its subject file is held for a resolution in progress or
-  a malformed set (§ 6.5), and `arc save` reports every resolution it sends. Under its projection lock it then clears
-  the changed mark of every file that holds no edit the store lacks (§ 11.7). `arc save` replaces `arc user save` from
-  the flip; before it, `arc save` refuses `unsupported` naming `arc user save` (§ 1.4).
+  its bound, a lease lost, or a missing Git directory refuses with a retry (§ 2.2, `spec-projection-substrate.md`
+  § 3.2), and `arc save` refuses `--skip-projection`, since its start is its whole work. Each edited file persists as
+  its own write, so one refused edit blocks no other: D13's "at once" means in one command, not one batch, which D3
+  makes all-or-none. A refusal another file's pending edit would cure clears at the next command, once that edit has
+  landed. Where a write to a completed item, or the `history` read its merge in the checkout makes
+  (`spec-projection-substrate.md` § 3.5), refuses `state-unresolvable` naming its history ref, `arc save` pulls the ref
+  and retries once (§ 8.4). `--resolve <conflict>` resolves a conflict shown without markers, and a held file other than
+  Markdown by the token its index entry names (§ 7.7), and refuses while its subject file is held for a resolution in
+  progress or a malformed set (§ 6.5), and `arc save` reports every resolution it sends. Under its projection lock it
+  then clears the changed mark of every file that holds no edit the store lacks (§ 11.7). `arc save` replaces
+  `arc user save` from the flip; before it, `arc save` refuses `unsupported` naming `arc user save` (§ 1.4).
 - **`arc sync`**, which `projection-worktrees` builds (`spec-projection-worktrees.md` § 2.4), rebuilds deleted projected
   files (D13), as a full materialization (`spec-projection-worktrees.md` § 2.5) run before its network steps, so an
   offline sync still rebuilds; `--dry-run` skips it, and with no identity its existing refusal (`resolveUserIdentity`,
@@ -472,7 +492,8 @@ since VS Code's actions handle them correctly (§ Spike 4).
 
 A conflict the store filed is drawn into the file when write-back or a refresh replaces it with the record:
 
-- **An entry conflict** goes around the entry its `_Id:_` names.
+- **An entry conflict** goes around the entry its `_Id:_` names, and shows as a notice line, below, where the content
+  being written holds no entry with that ID.
 - **A hunk conflict,** which its record locates by a base line range (`TextConflictRecordSchema`,
   `lib/store/conflict.ts`), is placed at its start line moved through a diff from the base content into the content
   being written (`relocateTextOffsets`, `lib/store/concurrency/line-merge.ts`), spanning as many lines as the record's
@@ -500,6 +521,26 @@ A conflict the store filed is drawn into the file when write-back or a refresh r
 The index maps each marker set and each notice line to its conflict record, or marks a marker set found in the checkout
 (§ 7.7). The content as sent is never stored, so no worktree but the writer's could run the merge again; placement is
 what lets every checkout show the clash.
+
+**One renderer.** Every replacement of a file — write-back's read-back (§ 7.1), a clash's drawing (§ 7.7), a conflicted
+file's refresh (§ 6.6), any other refresh, and the replace guard's restage of the record's current version after it
+takes an edit in (`guardReplacement`, `lib/store/projection/replace-guard.ts`; `spec-projection-substrate.md` § 5.1) —
+lays the file through one renderer. It takes the record, the content being written, and the marker length the sets that
+content holds are at: the record's stored content, which holds none; a clash's drawing's merge result, which holds the
+sets found in the checkout; or a conflicted file's refresh, the line merge's result, which holds the file's sets, stored
+and found in the checkout. It parses the sets the content holds at that length, mapping each to its conflict by its
+start label; reads the record's open conflicts the content holds no set for, and the base content their placement needs;
+and draws them in the order of their tokens by this section's rules, except that one whose placed span overlaps a set
+already laid — one the content holds, or one drawn before it — shows as a notice line, or, in a file with no stamp, in
+its index entry alone, so no two sets meet, and a clash filed twice (§ 7.8) draws once. Two spans overlap where they
+share a line, or where one spans no lines, marking only the point before the line it is placed at, and that point lies
+inside the other's lines, at either of its ends, or at the other's own point where that spans none too, so a set of no
+lines never shares its place with another set's edge. It writes notice lines for open conflicts alone and, for a
+protected file, adds the protection notice (§ 8.2); lays every set at the one length § 6.1 gives over every line the
+file shows, the sides of the conflicts it draws included; and returns the laid text with the index's mapping of each set
+and notice line to its conflict, a set found in the checkout marked as such. The guard takes the renderer in place of
+staging the stored content alone, which would drop every conflict and notice the file showed; the file's stamp and base
+stay those of the stored content, and the blob id the projection wrote is the laid bytes'.
 
 **Evidence** (§ Spike 6): over 3,893 hunk conflicts from random three-way merges of repetitive Markdown, each then
 edited at random, the check gave these rates for the conflicts later edits left untouched:
@@ -559,8 +600,9 @@ Write-back reports every resolution it sends (§ 2.2).
 
 #### 6.5 `arc save --resolve <conflict>`
 
-A conflict shown without markers — a whole-record conflict's notice line (D13), a hunk conflict's notice line (§ 6.3),
-or one a file with no stamp cannot show — resolves by `arc save --resolve <conflict>`.
+A conflict shown without markers — a whole-record conflict's notice line (D13), a hunk or entry conflict's notice line
+(§ 6.3), one a file with no stamp cannot show, or a file other than Markdown held because its candidate bases disagree,
+once its drawn markers are gone (§ 7.7) — resolves by `arc save --resolve <conflict>`.
 
 - **What it sends.** It attaches the conflict to its subject file's write in the command's own write-back, under `save`,
   sent even when the file is unedited: edited by hand first, the text is the resolution; unedited, it keeps the store's
@@ -570,7 +612,19 @@ or one a file with no stamp cannot show — resolves by `arc save --resolve <con
   repair that releases it — finishing the resolution or repairing the set — after which the conflict shows as § 6.3
   states.
 - **What it resolves toward.** The store's side, or a content-only edit the kind's write check admits. Another side — a
-  removal, a field only a verb sets, a changed placement — takes D4's route of redoing the change through its verb.
+  removal, a field only a verb sets, a changed placement — takes D4's route of redoing the change through its verb, and
+  the option refuses naming that verb.
+- **How it finds the conflict.** It parses the token (`parseConflictToken`, `lib/status/conflict-token.ts`), which names
+  the family, owner type, owner name, and key but no owner UID, and finds the conflict in the index's mappings (§ 6.3),
+  whose references carry the UID, never building a store reference from the token alone. For a token the index does not
+  map, it lists the store's conflicts with no owner in the listing's input (`ListInputSchema`, `lib/store/read.ts`) only
+  to choose its refusal, never to resolve from: an unknown conflict; one already closed, named as resolved; one whose
+  subject has no projected file in this checkout, naming where it projects or its owner; or, where several owners match,
+  an ambiguous token, naming each. A conflict this checkout shows with markers refuses, naming them. Each refusal names
+  its remedy, and the same conflict resolves once its cause is repaired. A hold of a file other than Markdown whose
+  candidate bases disagree has no stored conflict: its token is the one its index entry's refused mark names (§ 7.7),
+  the index is searched for it before the store is listed, and the option sends the file's text against the store's
+  current version with no conflict in `resolves`, which clears the mark once it lands.
 - **Keeping the store's side** sends content identical to the stored record, by markers (§ 6.4) or by the option. The
   backend never treats a put naming an open conflict in `resolves` as a no-op: its commit removes the conflict record,
   and the subject's record version and `history` stay as they were (`spec-storage-ref-backend.md` § 5.2), held by a
@@ -579,12 +633,13 @@ or one a file with no stamp cannot show — resolves by `arc save --resolve <con
   holds an open conflict, naming each by its token and subject, with one remedy for every source and decision site that
   refuses (`DECOMPOSE_SOURCE_CONFLICT_REMEDY`, `lib/decompose/source-conflicts.ts`), which until this member names
   only the markers' resolution; an open conflict on the terminal lineage keeps its own remedy
-  (`readDecomposeLandedRetirement`, `lib/decompose/landed.ts`). This member registers `save` with `--resolve`, so it
-  extends that remedy as `spec-seam-decomposition.md` § 18 settles it: resolve the markers in the file that shows them,
-  which write-back persists, or otherwise run `arc save --resolve <token>` from a checkout projecting the subject, then
-  the mode again. Its integration test requires the remedy to name `arc save --resolve <token>` exactly when the command
-  inventory registers a top-level `save` with `--resolve` (`decompose-conflict-remedy.test.ts`), so the remedy changes
-  with the command's registration.
+  (`readDecomposeLandedRetirement`, `lib/decompose/landed.ts`), as does a stored cut map's, which names
+  `arc decompose <origin> --discard` or `--revise` (`acquireDecomposeTerminal`, `lib/decompose/acquire-terminal.ts`).
+  This member registers `save` with `--resolve`, so it extends that remedy as `spec-seam-decomposition.md` § 18 settles
+  it: resolve the markers in the file that shows them, which write-back persists, or otherwise run
+  `arc save --resolve <token>` from a checkout projecting the subject, then the mode again. Its integration test
+  requires the remedy to name `arc save --resolve <token>` exactly when the command inventory registers a top-level
+  `save` with `--resolve` (`decompose-conflict-remedy.test.ts`), so the remedy changes with the command's registration.
 
 `arc save` reports every resolution it sends (§ 2.4).
 
@@ -602,6 +657,11 @@ file keeps its version, pending and reported.
   when the file is unchanged since the projection wrote it, so the file takes the resolution rather than waiting on it.
 - **A notice line whose conflict has closed** leaves at the same refresh, since refresh writes notice lines only for the
   conflicts still open.
+- **The merge's result is laid through § 6.3's renderer** at the length the file's sets are at, which maps those sets by
+  their start labels, draws each conflict the newer version files that they do not hold, and lays every set at the
+  length § 6.1 gives over all the file then shows. Where the newer version holds a marker-like line for which § 6.1
+  grows the length past the file's, the file's sets are rendered again at the grown length before the merge, so the
+  renderer's parse never reads a merged-in line as a marker.
 - **Where the store's change overlaps a marker set still open,** the file keeps its version, pending and reported, until
   the person resolves it, and each later command tries again (amendment, § 16).
 - **A file holding a resolution in progress or a malformed set** never reaches the merge: the replace guard holds it
@@ -616,11 +676,48 @@ residual of under 1% (§ Spike 6).
 
 - **Parse.** Write-back reads a hand-edited file through its kind's parser, from the production registration set
   (`lib/store/kinds/registrations.ts`), and skips and reports a file that fails to parse (D13).
-- **Send against the base.** It sends each edited file's content with the record version its base names as the expected
-  version (`spec-projection-substrate.md` § 3.4), under `write-back` provenance (§ 7.4). A primary record's write
-  carries its current placement unchanged, as `MutationSchema` requires (`lib/store/write.ts`) — the read form less its
-  `sequence`, which `WritePlacementSchema` rejects — and never a reference, a changed placement, a former slug, or a
-  link (§ 7.3).
+- **Before the send.** Write-back's steps up to the send — the read under the settle rule
+  (`spec-projection-substrate.md` § 4), a file other than Markdown read against its index entry there on the text as
+  read (its § 3.7), parse-back (§ 6.4), the base's selection over that content (below), each entry parse-back refused
+  put in as that base holds it (§ 6.4), the ID restore (below), the kind's parser, the stamp of a copy and the merge in
+  the checkout (§ 7.7), and the write check (§ 7.2) — run as one step that writes nothing and takes no lock, which the
+  send follows and which `projection-worktrees`' removal check runs on its own (`spec-projection-worktrees.md` § 12.2);
+  its persist and release steps run write-back whole. Then, where the path has another aside copy not yet marked as
+  having had a write-back sent since its swap (`spec-projection-substrate.md` § 5.2), and the worktree's index on disk
+  is usable, write-back saves that mark alone under its caller's lock: it reads the index on disk, marks the path's
+  other copies, and writes it back whole (`writeProjectionIndex`, `lib/store/projection/index-file.ts`), no stat changed
+  and the racy reference left as it was (§ 16.4), so a stop after the write lands leaves the mark, and a save made
+  within the tick of a stat its caller has observed but not yet published still reads as an edit. A worktree with no
+  usable index records no aside copy, so takes no such write. The entry write-back returns carries the mark, which its
+  caller's own index write keeps.
+- **Send against the base.** Its base is chosen in the order `spec-projection-substrate.md` § 3.5–§ 3.7 gives, as § 16.5
+  amends it for a file other than Markdown: a Markdown file's stamp names it — the index's base, or another stored
+  version found through `history` by its blob id — except that a save carrying the stamp the last persisted write-back
+  read takes what that write-back took in (its § 3.6), and a stamp lost, or naming no stored version, goes to base-stamp
+  recovery (its § 3.5); a file other than Markdown, which carries no stamp, is read against its index entry (its § 3.7)
+  and takes its base by agreement (§ 16.5). Its index holds every version that base can be: the base its take-in carries
+  — its entry's base for the file at its path, and for an aside copy holding a save that landed in it, taken in as a
+  stale save (its § 5.2), the base its name carries (`copyBase`, `lib/store/projection/aside-copies.ts`), since each
+  swap names its copy for the base of the file it moves (`plan`, `lib/store/projection/swap.ts`; `putBack`,
+  `lib/store/projection/aside-copies.ts`), resolved as a stamp is: the index's base, reading no `history`, where it
+  names it, the version a replacement in progress replaces where it names that, a stored version found through `history`
+  by its blob id, and base-stamp recovery where it names none (its § 3.5); at its path, while a replacement is in
+  progress, the version it replaces; and, where the last persisted write-back is recorded, the version that write landed
+  and the copy it kept (its § 3.6). Write-back merges the edit from each onto the store's current version with the
+  library the store's merge uses (§ 7.7), and a candidate whose content it cannot read leaves the file pending and
+  reported, as a stopped replacement's unreadable versions do (its § 3.7). Where all give the same content and file the
+  same clashes — one that finds no edit leaving the store's content as it is, and two clashes the same where they fall
+  at the same place in that content with the same two sides, whatever base each merged from, but a merge from a kept
+  copy, which the store never held, that files any clash counts as differing, since its clash is one found in the
+  checkout (§ 7.7) — the edit is sent against the base its take-in carries; where they differ, nothing is sent and the
+  file is held (§ 7.7). No candidate is chosen by how close the file is to it, and a save whose base no field records
+  stays unknowable (§ 17 item 12). It sends each edited file's content with the record version its base names as the
+  expected version (`spec-projection-substrate.md` § 3.4), under `write-back` provenance (§ 7.4). A kept copy or an
+  empty base, which the store never held, merges in the checkout first (§ 7.7), as does a meta or task list over a newer
+  version, which the store refuses rather than merges; each is sent against the version it merged onto. A primary
+  record's write carries its current placement unchanged, as `MutationSchema` requires (`lib/store/write.ts`) — the read
+  form less its `sequence`, which `WritePlacementSchema` rejects — and never a reference, a changed placement, a former
+  slug, or a link (§ 7.3).
 - **The store merges a stored base.** Where the store has moved past that version, the backend merges the base, its
   current version, and the edit by the kind's mechanism — line merge for prose, entry merge for entry lists — keeps its
   current side at each clash, and files each clash as a conflict record in the record's family, each side labelled with
@@ -638,7 +735,10 @@ residual of under 1% (§ Spike 6).
   (`spec-projection-substrate.md` § 3.4). Where it refused a malformed entry while the rest landed, the file keeps its
   content, its stamp, and its base, and its index entry records the record's open conflicts, reported beside the refusal
   (§ 6.4). Either way the write is a persisted write-back, and the index records what it read, the stamp and the content
-  taken in (`spec-projection-substrate.md` § 3.6).
+  taken in (`spec-projection-substrate.md` § 3.6); a file other than Markdown, which carries no stamp, records in its
+  place the base blob id its take-in carried: its entry's `base.blob` for the file at its path — which write-back reads
+  from the entry at the command's start, and the guard's re-check hands it (`baseOf`,
+  `lib/store/projection/replace-guard.ts`) — and the blob an aside copy's name carries for a copy (§ 16.5).
 - **Entries typed by hand.** Before sending, and before any merge in the checkout, once parse-back's rule for a
   duplicated `_Id:_` (below) has run, write-back gives an entry with no `_Id:_` the ID its base carries for the same
   entry, through the one entry-ID matcher `projection-substrate` builds (`spec-projection-substrate.md` § 3.6), from the
@@ -654,15 +754,13 @@ residual of under 1% (§ Spike 6).
   stamps its own copy (`stampEntryIds`, `lib/store/concurrency/stamp.ts`), drawing from a SHA-256 stream seeded by the
   record's reference, the base content, and the file's content, so § 7.7's result, sent again after a stop, carries the
   same IDs: § 7.2's merge, which only computes the check's `next`, sends the edit as it is, and § 7.7's, whose result is
-  what goes to the store, sends that result carrying the checkout's IDs, which the backend keeps. An entry the stamp
-  cannot give an ID — a field-header entry with no `_Remove when:_` line, without which `stampEntryIds` throws — is a
-  refused edit, `record-malformed` naming the entry, as the ref backend refuses it (its § 5.1). The content a persisted
-  write-back took in, which a stale buffer's next save merges from, carries the IDs the landed record gave its entries
-  (`spec-projection-substrate.md` § 3.6). Without them, an editor that never reloaded re-saves the entry the backend
-  stamped, the stamp gives it a second ID, and a merge over another writer's edit to that entry keeps both copies and
-  reports no conflict (§ Spike 5). A duplicated `_Id:_` left by an editor's "accept both" gives the second entry a fresh
-  ID (D13's parse-back), and the backend refuses any duplicate that remains as `record-malformed` naming it (its § 5.1,
-  § 5.2).
+  what goes to the store, sends that result carrying the checkout's IDs, which the backend keeps. The content a
+  persisted write-back took in, which a stale buffer's next save merges from, carries the IDs the landed record gave its
+  entries (`spec-projection-substrate.md` § 3.6). Without them, an editor that never reloaded re-saves the entry the
+  backend stamped, the stamp gives it a second ID, and a merge over another writer's edit to that entry keeps both
+  copies and reports no conflict (§ Spike 5). A duplicated `_Id:_` left by an editor's "accept both" gives the second
+  entry a fresh ID (D13's parse-back), and the backend refuses any duplicate that remains as `record-malformed` naming
+  it (its § 5.1, § 5.2).
 
 Three cases have no stored base for the store to merge from, and § 7.7 merges them in the checkout. § 7.8 states what
 write-back does with each refusal the store returns.
@@ -696,26 +794,28 @@ the parser, which stays content-only (`cohort-storage-seam.md` § Shared contrac
 This member builds the `after` view, in `lib/store/projection/`; the record kinds ship none
 (`spec-seam-record-kinds.md` § 3.1). `before` is the backend as write-back finds it. `after` answers `read` and `list`
 for the written record from the pending write, its `conflicts` as `before` holds them, and everything else from
-`before`, and its `lookup` is `before`'s for every kind.
+`before`, and its `lookup` is `before`'s for every kind. A written record `before` lacks is never a primary record or a
+cohort document, which write-back never creates (below), so `after` reads and lists it from the pending write with a
+placeholder version and its owner's placement.
 
 - **Why that suffices.** Write-back writes content, carrying a primary record's current placement unchanged (§ 7.1), and
-  never a reference, a changed placement, a former slug, or a link; it removes nothing, creates no primary record (a new
-  stub mints through `arc stub`, § 9), and writes no machine kind, among them the Errand records, claims, and transition
-  records whose fields lookup reads (`lookupReference`, `__tests__/helpers/store/lookup.ts`; `lookupTracked`,
-  `lib/store/in-repo/lookup.ts`).
+  never a reference, a changed placement, a former slug, or a link; it removes nothing, creates no primary record or
+  cohort document (a new stub mints through `arc stub`, § 9), and writes no machine kind, among them the Errand records,
+  claims, and transition records whose fields lookup reads (`lookupReference`, `__tests__/helpers/store/lookup.ts`;
+  `lookupTracked`, `lib/store/in-repo/lookup.ts`).
 - **Commit lookups answer from `before` too.** The backends the projection runs over match a commit through the
   primary's task captures in its links (D3; `commitMatch`, `__tests__/helpers/store/lookup.ts`), which write-back never
   writes. Only the in-repo implementation's `lookupCommit` expands a task range against the task list, and there the
   projection is dark (§ 1.4).
 - **The conformance case.** A view resolving differently would admit a write the backend then refuses, so a conformance
-  case holds it: for each hand-editable kind, over each backend that runs checks, the `after` view built before a write
-  answers `read`, `list`, and the slug, lineage, claim, and ref lookups as the backend does once the write lands,
-  compared apart from each result's `version` and `asOf`, which only the landed write sets, and the written record's
-  `conflicts`, which the landing's merge or `resolves` sets, with the conflict records the landing files or removes left
-  out of `list` and `read`, and the `_Id:_` values the landing stamps on entries the write sent without one, which each
-  backend draws itself — the ref backend from its seed, the reference backend at random (`spec-storage-ref-backend.md`
-  § 5.1); the parse-back cases test what a write files or resolves (§ 6.4). The commit lookup stays outside it, since
-  over those backends `before` answers it as they do by construction.
+  case holds it: over each backend that runs checks, for each hand-editable kind its fixture serves, the `after` view
+  built before a write answers `read`, `list`, and the slug, lineage, claim, and ref lookups as the backend does once
+  the write lands, compared apart from each result's `version` and `asOf`, which only the landed write sets, and the
+  written record's `conflicts`, which the landing's merge or `resolves` sets, with the conflict records the landing
+  files or removes left out of `list` and `read`, and the `_Id:_` values the landing stamps on entries the write sent
+  without one, which each backend draws itself — the ref backend from its seed, the reference backend at random
+  (`spec-storage-ref-backend.md` § 5.1); the parse-back cases test what a write files or resolves (§ 6.4). The commit
+  lookup stays outside it, since over those backends `before` answers it as they do by construction.
 
 Each edited file persists as its own `write`, so `after` is the store plus that one write, and one refused edit blocks
 no other (§ 2.4).
@@ -745,8 +845,8 @@ writing (`spec-projection-worktrees.md` § 12.2), keeping no copy of the rules.
 
 A refused edit — whether the write check or the backend's own check at the write refuses it — stays in the file and is
 reported, never blocking the command (D13). The seam's members fill the parser and write-check slots; this member
-consumes them. Every projected kind with a ref family but the Errand queue carries ARC's link rules in its check
-whatever else it registers (`RECORD_LINK_KINDS` and `composeLinkChecks`, `lib/store/kinds/registrations.ts`, over
+consumes them. Every kind with a ref family that projects a file carries ARC's link rules in its check whatever else
+it registers (`RECORD_LINK_KINDS` and `composeLinkChecks`, `lib/store/kinds/in-repo-registrations.ts`, over
 `checkRecordLinks`), so a hand edit that breaks a record link comes back as a refused edit like any other rule. An empty
 parser slot needs no rule here: write-back is a contract `write`, which D5 lets land unvalidated, and merge takes a
 kind's entry shape from its mechanism, not its parser. Write-back is dark until the flip, so a missing parser or entry
@@ -771,9 +871,10 @@ Write-back merges each in the checkout with the same library (`mergeLineText`, `
 current version, passing the base's record version in the library's input (`MergeTextInput`,
 `lib/store/concurrency/line-merge.ts`) — null for an empty base and for the kept copy, which the store never held —
 though no record these merges produce is stored. The library's side labels (`currentLabel` and `incomingLabel`, each a
-`SideLabelSchema`, `lib/store/conflict.ts`) name this checkout's machine and the save's modification time for the edit,
-and, for the store's side, whose writer only the store's commits carry (§ 7.1) — a history entry's provenance holds no
-actor or time (`StoredProvenanceSchema`, `lib/store/links.ts`) — the record version it merged onto and the time
+`SideLabelSchema`, `lib/store/conflict.ts`) name, for the edit, this checkout's actor as the ref backend writes it,
+`<identity>@<machine-id>` (`createDefaultRefStorePorts`, `lib/store/default-ports.ts`), and the save's modification
+time, and, for the store's side, whose writer only the store's commits carry (§ 7.1) — a history entry's provenance
+holds no actor or time (`StoredProvenanceSchema`, `lib/store/links.ts`) — the record version it merged onto and the time
 write-back read it.
 
 - **A clean result** is sent against that current version like any edit (§ 7.1). For an entry kind, a clash
@@ -781,17 +882,61 @@ write-back read it.
   sides' lines kept.
 - **A clash** is written into the file with markers and the file stamped with the current version it merged onto, and
   nothing is stored: the file holds a conflict, is reported, and keeps the person's edit (D13). The markers render as
-  `mergeLineText` builds its result; an entry kind merges through `mergeEntryText` first, and where that clashes the
-  file's markers come from `mergeLineText` over the same base and sides, whose every clash has one span to draw, since
-  an entry clash keeps one side and a prose clash spanning an entry has none (§ 6.3). Writing them replaces the file by
-  the swap, its aside copy write-back's own (`spec-projection-substrate.md` § 5.2), and only where write-back refused
-  nothing else the file held: a file one of whose entries it refused is not drawn into, the clash reported beside that
-  refusal, until the entry is repaired (§ 6.4). Once a drawn file's markers are resolved it writes back as an ordinary
-  edit against that stamp, which the store merges if it has moved again.
+  `mergeLineText` builds its result, through an option on it that takes § 6.1's renderer as a callback, since
+  `lib/store/concurrency/` imports nothing from `lib/store/projection/` (`store-concurrency`,
+  `eslint/architecture-imports.ts`), so no placement step can miss: an optional field of `MergeTextInput` typed beside
+  it, which takes each side's lines and label and a marker length and returns the set's lines. It takes each side's
+  lines rather than its content, since a side of no lines and a side of one blank line both store as empty content
+  (§ 6.3). Only the drawing's own `mergeLineText` call and the comparison of a file other than Markdown's candidate
+  merges (§ 7.1) set it, never the input an entry merge spreads into its own line merges, so every other merge runs as
+  it does today. The length it passes is a parsing length, § 6.1's over every line a first run without the option
+  returns — its content and each clash's sides — and the second run draws at it, the merge returning the same result
+  each run. An entry kind merges through `mergeEntryText` first, and where that clashes the file's markers come from
+  `mergeLineText` over the same base and sides, whose every clash has one span to draw, since an entry clash keeps one
+  side and a prose clash spanning an entry has none (§ 6.3). Writing them replaces the file by the swap, laid through
+  § 6.3's renderer, which takes the merge's result at that length, draws the record's stored conflicts, one whose span
+  overlaps a set already laid, a set found in the checkout among them, as a notice line, and sets the file's one length;
+  its aside copy is write-back's own (`spec-projection-substrate.md` § 5.2); and it is drawn only where write-back
+  refused nothing else the file held: a file one of whose entries it refused is not drawn into, the clash reported
+  beside that refusal, until the entry is repaired (§ 6.4). Once a drawn file's markers are resolved it writes back as
+  an ordinary edit against that stamp, which the store merges if it has moved again.
 - **A meta or task list holding such markers** is never sent while they stand, so it is pending rather than skipped
   (amendment, § 16).
 - **A clash found while taking in an aside copy** is drawn in the file the copy goes back to, or kept with the copy,
   reported (`spec-projection-substrate.md` § 5.2).
+- **A clash found through the take-in port at a path** — at the replace guard's re-check of a file before its swap
+  (`guardReplacement`, `lib/store/projection/replace-guard.ts`) — is not drawn there, since write-back taking an edit in
+  through the port swaps nothing (§ 18): it answers `clashed`, and the guard leaves the file as it is, pending (`held`),
+  until write-back's own walk next takes it in at its path and draws it.
+- **Candidates that disagree** — a file other than Markdown whose candidate bases give different merges (§ 7.1) — are
+  held, never merged from one of them. The first hold write-back's own walk finds at the file's path — at a command's
+  start, or in the persist and release steps, which run it whole (§ 7.1) — draws the clash between the file and the
+  store's current version into the file: write-back diffs the two (`diffIndices`, `node-diff3`), each split into lines
+  with any final newline set apart, as `mergeLineText` splits its inputs (`lines`,
+  `lib/store/concurrency/line-merge.ts`), and lays the file's lines where they agree and, at each span where they
+  differ, a marker set whose sides are the store's current lines there and the file's, labelled as above, the drawn file
+  keeping the file's own final newline, and the whole file one span where the diff finds none, as where the two differ
+  only in their final newline. A hold always has a span to draw, since every candidate's merge returns the store's
+  current version, clean, where the file equals it (`mergeLineText`); the drawing shows every line where the two differ,
+  one every candidate's merge resolves alike among them, which the person resolves as well. Nothing is stored: the
+  file's index entry records the hold as its refused mark, typed `bases-disagree`, whose remedy names
+  `arc save --resolve <token>`, the token minted then in the conflict token's form from the file's family and owner and
+  a fresh key, as a conflict record's is (`randomUUID`, `lib/store/ref/write-conflicts.ts`), so it names no stored
+  conflict; status prints it, and the mark stays until the file is sent. The mark is set on the entry the replace
+  guard's `replace` hands the drawing's swap batch (`SwapFile`, `lib/store/projection/swap.ts`), only where that
+  `replace` still stages the drawing, and never on the entry the guard re-checks: a save that re-check holds leaves the
+  file unmarked, pending, and one it takes in and sends restages the record's current version in the drawing's place
+  (`restage`, `lib/store/projection/replace-guard.ts`), the hold gone. A later save is sent where its candidates agree —
+  the person kept the store's side, or edited elsewhere; where they still disagree, the mark standing, it is not drawn
+  again but stays as the person left it, pending and reported with that token, until `arc save --resolve <token>` sends
+  its text as the resolution against the store's current version (§ 6.5). A hold found through the take-in port draws
+  nothing and mints no mark, leaving the entry's mark and base as they were, since the replace guard's re-check and a
+  copy's settlement each keep any mark the answer carries (`held`, `lib/store/projection/replace-guard.ts`; `putBack`,
+  `lib/store/projection/aside-copies.ts`), where it would stand for a drawing never made: it answers as a clash found
+  through the port does (above), so a file at its path stays pending until write-back's own walk next takes it in, which
+  draws a first hold, never one whose mark already stands, and an aside copy goes back to its path, where the path's own
+  candidates decide (§ 17 item 12), or is kept, reported. Nothing retires the persisted write-back but its next landing
+  (§ 16.5).
 
 Such a clash is visible only in its checkout until it is resolved, as a Git working-tree conflict is: it holds an edit
 that never reached the store, which only the person holding it can resolve, while a clash whose base is stored reaches
@@ -809,14 +954,21 @@ A refusal lands nothing, so the edit stays in its file and the next command send
   this way (`stale`, `__tests__/helpers/store/write.ts`). One still there means the expected version is not in its
   history (`spec-storage-ref-backend.md` § 5.2), so the stamp is treated as lost and the file goes to base-stamp
   recovery (`spec-projection-substrate.md` § 3.5), at most once per command.
-- **`lock-held`** marks the file pending for the next command.
-- **`state-unresolvable` naming a history ref** on a write to a completed item is § 8.4's, and **`unsupported`
-  `unhomed-kind`** is § 7.6's.
+- **`lock-held`** marks the file pending for the next command, and is reported with the backend's remedy.
+- **`state-unresolvable` naming a history ref** comes only for an item this clone holds no live ref for, a completed
+  one (`missingHistoryRefs`, `lib/store/ref/missing-history.ts`), and is § 8.4's, on a write or on a `history` read;
+  **`unsupported` `unhomed-kind`** is § 7.6's.
 - **`state-unresolvable` naming no history ref** (`historyRefs: []`) has nothing a pull by name could fetch — for
-  example a record object the write captured that this clone cannot read (`checkRecord`,
+  example a record object the write captured that this clone cannot read under a ref it holds (`checkRecord`,
   `lib/store/ref/write-checks.ts`), or an anchor field the edit set to a state version this clone cannot resolve, the
-  refusal naming the field (`prepareAnchor`, `lib/store/ref/write-anchors.ts`). It leaves a refused edit carrying the
+  refusal naming the field (`prepareAnchor`, `lib/store/ref/write-anchors.ts`), or, on the `history` read a merge in
+  the checkout makes (§ 7.2, § 7.7), a live item's object this clone lacks. It leaves a refused edit carrying the
   backend's remedy, and nothing is pulled; the next command sends the edit again once the remedy is applied.
+- **`namespace-corrupt`**, a terminal fault in the store's own data that only a repair by hand clears, leaves a refused
+  edit carrying the backend's remedy, and nothing is pulled. The edit stays in its file, so the next command sends it
+  again, and it lands once the repair is made. On a `history` read it takes the path `state-unresolvable` naming no ref
+  takes there: a merge in the checkout leaves a refused edit, placement shows the conflict as a notice line (§ 6.3),
+  and a refresh keeps the file's version, pending (§ 6.6).
 - **A command stopped after a write lands** and before the index records it sends the edit again at its next run; where
   the first landing clashed, the store merges it a second time and files the same clash again (§ Spike 5), which the ref
   backend treats as correct (its § 5.2): a duplicate, visible conflict. Where another writer returned part of the landed
@@ -850,8 +1002,12 @@ D13's three layers stand: the notice line, the read-only mode, and the persist r
   the checkout where a checkout with no marker still has the work branch out, as the paused-work slot's action does
   (`spec-seam-locus.md` § 4.4) — and its owner otherwise; for archived work another person owns, its owner (§ 8.4); and
   for a read-only source's file, the source (`spec-projection-worktrees.md` § 14). It never names another machine, which
-  nothing here records: work-unit markers are machine-local, and a pause records who paused, not where (amendment,
-  § 16). The checkout it names comes from that checkout's marker, so it can lag a change there (§ 10.4).
+  nothing here records: work-unit markers are machine-local, and a pause records who paused, not where (amendment, §
+  16). The checkout it names comes from that checkout's marker, so it can lag a change there (§ 10.4). It comes from the
+  holding-checkout lookup, keyed by the owner's UID (`findHoldingCheckout`, `lib/work-unit/locus-ports.ts`): where the
+  lookup answers `unbound`, a checkout's marker naming the work item that no record binds, the notice and the persist
+  refusal name its recovery exits, and where it fails — two holders, a failed scan, an incomplete roster, or an
+  unreadable marker — they name its message, which carries the repair, in place of a checkout.
 - **The read-only mode is a speed bump.** VS Code honors it only under `files.readonlyFromPermissions`; Vim's and
   Neovim's `:w!`, Emacs's forced save, and Claude Code's Edit and Write all write through it and leave the mode at 0444
   (§ Spike 3). VS Code's Overwrite button sets the mode to 0644 before saving, and the file stays writable until a
@@ -883,16 +1039,20 @@ an archived work unit (`spec-seam-lifecycle.md` § 8.7).
 
 - **When it persists.** Write-back does not scan `completed/` (§ 15.1), so a correction persists at `arc save`, at the
   persist or release step, or when a refresh touches the file.
-- **A missing history ref.** Where this clone lacks the item's history ref, the write refuses `state-unresolvable`
-  naming it (`spec-storage-ref-backend.md` § 7.3), as does a `history` read a merge in the checkout makes
-  (`spec-projection-substrate.md` § 3.5). `arc save` and the persist and release steps pull that ref by name and retry
-  once (its § 4.5), only where the refusal names at least one history ref, through the store's shared history-retry
-  helper as `storage-ref-hardening` leaves it (today `pullHistoryForRetry`, `lib/store/pull-consumption.ts`), the way
-  `arc rename`'s store write retries (`runStoreRename`, `lib/work-unit/verbs/rename-store.ts`); where the pull is
-  refused or the state remote lacks the ref too, the edit stays as a refused edit carrying the backend's remedy. A
-  refusal naming none is § 7.8's. At any other command's start, where a refresh touched the file, the refusal stays a
-  refused edit whose remedy names `arc save`, and nothing is pulled, so no other command's start waits on the network
-  (`spec-projection-worktrees.md` § 15.2).
+- **A missing history ref.** Where this clone lacks the item's history ref or objects under it, the write refuses
+  `state-unresolvable` naming the ref (`spec-storage-ref-backend.md` § 7.3), as does a `history` read a merge in the
+  checkout makes (`spec-projection-substrate.md` § 3.5). `arc save` and the persist and release steps run write-back
+  over the store's history retry (`retryEndedItemHistory`, `lib/store/history-retry.ts`), which, only where a refusal
+  names at least one history ref, pulls those refs by name (its § 4.5) and runs the operation once more
+  (`pullHistoryForRetry`, `lib/store/pull-consumption.ts`), writing the pull's notices into write-back's report. The
+  `history` memo (`spec-projection-substrate.md` § 3.5) is built over that store, so it keeps the answer the retry
+  reached, never the refusal before it. Where the pull is refused, `lock-held` among its refusals, or a state or
+  candidate outcome fails, or the pull leaves a store designation unanswered, the retry answers the first refusal; a
+  failed read source leaves that history in place and does not stop it. Where the retried operation refuses again, as
+  where the state remote lacks the ref too, the retry answers that refusal. Either way the edit stays a refused edit
+  carrying the remedy of the refusal answered. A refusal naming none is § 7.8's. At any other command's
+  start, where a refresh touched the file, the refusal stays a refused edit whose remedy names `arc save`, and nothing
+  is pulled, so no other command's start waits on the network (`spec-projection-worktrees.md` § 15.2).
 - **A new file** there adopts into its archived work unit the same way (§ 9), and the errata convention moves onto the
   store's history of the archived meta (§ 18).
 
@@ -912,18 +1072,28 @@ check.
   field, `State` among them (`runStub`, `lib/work-unit/verbs/stub.ts`, through `renderMetaFile`,
   `lib/store/kinds/meta/projection.ts`), and owns the stub to the adopting identity, as `arc stub` owns every stub to
   its caller (`handleStub`, `handlers/lifecycle.ts`). The one verb-owned value the meta supplies, `Class`, enters as
-  `arc stub --class` passes it, validated the same way, so no other hand-set verb-owned value lands under `stub`. What
-  else the file holds is then a hand edit of the minted record, written back and checked like any other, once write-back
-  has set the file's verb-owned fields to the minted record's values, so the edit changes none of them: those
-  `checkMetaVerbOwnedField` (`lib/store/kinds/meta/authority-rules.ts`) refuses a hand edit changing — `State`, `Class`,
-  and `Current Workflow`, and `Owner` and the pause section, which `seam-lifecycle` adds to them
-  (`spec-seam-lifecycle.md` § 8.1, § 8.5, § 18.1).
+  `arc stub --class` passes it, validated the same way, so no other hand-set verb-owned value lands under `stub`; a
+  `Class` of `[TBD]`, which `arc stub` writes where no `--class` is passed (`StubParams`,
+  `lib/work-unit/verbs/stub.ts`), enters as an omitted `--class`, so a provisional folder adopts and a planned one is
+  refused as `arc stub --commitment planned` with no `--class` is (`resolveStubClass`). What else the file holds is then
+  a hand edit of the minted record, written back and checked like any other, once write-back has set the file's
+  verb-owned fields to the minted record's values, so the edit changes none of them: those `checkMetaVerbOwnedField`
+  (`lib/store/kinds/meta/authority-rules.ts`) refuses a hand edit changing — `State`, `Class`, `Current Workflow`,
+  `Owner`, and the pause section (`spec-seam-lifecycle.md` § 8.1, § 8.5, § 18.1).
+- **Adoption's verdict without minting.** `arc stub`'s parameter checks sit in two places today — the command's input
+  schema (`StubCommandInputSchema`, `handlers/lifecycle.ts`) and `runStub`'s own refusals of an unsafe name, a missing
+  commitment or priority, an explicit `Class` that does not resolve or a `planned` commitment with none
+  (`resolveStubClass`), and a cohort without `planned` or with an unsafe or malformed path — and move behind one pure
+  function, the schema's parse then those refusals, which `runStub` and the removal check call, so the removal check
+  reads whether a folder would adopt without minting (`spec-projection-worktrees.md` § 12.2); a refusal only the verb's
+  executor returns reaches the persist step, which refuses with the verb's remedy.
 - **A meta naming another identity as `Owner`** is not adopted, since `Owner` is verb-owned (`spec-seam-lifecycle.md`
   § 8.5): its folder stays ownerless, and the remedy has the person name themselves, adopt it, then run
   `arc handover <slug> --to <identity>`.
 - **A new folder under `backlog/` without a meta that parses** — its files are ownerless: flagged in `arc status`, with
   the removal check refusing while they stay unadopted (`spec-projection-worktrees.md` § 12.2), and the remedy naming
-  `arc stub <name> --commitment <tier>` with the tier filled in, after which the folder's files adopt.
+  `arc stub <name> --commitment <tier> --priority <priority>` with the tier filled in, and `--cohort <cohort>` where the
+  folder's path carries a cohort, after which the folder's files adopt.
 - **A path the classifier maps to no record** — `active/`'s top level under the default `nested` layout, which under
   `flat` is the checkout's own work item's folder (§ 10.3), the identity root outside `scratch/`, `backlog/`'s top
   level, a commitment folder, or a quarter folder — refuses at persist, naming where such a file goes: `current/`,
@@ -935,15 +1105,17 @@ check.
 still hold are files left from before it, and neither is adopted, by its path: `STATUS.USER.md` in an identity's
 personal root, which nothing deletes, and the tracked `ROADMAP.md` on a branch that has not merged the cutover, which
 still resolves through the layout's `project-document` address (`lib/layout/schema.ts`), an address that stays past the
-cutover with its implementation. Nor are editor side files — `*~`, `.#*`, `#*#`, `.*.sw?`, `4913`, and
-`*.tmp.<pid>.<hex>` from the terminal editors and Claude Code (§ Spike 3); VS Code and Zed add none — or the folder
-files operating systems write — `.DS_Store` and `._*` on macOS, `Thumbs.db` and `desktop.ini` on Windows, and KDE's
-`.directory`. The match runs on the file name before any other test, since Emacs's `.#name.md` lock is a dangling
-symlink ending in `.md`. Nor is a file at a path `MACHINE_LOCAL_PATHS` lists (`spec-projection-worktrees.md` § 12.9) —
-the identity's `.internal/` and each workspace's among them — which the projection neither persists nor refreshes (D5):
-write-back's walk skips those folders (§ 15.1). A file skipped by its name or path — a side file above, either leftover,
-or a path `MACHINE_LOCAL_PATHS` lists — is not an unadopted file, and the removal check and the persist and release
-steps never refuse over one (`spec-projection-worktrees.md` § 12.2).
+cutover with its implementation. Nothing deletes the first but teardown's user-surface migration, which discards a
+linked worktree's copy as a generated cache (`DISCARDABLE_GENERATED_CACHES`, `lib/user-surface-migration.ts`). Nor are
+editor side files — `*~`, `.#*`, `#*#`, `.*.sw?`, `4913`, and `*.tmp.<pid>.<hex>` from the terminal editors and Claude
+Code (§ Spike 3); VS Code and Zed add none — or the folder files operating systems write — `.DS_Store` and `._*` on
+macOS, `Thumbs.db` and `desktop.ini` on Windows, and KDE's `.directory`. The match runs on the file name before any
+other test, since Emacs's `.#name.md` lock is a dangling symlink ending in `.md`. Nor is a file at a path
+`MACHINE_LOCAL_PATHS` lists (`spec-projection-worktrees.md` § 12.9) — the identity's `.internal/` and each workspace's
+among them — which the projection neither persists nor refreshes (D5): write-back's walk skips those folders (§ 15.1). A
+file skipped by its name or path — a side file above, either leftover, or a path `MACHINE_LOCAL_PATHS` lists — is not an
+unadopted file, and the removal check and the persist and release steps never refuse over one
+(`spec-projection-worktrees.md` § 12.2).
 
 **Symbolic links.** Every read — the walk, change detection, the read gate, the take-in, and write-back — takes each
 entry without following links (§ 15.1), so a symbolic link is never followed, read, or adopted. One at a path the index
@@ -976,15 +1148,17 @@ work unit's artifact names; the fixed forms — a paired spec's halves, `inbound
 `notes`, `errand`, `inbound`, or `cohort`, as the ref backend does; one beginning `cohort-`, which D13 reserves inside
 `current/`; and a path key an earlier form would claim, judged against the slug the folder names, or the checkout
 claim's for its own location, as the ref backend judges a verbatim key against the resolved owner's current slug
-(`spec-storage-ref-backend.md` § 3.2, § 5.1, its A10), so after `alpha` is renamed to `beta` a literal
-`extra-alpha.md` under `beta` is a path key. The `<name>-<slug>.md` form claims neither `spec-prd` nor `spec-rfc`, whose
-files are a paired spec's halves, so no key resolves to a path that inverts to another (Owner, 2026-10-14).
-`resolveArcPath` then resolves every projected path, and `seam-locus`'s classifier inverts it (Owner, 2026-10-13; § 9).
-The checkout's own location carries the effective `layout.active` value and the slug of the work item the checkout
-claims in its address, since `lib/layout/` reads no configuration and no marker (§ 10.3); a path at the checkout's own
-location — under `active/current/`, or at the top of `active/` under `flat` — inverts by that slug and the effective
-`layout.active`, since the path alone holds no slug a hyphenated name could not also claim, and the top of `active/`
-names a record only under `flat`. A record projects only where the schema holds an address for its kind: a
+(`spec-storage-ref-backend.md` § 3.2, § 5.1, its A10), so after `alpha` is renamed to `beta` a literal `extra-alpha.md`
+under `beta` is a path key. The `<name>-<slug>.md` form claims neither `spec-prd` nor `spec-rfc`, whose files are a
+paired spec's halves, so no key resolves to a path that inverts to another (Owner, 2026-10-14). `resolveArcPath` then
+resolves every projected path, and the classifier inverts it (`identifyArcFileAddress`, then `classifyStoreAddress`;
+Owner, 2026-10-13; § 9). Both locations lie under the active placement's project scope (`ActivePlacementSchema`), since
+the store's `active` placement carries no scope; the contributor scope's flat form stays the in-repo implementation's
+alone. The checkout's own location carries the effective `layout.active` value and the slug of the work item the
+checkout claims in its address, since `lib/layout/` reads no configuration and no marker (§ 10.3); a path at the
+checkout's own location — under `active/current/`, or at the top of `active/` under `flat` — inverts by that slug and
+the effective `layout.active`, since the path alone holds no slug a hyphenated name could not also claim, and the top of
+`active/` names a record only under `flat`. A record projects only where the schema holds an address for its kind: a
 projection-defined kind with none projects nothing, the Errand queue among them, which D13 keeps a machine record `arc`
 reads (`personal/errand-queue`, `lib/store/registry.ts`).
 
@@ -998,19 +1172,19 @@ matching `^metadata-[0-9a-f-]{36}\.json$` or a path under one (`isOwnerMetadataN
 that Git refuses, which write-back reports as a refused edit (§ 7.6, § 16.3, § 18). A true alias, which only a folder
 not yet re-laid after a rename can reach, since a known file writes back under its index reference
 (`spec-projection-substrate.md` § 3.1), comes back the same way, carrying the backend's remedy. The in-repo
-implementation refuses `unsupported` `unhomed-kind` every key but a name of lowercase letters alone or a paired spec's
-half, since any other file name fails the matcher `companionPath` applies (`artifactMatcher`,
-`lib/work-unit/mutators/relocate-artifacts.ts`; `lib/store/in-repo/paths.ts`).
+implementation refuses `unsupported` `unhomed-kind` a key naming a registered role, and every key but a name of
+lowercase letters alone or a paired spec's half, since any other file name fails the matcher `companionPath` applies
+(`artifactMatcher`, `lib/work-unit/mutators/relocate-artifacts.ts`; `lib/store/in-repo/paths.ts`).
 
 #### 10.2 Ordering
 
-`active/current/` lands only after `seam-locus` resolves the current work unit from the checkout marker plus the store,
-since today's resolver reads `active/` without recursing, and takes session-init's slot paths and the compaction seed's
-from the layout resolver (D13, Ordering; `spec-seam-locus.md` § 2.1, § 4.9). `seam-locus` has shipped (§ 18), so the
-order holds.
+`active/current/` lands only once the current work unit resolves from the checkout marker plus the store
+(`resolveCurrentWorkUnit`, `lib/store/current-work-unit.ts`), since a resolver reading `active/` without recursing would
+miss it, and takes session-init's slot paths and the compaction seed's from the layout resolver (D13, Ordering;
+`spec-seam-locus.md` § 2.1, § 4.9). `seam-locus` has shipped (§ 18), so the order holds.
 
 **The work-item path.** From the flip, every path a caller reports or keys for a work item resolves from its checkout
-root. `seam-locus` adds the function flat — `workItemArtifactPath(slug, artifact, readPlacement, cohort)`
+root. The function is flat today — `workItemArtifactPath(slug, artifact, readPlacement, cohort)`
 (`lib/store/lifecycle-storage.ts`), resolving through `resolveArcPath`, which `lifecycleArtifactPath` calls — and this
 member adds its checkout root, keeping the name (`seam-locus`, 2026-10-16, re-confirmed 2026-10-18):
 
@@ -1026,45 +1200,52 @@ workItemArtifactPath(checkoutRoot, slug, artifact, readPlacement, cohort): Promi
 - **Why it is async.** Its first resolution for a root reads that checkout's marker (`readWorktreeMarker`,
   `lib/git/worktree-marker.ts`) and effective `layout.active`, and caches both per root in the engine's process state
   beside the capability. The capability comes from the store: the engine's start records that of the store it is given
-  for its root, `createStore` (`lib/store/create.ts`) that of the store it composes, which answers false until the flip,
-  and the engine that of each worktree it refreshes. A root nothing has recorded resolves as
-  the in-repo implementation lays it, the only layout a process holding no off-branch store for that root can be
-  reading, so a script, which runs no root hook, resolves as a command does once it composes its store.
+  for its root; the composition records that of each store `createStore` or `createRefStore` builds (`lazyStore`,
+  `lib/store/create.ts`), `createStore`'s answering false until the flip, while `createReadSourceStore`, a read-only
+  view of another remote, records nothing; and the engine records that of each worktree it refreshes. The engine's
+  record for a root holds over a composition's, whichever comes later in the command, so the engine's start over an
+  off-branch store is never undone by a store composed at another call site. A root nothing has recorded resolves as the
+  in-repo implementation lays it, the only layout a process holding no off-branch store for that root can be reading, so
+  a script, which runs no root hook, resolves as a command does once it composes its store.
 - **The other path functions.** `seam-lifecycle`'s take the root first too and resolve their active arm through it: its
   meta path (`workUnitMetaPath`, `lib/store/lifecycle-write.ts`), which calls `resolveArcPath` directly today; the
   records it places beside the meta (`lifecycleRecordPath`, `lib/store/lifecycle-record-path.ts`), derived from that
   path; and the artifact path activation, graduation, and the lifecycle view take (`lifecycleArtifactPath`). The meta
   path and the artifact path must agree, since reconciliation keys the records it acquires by the first, and with both
   resolved there a verb's report, and every path it keys a record by, names the file the projection lays. The snapshot
-  reader beside them (`snapshotFs`, `lib/store/lifecycle-storage.ts`) keeps the flat active path through the
-  synchronous flat resolver: it builds an in-memory tree for the integration compositions' lifecycle summary, which
-  walks `active/` without recursing (`collectLifecycleMetaFiles`, `lib/work-unit/lifecycle-index.ts`). The cohort
-  document's path (`cohortDocumentPath`, beside `completedCohortPath` in `lib/store/lifecycle-record-path.ts`) takes no
-  checkout root: a cohort document's home is under `backlog/` or `completed/` in every checkout, and the copy
-  `active/current/` holds is a second projected path the projection lays and no caller reports (§ 10.1).
+  reader beside them (`snapshotFs`, `lib/store/lifecycle-storage.ts`) keeps the flat active path through the synchronous
+  flat resolver: the in-memory tree it builds serves the integration compositions' lifecycle summary only over the
+  in-repo implementation, since over an off-branch store the checkpoint and merge compositions read the stored summary
+  instead (`readStoredLifecycleSummary`, `scripts/integration/lifecycle-record.ts`). The cohort document's path
+  (`cohortDocumentPath`, beside `completedCohortPath` in `lib/store/lifecycle-record-path.ts`) takes no checkout root: a
+  cohort document's home is under `backlog/` or `completed/` in every checkout, and the copy `active/current/` holds is
+  a second projected path the projection lays and no caller reports (§ 10.1).
 - **Every caller converts.** `seam-status-roadmap`'s `arc view` resolves each work-item artifact path through the
   function, or a design selector's through `lifecycleRecordPath`, synchronously today (`handlers/view-store.ts`), and
-  from the flip reads a target as projected here when a file exists at the returned path; its design read matches a
-  name through `workUnitArtifactName` (`lib/store/lifecycle-write.ts`) and `companionStoredName`
+  from the flip reads a target as projected here when a file exists at the returned path; its design read matches a name
+  through `workUnitArtifactName` (`lib/store/lifecycle-write.ts`) and `companionStoredName`
   (`lib/store/companion-name.ts`) in `readLifecycleDesign` (`lib/store/lifecycle-design.ts`), so § 10.1's file names
   keep today's slug forms under both `active/` folders. This member lands after it, so it converts those callers with
-  the rest.
+  the rest, and the held-candidates reader, which builds the active meta path itself (`readHeldCandidates`,
+  `lib/active/meta-reader.ts`), resolves through the function too.
 
 **The per-root cache's lifetime** (`seam-locus`, 2026-10-18). Every write of a checkout marker goes through
-`lib/git/worktree-marker.ts` — `writeWorktreeMarker`, `writeWorktreeOwnershipMarker`, `stampWorktreeHusk`, the
-`create`, `replace`, `restore`, and `removeWorktreeMarkerGeneration` family, and `removePrimaryTransientOccupancy` —
-and each notifies a listener the engine's process state registers, which drops that root's entry. Three writes bypass
-the module today and move onto writers it exports: the marker clear after a release in teardown
-(`lib/work-unit/verbs/teardown.ts`) and in the store's teardown (`lib/work-unit/verbs/teardown-store.ts`), each a raw
-file removal, which take an unconditional removal, since the module's removal compares a generation; and a spawn
-rollback's restore of its claim (`restoreSpawnClaim`, `lib/work-unit/spawned-worktree-claim.ts`), a raw exclusive
-`writeFile`, which takes an exclusive create from bytes beside `createWorktreeMarkerGeneration`, which serializes a
-parsed marker. The root hook clears every entry at each command's start, so a process running several commands
-carries none across them, nor a `layout.active` value an in-process configuration write changed. Projection work in a
-worktree — the start, refresh and fan-out, the persist and release steps, materialization — reads that worktree's claim
-fresh under its projection lock, compares it with the index's (§ 10.4), and reseeds the entry, so no file is laid from
-a cached claim. A claim another process changes mid-command reaches this process's path answers only at that read or
-its next command: the lag § 10.4 records for owner notices (§ 17), never a misplaced file.
+`lib/git/worktree-marker.ts` — `writeWorktreeMarker`, `writeWorktreeOwnershipMarker`, `stampWorktreeHusk`, the `create`,
+`replace`, `restore`, and `removeWorktreeMarkerGeneration` family, and `removePrimaryTransientOccupancy` — and each
+notifies a listener the engine's process state registers, which drops that root's entry. Three writes bypass the module
+today and move onto writers it exports: the marker clear after a release in teardown (`lib/work-unit/verbs/teardown.ts`)
+and in the store's teardown (`lib/work-unit/verbs/teardown-store.ts`), each a raw file removal, which take an
+unconditional removal, since the module's removal compares a generation; and a spawn rollback's restore of its claim
+(`restoreSpawnClaim`, `lib/work-unit/spawned-worktree-claim.ts`), a raw exclusive `writeFile`, which takes an exclusive
+create from bytes beside `createWorktreeMarkerGeneration`, which serializes a parsed marker. A worktree move, which
+changes a checkout's root without writing its marker (`git worktree move` in
+`lib/work-unit/mutators/reconcile-work-unit-worktree.ts`), notifies the listener with both roots, so the entry moves to
+the new root and its claim is read fresh. The root hook clears every entry at each command's start, so a process running
+several commands carries none across them, nor a `layout.active` value an in-process configuration write changed.
+Projection work in a worktree — the start, refresh and fan-out, the persist and release steps, materialization — reads
+that worktree's claim fresh under its projection lock, compares it with the index's (§ 10.4), and reseeds the entry, so
+no file is laid from a cached claim. A claim another process changes mid-command reaches this process's path answers
+only at that read or its next command: the lag § 10.4 records for owner notices (§ 17), never a misplaced file.
 
 #### 10.3 The revert key
 
@@ -1080,8 +1261,9 @@ reads a different one reprojects `current/`, as a changed claim does (§ 10.4), 
 
 The setting — `mine` (the default), `cohort`, or `all`, plus named pins — is personal. It lives where personal settings
 live today, `arc.*` keys in `git config --local`: `arc.inflightView`, one value, and `arc.inflightPin`, one entry per
-pinned slug. It moves with the other personal keys when `config-storage-architecture` builds its per-developer tier
-(§ 18).
+pinned slug. It moves with the other personal keys when `config-storage-architecture` builds its per-developer tier (§
+18). An unknown `arc.inflightView` value reads as `mine`, and a pin naming no in-flight work item selects nothing;
+`arc status` names each.
 
 The index records the effective setting, pins included, the identity, and the checkout claim the worktree was projected
 under. A command that reads a different one reprojects what it governs, by the reprojection `projection-worktrees`
@@ -1102,20 +1284,23 @@ to apply an edit from the machine's markers as they stand when it fires (§ 8.2;
 Editor settings are opt-in, never written by default (D13).
 
 - **`arc editor <vscode|zed>`** merges only ARC's keys into the checkout's settings file, keeping its comments and other
-  keys, and `--remove` takes them back out, after Yarn's `yarn dlx @yarnpkg/sdks vscode`. It edits the file through
-  `jsonc-parser`'s `modify` and `applyEdits`, which the CLI already bundles for Markdown lint configuration
-  (`lib/markdown/configuration.ts`); only the root `package.json` declares it today, so the package's own
-  `devDependencies` gain it.
+  keys, and `--remove` takes them back out, after Yarn's `yarn dlx @yarnpkg/sdks vscode`. A missing file is created
+  holding ARC's keys alone, `--remove` changes nothing where the file is missing, and a file that does not parse is
+  refused naming the parse error and left untouched. It edits the file through `jsonc-parser`'s `modify` and
+  `applyEdits`, which the repository's Markdown lint configuration already uses (`lib/markdown/configuration.ts`)
+  outside the CLI's bundle; only the root `package.json` declares it today, so the package's own `devDependencies` gain
+  it and the build bundles it.
     - **VS Code** takes one key in `.vscode/settings.json`, `files.readonlyFromPermissions: true`, so it honors a
       protected file's mode (§ 8.2); the tracked `.ignore` already re-includes the projection for its search and
       quick-open.
     - **Zed** takes a project-level `file_scan_inclusions` in `.zed/settings.json` listing, after Zed's `"..."` entry,
       which keeps its default `.env*` inclusion that an explicit list would otherwise replace, a glob for each projected
-      root built from the pattern that ignores it, so no identity is named: `.arc/active/**`, `.arc/backlog/**`,
-      `.arc/completed/**`, and `.arc/user/*/**`.
+      root built from the pattern that ignores it (`projectedRootPatterns`, `lib/layout/projected-roots.ts`), so no
+      identity is named: `.arc/active/**`, `.arc/backlog/**`, `.arc/completed/**`, and `.arc/user/*/**`.
 - **`arc init` and `arc join`** print the one user-level Zed setting, the same `file_scan_inclusions` list for Zed's
-  user settings, keeping no record: ARC writes nothing per machine, and each verb runs about once per person per clone,
-  so D13's once per machine becomes once per such run (Owner, 2026-10-14).
+  user settings, carried on each verb's result, since the setup both call prints nothing (`runPostInitSetup`,
+  `lib/setup.ts`), and keeping no record: ARC writes nothing per machine, and each verb runs about once per person per
+  clone, so D13's once per machine becomes once per such run (Owner, 2026-10-14).
 - **Nothing else.** Editors in the ripgrep family need nothing. JetBrains IDEs list gitignored files in the project
   tree, highlighted as ignored, and ask to clear a file's read-only status before editing it.
 
@@ -1136,11 +1321,12 @@ the fixer — and reads the files they cover from this member's selection (Owner
 - **The command.** `arc selection` prints one repository-relative path per line, or `{ paths }` under `--json`, after
   its command's start has taken pending edits in, so new files are adopted and the conflict and protected marks are
   current. Its answer is only as current as that take-in, so, as `arc save` does (§ 2.4), it refuses where its start
-  cannot take its lock or loses its lease, naming the holder or the loss and a retry, refuses where the configuration
-  yields no identity, naming the remedy that sets `arc.identity`, and refuses `--skip-projection`. Over the in-repo
-  implementation, which projects nothing and whose start takes no lock and reads no identity, it prints an empty list,
-  refusing only `--skip-projection`, so a check wired before the flip runs clean. Its name is the check mode's,
-  `selection`, which `spec-projected-markdown-checks.md` § 4.1 ties to the command's.
+  cannot take its lock, loses its lease, or finds the worktree's Git directory gone, naming the holder, the loss, or the
+  missing directory and a retry, refuses where the configuration yields no identity, naming the remedy that sets
+  `arc.identity`, and refuses `--skip-projection`. Over the in-repo implementation, which projects nothing and whose
+  start takes no lock and reads no identity, it prints an empty list, refusing only `--skip-projection`, so a check
+  wired before the flip runs clean. Its name is the check mode's, `selection`, which `spec-projected-markdown-checks.md`
+  § 4.1 ties to the command's.
 - **`--changed`** prints the part of the selection this checkout changed since its last `arc save`, in the same form,
   empty before the flip. It reads a changed mark per file in the index (`spec-projection-substrate.md` § 3.1), since
   store provenance names no checkout (`CallerProvenanceSchema`, `lib/store/links.ts`) and state versions carry no order,
@@ -1165,13 +1351,15 @@ the fixer — and reads the files they cover from this member's selection (Owner
   connected, so this member replaces its body (`spec-projected-markdown-checks.md` § 4.6): inside an `arc` command whose
   own start has taken edits in, it reads the index directly; inside one whose start found the store answering the
   capability false, it returns an empty list and runs no subprocess; inside one whose start did not complete — under the
-  skip switch, with no identity, or after a start that could not take its lock or lost its lease (§ 2.2,
-  `spec-projection-worktrees.md` § 2.5) — it returns `unavailable` with the reason `arc selection` would refuse with;
-  and from a script, which runs no `arc` start, it runs `arc selection` through the checkout's own `arc` (`npx arc` in
-  this repository). Its failures map to `unavailable` with the command's or reader's reason, for which the `selection`
-  checks report `couldn't run` (its § 4.4). The unit test pinning the empty body
-  (`__tests__/unit/handlers/check/run.test.ts`) changes with it, while the subprocess CLI tests that run over the
-  in-repo implementation keep their empty selection.
+  skip switch, with no identity, or after a start that could not take its lock, lost its lease, or found the Git
+  directory gone (§ 2.2, `spec-projection-worktrees.md` § 2.5) — it returns `unavailable` with the reason
+  `arc selection` would refuse with; and from a script, which runs no `arc` start, it reads the capability of the store
+  a command builds (`createStore`, `lib/store/create.ts`) without constructing its backend, returns an empty list over
+  the in-repo implementation, as `arc selection` prints there, and otherwise runs `arc selection` through `npx arc`,
+  this repository's `lint:md:fix` being the one script that reads it. Its failures map to `unavailable` with the
+  command's or reader's reason, for which the `selection` checks report `couldn't run` (its § 4.4). The unit test
+  pinning the empty body (`__tests__/unit/handlers/check/run.test.ts`) changes with it, while the subprocess CLI tests
+  that run over the in-repo implementation keep their empty selection, the reader running no subprocess there.
 
 ### 13. Windows
 
@@ -1198,8 +1386,9 @@ check's projection part and the persist and release steps, and whenever a refres
 
 ### 16. Forward amendments to shipped specifications
 
-The storage contract has shipped. Where this design changes what its specification defines, the change is stated here
-and built by this change, except where a subsection names its builder; the specification is not edited.
+The storage contract and `projection-substrate` have shipped. Where this design changes what their specifications
+define, the change is stated here and built by this change, except where a subsection names its builder; neither
+specification is edited.
 
 #### 16.1 The storage contract (`spec-storage-contract.md`)
 
@@ -1250,14 +1439,18 @@ Nine change D13's own wording:
   the file's take-in lands them, or the person deletes it. While either hold stands, the file's record's open conflicts,
   those a landing filed among them, are recorded in its index entry and reported beside the refusal rather than shown in
   the file, where D13 shows a conflict in the file.
-- **A hunk conflict whose markers cannot be placed shows as a notice line** (§ 6.3). D13 shows a hunk conflict as
-  markers around the conflicting lines, and only a whole-record conflict as a notice. Here a hunk conflict whose
-  placement fails its check shows as a notice line in the idiom of D13's whole-record one, naming the conflict record,
-  the incoming side's machine or session and time, where that side reads, and the remedy, `arc save --resolve`; it
-  arises mostly where a checkout renders the record after further writes, routinely on a machine other than the one that
-  filed the clash. A file with no stamp shows such a conflict nowhere in the file, only in status and the refusing
-  verbs: D13's in-file rule keeps the surfaces every session loads from reading one side as settled, and those are
-  stamped Markdown, while a file with no stamp loads into no session.
+- **A conflict whose markers cannot be placed, or would meet another set, shows as a notice line** (§ 6.3). D13 shows an
+  entry conflict as markers around both versions of the entry and a hunk conflict as markers around the conflicting
+  lines, and only a whole-record conflict as a notice. Here a conflict whose placement fails its check — a hunk conflict
+  whose lines or the lines beside them do not match, or an entry conflict whose `_Id:_` the content being written lacks
+  — shows as a notice line in the idiom of D13's whole-record one, naming the conflict record, the incoming side's
+  machine or session and time, where that side reads, and the remedy, `arc save --resolve`; it arises mostly where a
+  checkout renders the record after further writes, routinely on a machine other than the one that filed the clash. A
+  hunk or entry conflict whose placement passes but whose span overlaps a marker set already laid, one found in the
+  checkout or another conflict's, a clash filed twice among them (§ 7.8), shows as a notice line too, since sets that
+  meet cannot parse back. A file with no stamp shows such a conflict nowhere in the file, only in status and the
+  refusing verbs: D13's in-file rule keeps the surfaces every session loads from reading one side as settled, and those
+  are stamped Markdown, while a file with no stamp loads into no session.
 - **The user-level Zed setting prints at each `arc init` and `arc join`** (§ 11.4). D13 prints it once per machine. ARC
   writes nothing per machine, so it keeps no record that the setting was shown, and each verb runs about once per person
   per clone.
@@ -1289,6 +1482,51 @@ keyed by its path below that folder, so a person's own files there persist and p
 D2 and builds the key shape, the stored path, and the codec (§ 18); this change builds the addresses and the
 classifier's inverse (§ 10.1).
 
+#### 16.4 The racy reference (`spec-projection-substrate.md` § 3.3)
+
+Its § 3.3 rewrites the reference after each index write. One index write leaves it as it was: write-back's save of the
+mark that a write-back has been sent since an aside copy's swap (§ 7.1), which writes the index on disk back with only
+that mark changed, publishing no stat (`writeProjectionIndex`, `lib/store/projection/index-file.ts`). Rewriting the
+reference there would put its time past a stat its caller has observed but not yet published, so the caller's own index
+write (`commitProjectionIndex`) would not smudge that stat, and a save made after the observation, within its tick,
+would read clean (its A2).
+
+#### 16.5 The base of a file other than Markdown (`spec-projection-substrate.md` § 3.6, § 3.7, § 5.2)
+
+Its § 3.6 gives a file other than Markdown one stale-save rule, the closer of a kept copy and the version the write
+landed; its § 3.7 takes, while a replacement is in progress, whichever of the two versions the file equals, else the
+closer of them; and its § 5.2 checks a save in such a file's aside copy against the base its name carries. Each picks
+one base where the index holds several, and the fields that hold them — the entry's base, the replacement in progress,
+the last persisted write-back, a copy's name — change on their own schedules (its § 3.3), so no comparison of two of
+them says which a save started from. Closeness cannot either: a person who reloads and deletes what another writer's
+change brought into a landing leaves the file equal to the kept copy, the closer-of rule takes it, and the deletion is
+undone, in an ordinary flow with no stop in it (`notes-projection-write-back.md` § The base of a file other than
+Markdown).
+
+Write-back makes none of these choices. It merges the edit from every version the index holds as a possible base and
+sends it only where all agree; where they differ, it holds the file and draws the clash between it and the store's
+current version (§ 7.1, § 7.7). It takes from `readStamplessFile` its wait, unedited, and pending answers, never its
+closer of two versions, and from `selectPersistedBase` its Markdown arms, never `closerOfCopyAndLanded`. Its unedited
+answers yield to a live record: where the last persisted write-back recorded the base blob id the entry holds — a
+landing whose read-back has not laid it, or one that yielded or was refused — content equal to what was written is the
+person's revert of what was taken in, and, while a replacement in progress replaces that recorded base, so is content
+equal to the version it replaces.
+
+Nothing in the index or the file proves that a buffer reloaded: Zed reloads no file changed on disk and saves over it
+without asking (its § 3.6), so a hold drawn into the file is overwritten unseen, and a person who resolves every drawn
+region in their own favour leaves the same bytes as a buffer that never loaded the drawing. So a hold ends only where a
+later save's candidates agree, or where the person sends the file as the resolution with `arc save --resolve` (§ 6.5,
+§ 7.7); the persisted write-back is replaced at its next landing, as shipped, and nothing else retires it.
+
+#### 16.6 The take-in port's answers (`spec-projection-substrate.md` § 5.1, § 5.6)
+
+Its § 5.1 gives `clashed` to an edit that merged in the checkout and clashed, and its § 5.6 has such an edit stay at its
+path through a removal, holding its clash's markers. Here `clashed` also answers a file other than Markdown whose
+candidates disagree (§ 7.7), and write-back taking an edit in through the port draws nothing, since its caller lays the
+swaps (§ 18): a clash or a hold the replace guard's re-check finds at a path, a removal's among them, stays at its path,
+pending and with no markers, until write-back's own walk next takes it in at its path and draws it, and one found in an
+aside copy goes back to its path or is kept, as its § 5.2 has a clash found there (§ 7.7).
+
 ### 17. Residuals the design accepts
 
 1. **A write through a held handle.** A write through a handle opened before a replacement and landing after the
@@ -1304,8 +1542,8 @@ classifier's inverse (§ 10.1).
 2. **An exact revert during a replacement.** A save to a file other than Markdown that exactly restores the version a
    replacement replaces, made while the index still records that version — during the replacement, after a stop or a
    rebuild's yield until the next command, or while the batch's aside copy waits for another process scope (item 10) —
-   reads as old content and is refreshed (`spec-projection-substrate.md` § 3.7): content alone cannot tell it from what
-   the stop left.
+   reads as old content and is refreshed (`spec-projection-substrate.md` § 3.7), unless the last persisted write-back
+   recorded the base that replacement replaces (§ 16.5): content alone cannot tell it from what the stop left.
 3. **A forced removal.** A removal forced past the lock with `git worktree remove -f -f`, which D17 allows and Git's
    refusal suggests, skips the persist step and loses what item 4 names.
 4. **An anchored checkout removed by another tool.** A checkout claimed with `arc start --here` is not locked, so
@@ -1364,41 +1602,85 @@ classifier's inverse (§ 10.1).
     removal and release refuse until then, unless the path becomes absent with no write-back sent since the swap, where
     the sweep links the copy back. It needs a save timed into the swap's window (§ Spike 1b) and a change to its path
     before the copy's edit is taken in.
+12. **A stale save of a file other than Markdown that nothing records.** A save of a file other than Markdown whose base
+    no field records is taken in against a version a refresh laid since its buffer loaded: a buffer that never reloaded
+    saving with no persisted write-back since its content was laid; a replacement stopped before its link and another
+    planned over it, `plan` recording the entry's base, never laid there, as the version it replaces
+    (`lib/store/projection/swap.ts`); a replacement whose record `finalizeAsideCopy` cleared by the inode a save in
+    place kept (`lib/store/projection/stampless.ts`); or a save that landed in an aside copy whose edit was held,
+    clashed, or refused, the copy put back at its path, which keeps the path's base and drops the one the copy's name
+    carried (`putBack`, `lib/store/projection/aside-copies.ts`). Every candidate is then the wrong base and they agree,
+    so the save is sent, dropping the changes the buffer lacks (`spec-projection-substrate.md` § 3.7); where a persisted
+    write-back's candidates still stand, the same save is held instead (§ 16.5). Carrying the older record forward where
+    the file being moved still equals it would misread a file a person reloaded and returned to that version exactly. It
+    needs a file other than Markdown, another writer's change refreshed in between, and an editor that never reloads or
+    a save timed into a swap's window.
+13. **A resolution in the person's favour needs the command.** A file other than Markdown whose drawn clash the person
+    resolves by keeping their own side leaves the same bytes as a buffer that never loaded the drawing, so it stays held
+    and reported until `arc save --resolve <token>` sends it (§ 7.7); an editor that never reloads, as Zed does
+    (`spec-projection-substrate.md` § 3.6), holds every such save that way. Nothing is lost; the cost is the command.
+    Since the drawing shows every line where the file and the store's current version differ, a person who takes the
+    store's side at every set, as a bulk accept does, drops their own uncontested edits with the rest; each stood in the
+    drawing, so none is dropped unseen. A save can also displace a drawing while its swap lays it — recreating the path,
+    or landing in the copy the swap moved aside, which goes back to the path — or the swap can fail to move the file
+    aside or link the drawing in, leaving the file at its path or in a recorded aside copy (`swapOne`, `linkBack`);
+    either way the mark then stands over a file that never showed the markers, since the swap batch's own index writes
+    record an entry carrying it: the entry it planned where a save displaces the drawing (`yielded`,
+    `lib/store/projection/swap.ts`; `putBack`), and the guard's `replace` entry, on which § 7.7 set it, where the move
+    or link fails; the file is held and reported with its token, as a Zed save over a drawing leaves it.
 
 ### 18. Expected contracts
 
 This design consumes behavior other changes build. The three it depended on — `seam-lifecycle`, `seam-locus`, and
-`storage-ref-backend` — have shipped, as have `seam-decomposition`, `seam-status-roadmap`, and
-`projected-markdown-checks`; the members whose work observes `storage-ref-hardening`'s fixes wait for it (§ 1.1). Each
-other is an expected contract, available when its change lands, and what holds until then is stated with it.
-`projection-substrate` is on base when this member starts, by its `Depends On`, and `projection-worktrees` lands after
-it; their entries come first.
+`storage-ref-backend` — have shipped, as have `projection-substrate`, `seam-decomposition`, `seam-status-roadmap`, and
+`projected-markdown-checks`; the members whose work observes `storage-ref-hardening`'s fixes land after it (§ 1.1),
+building what observes them as its entry states. Each other is an expected contract, available when its change lands,
+and what holds until then is stated with it. `projection-worktrees` lands after this member; the sibling members'
+entries come first.
 
-- **`projection-substrate`** (`spec-projection-substrate.md`, planned; this member depends on it, so it is on base when
-  this member starts): the engine's state and the files it writes, which write-back reads and records into —
+- **`projection-substrate`** (`spec-projection-substrate.md`, shipped): the engine's state and the files it writes,
+  which write-back reads and records into —
     - the index (its § 3.1): per file, the record reference, the stat and file identity, the blob id the projection last
       wrote, the base's blob id and record version, the marker, notice-line, and unshown-conflict fields, the protected,
       changed, pending, withheld, and refused marks, what the last persisted write-back read, a stampless file's
       in-progress record, and each aside copy's record; written by temp-and-rename under the projection lock, in the
       worktree's Git directory;
     - the projection lock (its § 3.2): per worktree, leased, and not reentrant, a command holding one at a time; a start
-      waits its 10 s bound, and a lost lease ends the worktree's operation at its next step;
-    - the racy rule, blob ids in the repository's object format, the record version a write sends as its expected
-      version, and base-stamp recovery with its `history` reads (its § 3.3–§ 3.5); and the content a persisted
-      write-back took in, kept as a copy where the store never held it, from which a stale buffer's save merges (its
-      § 3.6);
+      waits its 10 s bound, a lost lease ends the worktree's operation by throwing at its next step, and a worktree
+      whose Git directory is gone answers as such (`withProjectionLock`, `lib/store/projection/lock.ts`);
+    - the racy rule, which § 16.4 here amends for one index write, blob ids in the repository's object format, the
+      record version a write sends as its expected version, and base-stamp recovery with its `history` reads (its §
+      3.3–§ 3.5); and the content a persisted write-back took in, kept as a copy where the store never held it, from
+      which a stale buffer's save merges (its § 3.6);
     - the one entry-ID matcher, which write-back's ID restore calls (its § 3.6; § 7.1 here);
     - the settle rule (its § 4); and the replace guard, the swap and its second check, the aside folder and its sweep,
       rebuilds, and the removal swap (its § 5), each handing an edit to the take-in port, which this member binds to
       write-back (§ 2.1 here): given the worktree whose file holds the edit, whose rights apply; the path or the aside
-      copy; its index entry; and its base — the stamp, or, for a stampless file, the base blob id the copy's name
-      carries — write-back answers `no-edit`, `taken-in`, `deferred`, `refused`, `unparseable`, `clashed` for an edit
-      that merged in the checkout and clashed (§ 7.7 here), or `pending`, and before each send records beside the path's
-      other aside copies that a write-back has been sent since their swap (its § 5.1, § 5.2);
+      copy; its index entry; and its base — the stamp, or, for a stampless file, the base blob id its take-in carries,
+      the entry's base at its path and the blob a copy's name carries (§ 16.5 here) — write-back answers `no-edit`,
+      `taken-in`, `deferred`, `refused`, `unparseable`, `clashed` for an edit that merged in the checkout and clashed or
+      a file other than Markdown whose candidates disagree, neither of which it draws or marks (a file at its path stays
+      pending until write-back's own walk next takes it in, and an aside copy goes back to its path or is kept; § 7.7,
+      § 16.6 here), or `pending`, and before each send to a path with another aside copy not yet so marked records
+      beside each of them but one it takes in that a write-back has been sent since its swap, saving that mark alone in
+      the index on disk, where that index is usable, under its caller's lock, the racy reference left as it was, so a
+      stop after the write lands leaves it (its § 5.1, § 5.2; § 7.1, § 16.4 here); the take-in otherwise returns the
+      entry it leaves in memory, the mark included, which its caller's own index write keeps, writing no other index and
+      taking no lock, and a `taken-in` answer carries the stat and the file's own blob id it read (`TakeInResult`,
+      `lib/store/projection/take-in-port.ts`);
+    - the replace guard's restage, which lays the record's current version after an edit it took in, and which takes
+      this member's renderer in place of staging the stored content alone (§ 6.3 here);
+    - the sweep's ignore verdict, which the start honors before its writes (`SweepResult`,
+      `lib/store/projection/sweep.ts`; its § 11.2; § 2.2 here);
+    - the read-back's recording, which returns the kept copy it releases (`recordWriteBack`), and the removal of the
+      kept copies it is given (`removeTakenInCopies`, `lib/store/projection/taken-in.ts`), to which the end hands those
+      no entry names (§ 2.2 here), and the second check, fed the command's copies and removals (`runSecondCheck`,
+      `lib/store/projection/second-check.ts`; § 2.2 here);
     - the one configuration read, which returns the identity, the in-flight view setting, and the object format, and the
       no-identity verdict (its § 15.3);
-    - the exclude writer's path list, which the editor settings take (its § 11.1; § 11.4 here), and the test store
-      wrapping the reference backend (§ 1.5 here).
+    - the projected roots' patterns, which the editor settings take (`projectedRootPatterns`,
+      `lib/layout/projected-roots.ts`; § 11.4 here), and the test store wrapping the reference backend to refuse
+      `history` (`createHistoryRefusingStore`; § 1.5 here).
 - **`projection-worktrees`** (`spec-projection-worktrees.md`, planned; it depends on this member):
     - fills the start's refresh, the fan-out, and materialization, which stay slots here, inert until it lands: the
       refresh brings a worktree up from its index's state version through `changes`, the fan-out refreshes every
@@ -1409,9 +1691,9 @@ it; their entries come first.
       sent, and its remedy is to copy out what is wanted and delete it, which releases it (its § 2.5);
     - builds the removal slots, which keep their passing defaults until it lands (`passingProjectionRemovalSlots`,
       `lib/git/worktree-removal.ts`), so the removal function runs its Git part alone: the removal check reads
-      adoption's verdict without minting (§ 9 here), and the persist and release steps run write-back's read path over
-      every projected root, `completed/` included, pulling and retrying once a refusal naming a missing history ref
-      (§ 7, § 8.4 here; its § 12.2, § 12.3);
+      adoption's verdict without minting (§ 9 here), and the persist and release steps run write-back whole over every
+      projected root, `completed/` included, pulling and retrying once a refusal naming a missing history ref (§ 7,
+      § 8.4 here; its § 12.2, § 12.3);
     - reprojects what a changed `layout.active` value, view setting, identity, or checkout claim governs, against the
       values the index records (§ 10.3, § 10.4 here; its § 10.3, § 10.4), so until it lands nothing reprojects;
     - sets the changed mark a verb's write leaves through its fan-out, carries it with its record when a refresh moves
@@ -1430,9 +1712,9 @@ it; their entries come first.
     - the paused-work slot's action and the materialize offer (§ 4.4, § 4.5);
     - the flat work-item path, `workItemArtifactPath` (`lib/store/lifecycle-storage.ts`), which `lifecycleArtifactPath`
       calls and to which this member adds the checkout root (§ 10.2 here);
-    - the entry grammar the inboxes, a work unit's inbound list, an Errand's description, and the Errand queue share,
-      each kind's parser admitting its fields (§ 6.1, § 6.3), which write-back's entry merge and ID restore read (§ 7.1
-      here);
+    - the entry grammar the inboxes, a work unit's inbound list, and an Errand's description share with the Errand
+      queue, which projects no file, each kind's parser admitting its fields (§ 6.1, § 6.3), which write-back's entry
+      merge and ID restore read (`ENTRY_CONFIGS`, `lib/store/kinds/entry-configs.ts`; § 7.1 here);
     - the store `preparePersonalIdentitySetup` opens for `runPostInitSetup`, bound to the identity being set up (§
       10.2), which it returns only where state is off-branch and returns null otherwise, so `arc init` and `arc join`
       read the capability from a prepared setup before printing the Zed setting (§ 11.4 here).
@@ -1440,9 +1722,10 @@ it; their entries come first.
   widened — `observations`, `before` answering `history`, a verb writer's optional `lifecycleAction`, and optional
   `proposedCreatedOwners` (`WriteCheckInput`, `lib/store/write-check.ts`; § 7.2 here) — the writer derivation and
   `HAND_EDIT_VERBS` (§ 3.2), and the production registration set (§ 2.2), which composes ARC's link rules into every
-  projected kind with a ref family but the Errand queue (`composeLinkChecks`, `lib/store/kinds/registrations.ts`;
-  § 7.6 here). The seam's members fill each kind's parser and write check as they reroute its family; until a kind has
-  its own rules, its files persist checked for links alone, as D5 lets a contract `write` land.
+  kind with a ref family that projects a file (`RECORD_LINK_KINDS` and `composeLinkChecks`,
+  `lib/store/kinds/in-repo-registrations.ts`; § 7.6 here). The seam's members fill each kind's parser and write check as
+  they reroute its family; until a kind has its own rules, its files persist checked for links alone, as D5 lets a
+  contract `write` land.
 - **The ref backend** (`spec-storage-ref-backend.md`, shipped):
     - a companion keyed by a managed path — `work-item/companion` keyed `path` in `KIND_SHAPES` (`lib/store/catalog.ts`)
       — a key `SlugSchema` admits stored as `<key>-<slug>.md`, a paired spec's halves as `spec-<slug>-prd.md` and
@@ -1470,11 +1753,10 @@ it; their entries come first.
     - `checkSerializationRules`, exported from `lib/store/` (§ 5.6), which the removal check's projection part calls;
     - a write to a completed item refusing `state-unresolvable` where this clone lacks the item's history ref, and
       `pull({ history })` fetching that ref by name (§ 7.3, § 4.5), which `arc save` and the persist and release steps
-      run and retry once through the shared history-retry helper (`pullHistoryForRetry`,
-      `lib/store/pull-consumption.ts`) where the refusal names a history ref, as `runStoreRename` does
-      (`lib/work-unit/verbs/rename-store.ts`; § 8.4 here); a write refusing `state-unresolvable` with no history ref —
-      an unreadable captured object, or an anchor naming a state version this clone cannot resolve — takes no pull (§
-      7.8 here);
+      run and retry once through the store's history retry (`retryEndedItemHistory`, `lib/store/history-retry.ts`,
+      over `pullHistoryForRetry`, `lib/store/pull-consumption.ts`) where the refusal names a history ref (§ 8.4 here);
+      a write refusing `state-unresolvable` with no history ref — an unreadable captured object, or an anchor naming a
+      state version this clone cannot resolve — takes no pull (§ 7.8 here);
     - history entries that may carry a `creationReceipt` (`HistoryEntrySchema`; A23) and history refs naming their owner
       by the lowercase UID stored names carry (`HistoryRefSchema`; A41, A43), which the test store wrapping the
       reference backend returns in those shapes (§ 1.5 here);
@@ -1490,7 +1772,7 @@ it; their entries come first.
   (Owner, 2026-10-16), so `STATUS.USER.md` and a pre-cutover `ROADMAP.md` are leftovers adoption skips (§ 9 here).
   Conflict records never project as files (`projection: "never"`, `lib/store/registry.ts`).
 - **`seam-decomposition`** (`spec-seam-decomposition.md`, shipped): the retiring verbs' removal decisions through
-  `checkRetiringCheckout`, its own retirement among them (`lib/decompose/retirement-checkout.ts`;
+  `checkRetiringCheckout`, its own retirement among them (`lib/git/worktree-removal.ts`;
   `spec-projection-substrate.md` § 12.5), and the source-conflict refusal's one remedy,
   `DECOMPOSE_SOURCE_CONFLICT_REMEDY` (`lib/decompose/source-conflicts.ts`), which names `arc save --resolve <token>`
   once `save` registers `--resolve`, held by its integration test (its § 18; § 6.5 here).
@@ -1498,16 +1780,23 @@ it; their entries come first.
   check mode and its one reader, `readProjectedSelection` (`lib/checks/projected-selection.ts`), which returns an empty
   list until this member connects it (its § 4.6; § 11.7 here), and `lint:md:fix` over Git's Markdown list plus the
   selection (`src/scripts/fix-markdown.ts`), which this member leaves as it is.
-- **`storage-ref-hardening`** (planned; the second member depends on it, § 1.1): the listing scope, the fault classes
-  and remedies for missing or misplaced objects, and the sweep of the pull results' consumers, which write-back, the
+- **`storage-ref-hardening`** (active; the second member depends on it, § 1.1): the listing scope, the fault classes and
+  remedies for missing or misplaced objects, and the sweep of the pull results' consumers, which write-back, the
   refresh, the fan-out, and the persist and release steps observe (§ 7.8, § 8.4 here, `spec-projection-worktrees.md`
-  § 15.2, § 15.5). It is expected to keep two fault classes, recoverable `state-unresolvable` and terminal
-  `namespace-corrupt`, and to add no refusal code or result field, while it may move a site from one class to the other
-  and change which refusals name a history ref. Since § 7.8, § 8.4, `spec-projection-worktrees.md` § 12.2, and § 15.2
-  key their handling on the code and on whether a refusal names a history ref, each member re-grounds those of them it
-  carries against it as shipped, at its activation once `storage-ref-hardening` has shipped. A listing-diagnostic kind
-  it adds is one more diagnostic `spec-projection-worktrees.md` § 15.2's listing rule reports, projecting no file. The
-  history-retry helper § 8.4 names is the one it leaves.
+  § 15.2, § 15.5). As built on its branch, it keeps two fault classes: a missing object is recoverable
+  `state-unresolvable`, naming a history ref only where this clone holds no live ref for the item (`missingHistoryRefs`,
+  `lib/store/ref/missing-history.ts`), and unparseable stored data or a misplaced folder is terminal
+  `namespace-corrupt`. It adds no refusal code or result field and no listing-diagnostic kind, a misplaced folder
+  listing as a `malformed` diagnostic under the rule `placement`, and the history retry § 8.4 names keeps its shape, its
+  pull's result now consumed so an unanswered store designation declines the retry (`pullHistoryForRetry`). Its one
+  added record kind, a review machine record, projects no file. § 7.8, § 8.4, `spec-projection-worktrees.md` § 12.2, and
+  § 15.2 key their handling on the code and on whether a refusal names a history ref (`historyRefs`), both of which
+  `StoreRefusalSchema` (`lib/store/refusal.ts`) carries already and its branch leaves unchanged, and are grounded
+  against its branch. A member builds before it lands its handling of a `history` read's refusal, over the test stores
+  that return each refusal (§ 1.5), and of the `record-malformed` a serialization rule returns and the `unsupported` an
+  unhomed kind returns, whose codes it leaves unchanged. It builds its handling of a write's other refusals (§ 7.8) and
+  of the pull and retry for archived work (§ 8.4) once it lands, after confirming these surfaces against it as shipped
+  by a diff, which confirms the `history` read's handling too.
 - **`storage-cutover`:** the flip and its first full materialization; a quiesce that locks every work-item worktree
   still unlocked (`spec-projection-substrate.md` § 12.7); projected roots that hold, from the flip, no tracked file and
   no file ARC installs — the shared roots' files untracked once their records are imported, and the installer writing
@@ -1577,7 +1866,7 @@ _These considerations cover the design the three members build together; § 1.1 
   (`spec-projection-worktrees.md` § 15.3, § 15.4).
 - **Testing.** Unit and integration tests over the reference backend with real repositories and worktrees, on Linux and
   in the portability lane, the rebuild and a pull's fan-out among them (`spec-projection-worktrees.md` § 1.5), and the
-  refusals the reference backend cannot return, the history pull among them, through a test store wrapping it (§ 1.5);
+  refusals the reference backend cannot return, the history pull among them, through test stores wrapping it (§ 1.5);
   the isolation test (`spec-projection-worktrees.md` § 10.5); the `after` view's conformance case (§ 7.3); the
   multi-process lane over the ref backend (`spec-projection-worktrees.md` § 1.5); and the live verification of the lock
   before the flip (`spec-projection-substrate.md` § 1.5). Every typed refusal here — the guard's, a refused edit, the
@@ -1601,23 +1890,25 @@ _These considerations cover the design the three members build together; § 1.1 
 1. **A hand edit reaches the store.** Over the reference backend, with real repositories and worktrees on disk, on
    Linux and in the portability lane, a hand edit — saved in place, by renaming a new file over it, or by an agent's
    write — reaches the store at the next `arc` command, but for the residuals § 17 names.
-2. **Conflicts show in the file and persist once resolved.** A clash with a stored base lands as a conflict record,
-   and the writing checkout's read-back draws it in: markers where placement's check passes — at the escalated
-   length with the resolve-by-hand line where the file holds a marker-like line — a notice line where it fails or the
-   conflict is whole-record, and, in a file with no stamp, status and the refusing verbs alone; a file the replace guard
-   holds whole, for a malformed set or a resolution in progress, shows them in write-back's report and status until it
-   is released, then draws them. A hand resolution of markers persists naming the conflict, `arc save --resolve`
-   resolves a conflict shown without markers, keeping the store's side included, and refuses while its file is held,
-   untouched markers keep a conflict open, and malformed markers refuse that entry, or the file for prose. A clash with
-   no stored base stays in its file as markers and persists as an ordinary edit once resolved.
+2. **Conflicts show in the file and persist once resolved.** A clash with a stored base lands as a conflict record, and
+   the writing checkout's read-back draws it in: markers where placement's check passes and no set the file already
+   shows overlaps its span — at the escalated length with the resolve-by-hand line where the file holds a marker-like
+   line — a notice line where the check fails, where such a set overlaps it, or where the conflict is whole-record, and,
+   in a file with no stamp, status and the refusing verbs alone; a file the replace guard holds whole, for a malformed
+   set or a resolution in progress, shows them in write-back's report and status until it is released, then draws them.
+   A hand resolution of markers persists naming the conflict, `arc save --resolve` resolves a conflict shown without
+   markers, keeping the store's side included, and refuses while its file is held, untouched markers keep a conflict
+   open, and malformed markers refuse that entry, or the file for prose. A clash with no stored base stays in its file
+   as markers and persists as an ordinary edit once resolved.
 3. **Write-back checks every edit.** Write-back and `arc save` send each edit through its kind's parser against its
    base's record version, under `write-back` or `save`, and the store's merge and write check decide it; a change to a
    verb-owned field is refused and stays in its file; one refused edit blocks no other; each store refusal is handled as
    § 7.8 states; and the `after` view's conformance case passes over each backend that runs checks.
 4. **Nothing an edit could lose is dropped silently.** An edit to a protected or archived file another person owns, an
    unadopted file, a file that fails to parse, a refused edit, a file held by a conflict, a clash found in the checkout
-   included, and a file not yet settled each stay in their file and are reported, as an aside copy kept because its path
-   moved on stays in the aside folder, reported with its path.
+   included, a file other than Markdown whose candidate bases disagree, drawn into once and held until they agree or
+   `arc save --resolve` sends it, and a file not yet settled each stay in their file and are reported, as an aside copy
+   kept because its path moved on stays in the aside folder, reported with its path.
 5. **The paths hold.** Every projected path resolves through `resolveArcPath` and back through the classifier, under
    `layout.active: flat` as under `nested`; and every work-item path a caller reports, resolved from its checkout root,
    names the path § 10.1 lays its file at.
