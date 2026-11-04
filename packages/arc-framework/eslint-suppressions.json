@@ -1642,11 +1642,6 @@
       "count": 1
     }
   },
-  "src/lib/store/kinds/meta/reference-rules.ts": {
-    "sonarjs/cognitive-complexity": {
-      "count": 1
-    }
-  },
   "src/lib/store/kinds/work-item/slug-edges.ts": {
     "sonarjs/cognitive-complexity": {
       "count": 1

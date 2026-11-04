@@ -90,28 +90,14 @@ former slug naming the current one and admit a completed meta's rewrite onto a c
 - _Outcome:_ Standing status warnings preserve each holder's UID, owner, and location and name both rename commands;
   Start readiness carries the same repair when a former-name target resolves to a clashed current name.
 
-### `[ ]` **1.6 Admit a cohort path segment only by its current slug — § 6.1**
+### `[x]` **1.6 Admit a cohort path segment only by its current slug — § 6.1**
 
 - _Goal:_ `meta.cohort` and `cohort.parent` refuse a path segment that resolves through a cohort's former slug, naming
   the current one, so no text-matching membership reader misses a member edited back onto an old name.
 
-    - `checkMetaCohort` (`kinds/meta/reference-rules.ts`) resolves every segment — the leaf, a one-segment path, and
-      the first segment of a two-segment path — and refuses one whose read document's current name differs, naming it;
-      the first segment's text comparison with the leaf's `Parent` passes when a pull left that `Parent` on the former
-      slug.
-    - A first segment the view holds no document for keeps today's text comparison with the leaf's `Parent` alone, as
-      the `parent/child` case in `reference-rules.test.ts` admits with only the leaf in view; an unavailable read
-      refuses as the leaf's does.
-    - `parentProblem` (`kinds/cohort/rules.ts`) refuses a `Parent` naming its parent by a former slug the same way.
-
-    - Build `test-first` (one behavior at a time):
-        - over both backends, after a cohort's rename, a `Cohort` naming its old slug as a one-segment path or as the leaf
-          refuses `meta.cohort`, naming the current slug
-        - with a subcohort whose `Parent` still names its renamed parent's former slug, a member edit to
-          `<former>/<leaf>` refuses, naming the parent's current slug
-        - a `Parent` naming a renamed parent's old slug refuses `cohort.parent`, naming the current slug
-        - a path naming the current slugs lands, and a two-segment path whose first segment has no document in view lands
-          as today
+- _Outcome:_ Cohort membership checks resolve both path segments and reject former names with the current slug;
+  Parent writes apply the same rule. Absent first-segment documents retain the prior comparison, while unavailable
+  observations refuse the write. Flattened the path check to keep the canonical-name and Parent checks separate.
 
 ### `[ ]` **1.7 Let a completed meta, and an open meta re-pointing its holding, name a completed cohort — § 6.2**
 

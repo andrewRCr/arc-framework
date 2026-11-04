@@ -7,7 +7,7 @@ import { SlugSchema } from "../../../kernel/index.js";
 import type { Remedy } from "../../refusal.js";
 import { brokenRule, observeRecord, observeNamedRecord } from "../rule-support.js";
 import { metaFieldChanged, metaFieldVersions } from "./check-support.js";
-import type { BrokenRule, WriteCheckInput } from "../../write-check.js";
+import type { BrokenRule, WriteCheckInput, StoreView } from "../../write-check.js";
 /** Check newly introduced dependency edges.
  * @param input - Proposed metadata write.
  * @returns Violations of dependency resolution.
@@ -68,24 +68,34 @@ export async function checkMetaDesignEntry(input: WriteCheckInput): Promise<read
  * @returns Violations of full-path cohort membership.
  */
 export async function checkMetaCohort(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
-  const versions = metaFieldVersions(input);
-  const { next } = versions;
+  const versions = metaFieldVersions(input), { next } = versions;
   if (next === undefined || !metaFieldChanged(versions, "cohort") || next.cohort === null) return [];
   const path = next.cohort, parts = path.split("/");
-  let problem: string | undefined;
-  if (parts.length > 2 || !parts.every((part) => SlugSchema.safeParse(part).success)) problem = "expected one or two cohort slugs";
-  else {
-    const reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: parts.at(-1) }));
-    const record = await observeNamedRecord(input.after, reference);
-    if (record.status === "ambiguous") return [{ rule: "meta.cohort", condition: `${path}: ${record.condition}.`, remedy: record.remedy }];
-    if (record.status !== "known") problem = record.status === "unavailable" ? record.condition : "cohort document is absent";
-    else if (record.value.placement?.kind === "completed") problem = "cohort is completed";
-    else {
-      const fields = parseCohortDocument(record.value.content);
-      if (!fields.success) problem = fields.error;
-      else if (fields.data.parent !== (parts.length === 2 ? parts[0] : null)) problem = "path disagrees with the cohort's Parent";
-    }
+  const fail = (condition: string, remedy?: Remedy): readonly BrokenRule[] => [{ rule: "meta.cohort", condition: `${path}: ${condition}.`,
+    remedy: remedy ?? { text: "Name an open cohort at its full parent/child path, repair its Parent, or clear Cohort and retry." } }];
+  if (parts.length > 2 || !parts.every(part => SlugSchema.safeParse(part).success)) return fail("expected one or two cohort slugs");
+  const leaf = parts.at(-1);
+  const reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: leaf }));
+  const record = await observeNamedRecord(input.after, reference);
+  if (record.status === "ambiguous") return fail(record.condition, record.remedy);
+  if (record.status !== "known") return fail(record.status === "unavailable" ? record.condition : "cohort document is absent");
+  if (record.value.reference.owner.name !== leaf) return fail(`cohort '${leaf}' is now named '${record.value.reference.owner.name}'`);
+  if (record.value.placement?.kind === "completed") return fail("cohort is completed");
+  const fields = parseCohortDocument(record.value.content);
+  if (!fields.success) return fail(fields.error);
+  const problem = await cohortPathParentProblem(input.after, parts, fields.data.parent);
+  return problem === undefined ? [] : fail(problem.condition, problem.remedy);
+}
+
+async function cohortPathParentProblem(view: StoreView, parts: readonly string[], parent: string | null): Promise<{ condition: string; remedy?: Remedy } | undefined> {
+  const name = parts.length === 2 ? parts[0] : undefined;
+  const mismatch = { condition: "path disagrees with the cohort's Parent" };
+  if (name === undefined) return parent === null ? undefined : mismatch;
+  const record = await observeNamedRecord(view, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name })));
+  if (record.status === "ambiguous") return { condition: record.condition, remedy: record.remedy };
+  if (record.status === "unavailable") return { condition: record.condition };
+  if (record.status === "known" && record.value.reference.owner.name !== name) {
+    return { condition: `cohort '${name}' is now named '${record.value.reference.owner.name}'` };
   }
-  return problem === undefined ? [] : [brokenRule("meta.cohort", `${path}: ${problem}.`,
-    "Name an open cohort at its full parent/child path, repair its Parent, or clear Cohort and retry.")];
+  return parent === name ? undefined : mismatch;
 }

@@ -79,6 +79,7 @@ async function parentProblem(view: StoreView, name: string): Promise<{ condition
   const parent = await observeNamedRecord(view, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name })));
   if (parent.status === "ambiguous") return { condition: parent.condition, remedy: parent.remedy };
   if (parent.status !== "known") return { condition: parent.status === "unavailable" ? parent.condition : "The named parent cohort is absent." };
+  if (parent.value.reference.owner.name !== name) return { condition: `The parent cohort '${name}' is now named '${parent.value.reference.owner.name}'.` };
   if (parent.value.placement?.kind === "completed") return { condition: "The named parent cohort is completed." };
   const parsed = parseCohortDocument(parent.value.content);
   return !parsed.success ? { condition: parsed.error } : parsed.data.parent !== null

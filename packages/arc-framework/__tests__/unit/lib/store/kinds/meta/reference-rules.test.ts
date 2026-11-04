@@ -157,3 +157,14 @@ it("refuses a new unresolved pause waits-on slug", async () => {
   const next = content.replace("---\n", "## Pause\n\n- **Paused By:** `andrew`\n- **Since:** `2026-10-13T12:00:00Z`\n- **Reason:** Waiting.\n- **Waits On:** `missing`\n\n---\n");
   expect(await checkMetaDependsOn(metaRuleInput(next))).toMatchObject([{ rule: "meta.depends-on" }]);
 });
+
+it("refuses unavailable evidence for the first segment of a cohort path", async () => {
+  const input = metaRuleInput(cohort("parent/child"));
+  const view = ruleView([cohortDocument("parent/child")]), read = view.read;
+  view.read = async request => request.reference.owner.name === "parent"
+    ? { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "cohort",
+      condition: "Parent evidence is unavailable", remedy: { text: "Repair parent evidence" } } }
+    : read(request);
+  input.after = view;
+  expect(await checkMetaCohort(input)).toMatchObject([{ rule: "meta.cohort", condition: expect.stringContaining("Parent evidence is unavailable") }]);
+});
