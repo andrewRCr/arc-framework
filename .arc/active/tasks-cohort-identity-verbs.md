@@ -116,49 +116,27 @@ former slug naming the current one and admit a completed meta's rewrite onto a c
 - _Outcome:_ Exported exact heading and Parent writers through the cohort kind; both retain all unrelated bytes and
   line endings. Parent writes return null when the document has no Parent field.
 
-### `[ ]` **1.9 Register the cohort verbs and the UID operand forms, keeping every pre-flip arm as today — § 1.1, § 10**
+### `[x]` **1.9 Register the cohort verbs and the UID operand forms, keeping every pre-flip arm as today — § 1.1, § 10**
 
 - _Goal:_ The new commands and operand forms exist, and before the flip every verb behaves as today but for one refusal
   order: `arc cohort close` and `arc cohort remove` refuse `unsupported` naming what serves, and every operand is a slug.
 
-    - `[ ]` **1.9.a The `arc cohort` group**
+    - `[x]` **1.9.a The `arc cohort` group**
 
-        - `arc cohort close <cohort>` and `arc cohort remove <cohort>` in `cli.ts`, each with `--yes` and `--json`,
-          handled in a new `handlers/cohort.ts` that Tasks 3.4 and 3.5 extend; the `DormantStoreCommand` union
-          (`commands/store-command-support.ts`) gains `cohort close` and `cohort remove`, whose serving path names edits
-          to the tracked cohort files and archive's sidecar sweep.
-        - Each command's input schema registration and policy declarations follow `handlers/store-command-input.ts`,
-          `--yes` a protected confirmation as abandon's is (`handlers/lifecycle.ts`) and `--json` routed through the
-          interaction adapter, as `repository-inventory.test.ts` reconciles; each takes a `NO_INPUT_MATRIX` entry
-          (`__tests__/fixtures/command-input/no-input-matrix.ts`) with the totals in `no-input-invocations.test.ts`; the
-          command-surface documentation (`command-surface-documentation.test.ts`) takes whatever entries it requires;
-          and the dormant-command table in `store-command-registration.test.ts` gains both.
+        - Registered close/remove with distinct schemas, protected `--yes`, machine-readable output, input policies,
+          and no-input coverage. Completed the lazy-loading and help inventories; both dormant arms name tracked
+          cohort file edits and archive's sidecar sweep.
 
-    - `[ ]` **1.9.b The operand schemas**
+    - `[x]` **1.9.b The operand schemas**
 
-        - `RenameCommandInputSchema` (`handlers/lifecycle.ts`) and `ErrandCloseInputSchema` and
-          `ErrandAbandonInputSchema` (`handlers/errand.ts`) admit a `z.uuid()` subject operand, upper case included,
-          beside a slug; rename's `newSlug` stays `SlugSchema`. Help text states the UID form, and the literal
-          `arc errand close <slug>` usage `locus-methodology-contracts.test.ts` pins follows any usage change.
+        - Rename and Errand close/abandon accept slug or full UUID subjects, including upper case; rename's destination
+          remains slug-only. Help describes UID selection while existing operand labels remain stable.
 
-    - `[ ]` **1.9.c The in-repo arms parse a slug once the store is open**
+    - `[x]` **1.9.c The in-repo arms parse a slug once the store is open**
 
-        - Where `usesOffBranchState` is false, `handleRename`, `handleErrandClose`, and `handleErrandAbandon` parse each
-          operand with `SlugSchema` after the store opens — for rename, after its stdin Git check, which already follows
-          the open — and refuse one it rejects through today's input refusal: `parseLifecycleCommand`'s for rename,
-          `locus.errand-close.input` and `locus.errand-abandon.input` for the Errand verbs; then the in-repo arm runs
-          unchanged.
-        - From the flip, until Tasks 2.3 and 4.1 land, a UID operand still reaches `SlugSchema.parse` in the store arms;
-          no task in this phase sends one over the ref backend.
-
-    - Build `test-first` (one behavior at a time):
-        - before the flip, `arc cohort close` and `arc cohort remove` refuse `unsupported`, naming the serving path, in
-          text and `--json`
-        - before the flip, a lower-case UUID operand on `arc rename`, `arc errand close`, and `arc errand abandon` is
-          taken as a slug, and an upper-case one refuses through today's input refusal
-        - an operand that is a UUID but not a slug meeting an earlier refusal (the project root, configuration) shows
-          that refusal first
-        - the in-repo arms' existing tests pass unchanged
+        - In-repo subjects retain slug validation after store opening and existing stdin admission, through the same
+          input refusal paths. Earlier project-root refusals precede UUID rejection; lower-case UUIDs remain slugs.
+          Shared the Errand terminal store boundary without growing the existing handlers.
 
 ## **Phase 2:** Selecting a subject by UID, and the Errand exits
 

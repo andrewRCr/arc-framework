@@ -459,11 +459,35 @@ program
 
 program
   .command("rename <slug> <new-slug>")
-  .description("Rename a work unit and its branch, workspace, remote, marker, and worktree identities")
+  .description("Rename a work unit selected by slug or UID and its branch, workspace, remote, marker, and worktree identities")
   .action(withInteractionContext(
     {},
     async (context, slug: string, newSlug: string) => {
       await (await import("./handlers/lifecycle.js")).handleRename(slug, newSlug, context);
+    },
+  ));
+
+const cohort = program.command("cohort").description("Manage cohorts selected by slug or UID");
+cohort
+  .command("close <cohort>")
+  .description("Close a cohort selected by slug or UID")
+  .option("--yes", "Confirm closing the cohort")
+  .option("--json", "Emit one machine-readable result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, subject: string, opts: { yes?: boolean; json?: boolean }) => {
+      await (await import("./handlers/cohort.js")).handleCohortClose(subject, opts, context);
+    },
+  ));
+cohort
+  .command("remove <cohort>")
+  .description("Remove an empty cohort selected by slug or UID")
+  .option("--yes", "Confirm removing the cohort")
+  .option("--json", "Emit one machine-readable result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, subject: string, opts: { yes?: boolean; json?: boolean }) => {
+      await (await import("./handlers/cohort.js")).handleCohortRemove(subject, opts, context);
     },
   ));
 
@@ -906,7 +930,7 @@ errand
 
 errand
   .command("close <slug>")
-  .description("Complete an Errand, release its exact occupancy, and drop its originating inbox capture")
+  .description("Complete an Errand selected by slug or UID, release its exact occupancy, and drop its originating inbox capture")
   .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
@@ -918,7 +942,7 @@ errand
 
 errand
   .command("abandon <slug>")
-  .description("Abandon a safely preserved Errand and retain its inbox capture")
+  .description("Abandon a safely preserved Errand selected by slug or UID and retain its inbox capture")
   .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(

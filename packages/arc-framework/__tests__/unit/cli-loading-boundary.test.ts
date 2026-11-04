@@ -30,6 +30,7 @@ const expectedImplementationModules = [
   "./handlers/candidate.js",
   "./handlers/installation.js",
   "./handlers/lifecycle.js",
+  "./handlers/cohort.js",
   "./handlers/decompose.js",
   "./handlers/lifecycle-delivery-review.js",
   "./handlers/user.js",
