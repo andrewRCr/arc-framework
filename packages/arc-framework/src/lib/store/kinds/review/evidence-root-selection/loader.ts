@@ -80,7 +80,8 @@ function validateSelectorInventory(owner: OwnerIdentity, records: readonly Store
     if (reference.key !== reviewEvidenceRootSelectionKey(owner, value.producerId) || producers.has(value.producerId)) {
       throw new StoreRefusalError({ code: "record-malformed", class: "recoverable", reference,
         rule: "review.evidence-root-selection.key", condition: "The selector inventory contains a noncanonical key or a repeated producer.",
-        remedy: { text: `Restore the exact selector content and its immutable producer binding at ${JSON.stringify(reference)} before previewing root selection. ${reviewRootSelectionPreviewRemedy(owner, value.producerId)}` } }, true);
+        remedy: { text: "Restore the exact stored selector inventory from known-valid state, including canonical keys and immutable producer bindings. "
+          + `The malformed entry is ${JSON.stringify(reference)}; preserve every other review record. ${reviewRootSelectionPreviewRemedy(owner, value.producerId)}` } }, true);
     }
     producers.add(value.producerId);
   }
