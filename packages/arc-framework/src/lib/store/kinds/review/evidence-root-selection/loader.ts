@@ -61,14 +61,28 @@ async function readSelectorSnapshot(store: Store, owner: OwnerIdentity, asOf: St
       if (value?.success) throw new StoreRefusalError({ ...listing.refusal,
         remedy: { text: reviewRootSelectionPreviewRemedy(owner, value.data.producerId) } }, true);
     }
-    return completeSnapshot({ listing, diagnostics: result.status === "ok" && result.result.status === "complete" ? result.result.diagnostics : [],
+    const snapshot = completeSnapshot({ listing, diagnostics: result.status === "ok" && result.result.status === "complete" ? result.result.diagnostics : [],
       ...(result.status === "ok" && result.result.status !== "unreadable"
       && result.result.asOf !== undefined ? { asOf: result.result.asOf } : {}) }, owner);
+    validateSelectorInventory(owner, snapshot.records);
+    return snapshot;
   } catch (error) {
     if (!(error instanceof StoreRefusalError) || error.refusal.code !== "record-malformed"
       || error.refusal.rule !== "review.record-schema") throw error;
     throw new StoreRefusalError({ ...error.refusal, remedy: { text:
       `Restore the exact selector content at ${JSON.stringify(error.refusal.reference)} before previewing root selection.` } }, true);
+  }
+}
+
+function validateSelectorInventory(owner: OwnerIdentity, records: readonly StoredReviewFact<ReviewEvidenceRootSelection>[]): void {
+  const producers = new Set<string>();
+  for (const { reference, value } of records) {
+    if (reference.key !== reviewEvidenceRootSelectionKey(owner, value.producerId) || producers.has(value.producerId)) {
+      throw new StoreRefusalError({ code: "record-malformed", class: "recoverable", reference,
+        rule: "review.evidence-root-selection.key", condition: "The selector inventory contains a noncanonical key or a repeated producer.",
+        remedy: { text: `Restore the exact selector content and its immutable producer binding at ${JSON.stringify(reference)} before previewing root selection. ${reviewRootSelectionPreviewRemedy(owner, value.producerId)}` } }, true);
+    }
+    producers.add(value.producerId);
   }
 }
 

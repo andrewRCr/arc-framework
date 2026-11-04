@@ -889,6 +889,8 @@ before its fix and passes after it in the store suites.
         - One loader validates complete branches at the original manifest. Native response snapshots route operation,
           settlement/pass, hosted-result and approval authority through selected facts, retaining immutable-only access,
           orphan detection, missing-producer behavior and original refusal attribution.
+          Criteria-review F1 validates every captured selector key and rejects repeated producers before composition,
+          naming the actual damaged coordinate for exact restoration without another inventory read.
 
     - `[x]` **7.R2.c Apply a choice atomically and preserve provenance**
         - Raw preview and locked selector admission bind the complete evidence/result inventory and current policy.
