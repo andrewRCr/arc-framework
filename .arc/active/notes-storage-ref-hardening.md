@@ -1534,3 +1534,23 @@ actual acquired forwarding tip and remote state, then repair the file and comple
 fails both cases at cleanup's raw Git error. Six cancellation, signal and untyped controls fail a reconstruction that
 retains gathering for every error; the scoped correction preserves their original errors, clears the gathering and
 permits retry. The eighteen existing transport cases remain controls.
+
+### F2: retain notices across supplemental history failure
+
+The lifecycle producer now reports already gathered lifecycle and shared-merge notices through the existing observer
+before supplemental acquisition can fail. A returned failed acquisition emits its own notices before its existing
+carrier drops that detail. The pull consumer retains these observations through its existing failure handler and
+canonical deduplication. This necessarily changes the previously unchanged `sync-pull-lifecycle.ts`; it serves 4.3.a
+and § 4's existing preservation rule without a new public field, discriminant, discovery or successful-path Git call.
+
+The public native fixture combines a malformed archive folder, another item's pending end, an independent committed
+personal update, and a supplemental fetch whose real receiver becomes unavailable. The baseline loses the established
+lifecycle notice in both layouts. A second case introduces an unavailable tracking-history comparison after lifecycle
+discovery; native keeper-basis classification creates a separate history repair notice. Omitting only failed-fetch
+notice emission loses that notice while preserving the earlier archive notices. Both cases repair the exact faults,
+finish the pending end, repair the malformed archive forward and reach a notice-free pull. Confirmed local object loss
+retains its existing priority over the concurrent transport failure.
+
+The first live-metadata fixture was replaced because that fault is read only after supplemental acquisition; it did
+not establish the intended earlier notice. Its raw runs remain retained as diagnosis, not fail-first proof. The
+corrected archive-hold and acquisition-notice reconstructions distinguish the two actual preservation paths.

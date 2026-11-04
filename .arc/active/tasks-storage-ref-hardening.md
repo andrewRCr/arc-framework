@@ -438,6 +438,10 @@ transport failure is a per-remote outcome.
           reconciliation or source-retirement authority. Both-layout native repair/retry and failure controls cover
           the pull and import boundaries; see `notes-storage-ref-hardening.md` § A7 failed-acquisition precedence.
 
+        - _Note:_ Working-code-review Pass 3 F2 reports gathered lifecycle and shared-merge notices before
+          supplemental history acquisition can fail, and retains the failed acquisition's own notices. The
+          lifecycle producer joins this correction; native public pulls retain both repair routes and retry.
+
     - `[x]` **4.3.b Follow**
         - Resume, cleanup, and candidate judgment convert comparison-witness URL failures through the existing
           migration refusal mapper. Resume and cleanup retain the exact move record and remote state, and all three
