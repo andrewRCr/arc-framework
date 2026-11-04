@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "resolve-pass-ceiling",
+  "claimId": "270209b165b105f94b6489f4ae0c562c",
+  "createdAt": "2026-11-04T15:14:52.522Z",
+  "updatedAt": "2026-11-04T15:14:52.522Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make arc review resolve refuse a hosted pass past an Errand claim's complete-pass ceiling, as status does; reproduce first",
+  "branch": "chore/resolve-pass-ceiling",
+  "origin": "inbox",
+  "originEntry": "Count an Errand's complete passes across its claim in `arc review resolve`, as status does",
+  "originEntrySourceDigest": "sha256:0ab74a8f2562d827f4ef7d53a4bbf8647267ee84aa97e2389f20af675ddf77fb",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
