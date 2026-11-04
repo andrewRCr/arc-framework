@@ -1,6 +1,8 @@
 /**
  * The take-in port: reading and replacing hand every edit they meet to it, and write-back answers once it is bound. Each
  * answer returns the file's entry as the take-in left it, since the index stays in memory until the batch writes it.
+ * The caller owns the lock, index publication, and swaps. The port swaps and draws nothing; its sole index write
+ * persists the other aside copies' write-back-sent marks before sending, without changing stats or the racy reference.
  */
 import type { FileStat, RecordEntry, RefusedMark } from "./index-schema.js";
 

@@ -43,60 +43,12 @@ among them, has one.
   against the record version its base names, merged by the store where it has moved on, and replaced by the record read
   back, with what the write-back took in kept for a stale buffer's next save.
 
-    - `[ ]` **1.1.a Parse and send**
+    - `[x]` **1.1.a Parse and send**
 
-        - In order, as one function that writes nothing and takes no lock, which `projection-worktrees`' removal check
-          runs on its own (`spec-projection-worktrees.md` § 12.2), its persist and release steps running write-back
-          whole: read the file under the settle rule (`gateRead`, `lib/store/projection/read-gate.ts`), a file other
-          than Markdown read against its entry there, on the text as read (`readStamplessFile`, 1.1.d); parse back the
-          markers (1.4.b), so each marker set becomes the side or the text it sends; select its base over that content
-          (1.1.d); put in each entry parse-back refused as that base holds it (1.4.b); restore and de-duplicate entry
-          IDs over that result (1.1.c); parse it with the kind's parser; stamp a copy of any entry lacking one (1.2.a)
-          before any merge in the checkout; merge where the store holds no base (1.5); and run the write check (1.2).
-          Each step a later task builds joins the function in that task, which passes the content through until then,
-          and until 1.1.d selects one the base is the index's.
-        - Then, where the path has another aside copy not yet marked as having had a write-back sent since its swap, and
-          the worktree's index on disk is usable (`readProjectionIndex`, `lib/store/projection/index-file.ts`), save
-          that mark alone before the send (`recordWriteBackSent`, `lib/store/projection/aside-copies.ts`), under the
-          caller's lock: read the index on disk, mark the path's other copies, and write it back whole with
-          `writeProjectionIndex`, never `commitProjectionIndex`, so no stat changes and the racy reference stays as it
-          was (spec § 16.4), and a stop after the write lands leaves the mark. A path with no other copy, or none left
-          unmarked, takes no write, nor does a worktree with no usable index, which records no aside copy. Then send.
-        - Bound as the take-in port, write-back returns the entry it leaves in memory, the mark included, which its
-          caller's own index write keeps; it writes no other index, swaps nothing, and takes no lock, all of which its
-          caller owns, and the port's header comment (`take-in-port.ts`) says so. Swapping nothing, it draws nothing: a
-          clash or a hold it finds answers `clashed` with no mark, at a path as in an aside copy; a file at its path
-          stays pending until write-back's own walk next takes it in, and a copy goes back to its path or is kept (1.5).
-          A `taken-in` answer carries `read: { stat, blob }`, the blob id of the file's own bytes, and an aside copy's
-          landing sets `landed`.
-        - The file's kind comes from its index entry, or, for a new file, from adoption (2.8); its parser from the
-          production registration set (`lib/store/kinds/registrations.ts`). A file that fails to parse is skipped and
-          reported, its edit kept and its entry's `refused` mark set (`RecordEntry`,
-          `lib/store/projection/index-schema.ts`). A symbolic link, at a projected path or as an aside copy, is never
-          read: write-back answers `no-edit` for it and reports it (2.8.c, `gateRead`).
-        - The write is a content `put` (`MutationSchema`, `lib/store/write.ts`) to the entry's record reference, with
-          the record version of the base 1.1.d selects as its expected version where that base is a stored version, or,
-          where 1.5 merges in the checkout, that of the current version it merged onto. A `work-item/meta` write,
-          `MutationSchema`'s primary, carries its current placement unchanged, its read form less `sequence`, which
-          `WritePlacementSchema` rejects; a cohort document's write carries none; no write carries a changed placement,
-          a former slug, or a link. Each file is its own `write`, never a `batch`.
-        - Every projected entry kind takes the ID restore, stamp, and merge, `work-item/description` and
-          `work-item/inbound` among them (`ENTRY_CONFIGS`, `lib/store/kinds/entry-configs.ts`; `KIND_MECHANISMS`,
-          `lib/store/registry.ts`).
-        - Build `test-first` (one behavior at a time):
-            - an edited prose file is written once, against its base's record version
-            - a file that fails its kind's parser is skipped and reported, the file keeping its content, and lands once
-              the parse error is repaired
-            - a meta's write carries its placement unchanged and no `sequence`
-            - two edited files are two writes, and one refused leaves the other landed
-            - the steps before the send, run on their own, return the write check's verdict and write nothing, the index
-              and the file unchanged
-            - after the mark's write, a save made within the tick of a stat the caller observed but has not yet
-              published still reads as an edit, the racy reference unchanged by that write
-            - an Errand description's entries keep their IDs through a hand edit
-            - a write-back stopped after its write lands, before the read-back's index write, leaves the record beside
-              the path's other aside copies, so the next sweep keeps a copy holding an edit rather than linking it back
-              to the path the person then deleted
+        - Added `prepareWriteBack` and the bound take-in port: settled reads, production parsing, one content put per
+          file against its indexed base, primary placement preserved without its archive sequence, and refusal reports.
+          The caller owns swaps and publication; the pre-send raw index write marks other aside copies without advancing
+          the racy reference, and an aside landing records the bytes it read.
 
     - `[ ]` **1.1.b Read back**
 
