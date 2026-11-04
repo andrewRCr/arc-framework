@@ -528,6 +528,8 @@ annotated commit.
   and checks each namespace once. Logical collisions name their original stored paths. Public preflight and native
   mapping cases retain the collision and exemption behavior; a real CLI trial checks 20,000 personal paths within
   its invocation limit. The later stored-tree collision check is unchanged.
+  Criteria-review F4 moves that unchanged CLI case into a reach-selected store-ref suite, retaining the cost witness
+  in the success criterion's required quality-gate carrier.
 
 ### `[x]` **5.8 A Git checkout inside personal state is reported, not walked — § 11.2**
 
