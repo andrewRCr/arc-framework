@@ -400,12 +400,14 @@ and `push`.
   the connectivity check exits 1 (`did not send all necessary objects`) when the remote's new history builds on a
   missing local commit, with or without that flag. A missing commit no failing step reads, such as one in a ref whose
   history the fetch neither updates from nor builds new history on, or one under a fetch with nothing new to bring, does
-  not fail the fetch, nor does a missing tree or blob under a tip. The helper below depends on none of these steps: for
-  a commit, it needs only a completed failure with no porcelain rows whose stderr names a commit its walk confirms.
-  `parseFetchPorcelain` (`lib/git/fetch.ts:29-30`) reports each of these failures as `unreachable`, and
-  `failedRemotePull` (`pull.ts:186-192`) attaches the remote-connectivity remedy `refSyncTransportRemedy`.
-  `migrate-remote-fetch.ts:60-69` and `designation-project.ts:115-121` parse the same way. The migration fetch
-  (`fetchMigrationRemote`) stays in scope because the import's transient publication calls it
+  not fail the fetch. A missing tree or blob under a tip can nevertheless fail thin-pack unpacking without naming an
+  object ID (A6). Such an unnamed loss, with all local tips present, remains outside the commit-only detector and keeps
+  the existing unreachable outcome and connectivity remedy; this is a known residual, not proof that the remote caused
+  the failure. The helper below depends on none of these steps: for a commit, it needs only a completed failure with no
+  porcelain rows whose stderr names a commit its walk confirms. `parseFetchPorcelain` (`lib/git/fetch.ts:29-30`) reports
+  each of these failures as `unreachable`, and `failedRemotePull` (`pull.ts:186-192`) attaches the remote-connectivity
+  remedy `refSyncTransportRemedy`. `migrate-remote-fetch.ts:60-69` and `designation-project.ts:115-121` parse the same
+  way. The migration fetch (`fetchMigrationRemote`) stays in scope because the import's transient publication calls it
   (`import/transient-publication.ts:39-42`). `classifyRemoteFailure` (`lib/git/remote-ref-reader.ts:164-179`) reads only
   stderr text, so detection is by state. After a fetch ends in a completed Git failure (`isCompletedGitFailure`) with no
   porcelain rows, one helper checks the local tip objects once: every ref (`for-each-ref` with no pattern) and every
@@ -1505,6 +1507,9 @@ more than about a week out.
     refuse without partial publication and have a verified forward-repair/retry route. Independent end identity,
     quarter, withdrawn-folder removal, captured atomic publication, and criterion 15's process bounds remain intact.
     This supersedes criterion 14 only where a restored primary role requires a different completed coordinate.
+21. The fetch description discloses the retained unnamed missing-blob thin-pack failure and the detector's actual
+    bounds (A6). With all tips present and no stderr-named commit confirmed missing in local history, the existing
+    transport classification and remedy remain unchanged; the retained native witness establishes that residual.
 
 ## Open Questions
 
@@ -1526,5 +1531,7 @@ wrapper are implementation detail.
 
 - **A5** — 2026-11-04 — design: restore withdrawal coordinates. _Supersedes:_ § 9 A1 ¶1; SC 14.
   _Trigger:_ F2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A6** — 2026-11-04 — design: correct the fetch-failure premise. _Supersedes:_ § 1.6 fetch premise.
+  _Trigger:_ F3 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

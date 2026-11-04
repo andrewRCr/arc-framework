@@ -284,6 +284,9 @@ classification calls the sweep settled.
   temporary refs. Native tip, ancestor, rewind, and combined-failure cases resume after exact object restoration;
   remote-only and unnamed loss stay unreachable, and canceled fetches skip the check.
 
+- _Note:_ Working-review F3 (A6) corrects § 1.6's descriptive fetch premise using the retained unnamed-blob thin-pack
+  witness. The bounded detector and outcome policy stay unchanged; this prose correction needs no new algorithm test.
+
 ### `[x]` **3.8 The import's publication journal reports its faults — § 1.4**
 
 - _Goal:_ Source retirement reports a missing or unparseable publication journal as its own condition and remedy, not
@@ -1067,3 +1070,6 @@ before its fix and passes after it in the store suites.
   restoration, absent-original allocation, ambiguity/collision repair and retry, independent ends and quarters,
   atomic publication and unchanged A2 process bounds (spec criterion 20). This supersedes the placement-preservation
   portion of the earlier A1 criterion only when restoring another primary role requires different coordinates.
+
+- `[ ]` The fetch description states the retained unnamed-blob thin-pack residual and bounded detector accurately,
+  retaining the existing classification and remedy (A6, spec criterion 21).

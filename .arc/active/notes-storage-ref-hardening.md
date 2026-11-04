@@ -1447,3 +1447,13 @@ grounding across the inverse, planner, journal acquisition and publication. The 
 review-fix placement and acceptance cases executable. Proportionality is satisfied by composing the existing planner; no
 new segment or Class change is needed. The Owner selected author checks followed by the approved post-CI fix check and
 declined a separate medium-depth planning pass. Author checks do not supply independent review.
+
+### A6 / F3: state the observed fetch residual
+
+The superseded § 1.6 premise said `nor does a missing tree or blob under a tip`. The retained native archive-metadata
+blob case fails thin-pack unpacking without naming an object ID, leaving the existing unreachable outcome and
+connectivity remedy. The description now states that residual and the commit-only detector's actual bounds, matching
+`localFetchObjectFailure` and the retained `implementation/task-3.2.b-history-preflight-outcome.log`. The algorithm and
+outcome policy are unchanged. The low-depth factual amendment adds an evidence-backed criterion; no new algorithm test
+is needed for this prose correction. Author review checks the affected premise, detector, existing notes and raw
+witness; final reflow satisfies the Markdown line-width and underwrap rules.
