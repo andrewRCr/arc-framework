@@ -146,6 +146,15 @@ backend selects.
 `marker-render.ts` creates one renderer from the whole file and its preserved conflict sides. Every set uses its
 chosen length, names its stored conflict or checkout origin, and carries a resolve-by-hand instruction when escalated.
 
+`marker-scan.ts` locates complete and malformed controls at exactly the indexed length. `marker-preparation.ts` reads
+indexed conflict evidence, including retained history for conflicts already closed elsewhere; `marker-parse.ts`
+substitutes untouched stored sides and attaches resolutions to the same content put. Edited standing sides and checkout
+clashes hold the whole file. `marker-entries.ts` restores malformed entries from the selected base by section and
+identity, retaining independent edits and new entries. A partial landing still answers refused, preserves the original
+file and base, and records its sanitized take-in. Aside copies refuse whole before returning to their path.
+`held-conflicts.ts` retains and reports open conflicts the held file cannot show, using the file's repair remedy.
+`copy-base-merge.ts` merges a repaired edit from retained take-in content onto the current record before its put.
+
 `read-gate.ts` gates every read of a projected file on its stats alone, so write-back never reads one mid-save. An empty
 file younger than 50 ms waits for the next command, since an editor that truncates before writing leaves it empty
 mid-save. An empty Markdown file older than that is a deleted file and no edit, since every projected one carries its

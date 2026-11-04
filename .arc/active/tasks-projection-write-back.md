@@ -102,14 +102,12 @@ among them, has one.
   rule ID and remedy. The schema-checked refusal store covers unhomed kinds, missing state without history refs,
   namespace corruption and pull locks, with explicit repair and call counts.
 
-### `[ ]` **1.4 Render conflict markers and parse them back — § 6.1, § 6.2, § 6.4**
+### `[x]` **1.4 Render conflict markers and parse them back — § 6.1, § 6.2, § 6.4**
 
 - _Goal:_ Markers render at one length per file — seven, or escalated with a resolve-by-hand line where the file holds a
   marker-like line — and parse back exactly, each set to its own conflict: untouched markers keep a stored conflict
   open, replaced markers resolve it, a clash found in the checkout keeps its file unsent, and a malformed set refuses
   until repaired.
-
-- **Additional Context:** `notes-projection-write-back.md` § Spike 4
 
     - `[x]` **1.4.a Rendering and length**
 
@@ -117,62 +115,11 @@ among them, has one.
           One file-wide length grows past all marker-like runs, including outside and fenced content; escalated sets
           carry a resolve-by-hand instruction, and side labels remain on their marker lines.
 
-    - `[ ]` **1.4.b Parsing back**
+    - `[x]` **1.4.b Parsing back**
 
-        - Parsing matches markers of exactly the recorded length, and reads each set's origin from its start label,
-          checked against the conflicts the index holds open for the file; a set whose label names none of them is
-          malformed. A stored conflict's set left as it was sends the store's side in its place; replaced by text, it
-          sends the text naming the conflict in `resolves`, riding the file's own write; a set whose markers stand but
-          whose sides differ from those its conflict record holds is a resolution in progress, which write-back refuses,
-          its remedy naming the set to finish or restore: its whole file, for every kind, stays pending, unsent, and
-          reported, taking a refused edit's routes, so the replace guard leaves it unreplaced (`guardReplacement`,
-          `lib/store/projection/replace-guard.ts`), the store's other changes reaching it once the resolution is sent,
-          and an aside copy holding one goes back to its path with its bytes as they are where the copy's settlement
-          sends a refused copy back, and is otherwise kept as it keeps one (`settleAsideCopy`,
-          `lib/store/projection/aside-copies.ts`); a conflict already resolved elsewhere is dropped from `resolves`, its
-          text sent as an ordinary edit. A set the checkout found (1.5) keeps its file
-          pending and unsent, for every kind, while it stands.
-        - Malformed — an incomplete set at the recorded length, or a resolve-by-hand line left behind — refuses the
-          entry, or the whole file for prose, with a typed remedy, and persists once repaired. The write carries each
-          refused entry as its base holds it — none, where its base has no such entry — so the landing leaves the
-          store's version of that entry as it was. A take-in refusing one is a refused edit, whether the rest lands or
-          nothing else is left to send, and the replace guard holds the file whole while the set stands. Where the rest
-          lands, the file keeps the person's content, its stamp, and its base, pending and refused (1.1.b), so its next
-          write-back merges from the content that landing took in (`selectPersistedBase`,
-          `lib/store/projection/taken-in.ts`) and only the refused entry reads as an edit. An aside copy holding one is
-          refused whole, sending nothing, and takes a refused copy's routes (`settleAsideCopy`): back to its path where
-          that path has not moved on, the file's own take-in then landing the rest, and otherwise kept, reported with
-          its path. Write-back reports every resolution it sends.
-        - A file the replace guard holds whole, for a resolution in progress or a malformed set, is not drawn into
-          (1.7), so its index entry records its record's open conflicts it does not show — those of the record read back
-          after a landing (1.1.b), and those of the version each refresh that leaves it unreplaced reads
-          (`projection-worktrees`) — until the file is next replaced with the record, which draws them. Write-back
-          reports them beside the file's refusal, with the repair that releases the file as their remedy, and
-          `arc status` shows them (1.9.c).
-        - Build `test-first` (one behavior at a time):
-            - untouched markers keep the conflict open and the record holds the store's side
-            - an entry kind's untouched markers keep their conflict open, the entry's second version keeping its `_Id:_`
-            - an edit inside a side, the markers standing, is refused naming the set, and its file, another entry's edit
-              in it included, stays pending and unsent through a command
-            - markers replaced by text persist naming the conflict, and the conflict closes
-            - of two sets from one merge, resolving the second closes its conflict and keeps the first open
-            - a longer marker run added while resolving does not confuse the parse
-            - a missing end marker refuses the entry with its remedy while another entry's edit lands, the file keeping
-              the set's text, its stamp, and its base through the command, pending and refused, and the repaired file
-              persists and is replaced
-            - a resolution that leaves the resolve-by-hand line refuses, and VS Code's Accept Current and Accept
-              Incoming on an escalated set whose current side holds a `=======` line each refuse; a hand resolution
-              deleting the markers and the line persists
-            - a conflict resolved from another checkout first is dropped from `resolves`, its text merged as an edit
-            - a landing beside a refused malformed entry leaves the store's version of that entry as it was
-            - a file holding a malformed set merges its next write-back from the content the last landing took in, only
-              the refused entry reading as an edit
-            - a malformed set with nothing else to send refuses the file as a refused edit, unsent
-            - an aside copy holding a malformed set is refused whole and goes back to a path that has not moved on,
-              where the file's take-in lands the rest
-            - a conflict the store files while a malformed set holds the file is recorded in its entry and reported
-              beside the refusal
-            - a prose file holding a clash the checkout found keeps its markers and is not sent
+        - Exact-length scanning binds sets to indexed origins, substitutes stored sides, and resolves replacements in
+          the same put. Malformed entries restore selected-base content while independent edits land; refused files
+          retain their bytes. Persisted take-ins support repair, and unseen conflicts carry the file's repair remedy.
 
 ### `[ ]` **1.5 Merge in the checkout where the store holds no base — § 7.7**
 
@@ -186,6 +133,9 @@ among them, has one.
 - _Note:_ The hold's remedy here and 1.7.b's notice line name `arc save --resolve`, so the emitted-command case of
   `command-surface-documentation.test.ts` (`registers emitted corrective commands`) fails from this task until 1.10
   registers `save`; the commit gate does not run it (`ARC_CONTRACT_SUITES`, `lib/local-vitest-runner.ts`).
+
+- _Note:_ The clean kept-copy merge path in `copy-base-merge.ts` was built with Task 1.4.b to make partial landings
+  repairable; this task completes checkout merges, labels, and clash drawing.
 
     - The merge uses `mergeLineText` or `mergeEntryText` (`lib/store/concurrency/`) with the base's record version in
       `MergeTextInput.baseVersion` — null for the empty base and the kept copy — and side labels (`SideLabelSchema`,

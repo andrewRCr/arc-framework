@@ -25,6 +25,11 @@ import { selectWriteBackBase } from "./base-selection.js";
 import { readBaseContent } from "./base-content.js";
 import type { RecoveredBase } from "./base-recovery.js";
 import { checkWriteBackEdit } from "./check-edit.js";
+import { prepareMarkerContent } from "./marker-preparation.js";
+import type { MarkerParseResult } from "./marker-parse.js";
+import type { RecordReference } from "../identity.js";
+import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
+import { mergeCopyBase } from "./copy-base-merge.js";
 
 const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
@@ -36,6 +41,7 @@ export interface WriteBackContext {
   readonly memo?: HistoryMemo;
   readonly verb?: typeof HAND_EDIT_VERBS[number];
   readonly report?: (diagnostic: WriteBackDiagnostic) => void;
+  readonly reportResolution?: (resolution: WriteBackResolution) => void;
 }
 
 /** A file-specific diagnostic retained for the command's report. */
@@ -45,10 +51,17 @@ export interface WriteBackDiagnostic {
   readonly mark: RefusedMark;
 }
 
+/** A conflict resolved by an accepted hand-edit write. */
+export interface WriteBackResolution {
+  readonly path: string;
+  readonly copy: string | null;
+  readonly reference: RecordReference;
+}
+
 /** An edit ready for its own store write, or the reason the file stays where it is. */
 export type PreparedWriteBack =
   | { readonly kind: "ready"; readonly write: Extract<WriteInput, { action: "put" }>; readonly read: TakeInRead;
-      readonly stamp: string; readonly random?: () => number }
+      readonly stamp: string; readonly takenIn: string; readonly random?: () => number; readonly retained?: RefusedMark }
   | { readonly kind: "held"; readonly result: TakeInResult; readonly diagnostic?: RefusedMark;
       readonly diagnostics?: readonly RefusedMark[] };
 
@@ -62,11 +75,38 @@ export async function prepareWriteBack(context: WriteBackContext, request: TakeI
     answer: "pending", entry: { ...request.entry, pending: true },
   }, diagnostic: selected.result.mark };
   const { base, stamp } = selected.result;
-  if (base.kind !== "stored") return { kind: "held", result: { answer: "pending", entry: { ...request.entry, pending: true } },
+  if (base.kind === "empty") return { kind: "held", result: { answer: "pending", entry: { ...request.entry, pending: true } },
     diagnostic: { reason: "checkout-merge-required", remedy: { text: "The edit needs a merge from a local or empty base before it can be sent." } } };
-  const restored = await restoreIds(context, request, file.content, base);
+  const markers = await prepareMarkers(context, request, file.content, base);
+  if (markers.status === "refused") return refusedPreparation(request.entry, markers.refusal);
+  if (markers.result.kind === "held") return { kind: "held",
+    diagnostics: [markers.result.mark, ...heldConflictMarks(markers.result.unshown ?? [], markers.result.mark)],
+    result: { answer: "refused", mark: markers.result.mark,
+      entry: { ...request.entry, pending: true, refused: markers.result.mark, unshown: [...(markers.result.unshown ?? request.entry.unshown)] } } };
+  const restored = await restoreIds(context, request, markers.result.content, base);
   if (restored.status === "refused") return refusedPreparation(request.entry, restored.refusal);
-  const { content, random } = restored.result;
+  const { content: takenIn, random } = restored.result;
+  const merged = await prepareContent(context, request, base, takenIn, random);
+  if (merged.status === "refused") return refusedPreparation(request.entry, merged.refusal);
+  if (merged.result.clashed) return { kind: "held", result: { answer: "clashed", entry: { ...request.entry, pending: true } } };
+  const { content, version } = merged.result;
+  const invalid = await checkContent(context, request, { kind: "stored", version }, content, random);
+  if (invalid !== null) return invalid;
+  const placement = await currentWritePlacement(context.store, request);
+  if (placement.status === "refused") return refusedPreparation(request.entry, placement.refusal);
+  return { kind: "ready", read: file.read, stamp, takenIn, ...(random === undefined ? {} : { random }),
+    ...(markers.result.retained === undefined ? {} : { retained: markers.result.retained }), write: {
+    action: "put", reference: request.entry.reference, content, expected: version,
+    ...(markers.result.resolves.length === 0 ? {} : { resolves: [...markers.result.resolves] }),
+    ...(placement.result === undefined ? {} : { placement: placement.result }),
+    provenance: { verb: context.verb ?? HAND_EDIT_VERBS[0], lifecycleAction: "edit" },
+  } };
+}
+
+type HeldWriteBack = Extract<PreparedWriteBack, { readonly kind: "held" }>;
+type ReadEdit = { readonly kind: "read"; readonly content: string; readonly read: TakeInRead; readonly stamp: string | null } | HeldWriteBack;
+
+async function checkContent(context: WriteBackContext, request: TakeInRequest, base: RecoveredBase, content: string, random?: () => number): Promise<HeldWriteBack | null> {
   const parser = kinds[request.entry.reference.kind].parser;
   const parsed = parser?.(content);
   if (parsed?.success === false) {
@@ -78,17 +118,23 @@ export async function prepareWriteBack(context: WriteBackContext, request: TakeI
   const mark = checked.result[0];
   if (mark !== undefined) return { kind: "held", diagnostics: checked.result,
     result: { answer: "refused", entry: { ...request.entry, refused: mark }, mark } };
-  const placement = await currentWritePlacement(context.store, request);
-  if (placement.status === "refused") return refusedPreparation(request.entry, placement.refusal);
-  return { kind: "ready", read: file.read, stamp, ...(random === undefined ? {} : { random }), write: {
-    action: "put", reference: request.entry.reference, content, expected: base.version,
-    ...(placement.result === undefined ? {} : { placement: placement.result }),
-    provenance: { verb: context.verb ?? HAND_EDIT_VERBS[0], lifecycleAction: "edit" },
-  } };
+  return null;
 }
 
-type HeldWriteBack = Extract<PreparedWriteBack, { readonly kind: "held" }>;
-type ReadEdit = { readonly kind: "read"; readonly content: string; readonly read: TakeInRead; readonly stamp: string | null } | HeldWriteBack;
+async function prepareMarkers(context: WriteBackContext, request: TakeInRequest, content: string, base: RecoveredBase): Promise<StoreResult<MarkerParseResult>> {
+  const grammar = kinds[request.entry.reference.kind].entry;
+  if (grammar === undefined || request.entry.markers === null) return prepareMarkerContent(context.store, request.entry, content, context.memo);
+  const selected = await readBaseContent(context, request.entry, base);
+  if (selected.status === "refused") return selected;
+  return prepareMarkerContent(context.store, request.entry, content, context.memo,
+    { grammar, base: selected.result, aside: request.copy !== null });
+}
+
+async function prepareContent(context: WriteBackContext, request: TakeInRequest, base: Exclude<RecoveredBase, { kind: "empty" }>, content: string, random?: () => number) {
+  if (base.kind === "stored") return { status: "ok" as const, result: { content, version: base.version, clashed: false } };
+  return mergeCopyBase({ store: context.store, reference: request.entry.reference, base: base.content, content,
+    grammar: kinds[request.entry.reference.kind].entry, random });
+}
 
 async function readEdit(context: WriteBackContext, request: TakeInRequest): Promise<ReadEdit> {
   const path = join(request.checkout, request.copy ?? request.path);
@@ -167,7 +213,7 @@ export function createWriteBackPort(context: WriteBackContext): TakeInPort {
 
 /** A send's outcome, retaining the read-back only for the file walk that owns replacement. */
 export type WriteBackSend =
-  | { readonly kind: "held" | "read-back-refused"; readonly result: TakeInResult }
+  | { readonly kind: "held" | "read-back-refused" | "landed-held"; readonly result: TakeInResult }
   | { readonly kind: "landed"; readonly result: Extract<TakeInResult, { answer: "taken-in" }>; readonly record: StoreRecord };
 
 /** Prepare, send once, and record the landed content without replacing any projected file. */
@@ -188,6 +234,9 @@ export async function sendWriteBack(context: WriteBackContext, request: TakeInRe
     return { kind: "held", result: { answer: "refused", entry: { ...entry, refused: mark }, mark } };
   }
   if (sent.result.version === undefined) throw new Error("A landed content put returned no version");
+  for (const reference of prepared.write.resolves ?? []) {
+    context.reportResolution?.({ path: request.path, copy: request.copy, reference });
+  }
   const read = await context.store.read({ reference: sent.result.reference });
   if (read.status === "refused") {
     const mark = { reason: `The edit landed, but read-back failed: ${read.refusal.condition}`, remedy: read.refusal.remedy };
@@ -195,9 +244,17 @@ export async function sendWriteBack(context: WriteBackContext, request: TakeInRe
     return { kind: "read-back-refused", result: { answer: "pending", entry: { ...entry, pending: true } } };
   }
   const recorded = await recordWriteBack({ location: context.location, entry, stamp: prepared.stamp,
-    takenIn: prepared.write.content, outcome: { kind: "landed", version: sent.result.version }, readBack: read.result,
+    takenIn: prepared.takenIn, outcome: { kind: "landed", version: sent.result.version }, readBack: read.result,
     grammar: kinds[entry.reference.kind].entry, format: context.format,
     memo: context.memo ?? createHistoryMemo(context.store) });
+  if (prepared.retained !== undefined) {
+    const unshown = unshownConflicts(recorded.entry, read.result.conflicts);
+    for (const mark of [prepared.retained, ...heldConflictMarks(unshown, prepared.retained)]) {
+      context.report?.({ path: request.path, copy: request.copy, mark });
+    }
+    return { kind: "landed-held", result: { answer: "refused", mark: prepared.retained,
+      entry: { ...recorded.entry, pending: true, refused: prepared.retained, unshown } } };
+  }
   return { kind: "landed", record: read.result, result: { answer: "taken-in", read: prepared.read,
     entry: { ...recorded.entry, refused: null, copies: entry.copies.map(copy => (
       copy.name === request.copy ? { ...copy, landed: prepared.read.blob } : copy

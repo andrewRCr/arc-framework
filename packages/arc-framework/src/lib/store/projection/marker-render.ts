@@ -26,12 +26,13 @@ export function createMarkerRenderer(contents: readonly string[]): MarkerRendere
     const source = origin.shows === "checkout" ? "checkout" : JSON.stringify(formatConflictToken(origin.conflict));
     return `${"<".repeat(length)} ${label(conflict.current.label)} [arc-conflict: ${source}]\n`
       + (length === 7 ? "" : `${RESOLVE_BY_HAND_LINE}\n`)
-      + side(conflict.current.content) + `${"=".repeat(length)}\n`
-      + side(conflict.incoming.content) + `${">".repeat(length)} ${label(conflict.incoming.label)}\n`;
+      + renderMarkerSide(conflict.current.content) + `${"=".repeat(length)}\n`
+      + renderMarkerSide(conflict.incoming.content) + `${">".repeat(length)} ${label(conflict.incoming.label)}\n`;
   } };
 }
 
-function side(content: string): string {
+/** Put a preserved side before the next marker without joining their lines. */
+export function renderMarkerSide(content: string): string {
   return content === "" || content.endsWith("\n") ? content : `${content}\n`;
 }
 
