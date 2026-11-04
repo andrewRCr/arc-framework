@@ -1,6 +1,6 @@
 /** Evidence composition for terminal review-policy attempts. */
 
-import { isCleanFixCheckCompleteSuccessor } from "./review-additional-pass.js";
+import { isConvergedFixCheckCompleteSuccessor } from "./review-additional-pass.js";
 import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 
@@ -600,7 +600,7 @@ export async function bindReviewPolicyContinuationEvidence(
   );
   const choice = continuationChoice({
     terminal, additionalPass, terminalOutcome: terminalAttempt?.outcome,
-    completeFixCheckSuccessor: isCleanFixCheckCompleteSuccessor(boundTerminal),
+    completeFixCheckSuccessor: isConvergedFixCheckCompleteSuccessor(boundTerminal),
     currentResponsePerformed, coverageSelected: response.coverageSelected === true,
     nextPassContext: dependencies.nextPassContext, retrigger: request.standardReview.retrigger,
   });

@@ -18,7 +18,7 @@ import {
   ReviewAdditionalPassAuthorizationSchema,
   ReviewPolicyTargetSchema,
   invalidAdditionalPassReason,
-  isCleanFixCheckCompleteSuccessor,
+  isConvergedFixCheckCompleteSuccessor,
   verifiedAdditionalPassPredecessor,
 } from "./review-additional-pass.js";
 export { ReviewAdditionalPassAuthorizationSchema } from "./review-additional-pass.js";
@@ -35,7 +35,8 @@ import { StandardReviewObligationProjectionSchema } from "./standard-review-proj
 import { HostedRequestEnvelopeSchema } from "../hosted/request.js";
 import { REVIEW_SOURCE_CAPABILITIES, selectReviewSources, sourceDiagnostic } from "./review-source-eligibility.js";
 export { sourceDiagnostic } from "./review-source-eligibility.js";
-import { ReviewNextPassContextSchema, validateReviewNextPassContext } from "./review-next-pass-schema.js";
+import { ReviewNextPassContextSchema, incrementalNextPass, nextLookCoverage, validateReviewNextPassContext }
+  from "./review-next-pass-schema.js";
 import { errandFirstPassHostedRequest } from "./review-errand-hosted-request.js";
 
 import {
@@ -571,6 +572,12 @@ export const ReviewResolveEnvelopeSchema = z.discriminatedUnion("state", [
       sourceId: ReviewSourceIdSchema,
       pass: ReviewPassSchema,
       maxPasses: ReviewPassSchema,
+      /**
+       * The standard look's coverage, when recorded facts already settle it; absent while preparation still offers
+       * the choice. `complete` counts toward the pass ceiling, so after a converged fix check it names the complete
+       * successor the Owner decides on before the look is admitted.
+       */
+      coverage: z.enum(["complete", "incremental"]).optional(),
       consumedPass: z.literal(false),
       ceilingOverrideApplied: z.boolean(),
       attemptedSources: z.array(ReviewAttemptSchema).readonly(),
@@ -817,7 +824,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       return ownerAcceptedEnvelope(request, scope);
     }
     if (!signal.coverageAdequate
-      && !(request.additionalPassAuthorization !== undefined && isCleanFixCheckCompleteSuccessor(request))) {
+      && !(request.additionalPassAuthorization !== undefined && isConvergedFixCheckCompleteSuccessor(request))) {
       return resolveEnvelope({
         state: "coverage-required",
         nextAction: "select-coverage",
@@ -999,6 +1006,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
   const action = selectedCapability.nextAction === "hosted-request"
     ? errandFirstPassHostedRequest(request, scope, sourceId)
     : null;
+  const coverage = nextLookCoverage(request);
   return resolveEnvelope({
     state: "ready",
     nextAction: selectedCapability.nextAction,
@@ -1009,16 +1017,13 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
       sourceId,
       pass: request.completedPasses + 1,
       maxPasses: request.maxPasses,
+      ...(coverage === null ? {} : { coverage }),
       consumedPass: false,
       ceilingOverrideApplied,
       attemptedSources: request.attempts,
       ineligibleSources,
     },
   }, diagnostics);
-}
-
-function incrementalNextPass(request: ReviewPolicyRequest): boolean {
-  return request.lane === "standard" && request.nextPassContext?.incremental != null && request.chosenCoverage !== "complete";
 }
 
 function ceilingPassCount(request: ReviewPolicyRequest): number {
