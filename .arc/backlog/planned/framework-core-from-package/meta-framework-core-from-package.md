@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | [TBD]     | `P2`         |
 
 - **Cohort:** [none]
-- **Depends On:** `storage-cutover`
+- **Depends On:** `cutover-flip`
 
 - **Origin:** [internal] — `USER-INBOX § Work Unit` capture (2026-09-25), stubbed at the `state-storage` re-cut
   (2026-09-28) as a storage program follow-on

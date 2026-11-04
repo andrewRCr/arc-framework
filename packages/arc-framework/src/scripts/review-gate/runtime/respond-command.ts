@@ -56,6 +56,7 @@ import { SeverityGatingPolicySchema } from "../core/severity-gating-policy.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import {
   computeConditionalPassAuthorizationId,
+  conditionalPassFollowsProducer,
   type LaneResponsePerformance,
 } from "../core/operation-state-schema.js";
 import {
@@ -576,6 +577,26 @@ function validateApprovedResponsePolicyBinding(
     throw new RespondCommandError(
       "invalid-input",
       "approved response policy request must name the exact findings producer, lane, pass, scope, and target; correct the request and retry the same approval",
+    );
+  }
+}
+
+/** Refuse a conditional next-pass authorization its capture would refuse, before the approval is recorded. */
+function validateConditionalNextPassAuthorization(
+  authorization: z.infer<typeof RespondConditionalNextPassAuthorizationSchema> | undefined,
+  source: ResolvedResponseSource,
+): void {
+  if (authorization === undefined) return;
+  if (authorization.authorizedBy !== source.actors.approverIdentity) {
+    throw new RespondCommandError("invalid-input", "conditional next-pass authorizer is not the active local identity");
+  }
+  const producerPass = source.result.admission.logicalPass;
+  if (!conditionalPassFollowsProducer(authorization, producerPass)) {
+    throw new RespondCommandError(
+      "invalid-input",
+      `conditional next-pass authorization must exhaust the producer's logical pass ${producerPass} and name pass `
+        + `${producerPass + 1}; set exhaustedPassCount and nextPass to those values in the authorization and the `
+        + "ceiling override, then retry the same approval",
     );
   }
 }
@@ -2691,14 +2712,7 @@ async function respondToResolvedReviewCommand(
   }
   validateActors(dispositions, source.actors);
   validateFindings(dispositions, source);
-  const conditionalAuthorization = request.conditionalNextPassAuthorization;
-  if (conditionalAuthorization !== undefined
-    && conditionalAuthorization.authorizedBy !== source.actors.approverIdentity) {
-    throw new RespondCommandError(
-      "invalid-input",
-      "conditional next-pass authorizer is not the active local identity",
-    );
-  }
+  validateConditionalNextPassAuthorization(request.conditionalNextPassAuthorization, source);
   const dispositionReportText = await readApprovedResponseReport({ dispositions, producerFindings: source.findings,
     producerId: source.operationId, incomingTags: request.tags, settlementReplay: false,
     readRecord: dependencies.dispositionStore.readDispositionRecord.bind(dependencies.dispositionStore) });

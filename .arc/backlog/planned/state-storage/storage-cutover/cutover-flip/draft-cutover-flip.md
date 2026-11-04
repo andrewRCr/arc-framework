@@ -1,10 +1,66 @@
-# Draft: Storage Cutover
+# Draft: Cutover Flip
 
-- **Origin:** [internal] — the `state-storage` re-cut (2026-09-28); stages 3 and 4 of the storage program.
-- **Purpose:** Flip this repository — and CineXplorer — onto the ref store in one rehearsed window, retire Git notes,
-  then delete what the flip made dead and rewrite the documentation to the new model.
-- **Planning posture:** `P1`; `Class` settles at planning. Its design is small — a window runbook and mechanical
-  deletion — so it may split by subsystem once the flip is done, to run the deletion passes in parallel.
+- **Origin:** [internal] — the `storage-cutover` cut (2026-11-03), whose draft this one continues; that draft
+  came from the `state-storage` re-cut (2026-09-28).
+- **Purpose:** Flip this repository — and CineXplorer — onto the ref store in one rehearsed window, and retire Git
+  notes. The subcohort's other members delete what the flip makes dead and rewrite the documentation.
+- **Planning posture:** `P1`, a Gate B Must, in the subcohort `state-storage/storage-cutover`
+  (`cohort-storage-cutover.md`).
+
+---
+
+## Planning state
+
+- **Readiness:** rough (first draft-design iteration, 2026-11-03, carried across the cut).
+- **Entry read:** depth `high`; `Class` stays `Heavy`. Derivation fires, since the window runbook, the flip change, and
+  the land-at-flip split must be designed. Scale fires too, given a deletion surface spanning several subsystems. The
+  design is composed from the landed members' specifications, not invented.
+- **Planning limits** (Owner-agreed, 2026-11-03):
+    - Draft now what rests on landed work.
+    - Write each item resting on an unlanded member against that member's approved specification, as a named
+      assumption (§ Unknowns and Assumptions), re-checked when the member lands.
+    - Hold the import's part until `storage-ref-hardening`'s trial imports (its Tasks 5.12 and 5.13) report.
+    - Generate no task list until `projection-worktrees` is in verification, except phases that touch no unlanded
+      member.
+- **Resolved:**
+    - which items are draftable now, which rest on assumptions, and which wait for the import (below);
+    - `session-init-agenda` shipped on 2026-11-02, so the session-init rewrite derives from `spec-session-init-agenda.md`;
+    - the boundary: cut at the flip (Owner, 2026-11-03; `cohort-storage-cutover.md`);
+    - the rule that decides what lands at the flip, and the sort under it (Owner, 2026-11-03; § Direction);
+    - the cut is a retirement into the subcohort `state-storage/storage-cutover` (Owner, 2026-11-03; § The cut);
+    - the per-check sort: every lifecycle hook check and the CI planning classifier follow, and only the prose acting
+      on two classifier commands goes at the flip (§ Direction);
+    - the carve: five members, their items and edges, the size mark, and the follow-ons' Gate B placement (Owner,
+      2026-11-03; `cohort-storage-cutover.md`).
+- **Open:**
+    - whether the flip untracks the Candidate and transition records under `.arc/system/.internal/`, which decides
+      #3's member;
+    - the quiesce, and the check that it holds;
+    - the rehearsal's shape;
+    - a review stop rule, agreed before the second review pass.
+- **Next:**
+    - The quiesce and the check that it holds, then the rehearsal's shape, designed from the landed members'
+      specifications.
+
+### The cut
+
+`storage-cutover` retired into the subcohort `state-storage/storage-cutover` on 2026-11-03, by the procedure in
+`RELEASE-GATES.md` § Decomposition until the cutover. This member continues its draft and carries the Must: the
+rehearsal, the window, the flip change, the flip's whole workflow rewrite, and notes retirement. The boundary
+decisions, the carve, and the follow-ons' placement are in `cohort-storage-cutover.md`.
+
+The inbound items keep the numbers they had in `storage-cutover`'s buffer, shown in their headings. An item cited
+here that this draft does not hold is in a follow-on member's draft under the same number.
+
+### Scope notes
+
+- **`WORKING-MEMORY` entries removed when `cutover-flip` lands,** each trigger re-pointed at the cut:
+    - the auto-merge lane's `planning` mapping: the flip's rewrite drops the prose that arms on `planning`, which the
+      classifier stops answering, so the entry has nothing left to guard;
+    - the Errand-close `nextOffer` resumption;
+    - the `role-conflict` fast-forward;
+    - the landing bridge's Candidate re-asks;
+    - the decomposition procedure until the cutover.
 
 ---
 
@@ -14,11 +70,142 @@
   (`analysis-storage-substrate-direction.md` § 10.3). Planning-only work units' artifacts import from their branch
   heads, `delivery-rebuild-continuity`'s included; implementation work units land first where possible, or park at
   a task boundary.
-- **Deletion passes** over the categories the flip makes dead (§ 10.4): notes-specific sync, branch-tree readers,
-  lifecycle classification and exclusion, the lifecycle hook checks, and the CI planning classifier.
-- **Documentation:** the mechanics and lifecycle-path documentation in both copies, and the rules the register marks
-  rewritten at cutover.
-- **The register's cutover rows** (`cohort-state-storage.md` § Storage-coupling register).
+- **The register's cutover rows** whose fate the flip realizes (`cohort-state-storage.md` § Storage-coupling
+  register).
+- **Not here:** the deletion passes over what the flip makes dead (§ 10.4) and the documentation pass, which are the
+  subcohort's four other members (`cohort-storage-cutover.md`).
+
+### Where the inbound items land
+
+The numbers are those in the items' headings, fixed at `storage-cutover`'s cut, and H1–H5 are the five hand-overs.
+This map places items in sections only. Each is integrated or rejected at the Owner's planning pass.
+
+- **Rehearsal:** #2, #5, #8, #15, #22, #25, #28, #30, #31, #34, and the rehearsal cases `seam-delivery-review`'s
+  review left (the PM brief, § What the rehearsal needs first).
+- **The window** (quiesce, import, flip, notes retirement): #7, #19, #23's quiesce and import clauses, #30, #34.
+- **The flip change** (code that must change at the flip): #9, #11, #18, #26, #27's notice, #32.
+- **The flip's workflow rewrite:** #2, #6, #12, #13, #16, #21, #23, #25, #27, #37, H1, H5.
+- **Held by the follow-on members:** #1, #3, #4, #10, #17, #20, #24, #25, #33, #35, H2, H3, and H4, with the
+  shares of #1, #10, #25, and #26 that `cohort-storage-cutover.md` names.
+- **This draft's own text:** #29 (the Purpose line) and #36 (the citation repoint).
+
+---
+
+## Direction
+
+### What lands at the flip, and what follows
+
+**The rule (Owner, 2026-11-03).**
+
+- **At the flip:** whatever would break or mislead once state leaves the branch.
+    - the rehearsal, and the quiesce with a check that it holds;
+    - the import, and its second run;
+    - the flip change;
+    - the whole workflow rewrite, since ARC's process changes once, at the flip;
+    - notes retirement;
+    - any check that would fail, or pass vacuously, once tracked state is gone. Refined (Owner, 2026-11-03): a check
+      goes at the flip when it would fail, or when something after the flip relies on its result as assurance. A
+      vacuous pass that nothing reads is inert and follows.
+- **Follows:** code the flip only makes inert, and the strategy and ADR documentation. This goes to the follow-on
+  members.
+
+**At the flip, in the flip member:**
+
+- **Rehearsal:** #2, #5, #8, #15, #22, #25's representative cut, #28, #30's bind, #31's partial-protection start, #34,
+  and `seam-delivery-review`'s rehearsal cases.
+- **Window:**
+    - before the import: #2's session handoffs, #19's worktree locks, #23's in-flight review attempts finished, #30's
+      teardown of ended holders and husks, and #34's save from every checkout;
+    - the import itself: #7's tidy, notes bundles, reviews finished on other machines, and second run;
+    - after the import: #15's in-place carry, and #30's bind or release of each pre-flip marker.
+- **Flip change:**
+    - #9 `arc sync` onto `pull` and `push`;
+    - #11, the three capture gates onto `arc inbox`, whose dormant arm is `DormantStoreCommand`'s `inbox`
+      (`commands/store-command-support.ts`);
+    - #18 and #32, untrack the shared roots' files and stop every install into a projected root;
+    - #26, the ROADMAP template's install entries and `verify-integrity.sh`'s presence test;
+    - #27's Markdown notice.
+- **Untrack the tracked state the import consumed,** with the readers that would then fail. This extends #18 beyond
+  the projected roots. If the flip change also untracks the Candidate and transition records under
+  `.arc/system/.internal/`, #3's `live-transition-records.test.ts` goes here, since left in place it fails on the
+  missing folder. Whether the flip untracks those folders is still open.
+- **The workflow rewrite:**
+    - #6, #12, #13, #16, #21, #23's five steps, #25's end state, #27's ceremony requests kept before each save, #37
+      (the module deletion and the spine's remaining prose), H1, and H5;
+    - the always-loaded process text agents act on, which changes with the workflows: #14's Locus definition in
+      `AGENT-BRIEF.ARC.md`, and the QUICK-REFERENCE verb index from #13;
+    - the prose that arms auto-merge on `arc review planning-lane`, or claims the routing exemption through
+      `arc review planning-grooming resolve`: `run-errand.md`, `drain-inbox.md`, and `setup-merge-gate.md`, with the
+      planning-grooming lane selection in `route-discovered-work`. Both commands answer `reviewed` or
+      `not-eligible` once state is untracked, so the steps would never fire again.
+- **Notes retirement:** #7's notes-ref handling, including keeping the old ref outside `refs/tags/`.
+
+**Follows, in the follow-on members** (`cohort-storage-cutover.md`):
+
+- **`cutover-tracked-state-removal`:** #1's branch-tree readers, lifecycle classification, lifecycle hook checks,
+  and CI planning classifier (the per-check sort below); #3, unless the flip untracks the `.internal/` records; #4;
+  #10's import transform, after the window's second import run; #20; #24; #26's in-repo arms and `DERIVED_VIEWS`;
+  #35; H2; and the residue refs, once the held delivery work unit's artifacts are imported.
+- **`cutover-notes-removal`:** #1's notes-sync machinery, #10's sync-state ref, #17, and the notes configuration
+  keys, once #37's module deletion leaves them no reader.
+- **`cutover-decompose-removal`:** #25's deletion set.
+- **`cutover-documentation`:** #33, H3, H4, the strategy rewrites the register names, and the ADR supersessions and
+  amendments.
+
+**The per-check sort** (2026-11-03): every lifecycle hook check and every part of the CI planning classifier
+follows. None fails once tracked state is gone, and nothing relies on its result; only the prose acting on two
+classifier commands goes at the flip, in the workflow rewrite above. The checks' detail and the deletion's ordering
+hazards are in `draft-cutover-tracked-state-removal.md`.
+
+### Building before `projection-worktrees` lands
+
+Phases that touch no unlanded member can build in the flip member before `projection-worktrees` lands. They still land
+at the flip.
+
+- **Rehearsal harness:** #22's matrix, #31's partial-protection start, and `seam-delivery-review`'s cases.
+- **Quiesce:** #19's lock, and the check that the quiesce holds.
+- **Flip change:** #9, #11, and #26's install entries, with #3's test removal if the flip untracks the
+  `.internal/` records.
+- **Workflow rewrite:** every step from a landed member: #6, #12, #13, #16, #21, #23, #25, #37.
+
+What waits:
+
+- for `projection-write-back`: #2, #5, #27, and H5;
+- for `projection-worktrees`: #18;
+- for `adopter-install-authority`'s specification: #32;
+- for `cohort-identity-verbs`: H1;
+- for the trial imports: the import's part.
+
+---
+
+## Unknowns and Assumptions
+
+### Named assumptions on unlanded members
+
+Each assumption is written against the named specification section and re-checked when that member lands.
+
+- #2, the end-to-end workflow rewrite and quiesce: `projection-write-back`, for `arc save` and write-back's first
+  real run (§ 18).
+- #5, each hand-editable kind's parser and entry shape: `projection-write-back` § 7.6 and § 18.
+- #18, no tracked or installed file in a projected root: `projection-write-back` § 9, `projection-worktrees` § 12.2
+  and § 18.
+- #27, the movable set, the ceremony check requests, and the notice: `projection-write-back` § 7.6, for link rules in
+  each kind's check, and § 11.7.
+- #36, the repoint from `spec-storage-projection.md`: each projection member's § 18.
+- #25 and #28, the decomposition rehearsal cut: `storage-ref-hardening` § 10, for copied-companion naming.
+- #32, removing the projected-root install entries: `adopter-install-authority` D1, D2, and D6, in its specification
+  on its planning branch.
+- H1, the identity verbs' workflow changes: `cohort-identity-verbs` § Non-Goals ("Workflow text") and § 10.
+- H5, how often the save anchor moves: `projection-write-back` § 11.7, `projection-worktrees` § 11.
+
+Item #32's member depends on this one, so its assumption constrains this unit downstream rather than gating it. #19 rests
+on `spec-projection-substrate.md` § 12.7, which has landed. #23's conditional on `delivery-observe-attest` is an open
+question, not an assumption.
+
+### Held until the trial imports report
+
+The import's part of the design waits for `storage-ref-hardening`'s trial imports and the import rerun over current
+`main`. That covers #7, #8, #34, and #23's import-trial clause.
 
 ---
 
@@ -27,58 +214,7 @@
 > _Routed-in concerns pending integration at this work unit's first planning iteration. Integrate — or_
 > _consciously reject — each one._
 
-### `[ ]` **Delete the code `cli-substrate-complete-migration` carves out**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, drained at the `state-storage` re-cut (2026-09-28).
-
-- _Observation:_ `cli-substrate-complete-migration` does not migrate code the storage program deletes or rewrites.
-  Its closeout exclusion names the `state-storage` storage-coupling register (`cohort-state-storage.md`) as the
-  authority for each carved item's owner and fate, so the `cli-substrate-adoption` cohort cannot close until these
-  rows exist. The classes follow `analysis-storage-substrate-direction.md` § 10.4; the anchor modules are in
-  `draft-cli-substrate-complete-migration.md` § Storage carve-out (later its spec).
-    - **Removed at cutover — owner: `storage-cutover`'s deletion passes.**
-        - Notes-specific sync: the notes machinery in `lib/user-sync/`, the `commands/user/` push, fetch,
-          compaction, and sync-status family, `handlers/user-sync.ts`, `handlers/push-recovery.ts`, and the notes
-          portions of `commands/user/save-load.ts`, `handlers/user.ts`, `handlers/sync.ts`, and `lib/io-context.ts`.
-          `lib/user-sync/` is mixed — these symbols survive and must not go with it: the cross-WU entry parser
-          (inbox state, reminders, and `matchInboxEntryTitle`), the inbox writer and execution offers (Errand open
-          and link, the `user inbox` mutations, and session-init's inbox state), and `resolveCurrentWuName`. The
-          tail moves the Git failure-text predicates (`isCasRejectionError`, `isRemoteUnavailableError`,
-          `isNonFastForwardError`), which the Errand refs use, to `lib/git/ref-tree.ts`, and
-          `resolveGitCommonDir`, which nine surviving modules import, to `lib/git/exec.ts`. Deleting
-          `handlers/user-sync.ts` also removes its registrations in `command-input-registrations.ts` and `cli.ts`.
-        - Branch-tree readers: `lib/status/project-view-ref.ts`, `git-retirement-authorization-context.ts`,
-          `git-transition-record-enumeration.ts`, the ref-reading portions of `in-flight-derivation.ts`,
-          `remote-ref-reader.ts`, `completed-index.ts` (`*FromRef`), and the session-init sweeps' base-archive reads,
-          and base drift's read of `.arc/completed/` from base history (`lib/base-drift/current-adapters.ts:131`).
-            - Two modules are mixed: `completed-index.ts` keeps `branchToWorkUnitSlug`, and `remote-ref-reader.ts`
-              keeps `DEFAULT_NETWORK_TIMEOUT_MS` and `readLiveRemoteBranchTip`.
-            - Surviving consumers move to store reads before the readers go: `handlers/start.ts` through
-              `project-view-ref`; `teardown-retirement-driver.ts` through the retirement-authorization context; and
-              the transition-record enumeration's callers — `git-decompose-v3-operation`, `executor-context`,
-              `delivery/plan-resolution`, and the status, user, reconcile, and lifecycle handlers.
-        - Lifecycle classification and exclusion: `evidence-applicability/path-treatment.ts`,
-          `delivery/lifecycle-contribution.ts` with its Git variant, and the evidence-neutral and regenerable arms.
-          Surviving consumers move off them first: `work-unit/candidate-evidence.ts` and `git/base-overlap.ts`
-          through `path-treatment.ts`, and six modules through `lifecycle-contribution.ts` — `entry-inspection`,
-          `chain-containment`, `repository-entry`, and `git-eligibility` in `lib/delivery/`,
-          `handlers/delivery-execution.ts`, and the review gate's `pre-publication-composition`.
-        - Lifecycle hook checks: `validate-meta-spec`, `validate-cohort-consistency`, `assert-roadmap-regenerated`
-          with `lib/status/roadmap-regeneration-assert.ts`, `check-foreign-writes`, `remedy-roadmap-conflict`, and
-          the pre-commit hook's own state-path checks: the contributor-protected paths (the
-          `hooks.contributor_protected_paths` default at `lib/config/schema.ts:270`), the task-list modification
-          check, and the ROADMAP render-field check.
-        - CI planning classifier: `isPlanningArtifactPath` and `classifyPlanningLane` in `change-facts.ts`, the
-          `lane-paths` logic in `classify-change.sh`, the lane-attestation workflow, `arc review planning-lane`
-          (`handlers/review.ts`), and the planning-grooming command. The rest of `change-facts.ts` survives.
-
-- _Approach:_ each bullet is one row in `cohort-state-storage.md`'s storage-coupling register. Reconcile the
-  carve owner names in `cli-substrate-complete-migration`'s spec to `storage-cutover` (removed) and
-  `storage-seam` (rewritten).
-
-- _Captured during:_ `cli-substrate-complete-migration` draft-design, 2026-09-28.
-
-### `[ ]` **Rehearse the flip's workflow rewrite end to end, and quiesce every session holding today's workflow text**
+### `[ ]` **2. Rehearse the flip's workflow rewrite end to end, and quiesce every session holding today's workflow text**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-09-30); captured during
   `storage-contract` draft-design, adversarial pass 6 and a review of the reframe (2026-09-30).
@@ -96,50 +232,7 @@
   review copy, and integration's candidate tail — and add to quiesce that every session hands off before the flip, so
   each resumes on the rewritten text.
 
-### `[ ]` **Retire the live transition-record test when lineage moves to the store**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-09).
-
-- _Shapes:_ § Scope's deletion pass, and the register row for Candidate and transition records.
-
-- _Observation:_ An integration test reads the tracked transition records in `.arc/system/.internal/transitions/`
-  directly and checks them for structural integrity: each parses, round-trips to canonical bytes, is the one record
-  for its origin under `<origin>.json`, and projects to a valid reference set. The ARC contract test tier runs it, so
-  docs-only pull requests that add or change a record are checked. The storage register row for Candidate and
-  transition records names the records but not this reader. Once lineage is a store family written only by verbs,
-  the folder is gone and the store's own record validation carries the integrity check.
-
-- _Approach:_ In the deletion pass after the flip, delete `live-transition-records.test.ts` and its entry in the ARC
-  contract tier selection (`src/lib/local-vitest-runner.ts` and its unit test). Until the flip the in-repo
-  implementation keeps the tracked records, so the test stays valid. If missed, the test fails loudly on the missing
-  directory rather than passing vacuously.
-
-- _Captured during:_ Errand `transition-record-checks`, 2026-09-30; re-routed from `storage-seam` at its draft
-  consolidation, 2026-10-05, because the records leave the tracked folder only at the flip.
-
-### `[ ]` **Drop lineage's `rename` and the meta's retired session fields in the deletion pass**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-11).
-
-- _Shapes:_ § Scope's deletion passes, and its inbound entry "Retire the live transition-record test when lineage
-  moves to the store".
-
-- _Observation:_ `seam-record-kinds` leaves three things to the deletion pass (`spec-seam-record-kinds.md`
-  § Non-Goals). Lineage's `rename` kind stays until the flip, since the in-repo arm writes rename records and
-  resolves former slugs through them; `storage-ref-backend`'s import turns today's three into former slugs, so from
-  the flip lineage holds terminal transitions only. The parsed meta keeps `Next Task`, `Last Completed`, and
-  `Blockers`, with their writers, so rerouted code compiles unchanged across the flip; verbs stop writing them on the
-  capability. And record kinds rewrites `live-transition-records.test.ts` to the converted lineage shape, which the
-  inbound entry's deletion still covers.
-
-- _Approach:_ in the deletion pass, drop `rename` from the lineage kind and its parser, and the three fields from
-  the meta's parsed schema, with their writers and every pre-flip arm that writes them.
-
-- _Drain note (2026-10-11):_ overlaps the held entry above on lineage's move to the store; integrate them together.
-
-- _Captured during:_ `seam-record-kinds` draft close, 2026-10-10.
-
-### `[ ]` **Confirm at the flip rehearsal that every hand-editable projected kind has its parser and entry shape**
+### `[ ]` **5. Confirm at the flip rehearsal that every hand-editable projected kind has its parser and entry shape**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-11).
 
@@ -167,7 +260,7 @@
 - _Captured during:_ `storage-projection` draft-design, 2026-10-09; widened to entry shapes at its draft close,
   2026-10-10.
 
-### `[ ]` **Take `storage-seam`'s flip-rewrite obligations into the cutover's workflow rewrite**
+### `[ ]` **6. Take `storage-seam`'s flip-rewrite obligations into the cutover's workflow rewrite**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-11).
 
@@ -188,7 +281,7 @@
 
 - _Captured during:_ `storage-seam` draft close, 2026-10-09.
 
-### `[ ]` **Carry the import's second run, the pre-import tidy, and every machine's notes and reviews into the window**
+### `[ ]` **7. Carry the import's second run, the pre-import tidy, and every machine's notes and reviews into the window**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-11).
 
@@ -210,7 +303,7 @@
 
 - _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
 
-### `[ ]` **Compare every Candidate chain through the store with today's reader in the rehearsal**
+### `[ ]` **8. Compare every Candidate chain through the store with today's reader in the rehearsal**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-11).
 
@@ -230,7 +323,7 @@
 
 - _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
 
-### `[ ]` **Rewire `arc sync` onto the store's `pull` and `push`**
+### `[ ]` **9. Rewire `arc sync` onto the store's `pull` and `push`**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-11).
 
@@ -247,25 +340,7 @@
 
 - _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
 
-### `[ ]` **Delete the import's transform, the suites that target retired substrates, and the sync-state ref**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-11).
-
-- _Shapes:_ its § Scope, "Deletion passes", notes-specific sync among them.
-
-- _Observation:_ `storage-ref-backend` leaves three items to the deletion pass. The import's transform is the migrate
-  verb's one-time part and goes with the in-repo implementation, the verb staying. A store suite that runs the shared
-  conformance suite or tests a consumer through the contract survives, while one that targets the in-repo
-  implementation, notes, or Errand refs by name retires with them, and that list comes from the ref backend's
-  implementation. And `refs/arc/user/<id>/sync-state` retires with notes rather than through the import
-  (`draft-storage-ref-backend.md` § Decisions, The migrate verb and the import, and Verification).
-
-- _Approach:_ fold all three into the deletion pass's inventory, and take the suite list from the ref backend when it
-  lands.
-
-- _Captured during:_ `storage-ref-backend` draft close, 2026-10-10.
-
-### `[ ]` **Carry `arc user inbox-list` and the capture exit guards across the flip**
+### `[ ]` **11. Carry `arc user inbox-list` and the capture exit guards across the flip**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-13).
 
@@ -296,7 +371,7 @@
   `spec-seam-locus.md` § 1.5 lists `arc user inbox-list --target` among the arms the deletion pass removes; settle
   which holds.
 
-### `[ ]` **Rewrite the task loop's completion around the task close verb**
+### `[ ]` **12. Rewrite the task loop's completion around the task close verb**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-13).
 
@@ -320,7 +395,7 @@
 - _Drain note:_ `spec-seam-lifecycle.md` § 9.5 carries the provider text, including a hand `[~]` becoming `arc task
   defer`.
 
-### `[ ]` **Rewrite park and resume as pause and resume**
+### `[ ]` **13. Rewrite park and resume as pause and resume**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-13).
 
@@ -337,7 +412,7 @@
 - _Drain note:_ `spec-seam-lifecycle.md` § 19 also names QUICK-REFERENCE's verb index, where `arc pause` replaces `arc
   park`.
 
-### `[ ]` **Let the Locus definition end a work unit's locus at release as well as teardown**
+### `[ ]` **14. Let the Locus definition end a work unit's locus at release as well as teardown**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-13).
 
@@ -356,7 +431,7 @@
 - _Drain note:_ `strategy-work-organization.md` and `resume-work-unit.md` carry sibling sentences that end a locus at
   teardown alone.
 
-### `[ ]` **Rehearse the flip's carry of checkouts claimed in place before it**
+### `[ ]` **15. Rehearse the flip's carry of checkouts claimed in place before it**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-13).
 
@@ -378,7 +453,7 @@
 - _Drain note:_ `spec-seam-locus.md` § 2.7 now lists more in-place arms than this entry: in-place resume, and
   promotion on the primary.
 
-### `[ ]` **Rewrite the workflow steps the seam's lifecycle verbs replace**
+### `[ ]` **16. Rewrite the workflow steps the seam's lifecycle verbs replace**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-13).
 
@@ -402,24 +477,7 @@
 
 - _Captured during:_ `seam-lifecycle` draft-design close, 2026-10-12.
 
-### `[ ]` **Drop `resolveCurrentWuName` from the cutover's list of `lib/user-sync/` survivors**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-13).
-
-- _Shapes:_ the survivor list in the inbound entry "Delete the code `cli-substrate-complete-migration` carves out",
-  and the register's notes-specific sync row.
-
-- _Observation:_ the draft lists `resolveCurrentWuName` (`lib/user-sync/current-wu.ts`) among the symbols that must
-  survive the notes deletion. `spec-seam-locus.md` § 2.2 moves its one caller outside notes sync, the user-reference
-  reconcile (`handleUserReconcileReferences`, `handlers/user.ts`), onto `resolveCurrentWorkUnit`, leaving only the
-  notes-sync commands (`commands/user/sync-status.ts`, `commands/user/save-load.ts`, and `handlers/user.ts`'s notes
-  arms) calling it. Once that lands, the function goes with the notes machinery rather than surviving it.
-
-- _Approach:_ move it from the survivor list to the removed set, after re-checking its callers when the cutover plans.
-
-- _Captured during:_ `seam-locus` create-spec, 2026-10-12.
-
-### `[ ]` **Leave no tracked or installed file in a projected root from the flip**
+### `[ ]` **18. Leave no tracked or installed file in a projected root from the flip**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-15).
 
@@ -441,7 +499,7 @@
 - _Captured during:_ `storage-projection` generate-tasks, adversarial pass 1 finding F17 (approved disposition),
   2026-10-14.
 
-### `[ ]` **Lock every unlocked work-item worktree at the cutover's quiesce**
+### `[ ]` **19. Lock every unlocked work-item worktree at the cutover's quiesce**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-15).
 
@@ -461,27 +519,7 @@
 - _Captured during:_ `storage-projection` generate-tasks, adversarial pass 1 finding F22 (approved disposition),
   2026-10-14.
 
-### `[ ]` **Decide whether `scratch/.internal/` is machine-local or the person's own**
-
-- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-15); homed at the
-  drain.
-
-- _Shapes:_ § Scope — the deletion passes, where per-work-unit workspaces retire at the flip.
-
-- _Observation:_ `MACHINE_LOCAL_PATHS`' `<identity>/*/.internal/**` (`lib/store/registry.ts`) also matches
-  `.arc/user/<identity>/scratch/.internal/`, while D5 (`spec-storage-contract.md`) says `scratch/` holds the person's
-  own documents, where anything goes. From the flip, work-unit workspaces retire, so the one-folder-down pattern's
-  practical reach is `scratch/.internal/` and any other identity subfolder: a file there is never stored or synced, the
-  projection skips it, and it goes with its checkout. The reference backend refuses those keys too
-  (`machineLocalPersonalPath`, `__tests__/helpers/store/refusals.ts`).
-
-- _Approach:_ narrow the pattern to the per-workspace `.internal/` it was written for once workspaces retire, or state
-  in D5 that `scratch/.internal/` is machine-local.
-
-- _Captured during:_ `storage-projection`'s create-spec fix-check round 6, 2026-10-14; the tension is in the registry
-  and D5, not that spec.
-
-### `[ ]` **Drop the retired extension step from the task-close rewrite's reorder**
+### `[ ]` **21. Drop the retired extension step from the task-close rewrite's reorder**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: storage-cutover`), housekeep drain (2026-10-15); split from
   "Reconcile task-close sequencing and the storage reader inventory with retirement".
@@ -496,7 +534,7 @@
 
 - _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
 
-### `[ ]` **Run the full destructive CLI matrix with the flipped backend before release**
+### `[ ]` **22. Run the full destructive CLI matrix with the flipped backend before release**
 
 - _Routed from:_ `seam-locus` terminal verification, 2026-10-16.
 
@@ -574,7 +612,7 @@
         repairs missing/conflicted state. Templates: completed-subject-matrix; recovery-state-basis/store-evidence;
         restate-store; unclosed-task-frame; recovery-unclosed-task-commits; subject-meta-candidate.
 
-### `[ ]` **Take `seam-delivery-review`'s flip-rewrite steps into the cutover's workflow rewrite**
+### `[ ]` **23. Take `seam-delivery-review`'s flip-rewrite steps into the cutover's workflow rewrite**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
 - _Shapes:_ Workflow rewrite, review-copy treatment, review import/quiesce, and deletion pass
@@ -631,44 +669,7 @@
 
 - _Captured during:_ `seam-delivery-review` draft-design close, 2026-10-15.
 
-### `[ ]` **Retire `archive.cadence` at the flip, with its readers**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
-- _Shapes:_ Deletion pass: retire archive.cadence key and all readers; settle any real residual timing choice
-
-- _Observation:_ the program removes everything the cadence selects, but never retires the key itself. Archival becomes
-  a store write at or after merge (the register's archive-before-merge row, owned by `storage-seam`), and the storage
-  contract's consumer map drops `archive-work-unit.md`'s manual-cadence routing and `integrate-work-unit.md`'s step-8
-  cadence dispatch at the flip. The same map's `arc-config.yml` row retires `user.notes_push`,
-  `session.init_pull.notes`, and `session.init_load.notes` with no successor, but not `archive.cadence`, and no row
-  names the key's code readers: `lib/config/schema.ts`, `lib/config/status-reader.ts`, `commands/config/validate.ts`,
-  readiness's `wrong-cadence` refusal (`scripts/review-gate/readiness.ts`), and `scripts/integration/checkpoint.ts`,
-  `checkpoint-composition.ts`, and `merge-composition.ts`. After the flip the key selects no behavior.
-
-- _Approach:_ retire the key with no successor beside the notes keys, and take its readers out in the deletion pass.
-  Settle at the draft whether "at or after merge" leaves any choice worth a setting — integration archiving at merge, or
-  leaving it to a later `arc archive` — with the program's rule of the final shape over today's as the default answer.
-
-- _Captured during:_ `storage-ref-backend` activation, 2026-10-16, while folding the review import mapping's liveness
-  test, which reads no cadence for this reason.
-
-### `[ ]` **Take `seam-decomposition`'s deletion set, rehearsal cut, and workflow end state**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
-- _Shapes:_ Decomposition deletion set, workflow end state, and representative cut in rehearsal
-
-- _Observation:_ `seam-decomposition` rebuilds `arc decompose` store-native from the flip and changes nothing before it
-  beyond a capability branch in `handleDecompose`. Three things land here. The deletion pass gains today's decomposition
-  machine: every module the store version does not import, with `decompose-candidate.ts`'s callers in teardown and
-  in-flight derivation. The rehearsal is the store version's first run on the ref backend, and, run as a representative
-  cut on a copy, the evidence `decompose-core-hardening` and `decompose-transform-integrity` close on, with neither
-  closeout criterion amended. The flip rewrite takes `draft-seam-decomposition.md` § The workflow's end state: an
-  additive batch replacing dispatch, authoring, one distribution approval, and the terminal batch as the landing, with
-  today's separate finish-preview stop gone.
-
-- _Captured during:_ `seam-decomposition` draft-design close, 2026-10-16.
-
-### `[ ]` **Take `seam-status-roadmap`'s two-step ROADMAP removal and its in-repo arms**
+### `[ ]` **26. Take `seam-status-roadmap`'s two-step ROADMAP removal and its in-repo arms**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
 - _Shapes:_ Two-step ROADMAP removal, installer/integrity edits, in-repo arm deletion, and old-hook hazard
@@ -685,7 +686,7 @@
 
 - _Captured during:_ `seam-status-roadmap` draft-design close, 2026-10-16.
 
-### `[ ]` **Take `projected-markdown-checks`' movable set, its ceremony check requests, and the flip's Markdown notice**
+### `[ ]` **27. Take `projected-markdown-checks`' movable set, its ceremony check requests, and the flip's Markdown notice**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
 - _Shapes:_ Movable-record rule, ceremony check requests, and flip Markdown-tool notice
@@ -714,7 +715,7 @@
 
 - _Captured during:_ `projected-markdown-checks` draft-design, draft close (2026-10-17).
 
-### `[ ]` **Close the two decomposition cohorts on representative rehearsal evidence**
+### `[ ]` **28. Close the two decomposition cohorts on representative rehearsal evidence**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-19).
 - _Shapes:_ Representative decomposition rehearsal evidence and closure of decompose-core-hardening /
@@ -742,7 +743,7 @@ _Routing boundary (2026-10-19):_ The stub retirement is a separate fresh-session
 representative rehearsal and both cohorts’ closeout against their unchanged criteria; neither cohort closes before that
 evidence.
 
-### `[ ]` **Drop CineXplorer from the cutover's purpose: it installs fresh after the flip**
+### `[ ]` **29. Drop CineXplorer from the cutover's purpose: it installs fresh after the flip**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
 
@@ -758,7 +759,7 @@ evidence.
 
 - _Captured during:_ the CineXplorer migration timing discussion, 2026-10-22.
 
-### `[ ]` **Carry every pre-flip checkout's UID-less work-unit marker across the flip by binding or releasing it**
+### `[ ]` **30. Carry every pre-flip checkout's UID-less work-unit marker across the flip by binding or releasing it**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
 
@@ -784,7 +785,7 @@ evidence.
 
 - _Captured during:_ `lifecycle-slug-selection` draft-design, 2026-10-22.
 
-### `[ ]` **Admit a started work unit's planning branch at planning entry under partial protection**
+### `[ ]` **31. Admit a started work unit's planning branch at planning entry under partial protection**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
 
@@ -805,7 +806,7 @@ evidence.
 
 - _Captured during:_ the CineXplorer install rehearsal (`2026-10-23T083226`), `score-badge-low-votes` draft-design.
 
-### `[ ]` **Remove the projected-root install entries outright at the flip; the install authority is rebuilt after it**
+### `[ ]` **32. Remove the projected-root install entries outright at the flip; the install authority is rebuilt after it**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
 
@@ -825,25 +826,7 @@ evidence.
 
 - _Captured during:_ `adopter-install-authority` draft-design close, 2026-10-23.
 
-### `[ ]` **Say when the shipped `storage.backing_repository` comment takes effect**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-24).
-
-- _Shapes:_ its documentation pass, which makes the backing pointer live and rewrites adopter-facing text.
-
-- _Observation:_ the shipped config template's Storage section (`packages/arc-framework/arc/system/arc-config.yml`,
-  mirrored in `.arc/system/arc-config.yml`) reads "Optional backing repository URL for ARC state. Empty uses no backing
-  repository pointer." Nothing reads the key to any effect before the flip: its only reader is `readBackingRepository`
-  through `src/commands/store-ports.ts`, and `createStore` still composes the in-repo backend. A project reading the
-  template may expect the privacy the backing repository exists for.
-
-- _Approach:_ at the documentation pass, rewrite the comment to say what the key does once live, or keep the key out of
-  the template until the flip makes it live.
-
-- _Captured during:_ `storage-ref-backend` pre-publication standard review (finding F19, deferred with the approved
-  disposition set), 2026-10-23.
-
-### `[ ]` **Save personal state from every checkout immediately before the import**
+### `[ ]` **34. Save personal state from every checkout immediately before the import**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
 
@@ -860,26 +843,7 @@ evidence.
 
 - _Captured during:_ the import trial Errand over current `main`, 2026-10-31.
 
-### `[ ]` **Commit the cutover's deletion pass to removing the review gate's inert local folders**
-
-- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
-
-- _Shapes:_ the deletion pass; `seam-delivery-review`'s spec § 11.1–11.2 (left-behind review-gate files).
-
-- _Observation:_ the import's review mapping (`seam-delivery-review`) carries only live work's review-gate facts. It
-  leaves behind shipped work units' facts ("No live work item owns this review fact"), working state, retired
-  snapshots, retired-attempt frontline outcomes and older dispositions; 2,895 sources in its 2026-10-29 trial, about
-  2,940 files and 22 MB in `.git/arc/review-gate/` on 2026-10-31, dating from 2026-07-23. Left behind means not
-  imported: the files stay. That spec says the folders stay inert from the flip and that the cutover's deletion pass
-  "may" remove them, which commits nothing. Nothing reads a shipped work unit's review facts to decide (its § 11.1).
-
-- _Approach:_ make the deletion pass remove the inert review-gate folders after the flip, keeping the import's
-  left-behind report as the record of what was dropped. Leave the machine-local hosted-request owner index
-  (`identity/`), which stays in use after the flip, to the retention capture beside this one.
-
-- _Captured during:_ PM follow-up on the import trial, answered by `seam-delivery-review`, 2026-10-31.
-
-### `[ ]` **Repoint `storage-cutover`'s draft from `spec-storage-projection.md` to the projection members' specifications**
+### `[ ]` **36. Repoint `storage-cutover`'s draft from `spec-storage-projection.md` to the projection members' specifications**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
 
@@ -898,7 +862,7 @@ evidence.
 
 - _Captured during:_ `storage-projection`'s decomposition, distribution approval (2026-10-31).
 
-### `[ ]` **Retarget the flip's session-init rewrite at the session-init agenda's spine and its cutover module**
+### `[ ]` **37. Retarget the flip's session-init rewrite at the session-init agenda's spine and its cutover module**
 
 - _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-10-31).
 
@@ -921,5 +885,35 @@ evidence.
   deleted by that unit (D14 retires the contributor layout), so the flip has no contributor-variant rewrite left.
 
 - _Captured during:_ `session-init-agenda` draft-design, 2026-10-31.
+
+### `[ ]` **H1. Move the workflows onto `cohort-identity-verbs`' commands at the flip**
+
+- _Routed from:_ `spec-cohort-identity-verbs.md` § Non-Goals ("The flip's workflow rewrite owns every workflow
+  change"), 2026-11-03.
+
+- _Shapes:_ the flip's workflow rewrite, beside the entries "Take `storage-seam`'s flip-rewrite obligations into the
+  cutover's workflow rewrite" and "Rewrite the workflow steps the seam's lifecycle verbs replace".
+
+- _Observation:_ the unit adds `arc cohort close`, `arc cohort remove`, and `arc rename <slug|uid>` for work units and
+  cohorts, and UID operands for `arc errand close` and `arc errand abandon` (its § User-facing impact). Before the flip,
+  `arc cohort close` and `arc cohort remove` refuse `unsupported` through `runDormantStoreCommand`
+  (`commands/store-command-support.ts`), naming today's route: edits to the tracked cohort files, and archive's sidecar
+  sweep (its § 10). From the flip, write-back cannot rename a cohort, since each edited file persists as its own write.
+
+- _Approach:_ fold into the flip rewrite's step list every workflow step that renames, closes, or removes a cohort by
+  hand edit, or resolves a clash by hand, each checked against `strategy-procedure-evolution.md`.
+
+### `[ ]` **H5. Decide how often the save anchor moves**
+
+- _Routed from:_ `spec-projection-write-back.md` § 11.7 and `spec-projection-worktrees.md` § 11, 2026-11-03.
+
+- _Shapes:_ the flip's workflow rewrite.
+
+- _Observation:_ `arc save` clears each projected file's changed mark, except on a file still holding an edit the store
+  lacks. Until a workflow saves per increment, `--changed` spans everything since the last save. Both specifications
+  leave the cadence to this unit's workflow rewrite.
+
+- _Approach:_ settle the cadence when the rewrite turns state-only commit steps into `arc save`. A save per review
+  increment is the candidate, so the selection a ceremony checks matches the increment.
 
 ---

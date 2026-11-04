@@ -271,7 +271,10 @@ export async function analyzeWorktreeSnapshot(
 /** Default bounded timeout for the worktree-sync fetch. */
 export const DEFAULT_FETCH_TIMEOUT_MS = 3000;
 
-/** Explicit materialization serves a requested operation rather than a quick status probe. */
+/**
+ * Explicit materialization, and a remote read a requested operation acts on, serve that operation rather than a
+ * quick status probe.
+ */
 export const MATERIALIZING_FETCH_TIMEOUT_MS = 30_000;
 /**
  * Inspect one tracked worktree through a bounded exact-ref read without materializing objects.
