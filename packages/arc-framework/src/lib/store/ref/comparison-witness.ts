@@ -1,7 +1,7 @@
 /** Transient authority for deferred writes to a source-specific comparison namespace. */
 import type { RefBackendContext } from "./context.js";
 import { readRefDesignation, type RefRemoteDesignation } from "./designation.js";
-import { EffectiveTransportError, readNamedTransport, readRemoteTransports, resolveLiteralTransport } from "./effective-transport.js";
+import { EffectiveTransportError, readNamedTransport, readRemoteTransports, resolveLiteralTransport, resolveTransport } from "./effective-transport.js";
 import { AdvisoryLockTimeoutError, DEFAULT_MAX_WAIT_MS } from "../../advisory-lock.js";
 import { REF_SYNC_DEADLINE_MS, RefSyncDeadlineError } from "./sync-deadline.js";
 import { readRefRepository } from "./repository.js";
@@ -96,8 +96,8 @@ async function readComparisonSource(physical: RefBackendContext, expected: Named
   const remote = expected.repository === "code" ? designation.codeRemotes.find(row => row.name === expected.name) : designation.backing;
   if (!remote || remote.name !== expected.name || remote.url !== expected.url) return null;
   const owner = remote.repository === "backing" ? physical : source;
-  const transport = publication ? await readRemoteTransports(owner, remote.name)
-    : { fetchUrl: (await readNamedTransport(owner, remote.name, "fetch"))[0] ?? "" };
+  const transport = await resolveTransport(remote.name, publication ? "push" : "fetch", async () => publication
+    ? readRemoteTransports(owner, remote.name) : { fetchUrl: (await readNamedTransport(owner, remote.name, "fetch"))[0] ?? "" });
   if (!transport.fetchUrl) throw new EffectiveTransportError(remote.name, "fetch", "has no effective URL");
   if (expected.fetchUrl !== undefined && transport.fetchUrl !== expected.fetchUrl) return null;
   return { name: remote.name, repository: remote.repository, url: remote.url, fetchUrl: transport.fetchUrl,
@@ -109,10 +109,12 @@ function publicationReceivers(remote: RefRemoteDesignation, codeRemote: string |
 }
 
 async function publicationTargetMatches(physical: RefBackendContext, source: ComparisonSource, target: string): Promise<boolean> {
-  const names = (await physical.exec("git", ["remote"], { cwd: physical.checkoutRoot, objectAccess: "local-only" })).stdout.split(/\r?\n/u);
-  const receivers = names.includes(target) ? await readNamedTransport(physical, target, "push")
-    : await resolveLiteralTransport(physical, target, "push");
-  return JSON.stringify(receivers) === JSON.stringify(source.pushUrls);
+  return resolveTransport(target, "push", async () => {
+    const names = (await physical.exec("git", ["remote"], { cwd: physical.checkoutRoot, objectAccess: "local-only" })).stdout.split(/\r?\n/u);
+    const receivers = names.includes(target) ? await readNamedTransport(physical, target, "push")
+      : await resolveLiteralTransport(physical, target, "push");
+    return JSON.stringify(receivers) === JSON.stringify(source.pushUrls);
+  });
 }
 
 /** Compare only observation authority, allowing callers to carry unrelated recorded fields. */

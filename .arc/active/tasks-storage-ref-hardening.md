@@ -402,15 +402,21 @@ transport failure is a per-remote outcome.
           within its complexity limit, preserving the existing incomplete-fetch, restart, and deadline branches.
           Publisher lint feedback required the same extraction; both callers share the URL-failure mapping.
           Test type-check feedback required explicit initial-version guards before reusing the created leases.
+          Criteria-review F2's candidate mapping uses a separate failure handler after lint identified its complexity
+          limit; deadline cancellation and candidate cleanup keep their existing policies.
         - Typed URL faults now use the shared local-transport failure mapping. Pulls retain each remote's outcome
           and notices; publication attempts retain their pulls and fail without deadline retries at target and
           admission resolution. Missing-effective-URL guards throw `EffectiveTransportError`, leaving the underlying
           lookups throwing. Evidence: `task-4.3.a-*` in the implementation evidence directory.
+          Criteria-review F2 normalizes completed failures only inside transport-resolution boundaries. Pull, push,
+          admission, and candidate designation retain typed repairs; canceled, signaled, and unrelated errors propagate.
 
     - `[x]` **4.3.b Follow**
         - Resume, cleanup, and candidate judgment convert comparison-witness URL failures through the existing
           migration refusal mapper. Resume and cleanup retain the exact move record and remote state, and all three
           paths continue after URL repair. Existing cleanup object and capacity refusals retain their own remedies.
+          Criteria-review F2 includes completed Git lookup failures and preserves completed-work finalization as
+          unbound when current transport cannot authorize a comparison write, retaining its observed refs.
 
 ### `[x]` **4.4 Exercise the caller-observable group through public calls** — validate exit criterion at segment scope
 

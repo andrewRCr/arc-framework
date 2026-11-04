@@ -4,10 +4,26 @@ import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index
 import { isCompletedGitFailure, isGitProcessError } from "../../src/lib/git/process-error.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 
 const provenance = { verb: "save", lifecycleAction: "save" };
 
-it("keeps another remote's applied state and rewrite notice when a read source URL cannot be represented", async () => {
+it.each(["canceled", "signaled", "unrelated"] as const)("preserves a %s failure during transport resolution", async kind => {
+  const h = await refSyncFixture();
+  await h.b.exec("git", ["remote", "add", "zzz-broken", h.origin]);
+  await h.b.exec("git", ["config", "remote.zzz-broken.arc-state", "read"]);
+  const failure = kind === "unrelated" ? new Error("Unrelated executor failure") : makeGitProcessError({ command: "git",
+    args: ["remote", "get-url", "zzz-broken"], ...kind === "canceled" ? { isCanceled: true as const } : { signal: "SIGTERM" } });
+  let injected = false;
+  const reader = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
+    if (args.includes("get-url") && args.at(-1) === "zzz-broken") { injected = true; throw failure; }
+    return h.b.ports.exec(command, args, options);
+  } });
+  await expect(reader.pull()).rejects.toBe(failure);
+  expect(injected).toBe(true);
+}, 60_000);
+
+it.each(["unrepresentable", "removed"] as const)("keeps another remote's applied state and rewrite notice when a read source is %s", async fault => {
   const h = await refSyncFixture();
   const reference = RecordReferenceSchema.parse({ kind: "personal/document", owner: { type: "person", name: "andrew" }, key: "transport.md" });
   const firstRecord = success(await h.a.store.write({ action: "put", reference, expected: null, content: "First content.\n", provenance }));
@@ -22,19 +38,34 @@ it("keeps another remote's applied state and rewrite notice when a read source U
   success(await h.a.store.write({ action: "put", reference: inbox, expected: null, content, provenance }));
   await h.a.git(["push", "origin", "refs/arc/project/inbox:refs/arc/project/inbox"]);
   await h.remote("git", ["update-ref", ref, first, second]);
-  await h.b.exec("git", ["remote", "add", "zzz-broken", `${h.origin}\nextra`]);
+  await h.b.exec("git", ["remote", "add", "zzz-broken", fault === "removed" ? h.origin : `${h.origin}\nextra`]);
   await h.b.exec("git", ["config", "remote.zzz-broken.arc-state", "read"]);
-  const pulled = success(await h.b.store.pull());
+  let injected = false, completedFailure = false;
+  const reader = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
+    const targeted = args.includes("get-url") && args.at(-1) === "zzz-broken";
+    if (fault === "removed" && targeted && !injected) {
+      injected = true;
+      await h.b.exec("git", ["remote", "remove", "zzz-broken"]);
+    }
+    try { return await h.b.ports.exec(command, args, options); }
+    catch (error) {
+      if (targeted && injected) completedFailure = isGitProcessError(error) && isCompletedGitFailure(error);
+      throw error;
+    }
+  } });
+  const pulled = success(await reader.pull());
+  if (fault === "removed") { expect(injected).toBe(true); expect(completedFailure).toBe(true); }
   expect(pulled.pulls).toHaveLength(2);
   expect(pulled.pulls.find(outcome => outcome.remote === "origin")).toMatchObject({ status: "pulled",
     notices: [expect.objectContaining({ kind: "history-diverged", ref, local: second, remote: first })] });
   expect(pulled.pulls.find(outcome => outcome.remote === "zzz-broken")).toMatchObject({ status: "failed", role: "read",
-    failure: { code: "refused", class: "terminal", condition: expect.stringContaining("line break"),
+    failure: { code: "refused", class: "terminal", condition: expect.stringContaining(fault === "removed" ? "zzz-broken" : "line break"),
       remedy: { text: expect.stringMatching(/repair.*URL/iu) } } });
   expect(success(await h.b.store.read({ reference: inbox })).content).toBe(content);
   expect(success(await h.b.store.read({ reference })).content).toBe("Second content.\n");
-  await h.b.exec("git", ["remote", "set-url", "zzz-broken", h.origin]);
-  const repaired = success(await h.b.store.pull()).pulls.find(outcome => outcome.remote === "zzz-broken");
+  await h.b.exec("git", ["remote", fault === "removed" ? "add" : "set-url", "zzz-broken", h.origin]);
+  await h.b.exec("git", ["config", "remote.zzz-broken.arc-state", "read"]);
+  const repaired = success(await reader.pull()).pulls.find(outcome => outcome.remote === "zzz-broken");
   expect(repaired?.status).not.toBe("failed");
   expect(repaired?.status).toMatch(/^(?:pulled|noop)$/u);
 }, 60_000);

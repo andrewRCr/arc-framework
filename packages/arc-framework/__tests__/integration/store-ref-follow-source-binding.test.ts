@@ -6,6 +6,7 @@ import { createRemoteMover } from "../helpers/store/remote-move.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import type { RefStorePorts } from "../../src/lib/store/ports.js";
+import { isCompletedGitFailure, isGitProcessError } from "../../src/lib/git/process-error.js";
 
 const moved = "refs/arc/project/moved", recordRef = "refs/arc/tmp/migrate/move";
 type GitSide = { git: (args: string[]) => Promise<{ stdout: string }> };
@@ -37,11 +38,11 @@ async function staleFixture() {
 }
 
 /** Run the real no-target command, pausing only after its isolated old-source absence observation. */
-async function judgeWithdrawal(f: Awaited<ReturnType<typeof staleFixture>>, afterRead: () => Promise<void>) {
+async function judgeWithdrawal(f: Awaited<ReturnType<typeof staleFixture>>, afterRead: () => Promise<void>, ports = f.side.ports) {
   await f.h.remote("git", ["update-ref", "-d", moved, f.original]);
   let observed = false;
-  const result = await invokeStoreMigrate([], { ...f.side.ports, exec: async (command, args, options) => {
-    const acquired = await f.side.ports.exec(command, args, options);
+  const result = await invokeStoreMigrate([], { ...ports, exec: async (command, args, options) => {
+    const acquired = await ports.exec(command, args, options);
     if (!observed && args.includes("fetch") && args.includes(f.h.origin)
       && options?.input?.includes("refs/arc/tmp/follow/source/")) {
       observed = true;
@@ -96,19 +97,36 @@ it.each(["read", "off", "invalid-push-only"] as const)("clears exact stale sourc
   expect(await tip(f.side, f.tracking)).toBe("");
 }, 60_000);
 
-it("ends a completed stale-follow read while invalid current fetch transport leaves comparison evidence unchanged", async () => {
+it.each(["invalid", "missing"] as const)("ends a completed stale-follow read while %s current fetch transport leaves comparison evidence unchanged", async fault => {
   const f = await staleFixture();
-  let comparison = "";
+  const settings = (await f.side.git(["config", "--null", "--get-regexp", "^remote\\.backing\\."])).stdout
+    .split("\0").filter(Boolean).map(row => [row.slice(0, row.indexOf("\n")), row.slice(row.indexOf("\n") + 1)] as const);
+  let comparison = "", armed = false, injected = false, completedFailure = false;
+  const ports: RefStorePorts = { ...f.side.ports, exec: async (command, args, options) => {
+    const targeted = args.includes("get-url") && !args.includes("--push") && args.at(-1) === "backing";
+    if (fault === "missing" && armed && !injected && targeted) {
+      injected = true;
+      await f.side.git(["config", "--remove-section", "remote.backing"]);
+    }
+    try { return await f.side.ports.exec(command, args, options); }
+    catch (error) {
+      if (injected && targeted) completedFailure = isGitProcessError(error) && isCompletedGitFailure(error);
+      throw error;
+    }
+  } };
   const ended = await judgeWithdrawal(f, async () => {
     comparison = await comparisonRefs(f.side);
-    await invalidateCurrentFetch(f.side, f.h.origin);
-  });
+    if (fault === "invalid") await invalidateCurrentFetch(f.side, f.h.origin);
+    else armed = true;
+  }, ports);
+  if (fault === "missing") { expect(injected).toBe(true); expect(completedFailure).toBe(true); }
   expect(ended.status, JSON.stringify(ended)).toBe("ok");
   expect(await comparisonRefs(f.side)).toBe(comparison);
   expect(await tip(f.side, f.tracking)).toBe(f.original);
   expect((await f.h.remote("git", ["for-each-ref", "--format=%(refname)", moved])).stdout).toBe("");
   expect((await f.side.exec("git", ["for-each-ref", "--format=%(refname)", recordRef])).stdout).toBe("");
-  await f.side.git(["config", "--unset-all", invalidFetchRewrite]);
+  if (fault === "invalid") await f.side.git(["config", "--unset-all", invalidFetchRewrite]);
+  else for (const [key, value] of settings) await f.side.git(["config", "--add", key, value]);
   const resumed = await invokeStoreMigrate([], f.side.ports);
   expect(resumed.status, JSON.stringify(resumed)).toBe("ok");
   expect(await tip(f.side, f.tracking)).toBe("");

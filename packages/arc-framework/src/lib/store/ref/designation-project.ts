@@ -20,6 +20,8 @@ import { readForwardingRecord } from "./forwarding-record.js";
 import { refSyncCleanupContext, refSyncDeadlineExpired } from "./sync-deadline.js";
 import type { StoreCommandRefusal } from "../commands.js";
 import { localFetchObjectFailure } from "./fetch-local-loss.js";
+import { EffectiveTransportError } from "./effective-transport.js";
+import { refTransportTargetFailure } from "./object-fault.js";
 
 type ProjectFailure = Extract<PullOutcome, { status: "failed" }>["failure"];
 /** Candidate checks retain exact project identities and forwarding refusals for their callers. */
@@ -55,10 +57,7 @@ export async function checkRefDesignationProject(context: RefBackendContext, rem
       condition: `State moved from remote ${remote.name}.`, remedy: { text: `Bring in the tracked pointer's change and run arc store migrate to follow. If this clone does not fetch ${remote.name}, first run arc store remote ${remote.name} read. To move state back, run arc store migrate --to ${remote.name} from its current home.` } } };
     return { status: "ok" };
   } catch (error) {
-    if (!isGitProcessError(error) || error.kind !== "canceled" || !refSyncDeadlineExpired(context)) throw error;
-    return { status: "failed", failure: { code: "unreachable", class: "recoverable", cause: "timeout",
-      condition: [error.message, error.diagnosticStderr || error.stderr].filter(Boolean).join("\n"),
-      remedy: { text: `Retry the designation after the candidate check times out; no role was set on ${remote.name}.` } } };
+    return projectCheckFailure(context, remote, error);
   } finally {
     const cleanup = refSyncCleanupContext(context);
     // Cleanup cannot replace the candidate decision; the next entry clears any retained temporary tips.
@@ -66,6 +65,15 @@ export async function checkRefDesignationProject(context: RefBackendContext, rem
       await updateStoreRefTransaction(cleanup, [{ ref, delete: true, expected }], { cwd: cleanup.checkoutRoot }).catch(() => undefined);
     }
   }
+}
+
+function projectCheckFailure(context: RefBackendContext, remote: RefRemoteDesignation,
+  error: unknown): Extract<RefDesignationProjectCheck, { status: "failed" }> {
+  if (error instanceof EffectiveTransportError) return { status: "failed", failure: refTransportTargetFailure(error.message) };
+  if (!isGitProcessError(error) || error.kind !== "canceled" || !refSyncDeadlineExpired(context)) throw error;
+  return { status: "failed", failure: { code: "unreachable", class: "recoverable", cause: "timeout",
+    condition: [error.message, error.diagnosticStderr || error.stderr].filter(Boolean).join("\n"),
+    remedy: { text: `Retry the designation after the candidate check times out; no role was set on ${remote.name}.` } } };
 }
 
 async function projectIdAt(context: RefBackendContext, ref: string): Promise<StoreResult<string | null>> {
