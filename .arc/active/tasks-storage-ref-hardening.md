@@ -412,6 +412,8 @@ transport failure is a per-remote outcome.
           lookups throwing. Evidence: `task-4.3.a-*` in the implementation evidence directory.
           Criteria-review F2 normalizes completed failures only inside transport-resolution boundaries. Pull, push,
           admission, and candidate designation retain typed repairs; canceled, signaled, and unrelated errors propagate.
+          Full store feedback aligns completed transport-lookup expectations in configuration, carried-code, import,
+          and source-off cases with those typed outcomes, retaining state-preservation and repaired-retry checks.
 
     - `[x]` **4.3.b Follow**
         - Resume, cleanup, and candidate judgment convert comparison-witness URL failures through the existing

@@ -38,7 +38,7 @@ describe("carried branch receiver races", () => {
     { point: "config", kind: "unexpected" }, { point: "config", kind: "nonzero-exit" },
     { point: "ancestry", kind: "unexpected" }, { point: "ancestry", kind: "nonzero-exit" },
   ] as const))(
-    "propagates a local $kind from post-rejection $point observation and retries", async ({ point, kind }) => {
+    "holds publication after a local $kind at post-rejection $point observation and retries", async ({ point, kind }) => {
     const { h, code, other } = await codeRaceFixture("unleased");
     if (point === "ancestry") await h.a.exec("git", ["fetch", "origin", "refs/test/code-race:refs/test/known-code-race"]);
     const cause = kind === "spawn-failure" ? Object.assign(new Error("spawn git ENOENT"), { code: "ENOENT" })
@@ -55,10 +55,16 @@ describe("carried branch receiver races", () => {
       }
       return h.a.ports.exec(command, args, options);
     } });
-    const observed: unknown = await store.push({ carry: { ref: carriedBranch } }).then(() => undefined, error => error);
+    const observed: unknown = await store.push({ carry: { ref: carriedBranch } }).then(result => result, error => error);
     expect(failure).toBeDefined();
-    expect(observed).toBe(failure);
-    expect(observed).toMatchObject({ kind, cause });
+    if (point === "config" && kind === "nonzero-exit") expect(observed).toMatchObject({ status: "ok", result: {
+      publishes: expect.arrayContaining([expect.objectContaining({ status: "failed",
+        failure: expect.objectContaining({ code: "refused", message: expect.stringContaining("local observer failure") }) })]),
+    } });
+    else {
+      expect(observed).toBe(failure);
+      expect(observed).toMatchObject({ kind, cause });
+    }
     expect(success(await store.read({ reference: carriedDocument })).content).toBe("State after code race.\n");
     expect((await h.remote("git", ["rev-parse", carriedBranch])).stdout.trim()).toBe(other.tip);
     broken = false;

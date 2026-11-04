@@ -21,7 +21,7 @@ function configurationFailure(args: string[], evidence: ReturnType<typeof failur
 }
 
 describe.each(["default", "separate"] as const)("configuration read completion in %s", layout => {
-  it.each(failures)("preserves a $label rewrite read failure and publishes only after recovery", async ({ evidence }) => {
+  it.each(failures)("holds publication after a $label rewrite read failure until recovery", async ({ label, evidence }) => {
     const h = await refSyncFixture(layout);
     await h.a.exec("git", ["config", "remote.origin.arc-state", "off"]);
     if (layout === "separate") await h.a.git(["remote", "remove", "backing"]);
@@ -36,7 +36,10 @@ describe.each(["default", "separate"] as const)("configuration read completion i
       if (broken && args.includes("config") && args.includes("--get-regexp") && args.some(arg => arg.startsWith("^url\\."))) throw failure;
       return h.a.ports.exec(command, args, options);
     } });
-    await expect(store.push()).rejects.toBe(failure);
+    if (label === "different completed Git failure") {
+      expect(success(await store.push()).publishes).toContainEqual(expect.objectContaining({ status: "failed",
+        failure: expect.objectContaining({ code: "refused", message: expect.stringContaining("git config") }) }));
+    } else await expect(store.push()).rejects.toBe(failure);
     expect((await h.remote("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc/"])).stdout).toBe(before);
     expect(success(await store.read({ reference })).content).toBe("Unpublished until configuration is complete.\n");
     broken = false;

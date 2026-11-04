@@ -82,7 +82,7 @@ it.each((["code", "backing", "none"] as const).flatMap(publisher =>
 
 it.each((["code", "backing", "none"] as const).flatMap(publisher =>
   (["defect", "spawn", "floor"] as const).map(kind => ({ publisher, kind }))))(
-  "preserves a $publisher local $kind at transport selection and retries", async ({ publisher, kind }) => {
+  "holds a $publisher import after a local $kind at transport selection and retries", async ({ publisher, kind }) => {
   const h = await importFixture(publisher === "code" ? "default" : "separate");
   if (publisher === "backing") await designateBacking(h);
   const tip = await seed(h, [ordinary]);
@@ -106,10 +106,14 @@ it.each((["code", "backing", "none"] as const).flatMap(publisher =>
     }
     return original(command, args, options);
   };
-  const observed: unknown = await h.migrate().then(() => undefined, (error: unknown) => error);
+  const observed: unknown = await h.migrate().then(result => result, (error: unknown) => error);
   expect(failure).toBeDefined();
-  expect(observed).toBe(failure);
-  expect(observed).toMatchObject({ cause });
+  if (kind === "floor") expect(observed).toMatchObject({ status: "refused", refusal: { code: "move-unfinished",
+    class: "recoverable", condition: expect.stringContaining("local selector failure") } });
+  else {
+    expect(observed).toBe(failure);
+    expect(observed).toMatchObject({ cause });
+  }
   expect(keptBefore).toContain(tip);
   expect(requiredBefore).not.toBe("");
   expect((await h.git("git", ["for-each-ref", "--format=%(refname) %(objectname)", keptPrefix])).stdout).toBe(keptBefore);
