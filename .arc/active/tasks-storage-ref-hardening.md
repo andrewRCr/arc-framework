@@ -418,6 +418,10 @@ transport failure is a per-remote outcome.
           independent unreachable/error carried outcome and gathered state results; other errors still propagate.
           Criteria Pass 2 F1 includes the fresh designation/configuration read in comparison-source normalization.
           Native acquisition and accepted-work finalization retain typed results and repair/retry in both layouts.
+          Criteria Pass 2 F2 covers the three completeness-configuration consumers: ordinary fetch, candidate
+          designation, and migration. A shared internal fetch-refusal carrier preserves notices already gathered.
+          Native configuration repair and retry cover both layouts. `resolveFirstDesignation` returns a question
+          for an unanswered backing remote without probing; that automatic separate-layout arm is unreachable.
 
     - `[x]` **4.3.b Follow**
         - Resume, cleanup, and candidate judgment convert comparison-witness URL failures through the existing

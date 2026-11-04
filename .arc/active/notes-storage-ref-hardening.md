@@ -959,7 +959,23 @@ retain their throwing behavior. Native malformed-configuration cases restore exa
 follow judgment, recorded resume, and switched cleanup in both layouts. Cancellation, signals, and unrelated errors
 retain their identity. The first native run distinguishes ten previously uncaught failures; the overbroad-catch control
 distinguishes all twelve propagation cases. Raw logs and source bindings are under `criteria-pass-2-fixes/` beside the
-review evidence. The completeness-consumer correction remains pending. The consolidated trial and hold stay deferred.
+review evidence.
+
+The second correction normalizes only `refFetchNeedsCompleteness` at its three consumers. `needsCompleteFetch`
+turns its typed configuration error into `RefFetchRefusalError`, carrying the existing refusal and notices already
+gathered; `remotePullFailure` retains them through the existing result mapping. `RefFetchIncompleteError` extends
+that carrier without changing its constructor, failure wording, or incomplete-object policy. Candidate designation
+uses its existing failed-check mapping; migration uses `migrationTransportRefusal`. Missing-object checks and
+refetches stay outside the new catches. No public schema or Store method changes, new discovery processes, or cache
+invalidation are introduced.
+
+Native cases preserve a genuine rewrite notice and an earlier remote failure, local state, candidate registry and
+roles, and migration state, then continue after exact configuration restoration. A separate store's unanswered
+backing role returns a question in `resolveFirstDesignation`, and `applyCodeSetting` does not validate a read role;
+candidate failure/retry coverage therefore uses explicit backing-push designation with a real backing pointer.
+The valid baseline distinguishes all seven native configuration failures; earlier unreachable fixture attempts are
+retained separately. The advisor's bounded notice-carrier recommendation and all raw counterfactuals remain with
+the correction evidence. The consolidated trial and hold stay deferred.
 
 ## Fault-site inventory
 

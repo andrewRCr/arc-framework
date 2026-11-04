@@ -22,7 +22,7 @@ import { refTransportTargetFailure } from "./object-fault.js";
 import { localFetchObjectFailure } from "./fetch-local-loss.js";
 import { releaseEndedRefKeepers } from "./fetch-seen-ended.js";
 import { RefGitLockError, refGitLockRefusal } from "./git-lock.js";
-import { RefFetchIncompleteError } from "./fetch-completeness.js";
+import { RefFetchRefusalError } from "./fetch-completeness.js";
 import { withLifecycleEvidence } from "./sync-lifecycle-evidence.js";
 import { readSyncRefs } from "./sync-graph.js";
 import type { RefMergeOptions } from "./sync-merge.js";
@@ -125,7 +125,7 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
 }
 
 async function remotePullFailure(context: RefBackendContext, common: PullScope, error: unknown): Promise<PullOutcome | "restart"> {
-  if (error instanceof RefFetchIncompleteError) return { ...common,
+  if (error instanceof RefFetchRefusalError) return { ...common,
     notices: uniqueNotices([...common.notices, ...error.notices]), status: "failed", failure: error.failure };
   if (error instanceof EffectiveTransportError) return { ...common, status: "failed", failure: refTransportTargetFailure(error.message) };
   if (await storeDirectoryVanished(context, error)) return "restart";

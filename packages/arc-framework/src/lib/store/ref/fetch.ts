@@ -12,7 +12,9 @@ import { normalizeGitRejection } from "../../git/process-error.js";
 import { PASSIVE_REMOTE_INTERACTION } from "../../git/remote-ref-reader.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
-import { refFetchNeedsCompleteness, missingRefFetchObjects, combineRefFetchOutcomes, RefFetchIncompleteError } from "./fetch-completeness.js";
+import { refFetchNeedsCompleteness, missingRefFetchObjects, combineRefFetchOutcomes, RefFetchIncompleteError, RefFetchRefusalError } from "./fetch-completeness.js";
+import { EffectiveTransportError, resolveTransport } from "./effective-transport.js";
+import { refTransportTargetFailure } from "./object-fault.js";
 
 type RefFetchResult = FetchOutcome & { notices: PullNotice[] };
 /** Parsed Git acquisition with its coherent, invocation-owned comparison evidence. */
@@ -66,7 +68,7 @@ async function fetchKeptRefPatterns(context: RefBackendContext, remote: RefRemot
   try {
     let fetched = await runRefFetch(context, args, input, signal);
     const notices = await checkRefFetchUpdates(context, remote, designation, fetched.outcome, basis, fetched.failed);
-    if (fetched.outcome.status === "refs" && await refFetchNeedsCompleteness(context)
+    if (fetched.outcome.status === "refs" && await needsCompleteFetch(context, remote.name, notices)
       && (await missingRefFetchObjects(context, fetched.outcome)).length) {
       const at = args.indexOf("fetch");
       const repaired = await runRefFetch(context, [...args.slice(0, at + 1), "--refetch", ...args.slice(at + 1)], input, signal);
@@ -80,6 +82,14 @@ async function fetchKeptRefPatterns(context: RefBackendContext, remote: RefRemot
     }
     return { ...fetched.outcome, notices };
   } finally { await finishRefFetchBasis(refSyncCleanupContext(context), remote.name, basis); }
+}
+
+async function needsCompleteFetch(context: RefBackendContext, remote: string, notices: readonly PullNotice[]): Promise<boolean> {
+  try { return await resolveTransport(remote, "fetch", () => refFetchNeedsCompleteness(context)); }
+  catch (error) {
+    if (!(error instanceof EffectiveTransportError)) throw error;
+    throw new RefFetchRefusalError(refTransportTargetFailure(error.message), notices);
+  }
 }
 
 async function runRefFetch(context: RefBackendContext, args: string[], input: string, signal?: AbortSignal): Promise<{ outcome: FetchOutcome; failed: boolean }> {

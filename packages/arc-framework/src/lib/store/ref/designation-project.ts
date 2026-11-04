@@ -20,7 +20,7 @@ import { readForwardingRecord } from "./forwarding-record.js";
 import { refSyncCleanupContext, refSyncDeadlineExpired } from "./sync-deadline.js";
 import type { StoreCommandRefusal } from "../commands.js";
 import { localFetchObjectFailure } from "./fetch-local-loss.js";
-import { EffectiveTransportError } from "./effective-transport.js";
+import { EffectiveTransportError, resolveTransport } from "./effective-transport.js";
 import { refTransportTargetFailure } from "./object-fault.js";
 
 type ProjectFailure = Extract<PullOutcome, { status: "failed" }>["failure"];
@@ -112,7 +112,7 @@ async function fetchProjectCheck(context: RefBackendContext, remote: RefRemoteDe
   const target = remote.repository === "backing" && designation.backing?.url !== remote.url ? remote.url : await refFetchTarget(context, remote, designation);
   const args = refFetchArgs(remote.name, await refFetchNegotiation(context, await context.identity()), target);
   const input = [`+refs/arc/project/registry*:${prefix}registry*`, `+refs/arc/project/moved*:${prefix}moved*`].join("\n") + "\n";
-  const completed = await completeProjectFetch(context, args, input, await runProjectFetch(context, args, input, observed), observed);
+  const completed = await completeProjectFetch(context, remote.name, args, input, await runProjectFetch(context, args, input, observed), observed);
   if ("failure" in completed) return completed;
   const { fetched, rejected } = completed;
   if (fetched.status === "unreachable") return { status: "failed", failure: { code: "unreachable", class: "recoverable",
@@ -154,11 +154,12 @@ function rememberProjectFetch(fetched: FetchOutcome, observed: Map<string, strin
   }
 }
 
-async function completeProjectFetch(context: RefBackendContext, args: string[], input: string, first: ProjectFetchResult, observed: Map<string, string>):
+async function completeProjectFetch(context: RefBackendContext, remote: string, args: string[], input: string, first: ProjectFetchResult, observed: Map<string, string>):
 Promise<ProjectFetchResult> {
   if ("failure" in first) return first;
   if (first.rejected || first.fetched.status !== "refs" || first.fetched.refs.some(({ flag }) => flag === "!")
-    || !await refFetchNeedsCompleteness(context) || !(await missingRefFetchObjects(context, first.fetched)).length) return first;
+    || !await resolveTransport(remote, "fetch", () => refFetchNeedsCompleteness(context))
+    || !(await missingRefFetchObjects(context, first.fetched)).length) return first;
   const at = args.indexOf("fetch");
   const retry = await runProjectFetch(context, [...args.slice(0, at + 1), "--refetch", ...args.slice(at + 1)], input, observed);
   if ("failure" in retry) return retry;
