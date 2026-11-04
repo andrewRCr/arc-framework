@@ -129,7 +129,8 @@ a reviewer.
 Convergence follows [review-model's rule][convergence], not a clean result alone: a fix check converges when its
 approved set fixes no verified material finding, so minor-only findings and deferred or rejected material findings
 converge too. `arc review local prepare` admits a local look as a hosted request admits a hosted one; decide before
-either runs.
+either runs. After a fix check, a `ready` policy result with `payload.coverage: complete` means the next look is a
+complete pass, so this decision comes first.
 
 Run `arc review lane read -`, deriving the request from `arc review lane read --schema`. For a delivery member, supply
 its exact head as `memberHeadObjectId`; otherwise use the caller's Candidate or Errand subject. Follow a refusal's
