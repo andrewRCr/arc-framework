@@ -92,7 +92,8 @@ class DeliveryCandidateRenewalRefusal extends Error {}
 
 class CandidateReviewRecoveryRefusal extends Error {}
 
-function refuseProjectIdentityFailure(error: unknown, json: boolean, notice = ""): boolean {
+/** Report a project-identity refusal with its recovery guidance, leaving other failures to the caller. */
+export function refuseProjectIdentityFailure(error: unknown, json: boolean, notice = ""): boolean {
   if (!(error instanceof ProjectIdentityError)) return false;
   refuseWithRemedy(error.failure.reason + notice, error.failure.remedy, json);
   return true;
