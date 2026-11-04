@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "withdraw-local-cancel",
+  "claimId": "6e89452e9712b43eedce35c7aea6515f",
+  "createdAt": "2026-11-04T17:59:35.154Z",
+  "updatedAt": "2026-11-04T17:59:35.154Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Let cancelling a never-started local review withdraw its pending attempt, and name the holding operation when a pending attempt holds hosted capacity",
+  "branch": "chore/withdraw-local-cancel",
+  "origin": "inbox",
+  "originEntry": "Let a prepared, unlaunched local review be withdrawn or superseded",
+  "originEntrySourceDigest": "sha256:a1fb48aa7f62bd50b382854af14d1f4d5da10e11fac9ab319910ded97dd5ab94",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
