@@ -54,10 +54,10 @@ describe("stampless base agreement", () => {
     const request = { ...fixture.request, entry, base: { kind: "blob" as const, blob: entry.base.blob } };
     await fixture.edit(incoming);
     const held = await writeBackFile(fixture.context, index, request);
-    expect(held.result).toMatchObject({ answer: "pending", entry: { pending: true, refused: null } });
+    expect(held.result).toMatchObject({ answer: "clashed", entry: { pending: true, refused: { reason: "bases-disagree" } } });
     const read = await fixture.store.read({ reference: entry.reference });
     expect(read.status === "ok" ? read.result : read).toMatchObject({ version: entry.base.version, content: merged });
-    expect(await fixture.file()).toBe(incoming);
+    expect(await fixture.file()).toContain("[arc-conflict: checkout]");
     const repaired = merged.replace("opening\n", "opening repaired\n");
     await fixture.edit(repaired);
     const retry = { ...request, entry: held.result.entry };
@@ -158,7 +158,7 @@ describe("stampless base agreement", () => {
     const request = { ...fixture.request, entry, base: { kind: "blob" as const, blob: entry.base.blob } };
     const written = await writeBackFile(fixture.context, disk.index, request);
     if (disagree) {
-      expect(written.result).toMatchObject({ answer: "pending", entry: { pending: true, refused: null } });
+      expect(written.result).toMatchObject({ answer: "clashed", entry: { pending: true, refused: { reason: "bases-disagree" } } });
       const unchanged = await fixture.store.read({ reference: entry.reference });
       expect(unchanged.status === "ok" ? unchanged.result.content : unchanged).toBe(current);
       const repaired = "opening changed\nbase\nclosing edited\n";
@@ -222,17 +222,30 @@ describe("stampless base agreement", () => {
       if (disk.kind !== "index") throw new Error("index unavailable");
       const projected = disk.index.entries[source.path];
       const copy = projected?.kind === "record" ? projected.copies.at(-1) : undefined;
-      if (copy === undefined) throw new Error("refresh copy unavailable");
+      if (copy === undefined || projected?.kind !== "record") throw new Error("refresh copy unavailable");
       await writeFile(join(source.checkout, copy.name), incoming);
+      const named = parseAsideFile(copy.name);
+      if (named === undefined) throw new Error("copy base unavailable");
+      const taken = await createWriteBackPort(source.context)({ checkout: source.checkout, path: source.path,
+        entry: projected, copy: copy.name, base: { kind: "blob", blob: named.base } });
+      expect(taken).toMatchObject({ answer: "clashed", entry: { base: projected.base, refused: null } });
+      expect(taken).not.toHaveProperty("mark");
     } });
     const read = await source.store.read({ reference: entry.reference });
     expect(read.status === "ok" ? read.result : read).toMatchObject({ version: other.result.version, content: current });
     const projected = refreshed.entries[source.path];
     if (projected?.kind !== "record") throw new Error("entry unavailable");
-    expect(projected).toMatchObject({ pending: true, refused: null });
+    expect(projected).toMatchObject({ pending: true, refused: null, base: { version: other.result.version } });
     expect(projected.copies).toHaveLength(1);
-    expect(await source.file()).toBe(current);
+    expect(await source.file()).toBe(incoming);
     expect(source.reports.at(-1)?.mark.reason).toBe("ambiguous-base");
+    const held = await writeBackFile(source.context, refreshed, { ...source.request, entry: projected });
+    expect(held.result.entry.refused?.reason).toBe("bases-disagree");
+    const settled = await finish(source, held.index);
+    const repaired = settled.entries[source.path];
+    if (repaired?.kind !== "record") throw new Error("held entry unavailable");
+    await source.edit(current);
+    expect((await writeBackFile(source.context, settled, { ...source.request, entry: repaired })).result.answer).toBe("taken-in");
   });
 
   it("holds an indexed-content revert before the read-back is laid, and accepts a repaired edit", async () => {
@@ -245,8 +258,8 @@ describe("stampless base agreement", () => {
     await fixture.edit("opening\nbase\nclosing\n");
     const request = { ...fixture.request, entry: sent.entry };
     const held = await writeBackFile(fixture.context, index, request);
-    expect(held.result).toMatchObject({ answer: "pending", entry: { pending: true, refused: null } });
-    expect(await fixture.file()).toBe("opening\nbase\nclosing\n");
+    expect(held.result).toMatchObject({ answer: "clashed", entry: { pending: true, refused: { reason: "bases-disagree" } } });
+    expect(await fixture.file()).toContain("[arc-conflict: checkout]");
     const read = await fixture.store.read({ reference: sent.entry.reference });
     expect(read.status === "ok" ? read.result.content : read).toBe(incoming);
     const repaired = `new prefix\n${incoming}`;
@@ -255,7 +268,7 @@ describe("stampless base agreement", () => {
     expect(await fixture.file()).toBe(repaired);
   });
 
-  it("holds clashing candidate merges even when they keep the same current text", async () => {
+  it("sends candidates that file the same clash at the same place from different stored versions", async () => {
     fixture = await createWriteBackFixture({ path: ".arc/personal-document.txt" });
     const intermediate = await fixture.store.write({ action: "put", reference: fixture.entry.reference, expected: fixture.entry.base.version,
       content: "opening\nintermediate\nclosing\n", provenance: { verb: "edit", lifecycleAction: "edit" } });
@@ -267,9 +280,11 @@ describe("stampless base agreement", () => {
       takenIn: { kind: "landed" as const, version: intermediate.result.version } } };
     await fixture.edit("opening\nincoming\nclosing\n");
     const taken = await createWriteBackPort(fixture.context)({ ...fixture.request, entry });
-    expect(taken).toMatchObject({ answer: "pending", entry: { pending: true, refused: null } });
+    expect(taken).toMatchObject({ answer: "taken-in", entry: { refused: null } });
     const read = await fixture.store.read({ reference: entry.reference });
-    expect(read.status === "ok" ? read.result.version : read).toBe(current.result.version);
+    expect(read.status === "ok" ? read.result.content : read).toBe("opening\ncurrent\nclosing\n");
+    expect(read.status === "ok" ? read.result.conflicts : []).toHaveLength(1);
+    if (read.status === "ok") expect(read.result.version).not.toBe(current.result.version);
     expect(await fixture.file()).toBe("opening\nincoming\nclosing\n");
   });
 });

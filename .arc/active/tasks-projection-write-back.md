@@ -121,7 +121,7 @@ among them, has one.
           the same put. Malformed entries restore selected-base content while independent edits land; refused files
           retain their bytes. Persisted take-ins support repair, and unseen conflicts carry the file's repair remedy.
 
-### `[ ]` **1.5 Merge in the checkout where the store holds no base — § 7.7**
+### `[x]` **1.5 Merge in the checkout where the store holds no base — § 7.7**
 
 - _Goal:_ The three edits whose base the store never held — a save merging from content a persisted write-back took in
   and kept as a copy, content sharing no non-blank line with any candidate, and a hand edit to a meta or task list over
@@ -130,130 +130,10 @@ among them, has one.
   the store's current version is drawn into it once, and it stays held, reported with a token, until its candidates
   agree or `arc save --resolve` sends it.
 
-- _Note:_ The hold's remedy here and 1.7.b's notice line name `arc save --resolve`, so the emitted-command case of
-  `command-surface-documentation.test.ts` (`registers emitted corrective commands`) fails from this task until 1.10
-  registers `save`; the commit gate does not run it (`ARC_CONTRACT_SUITES`, `lib/local-vitest-runner.ts`).
-
-- _Note:_ The clean kept-copy merge path in `copy-base-merge.ts` was built with Task 1.4.b to make partial landings
-  repairable; this task completes checkout merges, labels, and clash drawing.
-
-    - The merge uses `mergeLineText` or `mergeEntryText` (`lib/store/concurrency/`) with the base's record version in
-      `MergeTextInput.baseVersion` — null for the empty base and the kept copy — and side labels (`SideLabelSchema`,
-      `lib/store/conflict.ts`): for the edit, this checkout's actor as the ref backend writes it,
-      `<identity>@<machine-id>` (`createDefaultRefStorePorts`, `lib/store/default-ports.ts`), and the save's
-      modification time; for the store's side, the record version it merged onto and the time write-back read it.
-    - A clash's markers are rendered inline as `mergeLineText` builds its result, through an option on it that takes
-      1.4.a's renderer as a callback, since `lib/store/concurrency/` imports nothing from `lib/store/projection/`
-      (`store-concurrency`, `eslint/architecture-imports.ts`), so no placement step can miss: an optional field of
-      `MergeTextInput` typed in `line-merge.ts`, given each side's lines and label and a marker length, returning the
-      set's lines, its start label naming `checkout`. It takes each side's lines, never the content `ConflictSideSchema`
-      (`lib/store/conflict.ts`) stores, since a side of no lines and a side of one blank line both store as `""`. Only
-      the drawing's own `mergeLineText` call and 1.1.d's comparison of a file other than Markdown's candidate merges,
-      which this task routes through it in place of counting any clash as differing, set it; the input `mergeEntryText`
-      spreads into its own line merges (`lib/store/concurrency/entry-merge.ts`) never carries it, so a merge without it
-      returns what it does today. The length is a parsing length, 1.4.a's over every line a first run without the option
-      returns — its content and each clash's sides — which the second run draws at, the merge returning the same result
-      each run; the renderer then sets the file's one length (1.7.c). An entry kind merges through `mergeEntryText`
-      first, and a clean result is sent; where it clashes, `mergeLineText` runs over the same base and sides, and a
-      clean line merge is the clean result, sent with both sides' lines; where that clashes too, its markers are the
-      file's, since its every clash has one span to draw, where an entry clash keeps one side and a prose clash spanning
-      an entry has none.
-    - An entry merge stamps its own copy first, as 1.2.a stamps it, so a result sent again after a stop carries the same
-      IDs, which the backend keeps.
-    - The file is stamped with the version it merged onto. Drawing the markers replaces the file by the swap, laid by
-      the one renderer (1.1.b, 1.7.c) given the merge's result at its parsing length, which maps each of the merge's
-      sets as found in the checkout (1.4.b), draws the record's stored conflicts, one whose span overlaps a set already
-      laid, a set found in the checkout among them, as a notice line, and lays every set at the file's one length; its
-      guard's baseline is what write-back read (`ReplaceGuardInput.baseline`) and its aside copy write-back's own, so a
-      save that landed in the copy is taken in. A file one of whose entries write-back refused (1.4.b) is not drawn
-      into: the clash is reported beside that refusal and drawn once the entry is repaired. Once its markers are
-      resolved, the file writes back as an ordinary edit against that stamp.
-    - A clash found while taking in an aside copy has no file of its own: the take-in answers `clashed`
-      (`TakeInResult`), and the copy's settlement puts the copy back at its path (`settleAsideCopy`), where write-back,
-      taking the file in there, merges it again and draws the clash as this task draws any, or keeps it, reported. A
-      resolution in progress (1.4.b) is refused, never a clash, so its copy goes back with its bytes as they are where
-      its path has not moved on. A clash found through the take-in port at a path — the replace guard's re-check before
-      a swap (`guardReplacement`, `lib/store/projection/replace-guard.ts`) — is not drawn there, since the port swaps
-      nothing (1.1.a): the take-in answers `clashed`, the guard leaves the file pending (`held`), and write-back's own
-      walk next takes it in at its path and draws it.
-    - A file other than Markdown whose candidates give different merges (1.1.d) is held, never merged from one of them.
-      At its path, the first hold write-back's own walk finds — at a command's start, or in the persist and release
-      steps, which run it whole — draws the clash between the file and the store's current version: write-back diffs the
-      two (`diffIndices`, `node-diff3`), each split into lines with any final newline set apart, as `mergeLineText`
-      splits its inputs (`lines`, `lib/store/concurrency/line-merge.ts`), and lays the file's lines where they agree
-      and, at each span where they differ, a marker set whose sides are the store's current lines there and the file's,
-      through the same renderer as a clash and labelled as one found in the checkout is, the whole file one span where
-      the diff finds none, as where the two differ only in their final newline, and lays the file, keeping its own final
-      newline, by the swap as a drawing is. A hold always has a span to draw, since every candidate's merge returns the
-      store's current version, clean, where the file equals it (`mergeLineText`), and the drawing shows every line where
-      the two differ, one every candidate's merge resolves alike among them; nothing is stored, and the take-in answers
-      `clashed`. Its entry records the hold as its `refused` mark (`RecordEntry`,
-      `lib/store/projection/index-schema.ts`), reason `bases-disagree`, whose remedy names `arc save --resolve <token>`
-      with its argv, the token last, in `formatConflictToken`'s form (`lib/status/conflict-token.ts`) over the file's
-      family and owner and a fresh key, as a conflict record's is (`randomUUID`, `lib/store/ref/write-conflicts.ts`), so
-      it names no stored conflict. The mark is set on the entry the replace guard's `replace` hands the drawing's swap
-      batch (`SwapFile`, `lib/store/projection/swap.ts`), only where that `replace` still stages the drawing, and never
-      on the entry the guard re-checks: a save that re-check holds leaves the file unmarked, pending, and one it takes
-      in and sends restages the record's current version in the drawing's place (`restage`,
-      `lib/store/projection/replace-guard.ts`), the hold gone. The mark stays until the file is sent: a later save whose
-      candidates agree is sent, and its read-back clears the mark; one whose candidates still disagree, the mark
-      standing, is not drawn again but answers `refused` with the mark (`TakeInResult`), the file pending; and 1.10
-      sends it by its token. A hold found through the take-in port draws nothing and mints no mark: the take-in answers
-      `clashed`, which carries none, leaving the entry's `refused` and `base` as they were, since the guard's re-check
-      at a path and a copy's settlement each write onto the entry any mark the answer carries (`held`; `putBack`), where
-      it would stand for a drawing never made; at a path the guard leaves the file pending until write-back's own walk
-      next takes it in, which draws a first hold, never one whose mark already stands, and a copy goes back to its path
-      as a clash's does (above), where the path's own candidates decide. The persisted write-back stays until the next
-      landing replaces it.
-    - Build `test-first` (one behavior at a time):
-        - a stale buffer's save, its content taken in kept as a copy, merges from that copy and keeps the other writer's
-          change
-        - a stale buffer's save of a file other than Markdown, after a write-back the store merged and kept as a copy,
-          is held and drawn, the other writer's change on the store's side, never merged from one candidate
-        - the next edit of a file kept after a malformed entry was refused, whose landing the store merged, merges in
-          the checkout from the content taken in
-        - a clean merge in the checkout lands its result, the content taken in is the file as read, kept as a copy, and
-          the buffer's next save under that stamp keeps the other writer's change
-        - content sharing no non-blank line with any candidate merges against an empty base, its clashes kept in the
-          file
-        - a hand edit to a meta over a verb's newer write clashes into markers and stays pending, unsent
-        - an edit leaving `State` alone over a verb's newer `State` is admitted, since the write check's `next` merges
-          the verb's change, and lands, sent against the version it merged onto
-        - an entry kind's clash, and a prose clash spanning an entry, each render whole through the line merge
-        - an entry clash whose line merge is clean sends the line merge's result
-        - a clash whose side holds a setext `=======` draws every set at the escalated length, and parses back
-        - a clashing side of one blank line draws that line between its markers, and a side of no lines draws none
-        - the clash, resolved by hand, persists as an ordinary edit
-        - a save placed into a drawing's swap by the swap's after-re-check hook (`SwapHooks.afterRecheck`,
-          `lib/store/projection/swap.ts`) is taken in, never deleted as no edit
-        - a clash beside a malformed set in another entry draws nothing, both reported, and is drawn once the set is
-          repaired
-        - the same merge run twice stamps the same IDs
-        - a hold's drawing lays a set of the store's current lines against the file's at every span where the two
-          differ, one every candidate's merge resolves alike among them, and the file's lines where they agree
-        - a hold whose candidates' merges give the same text but file different clashes is drawn, a set where the file
-          and the store's current version differ, and stays pending, never read as unedited
-        - candidates whose merges file the same clash, at the same place with the same two sides, from different stored
-          versions, agree and are sent; merges whose texts differ only in where a clash falls do not; and a merge from a
-          kept copy that files a clash differs from every other
-        - a hold's mark carries `bases-disagree` and a remedy naming `arc save --resolve`, its argv ending in a token
-          `parseConflictToken` parses and no stored conflict carries
-        - a drawing resolved to the store's side is sent, and its read-back clears the hold
-        - a drawing resolved to the person's side is held undrawn, refused with the mark's reason and remedy, the file
-          pending
-        - a never-reloading buffer's save over a drawing is held undrawn, never sent
-        - a hold taken in from an aside copy answers `clashed` with no mark, the entry's refused mark and base
-          unchanged, and goes back to its path, where the path's own candidates decide, or stays with the copy, as a
-          clash found taking it in does
-        - a hold found at its path by the guard's re-check, a save landing while a read-back's swap runs, answers
-          `clashed` with no mark, the file left pending and undrawn, and the next command's start draws it and mints the
-          mark
-        - a clash found at a path by the guard's re-check is left pending and undrawn, and the next command's start
-          draws it
-        - a save landing while a drawing's swap re-checks the file is held unmarked and pending, and the next command's
-          start draws it and mints the mark
-        - a save landing while a drawing's swap re-checks the file, whose candidates now agree, is sent, and the
-          record's current version is laid in the drawing's place, unmarked
+- _Outcome:_ `checkout-merge.ts` sends clean copy, empty-base, and single-writer merges against the current record,
+  retaining their raw input. Line callbacks render clashes without storing them; candidate comparison includes their
+  positions and sides. Stampless holds retain their token and final-newline choice. Staged metadata and observed edits
+  protect saves at guarded swaps, while malformed entries keep the whole file undrawn until repaired.
 
 ### `[ ]` **1.6 Handle each refusal the store returns — § 7.8, § 1.5**
 
@@ -564,6 +444,10 @@ among them, has one.
   returns the state version; `--resolve <conflict>` resolves a conflict shown without markers, and a held file other
   than Markdown by the token its index entry names, refusing every case it cannot; and before the flip it refuses
   `unsupported` naming `arc user save`.
+
+- _Note:_ The hold remedy from 1.5 and notice line from 1.7.b name `arc save --resolve`; registration here closes the
+  emitted-command case of `command-surface-documentation.test.ts` (`registers emitted corrective commands`), which the
+  commit gate does not run (`ARC_CONTRACT_SUITES`, `lib/local-vitest-runner.ts`).
 
     - A new command in `cli.ts`, in `HELP_GROUPS[""]` (`lib/cli-help-content.ts`), `COMMAND_SUMMARIES`
       (`lib/cli-help-summaries.ts`), and the command-input declarations, with a handler that takes the command's store.

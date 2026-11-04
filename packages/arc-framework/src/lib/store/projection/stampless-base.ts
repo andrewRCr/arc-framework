@@ -11,6 +11,7 @@ import { gitBlobId } from "./blob-id.js";
 import { readTakenInCopy } from "./taken-in.js";
 import type { TakeInRequest } from "./take-in-port.js";
 import { restoreWriteBackIds } from "./write-back-ids.js";
+import { createMarkerRenderer } from "./marker-render.js";
 
 type HeldBase = Extract<WriteBackBaseDecision, { kind: "held" }>;
 type CopyBase = Extract<RecoveredBase, { kind: "copy" }>;
@@ -44,10 +45,10 @@ async function compareCandidates(
       : { status: "ok" as const, result: base.kind === "copy" ? base.content : "" };
     if (prior.status === "refused") return prior;
     const merged = mergeCandidate(request, base, prior.result, current, content);
-    if (merged.conflicts.length > 0 || (agreed !== undefined && agreed !== merged.content)) {
+    if (merged === null || (agreed !== undefined && agreed !== merged)) {
       return { status: "ok", result: false };
     }
-    agreed = merged.content;
+    agreed = merged;
   }
   return { status: "ok", result: true };
 }
@@ -113,7 +114,7 @@ function ambiguousBase(): HeldBase {
   } } };
 }
 
-function mergeCandidate(request: TakeInRequest, base: RecoveredBase, prior: string, current: string, incoming: string) {
+function mergeCandidate(request: TakeInRequest, base: RecoveredBase, prior: string, current: string, incoming: string): string | null {
   const grammar = KIND_REGISTRY[request.entry.reference.kind].entry;
   if (grammar !== undefined) {
     const restored = restoreWriteBackIds({ reference: request.entry.reference, base: prior, content: incoming, grammar });
@@ -121,5 +122,12 @@ function mergeCandidate(request: TakeInRequest, base: RecoveredBase, prior: stri
   }
   const input = { base: prior, baseVersion: base.kind === "stored" ? base.version : null, current, incoming,
     record: request.entry.reference, currentLabel: LABEL, incomingLabel: LABEL };
-  return grammar === undefined ? mergeLineText(input) : mergeEntryText(input, grammar);
+  const entry = grammar === undefined ? mergeLineText(input) : mergeEntryText(input, grammar);
+  const merged = entry.conflicts.length === 0 ? entry : mergeLineText(input);
+  if (merged.conflicts.length === 0) return `clean:${merged.content}`;
+  if (base.kind !== "stored") return null;
+  const renderer = createMarkerRenderer([merged.content, ...merged.conflicts.flatMap(conflict => [conflict.current.content, conflict.incoming.content])]);
+  const drawn = mergeLineText({ ...input, conflictMarkers: { length: renderer.length,
+    render: set => renderer.renderLines(set, { shows: "checkout" }) } });
+  return `stored-clash:${drawn.content}`;
 }

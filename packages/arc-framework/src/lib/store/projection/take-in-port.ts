@@ -21,6 +21,8 @@ export interface TakeInRequest {
   readonly copy: string | null;
   readonly entry: RecordEntry;
   readonly base: TakeInBase;
+  /** A guard already observed changed bytes against its read baseline, even if this save matches the index again. */
+  readonly observedEdit?: boolean;
 }
 
 /** What the take-in answered, with the entry as it left it. */

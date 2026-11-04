@@ -85,7 +85,7 @@ async function recheck(input: ReplaceGuardInput): Promise<GuardResult> {
     if (verdict.status === "hashed-clean") return replace({ ...entry, stat: verdict.stat });
     if (verdict.status !== "changed") return replace(entry);
     const base = baseOf(input.path, bytes, entry);
-    const result = await input.takeIn({ checkout: input.checkout, path: input.path, copy: null, entry, base });
+    const result = await input.takeIn({ checkout: input.checkout, path: input.path, copy: null, entry, base, observedEdit: true });
     // No edit: the stat seen becomes the file's baseline, so a later save to it still reads as one.
     if (result.answer === "no-edit") return replace({ ...result.entry, stat: verdict.stat });
     if (result.answer !== "taken-in") return held(result, result.answer);

@@ -56,7 +56,7 @@ export async function createWriteBackFixture(input: { kind?: KindId; path?: stri
     withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries: { [path]: entry },
   } });
   const reports: WriteBackDiagnostic[] = [];
-  const context = { store: fixture.store, location, format: "sha1" as const, memo: createHistoryMemo(fixture.store),
+  const context = { store: fixture.store, location, format: "sha1" as const, memo: createHistoryMemo(fixture.store), actor: "test-user@fixture-machine",
     writer: { pid: process.pid, processInstance: "read-back-test", processScope: "unit" },
     report: (diagnostic: WriteBackDiagnostic) => { reports.push(diagnostic); } };
   const request = { checkout, path, copy: null, entry, base: path.endsWith(".md")

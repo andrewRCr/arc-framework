@@ -7,6 +7,7 @@ import { readReference } from "./change-detection.js";
 import { guardReplacement } from "./replace-guard.js";
 import { stageRecordFile } from "./staging.js";
 import { swapBatch, type SwapHooks } from "./swap.js";
+import { drawCheckoutClash } from "./checkout-drawing.js";
 
 /** The write-back walk supplies its writer in addition to the send context. */
 export interface ReadBackContext extends WriteBackContext {
@@ -20,6 +21,7 @@ export async function writeBackFile(context: ReadBackContext, index: ProjectionI
 }> {
   const sent = await sendWriteBack(context, request);
   let updated = { ...index, entries: { ...index.entries, [request.path]: sent.result.entry } };
+  if (sent.kind === "clashed") return drawCheckoutClash(context, updated, request, sent);
   if (sent.kind !== "landed") return { result: sent.result, index: updated };
   const staged = await stageRecordFile({ checkout: request.checkout, path: request.path, record: sent.record,
     replacing: sent.result.entry.base.blob, writer: context.writer, format: context.format, readOnly: sent.result.entry.protected });

@@ -127,7 +127,9 @@ file identity the entry records.
 version. `stampless-base.ts` compares a stampless save's carried base, the replaced version at its path, the last
 take-in's landed version, and its kept copy. Stored candidates count once by record version, while a kept copy counts
 separately by blob id. One candidate needs no content read; otherwise every candidate must give the same merge before
-the edit is sent against its carried base. An unreadable candidate or differing merge keeps the file pending.
+the edit is sent against its carried base. Comparison includes each clash's position and preserved sides, so identical
+stored clashes agree while a clash from a kept copy remains distinct. Unreadable candidates stay pending; differing
+merges become checkout holds.
 
 `write-back.ts` prepares an edit without writing, then sends it as one content put with hand-edit provenance. It restores
 missing entry IDs through the shared matcher and repairs later duplicates from the repeatable stream in
@@ -153,7 +155,18 @@ clashes hold the whole file. `marker-entries.ts` restores malformed entries from
 identity, retaining independent edits and new entries. A partial landing still answers refused, preserves the original
 file and base, and records its sanitized take-in. Aside copies refuse whole before returning to their path.
 `held-conflicts.ts` retains and reports open conflicts the held file cannot show, using the file's repair remedy.
-`copy-base-merge.ts` merges a repaired edit from retained take-in content onto the current record before its put.
+
+`checkout-merge.ts` merges kept-copy and empty bases, and stale single-writer records, onto the current stored version.
+Entry merges stamp their own repeatable copy and fall back to a clean line merge. The sent content is the merge's,
+while the recorded take-in remains the file's input. Conflicts stay in the checkout, rendered by `mergeLineText` through
+its optional line callback, which preserves the distinction between no lines and one blank line.
+
+`checkout-differences.ts` draws every actual difference of a stampless hold, retaining common file lines and its final
+newline. A final-newline-only difference draws the whole file. `checkout-drawing.ts` installs drawings through the
+replace guard and swap; a `bases-disagree` refusal and its resolution token belong to that staged drawing alone until
+it is installed, and then persist until the file is sent. Rendering metadata stays off the guard's input, so a save it
+holds or restages inherits no proposed drawing marks. A guard-observed edit reaches candidate comparison even when
+its later save equals the index again.
 
 `read-gate.ts` gates every read of a projected file on its stats alone, so write-back never reads one mid-save. An empty
 file younger than 50 ms waits for the next command, since an editor that truncates before writing leaves it empty

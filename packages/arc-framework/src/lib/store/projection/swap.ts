@@ -126,7 +126,7 @@ async function settled(input: SwapBatchInput, swap: PlannedSwap, entry: RecordEn
   const holdsStaged = stat?.type === "file" && stat.ino === swap.staged.stat.ino;
   if (!holdsStaged) return entry;
   // A read-back lays what write-back took in, so a file already pending before it waits for the next refresh.
-  const placed = { ...entry, pending: input.readBack && swap.original.pending };
+  const placed = { ...entry, pending: swap.staged.file.rendering?.keepPending === true || input.readBack && swap.original.pending };
   return swap.copy === null ? { ...placed, inProgress: null } : placed;
 }
 
@@ -152,9 +152,16 @@ async function plan(input: SwapBatchInput, file: SwapFile): Promise<PlannedSwap>
   // A file other than Markdown carries no stamp, so its entry names what is being replaced until the swap settles.
   const inProgress = file.path.endsWith(".md") ? original.inProgress : { replaces: original.base, copy: copy?.name ?? null };
   const entry: RecordEntry = {
-    ...original, base: staged.base, written: staged.written, stat: stagedStat, pending: true, inProgress, copies,
+    ...renderedEntry(original, staged), base: staged.base, written: staged.written, stat: stagedStat, pending: true, inProgress, copies,
   };
   return { path: file.path, original, entry, copy, staged: { file: staged, stat: stagedStat } };
+}
+
+function renderedEntry(original: RecordEntry, staged: StagedFile): RecordEntry {
+  const state = staged.rendering;
+  if (state === undefined) return original;
+  return { ...original, markers: state.markers, notices: state.notices, unshown: state.unshown,
+    ...(state.refused === undefined ? {} : { refused: state.refused }) };
 }
 
 /** One file's swap as it ended. */
@@ -243,8 +250,8 @@ async function linkBack(
 
 /** The entry of a file whose replacement yielded to a save: the replaced version still recorded, pending. */
 function yielded(swap: PlannedSwap): RecordEntry {
-  const { base, written, stat } = swap.original;
-  return { ...swap.entry, base, written, stat, pending: true };
+  const { base, written, stat, markers, notices, unshown, refused } = swap.original;
+  return { ...swap.entry, base, written, stat, markers, notices, unshown, refused, pending: true };
 }
 
 function withEntry(index: ProjectionIndex, path: string, entry: RecordEntry): ProjectionIndex {

@@ -29,7 +29,7 @@ import { prepareMarkerContent } from "./marker-preparation.js";
 import type { MarkerParseResult } from "./marker-parse.js";
 import type { RecordReference } from "../identity.js";
 import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
-import { mergeCopyBase } from "./copy-base-merge.js";
+import { mergeCheckoutBase, prepareAmbiguousDrawing, type CheckoutDrawing, type CheckoutMerge } from "./checkout-merge.js";
 
 const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
@@ -38,6 +38,8 @@ export interface WriteBackContext {
   readonly store: Store;
   readonly location: ProjectionLocation;
   readonly format: ObjectFormat;
+  readonly actor: string;
+  readonly now?: () => Date;
   readonly memo?: HistoryMemo;
   readonly verb?: typeof HAND_EDIT_VERBS[number];
   readonly report?: (diagnostic: WriteBackDiagnostic) => void;
@@ -62,6 +64,7 @@ export interface WriteBackResolution {
 export type PreparedWriteBack =
   | { readonly kind: "ready"; readonly write: Extract<WriteInput, { action: "put" }>; readonly read: TakeInRead;
       readonly stamp: string; readonly takenIn: string; readonly random?: () => number; readonly retained?: RefusedMark }
+  | { readonly kind: "clashed"; readonly drawing: CheckoutDrawing; readonly read: TakeInRead; readonly result: TakeInResult; readonly diagnostic: RefusedMark }
   | { readonly kind: "held"; readonly result: TakeInResult; readonly diagnostic?: RefusedMark;
       readonly diagnostics?: readonly RefusedMark[] };
 
@@ -71,12 +74,8 @@ export async function prepareWriteBack(context: WriteBackContext, request: TakeI
   if (file.kind === "held") return file;
   const selected = await selectWriteBackBase(context, request, file.content, file.stamp);
   if (selected.status === "refused") return refusedPreparation(request.entry, selected.refusal);
-  if (selected.result.kind === "held") return { kind: "held", result: {
-    answer: "pending", entry: { ...request.entry, pending: true },
-  }, diagnostic: selected.result.mark };
+  if (selected.result.kind === "held") return heldBasePreparation(context, request, file, selected.result.mark);
   const { base, stamp } = selected.result;
-  if (base.kind === "empty") return { kind: "held", result: { answer: "pending", entry: { ...request.entry, pending: true } },
-    diagnostic: { reason: "checkout-merge-required", remedy: { text: "The edit needs a merge from a local or empty base before it can be sent." } } };
   const markers = await prepareMarkers(context, request, file.content, base);
   if (markers.status === "refused") return refusedPreparation(request.entry, markers.refusal);
   if (markers.result.kind === "held") return { kind: "held",
@@ -86,9 +85,9 @@ export async function prepareWriteBack(context: WriteBackContext, request: TakeI
   const restored = await restoreIds(context, request, markers.result.content, base);
   if (restored.status === "refused") return refusedPreparation(request.entry, restored.refusal);
   const { content: takenIn, random } = restored.result;
-  const merged = await prepareContent(context, request, base, takenIn, random);
+  const merged = await prepareContent(context, request, base, takenIn, file.read, random);
   if (merged.status === "refused") return refusedPreparation(request.entry, merged.refusal);
-  if (merged.result.clashed) return { kind: "held", result: { answer: "clashed", entry: { ...request.entry, pending: true } } };
+  if (merged.result.drawing !== undefined) return clashedPreparation(request, merged.result.drawing, file.read, markers.result);
   const { content, version } = merged.result;
   const invalid = await checkContent(context, request, { kind: "stored", version }, content, random);
   if (invalid !== null) return invalid;
@@ -130,10 +129,42 @@ async function prepareMarkers(context: WriteBackContext, request: TakeInRequest,
     { grammar, base: selected.result, aside: request.copy !== null });
 }
 
-async function prepareContent(context: WriteBackContext, request: TakeInRequest, base: Exclude<RecoveredBase, { kind: "empty" }>, content: string, random?: () => number) {
-  if (base.kind === "stored") return { status: "ok" as const, result: { content, version: base.version, clashed: false } };
-  return mergeCopyBase({ store: context.store, reference: request.entry.reference, base: base.content, content,
-    grammar: kinds[request.entry.reference.kind].entry, random });
+async function prepareContent(context: WriteBackContext, request: TakeInRequest, base: RecoveredBase, content: string, read: TakeInRead, random?: () => number): Promise<StoreResult<CheckoutMerge>> {
+  if (base.kind === "stored" && kinds[request.entry.reference.kind].merge !== "single-writer") {
+    return { status: "ok", result: { content, version: base.version } };
+  }
+  const original = await readBaseContent(context, request.entry, base);
+  if (original.status === "refused") return original;
+  return mergeCheckoutBase({ store: context.store, reference: request.entry.reference, base: original.result,
+    baseVersion: base.kind === "stored" ? base.version : null, content,
+    grammar: kinds[request.entry.reference.kind].entry, random, actor: context.actor, now: context.now, mtimeNs: read.stat.mtimeNs });
+}
+
+function clashedPreparation(request: TakeInRequest, drawing: CheckoutDrawing, read: TakeInRead,
+  policy: { retained?: RefusedMark; unshown?: readonly RecordReference[] } = {}): PreparedWriteBack {
+  const { retained } = policy;
+  const diagnostic = { reason: drawing.basesDisagree ? "ambiguous-base" : "checkout-conflict: The edit clashes with the stored record.",
+    remedy: { text: "Resolve the checkout's markers by hand and save again; repair any malformed entry before the clash can be drawn." } };
+  const unshown = [...(policy.unshown ?? request.entry.unshown)];
+  if (retained !== undefined) return { kind: "held", diagnostics: [retained, diagnostic, ...heldConflictMarks(unshown, retained)], result: {
+    answer: "refused", mark: retained, entry: { ...request.entry, pending: true, refused: retained, unshown },
+  } };
+  return { kind: "clashed", drawing, read, diagnostic, result: { answer: "clashed", entry: { ...request.entry, pending: true } } };
+}
+
+async function ambiguousPreparation(context: WriteBackContext, request: TakeInRequest, file: Extract<ReadEdit, { kind: "read" }>): Promise<PreparedWriteBack> {
+  const mark = request.entry.refused;
+  if (mark?.reason === "bases-disagree") return { kind: "held", result: { answer: "refused", mark,
+    entry: { ...request.entry, pending: true } } };
+  const drawing = await prepareAmbiguousDrawing({ store: context.store, reference: request.entry.reference,
+    content: file.content, actor: context.actor, now: context.now, mtimeNs: file.read.stat.mtimeNs });
+  return drawing.status === "refused" ? refusedPreparation(request.entry, drawing.refusal)
+    : clashedPreparation(request, drawing.result, file.read);
+}
+
+async function heldBasePreparation(context: WriteBackContext, request: TakeInRequest, file: Extract<ReadEdit, { kind: "read" }>, mark: RefusedMark): Promise<PreparedWriteBack> {
+  if (mark.reason === "ambiguous-base") return ambiguousPreparation(context, request, file);
+  return { kind: "held", result: { answer: "pending", entry: { ...request.entry, pending: true } }, diagnostic: mark };
 }
 
 async function readEdit(context: WriteBackContext, request: TakeInRequest): Promise<ReadEdit> {
@@ -159,11 +190,13 @@ async function readEdit(context: WriteBackContext, request: TakeInRequest): Prom
 async function stamplessVerdict(
   context: WriteBackContext, request: TakeInRequest, text: string, stat: FileStat,
 ): Promise<HeldWriteBack | null> {
+  if (request.entry.markers !== null || request.entry.refused?.reason === "bases-disagree") return null;
   const read = await readStamplessFile({ entry: request.entry, text, mtimeNs: stat.mtimeNs,
     format: context.format, memo: context.memo ?? createHistoryMemo(context.store) });
   if (read.status === "refused") return pendingRead(request, read.refusal);
   if (read.result.kind === "pending") return pendingRead(request, read.result.refusal);
   if (read.result.kind === "edit") return null;
+  if (read.result.kind === "unedited" && request.observedEdit) return null;
   const pending = read.result.kind === "wait";
   return { kind: "held", result: { answer: pending ? "pending" : "no-edit",
     entry: pending ? { ...request.entry, pending: true } : request.entry } };
@@ -214,11 +247,16 @@ export function createWriteBackPort(context: WriteBackContext): TakeInPort {
 /** A send's outcome, retaining the read-back only for the file walk that owns replacement. */
 export type WriteBackSend =
   | { readonly kind: "held" | "read-back-refused" | "landed-held"; readonly result: TakeInResult }
+  | { readonly kind: "clashed"; readonly result: TakeInResult; readonly drawing: CheckoutDrawing; readonly read: TakeInRead }
   | { readonly kind: "landed"; readonly result: Extract<TakeInResult, { answer: "taken-in" }>; readonly record: StoreRecord };
 
 /** Prepare, send once, and record the landed content without replacing any projected file. */
 export async function sendWriteBack(context: WriteBackContext, request: TakeInRequest): Promise<WriteBackSend> {
   const prepared = await prepareWriteBack(context, request);
+  if (prepared.kind === "clashed") {
+    context.report?.({ path: request.path, copy: request.copy, mark: prepared.diagnostic });
+    return { kind: "clashed", result: prepared.result, drawing: prepared.drawing, read: prepared.read };
+  }
   if (prepared.kind === "held") {
     const mark = "mark" in prepared.result ? prepared.result.mark : prepared.diagnostic;
     for (const diagnostic of prepared.diagnostics ?? (mark === undefined ? [] : [mark])) {

@@ -61,7 +61,7 @@ async function proseFile(kind: KindId = "personal/document", fixture = createRef
 describe("sending a projected edit", () => {
   it("lands edited prose once against its base without replacing the file", async () => {
     const { fixture, request, edit } = await proseFile();
-    const port = createWriteBackPort({ store: fixture.store, location, format: "sha1" });
+    const port = createWriteBackPort({ store: fixture.store, location, format: "sha1", actor: "test-user@fixture-machine" });
     const result = await port(request);
     expect(result.answer).toBe("taken-in");
     const read = await fixture.store.read({ reference: request.entry.reference });
@@ -80,7 +80,7 @@ describe("sending a projected edit", () => {
     const { request } = await proseFile("cohort/document", fixture);
     const broken = renderStampedFile({ content: "**Parent:** invalid parent\n", stamp: request.entry.base.blob });
     await writeFile(join(checkout, request.path), broken);
-    const port = createWriteBackPort({ store: fixture.store, location, format: "sha1" });
+    const port = createWriteBackPort({ store: fixture.store, location, format: "sha1", actor: "test-user@fixture-machine" });
     const result = await port(request);
     expect(result).toMatchObject({ answer: "unparseable", entry: { refused: { reason: expect.stringContaining("Parent") } } });
     expect(await readFile(join(checkout, request.path), "utf8")).toBe(broken);
@@ -98,7 +98,7 @@ describe("sending a projected edit", () => {
     const content = makeMetaFixture("alpha", { state: "Shipped" });
     const { request } = await proseFile("work-item/meta", fixture, content);
     await writeFile(join(checkout, request.path), renderStampedFile({ content: `${content}\nA hand edit.\n`, stamp: request.entry.base.blob }));
-    const context = { store: fixture.store, location, format: "sha1" as const };
+    const context = { store: fixture.store, location, format: "sha1" as const, actor: "test-user@fixture-machine" };
     const prepared = await prepareWriteBack(context, request);
     expect(prepared.kind).toBe("ready");
     if (prepared.kind !== "ready") throw new Error("preparation held");
@@ -135,7 +135,7 @@ describe("sending a projected edit", () => {
       if (result.status !== "ok") throw new Error("write did not land");
       throw new Error("stopped after landing");
     });
-    const port = createWriteBackPort({ store: fixture.store, location, format: "sha1" });
+    const port = createWriteBackPort({ store: fixture.store, location, format: "sha1", actor: "test-user@fixture-machine" });
     await expect(port({ ...request, entry, copy: takenName })).rejects.toThrow("stopped after landing");
     const marked = { ...entry, copies: entry.copies.map(copy => ({ ...copy, writeBackSent: copy.name === otherName })) };
     expect(await readProjectionIndex(location, true)).toEqual({ kind: "index", index: indexFor(request.path, marked) });
@@ -176,7 +176,7 @@ describe("sending a projected edit", () => {
     if (clean.status !== "hashed-clean") throw new Error("expected an observed clean hash within the reference tick");
     await writeFile(observedPath, "edited\n");
     await utimes(observedPath, tick, tick);
-    expect(await createWriteBackPort({ store: fixture.store, location, format: "sha1" })({ ...request, entry }))
+    expect(await createWriteBackPort({ store: fixture.store, location, format: "sha1", actor: "test-user@fixture-machine" })({ ...request, entry }))
       .toMatchObject({ answer: "taken-in" });
     const disk = await readProjectionIndex(location, true);
     if (disk.kind !== "index") throw new Error("index unavailable");
@@ -192,7 +192,7 @@ describe("sending a projected edit", () => {
     await rm(join(checkout, request.path));
     await symlink(target, join(checkout, request.path));
     const reports: unknown[] = [];
-    const port = createWriteBackPort({ store: fixture.store, location, format: "sha1", report: report => reports.push(report) });
+    const port = createWriteBackPort({ store: fixture.store, location, format: "sha1", actor: "test-user@fixture-machine", report: report => reports.push(report) });
     expect(await port(request)).toMatchObject({ answer: "no-edit" });
     expect(reports).toMatchObject([{ path: request.path, mark: { reason: "not-a-file" } }]);
     expect(await readFile(target, "utf8")).toBe("target's private content\n");
@@ -210,7 +210,7 @@ describe("sending a projected edit", () => {
     await writeReference(checkout);
     const state = await fixture.store.version();
     const reference = await readReference(checkout);
-    expect(await prepareWriteBack({ store: fixture.store, location, format: "sha1" }, request))
+    expect(await prepareWriteBack({ store: fixture.store, location, format: "sha1", actor: "test-user@fixture-machine" }, request))
       .toMatchObject({ kind: "ready", write: { expected: request.entry.base.version, content: "opening\nedited\nclosing\n" } });
     expect(await fixture.store.version()).toEqual(state);
     expect(await readFile(join(checkout, request.path), "utf8")).toBe(edit);
@@ -228,7 +228,7 @@ describe("sending a projected edit", () => {
     const { request } = await proseFile("work-item/description", fixture, content);
     const edited = content.replace("The concern.", "The edited concern.");
     await writeFile(join(checkout, request.path), renderStampedFile({ content: edited, stamp: request.entry.base.blob }));
-    expect(await createWriteBackPort({ store: fixture.store, location, format: "sha1" })(request)).toMatchObject({ answer: "taken-in" });
+    expect(await createWriteBackPort({ store: fixture.store, location, format: "sha1", actor: "test-user@fixture-machine" })(request)).toMatchObject({ answer: "taken-in" });
     const read = await fixture.store.read({ reference: request.entry.reference });
     expect(read.status === "ok" ? read.result.content : read).toBe(edited);
   });

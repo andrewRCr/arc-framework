@@ -48,6 +48,7 @@ export async function createMarkerFixture(input: { kind?: KindId; base?: string;
   const index = await commitProjectionIndex({ location: source.location, checkout: source.checkout, index: {
     ...refreshed, entries: { ...refreshed.entries, [source.path]: { ...previous,
       markers: { length: renderer.length, sets: conflicts.map(conflict => ({ shows: "stored" as const, conflict: conflict.reference })) },
+      unshown: [],
       stat: await readStat(join(source.checkout, source.path)), written: gitBlobId(rendered, "sha1"),
     } },
   } });
@@ -55,6 +56,6 @@ export async function createMarkerFixture(input: { kind?: KindId; base?: string;
   if (entry?.kind !== "record") throw new Error("Rendered entry missing");
   return { ...source, entry, index, content, conflicts, record: read.result, renderer,
     request: { ...source.request, entry, base: { kind: "stamp" as const, stamp: entry.base.blob } },
-    edit: (next: string) => source.edit(next, entry.base.blob),
+    edit: (next: string, stamp = entry.base.blob) => source.edit(next, stamp),
   };
 }
