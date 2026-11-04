@@ -128,6 +128,19 @@ export class ReviewProducerScopeMismatchError extends ReviewTerminalAttemptInput
   }
 }
 
+/** A terminal producer admitted under a different standard-review routing than the request carries. */
+export class ReviewProducerPolicyMismatchError extends ReviewTerminalAttemptInputError {
+  constructor(
+    readonly producerReview: ReviewPolicyCommandRequest["standardReview"],
+    readonly requestReview: ReviewPolicyCommandRequest["standardReview"],
+    correctedRequest: ReviewPolicyCommandRequest,
+  ) {
+    super("review producer policy or rubric does not match the policy request",
+      `Set standardReview to the producer's requirement: ${JSON.stringify(producerReview)}`, correctedRequest);
+    this.name = "ReviewProducerPolicyMismatchError";
+  }
+}
+
 function producerSource(result: ReviewResult): string {
   return result.kind === "attested-local" ? "delegated-agent" : result.sourceIdentity;
 }
@@ -269,8 +282,7 @@ function validateTerminalResult(
     });
   }
   if (!resultMatchesPolicy(result, request)) {
-    throw new ReviewTerminalAttemptInputError("review producer policy or rubric does not match the policy request",
-      `Set standardReview to the producer's requirement: ${JSON.stringify(correctedRequest.standardReview)}`, correctedRequest);
+    throw new ReviewProducerPolicyMismatchError(correctedRequest.standardReview, request.standardReview, correctedRequest);
   }
 }
 

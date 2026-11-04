@@ -104,6 +104,7 @@ import {
   ReviewCommandErrorEnvelopeSchema,
   prePublicationCandidateRefusal,
   prePublicationRemedy,
+  prePublicationRoutingMismatchRemedy,
   prePublicationTargetRemedy,
   type PrePublicationCandidateContinuation,
   type ReviewCommandErrorCode,
@@ -131,6 +132,7 @@ import {
 } from "../scripts/review-gate/hosts/local/frontline-source-preferences.js";
 import { resolveConfiguredLanePolicy } from "../scripts/review-gate/policy/lane-policy-config.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../scripts/review-gate/policy/standard-review.js";
+import { routingInputDiagnostics } from "../scripts/review-gate/policy/routing-reason-facts.js";
 import {
   createPrePublicationCompositionDependencies,
 } from "../scripts/review-gate/policy/pre-publication-composition.js";
@@ -4637,6 +4639,7 @@ export async function handleReviewPrePublication(
   };
 
   let envelope: PrePublicationReviewEnvelope;
+  let routingDiagnostics: readonly string[];
   try {
     const boundarySnapshot = await dependencies.readBoundary(root, input.data.name);
     const currentRootHead = GitObjectIdSchema.parse(await dependencies.readRootGitHead(root));
@@ -4717,6 +4720,17 @@ export async function handleReviewPrePublication(
       }
       if (composition.pendingReview !== undefined) {
         emitPendingReviewRefusal(composition.pendingReview);
+        return;
+      }
+      if (composition.routingMismatch !== undefined && target.success) {
+        dependencies.write(`${JSON.stringify(ReviewCommandErrorEnvelopeSchema.parse({
+          schemaVersion: 1,
+          mode: "review-pre-publication",
+          diagnostics: routingInputDiagnostics(composition.routingDiagnostics ?? []),
+          error: { code: "invalid-input", message: composition.reason },
+          remedy: prePublicationRoutingMismatchRemedy(target.data, composition.routingMismatch),
+        }))}\n`);
+        dependencies.setExitCode(1);
         return;
       }
       if (composition.scopeMismatch !== undefined) {
@@ -4837,6 +4851,7 @@ export async function handleReviewPrePublication(
       }
     }
     for (const advisory of composition.advisories) dependencies.warn(`${advisory}\n`);
+    routingDiagnostics = composition.routingDiagnostics ?? [];
     const currentFrontlineHeadSha = composition.request.frontline.target.headSha;
     const postAttestContinuation: PostAttestContinuation = {
       reviewedHead: currentRootHead,
@@ -4940,7 +4955,8 @@ export async function handleReviewPrePublication(
   }
 
   try {
-    dependencies.write(`${JSON.stringify(PrePublicationReviewEnvelopeSchema.parse(envelope))}\n`);
+    dependencies.write(`${JSON.stringify(PrePublicationReviewEnvelopeSchema.parse(routingDiagnostics.length === 0
+      ? envelope : { ...envelope, diagnostics: routingInputDiagnostics(routingDiagnostics) }))}\n`);
   } catch (error) {
     emitFailure(error, "output");
   }
