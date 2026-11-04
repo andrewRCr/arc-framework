@@ -17,9 +17,11 @@ import {
   HostedIncrementalCoverageError,
   HostedReviewAdmissionError,
   StaleLaneAttemptsError,
+  StaleReviewTargetError,
   hostedRequestAdmissionRemedy,
   localPrepareAdmissionRemedy,
   staleLaneAttemptsRemedy,
+  staleReviewTargetResult,
 } from "../../../../../src/scripts/review-gate/runtime/review-policy-remedy.js";
 
 const target = { repository: "arc-framework/example", pullRequest: 42, headSha: "a".repeat(40) };
@@ -193,6 +195,26 @@ describe("staleLaneAttemptsRemedy", () => {
   it("names nothing for another failure or a request that is not an object", () => {
     expect(staleLaneAttemptsRemedy(new Error(stale.message), request)).toBeUndefined();
     expect(staleLaneAttemptsRemedy(stale, [request])).toBeUndefined();
+  });
+});
+
+describe("staleReviewTargetResult", () => {
+  const stale = new StaleReviewTargetError(target, "c".repeat(40));
+
+  it("names the requested and the current head in the driver's stale-target state", () => {
+    expect(stale).toMatchObject({ code: "invalid-input", message: expect.stringContaining("c".repeat(40)) });
+    expect(staleReviewTargetResult(stale, policyRequest)).toEqual({
+      schemaVersion: 1, mode: "review-resolve",
+      diagnostics: [{ code: "stale-request-target", message: expect.stringContaining(target.headSha) }],
+      state: "stale-target", nextAction: "select-scope",
+      payload: { lane: "standard", consumedPass: false, selectedTarget: target,
+        currentTarget: { ...target, headSha: "c".repeat(40) } },
+    });
+  });
+
+  it("rethrows any other failure unchanged", () => {
+    const other = new Error("review producer target does not match the current exact target");
+    expect(() => staleReviewTargetResult(other, policyRequest)).toThrow(other);
   });
 });
 

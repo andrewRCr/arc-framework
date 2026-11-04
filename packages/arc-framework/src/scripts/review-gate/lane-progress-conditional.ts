@@ -3,8 +3,8 @@
 import { captureNativeConditionalPassTransition, withdrawNativeConditionalPassTransition, inspectNativeConditionalPassTransition, invalidateNativeConditionalPassTransition } from "./runtime/native-conditional-transitions.js";
 import { bindNativeConditionalAdmission } from "./runtime/native-conditional-admission.js";
 import { canonicalize, type CanonicalDigest } from "../../lib/kernel/index.js";
-import { computeConditionalPassAuthorizationId, LaneProgressStateSchema, type LaneProgressState,
-  type LocalReviewState, type ReviewOperationState } from "./core/operation-state-schema.js";
+import { computeConditionalPassAuthorizationId, conditionalPassFollowsProducer, LaneProgressStateSchema,
+  type LaneProgressState, type LocalReviewState, type ReviewOperationState } from "./core/operation-state-schema.js";
 import { requireConsumedReviewRetryAttempts, localReviewRetryActorContract, requireCompleteConditionalCoverage } from "./core/conditional-retry-contract.js";
 import { laneSubjectOwnerMatches, type LaneSubjectLineage } from "./core/lane-admission.js";
 import type { ReviewOperationStateSnapshotIndex, ReviewOperationStateStore } from "./core/ports.js";
@@ -61,8 +61,7 @@ function requireCaptureProducer(
   if (attempt === undefined
     || !attempt.terminalProducer
     || attempt.headSha !== input.headSha
-    || attempt.logicalPass !== input.exhaustedPassCount
-    || input.nextPass !== input.exhaustedPassCount + 1) {
+    || !conditionalPassFollowsProducer(input, attempt.logicalPass)) {
     throw new Error("conditional pass authorization does not match its terminal producer");
   }
   return { attempt, index };

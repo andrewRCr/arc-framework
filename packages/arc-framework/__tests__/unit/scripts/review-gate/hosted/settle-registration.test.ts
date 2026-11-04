@@ -48,6 +48,18 @@ function harness(heads: string[], ancestor = true) {
 }
 
 describe("hosted fix head registration", () => {
+  it.each([
+    { head: fixedHead, state: "settled", resolved: true },
+    { head: "c".repeat(40), state: "stale-target", resolved: false },
+  ])("observes $state when the host head changes during the final sleep", async ({ head, state, resolved }) => {
+    const host = harness([oldHead]);
+    host.port.readHead = async () => host.headRegistration.clock.now() < 10_000 ? oldHead : head;
+    host.headRegistration.isAncestor = async ancestor => ancestor === oldHead;
+    expect(await settleHostedFinding(request, host)).toMatchObject({ state, nextAction: resolved ? "complete" : "stop" });
+    expect(host.state()).toMatchObject({ resolved, elapsedMs: 10_000 });
+    expect(host.replies()).toHaveLength(resolved ? 1 : 0);
+  });
+
   it("settles with the production clock when monotonic time has fractional milliseconds", async () => {
     const host = harness([fixedHead]);
     host.headRegistration = createHostedSettlementHeadRegistration(async () => {

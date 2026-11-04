@@ -67,7 +67,9 @@ it("requires owner selection before reading readiness and continues after the bo
   const current = await createPrePublicationCompositionDependencies({ ...h, workItem: owner }).readCandidate("example");
   const version = await h.store.version();
   expect(await h.run(false, {}, undefined, { readBoundary: async () => snapshot, readCandidate: async () => current }))
-    .toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("exact work item") } });
+    .toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("exact work item") },
+      remedy: { text: expect.stringContaining("Run the command from the work unit's checkout"),
+        argv: ["arc", "review", "pre-publication", "example"] } });
   expect(await h.store.version()).toEqual(version);
   expect(await h.run()).toMatchObject({ nextAction: { kind: "run-self-review" } });
 });
@@ -138,6 +140,7 @@ async function fixture(project = true, head = "a".repeat(40)) {
       overrides?: Parameters<typeof handleReviewPrePublication>[2]) => invoke(
       resume === undefined ? settled ? { selfReview: "settled", lanes: "lanes.json" } : {} : { resume }, lanes, overrides),
     runPendingJudgment: (lanes: unknown) => invoke({ lanes: "lanes.json" }, lanes),
+    runChangeSet: (changeSet: unknown) => invoke({ changeSet: "change-set.json" }, changeSet),
   };
 }
 
@@ -631,6 +634,31 @@ it.each([false, true])("keeps a native scope refusal's grants in its remedy only
   expect(decodePrePublicationReplayV2(token).lanes).toEqual(retains
     ? { frontline: { ...grants.frontline, scopeMode: "whole-target" }, standard: grants.standard }
     : { frontline: { scopeMode: "whole-target" } });
+});
+
+it("reports the routing inputs a change set's normalization rejected beside the envelope it composed", async () => {
+  const h = await fixture();
+  await h.seedCandidate();
+  const facts = { contentKind: "code-bearing", reviewRisk: "routine", changeDeterminacy: "ordinary", ownership: "self",
+    surfaceAuthority: "ordinary" };
+  expect(await h.runChangeSet({ ...facts, contentKind: "prose" })).toMatchObject({ locus: "candidate-review-pending",
+    diagnostics: [{ code: "routing-input-rejected", message: "Rejected or missing routing input: contentKind" }] });
+  expect(await h.runChangeSet(facts)).not.toHaveProperty("diagnostics");
+});
+
+it("refuses a producer prepared under other routing with the facts to correct and the rejected inputs", async () => {
+  const h = await fixture();
+  await h.seedCandidate();
+  const prepared = { obligation: "required", reasons: ["sensitive-change-set"], rubricVersion: "standard-review/v1",
+    rubricDigest: `sha256:${"a".repeat(64)}`, retrigger: "full-final", count: 1 } as const;
+  const reason = "review producer policy or rubric does not match the policy request";
+  const refused = await h.run(false, {}, undefined, { compose: async () => ({ status: "refused", code: "invalid-input",
+    reason, routingDiagnostics: ["contentKind"],
+    routingMismatch: { producerReview: prepared, requestReview: { ...prepared, reasons: ["unknown-change-set"] } } }) });
+  expect(refused).toMatchObject({ error: { code: "invalid-input", message: reason },
+    diagnostics: [{ code: "routing-input-rejected", message: "Rejected or missing routing input: contentKind" }],
+    remedy: { argv: ["arc", "review", "pre-publication", "example", "--change-set", "-"],
+      text: expect.stringContaining("Supply --change-set with every fact, reviewRisk as the review was prepared") } });
 });
 
 const DELIVERY_REPOSITORY = "arc-framework/example";

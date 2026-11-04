@@ -57,11 +57,14 @@ type FixCheckSuccessorRequest = {
   chosenCoverage?: "complete" | "incremental";
 };
 
-/** Recognize a verified clean incremental result that still requires its complete final successor. */
-export function isCleanFixCheckCompleteSuccessor(request: FixCheckSuccessorRequest): boolean {
+/**
+ * Recognize a verified converged fix check that still requires its complete final successor: one that came back
+ * clean, or whose findings fixed nothing material and leave no response due.
+ */
+export function isConvergedFixCheckCompleteSuccessor(request: FixCheckSuccessorRequest): boolean {
   const terminal = request.attempts.at(-1);
   const signal = request.verifiedTerminalSignal;
-  return request.lane === "standard" && terminal?.outcome === "clean"
+  return request.lane === "standard" && (terminal?.outcome === "clean" || terminal?.outcome === "findings")
     && signal?.reviewOperationId === terminal.reviewOperationId
     && signal.effectiveCoverage === "incremental" && !signal.materialFix
     && request.standardReview.retrigger === "full-final"
@@ -97,7 +100,7 @@ export function invalidAdditionalPassReason(input: {
     return "preceding-producer-mismatch";
   }
   if (!convergedSignal(input.signal)
-    && (input.successor === undefined || !isCleanFixCheckCompleteSuccessor(input.successor))) return "pass-not-converged";
+    && (input.successor === undefined || !isConvergedFixCheckCompleteSuccessor(input.successor))) return "pass-not-converged";
   return null;
 }
 

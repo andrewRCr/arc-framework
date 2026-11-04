@@ -14,13 +14,12 @@ import {
 } from "../../lib/git/merge-feasibility.js";
 import type { CandidateCurrentnessProjection } from "../../lib/work-unit/candidate-attestation.js";
 import {
-  CandidateApplicabilityDecisionResultSchema,
   CandidateApplicabilityResultSchema,
   type CandidateApplicabilityDecisionResult,
   type CandidateApplicabilityResult,
 } from "../../lib/work-unit/candidate-applicability.js";
 import {
-  CandidateApplicabilityResolutionSelectorSchema,
+  CandidateApplicabilityDecisionSelectionSchema,
   type CandidateApplicabilityResolutionSelector,
 } from "../../lib/work-unit/candidate-applicability-resolution.js";
 import { CandidateSubjectUncollectableError } from "../../lib/work-unit/git-candidate-subject.js";
@@ -365,9 +364,7 @@ const CheckpointBlockedBaseShape = {
 };
 
 const CandidateApplicabilityCheckpointPayloadSchema = z.union([
-  CandidateApplicabilityDecisionResultSchema.extend({
-    resolutionSelector: CandidateApplicabilityResolutionSelectorSchema,
-  }),
+  CandidateApplicabilityDecisionSelectionSchema,
   CandidateApplicabilityResultSchema,
 ]);
 

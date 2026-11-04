@@ -21,6 +21,7 @@ import type { IncrementalPredecessorApplicability } from "../scripts/review-gate
 import type { ReviewResult } from "../scripts/review-gate/core/review-result.js";
 import type { ReviewNextPassContext } from "../scripts/review-gate/policy/review-next-pass-schema.js";
 import { selectErrandCorrectionPredecessor } from "../scripts/review-gate/status-errand.js";
+import { requireSettledErrandPredecessor } from "../scripts/review-gate/hosted-settlement-stop.js";
 
 async function readCandidateContext(input: ReviewInvocationInput, workUnit: string | undefined) {
   if (workUnit === undefined) return { candidate: null, ancestors: [] };
@@ -73,7 +74,9 @@ export async function readResolveNextPassContext(input: ReviewInvocationOptions 
   const inheritedTerminal = inheritedOwner?.attempts.filter(attempt => attempt.terminalProducer
     && (attempt.outcome === "clean" || attempt.outcome === "findings" || attempt.outcome === "settled-findings"))
     .sort((left, right) => right.logicalPass - left.logicalPass)[0];
-  const earlier = selectErrandCorrectionPredecessor(owner?.attempts ?? [], target.headSha) ?? inheritedTerminal;
+  const ownerEarlier = selectErrandCorrectionPredecessor(owner?.attempts ?? [], target.headSha);
+  requireSettledErrandPredecessor(lineage, ownerEarlier);
+  const earlier = ownerEarlier ?? inheritedTerminal;
   const predecessor = terminalResult ?? (earlier === undefined
     ? null : await resultReader.readResult(earlier.attemptId));
   return deriveReviewNextPassContext({ predecessor, completedPasses: request.completedPasses,
@@ -103,6 +106,7 @@ export async function readHostedErrandNextPassContext(input: {
   const attempts = input.progress?.attempts.filter(attempt => attempt.headSha === input.target.headSha
     && attempt.outcome !== "pending") ?? [];
   const earlier = selectErrandCorrectionPredecessor(input.progress?.attempts ?? [], input.target.headSha);
+  requireSettledErrandPredecessor(input.lineage, earlier);
   return deriveReviewNextPassContextFromAttempts({ attempts: attempts.map(projectReviewPolicyAttempt), completedPasses: input.progress?.completedPasses ?? 0,
     completePasses: countCompleteLogicalPasses(input.progress?.attempts ?? []),
     rangeProof: { cwd: input.cwd, exec: input.exec },

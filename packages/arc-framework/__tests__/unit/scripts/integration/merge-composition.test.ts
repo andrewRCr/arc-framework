@@ -9,8 +9,11 @@ import type { ChangeRequestResolutionPort } from
   "../../../../src/scripts/review-gate/change-request.js";
 import { HostedProcessError } from
   "../../../../src/scripts/review-gate/hosted/gh-process.js";
-import { composeIntegrationFinalPlan, createIntegrationMergeDependencies } from
-  "../../../../src/scripts/integration/merge-composition.js";
+import {
+  composeIntegrationFinalPlan,
+  createIntegrationMergeDependencies,
+  finalBaseMovementUnavailableDetail,
+} from "../../../../src/scripts/integration/merge-composition.js";
 import { createReviewHarness } from "../../../helpers/store/review-harness.js";
 
 const oid = (character: string): string => character.repeat(40);
@@ -450,5 +453,16 @@ describe("integration merge composition", () => {
           .resolves.toEqual({ merged: true, providerMergeId: null, confirmationDetail });
       },
     );
+  });
+});
+
+describe("the final plan's base movement refusal", () => {
+  it("names the drift read's own cause when the final base movement is unavailable", () => {
+    const timedOut = baseDistance.unavailableBaseDrift("fetch-timeout", "main", "The fetch was bounded at 30 s.");
+    expect(finalBaseMovementUnavailableDetail(timedOut, oid("c"))).toBe("The final authoritative base movement could "
+      + "not be established: Fetching origin/main timed out before drift evidence was available. The fetch was "
+      + "bounded at 30 s.");
+    expect(finalBaseMovementUnavailableDetail({ ...timedOut, headOid: oid("d") }, oid("c")))
+      .toBe(`The authoritative drift head ${oid("d")} does not match the refreshed host head ${oid("c")}.`);
   });
 });

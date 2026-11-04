@@ -1077,7 +1077,8 @@ describe("attest → pre-publication → publish", () => {
     expect(rerouted.exitCode).toBe(1);
     expect(JSON.parse(rerouted.stdout)).toMatchObject({
       error: { code: "candidate-unexplained-delta" },
-      remedy: { argv: ["arc", "attest", "example", "--new-root"] },
+      applicability: { state: "decision-required", resolutionSelector: { candidateId: pending.candidateId } },
+      remedy: { argv: ["arc", "candidate", "applicability", "resolve", "example", "-"] },
     });
     expect(await reviewAccounting(repository)).toEqual(accountingAtCap);
 

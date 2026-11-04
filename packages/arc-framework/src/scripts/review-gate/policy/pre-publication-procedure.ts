@@ -24,6 +24,7 @@ import {
   resolveReviewPolicy,
 } from "./review-policy-driver.js";
 import { FrontlineResponseBindingSchema } from "../core/frontline-response-binding.js";
+import { ReviewCommandDiagnosticSchema } from "../core/review-command-diagnostic.js";
 import { ReviewRoutingFactsSchema } from "./routing-schema.js";
 import {
   CandidateConvergenceBoundarySchema,
@@ -148,6 +149,8 @@ const PrePublicationEnvelopeFields = {
   /** The immutable target the exact-target operations this envelope routes to require. */
   target: ReviewTargetSchema.nullable(),
   responseBinding: FrontlineResponseBindingSchema.optional(),
+  /** Why this call composed what it did, such as routing inputs it rejected; never part of the durable boundary. */
+  diagnostics: z.array(ReviewCommandDiagnosticSchema).optional(),
 };
 export const PrePublicationReviewEnvelopeSchema = z.union([
   CandidateSelfReviewBoundaryV2Schema.extend({ ...PrePublicationEnvelopeFields, policy: z.null() }),
@@ -165,16 +168,17 @@ export const PrePublicationReviewEnvelopeSchema = z.union([
 export type PrePublicationReviewEnvelope = z.infer<typeof PrePublicationReviewEnvelopeSchema>;
 
 /**
- * The durable boundary an envelope carries, without the target composed alongside it.
+ * The durable boundary an envelope carries, without the target and diagnostics composed alongside it.
  *
- * The target is derived live from the checkout on every call; persisting it would record a fact that
- * goes stale the moment the head moves, against a boundary deliberately keyed to the reviewable
+ * Both are derived live on every call; persisting them would record facts that go stale the moment
+ * the head or the call's inputs change, against a boundary deliberately keyed to the reviewable
  * subject instead.
  */
 export function prePublicationBoundary(envelope: PrePublicationReviewEnvelope): PublishedIntegrationBoundaryLocus {
   const boundary: Record<string, unknown> = { ...envelope };
   delete boundary.target;
   delete boundary.responseBinding;
+  delete boundary.diagnostics;
   if (envelope.schemaVersion === 2) {
     delete boundary.policy;
     return IntegrationBoundaryLocusV2Schema.parse(boundary);

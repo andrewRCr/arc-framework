@@ -207,11 +207,12 @@ const defaultStandardReview = projectStandardReviewObligation(resolveReviewRouti
 function hostedFindingsResult(
   producerId: string,
   pullRequest: number,
+  projection = defaultStandardReview,
 ): ReviewResult {
   if (immutableTarget.status !== "resolved") throw new Error("expected immutable target");
   const requirement = createReviewRequirement({
     target: immutableTarget.target,
-    projection: defaultStandardReview,
+    projection,
     acceptableSources: [{ sourceKind: "hosted", qualifier: "codex-pr" }],
     initialAdmission: "automatic",
   });
@@ -1077,12 +1078,16 @@ describe("composePrePublicationReviewRequest", () => {
     expect(composition.request.standard.standardReview.reasons).toContain("unknown-change-set");
   });
 
-  it("routes a supplied change set through the router rather than the unestablished default", async () => {
+  it.each([
+    ["asserts it known", { changeSetState: "known" }],
+    ["omits its state", {}],
+    ["asserts it unknown", { changeSetState: "unknown" }],
+  ])("routes a supplied change set whose caller %s through the router, not the unestablished default", async (_label, state) => {
     const composition = await composePrePublicationReviewRequest(
       {
         workUnit: "example",
         changeSet: {
-          changeSetState: "known",
+          ...state,
           contentKind: "documentation",
           reviewRisk: "routine",
           changeDeterminacy: "ordinary",
@@ -1097,7 +1102,9 @@ describe("composePrePublicationReviewRequest", () => {
     if (composition.status !== "composed") return;
     expect(composition.request.standard.standardReview.obligation).toBe("exempt");
     expect(composition.request.standard.standardReview.reasons).not.toContain("unknown-change-set");
+    expect(composition.request.routingFacts.changeSetState).toBe("known");
     expect(composition.advisories).toHaveLength(0);
+    expect(composition.routingDiagnostics).toBeUndefined();
   });
 
   it("reduces supplied facts in the composition rather than accepting a caller's obligation", async () => {
@@ -1145,6 +1152,7 @@ describe("composePrePublicationReviewRequest", () => {
     ["an unrecognized fact value", { changeSetState: "known", contentKind: "prose" }, "contentKind"],
     ["an unrecognized fact key", { changeSetState: "known", blastRadius: "wide" }, "blastRadius"],
     ["a non-record change set", "documentation", "$"],
+    ["a change set missing facts", { contentKind: "documentation" }, "reviewRisk"],
   ])("normalizes %s to the conservative route and says why", async (_label, changeSet, path) => {
     const composition = await composePrePublicationReviewRequest(
       { workUnit: "example", changeSet },
@@ -1157,6 +1165,38 @@ describe("composePrePublicationReviewRequest", () => {
     expect(composition.request.standard.standardReview.reasons).toContain("unknown-change-set");
     expect(composition.advisories).toHaveLength(1);
     expect(composition.advisories[0]).toContain(path);
+    expect(composition.routingDiagnostics).toContain(path);
+  });
+
+  it("refuses a producer prepared under other facts with both routings, and composes once they match", async () => {
+    const prepared = { contentKind: "code-bearing", reviewRisk: "sensitive", changeDeterminacy: "ordinary",
+      ownership: "self", surfaceAuthority: "ordinary" };
+    const project = (facts: Record<string, string>) => {
+      const projection = projectStandardReviewObligation(resolveReviewRouting({ schemaVersion: 1,
+        changeSetState: "known", ...facts, assurance: resolvedAssurance.assurance, activity: resolvedAssurance.activity,
+      }).decision);
+      return { ...projection, reasons: [...projection.reasons].sort() };
+    };
+    const producer = hostedFindingsResult("attempt-1", 42, project(prepared));
+    const compose = (changeSet: Record<string, string>) => composePrePublicationReviewRequest(
+      { workUnit: "example", changeSet }, dependencies({
+        ...evidenceDependencies([producer]),
+        resolveTarget: async () => ({ status: "resolved", target: { ...resolvedTarget.target, pullRequest: 42 } }),
+        readLaneProgress: async (lane) => lane === "standard"
+          ? { status: "recorded", completedPasses: 1, completePasses: 1,
+              attempts: [{ attemptId: "attempt-1", logicalPass: 1, sourceId: "codex-pr", outcome: "findings" }] }
+          : { status: "recorded", completedPasses: 0, completePasses: 0, attempts: [] },
+      }));
+
+    expect(await compose({ ...prepared, reviewRisk: "routine" })).toMatchObject({
+      status: "refused",
+      code: "invalid-input",
+      routingMismatch: {
+        producerReview: project(prepared),
+        requestReview: { ...project({ ...prepared, reviewRisk: "routine" }), reasons: expect.any(Array) },
+      },
+    });
+    expect(await compose(prepared)).toMatchObject({ status: "composed" });
   });
 
   it("binds each lane's scope and ceiling judgment to the resolved target and lane", async () => {
@@ -1532,7 +1572,7 @@ describe("composePrePublicationReviewRequest", () => {
 
   it.each([
     ["a missing Candidate record", { readCandidate: async (): Promise<CandidateRead> => ({ status: "missing" }) }, "No managed Candidate record", undefined],
-    ["an unexplained reviewable delta", { readCandidate: async (): Promise<CandidateRead> => ({ status: "blocked", reason: "Run full work-unit verification." }) }, "Run full work-unit verification.", "candidate-unexplained-delta"],
+    ["an unexplained reviewable delta", { readCandidate: async (): Promise<CandidateRead> => ({ status: "blocked", reason: "Run full work-unit verification.", continuation: { kind: "re-enter" } }) }, "Run full work-unit verification.", "candidate-unexplained-delta"],
     ["an unbindable rubric", { readAssurance: async (): Promise<AssuranceRead> => ({ status: "refused", reason: "rubric unavailable" }) }, "rubric unavailable", undefined],
     ["unresolvable origin coordinates", { resolveTarget: async (): Promise<TargetRead> => ({ status: "refused", reason: "no origin" }) }, "no origin", undefined],
   ] as const)("refuses on %s", async (_label, override, expected, expectedCode) => {
@@ -1544,6 +1584,8 @@ describe("composePrePublicationReviewRequest", () => {
     expect(composition.status).toBe("refused");
     expect(composition.status === "refused" && composition.reason).toContain(expected);
     expect(composition.status === "refused" ? composition.code : undefined).toBe(expectedCode);
+    expect(composition.status === "refused" ? composition.candidateContinuation : undefined)
+      .toEqual(expectedCode === undefined ? undefined : { kind: "re-enter" });
   });
 
   it("does not read assurance, target, or progress once the Candidate read refuses", async () => {

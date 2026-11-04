@@ -2321,6 +2321,34 @@ Approve: 2 fixes → focused verification → commit → push?`,
     await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId)).resolves.toBeNull();
   });
 
+  it.each([
+    ["one pass short of its producer", 0, 1],
+    ["a skipped pass", 1, 3],
+  ])("refuses a conditional authorization naming %s before appending, then settles the corrected approval", async (
+    _label, exhaustedPassCount, nextPass,
+  ) => {
+    const records = fixture();
+    const deps = dependencies(records);
+    const capture = vi.spyOn(deps, "captureConditionalNextPass");
+    const base = policyRequest(records);
+    const approval = (passes: { exhaustedPassCount: number; nextPass: number }) => withReviewReport({
+      ...localRequest(records, "defer"),
+      policyRequest: { ...base, ceilingOverride: { target: base.target, lane: base.lane, ...passes } },
+      conditionalNextPassAuthorization: { authorizedBy: records.authority.authorIdentity, ...passes },
+    });
+
+    await expect(respondToReviewCommand(approval({ exhaustedPassCount, nextPass }), deps)).rejects.toMatchObject({
+      code: "invalid-input",
+      message: expect.stringContaining("exhaust the producer's logical pass 1 and name pass 2"),
+    });
+    await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId)).resolves.toBeNull();
+    expect(capture).not.toHaveBeenCalled();
+
+    await expect(respondToReviewCommand(approval({ exhaustedPassCount: 1, nextPass: 2 }), deps)).resolves
+      .toMatchObject({ state: "settled", nextAction: "reduce" });
+    expect(capture).toHaveBeenCalledOnce();
+  });
+
   it("refuses a native decision reference on a repository approval before appending it, and settles without one", async () => {
     const records = fixture();
     const deps = dependencies(records);

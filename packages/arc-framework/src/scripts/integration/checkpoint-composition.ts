@@ -23,7 +23,6 @@ import {
 } from "../../lib/git/index.js";
 import { createRawGitExec } from "../../lib/io-context.js";
 import { SlugSchema } from "../../lib/kernel/schema/slug.js";
-import { RecordVersionSchema } from "../../lib/store/identity.js";
 import type { VersionedCandidateRecord } from "../../lib/store/kinds/review/candidate/schema.js";
 import { createUserSurfaceResolver } from "../../lib/user-surfaces.js";
 import { resolveComposedLifecycleIndex } from "../../lib/work-unit/composed-lifecycle-index.js";
@@ -31,6 +30,7 @@ import {
   reduceCandidateDurableBaseline,
   type CandidateManagedRecordV1,
 } from "../../lib/work-unit/candidate-attestation.js";
+import { composeCandidateApplicabilityResolutionSelector } from "../../lib/work-unit/candidate-applicability-resolution.js";
 import {
   projectEffectiveCandidateCurrentness,
   type CandidateEffectiveCurrentnessProjection,
@@ -831,23 +831,16 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
           "The Candidate applicability selector's subject could not be collected.",
         );
       }
-      const currentTarget = collected.target;
-      const priorTarget = reduceCandidateDurableBaseline(value.record).target;
-      if (priorTarget.revision !== decision.baselineTarget.revision
-        || priorTarget.subject.subjectDigest !== decision.baselineTarget.subjectDigest
-        || currentTarget.subject.subjectDigest !== decision.currentTarget.subjectDigest) {
+      const composed = composeCandidateApplicabilityResolutionSelector({
+        record: value.record,
+        recordVersion: value.recordVersion,
+        decision,
+        currentTarget: collected.target,
+      });
+      if (composed.status === "changed") {
         throw new Error("The Candidate applicability selector changed during checkpoint composition.");
       }
-      return {
-        schemaVersion: 1,
-        expectedRecordVersion: RecordVersionSchema.parse(value.recordVersion),
-        candidateId: decision.candidateId,
-        priorTarget,
-        currentTarget,
-        currentBase: decision.currentBase,
-        projectionDigest: decision.projectionDigest,
-        residualDigest: decision.residualDigest,
-      };
+      return composed.selector;
     },
     readCandidatePublication: async (workUnit, baseRevision) => {
       const [value, publicationBoundary] = await Promise.all([

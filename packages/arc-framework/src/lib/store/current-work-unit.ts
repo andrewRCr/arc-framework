@@ -10,6 +10,9 @@ import { createDefaultStorePorts } from "./default-store-ports.js";
 import type { StoreRecord } from "./read.js";
 import type { ListingDiagnostic } from "./read.js";
 import type { UnboundMarkerClassification } from "../locus/unbound-marker.js";
+import type { StoreRefusal } from "./refusal.js";
+import { StoreRefusalError } from "./refusal-error.js";
+import type { NativeTypedRefusal } from "./native-refusal.js";
 
 /** One readable current candidate, retaining its identity when semantic parsing fails. */
 export interface CurrentWorkUnitCandidate {
@@ -17,10 +20,13 @@ export interface CurrentWorkUnitCandidate {
   record?: ParsedMetaRecord;
   diagnostic?: ListingDiagnostic;
 }
-/** Distinct checkout occupancy outcomes with actionable read warnings. */
+/**
+ * Distinct checkout occupancy outcomes with actionable read warnings. `cause` is the native typed refusal that left an
+ * off-branch store's checkout with no candidate, for a caller that reports it whole.
+ */
 export type CurrentWorkUnitResolution =
   | { status: "unbound"; candidates: []; warnings: string[]; unbound: UnboundMarkerClassification }
-  | { status: "none"; candidates: []; warnings: string[] }
+  | { status: "none"; candidates: []; warnings: string[]; cause?: NativeTypedRefusal }
   | { status: "resolved"; candidate: CurrentWorkUnitCandidate; candidates: [CurrentWorkUnitCandidate]; warnings: string[] }
   | { status: "ambiguous"; candidates: CurrentWorkUnitCandidate[]; warnings: string[] };
 /** Resolve this checkout's current work-unit identity without reading other branches.
@@ -33,6 +39,7 @@ export async function resolveCurrentWorkUnit(input: { cwd: string; store?: Store
   const warnings: string[] = [];
   const candidates: CurrentWorkUnitCandidate[] = [];
   let marker: ClaimedCurrentWorkUnit | undefined;
+  let refused: NativeTypedRefusal | undefined;
   if (listing.status === "ok" && listing.result.status === "complete") {
     for (const value of listing.result.records) {
       const candidate = readableCandidate(value, warnings);
@@ -47,11 +54,17 @@ export async function resolveCurrentWorkUnit(input: { cwd: string; store?: Store
       marker = await readClaimedCurrentWorkUnit({ cwd: input.cwd, store }, warnings);
       const candidate = marker.kind === "present" ? readableCandidate(marker.record, warnings) : undefined;
       if (candidate !== undefined) candidates.push(candidate);
-    } else warnings.push(listing.refusal.condition);
+    } else refused = refusedListing(store, listing.refusal, warnings);
   }
   else if (listing.result.status === "unreadable") warnings.push(listing.result.condition);
   candidates.sort((left, right) => left.reference.owner.name < right.reference.owner.name ? -1 : left.reference.owner.name > right.reference.owner.name ? 1 : 0);
-  return resolution(candidates, warnings, marker);
+  return resolution(candidates, warnings, marker, refused);
+}
+
+/** A refused listing warns; an off-branch store's refusal also returns whole as the absence's cause. */
+function refusedListing(store: Store, refusal: StoreRefusal, warnings: string[]): NativeTypedRefusal | undefined {
+  warnings.push(refusal.condition);
+  return store.capabilities.stateOffBranch ? new StoreRefusalError(refusal, true) : undefined;
 }
 
 function readableCandidate(value: StoreRecord, warnings: string[], diagnostic?: ListingDiagnostic): CurrentWorkUnitCandidate | undefined {
@@ -60,9 +73,13 @@ function readableCandidate(value: StoreRecord, warnings: string[], diagnostic?: 
   const parsed = ParsedMetaRecordSchema.safeParse(value.fields);
   return { reference: value.reference, ...(parsed.success ? { record: parsed.data } : {}), ...(diagnostic === undefined ? {} : { diagnostic }) };
 }
-function resolution(candidates: CurrentWorkUnitCandidate[], warnings: string[], marker?: ClaimedCurrentWorkUnit): CurrentWorkUnitResolution {
+function resolution(candidates: CurrentWorkUnitCandidate[], warnings: string[], marker?: ClaimedCurrentWorkUnit,
+  refused?: NativeTypedRefusal): CurrentWorkUnitResolution {
   if (marker?.kind === "unbound") return { status: "unbound", candidates: [], warnings, unbound: marker };
-  if (candidates.length === 0) return { status: "none", candidates: [], warnings };
+  if (candidates.length === 0) {
+    const cause = refused ?? (marker?.kind === "absent" ? marker.cause : undefined);
+    return { status: "none", candidates: [], warnings, ...(cause === undefined ? {} : { cause }) };
+  }
   const [candidate] = candidates;
   if (candidates.length === 1 && candidate !== undefined) return { status: "resolved", candidate, candidates: [candidate], warnings };
   return { status: "ambiguous", candidates, warnings };

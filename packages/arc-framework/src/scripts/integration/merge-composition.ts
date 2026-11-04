@@ -88,6 +88,22 @@ const GitHubMergeConfirmationSchema = z.object({
   head: z.object({ ref: z.string().min(1), sha: z.string().min(1) }).loose(),
 }).loose();
 
+/**
+ * Explain why a final merge plan has no exact base movement, naming the drift read's own cause when it has one.
+ *
+ * @param drift - The final authoritative base drift.
+ * @param observedHeadSha - The refreshed host head the drift must have analyzed.
+ * @returns The refusal detail.
+ */
+export function finalBaseMovementUnavailableDetail(drift: BaseDriftResult, observedHeadSha: string): string {
+  if (typeof drift.headOid === "string" && drift.headOid !== observedHeadSha) {
+    return `The authoritative drift head ${drift.headOid} does not match the refreshed host head ${observedHeadSha}.`;
+  }
+  return drift.verdict === "unavailable"
+    ? `The final authoritative base movement could not be established: ${drift.detail}`
+    : "The final authoritative base movement could not be established.";
+}
+
 /** Bind final work-unit movement evidence to one refreshed host target. */
 export function composeIntegrationFinalPlan(input: {
   readonly drift: Pick<
@@ -411,10 +427,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
           status: "unavailable",
           target: observedTarget,
           baseOid: drift.baseOid,
-          detail: typeof drift.headOid === "string" && drift.headOid !== observedTarget.headSha
-            ? `The authoritative drift head ${drift.headOid} does not match the refreshed host head `
-              + `${observedTarget.headSha}.`
-            : "The final authoritative base movement could not be established.",
+          detail: finalBaseMovementUnavailableDetail(drift, observedTarget.headSha),
         };
       }
       const coordinates = {

@@ -47,6 +47,7 @@ import {
 } from "./checkpoint.js";
 import {
   createIntegrationMergeDependencies,
+  finalBaseMovementUnavailableDetail,
 } from "./merge-composition.js";
 import { IntegrationBindingChangedError, type IntegrationMergeTarget } from "./merge.js";
 import type {
@@ -276,10 +277,7 @@ export function createErrandMergeDependencies(input: {
           status: "unavailable",
           target: observedTarget,
           baseOid: drift.baseOid,
-          detail: typeof drift.headOid === "string" && drift.headOid !== observedTarget.headSha
-            ? `The authoritative drift head ${drift.headOid} does not match the refreshed host head `
-              + `${observedTarget.headSha}.`
-            : "The final authoritative base movement could not be established.",
+          detail: finalBaseMovementUnavailableDetail(drift, observedTarget.headSha),
         };
       }
       const coordinates = {

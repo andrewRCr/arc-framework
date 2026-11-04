@@ -16,6 +16,7 @@ import {
   DeliveryLocalReviewAdmissionSchema,
   type DeliveryLocalReviewAdmission,
 } from "../../policy/delivery-local-review-admission.js";
+import { ReviewVehicleUnresolvedError } from "../../../../lib/store/kinds/review/errors.js";
 
 export type {
   LocalReviewAuthority,
@@ -131,7 +132,7 @@ export async function resolveLocalReviewVehicle(
   }
   const activeIdentity = ReviewIdentifierSchema.parse(context.activeIdentity);
   if ((context.workUnit === null) === (context.errand === null)) {
-    throw new LocalReviewAuthorityError("vehicle-unresolved");
+    throw new ReviewVehicleUnresolvedError("No single work unit or Errand is active at this checkout to review for.");
   }
 
   let vehicle: LocalReviewAuthority["vehicle"];

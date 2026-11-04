@@ -8,6 +8,7 @@ import { createStore } from "../../../../src/lib/store/create.js";
 import { testStorePorts } from "../../../helpers/store/in-repo-ports.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { readActiveMetaCandidates } from "../../../../src/lib/active/meta-reader.js";
+import type { Store } from "../../../../src/lib/store/contract.js";
 
 async function fixture() {
   const cwd = await mkdtemp(join(tmpdir(), "arc-current-work-unit-"));
@@ -85,5 +86,18 @@ describe("current work-unit resolver", () => {
     const result = await resolveCurrentWorkUnit({ cwd: h.cwd, store: h.store });
     expect(result.status).toBe("ambiguous");
     expect(result.candidates.map((candidate) => candidate.reference.owner.name)).toEqual(["alpha", "zebra"]);
+  });
+
+  it("keeps an in-repo store's refused listing a warning without a cause, and resolves once it lists", async () => {
+    const h = await fixture();
+    await h.write("example", makeMetaFixture("example"));
+    const list = h.store.list.bind(h.store), store = Object.create(h.store) as Store;
+    let refusing = true;
+    store.list = async input => refusing ? { status: "refused", refusal: { code: "lock-held", class: "recoverable",
+      lock: "active", condition: "The active root is locked.", remedy: { text: "Wait for the lock, then retry." } } } : list(input);
+    expect(await resolveCurrentWorkUnit({ cwd: h.cwd, store })).toEqual({ status: "none", candidates: [],
+      warnings: ["The active root is locked."] });
+    refusing = false;
+    expect(await resolveCurrentWorkUnit({ cwd: h.cwd, store })).toMatchObject({ status: "resolved", warnings: [] });
   });
 });
