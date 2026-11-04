@@ -8,3 +8,6 @@ export class MigrationRefusal extends Error {
 
 /** Endpoint configuration failure retains acquisition evidence until the recorded transport can be repaired. */
 export class MigrationTransportRefusal extends MigrationRefusal {}
+
+/** A completed acquisition failure retains its gathering without changing its refusal classification. */
+export class MigrationAcquisitionRefusal extends MigrationRefusal {}

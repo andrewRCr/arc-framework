@@ -287,6 +287,9 @@ classification calls the sweep settled.
 - _Note:_ Working-review F3 (A6) corrects § 1.6's descriptive fetch premise using the retained unnamed-blob thin-pack
   witness. The bounded detector and outcome policy stay unchanged; this prose correction needs no new algorithm test.
 
+- _Note:_ A7 extends the completed-failure fallback across the existing local-object probes; inconclusive diagnostics
+  preserve the primary fetch failure, while positive local loss and non-completed failures retain their policies.
+
 ### `[x]` **3.8 The import's publication journal reports its faults — § 1.4**
 
 - _Goal:_ Source retirement reports a missing or unparseable publication journal as its own condition and remedy, not
@@ -429,6 +432,11 @@ transport failure is a per-remote outcome.
         - _Note:_ Working-code-review F1 covers persistent configuration damage through ordinary keeper cleanup and
           import publication cleanup. Typed transport provenance retains acquisition evidence until exact repair;
           public repair/retry cases preserve earlier outcomes, notices, pending state and import source leases.
+
+        - _Note:_ A7 extends F1 to rowless completed acquisition failures, including completeness refetch. Keep the
+          retry basis/gathering, attempt the existing capture, and treat failed capture as unavailable; it grants no
+          reconciliation or source-retirement authority. Both-layout native repair/retry and failure controls cover
+          the pull and import boundaries; see `notes-storage-ref-hardening.md` § A7 failed-acquisition precedence.
 
     - `[x]` **4.3.b Follow**
         - Resume, cleanup, and candidate judgment convert comparison-witness URL failures through the existing
@@ -1073,3 +1081,7 @@ before its fix and passes after it in the store suites.
 
 - `[ ]` The fetch description states the retained unnamed-blob thin-pack residual and bounded detector accurately,
   retaining the existing classification and remedy (A6, spec criterion 21).
+
+- `[ ]` A completed failed acquisition survives cleanup, unavailable capture and inconclusive local diagnostics in
+  both layouts, with honest forwarding advice, retained earlier outcomes/notices, pending state and source leases,
+  exact-repair/retry, failure controls and unchanged successful-path process budgets (A7, spec criterion 22).

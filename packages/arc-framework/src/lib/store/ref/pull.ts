@@ -89,10 +89,10 @@ async function pullRemote(context: RefBackendContext, input: PullInput, designat
   try {
     const prefix = `refs/arc-remotes/${remote.name}/`;
     const fetched = await fetchRefRemote(context, remote, designation, input.history, context.syncDeadline?.signal);
-    const { previous, tracking: fetchedTips, keepers } = fetched.observation;
     notices.push(...fetched.notices);
-    const followDue = fetchedTips.has(`${prefix}${FORWARDING_REF.slice("refs/arc/".length)}`);
+    const followDue = fetched.observation?.tracking.has(`${prefix}${FORWARDING_REF.slice("refs/arc/".length)}`) ?? false;
     if (fetched.status === "unreachable") return await failedFetchPull(context, common, fetched, "The state fetch failed.", followDue);
+    const { previous, tracking: fetchedTips, keepers } = fetched.observation;
     const forwarded = await readRemoteForwarding(context, common,
       fetchedTips.get(`${prefix}${FORWARDING_REF.slice("refs/arc/".length)}`));
     if (forwarded) return forwarded;

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { parseFetchPorcelain, type FetchOutcome } from "../../git/fetch.js";
 import { normalizeGitRejection } from "../../git/process-error.js";
 import { PASSIVE_REMOTE_INTERACTION } from "../../git/remote-ref-reader.js";
-import { MigrationRefusal } from "./migrate-refusal.js";
+import { MigrationAcquisitionRefusal, MigrationRefusal } from "./migrate-refusal.js";
 import type { RefBackendContext } from "./context.js";
 import type { MoveRemote } from "./migrate-record.js";
 import { readSyncRefs } from "./sync-graph.js";
@@ -69,8 +69,9 @@ async function runMigrationFetch(context: RefBackendContext, args: string[], inp
     failed = true; fetched = parseFetchPorcelain(failure);
   }
   const localFailure = await localFetchObjectFailure(context, fetched);
-  if (localFailure) throw new MigrationRefusal({ code: "store", refusal: localFailure });
-  if (fetched.status === "unreachable") throw new MigrationRefusal({ code: "store", refusal: { code: "unreachable", class: "recoverable", cause: fetched.cause,
+  const Refusal = fetched.status === "unreachable" && fetched.completedFailure ? MigrationAcquisitionRefusal : MigrationRefusal;
+  if (localFailure) throw new Refusal({ code: "store", refusal: localFailure });
+  if (fetched.status === "unreachable") throw new Refusal({ code: "store", refusal: { code: "unreachable", class: "recoverable", cause: fetched.cause,
     condition: fetched.stderr || `Could not fetch migration remote ${remote.name}.`, remedy: { text: `Repair access to ${remote.name} and retry arc store migrate.` } } });
   // Rows printed before a failure do not show what the gathering kept, so the read failed whatever they say.
   if (failed || fetched.refs.some(row => row.flag === "!")) throw new MigrationRefusal({ code: "store", refusal: { code: "refused", class: "terminal",

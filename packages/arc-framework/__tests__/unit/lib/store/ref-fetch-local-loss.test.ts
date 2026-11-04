@@ -78,4 +78,24 @@ describe("failed fetch local object facts", () => {
       code: "unreachable", cause: "timeout", condition: expect.stringContaining("pull deadline expired"),
     } }] });
   });
+
+  it.each(["observation", "refs", "worktree", "objects"] as const)("preserves the fetch when the %s probe fails completely", async at => {
+    const stderr = `error: Could not read ${missing}\n`;
+    const f = failedFetchFixture({ stderr, probeFailure: { at, kind: "completed" } });
+    expect(success(await f.store.pull())).toMatchObject({ pulls: [{ status: "failed", failure: {
+      code: "unreachable", condition: stderr,
+      remedy: { text: "Repair remote connectivity or authentication and retry the pull." },
+    } }] });
+    expect(f.probeError()).toBeDefined();
+  });
+
+  it.each((["observation", "refs", "worktree", "objects", "walk"] as const).flatMap(at =>
+    (["canceled", "signaled", "spawn", "untyped"] as const).map(kind => ({ at, kind }))))(
+    "propagates $kind from the $at probe", async ({ at, kind }) => {
+      const f = failedFetchFixture({ stderr: `error: Could not read ${missing}\n`, probeFailure: { at, kind } });
+      const observed: unknown = await f.store.pull().catch(error => error);
+      expect(f.probeError()).toBeDefined();
+      expect(observed).toBe(f.probeError());
+    });
+
 });

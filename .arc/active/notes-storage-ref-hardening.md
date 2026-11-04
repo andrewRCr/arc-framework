@@ -1457,3 +1457,31 @@ connectivity remedy. The description now states that residual and the commit-onl
 outcome policy are unchanged. The low-depth factual amendment adds an evidence-backed criterion; no new algorithm test
 is needed for this prose correction. Author review checks the affected premise, detector, existing notes and raw
 witness; final reflow satisfies the Markdown line-width and underwrap rules.
+
+## A7 failed-acquisition precedence
+
+Owner, 2026-11-04 — the approved F1 follow-up extends the narrow post-fetch configuration repair to a rowless completed
+fetch failure, including completeness refetch. Four native probes at `76c4005003` fail the public-result assertion in
+pull/import, in both layouts, after exact configuration restoration and successful retry are already established.
+`fetchKeptRefPatterns` returns the failed outcome without activating its exception-only retention; cleanup masks it.
+`fetchRefPatterns` and `localFetchObjectFailure` expose the subsequent capture/diagnostic precedence obligations.
+
+The superseded Non-Goals clause says `reduce Git processes per call, share results across calls, or drop a
+readSyncRefs capture inside a sync call`, except withdrawal conflict placements. A7 retains the existing capture
+attempt under its keeper lease and permits an unavailable observation only on completed failure after an established
+completed acquisition failure. Unknown forwarding information carries ordinary transport advice without asserting
+absence; unavailable observations grant no merge, history or source-retirement authority. Completed diagnostic failure
+is inconclusive; confirmed local loss keeps priority and the original stderr. Cancellation, signal, spawn, untyped and
+incomplete-fetch behavior remain as before. The exception adds no discovery or successful-path Git processes.
+
+The bounded design composes the existing acquisition provenance, private refusal carriers and diagnostic fallback.
+Astra's author-side advice is retained with the native probes; it supplies no independent review. The approved path
+uses author checks, full verification, one atomic follow-up commit, push and normal CI, then the already authorized
+independent fix check. A separate planning pass is declined. Task 8.1 stays open, and the final trial/hold stay deferred.
+
+The original-head reconstruction fails eleven cases at public behavior assertions; the expanded repair passes them.
+A deliberately broad fallback reconstruction fails twenty-five controls, including existing deadline behavior, new
+non-completed diagnostic failures, retained forwarding advice and the successful-fetch capture guard. Each reconstruction
+restores all source files automatically. Native executor counts match before/after in both layouts: 19 for a first
+successful pull and 17 for a no-op pull, with identical command inventories. The temporary measurement suite is removed;
+its source, before/after logs and source bindings remain with the review evidence.

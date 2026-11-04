@@ -11,15 +11,24 @@ import { graphFailureObjectIds } from "./history-graph.js";
 export async function localFetchObjectFailure(context: RefBackendContext, fetched: FetchOutcome):
 Promise<Extract<StoreRefusal, { code: "refused" }> | null> {
   if (fetched.status !== "unreachable" || !fetched.completedFailure) return null;
+  try { return await confirmedLocalFetchObjectFailure(context, fetched.stderr); }
+  catch (error) {
+    if (!isGitProcessError(error) || !isCompletedGitFailure(error)) throw error;
+    return null;
+  }
+}
+
+async function confirmedLocalFetchObjectFailure(context: RefBackendContext, stderr: string):
+Promise<Extract<StoreRefusal, { code: "refused" }> | null> {
   const tips = await localTips(context);
   if (!tips.size) return null;
   const { stdout } = await context.exec("git", ["cat-file", "--batch-check"], {
     cwd: context.checkoutRoot, objectAccess: "local-only", input: [...tips.keys()].join("\n") + "\n",
   });
   const missing = stdout.split(/\r?\n/u).find(line => line.endsWith(" missing"))?.split(" ")[0];
-  if (missing) return localObjectFailure(`${tips.get(missing) ?? missing} (tip ${missing})`, fetched.stderr);
-  const commit = await namedMissingCommit(context, fetched.stderr);
-  return commit ? localObjectFailure(`commit ${commit}`, fetched.stderr) : null;
+  if (missing) return localObjectFailure(`${tips.get(missing) ?? missing} (tip ${missing})`, stderr);
+  const commit = await namedMissingCommit(context, stderr);
+  return commit ? localObjectFailure(`commit ${commit}`, stderr) : null;
 }
 
 function localObjectFailure(key: string, stderr: string): Extract<StoreRefusal, { code: "refused" }> {
@@ -31,15 +40,10 @@ function localObjectFailure(key: string, stderr: string): Extract<StoreRefusal, 
 async function namedMissingCommit(context: RefBackendContext, stderr: string): Promise<string | undefined> {
   const named = new Set(graphFailureObjectIds(stderr));
   if (!named.size) return;
-  try {
-    const { stdout } = await context.exec("git", ["rev-list", "--missing=print", "--all"], {
-      cwd: context.checkoutRoot, objectAccess: "local-only", diagnosticLocale: "stable",
-    });
-    return stdout.split(/\r?\n/u).find(line => line.startsWith("?") && named.has(line.slice(1)))?.slice(1);
-  } catch (error) {
-    if (!isGitProcessError(error) || !isCompletedGitFailure(error)) throw error;
-    return;
-  }
+  const { stdout } = await context.exec("git", ["rev-list", "--missing=print", "--all"], {
+    cwd: context.checkoutRoot, objectAccess: "local-only", diagnosticLocale: "stable",
+  });
+  return stdout.split(/\r?\n/u).find(line => line.startsWith("?") && named.has(line.slice(1)))?.slice(1);
 }
 
 async function localTips(context: RefBackendContext): Promise<Map<string, string>> {

@@ -9,7 +9,7 @@ import { readRefRepository } from "../repository.js";
 import { readRefDesignation } from "../designation.js";
 import { captureMoveRemote } from "../migrate-remote-target.js";
 import { clearMigrationRefs, fetchMigrationRemote } from "../migrate-remote-fetch.js";
-import { MigrationTransportRefusal } from "../migrate-refusal.js";
+import { MigrationAcquisitionRefusal, MigrationTransportRefusal } from "../migrate-refusal.js";
 
 /** Code-repository journal, independent of destination layout and source-generation keepers. */
 export const IMPORT_PUBLICATION_REF = "refs/arc/tmp/migrate/import-required";
@@ -53,7 +53,7 @@ export async function unpublishedImportClaims(context: RefBackendContext, identi
         remedy: `Publish the imported store with arc.identity set to ${person}, then rerun arc store migrate --import. Preserve the kept source tips until it finishes.` };
     }
   } catch (error) {
-    retainGathering = error instanceof MigrationTransportRefusal;
+    retainGathering = error instanceof MigrationTransportRefusal || error instanceof MigrationAcquisitionRefusal;
     throw error;
   } finally { if (!retainGathering) await clearMigrationRefs(physical, prefix); }
 }

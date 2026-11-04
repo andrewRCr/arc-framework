@@ -145,6 +145,11 @@ Amended 2026-11-03 — A4: this work does not reconcile competing approval branc
 a node with `performance` or `settlement` present, including an empty settlement. The repair reports that policy
 boundary without changing evidence or promising retry; selecting a root cannot undo performed work or settlement.
 
+Amended 2026-11-04 — A7 permits unavailable observations only after a rowless completed acquisition failure: the
+existing `readSyncRefs` capture is still attempted under the keeper lease, and a completed failure of that capture
+produces no observation. Retain the failed acquisition's keeper basis or publication gathering for retry. This adds
+no successful-path process, discovery or cross-call cache.
+
 ## Proposed Design
 
 Paths are under `packages/arc-framework/src/` unless they start with `__tests__/` (under `packages/arc-framework/`).
@@ -429,6 +434,10 @@ and `push`.
   only supplies object IDs for the walk to confirm; it never classifies a failure by itself. A fetch the sync deadline
   killed is a canceled failure, not a completed one, so it never reaches the helper.
 
+A7 extends the failed-walk fallback to completed failures of every existing diagnostic probe in
+`localFetchObjectFailure`: an inconclusive probe preserves the original fetch failure. Cancellation, signal, spawn and
+untyped errors keep propagating through their existing boundaries.
+
 #### 1.7 Sync reach
 
 A pull reaches the classification through `checkSyncRefTip` (`sync-tip.ts`), which calls `checkRefTip`, and through
@@ -631,6 +640,18 @@ per-remote outcome exists, a typed refusal. Typing happens at these call sites. 
 `refFetchNeedsCompleteness`) keep throwing on failure, so a caching wrapper over them caches no failure value. The
 follow sites stay in scope although only moves between remotes reach them: typing failures in
 `captureComparisonWitness`, which push admission needs, changes what they receive.
+
+After a rowless completed Git fetch failure, including a failed completeness refetch, retain that acquisition's keeper
+basis or import publication gathering for retry (A7). `fetchRefPatterns` still attempts its existing tracking/keeper
+capture under the keeper lease. If that capture also ends in a completed Git failure, the observation is unavailable;
+it is never an empty or coherent snapshot. `pullRemote` then uses the ordinary transport remedy without asserting that
+forwarding is absent. An unavailable observation authorizes no reconciliation, history capture or source retirement.
+The existing local-object diagnostic is inconclusive if any of its Git probes ends in a completed failure; preserve
+the original fetch classification and stderr. Positively established local loss retains its existing priority.
+`runMigrationFetch` carries this completed-acquisition provenance through its typed refusal so publication cleanup can
+retain the gathering without changing the refusal's classification. Cancellation, signal, spawn and untyped errors,
+and incomplete-fetch refusal cleanup, retain their existing policies. No new discovery or successful-path Git process
+is permitted.
 
 ### 5. Ref transactions under the sync deadline
 
@@ -1511,6 +1532,13 @@ more than about a week out.
     bounds (A6). With all tips present and no stderr-named commit confirmed missing in local history, the existing
     transport classification and remedy remain unchanged; the retained native witness establishes that residual.
 
+22. A rowless completed fetch failure, including a failed completeness refetch, survives cleanup, ref capture and
+    inconclusive local-object diagnostics in both layouts (A7), preserving its classification and stderr and confirmed
+    local-loss priority. The existing capture is attempted under the keeper lease; unavailable observations grant no
+    state authority or assertion of absent forwarding. Native pull/import cases retain earlier results/notices, pending
+    state and source leases, and succeed after exact repair. Failure controls retain their existing propagation and
+    cleanup, with no added discovery or successful-path Git processes.
+
 ## Open Questions
 
 None. Module and helper names inside `lib/store/ref/` for § 1.2's metadata result, § 1.4's helper, and § 5.2's
@@ -1533,5 +1561,7 @@ wrapper are implementation detail.
   _Trigger:_ F2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 - **A6** — 2026-11-04 — design: correct the fetch-failure premise. _Supersedes:_ § 1.6 fetch premise.
   _Trigger:_ F3 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+- **A7** — 2026-11-04 — design: retain failed acquisitions. _Supersedes:_ § Non-Goals ¶3.
+  _Trigger:_ F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

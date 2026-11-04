@@ -8,7 +8,7 @@ import { readRefFetchBasis, finishRefFetchBasis, withRefFetchKeepers, type RefFe
 import { readSyncRefs } from "./sync-graph.js";
 import type { HistoryRef } from "../refusal.js";
 import { parseFetchPorcelain, type FetchOutcome } from "../../git/fetch.js";
-import { normalizeGitRejection } from "../../git/process-error.js";
+import { isCompletedGitFailure, isGitProcessError, normalizeGitRejection } from "../../git/process-error.js";
 import { PASSIVE_REMOTE_INTERACTION } from "../../git/remote-ref-reader.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
@@ -17,10 +17,16 @@ import { EffectiveTransportError, resolveTransport } from "./effective-transport
 import { refTransportTargetFailure } from "./object-fault.js";
 
 type RefFetchResult = FetchOutcome & { notices: PullNotice[] };
-/** Parsed Git acquisition with its coherent, invocation-owned comparison evidence. */
-export type RefFetchOutcome = RefFetchResult & {
+/** Maps captured with one acquisition while its keeper lease is held. */
+interface RefFetchObservation {
+  previous: ReadonlyMap<string, string>; tracking: ReadonlyMap<string, string>; keepers: ReadonlyMap<string, string>;
+}
+/** Successful acquisition requires captured evidence; a completed failed acquisition may lack it. */
+export type RefFetchOutcome =
+  | Extract<RefFetchResult, { status: "refs" }> & { observation: RefFetchObservation }
+  | Extract<RefFetchResult, { status: "unreachable" }> & {
   /** Ephemeral evidence captured with this fetch's keeper lease, never a later sibling's listing. */
-  observation: { previous: ReadonlyMap<string, string>; tracking: ReadonlyMap<string, string>; keepers: ReadonlyMap<string, string> };
+  observation: RefFetchObservation | null;
 };
 
 /** Fetch registered state and explicitly requested history without configured refmaps or code negotiation. */
@@ -51,7 +57,13 @@ async function fetchRefPatterns(context: RefBackendContext, remote: RefRemoteDes
     const previous = await readSyncRefs(context, tracking);
     const basis = await readRefFetchBasis(context, remote.name, patterns);
     const fetched = await fetchKeptRefPatterns(context, remote, designation, patterns, negotiation, basis, signal);
-    const tips = await readSyncRefs(refSyncCleanupContext(context), [tracking, seen]);
+    let tips: Map<string, string>;
+    try { tips = await readSyncRefs(refSyncCleanupContext(context), [tracking, seen]); }
+    catch (error) {
+      if (fetched.status !== "unreachable" || !fetched.completedFailure
+        || !isGitProcessError(error) || !isCompletedGitFailure(error)) throw error;
+      return { ...fetched, observation: null };
+    }
     return { ...fetched, observation: {
       previous: new Map([...previous].map(([ref, tip]) => [`refs/arc/${ref.slice(tracking.length)}`, tip])),
       tracking: new Map([...tips].filter(([ref]) => ref.startsWith(tracking))),
@@ -81,6 +93,7 @@ async function fetchKeptRefPatterns(context: RefBackendContext, remote: RefRemot
       }
       fetched = { outcome, failed: repaired.failed };
     }
+    retainBasis = fetched.outcome.status === "unreachable" && fetched.outcome.completedFailure === true;
     return { ...fetched.outcome, notices };
   } catch (error) {
     retainBasis = error instanceof EffectiveTransportError
