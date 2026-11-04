@@ -122,9 +122,22 @@ describe("handleReviewChecksAwait timing", () => {
     },
     { label: "caps the configured interval to a shorter flagged bound", flags: { timeoutMs: "2000" }, expected: [2_000, 2_000] },
   ])("$label", async ({ flags, expected }) => {
-    const { awaited, exitCode } = await run({ ...target, ...flags });
+    const { awaited, exitCode, result } = await run({ ...target, ...flags });
     expect(awaited).toEqual([{ timeoutMs: expected[0], pollIntervalMs: expected[1] }]);
     expect(exitCode).toBeUndefined();
+    expect(result).not.toHaveProperty("diagnostics");
+  });
+
+  it("waits up to each limit for over-limit flags and names what it applied", async () => {
+    const { awaited, exitCode, result } = await run({ ...target, timeoutMs: "3600000", pollIntervalMs: "120000" });
+    expect(awaited).toEqual([{ timeoutMs: 1_800_000, pollIntervalMs: 60_000 }]);
+    expect(exitCode).toBeUndefined();
+    expect(result).toMatchObject({ state: "green", nextAction: "complete", diagnostics: [
+      { code: "await-timing-limited",
+        message: "--timeout-ms is above the 30-minute limit, so this call waits up to 30 minutes." },
+      { code: "await-timing-limited",
+        message: "--poll-interval-ms is above the 60-second limit, so this call starts polling every 60 seconds." },
+    ] });
   });
 
   it.each([
@@ -137,6 +150,12 @@ describe("handleReviewChecksAwait timing", () => {
     {
       label: "a flagged interval longer than its bound",
       flags: { timeoutMs: "1000", pollIntervalMs: "2000" },
+      timeoutSeconds: "900",
+      detail: "--poll-interval-ms must not exceed --timeout-ms",
+    },
+    {
+      label: "an over-limit flagged interval longer than its over-limit bound",
+      flags: { timeoutMs: "2000000", pollIntervalMs: "2500000" },
       timeoutSeconds: "900",
       detail: "--poll-interval-ms must not exceed --timeout-ms",
     },

@@ -14,10 +14,27 @@ export class AwaitTimingError extends Error {
   readonly code = "invalid-input";
 }
 
+/** The longest call window a bounded review-gate wait takes, in milliseconds. */
+export const AWAIT_TIMEOUT_LIMIT_MS = 30 * 60 * 1_000;
+
+/** The longest initial polling interval a bounded review-gate wait takes, in milliseconds. */
+export const AWAIT_POLL_INTERVAL_LIMIT_MS = 60 * 1_000;
+
 /** One effective bounded call. */
 export interface AwaitTiming {
   readonly timeoutMs: number;
   readonly pollIntervalMs: number;
+}
+
+/** A notice that the call applied a per-call override at its wait's limit. */
+export interface AwaitTimingDiagnostic {
+  readonly code: "await-timing-limited";
+  readonly message: string;
+}
+
+/** One effective bounded call, with a notice for each override it applied at its limit. */
+export interface ResolvedAwaitTiming extends AwaitTiming {
+  readonly diagnostics: readonly AwaitTimingDiagnostic[];
 }
 
 /**
@@ -43,10 +60,11 @@ export function configuredTiming<Key extends AwaitTimingKey>(
 /**
  * Compose optional per-call overrides with a wait's configured bound and initial polling interval.
  *
- * An omitted interval is capped to the effective bound; an explicit one must fit inside it.
+ * An omitted interval is capped to the effective bound; an explicit one must fit inside the bound it asks for. An
+ * override above its wait's limit is applied at the limit, with a notice naming what the call used.
  *
  * @param input - The wait's name, its two settings keys, the project settings, and the call's overrides.
- * @returns The effective bound and initial polling interval, in milliseconds.
+ * @returns The effective bound and initial polling interval, in milliseconds, and any limit notices.
  */
 export function resolveAwaitTiming<TimeoutKey extends AwaitTimingKey, IntervalKey extends AwaitTimingKey>(input: {
   wait: string;
@@ -55,22 +73,37 @@ export function resolveAwaitTiming<TimeoutKey extends AwaitTimingKey, IntervalKe
   overrides: {
     timeoutMs?: number | undefined;
     pollIntervalMs?: number | undefined;
-    /** How the caller spells its overrides, for an incompatible-override refusal. */
+    /** How the caller spells its overrides, for an incompatible-override refusal or a limit notice. */
     labels: { timeout: string; pollInterval: string };
   };
-}): AwaitTiming {
+}): ResolvedAwaitTiming {
   const { wait, keys, settings, overrides } = input;
   const configuredTimeoutMs = configuredTiming(settings, keys.timeoutSeconds, wait) * 1_000;
   const configuredPollIntervalMs = configuredTiming(settings, keys.initialPollIntervalSeconds, wait) * 1_000;
   if (configuredPollIntervalMs > configuredTimeoutMs) {
     throw new AwaitTimingError(`Configured ${wait} poll interval must not exceed its call timeout.`);
   }
-  const timeoutMs = overrides.timeoutMs ?? configuredTimeoutMs;
-  if (overrides.pollIntervalMs !== undefined && overrides.pollIntervalMs > timeoutMs) {
+  const requestedTimeoutMs = overrides.timeoutMs ?? configuredTimeoutMs;
+  if (overrides.pollIntervalMs !== undefined && overrides.pollIntervalMs > requestedTimeoutMs) {
     throw new AwaitTimingError(`${overrides.labels.pollInterval} must not exceed ${overrides.labels.timeout}`);
   }
+  const timeoutMs = Math.min(requestedTimeoutMs, AWAIT_TIMEOUT_LIMIT_MS);
   return {
     timeoutMs,
-    pollIntervalMs: overrides.pollIntervalMs ?? Math.min(configuredPollIntervalMs, timeoutMs),
+    pollIntervalMs: Math.min(overrides.pollIntervalMs ?? Math.min(configuredPollIntervalMs, timeoutMs),
+      AWAIT_POLL_INTERVAL_LIMIT_MS),
+    diagnostics: limitNotices(requestedTimeoutMs, overrides),
   };
+}
+
+function limitNotices(requestedTimeoutMs: number,
+  overrides: { pollIntervalMs?: number | undefined; labels: { timeout: string; pollInterval: string } }): AwaitTimingDiagnostic[] {
+  const minutes = AWAIT_TIMEOUT_LIMIT_MS / 60_000, seconds = AWAIT_POLL_INTERVAL_LIMIT_MS / 1_000;
+  return [
+    ...requestedTimeoutMs > AWAIT_TIMEOUT_LIMIT_MS ? [{ code: "await-timing-limited" as const, message:
+      `${overrides.labels.timeout} is above the ${minutes}-minute limit, so this call waits up to ${minutes} minutes.` }] : [],
+    ...(overrides.pollIntervalMs ?? 0) > AWAIT_POLL_INTERVAL_LIMIT_MS ? [{ code: "await-timing-limited" as const, message:
+      `${overrides.labels.pollInterval} is above the ${seconds}-second limit, so this call starts polling every ${seconds} seconds.` }]
+      : [],
+  ];
 }
