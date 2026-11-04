@@ -257,10 +257,14 @@ it("admits and replays a third native same-head complete pass through real polic
     const operation = (await h.operations.readOperation(prepared.payload.operationId)).state;
     if (operation?.kind !== "local-review") throw new Error("Expected native local operation");
     expect(operation.logicalPass).toBe(pass);
-    const beforeReplay = await h.store.version();
+    const beforeReplay = await h.store.version(), operationsBeforeReplay = await h.operations.readOperationSnapshot();
+    const sourceBeforeReplay = await actual.sourceStore.readSource(operation.sourceRef);
+    expect(sourceBeforeReplay).not.toBeNull();
     expect(await prepareLocalReview(next, actual)).toMatchObject({ state: "ready",
       payload: { operationId: operation.operationId } });
     expect(await h.store.version()).toEqual(beforeReplay);
+    expect(await h.operations.readOperationSnapshot()).toEqual(operationsBeforeReplay);
+    expect(await actual.sourceStore.readSource(operation.sourceRef)).toEqual(sourceBeforeReplay);
     const receipt = createReviewReceipt({ target: operation.target, requirement: operation.requirement, request: operation.request,
       applicabilityId: null, reviewRunId: `review-${pass}`, evaluatorIdentity: operation.request.evaluatorIdentity,
       attestingRuntimeIdentity: operation.attestation.runtimeIdentity, attestationMechanism: operation.attestation.mechanism,
