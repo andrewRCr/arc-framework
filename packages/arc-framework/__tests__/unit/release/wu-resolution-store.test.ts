@@ -125,3 +125,25 @@ it("carries a refused primary read as the store's own refusal with the same hint
   refusing = false;
   expect(await resolveActiveWu(input)).toMatchObject({ status: "resolved", branch: "feat/demo" });
 });
+
+it("carries a refused claimed-primary read behind occupancy for delivery to raise, and resolves once it reads", async ({
+  onTestFinished,
+}) => {
+  const { cwd, store, reference } = await linkedWorkUnit("arc-release-occupancy-", onTestFinished);
+  let refusing = true;
+  const refused = Object.create(store) as Store;
+  const refusal = { code: "state-unresolvable" as const, class: "recoverable" as const, historyRefs: [], reference,
+    condition: "The work unit's primary record objects are missing.", remedy: { text: "Fetch the missing objects, then retry." } };
+  refused.read = async readInput => readInput.reference.kind === "work-item/meta" && refusing
+    ? { status: "refused", refusal } : store.read(readInput);
+  const input = { cwd, store: refused, projectId: async () => "project-1" };
+  const result = await resolveActiveWu(input);
+  if (result.status !== "ambiguous" || result.cause === undefined) throw new Error(JSON.stringify(result));
+  expect(result).toMatchObject({ hint: `${refusal.condition} ${refusal.remedy.text}`,
+    cause: { offBranch: true, refusal } });
+  expect(() => raiseNativeResolutionRefusal(result)).toThrow(result.cause);
+  refusing = false;
+  const resolved = await resolveActiveWu(input);
+  expect(resolved).toMatchObject({ status: "resolved", branch: "feat/demo" });
+  expect(raiseNativeResolutionRefusal(resolved)).toBe(resolved);
+});
