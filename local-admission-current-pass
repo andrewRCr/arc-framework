@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "local-admission-current-pass",
+  "claimId": "244c468dd1f1bee19a03a914dd158c72",
+  "createdAt": "2026-11-04T00:42:19.540Z",
+  "updatedAt": "2026-11-04T00:42:19.540Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Limit local policy source ordering to the current logical pass while preserving owner-wide review history and counts.",
+  "branch": "chore/local-admission-current-pass",
+  "origin": "inbox",
+  "originEntry": "Project only the current pass into local admission source ordering",
+  "originEntrySourceDigest": "sha256:1fce10c1c0e6389cbce5cda64efb6cde5684cfa85995639091a8597bd935ab42",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
