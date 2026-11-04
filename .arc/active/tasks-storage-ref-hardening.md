@@ -186,6 +186,8 @@ classification calls the sweep settled.
           diagnostics retain their text and terminal refusal. Archive merge bases take saved remedies. Placement
           completion preserves owned current and ancestor faults only when no valid folder supplies placement, and
           its merge, retained-record, and withdrawal callers preserve those diagnostics through repair and retry.
+          Criteria-review F3 retains omitted historical root/nested trees from that same batch and reports Missing
+          after exhausting readable placement witnesses; a valid alternate witness still supplies placement.
 
 ### `[x]` **3.3 Writes and their views — § 1.4, § 1.9**
 

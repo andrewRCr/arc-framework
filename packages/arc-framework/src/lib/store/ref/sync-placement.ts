@@ -82,6 +82,10 @@ async function historicalPlacement(context: RefBackendContext, live: string, sid
     if (folder) return folder.placement;
     fault ??= ownedPlacementFault(live, quarter, entries, objects, !tips.includes(commit));
   }
+  const missing = commits.find(commit => !trees.has(commit));
+  if (missing) throw new RefSyncLabelError(live, refObjectFault(quarter, "missing", {
+    condition: `A root or nested tree of archive history commit ${missing} on ${quarter} is unavailable locally.`,
+  }).refusal);
   if (fault) throw new RefSyncLabelError(live, refDiagnosticRefusal(quarter, fault));
   return undefined;
 }
