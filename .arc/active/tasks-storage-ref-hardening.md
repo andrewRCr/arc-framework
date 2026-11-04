@@ -296,8 +296,8 @@ classification calls the sweep settled.
 - _Goal:_ Every reader that branches on a changed code, notice kind, failure code, pull status, or refusal class
   behaves as § 1.8's table states, and no caller can report a missing object through `corruptRef`.
 
-- _Note:_ See `notes-storage-ref-hardening.md` § Fault-site inventory › 3.9 and § Classification calls the sweep settled
-  for its sites, their rows and sides.
+- _Note:_ See `notes-storage-ref-hardening.md` § Fault-site inventory › Readers and `corruptRef`, and
+  § Classification calls the sweep settled, for its sites, their rows and sides.
 
 - _Note:_ Task 3.3.b brought forward the saved point-read wrapper's `stateVersion` enrichment when direct Missing
   producers bypassed its legacy conversion. The conversion removal and producer-history preservation remain here.
@@ -932,6 +932,14 @@ before its fix and passes after it in the store suites.
 - _Note:_ A4 dispositions the approval-root repair and places it in 7.R2 before this task. Verification includes
   criteria 17–19 and fresh final-head evidence; see the additional context above and the A4 notes.
 
+- _Note:_ The approved held-target repair and a fresh-save retry clear both final-trial blockers. The actual CLI's
+  clean report is retained; the personal-write hold is released. Normal CI qualifies the implementation head after its
+  one approved Windows job retry. See `notes-storage-ref-hardening.md` § Final-head trial and qualification.
+
+- _Note:_ Independent criteria Pass 1 leaves six criteria unmet and integration readiness held. Its five-fix set and
+  subsequent independent fix check are approved. A consolidated final trial follows the settled fix/review loop;
+  see `notes-storage-ref-hardening.md` § Independent criteria review.
+
 ---
 
 ## Success Criteria
@@ -952,53 +960,53 @@ before its fix and passes after it in the store suites.
   the helper; a saved read of an ended item whose archive tree is unavailable returns `state-unresolvable`; a pull
   still holds such a ref with a `namespace-corrupt` notice; every § 1.8 reader behaves as its table states.
 
-- `[ ]` `StoreRefusalSchema`, `ListingDiagnosticSchema`, `PullNoticeSchema`, `PublishFailureSchema`, and the result
+- `[x]` `StoreRefusalSchema`, `ListingDiagnosticSchema`, `PullNoticeSchema`, `PublishFailureSchema`, and the result
   schemas are unchanged.
 
-- `[ ]` A live listing scoped to one owner, or to a whole family, returns `absent` when it finds no records and no
+- `[x]` A live listing scoped to one owner, or to a whole family, returns `absent` when it finds no records and no
   diagnostics, and an unreadable ref of another owner does not appear in an owner-scoped listing.
 
-- `[ ]` A pull that raises a designation question shows it in every consumer § 3 lists, and `pullHistoryForRetry` and
+- `[x]` A pull that raises a designation question shows it in every consumer § 3 lists, and `pullHistoryForRetry` and
   `readStateHistory` stop on it with its remedy.
 
 - `[ ]` No § 4 transport failure escapes as an exception; each yields a per-remote failed outcome or a typed refusal,
   and follow's resume and cleanup return `move-unfinished`.
 
-- `[ ]` A ref transaction past `prepare` when the deadline fires commits or fails on Git's own terms and leaves no lock,
+- `[x]` A ref transaction past `prepare` when the deadline fires commits or fails on Git's own terms and leaves no lock,
   on Linux and in a dispatched Windows portability pair; a held Git ref lock at any § 5.2 site refuses `lock-held`
   naming the lock's path and age, with the stale or held remedy by age, except at the designation check's temporary
   candidate refs, where clearing them before a check gives one remote's failed outcome carrying that condition and
   remedy and removing them after it reports nothing.
 
-- `[ ]` The Windows publishing bursts run unskipped in both layouts and pass in a dispatched portability pair, every
+- `[x]` The Windows publishing bursts run unskipped in both layouts and pass in a dispatched portability pair, every
   clone converging directly or after the stranded lock its refusal names is removed and it pushes again.
 
-- `[ ]` A push that overlaps another checkout's pull on the same remote does not make concurrent writes or pull merges
+- `[x]` A push that overlaps another checkout's pull on the same remote does not make concurrent writes or pull merges
   refuse `lock-held` on the layout lock, and a zero-wait advisory lock request acquires a free lock in one attempt.
 
-- `[ ]` A history destination moved once by an outside writer is absorbed by the retry, and one moved on three
+- `[x]` A history destination moved once by an outside writer is absorbed by the retry, and one moved on three
   consecutive attempts refuses with the repair remedy, whether the admission check, the transaction, or a
   re-resolution finds each move.
 
-- `[ ]` Every import review finding an import of this repository's state can reach is fixed and any it cannot reach is
+- `[x]` Every import review finding an import of this repository's state can reach is fixed and any it cannot reach is
   recorded in the spec's § Non-Goals; with the review family's import mapping bound, a `--trial` import of this
   repository's state in a disposable copy returns a report with no refused record and only non-blocking notices.
 
-- `[ ]` § 12's four port properties hold for the default ports, each pinned by a test.
+- `[x]` § 12's four port properties hold for the default ports, each pinned by a test.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
 - `[ ]` Ready for integration
 
-- `[ ]` After withdrawal, current completed reads expose final history conflicts and undone entry changes; surviving
+- `[x]` After withdrawal, current completed reads expose final history conflicts and undone entry changes; surviving
   folders keep independent ends and placements, withdrawn folders stay removed, and refreshed copies publish
   atomically with the inverse from captured, locked bases (A1, spec criterion 14).
 
-- `[ ]` Completed-copy refresh adds only the existing batched tree and commit writes per otherwise-unwritten changed
+- `[x]` Completed-copy refresh adds only the existing batched tree and commit writes per otherwise-unwritten changed
   quarter per attempt, with no additional listing, redundant discovery, or publication transaction; unchanged
   quarters and unaffected success paths retain their process budget (A2, spec criterion 15).
 
-- `[ ]` Decomposition's optional-copy reports name each verbatim companion's actual stored path in both ref layouts;
+- `[x]` Decomposition's optional-copy reports name each verbatim companion's actual stored path in both ref layouts;
   conventional draft, single-spec, and paired-spec Design names and new-member Design admission stay unchanged
   (A3, spec criterion 16).
 
@@ -1011,7 +1019,7 @@ before its fix and passes after it in the store suites.
   performed; excluded approval cannot grant continuation. Snapshot interleavings never mix outcome, evidence, or
   selector facts from different captures.
 
-- `[ ]` A4 adds only the selector record kind/reference vocabulary, new repair command schemas, and the additive native
+- `[x]` A4 adds only the selector record kind/reference vocabulary, new repair command schemas, and the additive native
   response-snapshot capability. Existing Store methods and refusal/result/notice/publish-failure envelope shapes and
   discriminants otherwise remain unchanged. This supersedes criterion 4 only to that extent.
 

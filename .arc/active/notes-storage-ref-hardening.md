@@ -1,5 +1,25 @@
 # Notes: storage-ref-hardening
 
+Source-grounded decisions and recovery evidence for object faults, transactions, import, withdrawal, and approval-root
+selection. Earlier investigations are retained alongside their final dispositions.
+
+## Contents
+
+- **Coordination and design:** [operation scope](#coordination-with-store-operation-git-access),
+  [review mapping](#coordination-with-seam-delivery-review), [base reconciliation](#remaining-task-reground-after-shipped-base),
+  [downstream consumers](#later-work-that-reads--1-4), [review boundary](#review-during-execution).
+- **Transactions and publication:** [deadline and Windows evidence](#evidence-for--5),
+  [history retries](#history-destination-retry-evidence), [withdrawal visibility](#a1--withdrawal-conflict-visibility),
+  [quarter cost](#a2--required-quarter-publication-cost), [withdrawal implementation](#a1a2-implementation-evidence),
+  [push refusals](#push-exclusion-refusal-evidence), [quarter provenance](#restored-primary-quarter-provenance-evidence).
+- **Companions and approval:** [companion naming](#decomposition-companion-naming-evidence),
+  [Design admission](#a3--conventional-design-admission-and-companion-reports),
+  [approval-root selection](#a4--explicit-repair-of-competing-approval-roots).
+- **Import and verification:** [bound rehearsal](#bound-mapping-trial-rehearsal), [clean trial](#clean-real-state-trial),
+  [final-head obligations](#verification-at-the-final-head), [fault inventory](#fault-site-inventory),
+  [import review](#held-out-of-the-import-reviews-first-pass), [state faults](#import-state-faults),
+  [review fixes](#import-review-fixes).
+
 ## Coordination with `store-operation-git-access`
 
 That work unit gives every public ref-store call one operation scope: a shared `cat-file --batch` reader and
@@ -114,11 +134,11 @@ Tasks 5.12 and 5.13 have no additional source-grounding or acceptance gap. Curre
 verification prerequisite below, so 8.1 is not ready to begin its verification ceremony. No trial or hosted CI was
 launched during this audit.
 
-### Current inbox finding — Owner disposition before 8.1
+### Approval-root finding and disposition
 
-`arc user inbox-list --target storage-ref-hardening --json` returned `state: "named"` with one capture:
-**Repair a pull-merged second approved-response root** (AGG-F3, captured during the delivery/review pre-publication
-pass). This is **fix before starting verification**, not an automatically approved implementation task.
+At the reconciliation audit, `arc user inbox-list --target storage-ref-hardening --json` returned `state: "named"`
+with one capture: **Repair a pull-merged second approved-response root** (AGG-F3, captured during the delivery/review
+pre-publication pass). This is **fix before starting verification**, not an automatically approved implementation task.
 
 The source supports its material mechanism. `checkEvidenceSuccession` rejects a second first approval for the same
 producer/result inside one write view; two clones can each admit a distinct first root before exchanging them.
@@ -138,7 +158,8 @@ silently approved. The next source-grounded steps 5.12/5.13 remain distinct from
 
 The subsequent approved A4 planning revision folds this capture into § 9.1 and 7.R2; its recorded policy,
 review, and execution order are under § A4 — Explicit repair of competing approval roots. Final verification also
-covers its appended criteria 17–19.
+covers its appended criteria 17–19. Task 7.R2 implements that disposition as one atomic change; its implementation and
+subsequent clear inbox preflight are recorded in the retained evidence.
 
 ### Merge qualification
 
@@ -304,7 +325,7 @@ The A1 capture is committed at `af08eb88d3`; its increment request passed all 11
 confirm the same current-copy omission for an undone entry contribution, with and without a later quarter move,
 in both layouts. `task-7.2-A1-red.log` records four failures for ordinary copies; `task-7.2-A1-moved-red.log` records
 the two moved-copy failures. These are native public-store cases, not private-helper substitutions. No completed-copy
-implementation has begun.
+implementation had begun at that capture.
 
 The moved copy's quarter is absent from the original journal, so limiting refresh to journal quarters would leave the
 approved outcome incomplete. `commitWithdrawEnd` already includes captured state quarters in the watched lock set
@@ -628,10 +649,10 @@ commitments, and the selected pending-fix versus excluded no-fix scenario. Indep
 findings; complete pass 2 also found no findings. Both reviewers reported independent runners with no session files
 loaded. The complete findings, actions, prompts, exact artifacts, and reports remain in the personal pass record.
 
-The Owner approved full pass 2 and, if clear, resumption of implementation (2026-11-03). The clear result releases
-this capture and the agreed remaining execution. Fresh notes-save/personal-write-hold confirmation is still required
-for 5.12/5.13; the earlier hold was released. No trial, repair implementation, or process-cost measurement is attested
-by these planning results. The post-settle capture reread compares the authored record with the reviewed proposal.
+The Owner approved full pass 2 and, if clear, resumption of implementation (2026-11-03). The clear result released
+this capture and the agreed remaining execution. The subsequent fresh notes-save/personal-write-hold confirmation and
+completed 5.12/5.13 trials are recorded below. Planning results attest neither those trials nor the implementation or
+its process cost. The post-settle capture reread compares the authored record with the reviewed proposal.
 
 ### Implementation and recovery evidence
 
@@ -809,6 +830,100 @@ Verification takes each again at the head it checks and records each result: § 
 trial run as Task 5.13 runs it; and the Windows deadline-kill case and both layouts' publishing bursts, from its CI
 dispatch at that head made with `-f run_portability_pair=true`, so one run carries them.
 
+### Final-head trial and qualification
+
+At implementation head `6429ca093c`, the forced local merge gate passes all 19 selected checks, including the 404
+store suites enabled locally. Normal CI run `41727398335` is dispatched at that pushed head with the full Windows/macOS
+store pair and no diagnostic filters; attempt 2 passes with 38 successful jobs after the one approved failed-job retry.
+The optional Git-floor jobs and non-dispatch record/status jobs are skipped. The refreshed fault-site search has 351 matches.
+Evidence is retained under `verification-6429ca093c/` in `~/dev/arc-evidence/storage-ref-hardening/`.
+
+The final real-state trial, `task-8.1-20261103T215524Z/`, saves all 15 registered personal directories and runs the
+actual built CLI in a full disposable copy. It finishes in 10m04.65s at 2,242,956 KiB peak resident memory, proposes
+334 refs, refuses no record, and leaves the copied refs unchanged. The personal-write hold is released after completion.
+The report is nevertheless blocked: beside the five accepted derived-task-capture skips, it reports a held capture
+whose `WU_Target` still names `storage-cutover`, absent from the primary checkout after decomposition.
+
+The capture is **Guard or migrate the hook's source-script delegations that survive the cutover**. Its hook-deletion
+scope belongs to the planned `cutover-tracked-state-removal`, whose draft retains the lifecycle hook checks and their
+per-check sort. The Owner-approved repair changes only that capture's target to this member, preserving every other
+inbox byte. Its before-image and exact patch are retained in `state-repair-held-target-20261103T221341Z/`.
+
+The first repaired-state retry, `task-8.1-20261103T221344Z/`, clears that notice but reports a saved-file disagreement
+for `projection-write-back/ADVERSARIAL-PASSES.md`. That checkout's save finishes at 22:13:50Z, before its reported
+22:13:55Z write completion; the copied notes and live file differ. Unlike a disk-only row, this disagreement produces
+a blocking notice. The attempt completes normally in 8m45.69s with no refused record and unchanged copied refs. An
+attempt to stop its process group was rejected by automatic approval review as potentially including unrelated Git
+processes; no cancellation was performed. Its report and timing witness are retained. A fresh-save retry runs under
+the same continuing personal-write hold.
+
+All 3,232 review sources are accounted for: four mapped and 3,228 explicitly left behind, with no unmapped or in-flight
+source. Four earlier mapped sources are now left behind because their Errand is no longer live; four newly mapped
+sources belong to the live `authoritative-fetch-budget` and `repeated-fix-check-successor` Errands. The six legacy
+broken-chain conditions match 5.13 exactly. All 509 differing-note rows are disk-only; the three new rows introduce no
+disagreement. The first report's blocked disposition and bounded comparison are retained together.
+
+The fresh-save trial, `task-8.1-20261103T222331Z/`, clears both blockers. All 15 registered personal directories save;
+the copied PWB snapshot matches every saved workspace file, including `ADVERSARIAL-PASSES.md`. The actual CLI finishes
+in 9m46.14s at 2,276,164 KiB peak resident memory, proposes 334 refs, refuses no record, and returns exactly 5.13's five
+permitted derived-task-capture skips. The copied refs are unchanged. Review mapping and the six broken-chain rows match
+the first final-head trial apart from generated owner UIDs, and the 509 disk-only rows match exactly. This is the clean
+final-head import witness; the personal-write hold is released, and no further hold is planned.
+
+The first push attempt refuses on the committed-head/private-index Markdown check while this file carries staged
+verification cleanup. Preserving that cleanup, checking and pushing the matching committed bytes, then restoring the
+exact staged cleanup clears the refusal without bypassing a check. Both push outcomes and the restoration witness are
+retained with the qualification evidence.
+
+Normal CI's first attempt reports one failure in Windows shard 5: the unchanged
+`advisory-lock-scope.test.ts` reused-process-ID case at line 75. The reclaim predicate returns true while the bounded
+acquisition branch returns false. The test discards the actual acquisition error, so expiry of its 100 ms budget is
+only a hypothesis. The complete first attempt has only that failure. The Owner-approved unchanged-head retry is job
+`126248116082`, attempt 2 of the same run; recurrence stops verification. The original job `126236542438` and
+source-checked diagnosis are retained; a retry is not a claimed fix. After the personal hold ends, the unresolved case
+is captured separately in `USER-INBOX` as **Diagnose the Windows advisory-lock reclaim-parity test failure**.
+The retry passes all eight tests in that file. This establishes intermittency, with no production fix claimed. Job
+copies in the later attempt retain earlier successful jobs' original start/end times; only the failed job and its
+dependent aggregation execute anew. Windows job `126236542290` passes all seven transaction-deadline cases, including
+both layouts at `prepared`; job `126236542338` passes all four unskipped twenty-writer burst cases, including publication
+in both layouts. Their full logs and the successful attempt's exact-head qualification are retained together.
+
+### Independent criteria review
+
+Criteria Pass 1 of 2 covers snapshot `d0d083182e3af6d2ddd457bf3434801064064f1a` against
+base `41963788ec39a67face3054ab4ad9351416a9b1c`. Twelve bounded contexts cover all 379 changed paths, followed
+by a dedicated seam and a fresh whole-target aggregate. The author report and checkbox markings are withheld.
+Source verification confirms three major and two minor causes; the two historical-placement reports describe one cause.
+No concrete coverage gap remains.
+
+- **F1, major — selector inventory:** `listDispositionRecords` selects the first producer selector before validating
+  the entire captured inventory. `readSelectorSnapshot` checks payloads but leaves extra producer keys unchecked;
+  native `uniqueSelector` refuses that same inventory. Criterion 19 remains unmet.
+- **F2, major — transport resolution:** `remotePullFailure`, `publicationAttemptFailure`, and
+  `migrationTransportRefusal` map `EffectiveTransportError` but rethrow completed Git failures from transport lookups.
+  Criterion 7 remains unmet; the existing lookup-throwing rule requires typing at the consuming boundary.
+- **F3, major — historical placement:** `historicalPlacement` iterates only returned `readRefTrees` entries, losing
+  omitted historical trees. Its merge and withdrawal callers then offer metadata repair for object loss.
+  Criteria 2 and 3 remain unmet.
+- **F4, minor — test carrier:** the distinguishing 20,000-path CLI case runs only in E2E. Criterion 1 requires a
+  reach-selected store-ref suite or push-gate unit case; the existing path-admission unit cases do not pin the cost.
+- **F5, minor — import process budget:** both empty cleanup branches enter `dropKeptTips`, whose journal guard adds
+  a `readSyncRefs` call. `publishImport` runs both stages, adding two Git listings outside the permitted exceptions.
+  Criterion 21 remains unmet.
+
+The complete set is approved for five existing-design corrections, required verification, atomic commits, push, and
+normal CI, followed by one independent fix check. Criteria Pass 2 requires separate approval. At the reviewed target,
+the combined report leaves criteria 1, 2, 3, 7, 19, and 21 unmet and criterion 15's readiness held: 14 met, 7 unresolved.
+Task 8.1 stays open, with no Candidate attestation. The prior author report remains intact beside the combined report,
+exact target, prompts, returned reports, source verification, and proposed dispositions under `verification-6429ca093c/`.
+That reviewed implementation has passing CI and clean trial evidence; the read-only review claims no new runtime run.
+
+The fresh trial and personal-write hold are deferred. One consolidated hold is planned after the fixes and review
+loop settle, as late as verification allows before landing. No intermediate implementation head triggers a hold.
+A second hold needs a specific later change that materially invalidates the trial's behavioral or input evidence.
+The earlier trial remains historical evidence; final-head trial qualification stays outstanding until the consolidated
+run. Task 8.1 remains open throughout this deferral, with no criterion superseded or Candidate attested.
+
 ## Fault-site inventory
 
 § 1.4's search, run at `e334006519` under `lib/store/ref/`, `import/` included. Each site that refuses, reports, or
@@ -884,7 +999,7 @@ holds on an object fault, grouped by the Phase 3 task that moves it. Paths are u
     - `readLifecycleLog`'s walk (`sync-lifecycle-evidence.ts`), which pull primes and `changes` walks first through
       `readHistoricalGraph`.
 
-### 3.1 Point reads, listings, and lookups
+### Point reads, listings, and lookups
 
 - `readBoundRecord` (`read.ts`) and `readUidRefRecord` with `unreadableUidTip` (`read-uid.ts`): a `missing` metadata
   answer resolves by the containing tree: present **Missing**, absent from a tree holding records **No metadata**,
@@ -931,7 +1046,7 @@ holds on an object fault, grouped by the Phase 3 task that moves it. Paths are u
   default refusal are **Missing**, naming the history ref, since the ended item has no live ref.
   `missingArchivedHistory` is unchanged.
 
-### 3.2 Archived folders
+### Archived folders
 
 - `decodeArchiveFolderControls` and `folderPlacement` (`archive-read.ts`): § 1.5's three placement conditions become
   `malformed` with `rule: "placement"`, keyed `${ref}:${root}`, carrying **Misplaced**. `decodeArchiveFolder`'s
@@ -962,7 +1077,7 @@ holds on an object fault, grouped by the Phase 3 task that moves it. Paths are u
   throw `RefSyncLabelError` with it.
 - The sibling capture's rethrow (`siblingFolders`) moves with the withdrawal, 3.6.
 
-### 3.3 Writes and their views
+### Writes and their views
 
 - `readWriteGroups` (`write-build.ts`): a present tip whose tree is missing is **Missing**, naming the history ref for
   a target with no live ref. `capturedGroupMetadata` takes § 1.2's read: missing blob **Missing**, absent entry in a
@@ -985,7 +1100,7 @@ holds on an object fault, grouped by the Phase 3 task that moves it. Paths are u
   or their skip, and a record-free cohort with no metadata keeps today's handling. `readViewRecord` already gives
   **Missing** and calls the helper; `viewOpenConflicts` passes `read.ts`'s refusals on.
 
-### 3.4 History and changes
+### History and changes
 
 - The builders `unavailableRefHistory` (`history-graph.ts`), `unavailableHistory` (`history-snapshots.ts`), and
   `missingChangeState` (`changes-graph.ts`) become the **Missing** row, with `historyRefs` from current tips.
@@ -1016,7 +1131,7 @@ holds on an object fault, grouped by the Phase 3 task that moves it. Paths are u
   coordinate gaps keep `missingChangeState`'s semantics, and `unrecordedRetirement` and `unorderedEnds` are
   unchanged.
 
-### 3.5 Pull merges, tip checks, fetch checks, and push exclusion
+### Pull merges, tip checks, fetch checks, and push exclusion
 
 - `checkSyncRefTip` (`sync-tip.ts`) reaches 3.1's `checkRefTip`; its missing-family refusal is unchanged.
 - `excludeBrokenPushRefs` (`push-exclusion.ts`): each tip check's row rides the `refused` publish failure; its batch
@@ -1048,7 +1163,7 @@ holds on an object fault, grouped by the Phase 3 task that moves it. Paths are u
   (`fetch-seen-ended.ts`), `refMovementFamilies` and `archiveMovementFamilies` (`push-families.ts`), and
   `observeRefCarryCommitRace`.
 
-### 3.6 The withdrawal
+### The withdrawal
 
 - `UnavailableWithdrawJournal` (`sync-withdraw-journal.ts`) carries the fault its throw names, and `heldWithdrawal`
   (`sync-withdraw-commit.ts`) takes the notice's condition and remedy from it; a throw that names no fault keeps
@@ -1085,7 +1200,7 @@ holds on an object fault, grouped by the Phase 3 task that moves it. Paths are u
   `readLifecycleFolders`. Unchanged: `prepareWithdrawEnd`'s empty journal and collision refusals,
   `preserveInverseConflicts`' family check, and `movedEnd`.
 
-### 3.7 A missing local object after a fetch
+### A missing local object after a fetch
 
 - Native execution observation: removing an archive metadata blob before the next transfer can fail thin-pack
   unpacking with `fatal: unresolved deltas left after unpacking` and `fatal: unpack-objects failed`, without naming an
@@ -1124,7 +1239,7 @@ holds on an object fault, grouped by the Phase 3 task that moves it. Paths are u
   `fetchProjectCheck`). `failedRemotePull` also reports timeouts as `unreachable`, so it takes the failure code from
   its caller.
 
-### 3.8 The import's publication journal
+### The import's publication journal
 
 - `unpublishedImportClaims` (`import/transient-publication.ts`) reads the blob tip of `IMPORT_PUBLICATION_REF`
   (`refs/arc/tmp/migrate/import-required`). A missing blob throws a raw error, and a blob that does not parse escapes
@@ -1137,7 +1252,7 @@ holds on an object fault, grouped by the Phase 3 task that moves it. Paths are u
   objects, unchanged. `import/lineage.ts` and `import/source.ts` pass an `unreadable` listing on as the import's own
   refusal, unchanged.
 
-### 3.9 Readers and `corruptRef`
+### Readers and `corruptRef`
 
 The readers are § 1.8's table. `unavailableSnapshot` (`snapshot-read.ts`) is also a **Missing** producer: its
 listing refusal for unavailable tips or root trees names a history ref only for an item with no live ref (§ 1.6).
@@ -1207,11 +1322,10 @@ trial report.
   The live hash is `13fa3dc7da64cef4e173112d6263e12264c483e8289d3510e7826a2e064d752a`; its concurrent added memory
   is preserved. `working-memory.task-5.11-validation.json` under `~/dev/arc-evidence/storage-ref-hardening/` records
   the exact inputs and checks. No personal-file or canonical-notes write was performed.
-- **M1 — Review-family import mapping** — awaiting binding; cleared by that binding, not by a repair here. The full
-  trial reports 3,010 distinct `arc/review-gate/` sources with no mapping. Setting aside the copy's sources other than
-  repository identity removes every such notice. Their remedy is to bind the review family's import mapping; 5.12
-  waits until this branch carries it, then rehearses with all sources present. An unmapped notice remaining then is a
-  mapping fault, to be recorded here; 5.13 waits for its fix and the base merge.
+- **M1 — Review-family import mapping** — cleared by the shipped binding, with no state repair here. The original
+  full trial reported 3,010 distinct `arc/review-gate/` sources without a mapping; setting aside sources other than
+  repository identity removed those notices. Tasks 5.12 and 5.13 then ran with every source present and the bound
+  mapping, with no unmapped-source or in-flight notice. Their full source accounting is recorded above.
 
 ## Import review fixes
 
