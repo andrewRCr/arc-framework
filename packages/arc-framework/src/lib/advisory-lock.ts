@@ -244,7 +244,9 @@ export async function acquireAdvisoryLock(
       if (!isEexistError(err)) throw err;
     }
 
-    if (finalAttempt) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
+    // A create that outlasts the budget leaves no read to make, so the wait ends on the holder last seen rather than
+    // reporting the skipped read as an unreadable one.
+    if (finalAttempt || budgetSpent(acquisitionBudget)) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
     const holder = await readHolderSettled(readFile, sleep, lockPath, acquisitionBudget);
     if (holder === "absent") {
       // Freed between our failed create and the read — retry the create at once.
