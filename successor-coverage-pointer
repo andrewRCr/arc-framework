@@ -3,14 +3,20 @@
   "slug": "successor-coverage-pointer",
   "claimId": "7155729bbeb61d2e0b71355d6685febc",
   "createdAt": "2026-11-04T02:58:08.916Z",
-  "updatedAt": "2026-11-04T02:58:08.916Z",
+  "updatedAt": "2026-11-04T03:23:39.764Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Point code-review's successor decision at the ready result's coverage field",
   "branch": "chore/successor-coverage-pointer",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/successor-coverage-pointer",
+    "headSha": "b2119ce9ee00e3f2794fb455bbabbf412b443498"
+  }
 }
