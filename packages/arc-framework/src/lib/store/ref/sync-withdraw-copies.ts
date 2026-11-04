@@ -11,9 +11,10 @@ import { refDiagnosticRefusal } from "./object-fault.js";
 import { refPrototype } from "./read.js";
 import { RefSyncLabelError } from "./sync-label.js";
 import { readLifecycleLog } from "./sync-lifecycle-evidence.js";
-import { UnavailableWithdrawJournal, type WithdrawJournalDescription } from "./sync-withdraw-journal.js";
+import { UnavailableWithdrawJournal, type WithdrawJournalDescription, type WithdrawJournalStep } from "./sync-withdraw-journal.js";
 import type { WithdrawalBasis } from "./sync-withdraw-prepare.js";
 import { withdrawSnapshotMetadata } from "./sync-withdraw-records.js";
+import { planWithdrawCopyRoles, type WithdrawCompletedCopy } from "./sync-withdraw-role.js";
 
 /** Retain immutable provenance already acquired by lifecycle discovery, separately from locked object availability. */
 export async function captureWithdrawCopyBatches(context: RefBackendContext, state: ReadonlyMap<string, string>,
@@ -45,7 +46,8 @@ export function withdrawCopyMetadata(context: RefBackendContext, basis: Withdraw
 
 /** Compose only surviving, witnessed folders, adding a previously unwritten quarter only when its tree changes. */
 export async function refreshWithdrawCompletedCopies(context: RefBackendContext, basis: WithdrawalBasis,
-  trees: ReadonlyMap<string, readonly RefTreeEntry[]>, prepared: Map<string, Map<string, RefTreeEntry>>): Promise<void> {
+  trees: ReadonlyMap<string, readonly RefTreeEntry[]>, prepared: Map<string, Map<string, RefTreeEntry>>,
+  journal: readonly WithdrawJournalStep[]): Promise<void> {
   if (!basis.copyBatches.size) return;
   const quarters = ownedQuarterTrees(context, basis, trees);
   const objects = await readBatchObjects(context, [...new Set(withdrawCopyMetadata(context, basis, trees).map(({ oid }) => oid))]);
@@ -55,6 +57,7 @@ export async function refreshWithdrawCompletedCopies(context: RefBackendContext,
   const folders = [...quarters].flatMap(([ref, entries]) => (["work-item", "cohort"] as const)
     .flatMap(family => archivedFolders(family, ref, entries, objects).folders));
   const originalRefs = new Set(prepared.keys());
+  const copies: WithdrawCompletedCopy[] = [], groups = new Map<string, WithdrawCompletedCopy["group"]>();
   for (const folder of folders) {
     const history = folder.liveRef.replace("refs/arc/", "refs/arc/history/");
     if (!folder.metadata.batch || !basis.copyBatches.get(history)?.has(folder.metadata.batch)
@@ -63,10 +66,28 @@ export async function refreshWithdrawCompletedCopies(context: RefBackendContext,
     if (![...entries.keys()].some(path => path.startsWith(folder.root))) continue;
     const group = prepared.get(history);
     if (!group) continue;
-    await refreshCopy(context, folder, history, group, entries);
+    let final = groups.get(history);
+    if (!final) { final = await inverseCopyGroup(context, folder, history, group); groups.set(history, final); }
+    copies.push({ folder, group: final });
     prepared.set(folder.ref, entries);
   }
+  await planWithdrawCopyRoles(context, copies, trees, prepared, journal);
+  await refreshPlannedCopies(context, copies, prepared);
   dropUnchangedQuarters(prepared, trees, originalRefs);
+}
+
+async function refreshPlannedCopies(context: RefBackendContext, copies: readonly WithdrawCompletedCopy[],
+  prepared: ReadonlyMap<string, Map<string, RefTreeEntry>>): Promise<void> {
+  for (const { folder, group } of copies) {
+    const entries = prepared.get(folder.ref);
+    if (!entries) throw new Error("A surviving withdrawal copy has no captured quarter");
+    const placement = group.completedPlacements?.get(`${folder.ref}:${folder.root}`) ?? folder.placement;
+    const refreshed = await refreshArchivedFolder(context, folder, group, entries, { placement, endBatch: folder.metadata.endBatch });
+    if (refreshed.status === "refused") throw new RefSyncLabelError(folder.ref, {
+      code: "namespace-corrupt", class: "terminal", namespace: folder.ref,
+      condition: refreshed.refusal.condition, remedy: refreshed.refusal.remedy,
+    });
+  }
 }
 
 function dropUnchangedQuarters(prepared: Map<string, Map<string, RefTreeEntry>>,
@@ -79,17 +100,13 @@ function dropUnchangedQuarters(prepared: Map<string, Map<string, RefTreeEntry>>,
   }
 }
 
-async function refreshCopy(context: RefBackendContext, folder: ArchivedFolder, history: string,
-  group: Map<string, RefTreeEntry>, entries: Map<string, RefTreeEntry>): Promise<void> {
+async function inverseCopyGroup(context: RefBackendContext, folder: ArchivedFolder, history: string,
+  group: Map<string, RefTreeEntry>): Promise<WithdrawCompletedCopy["group"]> {
   const home = expandStoredPath(ownerPrimaryReference(folder.owner, folder.metadata), { registry: context.registry });
   const entry = group.get(home.metadataPath);
   const objects = await readBatchObjects(context, entry ? [entry.oid] : []);
   const metadata = withdrawSnapshotMetadata(history, entry, objects, false);
-  const refreshed = await refreshArchivedFolder(context, folder, { entries: group, metadata }, entries);
-  if (refreshed.status === "refused") throw new RefSyncLabelError(folder.ref, {
-    code: "namespace-corrupt", class: "terminal", namespace: folder.ref,
-    condition: refreshed.refusal.condition, remedy: refreshed.refusal.remedy,
-  });
+  return { entries: group, metadata };
 }
 
 function copyOwners(context: RefBackendContext, basis: WithdrawalBasis) {

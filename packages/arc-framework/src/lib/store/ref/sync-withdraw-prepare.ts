@@ -54,7 +54,7 @@ export async function prepareWithdrawEnd(context: RefBackendContext, basis: With
   }
   const registry = prepared.get("refs/arc/project/registry");
   if (registry) await preserveSiblingLineage(context, [...retained.values()], trees.get("refs/arc/project/registry") ?? [], registry);
-  await refreshWithdrawCompletedCopies(context, basis, trees, prepared);
+  await refreshWithdrawCompletedCopies(context, basis, trees, prepared, journal);
   for (const [ref, entries] of prepared) {
     const collision = findRefNamespaceCollision(ref, entries.keys());
     if (collision) throw new RefSyncLabelError(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,

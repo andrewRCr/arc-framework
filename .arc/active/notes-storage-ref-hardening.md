@@ -1414,3 +1414,36 @@ cancellation/signaled/untyped errors and normal gathering cleanup. A narrow reco
 for every exception fails all six controls; both reconstructions restore automatically. Native repair/retry cases run in
 both layouts. Earlier fixture-only restoration occurred before production cleanup and masked the defect; the disposable
 Git probe established the persistence assumption, not a public reproduction.
+
+### A5 / F2: restore role-compatible withdrawal coordinates
+
+The superseded A1 text required `using refreshArchivedFolder to preserve the folder's independent end batch and
+completed placement`. That unconditional coordinate promise did not settle primary-role changes or fallback. A5
+preserves independent end identity and quarter, retains compatible coordinates, otherwise restores a uniquely captured
+original coordinate for the same owner/end/quarter, and uses existing same-quarter allocation only when no original was
+captured. Ambiguity, occupied original destinations and collapsed ends hold without partial publication and carry
+forward repair/retry. Original criteria and Goals remain; the additive criterion supersedes only the role-dependent
+coordinate obligation.
+
+`planWithdrawCopyRoles` composes `planCompletedRoleReplacements` with final inverse groups and original folders from the
+materialized journal. All owners plan together on cloned composed maps; reservation placeholders stay private.
+`requireWithdrawalBlobs` already acquires the journal blobs, so witness decoding reuses retained acquisitions.
+`refreshWithdrawCompletedCopies` supplies explicit planned placements and each folder's own end batch before the
+captured, locked atomic publication. Ordinary write/history-sync policies remain unchanged. A lint-only extraction moves
+refresh into `refreshPlannedCopies` within the complexity bound without changing its Git calls.
+
+Ten native role/coordinate and recovery cases fail against the original implementation; the two unchanged-role controls
+pass. After restoration all twelve pass. Cases cover both role directions/layouts, original sequences below occupied
+peers, later-quarter fallback, occupied/ambiguous originals, refusal atomicity and successful forward repair. Final
+post-lint scoped traces over `commitWithdrawEnd` show exactly 37 Git processes for both role directions and
+unchanged-role controls in both layouts: `log` 8, `for-each-ref` 1, `cat-file` 7, `diff-tree` 4, `merge-base` 5,
+`hash-object` 1, `mktree` 5, `commit-tree` 5 and `update-ref` 1. Unchanged-role before/after counts match exactly;
+whole-pull ancestry ordering varies outside that scope. Temporary probes are removed and their source is retained with
+raw logs and source hashes. No process reduction is claimed; A2's bound is unchanged.
+
+Astra advised that the existing planner supplies the mechanism but does not settle the preservation/fallback policy; the
+approved A5 does. Author spec review checks reader independence, binding completeness, coherent criteria and source
+grounding across the inverse, planner, journal acquisition and publication. The bounded task audit finds existing
+review-fix placement and acceptance cases executable. Proportionality is satisfied by composing the existing planner; no
+new segment or Class change is needed. The Owner selected author checks followed by the approved post-CI fix check and
+declined a separate medium-depth planning pass. Author checks do not supply independent review.

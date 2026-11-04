@@ -844,6 +844,10 @@ before its fix and passes after it in the store suites.
   locked atomic transaction; unchanged new quarters are omitted and withdrawn folders stay removed. A2's bounded
   publication cost is verified by 7.R; details are in `notes-storage-ref-hardening.md` § A1/A2 implementation evidence.
 
+- _Note:_ Working-review F2 (A5) composes captured original-role coordinates with the existing role planner, preserving
+  independent ends and quarters. Cover both role directions/layouts, fallback allocation, ambiguity/collision repair,
+  atomicity and A2's process bounds; see the A5/A6 working-review repair notes.
+
 ### `[x]` **7.R Verify the bounded cost of completed-copy publication — Performance (A2)**
 
 - _Goal:_ A1's completed-copy repair preserves the existing process budget except the necessary batched tree and
@@ -1058,3 +1062,8 @@ before its fix and passes after it in the store suites.
   paths are confined to the stated outcome/evidence listings and targeted selector lookup. Native Git-process deltas are
   measured in both layouts, with no added version capture, duplicate outcome listing, or unrelated-family enumeration;
   A2's exception and all paths outside the explicit response-authority changes retain their process budget.
+
+- `[ ]` Withdrawal restores role-compatible completed coordinates under A5 in both layouts, with unique original
+  restoration, absent-original allocation, ambiguity/collision repair and retry, independent ends and quarters,
+  atomic publication and unchanged A2 process bounds (spec criterion 20). This supersedes the placement-preservation
+  portion of the earlier A1 criterion only when restoring another primary role requires different coordinates.

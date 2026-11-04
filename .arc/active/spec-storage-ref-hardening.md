@@ -867,12 +867,21 @@ The design:
   it captured, threaded from `inverseEntryDocument` (`:34`) through `mergeDocumentStage` to `conflictValue`, and
   reads no fresh listing there.
 - **Completed copies after withdrawal (A1).** After all original contributions have been inverted, the withdrawal
-  refreshes each surviving eligible completed folder of an affected history group from that group's final entries
-  and metadata, including newly retained conflicts and undone entry changes. `prepareWithdrawEnd` composes the
-  refresh before publication, using `refreshArchivedFolder` to preserve the folder's independent end batch and
-  completed placement. It never recreates a folder removed for the withdrawn end. Every refreshed quarter belongs
-  to the operation's captured, locked, expected-value transaction; the existing atomic publication admits all inverse
-  groups and refreshed copies together. No fresh live listing supplies the refresh or its conflict placements.
+  refreshes each surviving eligible completed folder of an affected history group from that group's final entries and
+  metadata, including newly retained conflicts and undone entry changes. `prepareWithdrawEnd` composes the refresh
+  before publication, using `refreshArchivedFolder` to preserve the folder's independent end batch and quarter.
+  Compatible current coordinates stay unchanged (A5). When the inverse restores another primary role, select a uniquely
+  witnessed original coordinate from the already materialized journal for the same quarter, owner, and independent end.
+  With no such witness, use `planCompletedRoleReplacements`' existing same-quarter allocation: a record takes its UID
+  root, and a meta takes the next available sequence. Distinct witnessed original coordinates are ambiguous and refuse;
+  an occupied original destination or collapsed independent ends also refuses, preserving all state and naming a forward
+  repair followed by retry. Never overwrite an occupant or move the end to another quarter. Select final inverse
+  metadata for every survivor before planning all role replacements together on cloned composed quarter maps;
+  reservation placeholders never enter published trees. Reuse the captured journal and object acquisitions, with no
+  fresh listing, redundant discovery, or extra publication transaction. It never recreates a folder removed for the
+  withdrawn end. Every refreshed quarter belongs to the operation's captured, locked, expected-value transaction; the
+  existing atomic publication admits all inverse groups and refreshed copies together. No fresh live listing supplies
+  the refresh or its conflict placements.
 - **A stranded tracking lock in the push loop.** `publishRefAttempt` (`push.ts:106-108`) refuses on
   `history-diverged` and seeds exclusion from `namespace-corrupt` and `end-pending`, but ignores
   `tracking-update-failed`. With a stranded tracking lock, the push's lease holds the stale tracking tip and loses on
@@ -1490,6 +1499,13 @@ more than about a week out.
     measured in both layouts, with no added version capture, duplicate outcome listing, or unrelated-family enumeration;
     A2's exception and all paths outside the explicit response-authority changes retain their process budget.
 
+20. Withdrawal restores role-compatible completed coordinates in both layouts (A5): compatible coordinates remain,
+    a unique captured original coordinate for the same quarter, owner and end is restored, and only an absent original
+    permits existing same-quarter allocation. Ambiguous witnesses, occupied original destinations, and collapsed ends
+    refuse without partial publication and have a verified forward-repair/retry route. Independent end identity,
+    quarter, withdrawn-folder removal, captured atomic publication, and criterion 15's process bounds remain intact.
+    This supersedes criterion 14 only where a restored primary role requires a different completed coordinate.
+
 ## Open Questions
 
 None. Module and helper names inside `lib/store/ref/` for § 1.2's metadata result, § 1.4's helper, and § 5.2's
@@ -1507,5 +1523,8 @@ wrapper are implementation detail.
 
 - **A4** — 2026-11-03 — design: select roots. _Supersedes:_ Goals ¶10, Cross-cutting ¶2/4, SC 4.
   _Trigger:_ 8.1 must-stop. _Work:_ 7.R2. _Revalidated:_ 7.R2.f.
+
+- **A5** — 2026-11-04 — design: restore withdrawal coordinates. _Supersedes:_ § 9 A1 ¶1; SC 14.
+  _Trigger:_ F2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---
