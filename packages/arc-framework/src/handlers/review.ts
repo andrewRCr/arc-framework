@@ -1781,11 +1781,15 @@ async function resolveConfiguredReviewPolicy(
     ...bound, request, root, exec, operationStore, resultReader, dispositionStore, configuredSources: sources,
     confirmApplicability: dependencies.confirmIncrementalApplicability,
   });
-  const composed = await composeNativePolicyGrants({ ...bound, cwd: root, exec, request,
-    operationStore, resultReader, baseBranch: settings["branch.base"], incremental: nextPassContext.incremental !== null });
-  return resolveEvidenceBoundReviewPolicyContinuation(composed, {
-    terminalResponsePerformed: !nextPassContext.responseDue,
-  }, { ...dependencies, nextPassContext });
+  const resolveAt = async (chosenCoverage?: "complete") => resolveEvidenceBoundReviewPolicyContinuation(
+    await composeNativePolicyGrants({ ...bound, cwd: root, exec, request, operationStore, resultReader,
+      baseBranch: settings["branch.base"], incremental: chosenCoverage === undefined && nextPassContext.incremental !== null }),
+    { terminalResponsePerformed: !nextPassContext.responseDue },
+    { ...dependencies, nextPassContext, ...(chosenCoverage === undefined ? {} : { chosenCoverage }) });
+  const policy = await resolveAt();
+  // A hosted source reviews only complete coverage, so its offer counts against the complete-pass ceiling.
+  return policy.state === "ready" && policy.nextAction === "hosted-request" && nextPassContext.incremental !== null
+    ? resolveAt("complete") : policy;
 }
 
 export interface ReviewReadinessHandlerDependencies {

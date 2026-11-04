@@ -820,11 +820,30 @@ describe("ordinary resolve next-pass records", () => {
     await expect(errand.readStatus()).resolves.toMatchObject({ state: "approval-required",
       detail: expect.stringContaining("1 of 1 configured complete standard-review passes") });
     await withErrandHost(errand, true, async () => {
+      const predecessor = await createRepositoryReviewResultReader(errand.publisher).readResult(errand.firstAttemptId);
+      expect(await resolveErrandReview(errand, predecessor, 42)).toMatchObject({ exitCodes: [], result: {
+        state: "approval-required", nextAction: "obtain-ceiling-override",
+        payload: { consequence: { exhaustedPassCount: 1, nextPass: 2 } },
+      } });
       expect(await performHostedRequest(errand)).toMatchObject({ exitCodes: [1], result: {
         error: { code: "invalid-input" }, remedy: { text: expect.stringContaining("--ceiling-override") },
       } });
       expect(await prepareErrandLocal(errand, { requestedCoverage: "incremental", correctionScope: errand.expectedScope }))
         .toMatchObject({ state: "ready", payload: { request: { logicalPass: 2 }, reviewerPayload: { correctionScope: errand.expectedScope } } });
+    });
+  });
+
+  it("offers a hosted pass below the ceiling as complete coverage while a minor-fix incremental check is admissible", async () => {
+    const errand = await fixedErrand({ provider: "codex-pr", severity: "minor", retrigger: "incremental", routine: true,
+      maxPasses: 2, sources: ["codex-pr", "delegated-agent"], hostedAdmission: true });
+    await withErrandHost(errand, true, async () => {
+      await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required",
+        action: { provider: "codex-pr", coverage: "complete" } });
+      const predecessor = await createRepositoryReviewResultReader(errand.publisher).readResult(errand.firstAttemptId);
+      expect(await resolveErrandReview(errand, predecessor, 42)).toMatchObject({ exitCodes: [], result: {
+        state: "ready", nextAction: "hosted-request",
+        payload: { sourceId: "codex-pr", pass: 2, maxPasses: 2, coverage: "complete", ceilingOverrideApplied: false },
+      } });
     });
   });
 
