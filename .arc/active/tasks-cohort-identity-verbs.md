@@ -82,21 +82,13 @@ former slug naming the current one and admit a completed meta's rewrite onto a c
 - _Outcome:_ Ref-store writes naming ambiguous cohort or dependency holders now report the applicable repair rather
   than replacing it with generic field-edit instructions.
 
-### `[ ]` **1.5 Name the repair in the standing clash reports — § 3.6**
+### `[x]` **1.5 Name the repair in the standing clash reports — § 3.6**
 
 - _Goal:_ Status's `slug-clash` warning for two live work units, and Start readiness withholding a target under a clash
   the standing selection reports, name `arc rename <uid> <new-slug>` for each holder.
 
-    - `clashWarning` (`lib/status/store-project-standing.ts`) keeps each holder's UID, owner, and location and replaces
-      "Rename one holder to repair the clash" with `clashRepair`'s text for its holders under a live current-name tie.
-    - `qualityFailure` (`commands/agenda/start-target.ts`) appends to its "Lifecycle holders for '<slug>' are
-      ambiguous." reason `clashRepair`'s text for the matching clash's holders, under a live tie of the clash's kind, as
-      `readPausedWork` (`lib/session-init/paused-work.ts`) builds it.
-
-    - Build `test-first` (one behavior at a time):
-        - the warning for two live work units names the rename for each by UID (`store-project-standing.test.ts`)
-        - a Start target named by a work unit's former slug, whose current name another live work unit shares, is
-          withheld naming the rename for each by UID (`agenda/start-target.test.ts`)
+- _Outcome:_ Standing status warnings preserve each holder's UID, owner, and location and name both rename commands;
+  Start readiness carries the same repair when a former-name target resolves to a clashed current name.
 
 ### `[ ]` **1.6 Admit a cohort path segment only by its current slug — § 6.1**
 
