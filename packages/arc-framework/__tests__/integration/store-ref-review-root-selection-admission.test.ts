@@ -20,27 +20,32 @@ import { NativeApprovedDispositionRecordStore } from "../../src/scripts/review-g
 
 const provenance = { verb: "repair-review-roots", lifecycleAction: "edit" };
 const cases = (["default", "separate"] as const).flatMap(layout =>
-  (["observations", "removal", "key", "binding"] as const).map(fault => ({ layout, fault })));
+  (["observations", "removal", "key", "binding"] as const).flatMap(fault =>
+    (fault === "observations" ? ["repair", "sync"] as const : ["repair"] as const).map(writer => ({ layout, fault, writer }))));
 
-it.each(cases)("refuses selector $fault violations and keeps normal continuation ($layout)", async ({ layout, fault }) => {
+it.each(cases)("refuses selector $fault violations and keeps normal continuation ($writer, $layout)", async ({ layout, fault, writer }) => {
+  const caller = writer === "sync" ? { verb: "sync", lifecycleAction: "merge" } : provenance;
   const f = await repaired(layout), selector = f.selector;
   const value = ReviewEvidenceRootSelectionSchema.parse(JSON.parse(selector.content));
   const reference = fault === "key" ? recordReferences["review/evidence-root-selection"](f.owner, canonicalDigest({ other: 1 })) : selector.reference;
   const next = fault === "binding" ? { ...value, resultDigest: canonicalDigest({ other: 2 }) } : value;
-  const result = fault === "removal" ? await f.b.store.write({ action: "remove", reference, expected: selector.version, provenance })
+  const result = fault === "removal" ? await f.b.store.write({ action: "remove", reference, expected: selector.version, provenance: caller })
     : await f.b.store.batch({ writes: [{ action: "put", reference, expected: fault === "key" ? null : selector.version,
-      content: JSON.stringify(next) }], provenance,
+      content: JSON.stringify(next) }], provenance: caller,
       observations: fault === "observations" ? [] : [...f.basis.evidence, f.basis.outcome] });
   expect(result).toMatchObject({ status: "refused", refusal: { code: "record-malformed", class: "recoverable",
     rule: `review.evidence-root-selection.${fault}` } });
   expect(success(await f.b.store.read({ reference: selector.reference }))).toEqual(selector);
   success(await f.b.store.batch({ writes: [{ action: "put", reference: selector.reference, expected: selector.version,
-    content: selector.content }], provenance, observations: [...f.basis.evidence, f.basis.outcome] }));
+    content: selector.content }], provenance: caller, observations: [...f.basis.evidence, f.basis.outcome] }));
   expect(await f.nativeB.evidence.readDispositionRecord(f.outcome.attemptId))
     .toMatchObject({ currentDispositionSetId: f.fix.value.dispositionSet.dispositionSetId });
 }, 120_000);
 
-it.each(["default", "separate"] as const)("refuses another root even when its batch enlarges the selector inventory (%s)", async layout => {
+it.each((["default", "separate"] as const).flatMap(layout =>
+  (["repair", "sync"] as const).map(writer => ({ layout, writer }))))(
+  "refuses another root even when its batch enlarges the selector inventory ($writer, $layout)", async ({ layout, writer }) => {
+  const caller = writer === "sync" ? { verb: "sync", lifecycleAction: "merge" } : provenance;
   const f = await repaired(layout);
   const approved = composeReviewDispositionRecord(f.outcome, [reviewEvidenceFixture(f.outcome, "reject")], f.owner);
   const third = createNativeReviewApprovalEvidence(approved, currentApprovedDispositionNode(approved), f.outcome, "2026-11-03T10:01:00Z");
@@ -50,10 +55,12 @@ it.each(["default", "separate"] as const)("refuses another root even when its ba
     selectedRoot: third.dispositionSet.dispositionSetId };
   expect(await f.b.store.batch({ writes: [{ action: "put", reference, expected: null, content: JSON.stringify(third) },
     { action: "put", reference: f.selector.reference, expected: f.selector.version, content: JSON.stringify(enlarged) }],
-    provenance, observations: [...f.basis.evidence, f.basis.outcome] }))
+    provenance: caller, observations: [...f.basis.evidence, f.basis.outcome] }))
     .toMatchObject({ status: "refused", refusal: { code: "record-malformed", rule: "review.evidence.root" } });
   expect(await f.b.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   expect(success(await f.b.store.read({ reference: f.selector.reference }))).toEqual(f.selector);
+  success(await f.b.store.batch({ writes: [{ action: "put", reference: f.selector.reference, expected: f.selector.version,
+    content: f.selector.content }], provenance: caller, observations: [...f.basis.evidence, f.basis.outcome] }));
   expect(await f.nativeB.evidence.readDispositionRecord(f.outcome.attemptId))
     .toMatchObject({ currentDispositionSetId: f.fix.value.dispositionSet.dispositionSetId });
 }, 120_000);

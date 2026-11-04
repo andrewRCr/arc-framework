@@ -1485,3 +1485,29 @@ non-completed diagnostic failures, retained forwarding advice and the successful
 restores all source files automatically. Native executor counts match before/after in both layouts: 19 for a first
 successful pull and 17 for a no-op pull, with identical command inventories. The temporary measurement suite is removed;
 its source, before/after logs and source bindings remain with the review evidence.
+
+## Code-review Pass 2 — advisory sync admission
+
+Owner, 2026-11-04 — complete working code-review Pass 2 covers all 399 changed paths at `77f6ec0ed2` through twelve
+fresh closure reviewers, a dedicated seam, and a fresh aggregate under all five `standard-review/v1` dimensions. It
+returns one major finding: ordinary direct batches derive their writer verb from caller provenance, while four
+selector/evidence predicates used that verb to grant advisory sync exemptions. A batch labelled `sync` could omit
+complete evidence/outcome observations or introduce another root together with an enlarged selector. The primary
+source trace and sibling search confirm one cause across all four predicates.
+
+The approved local correction serves 7.R2.c and the existing § 9.1 contract; no design amendment is needed.
+`WriteCheckInput.purpose` carries the internal sync-observation marker, supplied only by `observeSyncChecks`. Local
+admission omits it, so every direct batch retains complete-basis and ordinary-root rules regardless of provenance.
+The selector check, selected-advance check, new-local-root classification and selected-root succession gate consume
+that marker consistently. No Store input, result, refusal or persisted record schema changes, and no I/O is added.
+
+Four new native cases fail before the correction: missing observations and an enlarged new-root inventory, each in
+both layouts. The eighteen existing cases pass in that same run. The regression checks refusal, unchanged records,
+complete-observation continuation and selected reads; existing remote-intake controls retain warning-free sync. Raw
+prompts, reports, target/coverage guards and primary source verification are retained under
+`~/dev/arc-evidence/storage-ref-hardening/working-code-review-e0bf2bdc7f/pass-2/`; repair logs are retained beneath
+its `repair/` directory.
+
+The approved repair proceeds through focused verification, required gates, one atomic commit, push and normal CI.
+One independent fix-check round is separately authorized after CI. Task 8.1 remains open; the consolidated final
+trial and personal-write hold remain deferred until the repair/review loop settles.

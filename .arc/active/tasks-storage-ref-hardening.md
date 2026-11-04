@@ -939,6 +939,8 @@ before its fix and passes after it in the store suites.
         - Raw preview and locked selector admission bind the complete evidence/result inventory and current policy.
           Selected advances continue without rewriting retained approvals; excluded native authority replay refuses while
           raw exact replay remains available. Valid remote intake retains facts without a spurious local-advance warning.
+          Code-review Pass 2 F1 separates internal advisory sync observation from caller provenance, so a direct batch
+          labelled `sync` still requires complete observations and cannot create another root beside an enlarged selector.
 
     - `[x]` **7.R2.d Repair competing selections**
         - Opposite choices produce ordinary whole-record conflicts. The real command restores damaged alternatives at

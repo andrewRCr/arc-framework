@@ -41,7 +41,7 @@ export async function checkSelectedEvidenceAdvance(input: WriteCheckInput, value
   try {
     const selected = selectReviewEvidenceBranch(input.reference.owner, producer.data, evidence,
       selection);
-    if (input.writer.kind === "verb" && input.writer.verb === "sync") {
+    if (input.purpose === "sync-observation") {
       return { validSelection: selection !== null, rules: [] };
     }
     if (!selected.some(entry => entry.dispositionSet.dispositionSetId === value.dispositionSet.dispositionSetId)
@@ -58,7 +58,7 @@ export async function checkSelectedEvidenceAdvance(input: WriteCheckInput, value
 function usesOrdinaryRootAdmission(input: WriteCheckInput, value: ReviewEvidence, prior: ReviewEvidence | undefined,
   evidence: readonly ReviewEvidence[]): boolean {
   const newLocalRoot = prior === undefined && value.predecessorDispositionSetId === null
-    && !(input.writer.kind === "verb" && input.writer.verb === "sync");
+    && input.purpose !== "sync-observation";
   return newLocalRoot || evidence.filter(entry => entry.predecessorDispositionSetId === null).length <= 1;
 }
 

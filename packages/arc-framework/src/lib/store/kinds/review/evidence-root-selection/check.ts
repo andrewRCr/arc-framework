@@ -46,7 +46,7 @@ export async function checkReviewEvidenceRootSelection(input: WriteCheckInput): 
     if (!(error instanceof StoreRefusalError) || error.refusal.code !== "record-malformed") throw error;
     return [{ rule: error.refusal.rule, condition: error.refusal.condition, remedy: error.refusal.remedy }];
   }
-  if (input.writer.kind === "verb" && input.writer.verb === "sync") return [];
+  if (input.purpose === "sync-observation") return [];
   return checkSelectionObservations(input, value);
 }
 

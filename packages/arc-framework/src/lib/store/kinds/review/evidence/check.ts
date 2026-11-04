@@ -30,7 +30,7 @@ export async function checkReviewEvidence(input: WriteCheckInput): Promise<reado
   const selection = await checkSelectedEvidenceAdvance(input, value, prior ?? undefined, after.value);
   if (selection.rules.length > 0) return [...rules, ...selection.rules];
   const allowSelectedRoot = selection.validSelection && (prior !== undefined && prior !== null
-    || input.writer.kind === "verb" && input.writer.verb === "sync");
+    || input.purpose === "sync-observation");
   return [...rules, ...checkEvidenceSuccession(value, prior ?? undefined, before.value, after.value, allowSelectedRoot),
     ...checkEvidenceSettlementCarry(value, after.value),
     ...await checkReviewEvidenceResult(input, value)];
