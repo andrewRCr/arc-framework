@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**               | **Class** | **Priority** |
 | ---------- | --------- | ------------------------ | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/adr-accept-timing` | `Light`   | `P3`         |
+| `Planning` | `andrew`  | `plan/adr-accept-timing` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,7 +12,7 @@
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** Stub created at the work-routing-discipline `BACKLOG-INBOX` retirement (2026-06-01) from a
   routed capture.
 - **Next Task:** [none]
