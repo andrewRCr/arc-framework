@@ -613,6 +613,9 @@ const DispositionPayloadSchema = z.strictObject({
   operationId: IdentifierSchema,
   dispositionRecordRef: DurableReferenceSchema,
   dispositionReportText: z.string().trim().min(1),
+  /**
+   * The request the response evaluated, at the reviewed head; after a fix advances the head, re-enter at the new head.
+   */
   policyRequest: ReviewPolicyCommandRequestSchema.optional(),
   policy: ReviewResolveEnvelopeSchema.optional(),
   conditionalPassAuthorizationId: CanonicalDigestSchema.optional(),

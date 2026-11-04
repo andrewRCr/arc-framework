@@ -5,7 +5,9 @@
  * the driver no longer admits refuses before anything is spent; re-reading the lane names what it admits instead,
  * including when the lane is complete or the next pass needs an Owner decision. A lane's attempts belong to the
  * head they reviewed, so re-resolving at a new head while still carrying them refuses; concluded attempts
- * carry forward in the logical count, and dropping the attempts reaches the ordinary resolution. Hosted requests take
+ * carry forward in the logical count, and dropping the attempts reaches the ordinary resolution. A request still naming
+ * a head the checkout has moved past resolves to the driver's stale-target state, naming both heads, so the caller
+ * recomposes it at the current head. Hosted requests take
  * complete coverage; the local fix check re-examines an approved fix before another hosted complete pass.
  *
  * @module
@@ -15,7 +17,8 @@ import { spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.j
 import type { ChangeRequestTargetRef } from "../change-request.js";
 import { ReviewDriverAdmissionError } from "../policy/review-execution-admission.js";
 import { LocalReviewResultReaderError } from "../hosts/local/review-result-reader.js";
-import { ReviewPolicyCommandRequestSchema, ReviewResolveEnvelopeSchema, type ReviewPolicyCommandRequest } from "../policy/review-policy-driver.js";
+import { ReviewPolicyCommandRequestSchema, ReviewResolveEnvelopeSchema, type ReviewPolicyCommandRequest,
+  type ReviewResolveEnvelope } from "../policy/review-policy-driver.js";
 
 import { ReviewPolicyContextError } from "./review-policy-context.js";
 import { ReviewTerminalAttemptInputError } from "../policy/review-policy-evidence.js";
@@ -150,6 +153,33 @@ function admissionCorrection(error: ReviewDriverAdmissionError, route: LaneReadR
       + route.action;
   }
   return `The driver answered ${error.state}/${error.nextAction}; ${route.action} and follow its typed state`;
+}
+
+/** A lane resolution requested for a head the checkout has since moved past. */
+export class StaleReviewTargetError extends Error {
+  readonly code = "invalid-input" as const;
+
+  constructor(readonly selectedTarget: ReviewPolicyCommandRequest["target"], readonly currentHeadSha: string) {
+    super(`the request targets head ${selectedTarget.headSha}, but the checkout is at head ${currentHeadSha}`);
+    this.name = "StaleReviewTargetError";
+  }
+}
+
+/**
+ * Report a request for a head the checkout has moved past as the driver's stale-target state.
+ *
+ * @param error - The failure the resolution raised; any other failure is rethrown unchanged.
+ * @param request - The parsed request whose lane the result names.
+ * @returns The `stale-target / select-scope` result naming the requested and the current head.
+ */
+export function staleReviewTargetResult(error: unknown, request: ReviewPolicyCommandRequest): ReviewResolveEnvelope {
+  if (!(error instanceof StaleReviewTargetError)) throw error;
+  return ReviewResolveEnvelopeSchema.parse({ schemaVersion: 1, mode: "review-resolve",
+    diagnostics: [{ code: "stale-request-target",
+      message: `${error.message}; recompose the request at the current head and resolve again.` }],
+    state: "stale-target", nextAction: "select-scope",
+    payload: { lane: request.lane, consumedPass: false, selectedTarget: error.selectedTarget,
+      currentTarget: { ...error.selectedTarget, headSha: error.currentHeadSha } } });
 }
 
 /**

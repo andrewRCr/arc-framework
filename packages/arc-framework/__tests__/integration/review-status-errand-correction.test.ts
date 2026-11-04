@@ -597,6 +597,20 @@ describe("Errand local correction cadence", () => {
     });
   });
 
+  it("returns stale-target for a request still at the reviewed head, then resolves at the current head", async () => {
+    const errand = await plainErrand();
+    const reviewed = { ...errand.statusTarget, headSha: errand.predecessor.target.headSha };
+    expect(await resolveErrandReview({ ...errand, statusTarget: reviewed }, errand.predecessor)).toMatchObject({
+      exitCodes: [], result: { state: "stale-target", nextAction: "select-scope",
+        diagnostics: [expect.objectContaining({ code: "stale-request-target",
+          message: expect.stringContaining(errand.statusTarget.headSha) })],
+        payload: { lane: "standard", consumedPass: false,
+          selectedTarget: { repository: reviewed.repository, pullRequest: null, headSha: reviewed.headSha },
+          currentTarget: { repository: reviewed.repository, pullRequest: null, headSha: errand.statusTarget.headSha } } } });
+    expect(await resolveErrandReview(errand, errand.predecessor)).toMatchObject({ exitCodes: [],
+      result: { state: "ready", nextAction: "local-prepare" } });
+  });
+
   it.each([false, true])("re-confirms a converged Errand delta in respond with open PR=%s", async open => {
     const errand = await plainErrand();
     await withErrandHost(errand, open, async () => {
