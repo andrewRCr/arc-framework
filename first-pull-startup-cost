@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "first-pull-startup-cost",
+  "claimId": "7cada19f6f35b7f7ea5d7f9d5210d5b5",
+  "createdAt": "2026-11-04T03:00:40.638Z",
+  "updatedAt": "2026-11-04T03:00:40.638Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Measure first-pull startup cost against the pre-merge baseline and identify its source without changing production code.",
+  "branch": "chore/first-pull-startup-cost",
+  "origin": "inbox",
+  "originEntry": "Find where `seam-delivery-review`'s branch adds 0.6 s to a first pull",
+  "originEntrySourceDigest": "sha256:33d48a7409bc982b07de5db47c27feae3f0cf25df55bde958dd74391ef4bb4ed",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
