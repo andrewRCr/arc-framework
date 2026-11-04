@@ -382,11 +382,13 @@ import {
   HostedReviewAdmissionError,
   HostedIncrementalCoverageError,
   StaleLaneAttemptsError,
+  StaleReviewTargetError,
   hostedRequestAdmissionRemedy,
   localPrepareAdmissionRemedy,
   reviewResolveError,
   reviewResolveRemedy,
   requireReviewSourceSelection,
+  staleReviewTargetResult,
 } from "../scripts/review-gate/runtime/review-policy-remedy.js";
 import { ReviewDriverAdmissionError } from "../scripts/review-gate/policy/review-execution-admission.js";
 import { createReduceDependencies } from "../scripts/review-gate/runtime/reduce-composition.js";
@@ -1762,6 +1764,9 @@ async function resolveConfiguredReviewPolicy(
             targetHeadSha: request.target.headSha,
           });
         }
+        if (confirmation.currentTarget.headSha !== request.target.headSha) {
+          throw new StaleReviewTargetError(request.target, confirmation.currentTarget.headSha);
+        }
         throw new Error("review producer target does not match the current exact target");
       }
       return confirmation.target;
@@ -2064,11 +2069,13 @@ export async function handleReviewResolve(
     requestSchema: ReviewPolicyCommandRequestSchema,
     resultSchema: ReviewResolveEnvelopeSchema,
     dependencies,
-    execute: (request, root) => dependencies.resolve(
-      ReviewPolicyCommandRequestSchema.parse(request),
-      root,
-    ).then(result => requireReviewSourceSelection(result, ReviewPolicyCommandRequestSchema.parse(request)))
-      .catch((error: unknown) => { throw reviewResolveError(error, request); }),
+    execute: (request, root) => {
+      const parsed = ReviewPolicyCommandRequestSchema.parse(request);
+      return dependencies.resolve(parsed, root)
+        .catch((error: unknown) => staleReviewTargetResult(error, parsed))
+        .then(result => requireReviewSourceSelection(result, parsed))
+        .catch((error: unknown) => { throw reviewResolveError(error, request); });
+    },
     remedyFor: reviewResolveRemedy,
   });
 }
