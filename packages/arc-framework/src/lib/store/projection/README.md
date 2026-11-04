@@ -143,6 +143,9 @@ or inheriting a new companion's owner placement. Other reads, saved-state querie
 Name-only queries resolve through the backend's canonical record or owner, so a reused name retains the generation the
 backend selects.
 
+`marker-render.ts` creates one renderer from the whole file and its preserved conflict sides. Every set uses its
+chosen length, names its stored conflict or checkout origin, and carries a resolve-by-hand instruction when escalated.
+
 `read-gate.ts` gates every read of a projected file on its stats alone, so write-back never reads one mid-save. An empty
 file younger than 50 ms waits for the next command, since an editor that truncates before writing leaves it empty
 mid-save. An empty Markdown file older than that is a deleted file and no edit, since every projected one carries its

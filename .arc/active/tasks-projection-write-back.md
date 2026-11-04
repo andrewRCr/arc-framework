@@ -111,23 +111,11 @@ among them, has one.
 
 - **Additional Context:** `notes-projection-write-back.md` § Spike 4
 
-    - `[ ]` **1.4.a Rendering and length**
+    - `[x]` **1.4.a Rendering and length**
 
-        - Standard Git markers, the store's side first, each labelled with its machine or session and time. Each set's
-          start label also carries the conflict record's ID, or `checkout` for a clash found in the checkout (1.5), so
-          each set names its own conflict however many share a merge's labels. 1.5 passes this renderer to
-          `mergeLineText` as its option's callback.
-        - The length is seven unless any line in the file, inside a side or outside the sets, is marker-like — it starts
-          with seven or more of one marker character, a setext `=======` among them; then it is the longest such run
-          plus four, one length for every set in the file, so no content line holds a run of that length, and each set
-          carries, right after its start marker, an HTML comment telling the person to resolve by hand and delete the
-          line with the markers. The index records the one length.
-        - Build `test-first` (one behavior at a time):
-            - a plain clash renders at length seven, the store's side first, its start label naming the conflict record,
-              with no resolve-by-hand line
-            - a setext `=======` inside a side escalates every set to eleven characters, each with the line
-            - a setext `=======` outside the sets escalates every set
-            - a `<<<<<<<` line in a fenced block outside the sets escalates every set
+        - `createMarkerRenderer` labels each stored conflict or checkout clash, preserving the stored side first.
+          One file-wide length grows past all marker-like runs, including outside and fenced content; escalated sets
+          carry a resolve-by-hand instruction, and side labels remain on their marker lines.
 
     - `[ ]` **1.4.b Parsing back**
 
