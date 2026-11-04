@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "frontline-clean-coverage",
+  "claimId": "ebd41381352cc9ab8d3e2a2561efbc66",
+  "createdAt": "2026-11-04T23:12:43.751Z",
+  "updatedAt": "2026-11-04T23:12:43.751Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Record a clean CodeRabbit frontline pass only when its reviewed files cover the target's changed files",
+  "branch": "chore/frontline-clean-coverage",
+  "origin": "inbox",
+  "originEntry": "Prove a clean CodeRabbit CLI frontline pass covered the target's changed files",
+  "originEntrySourceDigest": "sha256:98daa85f41dcbef30b2a7a148bb357da8d31d0b08e05b6f03ae651e77db88272",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
