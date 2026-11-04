@@ -423,6 +423,10 @@ transport failure is a per-remote outcome.
           Native configuration repair and retry cover both layouts. `resolveFirstDesignation` returns a question
           for an unanswered backing remote without probing; that automatic separate-layout arm is unreachable.
 
+        - _Note:_ Working-code-review F1 covers persistent configuration damage through ordinary keeper cleanup and
+          import publication cleanup. Typed transport provenance retains acquisition evidence until exact repair;
+          public repair/retry cases preserve earlier outcomes, notices, pending state and import source leases.
+
     - `[x]` **4.3.b Follow**
         - Resume, cleanup, and candidate judgment convert comparison-witness URL failures through the existing
           migration refusal mapper. Resume and cleanup retain the exact move record and remote state, and all three

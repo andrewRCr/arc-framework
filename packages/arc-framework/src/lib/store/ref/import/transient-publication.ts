@@ -9,6 +9,7 @@ import { readRefRepository } from "../repository.js";
 import { readRefDesignation } from "../designation.js";
 import { captureMoveRemote } from "../migrate-remote-target.js";
 import { clearMigrationRefs, fetchMigrationRemote } from "../migrate-remote-fetch.js";
+import { MigrationTransportRefusal } from "../migrate-refusal.js";
 
 /** Code-repository journal, independent of destination layout and source-generation keepers. */
 export const IMPORT_PUBLICATION_REF = "refs/arc/tmp/migrate/import-required";
@@ -41,6 +42,7 @@ export async function unpublishedImportClaims(context: RefBackendContext, identi
     remedy: "Designate the intended remote with arc store remote <remote> push, publish the imported identities' claims, then rerun arc store migrate --import. Preserve the kept source tips until it finishes." };
   const physical = await readRefRepository(context), remote = await captureMoveRemote(context, context, publisher);
   const prefix = "refs/arc/tmp/migrate/import-published/";
+  let retainGathering = false;
   try {
     const published = await fetchMigrationRemote(physical, { ...remote, fetchUrl: remote.pushUrl }, true, { prefix });
     for (const [ref, expected] of Object.entries(required)) {
@@ -50,7 +52,10 @@ export async function unpublishedImportClaims(context: RefBackendContext, identi
       return { condition: `The imported claims for ${person} have not published to ${publisher.name}; origin's transient source remains retained.`,
         remedy: `Publish the imported store with arc.identity set to ${person}, then rerun arc store migrate --import. Preserve the kept source tips until it finishes.` };
     }
-  } finally { await clearMigrationRefs(physical, prefix); }
+  } catch (error) {
+    retainGathering = error instanceof MigrationTransportRefusal;
+    throw error;
+  } finally { if (!retainGathering) await clearMigrationRefs(physical, prefix); }
 }
 
 function publicationJournalFault(condition: "unavailable" | "unparseable"): { condition: string; remedy: string } {

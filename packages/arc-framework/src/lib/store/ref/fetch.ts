@@ -65,6 +65,7 @@ async function fetchKeptRefPatterns(context: RefBackendContext, remote: RefRemot
   const target = await refFetchTarget(context, remote, designation);
   const args = refFetchArgs(remote.name, negotiation, target);
   const input = patterns.map((pattern) => `${pattern}:refs/arc-remotes/${remote.name}/${pattern.slice("refs/arc/".length)}\n`).join("");
+  let retainBasis = false;
   try {
     let fetched = await runRefFetch(context, args, input, signal);
     const notices = await checkRefFetchUpdates(context, remote, designation, fetched.outcome, basis, fetched.failed);
@@ -81,7 +82,11 @@ async function fetchKeptRefPatterns(context: RefBackendContext, remote: RefRemot
       fetched = { outcome, failed: repaired.failed };
     }
     return { ...fetched.outcome, notices };
-  } finally { await finishRefFetchBasis(refSyncCleanupContext(context), remote.name, basis); }
+  } catch (error) {
+    retainBasis = error instanceof EffectiveTransportError
+      || error instanceof RefFetchRefusalError && !(error instanceof RefFetchIncompleteError);
+    throw error;
+  } finally { if (!retainBasis) await finishRefFetchBasis(refSyncCleanupContext(context), remote.name, basis); }
 }
 
 async function needsCompleteFetch(context: RefBackendContext, remote: string, notices: readonly PullNotice[]): Promise<boolean> {

@@ -1390,3 +1390,27 @@ are not on it.
 - **H1 — Publication journal errors:** fixed in `9e2344e35d909873e62d5a4ce26df05cb8b43ccf` (Task 3.8 —
   `tasks-storage-ref-hardening.md`). Missing and malformed publication requirements stop source retirement with the
   retained-journal restore route.
+
+## A5/A6 working-review repairs
+
+Owner, 2026-11-04 — one local working code-review pass covered 392 paths at `e0bf2bdc7f` through twelve chunks, a seam
+and a fresh aggregate. Its approved set fixes two major findings and one minor. One independent fix check is authorized
+after checks, atomic commits, push and normal CI. Task 8.1 stays open; the consolidated final trial and personal-write
+hold remain deferred until the repair/review loop settles. Exact prompts, reports, approval and raw repair evidence are
+retained under `~/dev/arc-evidence/storage-ref-hardening/working-code-review-e0bf2bdc7f/pass-1/`.
+
+### F1: preserve transport refusals through cleanup
+
+Fallible ordinary keeper cleanup and import publication cleanup replaced established transport refusals when native Git
+configuration damage persisted. `fetchKeptRefPatterns` retains its acquisition basis only on established transport
+refusal, excluding `RefFetchIncompleteError`; import publication recognizes the internal `MigrationTransportRefusal`
+provenance carried by `migrationTransportRefusal`. Ordinary success, cancellation, signaled/untyped failures and
+incomplete-fetch cleanup retain their existing policy. No public envelope changes.
+
+The native baseline fails all four persistent pull/import cases. The shared fault fixture now supports explicit repair
+after the public call returns. Pull cases preserve prior outcomes, rewrite notices and pending local state; import cases
+preserve source-delete leases, the publication journal and the landed tips. Expanded import controls require original
+cancellation/signaled/untyped errors and normal gathering cleanup. A narrow reconstruction that retains gathering refs
+for every exception fails all six controls; both reconstructions restore automatically. Native repair/retry cases run in
+both layouts. Earlier fixture-only restoration occurred before production cleanup and masked the defect; the disposable
+Git probe established the persistence assumption, not a public reproduction.

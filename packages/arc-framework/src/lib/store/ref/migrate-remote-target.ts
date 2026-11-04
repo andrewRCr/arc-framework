@@ -3,7 +3,7 @@ import type { RefBackendContext } from "./context.js";
 import type { RefRemoteDesignation } from "./designation.js";
 import type { MoveRemote } from "./migrate-record.js";
 import { readRefRepository } from "./repository.js";
-import { MigrationRefusal } from "./migrate-refusal.js";
+import { MigrationRefusal, MigrationTransportRefusal } from "./migrate-refusal.js";
 import { EffectiveTransportError, readNamedTransport, readRemoteTransports, resolveLiteralTransport, resolveTransport, selectLiteralTransport } from "./effective-transport.js";
 
 /** The reserved backing target names only the tracked pointer; other targets keep caller-specific admission. */
@@ -52,7 +52,7 @@ export async function migrationTransportTarget(context: RefBackendContext, endpo
 /** Wrap only local endpoint-resolution errors as retained migration continuations. */
 export function migrationTransportRefusal(error: unknown): never {
   if (!(error instanceof EffectiveTransportError)) throw error;
-  throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable", condition: error.message,
+  throw new MigrationTransportRefusal({ code: "move-unfinished", class: "recoverable", condition: error.message,
     remedy: { text: "Restore the recorded endpoint in the repository's URL configuration, then retry arc store migrate; retain its pending record.",
       argv: ["arc", "store", "migrate"] } });
 }

@@ -1,46 +1,21 @@
 /** Native post-fetch configuration faults preserve observed work and permit configuration repair. */
-import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
-import { createRefStore, PullResultSchema, RecordReferenceSchema, type RefStorePorts } from "../../src/lib/store/index.js";
+import { createRefStore, PullResultSchema, RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { isCompletedGitFailure } from "../../src/lib/git/process-error.js";
-import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { identity, personal, projectId, provenance, switchFixture } from "../helpers/store/remote-move.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { success } from "../helpers/store/suite-tools.js";
 
+import { completenessFault, type Fault } from "../helpers/store/completeness-configuration.js";
+
 type Layout = "default" | "separate";
-type Fault = "native" | "canceled" | "signaled" | "untyped";
+
 const layouts = ["default", "separate"] as const;
 const controls = layouts.flatMap(layout => (["canceled", "signaled", "untyped"] as const).map(kind => ({ layout, kind })));
 
-function completenessFault(ports: RefStorePorts, refspec: string, kind: Fault = "native") {
-  let fetched = false, injected = false, failure: unknown, restored = false;
-  const faulty: RefStorePorts = { ...ports, exec: async (command, args, options) => {
-    if (fetched && !injected && args.includes("config") && args.includes("--null")
-      && args.includes("--list") && !args.includes("--includes")) {
-      injected = true;
-      if (kind !== "native") {
-        failure = kind === "untyped" ? new TypeError("Completeness configuration failed")
-          : makeGitProcessError({ command, args, ...kind === "canceled" ? { isCanceled: true as const }
-            : { exitCode: 128, signal: "SIGTERM" } });
-        throw failure;
-      }
-      const directory = args.find(arg => arg.startsWith("--git-dir="))?.slice("--git-dir=".length)
-        ?? join(ports.checkoutRoot, ".git");
-      const path = join(directory, "config"), original = await readFile(path);
-      await writeFile(path, Buffer.concat([original, Buffer.from("\n[unclosed\n")]));
-      try { return await ports.exec(command, args, options); }
-      catch (error) { failure = error; throw error; }
-      finally { await writeFile(path, original); restored = (await readFile(path)).equals(original); }
-    }
-    try { return await ports.exec(command, args, options); }
-    finally { if (args.includes("fetch") && options?.input?.includes(refspec)) fetched = true; }
-  } };
-  return { ports: faulty, evidence: () => ({ fetched, injected, failure, restored }) };
-}
 
 async function rewritten(layout: Layout) {
   const h = await refSyncFixture(layout), ref = "refs/arc/user/andrew/personal";
