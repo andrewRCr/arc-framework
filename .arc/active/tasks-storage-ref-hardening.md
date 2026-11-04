@@ -447,6 +447,10 @@ transport failure is a per-remote outcome.
           Criteria Pass 2 F1 covers native malformed configuration during resume, candidate judgment, and switched
           cleanup; the recorded move and remote state survive, and exact configuration restoration permits retry.
 
+        - _Note:_ Working-code-review Pass 3 F1 extends the persistent-configuration correction to follow judgment.
+          Typed transport refusal retains its gathering; canceled, signaled, and untyped lookup failures retain
+          propagation and cleanup. Native cases observe the refusal before repair and complete the retry afterward.
+
 ### `[x]` **4.4 Exercise the caller-observable group through public calls** — validate exit criterion at segment scope
 
 - _Goal:_ Through public store calls and their consumers, the § 1–§ 4 group behaves as Phase 4's exit criterion

@@ -6,7 +6,7 @@ import type { RefFollowDue } from "./follow-due.js";
 import { migrationCodeContext, type MoveRemote } from "./migrate-record.js";
 import { captureLiteralMoveRemote, captureMoveRemote, migrationTransportTarget, migrationTransportRefusal } from "./migrate-remote-target.js";
 import { clearMigrationRefs, fetchMigrationRemote } from "./migrate-remote-fetch.js";
-import { MigrationRefusal } from "./migrate-refusal.js";
+import { MigrationRefusal, MigrationTransportRefusal } from "./migrate-refusal.js";
 import { FORWARDING_REF, readForwardingRecord, type ForwardingRecord } from "./forwarding-record.js";
 import { readRefRegistryPresence } from "./designation-presence.js";
 import { readRefRepository } from "./repository.js";
@@ -32,7 +32,7 @@ export type RefFollowJudgment = { status: "none"; report?: MigrateReport }
 /** No designation, pointer, stored record, or remote state changes while candidates are judged. */
 export async function judgeRefFollow(context: RefBackendContext, due: RefFollowDue): Promise<RefFollowJudgment> {
   const code = await migrationCodeContext(context);
-  let readingSource = false;
+  let readingSource = false, retainGathering = false;
   try {
     const source = await captureMoveRemote(context, code, due.remote);
     const witness = await captureComparisonWitness(context, source).catch(migrationTransportRefusal);
@@ -57,12 +57,18 @@ export async function judgeRefFollow(context: RefBackendContext, due: RefFollowD
     }
     return { status: "decided", source, witness, record, forwardingTip, accepted, result: followResult(due, accepted, rejected) };
   } catch (error) {
+    retainGathering = error instanceof MigrationTransportRefusal;
     if (!(error instanceof MigrationRefusal)) throw error;
-    if (readingSource && error.refusal.code === "store" && error.refusal.refusal.code === "unreachable") {
-      return { status: "refused", refusal: await departedSourceRemedy(context, code, due, error.refusal) };
-    }
-    return { status: "refused", refusal: error.refusal };
-  } finally { await clearMigrationRefs(code, "refs/arc/tmp/follow/"); }
+    return await failedFollowJudgment(context, code, due, error, readingSource);
+  } finally { if (!retainGathering) await clearMigrationRefs(code, "refs/arc/tmp/follow/"); }
+}
+
+async function failedFollowJudgment(context: RefBackendContext, code: RefBackendContext, due: RefFollowDue,
+  error: MigrationRefusal, readingSource: boolean): Promise<Extract<RefFollowJudgment, { status: "refused" }>> {
+  if (readingSource && error.refusal.code === "store" && error.refusal.refusal.code === "unreachable") {
+    return { status: "refused", refusal: await departedSourceRemedy(context, code, due, error.refusal) };
+  }
+  return { status: "refused", refusal: error.refusal };
 }
 
 async function followCandidates(context: RefBackendContext, code: RefBackendContext, due: RefFollowDue, exclude?: string): Promise<MoveRemote[]> {

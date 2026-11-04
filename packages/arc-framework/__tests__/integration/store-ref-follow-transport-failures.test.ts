@@ -7,6 +7,7 @@ import { followFixture } from "../helpers/store/follow.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 import { isCompletedGitFailure, isGitProcessError } from "../../src/lib/git/process-error.js";
 
 const move = "refs/arc/tmp/migrate/move";
@@ -14,13 +15,16 @@ const cases = (["code", "backing"] as const).flatMap(source =>
   (["line-break", "missing-url", "malformed-config"] as const).map(fault => ({ source, fault })));
 
 async function witnessUrlFault(ports: RefStorePorts, directory: string, remote: string, initiallyArmed = true,
-  fault: "line-break" | "missing-url" | "malformed-config" = "line-break") {
+  fault: "line-break" | "missing-url" | "malformed-config" = "line-break", persistent = false,
+  lookupFailure?: "canceled" | "signaled" | "untyped") {
   const key = `remote.${remote}.url`, gitDir = `--git-dir=${directory}`;
   const original = (await ports.exec("git", [gitDir, "config", "--get", key])).stdout.replace(/\r?\n$/u, "");
   const settings = (await ports.exec("git", [gitDir, "config", "--null", "--get-regexp", `^remote\\.${remote}\\.`])).stdout
     .split("\0").filter(Boolean).map(row => [row.slice(0, row.indexOf("\n")), row.slice(row.indexOf("\n") + 1)] as const);
   const flags = { injected: false, validated: false };
   let heldLayouts = 0, armed = initiallyArmed;
+  let failure: unknown;
+  let damagedConfig: { path: string; original: Buffer } | undefined;
   const faulty: RefStorePorts = { ...ports, lock: async (...args) => {
     const release = await ports.lock(...args);
     if (args[0] !== "layout") return release;
@@ -31,11 +35,19 @@ async function witnessUrlFault(ports: RefStorePorts, directory: string, remote: 
     if (fault === "malformed-config" && armed && heldLayouts > 0 && !flags.injected && owner && resolve(owner) === resolve(directory)
       && args.includes("config") && args.includes("--list") && args.includes("--includes")) {
       flags.injected = true;
+      if (lookupFailure) {
+        failure = lookupFailure === "untyped" ? new Error("Unrelated lookup failure") : makeGitProcessError({ command: "git", args,
+          ...lookupFailure === "canceled" ? { isCanceled: true } : { signal: "SIGTERM" }, stderr: "Interrupted comparison lookup" });
+        throw failure;
+      }
       const path = join(directory, "config"), original = await readFile(path);
       await writeFile(path, Buffer.concat([original, Buffer.from("\n[unclosed\n")]));
       try { return await ports.rawExec(args, options); }
       catch (error) { flags.validated = isGitProcessError(error) && isCompletedGitFailure(error); throw error; }
-      finally { await writeFile(path, original); }
+      finally {
+        if (persistent) damagedConfig = { path, original };
+        else await writeFile(path, original);
+      }
     }
     const result = await ports.rawExec(args, options);
     if (fault === "line-break" && armed && heldLayouts > 0 && !flags.injected && owner && resolve(owner) === resolve(directory)
@@ -60,8 +72,9 @@ async function witnessUrlFault(ports: RefStorePorts, directory: string, remote: 
       throw error;
     }
   } };
-  return { ports: faulty, flags, arm: () => { armed = true; },
+  return { ports: faulty, flags, failure: () => failure, arm: () => { armed = true; },
     repair: async () => {
+      if (damagedConfig) { await writeFile(damagedConfig.path, damagedConfig.original); damagedConfig = undefined; }
       if (fault === "line-break") await ports.exec("git", [gitDir, "config", key, original]);
       else if (fault === "missing-url") for (const [setting, value] of settings) await ports.exec("git", [gitDir, "config", "--add", setting, value]);
     } };
@@ -128,4 +141,43 @@ it.each(cases)("retains switched follow cleanup after $fault from $source", asyn
   expect(await invokeStoreMigrate([], ports)).toMatchObject({ status: "ok" });
   expect((await follower.exec("git", ["for-each-ref", "--format=%(refname)", move])).stdout).toBe("");
   expect(success(await follower.store.read({ reference: follower.unpublished })).content).toBe("Unpublished follower data.\n");
+}, 60_000);
+
+
+it.each(["code", "backing"] as const)("retains a %s follow judgment refusal until code configuration is repaired", async source => {
+  const h = await followFixture(undefined, source), follower = h.follower, before = await remoteRefs(h);
+  const gathering = "refs/arc/tmp/follow/source/project/moved";
+  await follower.exec("git", ["fetch", "--no-tags", h.origin, `+refs/arc/project/moved:${gathering}`]);
+  const held = (await follower.exec("git", ["rev-parse", gathering])).stdout.trim();
+  const directory = join(follower.root, ".git");
+  const broken = await witnessUrlFault(follower.ports, directory, "origin", true, "malformed-config", true);
+  try {
+    const observed: unknown = await invokeStoreMigrate([], broken.ports).catch(error => error);
+    expect(broken.flags).toEqual({ injected: true, validated: true });
+    expect(await readFile(join(directory, "config"), "utf8")).toContain("[unclosed");
+    expect(observed).toMatchObject({ status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
+      remedy: { argv: ["arc", "store", "migrate"] } } });
+  } finally { await broken.repair(); }
+  expect((await follower.exec("git", ["rev-parse", gathering])).stdout.trim()).toBe(held);
+  expect((await follower.exec("git", ["for-each-ref", "--format=%(refname)", move])).stdout).toBe("");
+  expect(await remoteRefs(h)).toEqual(before);
+  expect(await invokeStoreMigrate([], broken.ports)).toMatchObject({ status: "designation-needed", remote: "backing" });
+  expect((await invokeStoreRemote(["backing", "push", "--json"], { cwd: follower.root, ports: broken.ports })).result)
+    .toMatchObject({ status: "ok" });
+  expect(success(await follower.store.read({ reference: follower.unpublished })).content).toBe("Unpublished follower data.\n");
+}, 60_000);
+
+
+it.each((["code", "backing"] as const).flatMap(source => (["canceled", "signaled", "untyped"] as const)
+  .map(kind => ({ source, kind }))))("cleans follow judgment gathering after $source $kind lookup failure", async ({ source, kind }) => {
+  const h = await followFixture(undefined, source), follower = h.follower, gathering = "refs/arc/tmp/follow/source/project/moved";
+  await follower.exec("git", ["fetch", "--no-tags", h.origin, `+refs/arc/project/moved:${gathering}`]);
+  const before = await remoteRefs(h);
+  const broken = await witnessUrlFault(follower.ports, join(follower.root, ".git"), "origin", true, "malformed-config", false, kind);
+  const observed: unknown = await invokeStoreMigrate([], broken.ports).catch(error => error);
+  expect(broken.flags.injected).toBe(true);
+  expect(observed).toBe(broken.failure());
+  expect((await follower.exec("git", ["for-each-ref", "--format=%(refname)", gathering])).stdout).toBe("");
+  expect(await remoteRefs(h)).toEqual(before);
+  expect(await invokeStoreMigrate([], broken.ports)).toMatchObject({ status: "designation-needed", remote: "backing" });
 }, 60_000);

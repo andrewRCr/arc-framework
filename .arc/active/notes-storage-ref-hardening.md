@@ -1511,3 +1511,26 @@ its `repair/` directory.
 The approved repair proceeds through focused verification, required gates, one atomic commit, push and normal CI.
 One independent fix-check round is separately authorized after CI. Task 8.1 remains open; the consolidated final
 trial and personal-write hold remain deferred until the repair/review loop settles.
+
+## Code-review Pass 3 — failure evidence preservation
+
+Owner, 2026-11-04 — the complete working pass covers 401 changed paths at `783e04c885` through twelve fresh chunks,
+a dedicated seam and a fresh aggregate. It returns one major and one minor; source verification confirms both. The
+approved repair round includes focused verification, required gates, atomic commits, push and normal CI, followed by
+independent fix checks until convergence. The intended stop is after converged repairs, without a fourth complete
+pass unless new evidence changes that assessment. Task 8.1 stays open; the consolidated final trial and personal-write
+hold remain deferred. Exact prompts, reports, source verification and raw repair evidence are retained beneath
+`~/dev/arc-evidence/storage-ref-hardening/working-code-review-e0bf2bdc7f/pass-3/`.
+
+### F1: preserve follow judgment's typed refusal
+
+The existing transport-refusal marker now keeps follow judgment's temporary acquisition when configuration damage
+persists through its cleanup. Other failure classes keep their propagation and cleanup. Failure-result composition
+is extracted after lint identified the judgment function's complexity limit; no public envelope or successful-path
+Git process changes. The correction serves 4.3.b and § 4 without a design amendment.
+
+Native cases in both source layouts leave code configuration damaged until the public refusal is observed, retain an
+actual acquired forwarding tip and remote state, then repair the file and complete the follow. The original behavior
+fails both cases at cleanup's raw Git error. Six cancellation, signal and untyped controls fail a reconstruction that
+retains gathering for every error; the scoped correction preserves their original errors, clears the gathering and
+permits retry. The eighteen existing transport cases remain controls.
