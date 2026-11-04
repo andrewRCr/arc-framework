@@ -496,6 +496,8 @@ annotated commit.
 - _Outcome:_ Empty-tip local and remote cleanup reaches the shared journal deleter; a genuine no-op returns before
   its callback or transaction. Stale journals delete under their captured ref lease. The interrupted rebuild clears
   its journal and keepers while preserving origin's source copy, and existing kept-tip cleanup remains intact.
+  Criteria-review F5 captures journal and keeper tips together in each stage's existing inventory and carries the
+  journal lease into deletion, retaining the empty-path process budget without redundant discovery.
 
 ### `[x]` **5.6 A publisher refusal keeps its class through source retirement — § 11.2**
 
