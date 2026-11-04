@@ -14,6 +14,13 @@ import { resolveNamedReviewWorkUnitInvocation } from "./review-work-unit.js";
 import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocationOptions } from "./invocation.js";
 import { resolveReviewOperationInvocation, ReviewContinuationReferenceError } from "./continuation-invocation.js";
 import { requireReviewWorkItem } from "../../../lib/store/kinds/review/access-shared.js";
+import { ReviewVehicleUnresolvedError } from "../../../lib/store/kinds/review/errors.js";
+
+/** The refusal a hosted review takes when neither its checkout nor its request names what it reviews. */
+export function hostedVehicleUnresolved(): ReviewVehicleUnresolvedError {
+  return new ReviewVehicleUnresolvedError(
+    "Hosted review progress needs one active work unit or Errand, or a delivery member named as its vehicle.");
+}
 
 /** Use the indexed request owner for replay, otherwise retain the existing fresh vehicle selection. */
 export async function resolveHostedRequestInvocation(options: ReviewInvocationInput,
@@ -40,7 +47,7 @@ export async function resolveHostedRequestInvocation(options: ReviewInvocationIn
   }
   const live = await readLocalReviewLiveContext(input);
   const workItem = corroborateLocalReviewOwner(input.workItem, live);
-  if (workItem === undefined) throw new Error("Hosted review progress requires one active work unit or an explicit vehicle.");
+  if (workItem === undefined) throw hostedVehicleUnresolved();
   return { ...input, workItem };
 }
 

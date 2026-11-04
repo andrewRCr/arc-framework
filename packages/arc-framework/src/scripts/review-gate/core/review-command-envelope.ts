@@ -967,10 +967,12 @@ export const ReviewCommandErrorEnvelopeSchema = z.union([
   // A bounded decision carries its exact resolution selector; other unrecognized Candidates carry none.
   remedialErrorVariant("review-pre-publication", "candidate-unexplained-delta")
     .extend({ applicability: CandidateApplicabilityDecisionSelectionSchema.optional() }),
-  // Corrective continuations for uncommitted fixes, moved heads, unavailable producers, and stale admissions.
-  ...(["review-respond", "review-resolve", "review-local-prepare",
-    "review-hosted-request", "review-frontline-run"] as const)
-    .map((mode) => remedialErrorVariant(mode, "invalid-input")),
+  // A native work-item selection refusal carries its repair on every command; respond, resolve, local prepare, hosted
+  // request, and frontline run also carry corrective continuations for uncommitted fixes, moved heads, unavailable
+  // producers, and stale admissions.
+  ...ReviewCommandModeSchema.options
+    .filter((mode) => mode !== "review-pre-publication")
+    .flatMap((mode) => (["invalid-input", "corrupt-state"] as const).map((code) => remedialErrorVariant(mode, code))),
 ]);
 
 function errorVariant<Mode extends ReviewCommandMode, Code extends ReviewPrePublicationRefusalCode>(

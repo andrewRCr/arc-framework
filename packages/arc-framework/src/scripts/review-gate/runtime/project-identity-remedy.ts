@@ -1,6 +1,6 @@
-/** Preserve project-identity and store repair guidance at review command boundaries. */
-import { ProjectIdentityError } from "../../../lib/store/project-identity.js";
-import { StoreRefusalError } from "../../../lib/store/refusal-error.js";
+/** Preserve native refusal repair guidance at review command boundaries. */
+import type { ProjectIdentityError } from "../../../lib/store/project-identity.js";
+import { nativeRefusalReport } from "../../../lib/store/native-refusal.js";
 import type { Remedy } from "../../../lib/store/refusal.js";
 import { spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.js";
 import { ReviewCommandModeSchema, type ReviewCommandMode } from "../core/review-command-envelope.js";
@@ -46,19 +46,14 @@ export function reviewRequestRetryArgv(mode: ReviewCommandMode): readonly string
   return mode === "review-pre-publication" ? undefined : ["arc", "review", ...COMMAND_PATHS[mode], "-"];
 }
 
-/** Build a request-bearing review retry without changing unrelated command families. */
-export function reviewProjectIdentityRequestRemedy(mode: string, error: unknown,
-  submittedRequest?: unknown): SpineRemedy | undefined {
-  if (!(error instanceof ProjectIdentityError)) return undefined;
-  const parsed = ReviewCommandModeSchema.safeParse(mode);
-  const argv = parsed.success ? reviewRequestRetryArgv(parsed.data) : undefined;
-  return argv === undefined ? undefined : projectIdentitySpineRemedy(error, argv, submittedRequest);
-}
-
-/** Build the request-bearing retry for a project-identity failure or an off-branch store's refusal. */
+/**
+ * Build a review command's request-bearing retry for a native typed refusal: a project-identity failure, a work-item
+ * selection refusal, or an off-branch store's refusal. Other failures and other command families get none.
+ */
 export function reviewFailureRequestRemedy(mode: string, error: unknown, submittedRequest?: unknown): SpineRemedy | undefined {
-  if (!(error instanceof StoreRefusalError) || !error.offBranch) return reviewProjectIdentityRequestRemedy(mode, error, submittedRequest);
+  const report = nativeRefusalReport(error);
   const parsed = ReviewCommandModeSchema.safeParse(mode);
   const argv = parsed.success ? reviewRequestRetryArgv(parsed.data) : undefined;
-  return argv === undefined ? undefined : reviewFailureSpineRemedy(error.refusal.condition, error.refusal.remedy, argv, submittedRequest);
+  return report === null || argv === undefined ? undefined
+    : reviewFailureSpineRemedy(report.condition, report.remedy, argv, submittedRequest);
 }

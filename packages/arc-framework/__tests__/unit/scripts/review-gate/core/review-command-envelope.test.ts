@@ -696,7 +696,7 @@ describe("review command envelopes", () => {
     expect(ReviewCommandErrorEnvelopeSchema.parse(error)).toEqual(error);
   });
 
-  it("lets only the response verb's invalid-input refusal carry a replay remedy", () => {
+  it("lets an invalid-input or corrupt-state refusal carry a replay remedy, and no other failure", () => {
     const remedy = {
       invariant: "A verified fix is recorded only against the clean committed head that contains it.",
       text: "Commit the fix, then replay the response: `arc review respond -`.",
@@ -708,12 +708,15 @@ describe("review command envelopes", () => {
       error: { code: "invalid-input", message: "dirty-worktree" },
       remedy,
     };
+    const corrupt = { ...refusal, error: { code: "corrupt-state", message: "the durable record is unreadable" } };
     expect(ReviewCommandErrorEnvelopeSchema.parse(refusal)).toEqual(refusal);
+    expect(ReviewCommandErrorEnvelopeSchema.parse(corrupt)).toEqual(corrupt);
+    expect(ReviewCommandErrorEnvelopeSchema.parse({ ...corrupt, ...header("review-reduce") }))
+      .toEqual({ ...corrupt, ...header("review-reduce") });
     expect(() => ReviewCommandErrorEnvelopeSchema.parse({
       ...refusal,
-      error: { code: "corrupt-state", message: "the durable record is unreadable" },
+      error: { code: "unexpected-failure", message: "the review failed" },
     })).toThrow();
-    expect(() => ReviewCommandErrorEnvelopeSchema.parse({ ...refusal, ...header("review-reduce") })).toThrow();
   });
 });
 

@@ -6,7 +6,7 @@ import { createReviewEvidencePort } from "../../../src/lib/store/kinds/review/ev
 import { scriptRawGitExec } from "../../helpers/git-exec-fake.js";
 import { withReviewReport } from "../../fixtures/review-report-input.js";
 import { HostedAwaitCommandResultSchema } from "../../../src/scripts/review-gate/hosted/await.js";
-import { appendFile } from "node:fs/promises";
+import { appendFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, expect, it, onTestFinished, vi } from "vitest";
 import { handleReviewHostedRequest, handleReviewHostedAwait, handleReviewRespond, handleReviewHostedSettle, handleReviewResolve, handleReviewPrePublication } from "../../../src/handlers/review.js";
@@ -38,6 +38,7 @@ import { bindNativeReviewOperationReference, parseNativeReviewOperationReference
 
 import { ArchiveQuarterSchema, SlugSchema } from "../../../src/lib/kernel/index.js";
 import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
+import { resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
 
 // The locus probe runs as itself unless a case makes one call meet a store refusal from another checkout's records.
 const mocks = vi.hoisted(() => ({
@@ -422,6 +423,16 @@ it("retains a bound internal hosted owner without an input locator and publishes
   h.complete();
   expect(await h.awaitResult({ schemaVersion: 1, handle: requested.handle }, { workItem: h.primary.reference.owner }))
     .toMatchObject({ state: "clean", operationRef: requested.operationRef });
+});
+
+it("names the ways to give a hosted request a vehicle and requests once the checkout has one", async () => {
+  const h = await fixture();
+  await unlink(resolveWorktreeMarkerPath(h.cwd));
+  expect(await h.run()).toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("delivery member") },
+    remedy: { text: expect.stringContaining("arc errand open"), argv: ["arc", "review", "hosted", "request", "-"], stdin: h.request } });
+  expect(h.dispatchedRequests()).toBe(0);
+  await h.occupy(branch, { kind: "errand", slug: h.record.slug, claimId: h.record.claimId });
+  expect(await h.run()).toMatchObject({ state: "requested" });
 });
 
 it("preserves hosted project-identity recovery before reference selection", async () => {
