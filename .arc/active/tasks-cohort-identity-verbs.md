@@ -108,21 +108,13 @@ former slug naming the current one and admit a completed meta's rewrite onto a c
   the prior leaf's resolved owner. Closed-subcohort Parent and open-straggler path rewrites land together, while new
   joins and malformed prior holdings refuse.
 
-### `[ ]` **1.8 Add the cohort heading and `Parent` writers — § 5.2**
+### `[x]` **1.8 Add the cohort heading and `Parent` writers — § 5.2**
 
 - _Goal:_ The cohort rename can rewrite a document's `# Cohort:` heading and its `**Parent:**` field through the kind's
   own writers, every other line unchanged.
 
-    - `rewriteCohortHeading(content, slug)` and `writeCohortParent(content, parent)` beside `rewriteCohortMemberHeading`
-      in `lib/store/kinds/cohort/`, exported through the kind's index; the rendered forms match
-      `writeCohortDocument`'s (`creation-writer.ts`). `writeCohortParent` rewrites the single existing `**Parent:**` line
-      and returns null where none exists, as in a top-level document.
-
-    - Build `test-first` (one behavior at a time):
-        - the heading writer rewrites only the `# Cohort:` line, every other line byte-identical
-        - the `Parent` writer rewrites the field's value and leaves every other line, a member heading naming the same
-          slug included, byte-identical
-        - the `Parent` writer returns null for a document with no `**Parent:**` line
+- _Outcome:_ Exported exact heading and Parent writers through the cohort kind; both retain all unrelated bytes and
+  line endings. Parent writes return null when the document has no Parent field.
 
 ### `[ ]` **1.9 Register the cohort verbs and the UID operand forms, keeping every pre-flip arm as today — § 1.1, § 10**
 
