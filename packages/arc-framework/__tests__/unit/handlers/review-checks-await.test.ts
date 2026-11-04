@@ -159,6 +159,30 @@ describe("handleReviewChecksAwait timing", () => {
       timeoutSeconds: "900",
       detail: "--poll-interval-ms must not exceed --timeout-ms",
     },
+    {
+      label: "an infinite flagged bound",
+      flags: { timeoutMs: "Infinity" },
+      timeoutSeconds: "900",
+      detail: "--timeout-ms must be a positive whole number",
+    },
+    {
+      label: "a fractional over-limit flagged bound",
+      flags: { timeoutMs: "3600000.5" },
+      timeoutSeconds: "900",
+      detail: "--timeout-ms must be a positive whole number",
+    },
+    {
+      label: "a fractional over-limit flagged interval",
+      flags: { pollIntervalMs: "120000.5" },
+      timeoutSeconds: "900",
+      detail: "--poll-interval-ms must be a positive whole number",
+    },
+    {
+      label: "an infinite flagged interval inside an infinite flagged bound",
+      flags: { timeoutMs: "Infinity", pollIntervalMs: "Infinity" },
+      timeoutSeconds: "900",
+      detail: "--timeout-ms must be a positive whole number",
+    },
   ])("refuses $label as invalid input without waiting", async ({ flags, timeoutSeconds, detail }) => {
     const { awaited, exitCode, result } = await run({ ...target, ...flags }, timeoutSeconds);
     expect(awaited).toEqual([]);

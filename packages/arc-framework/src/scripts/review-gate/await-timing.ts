@@ -60,8 +60,9 @@ export function configuredTiming<Key extends AwaitTimingKey>(
 /**
  * Compose optional per-call overrides with a wait's configured bound and initial polling interval.
  *
- * An omitted interval is capped to the effective bound; an explicit one must fit inside the bound it asks for. An
- * override above its wait's limit is applied at the limit, with a notice naming what the call used.
+ * Each override must be a positive whole number. An omitted interval is capped to the effective bound; an explicit
+ * one must fit inside the bound it asks for. An override above its wait's limit is applied at the limit, with a
+ * notice naming what the call used.
  *
  * @param input - The wait's name, its two settings keys, the project settings, and the call's overrides.
  * @returns The effective bound and initial polling interval, in milliseconds, and any limit notices.
@@ -73,7 +74,7 @@ export function resolveAwaitTiming<TimeoutKey extends AwaitTimingKey, IntervalKe
   overrides: {
     timeoutMs?: number | undefined;
     pollIntervalMs?: number | undefined;
-    /** How the caller spells its overrides, for an incompatible-override refusal or a limit notice. */
+    /** How the caller spells its overrides, for an invalid-override refusal or a limit notice. */
     labels: { timeout: string; pollInterval: string };
   };
 }): ResolvedAwaitTiming {
@@ -83,6 +84,8 @@ export function resolveAwaitTiming<TimeoutKey extends AwaitTimingKey, IntervalKe
   if (configuredPollIntervalMs > configuredTimeoutMs) {
     throw new AwaitTimingError(`Configured ${wait} poll interval must not exceed its call timeout.`);
   }
+  requireWholeOverride(overrides.timeoutMs, overrides.labels.timeout);
+  requireWholeOverride(overrides.pollIntervalMs, overrides.labels.pollInterval);
   const requestedTimeoutMs = overrides.timeoutMs ?? configuredTimeoutMs;
   if (overrides.pollIntervalMs !== undefined && overrides.pollIntervalMs > requestedTimeoutMs) {
     throw new AwaitTimingError(`${overrides.labels.pollInterval} must not exceed ${overrides.labels.timeout}`);
@@ -94,6 +97,13 @@ export function resolveAwaitTiming<TimeoutKey extends AwaitTimingKey, IntervalKe
       AWAIT_POLL_INTERVAL_LIMIT_MS),
     diagnostics: limitNotices(requestedTimeoutMs, overrides),
   };
+}
+
+/** Refuse a supplied override before any limit applies, so a malformed value never becomes the longest wait. */
+function requireWholeOverride(value: number | undefined, label: string): void {
+  if (value !== undefined && !(Number.isInteger(value) && value > 0)) {
+    throw new AwaitTimingError(`${label} must be a positive whole number`);
+  }
 }
 
 function limitNotices(requestedTimeoutMs: number,
