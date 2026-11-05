@@ -23,11 +23,23 @@ export function adrNumber(path: string): number | null {
   return digits === undefined ? null : Number(digits);
 }
 
-function statusHeading(line: string): boolean | null {
-  const match = /^ {0,3}(#{1,2})(?:[\t ]+(.*)|[\t ]*)$/u.exec(line);
-  if (match === null) return null;
+interface Heading {
+  level: number;
+  text: string;
+  first: number;
+  last: number;
+}
+
+interface HeadingScan {
+  fence: { marker: string; length: number } | undefined;
+  paragraphStart: number | undefined;
+}
+
+function atxHeading(line: string, index: number): Heading | undefined {
+  const match = /^ {0,3}(#{1,6})(?:[\t ]+(.*)|[\t ]*)$/u.exec(line);
+  if (match === null) return undefined;
   const text = (match[2] ?? "").replace(/[\t ]+#+[\t ]*$/u, "").trim();
-  return match[1] === "##" && text === "Status";
+  return { level: match[1]?.length ?? 0, text, first: index, last: index };
 }
 
 function closesFence(delimiter: RegExpExecArray | null, fence: { marker: string; length: number }): boolean {
@@ -35,27 +47,51 @@ function closesFence(delimiter: RegExpExecArray | null, fence: { marker: string;
   return markers.charAt(0) === fence.marker && markers.length >= fence.length && delimiter?.[2]?.trim() === "";
 }
 
-function statusSectionLines(lines: string[]): string[] {
-  let fence: { marker: string; length: number } | undefined;
-  let start: number | undefined;
-  let end = lines.length;
-  for (const [index, line] of lines.entries()) {
-    const delimiter = /^ {0,3}(`{3,}|~{3,})(.*)$/u.exec(line);
-    if (fence !== undefined) {
-      if (closesFence(delimiter, fence)) fence = undefined;
-      continue;
-    }
-    if (delimiter !== null) {
-      const markers = delimiter[1] ?? "";
-      fence = { marker: markers.charAt(0), length: markers.length };
-      continue;
-    }
-    const current = statusHeading(line);
-    if (current === null) continue;
-    if (start !== undefined) { end = index; break; }
-    if (current) start = index + 1;
+function consumeFence(line: string, state: HeadingScan): boolean {
+  const delimiter = /^ {0,3}(`{3,}|~{3,})(.*)$/u.exec(line);
+  if (state.fence !== undefined) {
+    if (closesFence(delimiter, state.fence)) state.fence = undefined;
+    return true;
   }
-  return start === undefined ? [] : lines.slice(start, end);
+  if (delimiter === null) return false;
+  const markers = delimiter[1] ?? "";
+  state.fence = { marker: markers.charAt(0), length: markers.length };
+  state.paragraphStart = undefined;
+  return true;
+}
+
+function scanHeading(lines: string[], index: number, state: HeadingScan): Heading | undefined {
+  const line = lines[index] ?? "";
+  if (consumeFence(line, state)) return undefined;
+  const atx = atxHeading(line, index);
+  if (atx !== undefined) {
+    state.paragraphStart = undefined;
+    return atx;
+  }
+  const underline = /^ {0,3}(=+|-+)[\t ]*$/u.exec(line)?.[1];
+  const first = state.paragraphStart;
+  if (underline !== undefined && first !== undefined) {
+    state.paragraphStart = undefined;
+    return { level: underline.startsWith("=") ? 1 : 2, text: lines.slice(first, index).join("\n").trim(), first, last: index };
+  }
+  if (line.trim() === "" || underline?.startsWith("-") || (first === undefined && /^(?: {4}|\t)/u.test(line))) {
+    state.paragraphStart = undefined;
+  } else {
+    state.paragraphStart ??= index;
+  }
+  return undefined;
+}
+
+function statusSectionLines(lines: string[]): string[] {
+  const state: HeadingScan = { fence: undefined, paragraphStart: undefined };
+  let start: number | undefined;
+  for (const index of lines.keys()) {
+    const heading = scanHeading(lines, index, state);
+    if (heading === undefined || heading.level > 2) continue;
+    if (start !== undefined) return lines.slice(start, heading.first);
+    if (heading.level === 2 && heading.text === "Status") start = heading.last + 1;
+  }
+  return start === undefined ? [] : lines.slice(start);
 }
 
 /** Read the first real Status section, ignoring fenced code. */

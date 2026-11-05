@@ -18,6 +18,21 @@ describe("ADR Status sections", () => {
       line: "Accepted.", text: "Accepted.\n\nProposed later.\n### Note\nKeep this.", proposed: false,
     });
   });
+  it.each(["Accepted (2026-11-05)", "Proposed."])("reads an underlined Status heading containing %s", line => {
+    expect(parseStatusSection(`Decision\n========\n\nStatus\n------\n\n${line}\n\n## Context\nBody`)).toEqual({
+      line, text: line, proposed: line === "Proposed.",
+    });
+  });
+  it.each(["------", "======"])("ends the section before an underlined heading using %s", underline => {
+    expect(parseStatusSection(`## Status\n\nAccepted.\n\nContext\ncontinued title\n${underline}\n\nBody`)).toEqual({
+      line: "Accepted.", text: "Accepted.", proposed: false,
+    });
+  });
+  it("ignores underlined headings inside fences while reading an underlined Status section", () => {
+    expect(parseStatusSection("```md\nStatus\n------\nProposed\n```\n\nStatus\n------\n\nAccepted.\n\n~~~\nContext\n-------\n~~~\n\nContext\n-------\nBody")).toEqual({
+      line: "Accepted.", text: "Accepted.\n\n~~~\nContext\n-------\n~~~", proposed: false,
+    });
+  });
   it.each(["```md\n## Status\nProposed\n```", "~~~~\n## Status\nProposed\n~~~\nStill fenced\n~~~~"])("ignores fenced headings", fence => {
     expect(parseStatusSection(`${fence}\n## Status\nAccepted\n## Context\nBody`)?.line).toBe("Accepted");
   });

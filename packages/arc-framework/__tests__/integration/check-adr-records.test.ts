@@ -52,6 +52,11 @@ beforeEach(async () => {
 afterEach(async () => { await cleanupTempDir(root); });
 
 describe("ADR Git-tree checks", () => {
+  it("admits an Accepted ADR with underlined Markdown headings", async () => {
+    await write(added, "Accepted (2026-11-05)");
+    await writeFile(join(root, added), "Decision\n========\n\nStatus\n------\n\nAccepted (2026-11-05)\n\nContext\n-------\n\nThe context.\n");
+    expect(await check("status", [added], await commit(), base)).toEqual({ exitCode: 0, output: "" });
+  });
   it.each(["Proposed.", null])("rejects a new ADR reading %s, then admits acceptance from the supplied tree", async status => {
     await write(added, status);
     const failure = await check("status", [added], await commit(), base);
