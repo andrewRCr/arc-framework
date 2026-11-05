@@ -7,6 +7,7 @@ import type { StoreRefusal } from "../lib/store/refusal.js";
 import type { StoreRecord } from "../lib/store/read.js";
 import { recordConflictRefusal } from "../lib/store/conflict-diagnostics.js";
 import { pullHistoryForRetry } from "../lib/store/pull-consumption.js";
+import { reportEmptyCohorts, type EmptyCohortReport } from "../lib/store/cohort-retirement.js";
 import { observeOpenHoldings, observeAllHoldings, describeCohortHoldings, describeCohortHoldingOwners, type CohortHolding } from "../lib/store/kinds/cohort/check-support.js";
 import { CohortReadPlacementSchema } from "../lib/store/placement.js";
 import { resolveSubjectOperand } from "../lib/store/subject-operand.js";
@@ -22,10 +23,11 @@ export interface CohortClosePlan {
 /** A removal plan identifies the exact document that would leave the store. */
 export interface CohortRemovePlan { operation: "remove"; reference: RecordReference }
 /** Retirement reports its actual placement or preserves a refused concrete plan. */
-export type CohortCommandResult = StoreCommandUnsupported
+export type CohortCommandResult = (StoreCommandUnsupported
   | { status: "refused"; refusal: StoreRefusal; plan?: CohortClosePlan | CohortRemovePlan; persisted?: true }
   | { status: "closed"; reference: RecordReference; placement: z.infer<typeof CohortReadPlacementSchema> }
-  | { status: "removed"; reference: RecordReference; placement: null };
+  | { status: "removed"; reference: RecordReference; placement: null })
+  & { parents?: EmptyCohortReport[]; notices?: string[] };
 
 /** Prepare a close without publication, then honor explicit confirmation in one batch. */
 export async function runCohortClose(store: Store, input: { operand: string; confirmed: boolean }, clock: () => Date = () => new Date()): Promise<CohortCommandResult> {
@@ -38,7 +40,8 @@ export async function runCohortClose(store: Store, input: { operand: string; con
   if (!input.confirmed) return confirmationRequired(plan, input.operand);
   const written = await batchLifecycleWrites(store, [recordPut(primary, { placement: plan.placement })], { verb: "cohort-close", lifecycleAction: "close" });
   if (written.status === "refused") return written;
-  return readClosedCohort(store, plan);
+  const result = await readClosedCohort(store, plan), retirement = await reportEmptyCohorts(store, primary);
+  return { ...result, parents: retirement.cohorts, notices: retirement.notices };
 }
 
 /** Remove a selected cohort document in one confirmed batch without publication. */
@@ -61,7 +64,9 @@ async function removeSelectedCohort(store: Store, primary: StoreRecord, input: {
   if (!input.confirmed) return confirmationRequired(plan, input.operand);
   const written = await batchLifecycleWrites(store, [{ action: "remove", reference: primary.reference, expected: primary.version }],
     { verb: "cohort-remove", lifecycleAction: "remove" });
-  return written.status === "refused" ? written : { status: "removed", reference: primary.reference, placement: null };
+  if (written.status === "refused") return written;
+  const retirement = await reportEmptyCohorts(store, primary);
+  return { status: "removed", reference: primary.reference, placement: null, parents: retirement.cohorts, notices: retirement.notices };
 }
 
 function confirmationRequired(plan: CohortClosePlan | CohortRemovePlan, operand: string): Extract<CohortCommandResult, { status: "refused" }> {

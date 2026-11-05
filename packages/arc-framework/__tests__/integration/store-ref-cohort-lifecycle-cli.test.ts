@@ -1,5 +1,6 @@
 /** Registered cohort lifecycle commands preview and retire exact owners on both backends. */
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { createKindRegistry, RecordReferenceSchema, type StoreRecord } from "../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
@@ -258,3 +259,91 @@ describe.each(["reference", "ref"] as const)("cohort remove over %s", backend =>
     expect(success(await f.store.read({ reference: held.reference }))).toEqual(held);
   }, 60_000);
 });
+
+describe.each(["reference", "ref"] as const)("cohort retirement notices over %s", backend => {
+  it.each([
+    { operation: "close", json: true }, { operation: "remove", json: true },
+    { operation: "close", json: false }, { operation: "remove", json: false },
+  ] as const)("reports the parent after its last open child leaves by $operation, json=$json", async ({ operation, json }) => {
+    const f = await fixture(backend), parentRef = f.reference("cohort/document", "parent"), childRef = f.reference("cohort/document", "child");
+    const parent = await seed(f, parentRef, content(parentRef.owner.name));
+    const child = await seed(f, childRef, content(childRef.owner.name, parentRef.owner.name));
+    const parentOperation = operation;
+    const result = await f.invoke(["cohort", operation, childRef.owner.name, "--yes", ...json ? ["--json"] : []]);
+    expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+    if (json) expect(result).toMatchObject({ result: { status: operation === "close" ? "closed" : "removed", reference: child.reference,
+      parents: [{ reference: parent.reference, remedy: { argv: ["arc", "cohort", parentOperation, parentRef.owner.name] } }] } });
+    else expect(result.stdout).toContain(`arc cohort ${parentOperation} ${parentRef.owner.name}`);
+    expect(success(await f.store.read({ reference: parent.reference })).placement?.kind).not.toBe("completed");
+    expect(await f.invoke(["cohort", parentOperation, parentRef.owner.name, "--yes", "--json"]))
+      .toMatchObject({ result: { status: parentOperation === "close" ? "closed" : "removed", reference: parent.reference } });
+  }, 60_000);
+
+  it("reports removal after abandoning the only holder and the reported removal succeeds", async () => {
+    const f = await fixture(backend), ref = f.reference("cohort/document", "unused-after-abandon");
+    const group = await seed(f, ref, content(ref.owner.name)), memberRef = f.reference("work-item/meta", "last");
+    await seed(f, memberRef, makeMetaFixture(memberRef.owner.name, { state: "Planning", cohort: ref.owner.name }),
+      { kind: "backlog", commitment: "planned" });
+    const result = await f.invoke(["abandon", memberRef.owner.name, "--yes"]);
+    expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain(`arc cohort remove ${ref.owner.name}`);
+    expect(result.stdout).not.toContain(`arc cohort close ${ref.owner.name}`);
+    expect(await f.invoke(["cohort", "remove", ref.owner.name, "--yes", "--json"]))
+      .toMatchObject({ result: { status: "removed", reference: group.reference } });
+  }, 60_000);
+
+  it("reports close after abandonment leaves only a completed holder and the reported close succeeds", async () => {
+    const f = await fixture(backend), ref = f.reference("cohort/document", "remaining");
+    const group = await seed(f, ref, content(ref.owner.name));
+    const archivedRef = f.reference("work-item/meta", "archived");
+    await seed(f, archivedRef, makeMetaFixture(archivedRef.owner.name, { state: "Shipped", cohort: ref.owner.name }),
+      { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+    const memberRef = f.reference("work-item/meta", "last");
+    const member = await seed(f, memberRef, makeMetaFixture(memberRef.owner.name, { state: "Planning", cohort: ref.owner.name }),
+      { kind: "backlog", commitment: "planned" });
+    const result = await f.invoke(["abandon", memberRef.owner.name, "--yes"]);
+    expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+    expect(result.stdout).toContain(`arc cohort close ${ref.owner.name}`);
+    expect(await f.store.read({ reference: member.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    expect(success(await f.store.read({ reference: group.reference })).placement?.kind).not.toBe("completed");
+    expect(await f.invoke(["cohort", "close", ref.owner.name, "--yes", "--json"]))
+      .toMatchObject({ result: { status: "closed", reference: group.reference } });
+  }, 60_000);
+});
+
+it("names each tied cohort by UID after abandonment and each reported close succeeds", async () => {
+  const f = await fixture("ref");
+  if (f.ref === undefined) throw new Error("Expected real refs");
+  const uid = "00000000-0000-4000-8000-000000000001", otherUid = "00000000-0000-4000-8000-000000000002";
+  await plantRefPrimary(f.ref, { kind: "cohort/document", name: "shared", uid, content: content("shared") });
+  const archivedRef = f.reference("work-item/meta", "archived");
+  await seed(f, archivedRef, makeMetaFixture(archivedRef.owner.name, { state: "Shipped", cohort: "shared" }),
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  await plantRefPrimary(f.ref, { kind: "cohort/document", name: "shared", uid: otherUid, content: content("shared") });
+  const subject = await plantRefPrimary(f.ref, { kind: "work-item/meta", name: "subject", uid: "00000000-0000-4000-8000-000000000003",
+    content: makeMetaFixture("subject", { state: "Planning", cohort: "shared" }) });
+  const result = await f.invoke(["abandon", "subject", "--yes"]);
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  for (const operand of [uid, otherUid]) expect(result.stdout).toContain(`arc cohort close ${operand}`);
+  expect(await f.store.read({ reference: subject })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  for (const operand of [uid, otherUid]) expect(await f.invoke(["cohort", "close", operand, "--yes", "--json"]))
+    .toMatchObject({ result: { status: "closed" } });
+}, 60_000);
+
+it("reports the actual UID for a UUID-shaped parent slug and preserves the cohort carrying that slug as its UID", async () => {
+  const f = await fixture("ref");
+  if (f.ref === undefined) throw new Error("Expected real refs");
+  const name = "00000000-0000-4000-8000-000000000001", uid = "00000000-0000-4000-8000-000000000002";
+  const parent = await plantRefPrimary(f.ref, { kind: "cohort/document", name, uid, content: content(name) });
+  const other = await plantRefPrimary(f.ref, { kind: "cohort/document", name: "other", uid: name, content: content("other") });
+  const kept = success(await f.store.read({ reference: other })), childRef = f.reference("cohort/document", "child");
+  await seed(f, childRef, content(childRef.owner.name, name));
+  const result = await f.invoke(["cohort", "remove", childRef.owner.name, "--yes", "--json"]);
+  const parsed = z.object({ parents: z.array(z.object({ remedy: z.object({ argv: z.array(z.string()) }) })) }).parse(result.result);
+  const argv = parsed.parents[0]?.remedy.argv;
+  if (argv === undefined) throw new Error("Expected a parent retirement command");
+  expect(await f.invoke([...argv.slice(1), "--yes", "--json"]))
+    .toMatchObject({ result: { status: "removed", reference: parent } });
+  expect(await f.store.read({ reference: parent })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  expect(success(await f.store.read({ reference: other }))).toEqual(kept);
+}, 60_000);

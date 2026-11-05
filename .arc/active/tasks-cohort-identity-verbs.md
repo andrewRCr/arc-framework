@@ -317,28 +317,15 @@ nothing without `--yes`; and a member a pull lands naming a removed cohort refus
   rendering; completed members and closed subcohorts retain the document. A named-history retry re-reads the selected
   UID and repeats the complete holding check with a fresh version, preserving a live cohort that reuses its slug.
 
-### `[ ]` **3.6 Report a cohort left with nothing open from abandon, close, and remove — § 8.3, § 7.2**
+### `[x]` **3.6 Report a cohort left with nothing open from abandon, close, and remove — § 8.3, § 7.2**
 
 - _Goal:_ Wherever a verb's batch leaves a cohort with no open holder, its result names the command that retires it, and
   that command never refuses on a holder the report missed.
 
-    - `runStoreAbandon` (`lib/work-unit/verbs/abandon-store.ts`) evaluates the cohorts the subject's `Cohort` segments
-      resolve to, from a fresh read after its batch lands: each left with no open member or subcohort, counted by
-      resolution over open records, is named with `arc cohort close <cohort>`, or `arc cohort remove <cohort>` where no
-      record holds it, counted over every record. A segment ambiguous among cohorts evaluates each cohort it may name,
-      and the command names a cohort by slug, or by UID where its slug is tied. The report rides
-      `AbandonResult.notices`, which `handleStoreAbandon` prints; evidence that cannot be read becomes a notice saying
-      so, and never fails the landed abandon. Abandon closes no cohort.
-    - A close or remove that empties a parent reports the parent the same way, in its text and `--json`.
-
-    - Build `test-first` (one behavior at a time):
-        - abandoning a cohort's last open member names `arc cohort close`, which then closes it
-        - abandoning the only member of a cohort no other record ever held names `arc cohort remove`
-        - a cohort still holding an open record is not reported
-        - unreadable evidence after the batch yields a notice and a successful abandon
-        - over the ref backend, abandoning a member under a two-cohort tie of its cohort's slug names
-          `arc cohort close <uid>`
-        - closing, and removing, a parent's last open subcohort reports the parent
+- _Outcome:_ `reportEmptyCohorts` evaluates each resolved cohort after the batch, using open and all-record holdings
+  to recommend close or remove without retiring it automatically. Abandon appends the commands to its notices;
+  close and remove carry structured parent reports in JSON and render them in text. Unreadable evidence remains an
+  advisory beside the landed operation. Tied and UUID-shaped names use the intended owner's UID.
 
 ### `[ ]` **3.7 Refuse a member's cohort read on a removed cohort, naming the edit to its `Cohort` — § 8.4**
 

@@ -33,10 +33,17 @@ function renderCohort(result: CohortCommandResult, json: boolean): void {
   if (json) { process.stdout.write(`${JSON.stringify(result)}\n`); return; }
   if (result.status === "closed") {
     process.stdout.write(`Closed cohort ${cohortName(result.reference)}: ${result.placement.quarter}/${result.placement.sequence}${result.placement.closeout}.\n`);
+    renderRetirement(result);
     return;
   }
-  if (result.status === "removed") { process.stdout.write(`Removed cohort ${cohortName(result.reference)}.\n`); return; }
+  if (result.status === "removed") { process.stdout.write(`Removed cohort ${cohortName(result.reference)}.\n`); renderRetirement(result); return; }
   renderRefusal(result);
+  renderRetirement(result);
+}
+
+function renderRetirement(result: CohortCommandResult): void {
+  for (const parent of result.parents ?? []) process.stdout.write(`${parent.remedy.text}\n`);
+  for (const notice of result.notices ?? []) process.stdout.write(`${notice}\n`);
 }
 
 function renderRefusal(result: Extract<CohortCommandResult, { status: "refused" }>): void {
