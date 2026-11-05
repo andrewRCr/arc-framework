@@ -186,7 +186,7 @@ it("renames the promoted work branch while retaining the holder's Errand link an
     provenance: { verb: "edit", lifecycleAction: "edit" } }));
   const input = RenameCommandInputSchema.parse({ slug: "source", newSlug: "target" });
   expect(await runRenameCommand(f.command, { sourceSlug: input.slug, targetSlug: input.newSlug })).toMatchObject({ status: "renamed",
-    keptBranches: ["chore/source"] });
+    report: { keptBranches: [{ branch: "chore/source", reason: "other-link" }] } });
   const current = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
   expect(current.links?.branches).toEqual([errand, { ...f.primary.links!.branches![0], ref: "feat/target" }]);
   expect((await f.exec("git", ["rev-parse", "chore/source"])).stdout.trim()).toBe(before);

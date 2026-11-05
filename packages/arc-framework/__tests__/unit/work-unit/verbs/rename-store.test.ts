@@ -172,21 +172,25 @@ it("keeps an adopted branch outside ARC forms and reports it without changing it
   const h = createLifecycleHarness(); const link = { repository: "repo", ref: "user/investigation", linkedAs: "adopted" as const, excluded: [] };
   const primary = await h.seedMeta("source", {}, { kind: "active" }, { branches: [link] }); const git = scriptGitExec([]);
   expect(await runStoreRename({ store: h.store, exec: git.exec, cwd: "/repo", baseBranch: "main", projectId: async () => "repo", locusPorts },
-    { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed", keptBranches: ["user/investigation"] });
+    { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed", report: { keptBranches: [{ branch: "user/investigation", reason: "other-link" }] } });
   expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).links?.branches).toEqual([link]); expect(git.calls).toEqual([]);
 });
 it("renames an adopted ARC-form link, publishes its new name, and keeps the person's old remote ref", async () => {
   const h = await branchFixture("adopted");
-  expect(await runStoreRename(h.ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed", remote: { status: "retained", oldBranch: "feat/source" } });
+  expect(await runStoreRename(h.ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed", report: { keptBranches: [{ branch: "feat/source", reason: "adopted" }] }, remote: { status: "retained", oldBranch: "feat/source" } });
   expect(h.git.calls.some((call) => call.args.some((arg) => arg.startsWith(":refs/heads/")))).toBe(false);
   expect(lifecycleSuccess(await h.store.read({ reference: h.primary.reference })).links?.branches).toEqual([{ ...h.link, ref: "feat/target" }]);
 });
 it("a failed remote leg leaves the record renamed and its typed rerun finishes only the post-batch legs", async () => {
   const h = await branchFixture("created", true);
-  expect(await runStoreRename(h.ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "partial", remedy: { argv: ["arc", "rename", "source", "target"] } });
+  const extra = { repository: "repo", ref: "chore/earlier", linkedAs: "created" as const, excluded: [] };
+  lifecycleSuccess(await h.store.write({ action: "put", reference: h.primary.reference, expected: h.primary.version,
+    content: h.primary.content, placement: h.primary.placement, links: { branches: [extra, h.link] }, provenance: { verb: "link", lifecycleAction: "link" } }));
+  const report = { references: [], memberHeadings: [], formerSlugTies: [], keptBranches: [{ branch: extra.ref, reason: "other-link" }] };
+  expect(await runStoreRename(h.ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "partial", report, remedy: { argv: ["arc", "rename", "source", "target"] } });
   const renamed = lifecycleSuccess(await h.store.read({ reference: h.primary.reference })); expect(renamed.reference.owner.name).toBe("target");
   const operations = h.git.calls.filter((call) => call.args[0] === "branch").length;
-  expect(await runStoreRename(h.ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed", recordBatch: "existing" });
+  expect(await runStoreRename(h.ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed", recordBatch: "existing", report });
   expect(lifecycleSuccess(await h.store.read({ reference: h.primary.reference })).version).toBe(renamed.version);
   expect(h.git.calls.filter((call) => call.args[0] === "branch")).toHaveLength(operations);
 });

@@ -389,16 +389,12 @@ its history refs, discharging the edges naming it.
 - _Goal:_ Everything a rename leaves to the person — references, a member heading, a former-slug tie, a kept branch —
   reaches them in one typed report, in text and in `arc rename --json`, a failed push included.
 
-    - `[ ]` **4.2.a The report**
+    - `[x]` **4.2.a The report**
 
-        - The rename result's report holds: per record left, its type, name, and UID with the ordered edits that re-point
-          it, Task 3.1.b's edit type; a member heading's document, line, and replacement, with no command; a former-slug
-          tie with its repair; each kept branch with its reason — adopted, another holder's link, or a continuation — and
-          the catch-up command where one applies. `keptBranches`' strings give way to it, and the cases asserting them
-          change: `rename-store-command.test.ts`, `lifecycle-rename-report.test.ts`, `lifecycle-program.test.ts`, and
-          `rename-store.test.ts`.
-        - A `partial` result after the batch lands, on a failed push, carries the report, since a continuation runs no
-          batch.
+        - `RenameReport` preserves ordered per-record edits, exact document identities and heading repairs, former-slug
+          remedies, and retained branches with reasons and catch-up guidance. Both landed result arms carry it; failed
+          remote completion retains the report, untouched links have their own reason, and in-repo results carry an
+          empty one. Text document labels include keyed companions' keys.
 
     - `[ ]` **4.2.b `--json`**
 

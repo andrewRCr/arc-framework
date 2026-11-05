@@ -96,7 +96,7 @@ it("promotes a second owner through the real adapter, then rename keeps its Erra
   expect(promoted.reference).toMatchObject({ kind: "work-item/meta", owner: { ...primary.reference.owner, name: "promoted" } });
   expect(promoted.links?.branches).toEqual([...primary.links!.branches!, { repository: "repo", ref: "feat/promoted", linkedAs: "created", excluded: [] }]);
   expect(await runStoreRename({ store: h.store, exec: git.exec, cwd: "/holder", baseBranch: "main", projectId: async () => "repo",
-    locusPorts: { ...git.locusPorts, findHoldingCheckout: async () => ({ kind: "none" as const }) } }, { operand: "promoted", targetSlug: "renamed-promotion" })).toMatchObject({ status: "renamed", keptBranches: [identity.branch] });
+    locusPorts: { ...git.locusPorts, findHoldingCheckout: async () => ({ kind: "none" as const }) } }, { operand: "promoted", targetSlug: "renamed-promotion" })).toMatchObject({ status: "renamed", report: { keptBranches: [{ branch: identity.branch, reason: "other-link" }] } });
   const renamed = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
   expect(renamed.links?.branches).toEqual([primary.links!.branches![0], { repository: "repo", ref: "feat/renamed-promotion", linkedAs: "created", excluded: [] }]);
   expect(git.state.branches.get(identity.branch)).toBe(personal);

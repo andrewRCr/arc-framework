@@ -18,6 +18,7 @@ import { resolveSubjectOperand } from "../../store/subject-operand.js";
 import { RecordReferenceSchema } from "../../store/identity.js";
 import type { StoreRecord } from "../../store/read.js";
 import type { RunRenameResult, RenameCheckoutReport, RenameSubjectShape } from "./rename.js";
+import { emptyRenameReport, type RenameReport, type RenameKeptBranch } from "../rename-report.js";
 /** A checkout rename retains its exact inverse until the record batch lands. */
 export interface StoreRenameCheckoutReceipt { report: RenameCheckoutReport; rollback: () => Promise<void>; repositoryCwd?: string; shape?: "spawned" | "in-place" }
 /** Physical checkout rename coordinates are marker-selected, independent of Branch. */
@@ -81,16 +82,23 @@ async function renameSelectedWorkUnit(ctx: StoreRenameContext, params: { operand
   const exec: GitExec = (command, args, options) => ctx.exec(command, args, { cwd: state.cwd, ...options });
   const persisted = await persistRename({ ...ctx, exec }, subject, target, holder, branch, state);
   if (persisted !== undefined) return persisted;
+  const report = retainedBranchReport(subject.primary, branch);
   const post = await finishRename({ ...ctx, exec, cwd: state.cwd }, branch, params);
   const reference = RecordReferenceSchema.parse({ ...subject.primary.reference, owner: { ...subject.primary.reference.owner, name: target } });
-  if (post.status === "partial") return { ...post, reference };
+  if (post.status === "partial") return { ...post, reference, report };
   const shape: RenameSubjectShape = subject.primary.placement?.kind === "backlog" ? "stub"
     : subject.primary.placement?.kind === "completed" ? "archived" : state.checkout?.shape ?? (holder === null ? "in-place" : "spawned");
   return { status: "renamed", reference, shape, recordBatch: subject.resuming ? "existing" : "applied", pendingIntegration: false,
     advisories: subject.advisories, remote: post.remote,
-    keptBranches: (subject.primary.links?.branches ?? []).filter((link) => branch === undefined || link.repository !== branch.prior.repository
-      || (link.ref !== branch.prior.ref && link.ref !== branch.next.ref)).map((link) => link.ref),
+    report,
     ...(state.checkout === undefined ? {} : state.checkout.report) };
+}
+function retainedBranchReport(primary: StoreRecord, branch: BranchRename | undefined): RenameReport {
+  const keptBranches: RenameKeptBranch[] = (primary.links?.branches ?? []).filter((link) => branch === undefined
+    || link.repository !== branch.prior.repository || (link.ref !== branch.prior.ref && link.ref !== branch.next.ref))
+    .map((link) => ({ branch: link.ref, reason: "other-link" }));
+  if (branch?.prior.linkedAs === "adopted" && branch.oldRemoteOid !== null) keptBranches.push({ branch: branch.oldBranch, reason: "adopted" });
+  return { ...emptyRenameReport(), keptBranches };
 }
 interface RenameRuntime { cwd: string; checkout?: StoreRenameCheckoutReceipt }
 async function persistRename(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string, holder: string | null,
@@ -159,7 +167,7 @@ function localBranchStep(ctx: StoreRenameContext, branch: BranchRename, retryCom
     } };
 }
 async function finishRename(ctx: StoreRenameContext, branch: BranchRename | undefined,
-  request: { operand: string; targetSlug: string }): Promise<{ status: "complete"; remote: RenameRemoteBranchResult } | Extract<RunRenameResult, { status: "partial" }>> {
+  request: { operand: string; targetSlug: string }): Promise<{ status: "complete"; remote: RenameRemoteBranchResult } | Omit<Extract<RunRenameResult, { status: "partial" }>, "report">> {
   try {
     const remote = branch === undefined ? { status: "unpublished" as const } : await reconcileRenameRemoteBranch(ctx, {
       ...branch, remote: "origin", keepOld: branch.prior.linkedAs === "adopted" });

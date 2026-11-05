@@ -15,6 +15,7 @@ import type { LifecycleRollbackRecovery } from "../store-transition-types.js";
 import type { Remedy, StoreRefusal } from "../../store/refusal.js";
 import type { Store } from "../../store/contract.js";
 import type { RecordReference } from "../../store/identity.js";
+import { emptyRenameReport, type RenameReport } from "../rename-report.js";
 
 
 import type { RenameRemoteBranchResult } from "../rename-identity.js";
@@ -61,7 +62,7 @@ export type RunRenameResult = (
       shape: RenameSubjectShape;
       trackedCommit?: "created" | "existing";
       recordBatch?: "applied" | "existing";
-      keptBranches?: readonly string[];
+      report: RenameReport;
       pendingIntegration: boolean;
       advisories: readonly string[];
       remote?: RenameRemoteBranchResult;
@@ -69,7 +70,7 @@ export type RunRenameResult = (
       checkout?: RenameWorktreeTransactionOutcome;
     }
   | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy; recovery?: LifecycleRollbackRecovery }
-  | { status: "partial"; reason: string; remedy?: Remedy })
+  | { status: "partial"; reason: string; remedy?: Remedy; report: RenameReport })
   & { /** Exact operational subject; tracked results have no store reference. */ reference?: RecordReference };
 
 /** Checkout identity report plus any physical move the transaction performed. */
@@ -147,6 +148,7 @@ export async function runRename(
       shape: plan.shape,
       trackedCommit,
       pendingIntegration: true,
+      report: emptyRenameReport(),
       advisories,
     };
   }
@@ -159,6 +161,7 @@ export async function runRename(
       return {
         status: "partial",
         reason: `old remote head moved from ${remote.expectedOid} to ${remote.actualOid ?? "[absent]"}`,
+        report: emptyRenameReport(),
       };
     }
 
@@ -167,7 +170,7 @@ export async function runRename(
       : { status: "in-place" };
     const rename = await ctx.renameCheckout(plan, move);
     if (rename.checkout.kind === "refused") {
-      return { status: "partial", reason: `checkout rename refused: ${rename.checkout.reason}` };
+      return { status: "partial", reason: `checkout rename refused: ${rename.checkout.reason}`, report: emptyRenameReport() };
     }
     const worktree = plan.shape === "spawned" ? rename.worktree ?? move : undefined;
     return {
@@ -175,13 +178,14 @@ export async function runRename(
       shape: plan.shape,
       trackedCommit,
       pendingIntegration: false,
+      report: emptyRenameReport(),
       advisories,
       remote,
       ...(worktree === undefined ? {} : { worktree }),
       checkout: rename.checkout,
     };
   } catch (error) {
-    return { status: "partial", reason: errorMessage(error) };
+    return { status: "partial", reason: errorMessage(error), report: emptyRenameReport() };
   }
 }
 
