@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "integration-temp-caches",
+  "claimId": "d9ad464e4579515567d2e367f45afc31",
+  "createdAt": "2026-11-05T15:48:58.769Z",
+  "updatedAt": "2026-11-05T15:48:58.769Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep tsx and Node compile caches off the integration tier's /dev/shm temp root, and clean up each run's temp dirs",
+  "branch": "chore/integration-temp-caches",
+  "origin": "inbox",
+  "originEntry": "Keep tool caches out of the integration tier's memory-backed temp root, and remove each run's temp dirs",
+  "originEntrySourceDigest": "sha256:3ae4ef7fbd828357832c67ad2df983eb787716be0ba249403811ca0269c624c5",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
