@@ -345,6 +345,8 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
           `spec-<slug>-rfc.md`, keyed `spec-prd` and `spec-rfc`; `inbound-<slug>.md`; `errand-<slug>.md` for an Errand's
           description; a cohort document's copy as `cohort-<cohort>.md`; and `scratch/` documents, each keyed by its
           path.
+        - For a backlog companion, take an established work-item container from 2.4.R before interpreting its relative
+          path; no candidate prefix supplies an owner by itself. Keep an indexed file's exact reference authoritative.
         - The inverse, which the classifier's first step reaches (`identifyArcFileAddress`), tries, in order: a work
           unit's artifact names (`WorkUnitArtifactKindSchema`; `parseArtifactFilename` is private to
           `lib/layout/identification.ts`, so the inverse lives there); the fixed forms — a paired spec's halves,
@@ -482,6 +484,44 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
             - over the in-repo implementation, the path is today's `.arc/active/meta-<slug>.md`, and no marker or
               configuration is read
 
+### `[ ]` **2.4.R Establish folder ownership before classifying new backlog files — § 9, § 10.1**
+
+- _Goal:_ Under A1, a new backlog file is classified only within one established work-item container; absent or
+  conflicting ownership preserves it unadopted with a repair route, while indexed files keep their exact references.
+
+- _Note:_ Build 2.4.R.a before 2.4.b's backlog companion inverse; compose 2.4.R.b with 2.8.a–b, and close 2.4.R.c
+  after those callers are bound.
+
+    - `[ ]` **2.4.R.a Classify relative to an explicit container**
+
+        - Give the pure layout inverse the semantic work-item container and classify its strict descendant's relative
+          path using that container's slug. Keep `resolveArcPath` as the path authority and filename precedence within
+          the selected container; add no store or filesystem reads to layout.
+        - Build `test-first` (one behavior at a time): the same path `.arc/backlog/planned/alpha/beta/note.txt`
+          classifies as `beta/note.txt` for alpha's container and as `note.txt` for beta's container under cohort alpha;
+          an unrelated container cannot classify it, and a missing container cannot silently choose a backlog companion
+          owner.
+
+    - `[ ]` **2.4.R.b Establish and bind container evidence for unindexed paths**
+
+        - Use indexed primary-folder evidence, a stored primary's placement and cohort, or a prospective stub's meta
+          validated through 2.8.b's rules. Retain physical container coordinates separately from the resolved record
+          authority, so rename aliases and exact indexed references keep their existing treatment. Collect candidates
+          before selection; zero or several qualifying containers leave the file unadopted, with the folder/stub remedy
+          or a diagnostic naming the conflicting containers and how to repair them. Preserve refused store lookups and
+          their remedies. Bind this result before adoption and any companion path classification in the overlap caller;
+          resolve only touched unindexed paths, and bypass reclassification for an already indexed file.
+        - Build `test-first` (one behavior at a time): absent and conflicting evidence preserve bytes and store state;
+          a sole established container supplies the correct owner/key; a validated prospective stub remains subject to
+          its minting and ownership checks; and the same unknown file adopts after ownership evidence is repaired.
+
+    - `[ ]` **2.4.R.c Verify the ownership boundary and repaired continuation**
+
+        - Through the bound outer callers over the reference backend, distinguish both owners of the counterexample,
+          keep absent/conflicting evidence refused with an actionable remedy, then adopt the same bytes after repair.
+          Prove an indexed file retains its exact reference despite competing surrounding folder interpretations. Close
+          A1's new success criterion without changing the earlier criteria.
+
 ### `[ ]` **2.5 The `layout.active` revert key — § 10.3**
 
 - _Goal:_ A project can set `layout.active: flat` in `arc-config.yml` to lay its checkout's work item flat in `active/`,
@@ -542,6 +582,8 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
 
     - `[ ]` **2.8.a Classify by folder**
 
+        - Establish one work-item container for an unindexed backlog path through 2.4.R before classification; preserve
+          a missing or conflicting ownership result with its remedy, and keep an indexed file's exact reference.
         - The classifier (`identifyArcFileAddress` then `classifyStoreAddress`, over 2.4's addresses) maps a path to a
           kind and key: `active/current/` and a stub's folder adopt into that work item; `active/in-flight/<slug>/`
           takes the owner's prose only (2.1); `completed/` adopts into its archived work unit (2.3); a path it maps to
@@ -816,5 +858,9 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   `arc selection` prints an empty list, and `arc init` and `arc join` print no Zed setting.
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
+
+- `[ ]` An unindexed backlog path is classified within one established work-item container. Missing or conflicting
+  ownership evidence preserves its bytes unadopted with an actionable refusal; the same edit adopts after repair, and
+  indexed files retain their exact record authority (A1).
 
 - `[ ]` Ready for integration

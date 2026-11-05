@@ -1101,6 +1101,22 @@ check.
 - **`active/in-flight/<slug>/`** — the owner's prose only, under the edit-rights rule (§ 8.1).
 - **`completed/`** — adopted into its archived work unit under § 8.4's rules.
 
+**Establishing the work-item folder (A1).** A path alone does not identify the owner of an unindexed file below
+`backlog/`: cohort folders and a companion's own folders both vary in depth. Before classifying such a file, the caller
+establishes exactly one work-item container, supplying its semantic `work-unit-container` address to the layout inverse
+and retaining the corresponding record authority for the write. An indexed primary and its folder, a stored primary's
+placement and cohort, or a new stub's meta validated under the rules above may establish a candidate. Lookup alone does
+not establish a physical folder: the evidence must identify that container at the file's observed location. Collect
+qualifying candidates before choosing; neither the longest nor the shortest matching prefix wins by itself.
+
+An already indexed file keeps its exact indexed reference and is not reclassified by its surrounding folders. For an
+unindexed file, absent ownership evidence leaves it unadopted with the existing folder or stub remedy; conflicting
+evidence leaves it unadopted with a refusal naming the candidate containers and directing the person to repair that
+evidence or move the file into one unambiguous work-item folder. Its bytes stay untouched, and the same edit adopts once
+one container is established. A prospective stub's meta establishes only the proposed container: it bypasses neither
+its ownership and parameter checks nor minting through `arc stub`. Ownership resolution runs for discovered or otherwise
+touched unindexed paths, without adding a store-wide scan to an unchanged command.
+
 **Never adopted.** No derived view renders as a file from the flip (Owner, 2026-10-16), so the two a projected root can
 still hold are files left from before it, and neither is adopted, by its path: `STATUS.USER.md` in an identity's
 personal root, which nothing deletes, and the tracked `ROADMAP.md` on a branch that has not merged the cutover, which
@@ -1161,6 +1177,14 @@ the effective `layout.active`, since the path alone holds no slug a hyphenated n
 `active/` names a record only under `flat`. A record projects only where the schema holds an address for its kind: a
 projection-defined kind with none projects nothing, the Errand queue among them, which D13 keeps a machine record `arc`
 reads (`personal/errand-queue`, `lib/store/registry.ts`).
+
+**Container input to the inverse (A1).** `identifyArcFileAddress` and its work-item filename recognizer accept the
+established work-item container from § 9. They confirm that the file is strictly below that container through
+`resolveArcPath`, then apply filename precedence to its relative path using the container's slug. This supplies the
+boundary for a path-keyed companion, including one in a subfolder; projecting candidates back cannot choose between two
+containers that produce the same path. The layout layer remains free of store and filesystem reads. Its existing
+active-layout context supplies the checkout's own location, while the caller supplies the established backlog container.
+The caller owns missing or conflicting ownership evidence and its refusal; the inverse never guesses a folder prefix.
 
 A companion (`work-item/companion`) is keyed by a managed path, as a personal document is, where D2 keys it by name
 (`KIND_SHAPES`, `lib/store/catalog.ts`): `<name>-<slug>.md` keeps the key `<name>`, and any other companion's key is its
@@ -1920,6 +1944,11 @@ _These considerations cover the design the three members build together; § 1.1 
    Markdown checks' reader returns what the command prints.
 8. **The quality gates pass** at every gate the project declares.
 
+9. **Folder ownership is explicit (A1).** For an unindexed backlog path compatible with two work-item containers,
+   classification with an established container retains that container's owner and relative companion key. Missing or
+   conflicting ownership evidence preserves the file unadopted with an actionable refusal; after evidence repair, the
+   same edit adopts. Already indexed files retain their exact record authority.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -1927,6 +1956,7 @@ this design open.
 
 ## Amendments
 
-None.
+- **A1** — 2026-11-05 — spec-depth: classify companions only with established folder ownership.
+  _Supersedes:_ none. _Trigger:_ 2.4.b must-stop. _Work:_ 2.4.R. _Revalidated:_ pending → 2.4.R.c.
 
 ---

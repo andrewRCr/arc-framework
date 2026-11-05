@@ -8,6 +8,7 @@
 - [Spike 6 — finding a stored clash again](#spike-6--finding-a-stored-clash-again)
 - [The base of a file other than Markdown](#the-base-of-a-file-other-than-markdown)
 - [Grounding against `storage-ref-hardening`](#grounding-against-storage-ref-hardening)
+- [A1 — Explicit folder ownership](#a1--explicit-folder-ownership)
 
 ## Spike evidence
 
@@ -269,3 +270,25 @@ review machine record with no projection and keeps every refusal code and class.
 
 Once `storage-ref-hardening` lands, a diff of those surfaces from `deb116df5d` to its merge confirms them before Tasks
 1.6 and 2.3 are built.
+
+## A1 — Explicit folder ownership
+
+`WorkUnitPlacementSchema` permits zero to two cohort segments below a backlog commitment. `projectContainer` appends
+those segments and the work-item slug, while a companion's path key may itself contain folders. A read-only probe using
+`resolveArcPath` produced the same physical path for both valid containers:
+
+| Work item | Cohort  | Relative companion key | Projected path                             |
+| --------- | ------- | ---------------------- | ------------------------------------------ |
+| `alpha`   | none    | `beta/note.txt`        | `.arc/backlog/planned/alpha/beta/note.txt` |
+| `beta`    | `alpha` | `note.txt`             | `.arc/backlog/planned/alpha/beta/note.txt` |
+
+Projecting both candidates back therefore proves their spelling, not which record owns an unknown file. The pure
+`identifyArcFileAddress` has no store or filesystem evidence; `LookupInputSchema` supplies semantic lookups rather than
+folder resolution. A1 supplies the missing boundary explicitly: composition establishes one physical container and
+retains its record authority, and layout classifies only relative to that container. `readProjectionIndex` already
+retains the exact reference of an indexed path, which bypasses this new-file inference.
+
+Missing or competing evidence stays a recoverable, visible refusal; no prefix heuristic acquires ownership. A parsed
+prospective stub's meta is evidence for its proposed container, not permission to bypass the existing stub checks or
+minting. The correction belongs to the file inverse and its adoption/overlap composition, with a bounded test covering
+both interpretations and successful adoption of the same bytes after ownership repair.
