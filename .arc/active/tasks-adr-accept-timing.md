@@ -151,18 +151,13 @@ while it reads Proposed, naming the file and its `Accepted (<today>)` remedy, an
 - _Outcome:_ Started the template at the bare Proposed line, followed by guidance for the four states and their timing;
   rendered the project copy.
 
-### `[ ]` **4.3 Add the ADR-disposition criterion to draft readiness — D2**
+### `[x]` **4.3 Add the ADR-disposition criterion to draft readiness — D2**
 
 - _Goal:_ A draft, or a determinacy confirmation with no draft, is not ready while any decision it settles lacks an
   ADR disposition, at every Class and planning depth.
 
-    - § The bar gains the fourth criterion as the spec's § 2.1 quotes it, with § 2.2's four dispositions and its
-      misuse gap; a missing disposition is a `needs-detail` gap
-    - Count four criteria in the frontmatter `description`, "all three criteria below clear", and "ready — all three
-      clear"
-    - Configurable file: the same targeted edit in `packages/arc-framework/arc/system/methods/assess-draft-readiness.md`
-      and `.arc/system/methods/assess-draft-readiness.md`, never a copy; the two are identical today, so `diff` them
-      afterwards and expect no difference
+- _Outcome:_ Added the fourth readiness criterion, its four dispositions and invalid-coverage gap, and updated every
+  criterion count in both copies.
 
 ### `[ ]` **4.4 Make the index entry a directive — D2**
 
