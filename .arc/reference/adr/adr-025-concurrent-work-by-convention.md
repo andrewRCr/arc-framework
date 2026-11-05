@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed.
+Accepted (2026-11-04).
 
 Concurrent work is governed by **advisory conventions plus one hard append-only invariant** — decided here. The
 doctrine itself ships with this work unit (`strategy-concurrent-work` and the `assess-parallel-fit` method); the
@@ -13,6 +13,9 @@ integrates.
 
 Its one hard invariant, append-only until integration, gives way to [ADR-035]'s configurable history policy in each
 repository once that repository's cutover retires Git notes, and holds until then (noted 2026-09-28).
+
+The promotion condition is met: the concurrency doctrine and advisory assessment, behind-base detector, foreign-write
+backstop, single-owner model, and awaiting-review lifecycle seam have shipped.
 
 ## Context
 

@@ -65,6 +65,7 @@ describe("one-shot TypeScript package scripts", () => {
       "audit:tables": "node --import tsx packages/arc-framework/src/scripts/audit-tables.ts",
       "audit:emphasis": "node --import tsx packages/arc-framework/src/scripts/audit-emphasis.ts",
       "inventory:command-inputs": "node --import tsx packages/arc-framework/src/scripts/render-command-input-inventory.ts",
+      "lint:adr": "node --import tsx packages/arc-framework/src/scripts/check-adr-records.ts",
       "lint:arc:triggers": "node --import tsx packages/arc-framework/src/scripts/audit-method-triggers.ts",
       "lint:arc:domain-rules": "node --import tsx packages/arc-framework/src/scripts/audit-domain-rules.ts",
       "lint:arc:section-refs": "node --import tsx packages/arc-framework/src/scripts/audit-section-refs.ts",
