@@ -1,8 +1,8 @@
 # Metadata: storage-ref-hardening
 
-| **State** | **Owner** | **Branch**                  | **Class** | **Priority** |
-| --------- | --------- | --------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `fix/storage-ref-hardening` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                  | **Class** | **Priority** |
+| ------------- | --------- | --------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `fix/storage-ref-hardening` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage`
 - **Depends On:** [none]
@@ -13,12 +13,12 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:5deb409b9c12e6fbfe20c6e49c72d33b6ef4342e7c97699c5d0b1f22251f9ce6`
 
-- **Current Workflow:** `prepare-work-unit`
+- **Current Workflow:** `integrate-work-unit`
 - **Last Completed:** Task 8.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run or resume the typed pre-publication review procedure.
+- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
 
 - **PR URL:** [none]
 - **Completed:** [none]
