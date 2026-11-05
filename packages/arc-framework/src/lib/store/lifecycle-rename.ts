@@ -28,6 +28,7 @@ import type { LifecycleEntry } from "./lifecycle-index.js";
 import { resolveRenameReferences } from "./rename-reference-resolution.js";
 import { workUnitRenameReferenceReport } from "./rename-reference-report.js";
 import type { RenameReport } from "../work-unit/rename-report.js";
+import { planRenameMemberHeading } from "./rename-member-heading.js";
 /** Selected subject and reporting evidence retained independently of physical checkout steps. */
 export interface StoreRenameSubject { primary: StoreRecord; operand: string; resuming: boolean; originName: string; advisories: string[] }
 /** Complete acquisition and expected-version writes prepared before physical renames. */
@@ -92,6 +93,12 @@ export async function prepareStoreRename(store: Store, subject: StoreRenameSubje
   const records = groups.result.records;
   const resolution = await resolveRenameReferences(store, subject.primary.reference, subject.originName);
   if (resolution.status === "refused") return resolution;
+  const heading = await planRenameMemberHeading(store, { primary: subject.primary, records, entries: groups.result.entries,
+    source: subject.originName, target: targetSlug });
+  if (heading.status !== "known") return malformed(subject.primary,
+    `Member heading ownership is unavailable. ${heading.status === "unavailable" ? heading.condition : "Cohort holding evidence is absent."}`,
+    { text: "Restore readable cohort membership evidence, then retry rename.", argv: ["arc", "rename", subject.operand, targetSlug] });
+  const authority = { shared: resolution.result === "subject", memberHeading: heading.value.rewrite };
   const settlement = await settleCreationSlugEdges(store, targetSlug, subject.primary.reference.owner);
   const unseen = settlement.writes.filter(write => !records.some(record => sameReference(record.reference, write.reference)));
   if (unseen.length > 0) return { status: "refused", refusal: { code: "version-conflict", class: "recoverable",
@@ -101,20 +108,20 @@ export async function prepareStoreRename(store: Store, subject: StoreRenameSubje
   const observations = mergeRenameObservations([...settlement.observations, ...own.result.observations], subject, targetSlug);
   if (observations.status === "refused") return observations;
   const artifactRenames = ownedArtifactRenames(records, subject.primary, targetSlug);
-  const ambiguity = resolution.result === "subject"
+  const ambiguity = authority.shared
     ? await checkSharedPairedReferences(store, records, subject.primary, artifactRenames, subject.originName, targetSlug) : undefined;
   if (ambiguity !== undefined) return ambiguity;
-  const virtual = renameProjection(records, subject.primary, [...settlement.writes, ...own.result.writes], resolution.result === "subject");
+  const virtual = renameProjection(records, subject.primary, [...settlement.writes, ...own.result.writes], authority.shared);
   const sweep = await planRenameReferences({ arcRoot: ".arc", sourceSlug: subject.originName, targetSlug, artifactRenames }, virtual.context);
   await applyRenameReferencePlan(sweep, virtual.context);
   const writes = records.flatMap((record) => renameMutation(record, subject, targetSlug, virtual.contents.get(record), branch, artifactRenames,
-    resolution.result === "subject"));
+    authority));
   const retained = records.map(record => {
     const write = writes.find(item => sameReference(item.reference, record.reference));
     return write?.action === "put" ? { ...record, content: write.content } : record;
   });
-  const report = workUnitRenameReferenceReport({ primary: subject.primary, records: retained, entries: groups.result.entries,
-    resolution: resolution.result, source: subject.originName, target: targetSlug, artifactRenames });
+  const report = { ...workUnitRenameReferenceReport({ primary: subject.primary, records: retained, entries: groups.result.entries,
+    resolution: resolution.result, source: subject.originName, target: targetSlug, artifactRenames }), memberHeadings: heading.value.edits };
   return { status: "ok", result: { subject, records, writes, observations: observations.result, report } };
 }
 async function settleOwnRenameEdge(store: Store, subject: StoreRenameSubject, target: string): Promise<StoreResult<CreationSlugSettlement>> {
@@ -202,11 +209,11 @@ function renameProjection(records: StoreRecord[], primary: StoreRecord, seeds: r
   } };
 }
 function renameMutation(record: StoreRecord, subject: StoreRenameSubject, targetSlug: string, proposed: string | undefined,
-  branch: { prior: BranchLink; next: BranchLink } | undefined, artifactRenames: ReadonlyMap<string, string>, rewriteShared: boolean) {
+  branch: { prior: BranchLink; next: BranchLink } | undefined, artifactRenames: ReadonlyMap<string, string>, authority: { shared: boolean; memberHeading: boolean }) {
   let content = proposed ?? record.content;
   const own = record.reference.owner.type !== "person" && subject.primary.reference.owner.type !== "person" && record.reference.owner.uid === subject.primary.reference.owner.uid;
-  if (record.reference.kind === "cohort/document") content = rewriteCohortMemberHeading(content, subject.originName, targetSlug);
-  if (record.reference.kind === "work-item/meta" && (own || rewriteShared)) content = renameMeta(content, subject.originName, targetSlug, own, artifactRenames);
+  if (record.reference.kind === "cohort/document" && authority.memberHeading) content = rewriteCohortMemberHeading(content, subject.originName, targetSlug);
+  if (record.reference.kind === "work-item/meta" && (own || authority.shared)) content = renameMeta(content, subject.originName, targetSlug, own, artifactRenames);
   if (!own && content === record.content) return [];
   const put = recordPut(record, { content });
   if (own) put.reference = RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name: targetSlug } });

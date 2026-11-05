@@ -13,7 +13,10 @@ import { seed, success } from "../helpers/store/suite-tools.js";
 import { TransientIdentityRecordV3Schema, serializeTransientIdentityRecord } from "../../src/lib/errand/identity-record.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { resolveWorktreeMarkerPath, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
-import { OwnerIdentitySchema, recordReferences } from "../../src/lib/store/identity.js";
+import { OwnerIdentitySchema, recordReferences, RecordReferenceSchema, type RecordReference } from "../../src/lib/store/identity.js";
+import { writeMetaTitle } from "../../src/lib/store/kinds/meta/writers.js";
+import { rewriteCohortHeading } from "../../src/lib/store/kinds/cohort/index.js";
+import type { Store } from "../../src/lib/store/contract.js";
 
 async function fixture() {
   const cli = await repairCliFixture(), production = createKindRegistry(PRODUCTION_REGISTRATIONS);
@@ -25,8 +28,94 @@ async function fixture() {
     return createRefStore({ ...fresh, registry: f.ports.registry, identity: f.ports.identity,
       actor: f.ports.actor, clock: f.ports.clock, random: f.ports.random });
   };
-  return { ...f, cli, invoke: (args: readonly string[]) => repairCli(cli, args, { storeFactory }) };
+  return { ...f, cli, invoke: (args: readonly string[], decorate?: (store: Store) => Store) => repairCli(cli, args, {
+    storeFactory: async () => { const store = await storeFactory(); return decorate?.(store) ?? store; },
+  }) };
 }
+
+it("holds a heading decision on unreadable cohort evidence and retries after repair", async () => {
+  const f = await fixture(), uid = "12345678-abcd-4abc-8abc-123456789def", cohortRef = f.reference("cohort/document", "group");
+  const cohort = await seed(f, cohortRef, `# Cohort: \`${cohortRef.owner.name}\`\n\n**Purpose:** Coordinate.\n\n## Members\n\n### \`shared\`\n`);
+  const broken = await plantRefPrimary(f, { kind: "cohort/document", name: "broken", uid: "12345678-abcd-4abc-8abc-123456789aaa",
+    content: "# Cohort: `broken`\n\n**Parent:** [none]\n\n**Purpose:** Other work.\n" });
+  const other = await plantRefPrimary(f, { kind: "work-item/meta", name: "shared", uid: "12345678-abcd-4abc-8abc-123456789abc",
+    content: makeMetaFixture("shared", { cohort: "broken" }) });
+  const source = await plantRefPrimary(f, { kind: "work-item/meta", name: "shared", uid,
+    content: makeMetaFixture("shared", { cohort: cohort.reference.owner.name }) });
+  const original = success(await f.store.read({ reference: source })), kept = success(await f.store.read({ reference: other }));
+  const operand = uid.toUpperCase(); let faultVersion: string | undefined;
+  const result = await f.invoke(["rename", operand, "renamed", "--json"], store => {
+    const list = store.list.bind(store); let once = true;
+    store.list = async input => {
+      const result = await list(input);
+      if (once && input.owner?.type === "work-item" && input.owner.uid === uid) {
+        once = false;
+        await f.plant(broken, "unknown-format-version");
+        expect(await f.store.read({ reference: broken })).toMatchObject({ status: "refused" });
+        faultVersion = success(await f.store.version());
+      }
+      return result;
+    };
+    return store;
+  });
+  expect(result.exitCode).toBe(1);
+  expect(result.result, JSON.stringify(result.result)).toMatchObject({ status: "rejected", refusal: { rule: "lifecycle.rename",
+    condition: expect.stringContaining("Member heading ownership is unavailable."), remedy: { argv: ["arc", "rename", operand, "renamed"] } } });
+  expect(faultVersion).toBeDefined();
+  expect(success(await f.store.version())).toBe(faultVersion);
+  expect(success(await f.store.read({ reference: source }))).toEqual(original);
+  expect(success(await f.store.read({ reference: cohort.reference }))).toEqual(cohort);
+  await plantRefPrimary(f, { kind: "cohort/document", name: "broken", uid: "12345678-abcd-4abc-8abc-123456789aaa",
+    content: "# Cohort: `broken`\n\n**Parent:** [none]\n\n**Purpose:** Restored.\n" });
+  const retry = await f.invoke(["rename", operand, "renamed", "--json"]);
+  expect(retry.exitCode ?? 0, retry.stdout + retry.stderr).toBe(0);
+  expect(success(await f.store.read({ reference: cohort.reference })).content).toContain("### `renamed`");
+  expect(success(await f.store.read({ reference: other }))).toEqual(kept);
+}, 60_000);
+
+it.each(["current", "former", "ended", "former-cohort", "unrelated-cohort"] as const)("decides member heading ownership from a %s holder", async mode => {
+  const f = await fixture(), uid = "12345678-abcd-4abc-8abc-123456789def", cohortRef = f.reference("cohort/document", "group");
+  let cohort = await seed(f, cohortRef, `# Cohort: \`${cohortRef.owner.name}\`\n\n**Purpose:** Coordinate.\n\n## Members\n\n### \`shared\`\n`);
+  const otherCohort = mode === "unrelated-cohort" ? await seed(f, f.reference("cohort/document", "other"),
+    `# Cohort: \`${f.reference("cohort/document", "other").owner.name}\`\n\n**Purpose:** Other work.\n`) : cohort;
+  let other: RecordReference;
+  if (mode === "ended") {
+    other = (await seed(f, recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "shared" })),
+      makeMetaFixture("shared", { state: "Shipped", currentWorkflow: null, cohort: otherCohort.reference.owner.name,
+        completed: "2026-10-16", prUrl: "https://example.test/pull/1" }),
+      { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") })).reference;
+  } else other = await plantRefPrimary(f, { kind: "work-item/meta", name: "shared", uid: "12345678-abcd-4abc-8abc-123456789abc",
+    content: makeMetaFixture("shared", { cohort: otherCohort.reference.owner.name }) });
+  if (mode === "former") {
+    const prior = success(await f.store.read({ reference: other }));
+    other = RecordReferenceSchema.parse({ ...other, owner: { ...other.owner, name: "earlier" } });
+    success(await f.store.write({ ...recordPut(prior, { content: writeMetaTitle(prior.content, SlugSchema.parse("earlier")) }),
+      reference: other, provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  }
+  if (mode === "former-cohort") {
+    const reference = RecordReferenceSchema.parse({ ...cohort.reference, owner: { ...cohort.reference.owner, name: "current-group" } });
+    success(await f.store.write({ ...recordPut(cohort, { content: rewriteCohortHeading(cohort.content, "current-group") }),
+      reference, provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    cohort = success(await f.store.read({ reference }));
+  }
+  const selected = await plantRefPrimary(f, { kind: "work-item/meta", name: "shared", uid,
+    content: makeMetaFixture("shared", { cohort: cohort.reference.owner.name }) });
+  const kept = success(await f.store.read({ reference: other }));
+  const result = await f.invoke(["rename", uid, "renamed", "--json"]);
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  expect(success(await f.store.read({ reference: selected })).reference.owner.name).toBe("renamed");
+  expect(success(await f.store.read({ reference: other }))).toEqual(kept);
+  const document = success(await f.store.read({ reference: cohort.reference }));
+  if (mode === "unrelated-cohort") {
+    expect(document.content).toContain("### `renamed`");
+    expect(result.result).toMatchObject({ report: { memberHeadings: [] } });
+  } else {
+    expect(document.content).toBe(cohort.content);
+    expect(result.result).toMatchObject({ report: { memberHeadings: [
+      { document: cohort.reference, line: 7, replacement: "### `renamed`" },
+    ] } });
+  }
+}, 60_000);
 
 it("rewrites work-item references independently of a cohort holding the same slug", async () => {
   const f = await fixture(), uid = "12345678-abcd-4abc-8abc-123456789abc";

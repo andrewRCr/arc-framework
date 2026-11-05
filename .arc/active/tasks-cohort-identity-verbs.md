@@ -438,7 +438,7 @@ its history refs, discharging the edges naming it.
           refuse with explicit repair and retry. Compatible shared observations coalesce, contradictory observations
           refuse, and every resolved provider remains read-only evidence checked by the batch.
 
-### `[ ]` **4.5 Rewrite only the references that resolve to the subject, and report the rest — § 4**
+### `[x]` **4.5 Rewrite only the references that resolve to the subject, and report the rest — § 4**
 
 - _Goal:_ A work unit's rename changes another record's reference to its old slug only where that slug, resolved among
   work items, names the subject alone, and reports every reference to the subject it leaves.
@@ -449,20 +449,11 @@ its history refs, discharging the edges naming it.
           with field and text repairs; other holders' references stay unreported. Started work keeps its authored edges
           and prose, and publication failures retain the reference report from the landed batch.
 
-    - `[ ]` **4.5.b The member heading**
+    - `[x]` **4.5.b The member heading**
 
-        - The rename rewrites its member heading in the cohort document its own `Cohort` names unless another work item
-          holding the old slug as its current or a former name holds that cohort, asked through
-          `observeCohortHoldings` over those work items' `Cohort`; then the heading is reported with its edit.
-
-    - Build `test-first` (one behavior at a time):
-        - over the ref backend, renaming one of two work units sharing a slug rewrites no other record naming the slug,
-          reports each with its edit, and leaves the slug resolving to the other holder
-        - renaming the work unit of a work-unit and cohort pair rewrites its stubs' edges as with no clash
-        - renaming a duplicate stub of a doubled cut, it and its original both holding the original cohort, reports its
-          member heading and leaves the heading unchanged
-        - a started member's prose is neither rewritten nor reported
-        - an ended subject whose slug a live item reused leaves that item's references unreported
+        - Another current or former name holder in the same resolved cohort keeps the heading unchanged and produces its
+          exact document-line repair, including completed holders and former cohort paths. Unavailable holding evidence
+          refuses with the original retry; repair permits continuation, and a distinct cohort permits the heading rewrite.
 
 ### `[ ]` **4.6 Pull history refs round after round — § 2.6**
 
