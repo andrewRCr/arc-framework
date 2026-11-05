@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "ci-typecheck-heap",
+  "claimId": "4b8b6ba2a6714f6ff5dcc33257a1d12d",
+  "createdAt": "2026-11-05T04:27:12.197Z",
+  "updatedAt": "2026-11-05T04:27:12.197Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Raise CI's test type-check heap to 6144 MiB so main and open PRs stop running out of memory",
+  "branch": "chore/ci-typecheck-heap",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
