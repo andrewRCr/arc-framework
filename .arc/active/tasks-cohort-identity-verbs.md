@@ -487,13 +487,11 @@ its history refs, discharging the edges naming it.
 - _Goal:_ Where two holders link one branch, a first run moves only its own subject's branch and checkout, never
   deletes a remote branch another live holder links, and reports each branch it keeps with its reason.
 
-    - `[ ]` **4.9.a The local branch**
+    - `[x]` **4.9.a The local branch**
 
-        - Before its batch the first run reads `lookup({ kind: "ref" })` of the branch the subject's link names, as
-          teardown's branch gate does (`teardown-store.ts`). The local branch is renamed and the link moved where the
-          subject's own checkout here has the old branch checked out, or the lookup returns the subject; with the subject
-          returned but no local copy, the rename refuses before its batch, as today. Otherwise there is no branch step,
-          the link is unchanged (`renameMutation`), and the report keeps the branch with the catch-up command.
+        - First-run branch lookup and the UID-selected checkout's actual branch govern local movement and its link.
+          Shared branches stay unchanged elsewhere with a UID-specific catch-up command; sole holders retain the missing
+          local-branch refusal and can retry after restoration.
 
     - `[ ]` **4.9.b The remote branches**
 

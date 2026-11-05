@@ -15,9 +15,10 @@ import type { Store } from "../../store/contract.js";
 import type { GitExec } from "../../git/exec.js";
 import type { LocusPorts } from "../locus-ports.js";
 import { resolveSubjectOperand } from "../../store/subject-operand.js";
-import { RecordReferenceSchema } from "../../store/identity.js";
+import { RecordReferenceSchema, sameOwner } from "../../store/identity.js";
 import type { StoreRecord } from "../../store/read.js";
-import type { HistoryRef } from "../../store/refusal.js";
+import type { HistoryRef, StoreResult } from "../../store/refusal.js";
+import type { LookupResult } from "../../store/lookup.js";
 import { observeRenameFormerName } from "../../store/rename-reference-resolution.js";
 import type { RunRenameResult, RenameCheckoutReport, RenameSubjectShape } from "./rename.js";
 import { emptyRenameReport, type RenameReport, type RenameKeptBranch } from "../rename-report.js";
@@ -33,7 +34,10 @@ export interface StoreRenameContext {
   /** Where a history pull's notices are written; standard error by default. */
   writeNotice?: (line: string) => void;
 }
-interface BranchRename { prior: BranchLink; next: BranchLink; oldBranch: string; newBranch: string; oldRemoteOid: string | null }
+interface BranchRename {
+  prior: BranchLink; next: BranchLink; oldBranch: string; newBranch: string; oldRemoteOid: string | null;
+  local: boolean; ownership?: StoreResult<LookupResult>; kept?: RenameKeptBranch;
+}
 /** Rename one logical owner while respecting record and checkout authority.
  * @param ctx - Operational store and physical adapters.
  * @param params - Subject operand and proposed current name.
@@ -87,7 +91,7 @@ async function renameSelectedWorkUnit(ctx: StoreRenameContext, params: { operand
   const checkout = passive ? { kind: "none" as const } : await readWorkUnitCheckout(ctx, subject.primary);
   if (checkout.kind === "unbound") return { status: "rejected", reason: checkout.reason, unbound: checkout, reference: subject.primary.reference };
   const holder = checkout.kind === "held" ? checkout.path : null;
-  const branch = passive ? undefined : await branchRename(ctx, subject, target);
+  const branch = passive ? undefined : await branchRename(ctx, subject, target, holder);
   const state: RenameRuntime = { cwd: ctx.cwd };
   const exec: GitExec = (command, args, options) => ctx.exec(command, args, { cwd: state.cwd, ...options });
   const persisted = await persistRename({ ...ctx, exec }, subject, target, holder, branch, state);
@@ -109,14 +113,15 @@ function retainedBranchReport(primary: StoreRecord, branch: BranchRename | undef
   const keptBranches: RenameKeptBranch[] = (primary.links?.branches ?? []).filter((link) => branch === undefined
     || link.repository !== branch.prior.repository || (link.ref !== branch.prior.ref && link.ref !== branch.next.ref))
     .map((link) => ({ branch: link.ref, reason: "other-link" }));
-  if (branch?.prior.linkedAs === "adopted" && branch.oldRemoteOid !== null) keptBranches.push({ branch: branch.oldBranch, reason: "adopted" });
+  if (branch?.kept !== undefined) keptBranches.push(branch.kept);
+  if (branch?.local && branch.prior.linkedAs === "adopted" && branch.oldRemoteOid !== null) keptBranches.push({ branch: branch.oldBranch, reason: "adopted" });
   return { ...emptyRenameReport(), keptBranches };
 }
 interface RenameRuntime { cwd: string; checkout?: StoreRenameCheckoutReceipt; report?: RenameReport }
 async function persistRename(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string, holder: string | null,
   branch: BranchRename | undefined, state: RenameRuntime): Promise<Extract<RunRenameResult, { status: "rejected" }> | undefined> {
   if (subject.resuming) return undefined;
-  const prepared = await prepareStoreRename(ctx.store, subject, target, branch);
+  const prepared = await prepareStoreRename(ctx.store, subject, target, branch?.local ? branch : undefined);
   if (prepared.status === "refused") return { status: "rejected", reason: prepared.refusal.condition, refusal: prepared.refusal };
   const steps = renameSteps(ctx, subject, target, holder, branch, (receipt) => {
     state.checkout = receipt; state.cwd = receipt.repositoryCwd ?? state.cwd;
@@ -128,7 +133,7 @@ async function persistRename(ctx: StoreRenameContext, subject: StoreRenameSubjec
   state.report = prepared.result.report;
   return undefined;
 }
-async function branchRename(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string): Promise<BranchRename | undefined> {
+async function branchRename(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string, holder: string | null): Promise<BranchRename | undefined> {
   if ((subject.primary.links?.branches?.length ?? 0) === 0) return undefined;
   const repository = await ctx.projectId?.();
   const selected = selectWorkBranchLink(subject.primary, { repository });
@@ -140,15 +145,33 @@ async function branchRename(ctx: StoreRenameContext, subject: StoreRenameSubject
   const newBranch = `${oldBranch.slice(0, oldBranch.lastIndexOf("/") + 1)}${target}`;
   const prior = subject.resuming ? { ...selected.link, ref: selected.link.ref.replace(new RegExp(`${target}$`, "u"), subject.originName) } : selected.link;
   const next = { ...selected.link, ref: prior.ref.replace(new RegExp(`${subject.originName}$`, "u"), target) };
+  const ownership = subject.resuming ? undefined : await ctx.store.lookup({ kind: "ref", repository: prior.repository, ref: prior.ref });
+  const local = ownership === undefined || ownership.status === "ok" && sameOwner(ownership.result.reference.owner, subject.primary.reference.owner)
+    || await holderHasBranch(ctx, holder, oldBranch);
+  const kept = local ? undefined : keptLocalBranch(subject, selected.link, ownership, target);
   const remote = await ctx.exec("git", ["remote"], { cwd: ctx.cwd });
   const oldRemoteOid = remote.stdout.split(/\s+/u).includes("origin") ? await readRemoteBranchOid(ctx.exec, "origin", oldBranch) : null;
-  return { prior, next, oldBranch, newBranch, oldRemoteOid };
+  return { prior, next, oldBranch, newBranch, oldRemoteOid, local, ownership, kept };
+}
+async function holderHasBranch(ctx: StoreRenameContext, holder: string | null, branch: string): Promise<boolean> {
+  if (holder === null) return false;
+  try { return (await ctx.exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"], { cwd: holder })).stdout.trim() === branch; }
+  catch (error) { if (error instanceof Error && "exitCode" in error && error.exitCode === 1) return false; throw error; }
+}
+function keptLocalBranch(subject: StoreRenameSubject, link: BranchLink, ownership: StoreResult<LookupResult> | undefined, target: string): RenameKeptBranch {
+  const owner = subject.primary.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("A branch catch-up requires the selected work-unit UID.");
+  const another = ownership?.status === "ok" || ownership?.status === "refused" && ownership.refusal.code === "ambiguous-match";
+  return { branch: link.ref, reason: another ? "another-holder" : "other-link", catchUp: {
+    text: "Run the rename again on the machine holding this work unit's checkout to move its branch.",
+    argv: ["arc", "rename", owner.uid, target],
+  } };
 }
 function renameSteps(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string, holder: string | null,
   branch: BranchRename | undefined, remember: (receipt: StoreRenameCheckoutReceipt) => void, reset: () => void): LifecycleGitStep[] {
   const retryCommand = ["arc", "rename", subject.operand, target];
   const steps: LifecycleGitStep[] = [];
-  if (branch !== undefined) steps.push(localBranchStep(ctx, branch, retryCommand));
+  if (branch?.local) steps.push(localBranchStep(ctx, branch, retryCommand));
   if (holder !== null) {
     let receipt: StoreRenameCheckoutReceipt | undefined;
     steps.push({ name: "checkout-rename", retryCommand,
@@ -182,7 +205,7 @@ function localBranchStep(ctx: StoreRenameContext, branch: BranchRename, retryCom
 async function finishRename(ctx: StoreRenameContext, branch: BranchRename | undefined,
   request: { operand: string; targetSlug: string }): Promise<{ status: "complete"; remote: RenameRemoteBranchResult } | Omit<Extract<RunRenameResult, { status: "partial" }>, "report">> {
   try {
-    const remote = branch === undefined ? { status: "unpublished" as const } : await reconcileRenameRemoteBranch(ctx, {
+    const remote = branch === undefined || !branch.local ? { status: "unpublished" as const } : await reconcileRenameRemoteBranch(ctx, {
       ...branch, remote: "origin", keepOld: branch.prior.linkedAs === "adopted" });
     if (remote.status === "stale") throw new Error(`Old remote head moved from ${remote.expectedOid} to ${remote.actualOid ?? "[absent]"}.`);
     return { status: "complete", remote };
