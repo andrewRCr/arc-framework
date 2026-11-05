@@ -205,18 +205,13 @@ that ordering returns to the Owner. The resolver built here serves Phases 3–5.
   and the original discovery evidence. Real-ref command scenarios cover isolated retirement, held-entry retention,
   wrong-machine refusal and repair, and the unambiguous slug’s foreign-confirmation continuation.
 
-### `[ ]` **2.4 Clear only the selected Errand's finalized head locks — § 9.2**
+### `[x]` **2.4 Clear only the selected Errand's finalized head locks — § 9.2**
 
 - _Goal:_ Closing one of two clashed Errands never clears the head locks guarding the other's branch deletion.
 
-    - `recoverFinalizedErrandCloseHeadLock` (`lib/errand/close-head-lock.ts`), a receipt match, takes an optional claim
-      and clears a lock only where its receipt matches both the slug and that claim, the receipts carrying both; with no
-      record selected, as on the slug and in-repo arms where the completed record is not kept, it matches the slug
-      alone, as today.
-
-    - Build `test-first` (one behavior at a time):
-        - with finalized head locks for both clashed Errands, closing one by UID clears only its own
-        - with a slug operand and no clash, a finalized lock still clears
+- _Outcome:_ Finalized lock recovery accepts an optional claim and matches it beside the slug and checkout receipt.
+  UID-selected close passes its validated claim; slug and in-repo recovery retain their existing slug-only match.
+  A real-ref UID retry clears its own persisted HEAD receipt while preserving the other live Errand’s exact receipt.
 
 ### `[ ]` **2.5 Pass the repair through promote's refusal, and recover by the promoted meta's receipt — § 9.3**
 

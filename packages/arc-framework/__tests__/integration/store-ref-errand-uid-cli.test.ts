@@ -1,6 +1,6 @@
 /** UID-selected Errand exits retain their exact owner over real refs and registered commands. */
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { expect, it, vi } from "vitest";
 import type { Store } from "../../src/lib/store/contract.js";
 import { createRefStore } from "../../src/lib/store/create.js";
@@ -22,6 +22,7 @@ import { success } from "../helpers/store/suite-tools.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
+import { acquireErrandCloseHeadLock } from "../../src/lib/errand/close-head-lock.js";
 const binding = vi.hoisted(() => ({ store: null as Store | null }));
 vi.mock("../../src/lib/store/create.js", async importOriginal => {
   const original = await importOriginal<typeof import("../../src/lib/store/create.js")>();
@@ -167,4 +168,25 @@ it("closes an unambiguous slug without a local checkout through foreign confirma
     recommendedPromptText: `Retry with: arc errand close shared --confirm-foreign-generation errand-v1/shared/${selected.claimId}` } });
   const next = await invoke(f, f.root, ["errand", "close", "shared", "--confirm-foreign-generation", `errand-v1/shared/${selected.claimId}`, "--json"]);
   expect(next, JSON.stringify(next)).toMatchObject({ result: { outcome: "applied" } });
+}, 60_000);
+
+it("a finalized UID retry clears its own HEAD receipt and preserves the other same-slug Errand's lock", async () => {
+  const f = await fixture(), selected = await errand(f, uidA, "fix"), other = await errand(f, uidB);
+  expect(await invoke(f, selected.holder, ["errand", "close", uidA, "--json"])).toMatchObject({ result: { outcome: "applied" } });
+  const acquire = (checkoutPath: string, claimId: string) => acquireErrandCloseHeadLock({ exec: f.exec, checkoutPath,
+    identity: { slug: "shared", claimId }, revalidate: async () => ({ kind: "valid" }) });
+  const ownLock = await acquire(f.root, selected.claimId), otherLock = await acquire(other.holder, other.claimId);
+  if (ownLock.kind !== "acquired" || otherLock.kind !== "acquired") throw new Error("Expected real close receipts");
+  try {
+    const headPath = async (cwd: string) => {
+      const raw = (await f.exec("git", ["rev-parse", "--git-path", "HEAD"], { cwd })).stdout.trim();
+      return `${resolve(cwd, raw)}.lock`;
+    };
+    const ownPath = await headPath(f.root), otherPath = await headPath(other.holder), receipt = await readFile(otherPath, "utf8");
+    const result = await invoke(f, f.root, ["errand", "close", uidA, "--json"]);
+    expect(result, JSON.stringify(result)).toMatchObject({ result: { outcome: "idempotent", recommendedPromptText: expect.stringContaining("shared") } });
+    expect(await readFile(ownPath, "utf8").catch(error => (error as NodeJS.ErrnoException).code)).toBe("ENOENT");
+    expect(await readFile(otherPath, "utf8")).toBe(receipt);
+    expect(success(await f.store.read({ reference: other.reference })).placement?.kind).toBe("active");
+  } finally { await ownLock.release(); await otherLock.release(); }
 }, 60_000);

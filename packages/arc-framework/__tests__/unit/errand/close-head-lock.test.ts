@@ -145,4 +145,22 @@ describe("Errand close HEAD lock", () => {
     })).resolves.toMatchObject({ kind: "blocked" });
     expect(runtime.files.has(LOCK_PATH)).toBe(true);
   });
+  it("recovers only the selected claim's receipts when two Errands share a slug", async () => {
+    const runtime = fakeFileIO(), otherCheckout = "/other";
+    const exec = scriptGitExec([
+      { match: ["worktree", "list", "--porcelain", "-z"], responses: [{ stdout:
+        `worktree ${CHECKOUT}\0HEAD ${"a".repeat(40)}\0branch refs/heads/main\0\0worktree ${otherCheckout}\0HEAD ${"a".repeat(40)}\0branch refs/heads/chore/done\0\0`, stderr: "" }] },
+      { match: ["rev-parse", "--git-path", "HEAD"], responses: [call => ({ stdout: `${call.options?.cwd}/.git/HEAD\n`, stderr: "" })] },
+    ]).exec;
+    for (const [checkoutPath, claimId] of [[CHECKOUT, "a".repeat(32)], [otherCheckout, "b".repeat(32)]] as const) {
+      expect(await acquireErrandCloseHeadLock({ exec, checkoutPath, identity: { slug: "done", claimId },
+        revalidate: async () => ({ kind: "valid" }), fileIO: runtime.fileIO })).toMatchObject({ kind: "acquired" });
+    }
+    const otherLock = `${otherCheckout}/.git/HEAD.lock`, otherReceipt = runtime.files.get(otherLock);
+    expect(await recoverFinalizedErrandCloseHeadLock({ exec, slug: "done", claimId: "a".repeat(32), fileIO: runtime.fileIO }))
+      .toEqual({ kind: "recovered" });
+    expect(runtime.files.has(LOCK_PATH)).toBe(false);
+    expect(runtime.files.get(otherLock)).toBe(otherReceipt);
+  });
+
 });
