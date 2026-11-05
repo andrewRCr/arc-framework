@@ -1,10 +1,11 @@
 /** Protection is laid with winning staged bytes and re-observed when an edit persists. */
 import { chmod, lstat, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { scanRegisteredWorktrees } from "../../../../src/lib/git/worktree-roster.js";
+import { localPathsEqual } from "../../../../src/lib/local-path-identity.js";
 import { resolveWorktreeMarkerPath, writeWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
 import { createProjectionProtection } from "../../../../src/lib/store/projection/protection.js";
 import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
@@ -40,8 +41,10 @@ async function fixture(extension = "md") {
   await writeWorktreeMarker(holder, { spawnedByArc: false, spawningIdentity: "alice",
     createdAt: "2026-10-24T00:00:00Z", createdFor: boundWorkUnitSubject(record) });
   const roster = await scanRegisteredWorktrees((command, args, options) => exec(command, args, { cwd: view.checkout, ...options }));
-  const nativeHolder = roster.ok ? roster.worktrees.find(row => resolve(row.path) === resolve(holder))?.path : undefined;
-  if (nativeHolder === undefined) throw new Error("The native roster omitted the holder fixture");
+  if (!roster.ok) throw new Error(`The fixture's native roster failed: ${roster.message}`);
+  let nativeHolder: string | undefined;
+  for (const row of roster.worktrees) if (await localPathsEqual(row.path, holder)) { nativeHolder = row.path; break; }
+  if (nativeHolder === undefined) throw new Error(`The native roster omitted ${holder}; listed ${roster.worktrees.map(row => row.path).join(", ")}`);
   const writer = { pid: process.pid, processScope: "protection-fixture", processInstance: "protection-fixture" };
   const context = { store: h.store, location: view.location, format: "sha1" as const, actor: "alice@fixture", writer,
     protection: createProjectionProtection({ store: h.store, checkout: view.checkout, identity: SlugSchema.parse("alice"), exec }) };
@@ -279,8 +282,9 @@ it("refuses two registrations for one canonical markerless checkout and succeeds
     exec: async (command, args, options) => {
       const result = await h.exec(command, args, options);
       if (!duplicate || args[0] !== "worktree" || args[1] !== "list") return result;
-      const stanza = result.stdout.split("\0\0").find(part => part.startsWith("worktree ")
-        && resolve(part.slice("worktree ".length).split("\0")[0] ?? "") === resolve(h.holder));
+      const stanzas = result.stdout.split("\0\0").filter(part => part.startsWith("worktree "));
+      let stanza: string | undefined;
+      for (const part of stanzas) if (await localPathsEqual(part.slice("worktree ".length).split("\0")[0] ?? "", h.holder)) { stanza = part; break; }
       if (stanza === undefined) throw new Error("The real roster omitted its linked checkout");
       const protocolAlias = process.platform === "win32" ? alias.replaceAll("\\", "/") : alias;
       return { ...result, stdout: result.stdout + stanza.replace(/^worktree [^\0]+/u, `worktree ${protocolAlias}`) + "\0\0" };
