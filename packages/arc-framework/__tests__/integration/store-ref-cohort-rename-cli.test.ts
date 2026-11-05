@@ -11,6 +11,9 @@ import { seed, success } from "../helpers/store/suite-tools.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { join } from "node:path";
+import { writeFile } from "node:fs/promises";
+import { completeCutMapFixture } from "../fixtures/decompose-v4.js";
+import { CutMapSchema, CutMapStarterSchema } from "../../src/lib/decompose/cut-map-schema.js";
 import { REF_PEER_PATH } from "../helpers/store/ref-remote.js";
 import { PREPARED_REMOTE_PATH } from "../helpers/prepared-repository.js";
 import { plantRefPrimary } from "../helpers/store/ref-primary-plant.js";
@@ -50,6 +53,113 @@ async function fixture(backend: "reference" | "ref") {
 }
 
 describe.each(["reference", "ref"] as const)("cohort rename over %s", backend => {
+  it("refuses to rename a closed cohort without changing its identity or history", async () => {
+    const f = await fixture(backend), reference = f.reference("cohort/document", "closed");
+    const primary = await seed(f, reference, document(reference.owner.name));
+    success(await f.store.write({ ...recordPut(primary, { placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }),
+      provenance: { verb: "cohort-close", lifecycleAction: "close" } }));
+    const closed = success(await f.store.read({ reference: primary.reference }));
+    const history = success(await f.store.history({ reference: primary.reference }));
+    const result = await f.invoke(["rename", reference.owner.name, "after", "--json"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.result).toMatchObject({ status: "rejected", refusal: { code: "unsupported", class: "terminal", case: "rename" } });
+    expect(result.stdout).toContain("closed cohort cannot be renamed");
+    expect(success(await f.store.read({ reference: primary.reference }))).toEqual(closed);
+    expect(success(await f.store.history({ reference: primary.reference }))).toEqual(history);
+    expect(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("after") })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  }, 60_000);
+
+  it.each(["completed", "former"] as const)("names the exact %s target holder and admits a free retry", async state => {
+    const f = await fixture(backend), cohortRef = f.reference("cohort/document", "before"), targetRef = f.reference("work-item/meta", "taken");
+    const cohort = await seed(f, cohortRef, document(cohortRef.owner.name));
+    const completed = state === "completed";
+    const holder = await seed(f, targetRef, makeMetaFixture(targetRef.owner.name,
+      { state: completed ? "Shipped" : "Planning", currentWorkflow: null }), completed
+      ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "backlog", commitment: "planned" });
+    if (!completed) success(await f.store.write({ ...recordPut(holder, { content: makeMetaFixture("current-holder", { state: "Planning", currentWorkflow: null }) }),
+      reference: RecordReferenceSchema.parse({ ...holder.reference, owner: { ...holder.reference.owner, name: "current-holder" } }),
+      provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    const retained = success(await f.store.read({ reference: holder.reference }));
+    const result = await f.invoke(["rename", cohortRef.owner.name, targetRef.owner.name, "--json"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.result).toMatchObject({ status: "rejected", refusal: { remedy: { text: "Choose another slug." } } });
+    if (retained.reference.owner.type !== "work-item") throw new Error("Expected work item holder");
+    expect(result.stdout).toContain(`work unit '${retained.reference.owner.name}' (UID ${retained.reference.owner.uid}; ${completed ? "current" : "former"} name)`);
+    expect(success(await f.store.read({ reference: cohort.reference }))).toEqual(cohort);
+    expect(success(await f.store.read({ reference: holder.reference }))).toEqual(retained);
+    const retry = await f.invoke(["rename", cohortRef.owner.name, "free", "--json"]);
+    expect(retry.exitCode ?? 0, retry.stdout + retry.stderr).toBe(0);
+    expect(success(await f.store.read({ reference: cohort.reference })).reference.owner.name).toBe("free");
+  }, 60_000);
+
+  it("takes an abandoned work item's name after its primary is removed", async () => {
+    const f = await fixture(backend), cohortRef = f.reference("cohort/document", "before"), abandonedRef = f.reference("work-item/meta", "abandoned");
+    const primary = await seed(f, cohortRef, document(cohortRef.owner.name));
+    const abandoned = await seed(f, abandonedRef, makeMetaFixture(abandonedRef.owner.name,
+      { state: "Planning", currentWorkflow: null }), { kind: "backlog", commitment: "planned" });
+    const removed = await f.invoke(["abandon", abandonedRef.owner.name, "--yes"]);
+    expect(removed.exitCode ?? 0, removed.stdout + removed.stderr).toBe(0);
+    expect(await f.store.read({ reference: abandoned.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    const result = await f.invoke(["rename", cohortRef.owner.name, abandonedRef.owner.name, "--json"]);
+    expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+    expect(success(await f.store.read({ reference: primary.reference })).reference.owner)
+      .toEqual({ ...primary.reference.owner, name: abandonedRef.owner.name });
+  }, 60_000);
+
+  it("keeps a stored cut map intact and finishes after its renamed cohort placement is revised", async () => {
+    const f = await fixture(backend), originRef = f.reference("work-item/meta", "origin"), origin = originRef.owner.name;
+    const primary = await seed(f, originRef, makeMetaFixture(origin,
+      { state: "Planning", currentWorkflow: null, design: [`draft-${origin}.md`] }), { kind: "backlog", commitment: "planned" });
+    await seed(f, RecordReferenceSchema.parse({ kind: "work-item/draft", owner: primary.reference.owner }), "# Draft\n\n## Scope\n\nOwned work.\n");
+    const preflight = await f.invoke(["decompose", origin, "--preflight"]);
+    expect(preflight.exitCode ?? 0, preflight.stdout + preflight.stderr).toBe(0);
+    const map = completeCutMapFixture(CutMapStarterSchema.parse(preflight.result).machine);
+    if (map.authoring.placement.kind !== "cohort") throw new Error("Expected cohort placement");
+    map.authoring.placement.purpose = "See `cohort-group.md`.";
+    const path = join(f.cli.cwd, "cut.json");
+    await writeFile(path, JSON.stringify(map));
+    const additive = await f.invoke(["decompose", origin, "--execute", path]);
+    expect(additive.exitCode ?? 0, additive.stdout + additive.stderr).toBe(0);
+    const storedRef = RecordReferenceSchema.parse({ kind: "work-item/cut-map", owner: primary.reference.owner });
+    const stored = success(await f.store.read({ reference: storedRef }));
+    const groupRef = RecordReferenceSchema.parse({ kind: "cohort/document", owner: { type: "cohort", name: "group" } });
+    const group = success(await f.store.read({ reference: groupRef }));
+    const rename = await f.invoke(["rename", "group", "after", "--json"]);
+    expect(rename.exitCode ?? 0, rename.stdout + rename.stderr).toBe(0);
+    expect(success(await f.store.read({ reference: stored.reference }))).toEqual(stored);
+    expect(success(await f.store.read({ reference: group.reference })).content).toContain("See `cohort-after.md`.");
+    const refused = await f.invoke(["decompose", origin, "--finish"]);
+    expect(refused.exitCode).toBe(1);
+    expect(refused.result).toMatchObject({ status: "refused", reason: "cohort-parent" });
+    expect(refused.stdout).toContain("--revise");
+    const carried = await f.invoke(["decompose", origin, "--revise"]);
+    const revised = z.object({ status: z.literal("carried"), map: CutMapSchema }).parse(carried.result).map;
+    if (revised.authoring.placement.kind !== "cohort") throw new Error("Expected cohort placement");
+    revised.authoring.placement.cohort = "replacement";
+    revised.authoring.placement.purpose = "Coordinate the replacement.";
+    await writeFile(path, JSON.stringify(revised));
+    const preview = await f.invoke(["decompose", origin, "--revise", path]);
+    expect(preview.exitCode ?? 0, preview.stdout + preview.stderr).toBe(0);
+    const authority = z.object({ kind: z.literal("preview"), applyAuthority: z.string() }).parse(preview.result).applyAuthority;
+    const applied = await f.invoke(["decompose", origin, "--revise", path, "--apply", authority]);
+    expect(applied.exitCode ?? 0, applied.stdout + applied.stderr).toBe(0);
+    expect(applied.result).toMatchObject({ kind: "revised" });
+    const finish = await f.invoke(["decompose", origin, "--finish"]);
+    expect(finish.exitCode ?? 0, finish.stdout + finish.stderr).toBe(0);
+    const finishAuthority = z.object({ kind: z.literal("preview"), applyAuthority: z.string() }).parse(finish.result).applyAuthority;
+    const finished = await f.invoke(["decompose", origin, "--finish", "--apply", finishAuthority]);
+    expect(finished.exitCode ?? 0, finished.stdout + finished.stderr).toBe(0);
+    expect(finished.result).toMatchObject({ kind: "applied" });
+    expect(await f.store.read({ reference: primary.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    expect(await f.store.read({ reference: stored.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    expect(await f.store.read({ reference: group.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    const replacement = success(await f.store.read({ reference: RecordReferenceSchema.parse({ kind: "cohort/document",
+      owner: { type: "cohort", name: "replacement" } }) }));
+    expect(replacement.reference.owner).not.toEqual(group.reference.owner);
+    for (const name of ["member-a", "member-b"]) expect(success(await f.store.read({ reference: RecordReferenceSchema.parse({ kind: "work-item/meta",
+      owner: { type: "work-item", name } }) })).fields).toMatchObject({ cohort: "replacement" });
+  }, 60_000);
+
   it("rewrites filename citations in open documents and complete stub groups while retaining started and closed prose", async () => {
     const f = await fixture(backend), parentRef = f.reference("cohort/document", "parent"), childRef = f.reference("cohort/document", "before");
     const citation = `See \`cohort-${childRef.owner.name}.md\`.\n`, nextCitation = "See `cohort-after.md`.\n";
@@ -415,4 +525,27 @@ it.each([false, true])("reports every eligible ambiguous filename citation witho
     expect(result.stdout).toContain("See `cohort-after.md`.");
     for (const excluded of [started, closedDocument]) expect(result.stdout).not.toContain(`Reference: ${excluded.reference.kind === "cohort/document" ? "cohort" : "work-unit"} ${excluded.reference.owner.name}`);
   }
+}, 60_000);
+
+it("names every tied target holder and retains the lookup's identity evidence", async () => {
+  const f = await fixture("ref");
+  if (f.native === undefined) throw new Error("Expected native store");
+  const cohortRef = f.reference("cohort/document", "before");
+  const primary = await seed(f, cohortRef, document(cohortRef.owner.name));
+  const holders = [await plantRefPrimary(f.native, { kind: "cohort/document", name: "taken",
+    uid: "00000000-0000-4000-8000-000000000011", content: document("taken") }),
+  await plantRefPrimary(f.native, { kind: "work-item/meta", name: "taken",
+    uid: "00000000-0000-4000-8000-000000000012", content: makeMetaFixture("taken") })];
+  const lookup = await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("taken") });
+  if (lookup.status !== "refused" || lookup.refusal.code !== "ambiguous-match") throw new Error("Expected tied target");
+  const result = await f.invoke(["rename", cohortRef.owner.name, "taken", "--json"]);
+  expect(result.exitCode).toBe(1);
+  expect(result.result).toMatchObject({ remedy: { text: "Choose another slug." }, refusal: { ...lookup.refusal,
+    condition: expect.any(String), remedy: { text: "Choose another slug." } } });
+  for (const holder of holders) {
+    expect(result.stdout).toContain(holder.kind === "cohort/document" ? "cohort 'taken'" : "work unit 'taken'");
+    if (holder.owner.type === "person") throw new Error("Expected named holder");
+    expect(result.stdout).toContain(holder.owner.uid);
+  }
+  expect(success(await f.store.read({ reference: primary.reference }))).toEqual(primary);
 }, 60_000);

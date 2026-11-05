@@ -231,7 +231,7 @@ export function refuseWithRemedy(reason: string, remedy: SpineRemedy | Remedy, j
   const repair = refusal?.code === "ambiguous-match" ? refusal.remedy : undefined;
   const recovery = repair === undefined
     ? "invariant" in remedy ? remedy : spineRemedy(reason, remedy.text, remedy.argv ?? ["arc", "status", "--json"])
-    : SpineRemedySchema.parse({ invariant: reason, ...repair });
+    : SpineRemedySchema.parse({ invariant: reason, ...repair, argv: repair.argv ?? ["arc", "status", "--json"] });
   if (json) {
     const envelope = LifecycleCommandRefusalSchema.parse({ status: "rejected", reason, remedy: recovery,
       ...(refusal === undefined ? {} : { refusal }) });

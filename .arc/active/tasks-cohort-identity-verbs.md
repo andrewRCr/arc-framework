@@ -588,22 +588,13 @@ old name refuses naming the current one.
   excluding cut maps, while preserving work-item edges and started or closed prose. Ambiguous citations carry exact
   document, companion key, line, and replacement in text and JSON; all acquired group records join the batch observations.
 
-### `[ ]` **5.4 Refuse a closed cohort and a taken target — § 5.1, § 5.4, § 5.5**
+### `[x]` **5.4 Refuse a closed cohort and a taken target — § 5.1, § 5.4, § 5.5**
 
 - _Goal:_ A cohort is never renamed once closed, and never onto a slug any holder's name resolves through.
 
-    - A closed cohort refuses terminally: no verb renames a closed cohort.
-    - The target check is today's lookup check, the helper Task 4.3 extracts, not 4.3's admission, which frees a
-      completed work unit's slug: the lookup finds nothing or returns the subject (`sameReference`); any other lookup
-      refusal passes through whole; a taken target refuses naming each holder the lookup returns or ties, through an
-      exported `holderCondition` (`lib/store/creation-admission.ts`), with the remedy "Choose another slug."
-
-    - Build `test-first` (one behavior at a time):
-        - renaming a closed cohort refuses
-        - renaming onto a completed work unit's slug refuses naming it, while an abandoned work unit's slug, its primary
-          removed, is free
-        - renaming a cohort a stored cut map names lands; the cut's `--finish` then refuses `cohort-parent` naming
-          `--revise`, after which `--revise` re-places the cut and `--finish` lands
+- _Outcome:_ Closed subjects refuse without writes; strict target lookup names current, former, completed, and tied
+  holders, preserves lookup evidence, and offers another slug. Text-only ambiguity remedies render as JSON. A cut's map
+  stays unchanged by rename; revising to a fresh cohort placement moves its stubs and lets finish retire the origin.
 
 ### `[ ]` **5.5 Land the mixed-state batch through the history rounds — § 5.3**
 
