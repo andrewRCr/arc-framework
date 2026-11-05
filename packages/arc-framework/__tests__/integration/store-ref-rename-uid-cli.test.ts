@@ -27,6 +27,28 @@ async function fixture() {
   return { ...f, cli, invoke: (args: readonly string[]) => repairCli(cli, args, { storeFactory }) };
 }
 
+it("emits one JSON rename result with the selected reference and report", async () => {
+  const f = await fixture(), uid = "12345678-abcd-4abc-8abc-123456789abc";
+  const reference = await plantRefPrimary(f, { kind: "work-item/meta", name: "source", uid, content: makeMetaFixture("source") });
+  const result = await f.invoke(["rename", uid, "target", "--json"]);
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  expect(result.result).toMatchObject({ status: "renamed", reference: { ...reference, owner: { ...reference.owner, name: "target" } },
+    report: { references: [], memberHeadings: [], formerSlugTies: [], keptBranches: [] } });
+  expect(result.stdout.trim().split("\n")).toHaveLength(1);
+  expect(result.stderr).toBe("");
+  expect(success(await f.store.read({ reference })).reference.owner.name).toBe("target");
+}, 60_000);
+
+it("emits a store refusal as one lifecycle JSON envelope without changing state", async () => {
+  const f = await fixture(), before = success(await f.store.version());
+  const result = await f.invoke(["rename", "missing", "target", "--json"]);
+  expect(result.exitCode).toBe(1);
+  expect(result.result).toMatchObject({ status: "rejected", reason: expect.any(String),
+    refusal: { code: "not-found" }, remedy: { invariant: expect.any(String), text: expect.any(String) } });
+  expect(result.stdout.trim().split("\n")).toHaveLength(1); expect(result.stderr).toBe("");
+  expect(success(await f.store.version())).toBe(before);
+}, 60_000);
+
 it.each([false, true])("renames the selected UID under a work-unit clash, uppercase=%s", async uppercase => {
   const f = await fixture(), uid = "12345678-abcd-4abc-8abc-123456789abc", otherUid = "12345678-abcd-4abc-8abc-123456789def";
   const selected = await plantRefPrimary(f, { kind: "work-item/meta", name: "shared", uid, content: makeMetaFixture("shared") });
@@ -68,7 +90,7 @@ it("dispatches a cohort UID to the unavailable cohort rename arm without writing
   expect(success(await f.store.read({ reference }))).toEqual(primary);
 }, 60_000);
 
-it("retains the uppercase UID after a failed push and resumes by the current slug without another record batch", async () => {
+it.each([false, true])("retains the uppercase UID after a failed push and resumes by the current slug without another record batch, json=%s", async json => {
   const f = await fixture(), uid = "12345678-abcd-4abc-8abc-123456789abc", operand = uid.toUpperCase();
   const projectRef = f.reference("project-registry/identity");
   const project = success(await f.store.write({ action: "put", reference: projectRef, expected: null, content: f.content(projectRef),
@@ -76,8 +98,8 @@ it("retains the uppercase UID after a failed push and resumes by the current slu
   if (project.reference.owner.type !== "project" || project.reference.owner.uid === undefined) throw new Error("Expected project UID");
   const reference = await plantRefPrimary(f, { kind: "work-item/meta", name: "source", uid, content: makeMetaFixture("source") });
   const primary = success(await f.store.read({ reference }));
-  success(await f.store.write({ ...recordPut(primary, { links: { branches: [{ repository: project.reference.owner.uid,
-    ref: "feat/source", linkedAs: "created", excluded: [] }] } }), provenance: { verb: "link", lifecycleAction: "link" } }));
+  success(await f.store.write({ ...recordPut(primary, { links: { branches: [{ repository: project.reference.owner.uid, ref: "chore/earlier", linkedAs: "created", excluded: [] },
+    { repository: project.reference.owner.uid, ref: "feat/source", linkedAs: "created", excluded: [] }] } }), provenance: { verb: "link", lifecycleAction: "link" } }));
   const remote = join(f.cli.cwd, ".git", "code-remote.git");
   await f.cli.exec("git", ["init", "--bare", remote]);
   await f.cli.exec("git", ["remote", "add", "origin", remote]);
@@ -88,22 +110,34 @@ it("retains the uppercase UID after a failed push and resumes by the current slu
     spawningIdentity: "test-user", createdAt: "2026-10-16T00:00:00Z" });
   const hook = join(remote, "hooks", "pre-receive");
   await writeFile(hook, "#!/bin/sh\nexit 1\n", { mode: 0o755 });
-  const partial = await f.invoke(["rename", operand, "target"]);
+  const flags = json ? ["--json"] : [];
+  const partial = await f.invoke(["rename", operand, "target", ...flags]);
   expect(partial.exitCode).toBe(1);
-  expect(partial.stdout + partial.stderr).toContain(`arc rename ${operand} target`);
+  if (json) {
+    expect(partial.result).toMatchObject({ status: "partial", reference: { owner: { name: "target", uid } },
+      remedy: { argv: ["arc", "rename", operand, "target"] },
+      report: { keptBranches: [{ branch: "chore/earlier", reason: "other-link" }] } });
+    expect(partial.stdout.trim().split("\n")).toHaveLength(1);
+  } else {
+    expect(partial.stdout + partial.stderr).toContain(`arc rename ${operand} target`);
+    expect(partial.stdout + partial.stderr).toContain("kept chore/earlier");
+  }
   const renamed = success(await f.store.read({ reference }));
   expect(renamed.reference.owner.name).toBe("target");
   expect((await f.cli.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe("feat/target");
   const markerPath = resolveWorktreeMarkerPath(f.cli.cwd), marker = await readFile(markerPath, "utf8");
   const head = (await f.cli.exec("git", ["rev-parse", "HEAD"])).stdout.trim();
-  const pending = await f.invoke(["rename", "target", "target"]);
+  const pending = await f.invoke(["rename", "target", "target", ...flags]);
   expect(pending.exitCode).toBe(1);
-  expect(pending.stdout + pending.stderr).toContain("arc rename target target");
+  if (json) expect(pending.result).toMatchObject({ status: "partial", remedy: { argv: ["arc", "rename", "target", "target"] } });
+  else expect(pending.stdout + pending.stderr).toContain("arc rename target target");
   expect(success(await f.store.read({ reference }))).toEqual(renamed);
   expect(await readFile(markerPath, "utf8")).toBe(marker);
   await rm(hook);
-  const resumed = await f.invoke(["rename", "target", "target"]);
+  const resumed = await f.invoke(["rename", "target", "target", ...flags]);
   expect(resumed.exitCode ?? 0, resumed.stdout + resumed.stderr).toBe(0);
+  if (json) expect(resumed.result).toMatchObject({ status: "renamed", recordBatch: "existing",
+    report: { keptBranches: [{ branch: "chore/earlier", reason: "other-link" }] } });
   expect(success(await f.store.read({ reference }))).toEqual(renamed);
   expect(await readFile(markerPath, "utf8")).toBe(marker);
   expect((await f.cli.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe("feat/target");

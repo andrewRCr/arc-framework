@@ -423,6 +423,7 @@ export const RepointDesignCommandInputSchema = z.object({
 export const RenameCommandInputSchema = z.object({
   slug: z.union([SlugSchema, z.uuid()]),
   newSlug: SlugSchema,
+  json: z.boolean().optional(),
 }).strict();
 const InRepoRenameCommandInputSchema = RenameCommandInputSchema.superRefine((value, refinement) => {
   if (value.slug === value.newSlug) {
@@ -536,7 +537,7 @@ export const lifecycleCommandInputRegistrations = [
   {
     commandPath: "rename",
     schema: RenameCommandInputSchema,
-    schemaFields: { "operand.slug": "slug", "operand.new-slug": "newSlug" },
+    schemaFields: { "operand.slug": "slug", "operand.new-slug": "newSlug", "option.json": "json" },
   },
 ] as const satisfies readonly CommandInputRegistration[];
 
@@ -566,7 +567,16 @@ export const promoteClassPromptSite = declarePromptSite("prompt.promote.class", 
 
 /** Interaction policies owned by the lifecycle command adapters. */
 export const lifecycleCommandInputPolicyDeclarations = [
-
+  {
+    commandPath: "rename",
+    aliases: [],
+    sites: [declareCliOptionSite("json", {
+      acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
+      cancellation: "not-applicable",
+      automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none",
+    })],
+  },
   {
     commandPath: "publish",
     aliases: [],
@@ -672,24 +682,25 @@ export async function handleStub(
 export async function handleRename(
   sourceSlug: string,
   targetSlug: string,
+  opts: { json?: boolean } = {},
   context?: InteractionContext,
 ): Promise<void> {
-  p.intro("arc rename");
+  if (opts.json !== true) p.intro("arc rename");
   const input = parseLifecycleCommand(RenameCommandInputSchema, {
-    slug: sourceSlug.trim(), newSlug: targetSlug.trim(),
-  }, ["rename"]);
+    slug: sourceSlug.trim(), newSlug: targetSlug.trim(), json: opts.json,
+  }, ["rename"], opts.json === true);
   if (input === null) return;
   const { slug: renameSource, newSlug: renameTarget } = input;
-  const base = await resolveVerbBase(context);
+  const base = await resolveVerbBase(context, input.json === true);
   if (base === null) return;
   const { executor, settings } = await buildExecutor(base);
   if (!usesOffBranchState(executor.store) && base.io.execInput === undefined) {
-    refuse("remote rename expansion requires stdin-capable Git I/O");
+    reportRenameResult(renameSource, renameTarget, { status: "rejected", reason: "remote rename expansion requires stdin-capable Git I/O" }, input.json === true);
     return;
   }
   if (!usesOffBranchState(executor.store)) {
-    if (parseLifecycleCommand(InRepoRenameCommandInputSchema, input, ["rename"]) === null) return;
-    if (parseLifecycleCommand(SlugSchema, renameSource, ["rename"]) === null) return;
+    if (parseLifecycleCommand(InRepoRenameCommandInputSchema, input, ["rename"], input.json === true) === null) return;
+    if (parseLifecycleCommand(SlugSchema, renameSource, ["rename"], input.json === true) === null) return;
   }
   const io = base.io;
   const result = await runRenameCommand({
@@ -703,11 +714,11 @@ export async function handleRename(
     retirement: createInRepoRenameRetirementContext(directRetirementDeps(base)),
     transitionWriter: terminalTransitionWriter(base),
     onPreparedAdvisories: (advisories) => {
-      for (const advisory of advisories) p.log.warn(advisory);
+      if (input.json !== true) for (const advisory of advisories) p.log.warn(advisory);
       return Promise.resolve();
     },
   }, { sourceSlug: renameSource, targetSlug: renameTarget });
-  reportRenameResult(renameSource, renameTarget, result);
+  reportRenameResult(renameSource, renameTarget, result, input.json === true);
 }
 
 // ---------------------------------------------------------------------------

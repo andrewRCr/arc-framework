@@ -1,15 +1,18 @@
 /** Human rename reports preserve store refusals and physical continuation instructions. */
 import * as p from "../lib/terminal.js";
 import { quoteShellArgument } from "../lib/release/commit-message-retry.js";
-import { refuse } from "./lifecycle-shared.js";
-import type { RunRenameResult } from "../lib/work-unit/verbs/rename.js";
+import { refuse, refuseWithRemedy } from "./lifecycle-shared.js";
+import { spineRemedy } from "../scripts/integration/spine-refusal.js";
+import type { RunRenameResult, RenameResultEnvelope } from "../lib/work-unit/verbs/rename.js";
 import type { RenameReport, RenameReferenceEdit, RenameHeadingEdit, RenameKeptBranch } from "../lib/work-unit/rename-report.js";
 /** Report the logical rename and every retained branch or pending physical action.
  * @param renameSource - Requested old work-unit name.
  * @param renameTarget - Requested new work-unit name.
  * @param result - Authoritative verb outcome.
+ * @param json - Emit one machine-readable result or lifecycle refusal.
  */
-export function reportRenameResult(renameSource: string, renameTarget: string, result: RunRenameResult): void {
+export function reportRenameResult(renameSource: string, renameTarget: string, result: RunRenameResult, json = false): void {
+  if (json) { reportRenameJson(result); return; }
   if (result.status === "rejected") {
     refuse(result.reason, result.refusal, result.remedy);
     return;
@@ -45,6 +48,20 @@ export function reportRenameResult(renameSource: string, renameTarget: string, r
   lines.push(...worktreeLines(result));
   p.note(lines.join("\n"), "Renamed");
   p.outro("Done.");
+}
+
+function reportRenameJson(result: RunRenameResult): void {
+  if (result.status === "rejected") {
+    refuseWithRemedy(result.reason, result.remedy ?? result.refusal?.remedy
+      ?? spineRemedy(result.reason, "Inspect lifecycle state before retrying the rename.", ["arc", "status", "--json"]), true, result.refusal);
+    return;
+  }
+  const envelope: RenameResultEnvelope = result.status === "partial"
+    ? { ...result, reference: result.reference ?? null, remedy: result.remedy
+      ?? spineRemedy(result.reason, "Inspect lifecycle state before retrying the rename.", ["arc", "status", "--json"]) }
+    : { ...result, reference: result.reference ?? null };
+  process.stdout.write(`${JSON.stringify(envelope)}\n`);
+  if (result.status === "partial") process.exitCode = 1;
 }
 
 function renameReportLines(report: RenameReport): string[] {

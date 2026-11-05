@@ -466,10 +466,11 @@ program
 program
   .command("rename <slug> <new-slug>")
   .description("Rename a work unit selected by slug or UID and its branch, workspace, remote, marker, and worktree identities")
+  .option("--json", "Emit the rename result and follow-up report as JSON")
   .action(withInteractionContext(
-    {},
-    async (context, slug: string, newSlug: string) => {
-      await (await import("./handlers/lifecycle.js")).handleRename(slug, newSlug, context);
+    { machineReadable: (opts) => opts.json === true },
+    async (context, slug: string, newSlug: string, opts: { json?: boolean }) => {
+      await (await import("./handlers/lifecycle.js")).handleRename(slug, newSlug, opts, context);
     },
   ));
 

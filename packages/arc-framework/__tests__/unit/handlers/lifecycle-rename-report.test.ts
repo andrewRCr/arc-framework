@@ -93,3 +93,29 @@ it("prints a former-slug repair and distinguishes retained branch reasons with c
   expect(text).toContain("kept feat/earlier; rename continuation");
   expect(text).not.toContain("--delete"); expect(process.exitCode).toBe(1);
 });
+
+it.each(["renamed", "partial"] as const)("serializes the ordered report and subject unchanged for %s", status => {
+  const output = capture(), uid = "12345678-abcd-4abc-8abc-123456789abc";
+  const reference = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "target", uid }));
+  const member = { type: "work-unit" as const, name: "member", uid };
+  const report = { ...emptyRenameReport(), references: [
+    { record: member, edits: [{ kind: "field" as const, field: "cohort" as const, from: "source/child", to: null }] },
+    { record: { type: "cohort" as const, name: "child", uid }, edits: [{ kind: "field" as const, field: "parent" as const, from: "source", to: "target" }] },
+    { record: member, edits: [{ kind: "field" as const, field: "cohort" as const, from: null, to: "target/child" }] },
+  ], memberHeadings: [{ document: recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group", uid })), line: 9, replacement: "### `target`" }] };
+  reportRenameResult("source", "target", status === "renamed"
+    ? { status, reference, report, shape: "stub", pendingIntegration: false, advisories: [] }
+    : { status, reference, report, reason: "Push unavailable", remedy: { text: "Retry", argv: ["arc", "rename", uid, "target"] } }, true);
+  const text = output.join(""); expect(text.trim().split("\n")).toHaveLength(1); expect(text).toMatch(/^\{/u);
+  expect(JSON.parse(text)).toMatchObject({ status, reference, report });
+  expect(process.exitCode ?? 0).toBe(status === "partial" ? 1 : 0);
+});
+
+it("gives a JSON rejection without a remedy the lifecycle status fallback", () => {
+  const output = capture();
+  reportRenameResult("source", "target", { status: "rejected", reason: "Unavailable boundary" }, true);
+  const text = output.join(""); expect(text).toMatch(/^\{/u);
+  expect(JSON.parse(text)).toMatchObject({ status: "rejected", reason: "Unavailable boundary",
+    remedy: { invariant: "Unavailable boundary", argv: ["arc", "status", "--json"] } });
+  expect(process.exitCode).toBe(1);
+});

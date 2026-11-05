@@ -384,7 +384,7 @@ its history refs, discharging the edges naming it.
   archived renames retain their placement. Physical steps use the historical origin independently of the operand.
   Integrating advisories retain their text-based origin-name matching.
 
-### `[ ]` **4.2 Give the rename's result one report, and `--json` — § 4, § 2.5, § 2.7**
+### `[x]` **4.2 Give the rename's result one report, and `--json` — § 4, § 2.5, § 2.7**
 
 - _Goal:_ Everything a rename leaves to the person — references, a member heading, a former-slug tie, a kept branch —
   reaches them in one typed report, in text and in `arc rename --json`, a failed push included.
@@ -396,27 +396,15 @@ its history refs, discharging the edges naming it.
           remote completion retains the report, untouched links have their own reason, and in-repo results carry an
           empty one. Text document labels include keyed companions' keys.
 
-    - `[ ]` **4.2.b `--json`**
+    - `[x]` **4.2.b `--json`**
 
-        - `arc rename` registers `--json` (`cli.ts`, through the interaction adapter), `RenameCommandInputSchema` and its
-          schema fields take `json`, and a `renamed` or `partial` result emits one typed envelope, its `status` the
-          result's, with the subject's reference, the report, and a `partial` result's reason and remedy. A refusal
-          emits through `refuseWithRemedy`'s JSON form, a rejection carrying no remedy taking
-          `spineRemedy(reason, …, ["arc", "status", "--json"])` as `arc publish`'s does (`handlers/lifecycle.ts`), and an
-          unbound marker's through `refuseUnboundTarget`'s (Task 4.8); `reportRenameResult`
-          (`handlers/lifecycle-rename-report.ts`) renders the same report as text.
-        - `handleRename` gives the in-repo arm's result and refusals the same `--json` forms before the flip, its report
-          empty; its text output stays today's.
-        - The option takes a `declareCliOptionSite("json", …)` machine-mode site in
-          `lifecycleCommandInputPolicyDeclarations` (`handlers/lifecycle.ts`), as `publish`'s does, and the
-          `rename:option.json` inventory entry `repository-inventory.test.ts` reconciles, with whatever the no-input suite
-          (`NO_INPUT_MATRIX`, `no-input-invocations.test.ts`) then requires of the rename entry.
+        - The registered machine-mode option and schema emit one typed landed result with its report and reference,
+          including a partial result's reason and remedy. Refusals use the shared lifecycle envelope and status fallback.
+          In-repo results carry a null reference and empty report; their text output is preserved.
 
-    - Build `test-first` (one behavior at a time):
-        - a rename that leaves references prints them, and emits them under `--json`
-        - a failed push's `partial` result carries the report, in text and `--json`
-        - a refusal under `--json` emits the lifecycle refusal's JSON form, and a rejection with no remedy its fallback
-        - before the flip, `arc rename --json` emits the in-repo result with an empty report, and its text is unchanged
+- _Outcome:_ A real rejected push keeps the report and original UID retry in either presentation; repairing it and
+  rerunning by current name completes with unchanged records and marker. Before the flip, a rejecting commit hook
+  yields a JSON refusal and the repaired attempt returns an empty report.
 
 ### `[ ]` **4.3 Admit the target through the creation check — § 2.2**
 

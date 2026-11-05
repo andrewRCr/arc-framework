@@ -73,6 +73,11 @@ export type RunRenameResult = (
   | { status: "partial"; reason: string; remedy?: Remedy; report: RenameReport })
   & { /** Exact operational subject; tracked results have no store reference. */ reference?: RecordReference };
 
+/** Machine output preserves landed outcomes and explicitly identifies an unavailable store reference. */
+export type RenameResultEnvelope =
+  | (Omit<Extract<RunRenameResult, { status: "renamed" }>, "reference"> & { reference: RecordReference | null })
+  | (Omit<Extract<RunRenameResult, { status: "partial" }>, "reference"> & { reference: RecordReference | null });
+
 /** Checkout identity report plus any physical move the transaction performed. */
 export interface RenameCheckoutReport {
   checkout: RenameWorktreeTransactionOutcome;
