@@ -1,7 +1,7 @@
 /** Human rename reports preserve store refusals and physical continuation instructions. */
 import * as p from "../lib/terminal.js";
 import { quoteShellArgument } from "../lib/release/commit-message-retry.js";
-import { refuse, refuseWithRemedy } from "./lifecycle-shared.js";
+import { refuse, refuseWithRemedy, refuseUnboundTarget } from "./lifecycle-shared.js";
 import { spineRemedy } from "../scripts/integration/spine-refusal.js";
 import type { RunRenameResult, RenameResultEnvelope } from "../lib/work-unit/verbs/rename.js";
 import type { RenameReport, RenameReferenceEdit, RenameHeadingEdit, RenameKeptBranch } from "../lib/work-unit/rename-report.js";
@@ -12,11 +12,8 @@ import type { RenameReport, RenameReferenceEdit, RenameHeadingEdit, RenameKeptBr
  * @param json - Emit one machine-readable result or lifecycle refusal.
  */
 export function reportRenameResult(renameSource: string, renameTarget: string, result: RunRenameResult, json = false): void {
+  if (result.status === "rejected") { reportRenameRejection(result, json); return; }
   if (json) { reportRenameJson(result); return; }
-  if (result.status === "rejected") {
-    refuse(result.reason, result.refusal, result.remedy);
-    return;
-  }
   const repairs = renameReportLines(result.report);
   if (result.status === "partial") {
     if (repairs.length > 0) p.note(repairs.join("\n"), "Rename follow-up");
@@ -50,12 +47,14 @@ export function reportRenameResult(renameSource: string, renameTarget: string, r
   p.outro("Done.");
 }
 
-function reportRenameJson(result: RunRenameResult): void {
-  if (result.status === "rejected") {
-    refuseWithRemedy(result.reason, result.remedy ?? result.refusal?.remedy
-      ?? spineRemedy(result.reason, "Inspect lifecycle state before retrying the rename.", ["arc", "status", "--json"]), true, result.refusal);
-    return;
-  }
+function reportRenameRejection(result: Extract<RunRenameResult, { status: "rejected" }>, json: boolean): void {
+  if (result.unbound !== undefined) { refuseUnboundTarget(result.unbound, json); return; }
+  if (!json) { refuse(result.reason, result.refusal, result.remedy); return; }
+  refuseWithRemedy(result.reason, result.remedy ?? result.refusal?.remedy
+    ?? spineRemedy(result.reason, "Inspect lifecycle state before retrying the rename.", ["arc", "status", "--json"]), true, result.refusal);
+}
+
+function reportRenameJson(result: Exclude<RunRenameResult, { status: "rejected" }>): void {
   const envelope: RenameResultEnvelope = result.status === "partial"
     ? { ...result, reference: result.reference ?? null, remedy: result.remedy
       ?? spineRemedy(result.reason, "Inspect lifecycle state before retrying the rename.", ["arc", "status", "--json"]) }

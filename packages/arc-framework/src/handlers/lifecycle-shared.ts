@@ -212,7 +212,7 @@ export const LifecycleCommandRefusalSchema = z.strictObject({
 });
 
 /** Render every checkout-bound recovery exit for an unbound work-unit target. */
-export function refuseUnboundTarget(unbound: UnboundMarkerClassification, json = false): void {
+export function refuseUnboundTarget(unbound: Pick<UnboundMarkerClassification, "reason" | "exits">, json = false): void {
   if (!json) { refuse(unbound.reason); return; }
   const envelope = LifecycleCommandRefusalSchema.parse({ status: "rejected", reason: unbound.reason, remedy: unbound.exits });
   process.stdout.write(`${JSON.stringify(envelope)}\n`);

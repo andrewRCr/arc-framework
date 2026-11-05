@@ -473,28 +473,14 @@ its history refs, discharging the edges naming it.
   continuations. Unavailable or throwing lookups remain visible diagnostics while publication follows its existing path,
   and resumed runs preserve the landed record batch.
 
-### `[ ]` **4.8 Pin the subject's checkout by UID, and type the unbound-marker refusal — § 2.4**
+### `[x]` **4.8 Pin the subject's checkout by UID, and type the unbound-marker refusal — § 2.4**
 
 - _Goal:_ Under a clash the rename never takes the other holder's checkout, and an unbound marker naming the slug refuses
   before the batch with the holders and the exits that recover each checkout, in text and `--json`.
 
-    - Already shipped: `rename()` finds its checkout through `findWorkUnitHoldingCheckout`
-      (`lib/work-unit/verbs/unshared-work.ts`) by an owner request matched by UID, and an unbound marker naming a current
-      or former slug throws `classifyUnboundMarker`'s report with `arc locus release` under a clash.
-    - `findWorkUnitHoldingCheckout` flattens the `unbound` result to a thrown string, which `runStoreRename`'s catch
-      reports as text; the rename reads its checkout through `readWorkUnitCheckout` instead, keeping the typed `unbound`
-      result, and returns it as a refusal before the batch, rendered through `refuseUnboundTarget`
-      (`handlers/lifecycle-shared.ts`), its parameter narrowed to the `reason` and `exits` it reads, which its three
-      callers' classifications still satisfy, its envelope carrying the exits as its remedy. Two marker holders keep the
-      shared lookup's refusal (`requireSingleHolder`, `lib/locus/lifecycle-ports.ts`), which names each checkout and its
-      reason; the lookup is unchanged.
-
-    - Build `test-first` (one behavior at a time):
-        - over the ref backend, under a clash, renaming a work unit whose checkout carries an unbound marker refuses before
-          the batch naming both holders by UID and the release exit, in text and `--json`
-        - two markers holding the slug refuse before the batch with the shared lookup's refusal naming each checkout
-        - after release and the rename, `arc materialize <new-slug>` brings back the subject's checkout, and
-          `arc materialize <slug>` the other holder's, each with `--here` where release kept the checkout
+- _Outcome:_ Rename retains the shared lookup's typed unbound result and renders its checkout-scoped exits in text and
+  JSON before branch or record changes. Multiple-marker diagnostics remain intact; release permits rename and exact
+  re-materialization of each holder, while bound checkouts follow only the selected UID.
 
 ### `[ ]` **4.9 Decide the first run's branch steps from the branch's link lookup — § 2.5**
 

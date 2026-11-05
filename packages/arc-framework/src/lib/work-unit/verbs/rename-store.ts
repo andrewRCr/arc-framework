@@ -6,7 +6,7 @@ import { selectWorkBranchLink, workBranchName } from "../../store/lifecycle-bran
 import { applyPreparedLifecycleWrite } from "../prepared-lifecycle-write.js";
 import { readBranchTracking, restoreClearedBranchTracking, type BranchTracking } from "../rename-branch-tracking.js";
 import { sequenceLifecycleWrite } from "../sequence-lifecycle-write.js";
-import { findWorkUnitHoldingCheckout } from "./unshared-work.js";
+import { readWorkUnitCheckout } from "./unshared-work.js";
 import { reconcileRenameLocalBranch, reconcileRenameRemoteBranch, readRemoteBranchOid, type RenameRemoteBranchResult } from "../rename-identity.js";
 import { SlugSchema } from "../../kernel/index.js";
 import type { BranchLink } from "../../store/links.js";
@@ -84,7 +84,9 @@ async function renameSelectedWorkUnit(ctx: StoreRenameContext, params: { operand
   subject: StoreRenameSubject, target: string): Promise<RunRenameResult> {
   await ctx.onPreparedAdvisories?.(subject.advisories);
   const passive = subject.primary.placement?.kind !== "active";
-  const holder = passive ? null : await findWorkUnitHoldingCheckout(ctx, subject.primary);
+  const checkout = passive ? { kind: "none" as const } : await readWorkUnitCheckout(ctx, subject.primary);
+  if (checkout.kind === "unbound") return { status: "rejected", reason: checkout.reason, unbound: checkout, reference: subject.primary.reference };
+  const holder = checkout.kind === "held" ? checkout.path : null;
   const branch = passive ? undefined : await branchRename(ctx, subject, target);
   const state: RenameRuntime = { cwd: ctx.cwd };
   const exec: GitExec = (command, args, options) => ctx.exec(command, args, { cwd: state.cwd, ...options });

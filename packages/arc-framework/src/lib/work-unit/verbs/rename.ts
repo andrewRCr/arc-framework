@@ -15,6 +15,7 @@ import type { LifecycleRollbackRecovery } from "../store-transition-types.js";
 import type { Remedy, StoreRefusal } from "../../store/refusal.js";
 import type { Store } from "../../store/contract.js";
 import type { RecordReference } from "../../store/identity.js";
+import type { UnboundHoldingCheckout } from "../locus-ports.js";
 import { emptyRenameReport, type RenameReport } from "../rename-report.js";
 
 
@@ -69,7 +70,7 @@ export type RunRenameResult = (
       worktree?: RenameWorktreeMoveResolution | ReconcileWorkUnitWorktreeResult;
       checkout?: RenameWorktreeTransactionOutcome;
     }
-  | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy; recovery?: LifecycleRollbackRecovery }
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy; recovery?: LifecycleRollbackRecovery; unbound?: UnboundHoldingCheckout }
   | { status: "partial"; reason: string; remedy?: Remedy; report: RenameReport })
   & { /** Exact operational subject; tracked results have no store reference. */ reference?: RecordReference };
 
