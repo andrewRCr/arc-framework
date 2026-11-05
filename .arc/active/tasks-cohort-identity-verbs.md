@@ -157,33 +157,13 @@ implement after `storage-ref-hardening` lands whole, with its listing scope, fau
 `spec-cohort-identity-verbs.md` § 11.1 expects them; should they be ready while more than about a week of it remains,
 that ordering returns to the Owner. The resolver built here serves Phases 3–5.
 
-### `[ ]` **2.1 Scan the primary kinds a verb names for an exact UID — § 1.2**
+### `[x]` **2.1 Scan the primary kinds a verb names for an exact UID — § 1.2**
 
 - _Goal:_ One scan selects an owner by exact UID across the primary kinds its caller names, a cohort among them, and
   refuses a UID that selects more than one owner, naming each.
 
-- _Note:_ Before this task, merge base holding `storage-ref-hardening` and re-check § 11.1's three contracts against
-  it, with the history refs `resolveArchivedReferences` and `checkRefWrites` name on a missing object, which § 2.6's
-  rounds pull.
-
-- _Context:_ Base `57e5224c86` carries the shipped hardening. `listCapturedRecords` scopes live records and diagnostics
-  to the requested owner; `liveListingOutcome` normalizes empty live results to `absent`. Saved filtered-empty listings
-  can remain `complete` with no records. Preserve both forms as complete empty evidence, and keep unreadable or
-  diagnostic-bearing listings incomplete.
-
-    - `readWorkItemByUid` (`lib/store/work-item-uid.ts`) takes the primary kinds it lists as a parameter, today's
-      `work-item/meta` and `work-item/record` by default for teardown (`runTeardownForOperand`) and the inbox list
-      (`lib/inbox/lists.ts`), lists each in its own kind's family, and matches the UID on any owner that carries one
-      rather than on work-item owners alone.
-    - Its `incomplete` and `ambiguous-match` results keep their shapes; their texts stop saying "work item", the
-      ambiguity's condition names each owner's kind, and an incomplete listing keeps its own remedy where it carries one,
-      such as a missing object's restore remedy.
-
-    - Build `test-first` (one behavior at a time):
-        - passed `cohort/document` beside the two, a cohort's UID selects its document
-        - a UID carried by both a work item and a cohort refuses `ambiguous-match` naming both
-        - an unreadable listing or one with diagnostics returns `incomplete`
-        - the default kinds select as today for teardown and the inbox list
+- _Outcome:_ UID scans accept caller-selected primary kinds and list each in its own family, retaining the two work-item
+  defaults. Cross-family ties name each kind; incomplete listings preserve their own or their diagnostics' repairs.
 
 ### `[ ]` **2.2 Resolve a subject operand by UID or slug under each verb's type rule — § 1.1, § 1.2, § 1.3**
 
