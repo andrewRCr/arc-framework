@@ -24,8 +24,8 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                                                                  | —                  |
 | `Planning` | review-checkout-lifecycle       | P1       | andrew | —                                                                  | —                  |
 | `Planning` | stub-mint-to-launch             | P1       | andrew | —                                                                  | —                  |
-| `Planning` | adr-accept-timing               | P2       | andrew | —                                                                  | —                  |
 | `Planning` | cli-output-contract             | P2       | andrew | —                                                                  | —                  |
+| `Planning` | test-typecheck-heap             | P3       | andrew | —                                                                  | —                  |
 
 ## Ready
 
@@ -65,6 +65,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | operational-advisory-registers        | P2       | andrew | —          | —                          |
 | package-project-development-sync      | P2       | andrew | —          | —                          |
 | planning-lane-relief                  | P2       | andrew | —          | —                          |
+| reader-surface-norms                  | P2       | andrew | —          | —                          |
 | review-orchestration-right-sizing     | P2       | andrew | —          | —                          |
 | store-cross-call-sharing              | P2       | andrew | —          | —                          |
 | test-suite-contention-hardening       | P2       | andrew | —          | —                          |
@@ -116,6 +117,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | cutover-notes-removal           | P1       | andrew | cutover-flip                  | storage-cutover            |
 | cutover-tracked-state-removal   | P1       | andrew | cutover-flip                  | storage-cutover            |
 | projection-worktrees            | P1       | andrew | projection-write-back         | storage-projection         |
+| compact-schema-declarations     | P1       | andrew | test-typecheck-heap           | —                          |
 | delivery-correction-convergence | P1       | andrew | cutover-flip                  | —                          |
 | delivery-observe-attest         | P1       | andrew | cutover-flip                  | —                          |
 | work-item-relations             | P1       | andrew | cutover-flip                  | —                          |

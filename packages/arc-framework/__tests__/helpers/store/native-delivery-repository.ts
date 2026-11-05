@@ -85,12 +85,16 @@ export async function createNativeDeliveryReviewRepository(firstBranch = "member
   const pullsPath = join(bin, "pulls.json");
   await writeFile(pullsPath, JSON.stringify(pulls));
   await writeFile(join(bin, "gh"), `#!/usr/bin/env node\nconst args = process.argv.slice(2);\nconst pulls = JSON.parse(require("node:fs").readFileSync(${JSON.stringify(pullsPath)}, "utf8"));\n`
+    + `for (const p of pulls) p.head.sha = require('node:child_process').execFileSync('git',['--git-dir',${JSON.stringify(h.origin)},'rev-parse','refs/heads/'+p.head.ref],{encoding:'utf8'}).trim();\n`
     + `let value;\nif (args[0] === 'pr' && args[1] === 'list') value = pulls.filter(p => p.head.ref === args[args.indexOf('--head') + 1]).map(p => ({number:p.number,url:'https://github.com/owner/repo/pull/'+p.number,state:p.merged?'MERGED':p.state.toUpperCase(),baseRefName:p.base.ref,headRefName:p.head.ref,headRefOid:p.head.sha}));\n`
     + `else if (args[0] === 'pr' && args[1] === 'checks') value = [];\n`
     + `else if (args[0] === 'repo' && args[1] === 'view') value = {nameWithOwner:'owner/repo'};\n`
     + `else if (args.includes('graphql')) value = {data:{repository:{pullRequest:{reviewDecision:null}}}};\n`
     + `else { const path = args.find(a => a.startsWith('repos/')); const match = /^repos\\/owner\\/repo\\/pulls\\/(\\d+)$/.exec(path ?? '');\n`
     + `if (match) value = pulls.find(p => p.number === Number(match[1]));\n`
+    + `else if (path === 'repos/owner/repo/stacks') value = [{number:77,base:{ref:'main'},pull_requests:pulls.slice(0,-1)}];\n`
+    + `else if (path?.startsWith('repos/owner/repo/git/ref/')) value = {object:{sha:require('node:child_process').execFileSync('git',['--git-dir',${JSON.stringify(h.origin)},'rev-parse','refs/'+path.slice('repos/owner/repo/git/ref/'.length)],{encoding:'utf8'}).trim()}};\n`
+    + `else if (path?.startsWith('repos/owner/repo/git/commits/')) value = {tree:{sha:require('node:child_process').execFileSync('git',['--git-dir',${JSON.stringify(h.origin)},'rev-parse',path.slice('repos/owner/repo/git/commits/'.length)+'^{tree}'],{encoding:'utf8'}).trim()}};\n`
     + `else if (path?.includes('/rules/branches/')) value = [[]];\n`
     + `else if (path?.includes('/branches/')) value = {}; }\n`
     + `if (value === undefined) {console.error('Unexpected gh request', args);process.exit(1);} console.log(JSON.stringify(value));\n`);
