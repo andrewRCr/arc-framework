@@ -44,7 +44,7 @@ export async function createHostedApplicabilityContext(input: HostedApplicabilit
       : { kind: "candidate" as const, candidateId: candidate.attestation.candidateId };
   const snapshot = candidate === undefined || changeRequest === null
     ? null
-    : store.readOperationSnapshot();
+    : await store.readOperationSnapshot();
   const observeEndpoints = async (): Promise<{ readonly head: string; readonly base: string }> => {
     if (changeRequest === null || input.host === undefined) {
       throw new Error("Fresh hosted-review endpoints are unavailable.");
@@ -115,7 +115,7 @@ export async function createHostedApplicabilityContext(input: HostedApplicabilit
             ...(vehicle === undefined ? {} : { currentVehicle: vehicle }),
           },
           currentBase: baseRevision,
-          snapshot: await snapshot,
+          snapshot,
           candidate,
           exec: rawExec,
           observeEndpoints,
