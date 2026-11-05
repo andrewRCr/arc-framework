@@ -13,7 +13,7 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Draft captured; `spec-adr-accept-timing.md` saved (uncommitted) and author-checked.
+- **Last Completed:** `spec-adr-accept-timing.md` finalized; independent review converged and the draft retired.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
