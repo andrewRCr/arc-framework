@@ -30,6 +30,27 @@ async function fixture(backend: "reference" | "ref") {
 }
 
 describe.each(["reference", "ref"] as const)("rename target reuse over %s", backend => {
+  it("settles the subject and a stub against one shared archived provider", async () => {
+    const f = await fixture(backend), sourceRef = f.reference("work-item/meta", "source"), targetRef = f.reference("work-item/meta", "target");
+    const target = await seed(f, targetRef, makeMetaFixture(targetRef.owner.name, { state: "Shipped", currentWorkflow: null }), completed);
+    const source = await seed(f, sourceRef, makeMetaFixture(sourceRef.owner.name,
+      { state: "Planning", currentWorkflow: null, dependsOn: [target.reference.owner.name] }), { kind: "backlog", commitment: "planned" });
+    const stubRef = f.reference("work-item/meta", "waiting");
+    const stub = await seed(f, stubRef, makeMetaFixture(stubRef.owner.name,
+      { state: "Planning", currentWorkflow: null, dependsOn: [target.reference.owner.name] }), { kind: "backlog", commitment: "planned" });
+    if (source.reference.owner.type !== "work-item" || source.reference.owner.uid === undefined) throw new Error("Expected source UID");
+    const result = await f.invoke(["rename", source.reference.owner.uid, target.reference.owner.name, "--json"]);
+    expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+    for (const record of [source, stub]) {
+      expect(success(await f.store.read({ reference: record.reference })).fields).toMatchObject({ dependsOn: [] });
+    }
+    expect(success(await f.store.read({ reference: target.reference }))).toEqual(target);
+    const histories = await Promise.all([source, stub].map(async record => success(await f.store.history({ reference: record.reference }))));
+    const own = histories[0]?.[0]?.provenance, settled = histories[1]?.[0]?.provenance;
+    if (own === undefined || settled === undefined || !("batchId" in own) || !("batchId" in settled)) throw new Error("Expected atomic rename provenance");
+    expect(own.batchId).toBe(settled.batchId);
+  }, 60_000);
+
   it.each(["in-flight", "both-names"] as const)("keeps the %s dependency refusal and lands after explicit repair", async kind => {
     const f = await fixture(backend), sourceRef = f.reference("work-item/meta", "source"), targetRef = f.reference("work-item/meta", "target");
     const target = await seed(f, targetRef, makeMetaFixture(targetRef.owner.name, { state: "Shipped", currentWorkflow: null }), completed);

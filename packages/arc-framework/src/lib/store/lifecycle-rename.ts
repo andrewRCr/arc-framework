@@ -11,7 +11,7 @@ import { lifecycleRecordPath } from "./lifecycle-record-path.js";
 import { acquireLifecycleRecords, revalidateLifecycleRecords, type PreparedLifecycleWrite } from "../work-unit/prepared-lifecycle-write.js";
 import { readPairedReferenceOwners } from "../work-unit/paired-reference-owners.js";
 import { planRenameReferences, applyRenameReferencePlan, rewriteBacktickedArtifactReferences } from "../work-unit/rename-reference-sweep.js";
-import { writeMetaTitle, writeMetaDesign, writeMetaTaskList, writeMetaPause } from "./kinds/meta/writers.js";
+import { writeMetaTitle, writeMetaDesign, writeMetaTaskList, writeMetaPause, writeMetaDependsOn } from "./kinds/meta/writers.js";
 import { rewriteCohortMemberHeading } from "./kinds/cohort/index.js";
 import type { Store } from "./contract.js";
 import type { StoreRecord } from "./read.js";
@@ -19,8 +19,11 @@ import type { StoreResult, Remedy } from "./refusal.js";
 import type { BranchLink } from "./links.js";
 import { memberCohortReadRefusal } from "./cohort-membership-refusal.js";
 import { checkCreationAdmission, renderCreationAdmissionRefusal } from "./creation-admission.js";
-import { settleCreationSlugEdges } from "./creation-slug-settlement.js";
-import type { Mutation } from "./write.js";
+import { settleCreationSlugEdges, type CreationSlugSettlement } from "./creation-slug-settlement.js";
+import { resolveRetiredEdge } from "./retired-edge.js";
+import { replaceDependencySlot } from "./dependency-slot.js";
+import { observeRecords } from "./record-observations.js";
+import type { Mutation, RecordObservation } from "./write.js";
 /** Selected subject and reporting evidence retained independently of physical checkout steps. */
 export interface StoreRenameSubject { primary: StoreRecord; operand: string; resuming: boolean; originName: string; advisories: string[] }
 /** Complete acquisition and expected-version writes prepared before physical renames. */
@@ -88,14 +91,48 @@ export async function prepareStoreRename(store: Store, subject: StoreRenameSubje
   if (unseen.length > 0) return { status: "refused", refusal: { code: "version-conflict", class: "recoverable",
     records: unseen.map(write => write.reference), condition: "The set of backlog records changed during rename preparation.",
     remedy: { text: "Acquire the complete rename groups again, then retry.", argv: ["arc", "rename", subject.operand, targetSlug] } } };
+  const own = await settleOwnRenameEdge(store, subject, targetSlug); if (own.status === "refused") return own;
+  const observations = mergeRenameObservations([...settlement.observations, ...own.result.observations], subject, targetSlug);
+  if (observations.status === "refused") return observations;
   const artifactRenames = ownedArtifactRenames(records, subject.primary, targetSlug);
   const ambiguity = await checkSharedPairedReferences(store, records, subject.primary, artifactRenames, subject.originName, targetSlug);
   if (ambiguity !== undefined) return ambiguity;
-  const virtual = renameProjection(records, subject.primary, settlement.writes);
+  const virtual = renameProjection(records, subject.primary, [...settlement.writes, ...own.result.writes]);
   const sweep = await planRenameReferences({ arcRoot: ".arc", sourceSlug: subject.originName, targetSlug, artifactRenames }, virtual.context);
   await applyRenameReferencePlan(sweep, virtual.context);
   const writes = records.flatMap((record) => renameMutation(record, subject, targetSlug, virtual.contents.get(record), branch, artifactRenames));
-  return { status: "ok", result: { subject, records, writes, observations: settlement.observations } };
+  return { status: "ok", result: { subject, records, writes, observations: observations.result } };
+}
+async function settleOwnRenameEdge(store: Store, subject: StoreRenameSubject, target: string): Promise<StoreResult<CreationSlugSettlement>> {
+  const primary = subject.primary, fields = ParsedMetaRecordSchema.parse(primary.fields);
+  if (!fields.dependsOn.includes(target)) return { status: "ok", result: { writes: [], observations: [] } };
+  const resolved = await resolveRetiredEdge(store, target, primary.reference.owner);
+  if (resolved.status === "refused") return resolved;
+  if (resolved.result === null) return malformed(primary, `The subject's dependency on ${target} has no proven prior-provider disposition.`,
+    { text: "Settle the subject's Depends On edge explicitly or choose another target name, then retry.",
+      argv: ["arc", "rename", subject.operand, target] });
+  const { disposition, records } = resolved.result;
+  const targets = replaceDependencySlot(fields.dependsOn, new Set([target]), disposition.kind === "drop" ? [] : disposition.replacementTargets);
+  return { status: "ok", result: { writes: [recordPut(primary, { content: writeMetaDependsOn(primary.content, targets) })],
+    observations: observeRecords(records) } };
+}
+function mergeRenameObservations(observations: readonly RecordObservation[], subject: StoreRenameSubject,
+  target: string): StoreResult<RecordObservation[]> {
+  const merged: RecordObservation[] = [];
+  for (const observation of observations) {
+    const prior = merged.find(item => sameReference(item.reference, observation.reference));
+    if (prior === undefined) { merged.push(observation); continue; }
+    if (sameExpectation(prior.expected, observation.expected)) continue;
+    return { status: "refused", refusal: { code: "version-conflict", class: "recoverable", records: [observation.reference],
+      condition: "Rename preparation observed contradictory versions, presence, or conflicts for one record.",
+      remedy: { text: "Acquire current provider evidence and prepare the rename again.", argv: ["arc", "rename", subject.operand, target] } } };
+  }
+  return { status: "ok", result: merged };
+}
+function sameExpectation(left: RecordObservation["expected"], right: RecordObservation["expected"]): boolean {
+  if (left === null || right === null) return left === right;
+  return left.version === right.version && left.conflicts.length === right.conflicts.length
+    && left.conflicts.every(reference => right.conflicts.some(other => sameReference(reference, other)));
 }
 function ownedArtifactRenames(records: readonly StoreRecord[], primary: StoreRecord, target: string): Map<string, string> {
   const renamed = { ...primary, reference: RecordReferenceSchema.parse({ ...primary.reference,

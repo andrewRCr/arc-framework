@@ -416,7 +416,7 @@ its history refs, discharging the edges naming it.
   Current-name continuations and a return to the owner's former name land; a conflicted continuation waits for repair.
   The cohort's strict namespace lookup is retained separately.
 
-### `[ ]` **4.4 Settle the edges naming a reused slug in the rename's batch — § 2.3**
+### `[x]` **4.4 Settle the edges naming a reused slug in the rename's batch — § 2.3**
 
 - _Goal:_ A rename onto a reused slug leaves no edge naming the subject itself or the slug's prior holder unsettled where
   the rename may write it, and refuses where only a dependent's owner can settle one.
@@ -432,17 +432,11 @@ its history refs, discharging the edges naming it.
           bind the batch. A newly observed stub outside the acquired groups forces a retry; started dependents and stubs
           naming both slugs retain the dependency refusal until their edges are repaired.
 
-    - `[ ]` **4.4.c The subject's own edge**
+    - `[x]` **4.4.c The subject's own edge**
 
-        - Its edge naming the target is discharged where the prior holder shipped, otherwise replaced or dropped through
-          `resolveRetiredEdge` and `replaceDependencySlot`, in the subject's own meta write.
-
-    - Build `test-first` (one behavior at a time):
-        - renaming onto an archived work unit's slug discharges a stub's edge naming it and the subject's own
-        - an edge on a retired origin's slug takes its lineage disposition, its records bound as observations
-        - an in-flight dependent's edge naming the target refuses through `work-item.slug-edges` with its remedy
-        - a stub whose edges name both the subject's current slug and the target refuses through `work-item.slug-edges`,
-          and lands once that stub's edge on the target is settled
+        - The subject's target dependency takes its proven prior-provider disposition before the sweep; unproven edges
+          refuse with explicit repair and retry. Compatible shared observations coalesce, contradictory observations
+          refuse, and every resolved provider remains read-only evidence checked by the batch.
 
 ### `[ ]` **4.5 Rewrite only the references that resolve to the subject, and report the rest — § 4**
 
