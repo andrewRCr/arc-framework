@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted (2026-11-05)
 
 Records the accept-at-merge lifecycle, ADR dispositions at planning close, merge checks, and reader independence.
 
