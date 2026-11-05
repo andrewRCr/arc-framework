@@ -143,16 +143,13 @@ while it reads Proposed, naming the file and its `Accepted (<today>)` remedy, an
     - `[x]` **4.1.d Render the `.arc/` copy**
         - Rendered the completed strategy into the project instance and verified the two copies match.
 
-### `[ ]` **4.2 Start the ADR template at Proposed — D1**
+### `[x]` **4.2 Start the ADR template at Proposed — D1**
 
 - _Goal:_ A new ADR copied from the template starts at the bare line `Proposed`, which the status check reads as its
   status line, with the four states and their timing in a guidance comment after it.
 
-    - Replace the `{Proposed | Accepted | Deprecated | Superseded by ADR-XXX}` placeholder with `Proposed`; the
-      comment lists the four states with their timing, `Proposed` while the delivering change is unmerged and
-      `Accepted (YYYY-MM-DD)` set in that change before it merges, and sits after the line, never before it
-    - Edit the package source only, then render the `.arc/` copy with
-      `npm run render:framework -- packages/arc-framework/arc/reference/templates/arc/template-adr.md`
+- _Outcome:_ Started the template at the bare Proposed line, followed by guidance for the four states and their timing;
+  rendered the project copy.
 
 ### `[ ]` **4.3 Add the ADR-disposition criterion to draft readiness — D2**
 
