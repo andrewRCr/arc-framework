@@ -287,44 +287,15 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   swaps keep their original protection and bases. Windows/macOS qualified at `e3d2c509d8` in run `42102353178`
   (attempt 2).
 
-### `[ ]` **2.3 Edit archived work in place — § 8.4**
+### `[x]` **2.3 Edit archived work in place — § 8.4**
 
 - _Goal:_ The archived work unit's owner corrects its files in `completed/` from any checkout, meta and task list
   included, as a write in place that keeps its archive number; anyone else's archived work is read-only; and a missing
   history ref is pulled by name and retried once only where the network may be waited on.
 
-- _Note:_ Built once `storage-ref-hardening` is on base and this branch has merged it, never on that work's branch;
-  the retry's arms are confirmed against it as shipped first (spec § 18). See `notes-projection-write-back.md`
-  § Grounding against `storage-ref-hardening`.
-
-    - Write-back does not scan `completed/` (1.9.a), so a correction persists at `arc save`, at the persist or release
-      step (`projection-worktrees`), or when a refresh touches the file. Each kind's write check applies.
-    - `arc save`, and the persist and release steps when `projection-worktrees` builds them, run write-back over the
-      store's history retry (`retryEndedItemHistory`, `lib/store/history-retry.ts`), its notices written into
-      write-back's report, and build the command's `history` memo over that store (`createHistoryMemo`), memo over
-      retry over store, so the memo keeps the answer the retry reached. A write to a completed item, or a `history` read
-      a merge in the checkout makes, that refuses `state-unresolvable` naming at least one history ref then pulls those
-      refs by name and runs once more (`pullHistoryForRetry`, `lib/store/pull-consumption.ts`). Where the pull is
-      refused, `lock-held` among its refusals, or a state or candidate outcome fails, or the pull leaves a store
-      designation unanswered, the retry answers the first refusal; where the retried operation refuses again, as where
-      the state remote lacks the ref too, it answers that one; either way the edit stays refused, carrying the remedy of
-      the refusal answered. A refusal naming none, and `namespace-corrupt`, are 1.6's and take no pull. Every other
-      start uses the store unwrapped, so at any other command's start the refusal stays refused with a remedy naming
-      `arc save`, and nothing is pulled.
-    - Build `test-first` (one behavior at a time):
-        - Integration tier, over the reference backend and the test stores (1.3): `lackingEndedHistory` for a refusal a
-          pull lifts, and `createHistoryRefusingStore` for one it does not
-        - the owner's correction to an archived meta persists at `arc save` and keeps its archive number
-        - another person's archived file is protected and its edit refused, and the same edit by its owner persists
-        - at `arc save`, a missing history ref is pulled, the test store records the pull, and the retry lands
-        - at `arc save`, a merge's `history` read refused for a missing ref is pulled and retried, and the memo answers
-          the retried read
-        - where the pull leaves the ref missing, the edit stays refused with the retry's remedy
-        - where the pull is refused `lock-held`, the edit stays refused with the first refusal's remedy, and lands at
-          the next `arc save` once the lock is free
-        - a refusal naming no history ref at `arc save` records no pull and stays refused with its remedy, and lands
-          once the remedy is applied
-        - at another command's start, the same refusal stays refused with the `arc save` remedy and nothing is pulled
+- _Outcome:_ Save binds its history memo over named-ref retry and reports pull notices before command output. Owner
+  corrections keep their archive placement; refused pulls and retried operations preserve the edit and selected remedy.
+  Ordinary commands stay offline and name `arc save`, including rights checks and interrupted stampless replacements.
 
 ### `[ ]` **2.4 Register the `active/` locations and the projected file names as layout addresses — § 10.1, § 10.2, § 9**
 

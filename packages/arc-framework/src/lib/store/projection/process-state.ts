@@ -60,13 +60,14 @@ export interface ProjectionProcessState {
   readonly roots: Map<string, ProjectionRootState>;
   readonly capabilities: Map<string, boolean>;
   readonly fanOutRounds: Set<string>;
+  readonly notices: string[];
   readonly diagnostics: WriteBackDiagnostic[];
   readonly resolutions: WriteBackResolution[];
 }
 
 function freshState(capabilities = new Map<string, boolean>()): ProjectionProcessState {
   return { command: null, start: null, resolution: null, skip: null, lockHeld: false, history: null, roots: new Map(), capabilities, fanOutRounds: new Set(),
-    diagnostics: [], resolutions: [] };
+    notices: [], diagnostics: [], resolutions: [] };
 }
 const key = Symbol.for("arc.projection.command-state");
 const processState = globalThis as typeof globalThis & { [key]?: ProjectionProcessState };

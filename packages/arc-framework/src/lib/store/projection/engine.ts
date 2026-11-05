@@ -1,6 +1,7 @@
 /** Command-scoped entry points for writing back and settling projected files. */
 import { join } from "node:path";
 import type { Store } from "../contract.js";
+import { retryEndedItemHistory } from "../history-retry.js";
 import type { StateVersion } from "../identity.js";
 import type { RefusedMark } from "./index-schema.js";
 import { createProjectionEnginePorts, type ProjectionEnginePorts } from "./engine-ports.js";
@@ -46,6 +47,7 @@ async function initializeProjection(input: ProjectionCommandInput): Promise<Proj
   const state = projectionProcessState();
   state.capabilities.set(input.checkout, input.store.capabilities.stateOffBranch);
   if (!input.store.capabilities.stateOffBranch) return { kind: "disabled" };
+  const effective = historyRetryInput(input);
   const ports = input.ports?.() ?? createProjectionEnginePorts(input.checkout);
   const unsent = new Set<string>();
   let location = input.location;
@@ -57,7 +59,7 @@ async function initializeProjection(input: ProjectionCommandInput): Promise<Proj
     }
     location = await locateProjection(input.checkout, ports);
   }
-  const result = await withProjectionLock(location, session => startUnderLease(input, ports, location, session, unsent),
+  const result = await withProjectionLock(location, session => startUnderLease(effective, ports, location, session, unsent),
     ports.maxWaitMs === undefined ? {} : { maxWaitMs: ports.maxWaitMs }, ports.lock);
   if (result.status !== "done") return skipped(input.checkout, result, unsent);
   if (result.value.kind === "refused") state.diagnostics.push({ path: input.checkout, copy: null, mark: result.value.mark });
@@ -72,6 +74,12 @@ async function initializeProjection(input: ProjectionCommandInput): Promise<Proj
     await root.fanOut?.();
   }
   return result.value;
+}
+
+function historyRetryInput(input: ProjectionCommandInput): ProjectionCommandInput {
+  return input.mode === "save" ? { ...input,
+    store: retryEndedItemHistory(input.store, line => { projectionProcessState().notices.push(line); }),
+  } : input;
 }
 
 /** Settle the copies accumulated by this command under freshly acquired locks. */

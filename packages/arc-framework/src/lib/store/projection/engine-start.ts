@@ -100,7 +100,7 @@ async function bindRoot(input: ProjectionCommandInput, ports: ProjectionEnginePo
     await root.checkpoint();
   };
   const context: ReadBackContext = { store: input.store, location, format: config.objectFormat, actor, writer, memo: state.history, versionRecoveries: [],
-    protection: createProjectionProtection({ store: input.store, checkout: input.checkout, identity: config.identity.identity, exec: ports.exec }),
+    protection: createProjectionProtection({ store: input.store, checkout: input.checkout, identity: config.identity.identity, exec: ports.exec, verb: input.mode ?? "write-back" }),
     verb: input.mode ?? "write-back", checkpoint, hooks: ports.hooks, takeIn: request => root.takeIn(request), onWrite: () => { root.changed = true; },
     report: diagnostic => {
       state.diagnostics.push(diagnostic);
@@ -117,7 +117,7 @@ async function bindRoot(input: ProjectionCommandInput, ports: ProjectionEnginePo
   const send = createWriteBackPort(context);
   const root: ProjectionRootState = { checkout: input.checkout, store: input.store, location, ports, context, identity: config.identity.identity,
     claim: null, layoutActive: "nested", checkpoint: session.step, copies: [], removals: [], unsent, discovered: [], changed: false,
-    ready: false, writable: () => false, rights: bindProjectionRights(input.store, config.identity.identity, ports.exec), takeIn: async request => {
+    ready: false, writable: () => false, rights: bindProjectionRights(input.store, config.identity.identity, ports.exec, input.mode ?? "write-back"), takeIn: async request => {
       const denied = await root.rights?.(request);
       if (denied === undefined || denied === null) return send(request);
       root.unsent.add(request.path);

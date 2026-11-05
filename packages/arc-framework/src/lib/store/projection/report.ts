@@ -5,13 +5,15 @@ import { formatConflictToken } from "../../status/conflict-token.js";
 import { projectionProcessState } from "./process-state.js";
 import type { CopySettlement } from "./aside-copies.js";
 
-/** Flush only new diagnostics and resolutions at command entry and completion. */
+/** Flush only new notices, diagnostics, and resolutions at command entry and completion. */
 export function createProjectionReporter(store: Pick<Store, "capabilities">,
   writeError: (text: string) => void = text => { process.stderr.write(text); }): () => void {
   let diagnostics = 0;
   let resolutions = 0;
+  let notices = 0;
   return () => {
     const state = projectionProcessState();
+    for (const notice of state.notices.slice(notices)) writeError(`projection: ${notice}\n`);
     for (const diagnostic of state.diagnostics.slice(diagnostics)) {
       writeError(`projection: ${locus(diagnostic.path, diagnostic.copy)}: ${diagnostic.mark.reason}\n  ${storeRemedyText(store, diagnostic.mark.remedy)}\n`);
     }
@@ -20,6 +22,7 @@ export function createProjectionReporter(store: Pick<Store, "capabilities">,
     }
     diagnostics = state.diagnostics.length;
     resolutions = state.resolutions.length;
+    notices = state.notices.length;
   };
 }
 

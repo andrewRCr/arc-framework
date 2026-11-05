@@ -1,4 +1,5 @@
 /** Prepare a projected edit without writing, then send it through the caller-owned take-in port. */
+import { markStoreRefusal } from "./refusal-mark.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Store } from "../contract.js";
@@ -219,8 +220,8 @@ async function stamplessVerdict(
   if (request.entry.markers !== null || request.entry.refused?.reason === "bases-disagree") return null;
   const read = await readStamplessFile({ entry: request.entry, text, mtimeNs: stat.mtimeNs,
     format: context.format, memo: context.memo ?? createHistoryMemo(context.store) });
-  if (read.status === "refused") return pendingRead(request, read.refusal);
-  if (read.result.kind === "pending") return pendingRead(request, read.result.refusal);
+  if (read.status === "refused") return pendingRead(context, request, read.refusal);
+  if (read.result.kind === "pending") return pendingRead(context, request, read.result.refusal);
   if (read.result.kind === "edit") return null;
   if (read.result.kind === "unedited" && request.observedEdit) return null;
   const pending = read.result.kind === "wait";
@@ -228,19 +229,14 @@ async function stamplessVerdict(
     entry: pending ? { ...request.entry, pending: true } : request.entry } };
 }
 
-function pendingRead(request: TakeInRequest, refusal: StoreRefusal): HeldWriteBack {
+function pendingRead(context: WriteBackContext, request: TakeInRequest, refusal: StoreRefusal): HeldWriteBack {
   return { kind: "held", result: { answer: "pending", entry: { ...request.entry, pending: true } },
-    diagnostic: { reason: refusal.condition, remedy: refusal.remedy } };
+    diagnostic: markStoreRefusal(refusal, context.verb) };
 }
 
 function refusedPreparation(entry: RecordEntry, refusal: StoreRefusal): HeldWriteBack {
   const mark = markStoreRefusal(refusal);
   return { kind: "held", refusal, result: { answer: "refused", entry: { ...entry, refused: mark }, mark } };
-}
-
-function markStoreRefusal(refusal: StoreRefusal): RefusedMark {
-  return { reason: refusal.code === "record-malformed" ? `${refusal.rule}: ${refusal.condition}` : refusal.condition,
-    remedy: refusal.remedy };
 }
 
 async function restoreIds(context: WriteBackContext, request: TakeInRequest, content: string, selected: RecoveredBase): Promise<StoreResult<{
@@ -298,7 +294,7 @@ export async function sendWriteBack(context: WriteBackContext, request: TakeInRe
     const decision = await decideWriteBackRefusal(bound, current, attempt.refusal);
     if (decision.kind === "recover" && !recoveringBase) continue;
     const refusal = decision.kind === "recover" ? attempt.refusal : decision.refusal;
-    const mark = markStoreRefusal(refusal);
+    const mark = markStoreRefusal(refusal, context.verb);
     context.report?.({ path: request.path, copy: request.copy, mark });
     const result: TakeInResult = refusal.code === "version-conflict" || refusal.code === "lock-held"
       ? { answer: "pending", entry: { ...current.entry, pending: true } }

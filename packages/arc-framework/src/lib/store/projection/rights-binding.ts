@@ -8,8 +8,8 @@ import type { RecordEntry, RefusedMark } from "./index-schema.js";
 import type { TakeInResult } from "./take-in-port.js";
 
 /** Bind the store and editing identity while taking the file-holding checkout from each request. */
-export function bindProjectionRights(store: Store, identity: Slug, exec: GitExec): ProjectionRights {
-  return request => readProjectionProtection({ store, identity, exec, checkout: request.checkout }, request.entry.reference);
+export function bindProjectionRights(store: Store, identity: Slug, exec: GitExec, verb?: "save" | "write-back"): ProjectionRights {
+  return request => readProjectionProtection({ store, identity, exec, verb, checkout: request.checkout }, request.entry.reference);
 }
 
 /** Keep an unsent hold's resolution token while the caller reports the current rights denial separately. */

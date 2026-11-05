@@ -1,5 +1,6 @@
 /** Save runs through the registered CLI, its start hook, and a real reference backend. */
 import { afterEach, expect, it, vi } from "vitest";
+import { Command } from "commander";
 import type { Store } from "../../../../src/lib/store/contract.js";
 import type { ProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 
@@ -31,18 +32,18 @@ import { createReferenceFixture } from "../../../helpers/store/reference-fixture
 import { seedProjection } from "../../../helpers/store/projection/seeded-projection.js";
 import { configureEngineCheckout } from "../../../helpers/store/projection/engine-fixture.js";
 import { formatConflictToken } from "../../../../src/lib/status/conflict-token.js";
-import { readFile, rename, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { chmod, lstat, readFile, rename, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { createCheckoutFixture } from "../../../helpers/store/projection/checkout-fixture.js";
 import { initializeEngineCheckout } from "../../../helpers/store/projection/engine-fixture.js";
 import { writeBackFile } from "../../../../src/lib/store/projection/read-back.js";
-import { writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { update } from "../../../helpers/store/suite-tools.js";
 import { seedStatusConflict } from "../../../helpers/store/status-conflicts.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
-import { RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
+import { RecordReferenceSchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { writeWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
 import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
@@ -52,9 +53,30 @@ import { overrideEngineStore } from "../../../helpers/store/projection/engine-fi
 import { acquireAdvisoryLock, releaseAdvisoryLockConfirmed, type AdvisoryLockHandle } from "../../../../src/lib/advisory-lock.js";
 import { ADVISORY_LEASE_DURATION_MS } from "../../../../src/lib/renewable-lease.js";
 import { startProjection } from "../../../../src/lib/store/projection/engine.js";
+import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
+import { workItemArtifactPath } from "../../../../src/lib/store/lifecycle-storage.js";
+import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness.js";
+import { lackingEndedHistory } from "../../../helpers/store/ended-history.js";
+import { registerProjectionHooks } from "../../../../src/lib/store/projection/command-hooks.js";
+import { HistoryRefSchema, PullResultSchema, StoreRefusalSchema } from "../../../../src/lib/store/index.js";
+import { createEditorHandles } from "../../../helpers/store/projection/editor-handles.js";
+import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
+import { createProjectionProtection } from "../../../../src/lib/store/projection/protection.js";
+import { TASK_RULE_CONTENT } from "../../../helpers/store/task-rule-input.js";
+import { createHistoryRefusingStore } from "../../../helpers/store/projection/history-refusing-store.js";
+import { stageRecordFile } from "../../../../src/lib/store/projection/staging.js";
+import { guardReplacement } from "../../../../src/lib/store/projection/replace-guard.js";
+import { swapBatch } from "../../../../src/lib/store/projection/swap.js";
+import { readReference } from "../../../../src/lib/store/projection/change-detection.js";
+import { writeBackProjectionFiles } from "../../../../src/lib/store/projection/engine-files.js";
+import { createProjectionReporter } from "../../../../src/lib/store/projection/report.js";
+
 
 const directories: string[] = [];
-afterEach(async () => { binding.store = null; binding.singleUse = false; binding.ports = null; await removeGitBackedDirs(directories.splice(0)); });
+const editors = createEditorHandles();
+afterEach(async () => { binding.store = null; binding.singleUse = false; binding.ports = null;
+  await editors.closeAll(); await removeGitBackedDirs(directories.splice(0)); });
 
 async function save(h: { store: Store; checkout: string }, args: readonly string[] = []) {
   const cwd = process.cwd(), exit = process.exitCode;
@@ -78,6 +100,342 @@ it("saves a completed-file edit and returns the version after that write", async
   expect(saved.exitCode).toBe(0);
   expect((await h.stored()).content).toBe("completed edit\n");
   expect(success(await h.store.history({ reference: h.record.reference }))[0]?.provenance).toMatchObject({ verb: "save", lifecycleAction: "edit" });
+});
+
+async function archivedView(artifact: "meta" | "tasks" | "companion" = "meta", identity = "andrew") {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("corrected", { owner: "andrew", state: "Shipped", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const record = artifact === "meta" ? primary : artifact === "tasks"
+    ? await h.seed(recordReferences["work-item/task-list"](primary.reference.owner), TASK_RULE_CONTENT.replaceAll("`[ ]`", "`[x]`"))
+    : await h.seed(recordReferences["work-item/companion"](primary.reference.owner, "attachment.txt"), "First line.\n\nLast line.\n");
+  const placement = record.placement;
+  if (placement?.kind !== "completed" || !("sequence" in placement)) throw new Error("The backend assigned no archive placement");
+  const owner = record.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("The backend assigned no archived owner UID");
+  const path = artifact === "companion"
+    ? `${dirname(workItemArtifactPath("corrected", "meta", placement, null))}/attachment.txt`
+    : workItemArtifactPath("corrected", artifact, placement, null);
+  const selectedIdentity = SlugSchema.parse(identity);
+  const view = await seedProjection({ store: h.store, files: [{ reference: record.reference, path }], identity: selectedIdentity,
+    renderer: checkout => createRecordRenderer({ store: h.store,
+      protection: createProjectionProtection({ store: h.store, checkout, identity: selectedIdentity, exec: createProjectionEnginePorts(checkout).exec }) }) });
+  directories.push(view.checkout);
+  const exec = await configureEngineCheckout(view.checkout);
+  await exec("git", ["config", "arc.identity", identity], { cwd: view.checkout });
+  const entry = view.index.entries[path];
+  if (entry?.kind !== "record") throw new Error("The projection omitted its archived meta");
+  const file = () => readFile(join(view.checkout, path), "utf8");
+  return { ...h, ...view, record, placement, owner, path, exec, file,
+    history: HistoryRefSchema.parse(`refs/arc/history/work/${owner.uid}`),
+    stored: async () => success(await h.store.read({ reference: record.reference })),
+    edit: async (content: string) => {
+      const stamp = parseStampedFile(await file()).stamp;
+      if (stamp === null) throw new Error("The archived projection lost its stamp");
+      await writeFile(join(view.checkout, path), renderStampedFile({ content, stamp }));
+    } };
+}
+
+it("pulls an archived owner's named history under the save lease and keeps its assigned archive number", async () => {
+  const h = await archivedView();
+  const content = `${h.record.content}\nOwner correction.\n`;
+  await h.edit(content);
+  const missing = lackingEndedHistory(h.store, h.record.reference.owner);
+  const pulls: { history: readonly string[]; held: boolean }[] = [];
+  const store = overrideEngineStore(missing, { pull: async input => {
+    pulls.push({ history: input?.history ?? [], held: projectionProcessState().lockHeld });
+    return missing.pull(input);
+  } });
+  const saved = await save({ store, checkout: h.checkout });
+  expect(saved.result).toMatchObject({ status: "ok", result: { version: success(await h.store.version()) } });
+  expect(saved.errors).toBe("");
+  const current = await h.stored();
+  expect(current.content).toBe(content);
+  expect(current.placement).toEqual(h.placement);
+  expect(pulls).toEqual([{ history: [h.history], held: true }]);
+});
+
+it("routes history-pull notices through the command reporter before output and flushes them once", async () => {
+  const h = await archivedView();
+  const content = `${h.record.content}\nReported correction.\n`;
+  await h.edit(content);
+  const missing = lackingEndedHistory(h.store, h.record.reference.owner);
+  const store = overrideEngineStore(missing, { pull: async input => {
+    const pulled = await missing.pull(input);
+    if (pulled.status === "refused") return pulled;
+    return { status: "ok", result: PullResultSchema.parse({ ...pulled.result,
+      pulls: pulled.result.pulls.map(each => ({ ...each, notices: [...each.notices, { kind: "tracking-update-failed",
+        ref: `refs/arc-remotes/origin/history/work/${h.owner.uid}`, condition: "The history tracking ref needs repair.",
+        remedy: { text: "Repair the tracking ref, then retry the pull.", argv: ["arc", "store", "pull"] } }] })) }) };
+  } });
+  const events: { stream: string; text: string }[] = [];
+  const program = new Command("arc").exitOverride();
+  program.command("save").action(() => { events.push({ stream: "stdout", text: JSON.stringify({ ok: true }) }); });
+  registerProjectionHooks(program, { input: () => ({ store, checkout: h.checkout }),
+    writeError: text => { events.push({ stream: "stderr", text }); } });
+  await program.parseAsync(["save"], { from: "user" });
+  expect((await h.stored()).content).toBe(content);
+  expect(events[0]).toMatchObject({ stream: "stderr", text: expect.stringContaining("The history tracking ref needs repair.") });
+  const reports = events.filter(each => each.stream === "stderr").map(each => each.text).join("");
+  expect(reports).toContain("Repair the tracking ref, then retry the pull.");
+  expect(reports).toContain("arc store pull");
+  expect(reports.match(/The history tracking ref needs repair\./gu)).toHaveLength(1);
+  expect(JSON.parse(events.find(each => each.stream === "stdout")?.text ?? "")).toEqual({ ok: true });
+});
+
+async function staleArchivedView() {
+  const h = await archivedView();
+  const base = `${h.record.content}\nFirst note.\n\nSeparate note.\n\nSecond note.\n`;
+  await h.edit(base);
+  expect((await save(h)).errors).toBe("");
+  const previous = await h.stored();
+  const remote = base.replace("First note.", "Remote first note.");
+  success(await h.store.write({ action: "put", reference: h.record.reference, expected: previous.version,
+    content: remote, placement: { kind: "completed", quarter: h.placement.quarter },
+    provenance: { verb: "save", lifecycleAction: "edit" } }));
+  await h.edit(base.replace("Second note.", "Local second note."));
+  return { ...h, base, previous, remote, merged: remote.replace("Second note.", "Local second note.") };
+}
+
+it("memoizes the retried historical base of an archived correction and merges it after a writer repair", async () => {
+  const h = await staleArchivedView();
+  const bytes = await h.file();
+  const missing = lackingEndedHistory(h.store, h.record.reference.owner);
+  let blocked = true;
+  const store = overrideEngineStore(missing, { write: input => blocked ? Promise.resolve({ status: "refused",
+    refusal: { code: "lock-held", class: "recoverable", lock: "archive", condition: "The archive writer is held.",
+      remedy: { text: "Release the archive writer, then retry arc save.", argv: ["arc", "save"] } } }) : missing.write(input) });
+  const refused = await save({ store, checkout: h.checkout });
+  expect(refused.errors).toContain("The archive writer is held.");
+  expect((await h.stored()).content).toBe(h.remote);
+  expect(await h.file()).toBe(bytes);
+  const memo = projectionProcessState().history;
+  if (memo === null) throw new Error("The command bound no history memo");
+  expect(success(await memo.read(h.record.reference))).toContainEqual(expect.objectContaining({ version: h.previous.version, content: h.base }));
+  blocked = false;
+  expect((await save({ store, checkout: h.checkout })).errors).toBe("");
+  expect((await h.stored()).content).toBe(h.merged);
+  expect((await h.stored()).placement).toEqual(h.placement);
+});
+
+type BlockedHistoryPull = "lock-held" | "state-failed" | "candidate-failed" | "designation-needed";
+function blockedHistoryPull(kind: BlockedHistoryPull): Awaited<ReturnType<Store["pull"]>> {
+  if (kind === "lock-held") return { status: "refused", refusal: { code: "lock-held", class: "recoverable",
+    lock: "history-pull", condition: "The history pull lock is held.", remedy: { text: "Release the history pull lock." } } };
+  if (kind === "designation-needed") return { status: "ok", result: PullResultSchema.parse({ states: [{
+    status: "designation-needed", remote: "origin", choices: ["push", "read", "off"],
+    remedy: { text: "Choose the origin store designation." } }], pulls: [] }) };
+  return { status: "ok", result: PullResultSchema.parse({ states: [], pulls: [{ status: "failed",
+    role: kind === "state-failed" ? "state" : "candidate", remote: "origin", families: ["work-item"], notices: [],
+    failure: { code: "unreachable", class: "recoverable", cause: "network", condition: "The history remote is unavailable.",
+      remedy: { text: "Restore the history remote." } } }] }) };
+}
+
+it.each<BlockedHistoryPull>(["lock-held", "state-failed", "candidate-failed", "designation-needed"])(
+  "keeps an archived edit and its original remedy when its pull is %s, then saves after repair", async kind => {
+    const h = await archivedView();
+    const content = `${h.record.content}\nRetry this archived correction.\n`;
+    const missing = lackingEndedHistory(h.store, h.record.reference.owner);
+    const first = await missing.write({ action: "put", reference: h.record.reference, expected: h.record.version,
+      content, placement: { kind: "completed", quarter: h.placement.quarter }, provenance: { verb: "save", lifecycleAction: "edit" } });
+    if (first.status !== "refused") throw new Error("The fixture did not refuse missing history");
+    await h.edit(content);
+    const bytes = await h.file();
+    let blocked = true, pulls = 0;
+    const store = overrideEngineStore(missing, { pull: input => {
+      pulls++;
+      return blocked ? Promise.resolve(blockedHistoryPull(kind)) : missing.pull(input);
+    } });
+    const refused = await save({ store, checkout: h.checkout });
+    expect(refused.errors).toContain(first.refusal.condition);
+    expect(refused.errors).toContain(first.refusal.remedy.text);
+    expect((await h.stored()).content).toBe(h.record.content);
+    expect(await h.file()).toBe(bytes);
+    const firstPulls = pulls;
+    blocked = false;
+    expect((await save({ store, checkout: h.checkout })).errors).toBe("");
+    expect((await h.stored()).content).toBe(content);
+    expect((await h.stored()).placement).toEqual(h.placement);
+    expect(firstPulls).toBe(1);
+    expect(pulls).toBe(2);
+  });
+
+it.each(["history", "primary-read"] as const)("keeps a late archived aside edit offline at ordinary command start and names save as its repair (%s)", async fault => {
+  const h = await archivedView();
+  const stamp = parseStampedFile(await h.file()).stamp;
+  if (stamp === null) throw new Error("The archived projection lost its stamp");
+  const editor = await editors.open(join(h.checkout, h.path));
+  const first = `${h.record.content}\nFirst archived correction.\n`;
+  await h.edit(first);
+  const ports = createProjectionEnginePorts(h.checkout);
+  await startProjection({ store: h.store, checkout: h.checkout, mode: "save", ports: () => ({ ...ports,
+    writer: async () => ({ ...await ports.writer(), processInstance: "exited-archive-writer" }) }) });
+  expect((await h.stored()).content).toBe(first);
+  const disk = await readProjectionIndex(h.location, true);
+  const entry = disk.kind === "index" ? disk.index.entries[h.path] : undefined;
+  if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("The save retained no displaced editor copy");
+  const copy = entry.copies[0].name;
+  const late = `${first}\nLate archived correction.\n`;
+  const bytes = renderStampedFile({ content: late, stamp });
+  await editor.truncate(0); await editor.writeFile(bytes);
+  const missing = lackingEndedHistory(h.store, h.record.reference.owner);
+  let pulls = 0;
+  let missingPrimary = true;
+  const primary = await missing.history({ reference: h.record.reference });
+  if (primary.status !== "refused") throw new Error("The missing history did not refuse its read");
+  const primaryRefusal = primary.refusal;
+  const selected = fault === "history" ? missing : overrideEngineStore(h.store, {
+    read: input => missingPrimary && input.reference.kind === h.record.reference.kind
+      && input.reference.owner.name === h.owner.name ? Promise.resolve({ status: "refused", refusal: primaryRefusal }) : h.store.read(input),
+  });
+  const store = overrideEngineStore(selected, { pull: input => {
+    pulls++;
+    if (input?.history?.includes(h.history)) missingPrimary = false;
+    return selected.pull(input);
+  } });
+  const output: string[] = [];
+  const program = new Command("arc").exitOverride();
+  program.command("probe").action(() => { output.push("command output"); });
+  registerProjectionHooks(program, { input: () => ({ store, checkout: h.checkout }), writeError: text => { output.push(text); } });
+  await program.parseAsync(["probe"], { from: "user" });
+  expect((await h.stored()).content).toBe(first);
+  expect(await h.file()).toBe(bytes);
+  expect(pulls).toBe(0);
+  const diagnostic = output.slice(0, output.indexOf("command output")).join("");
+  expect(diagnostic).toContain(h.path);
+  expect(diagnostic).toContain(copy);
+  expect(diagnostic).toContain("arc save");
+  expect((await save({ store, checkout: h.checkout })).errors).toBe("");
+  expect((await h.stored()).content).toBe(late);
+  expect((await h.stored()).placement).toEqual(h.placement);
+  expect(pulls).toBe(1);
+});
+
+it("keeps an interrupted archived stampless edit offline and names save before a repaired retry lands", async () => {
+  const h = await archivedView("companion");
+  const original = h.index.entries[h.path];
+  if (original?.kind !== "record") throw new Error("The companion was not projected");
+  const next = "Updated first line.\n\nLast line.\n";
+  success(await h.store.write({ action: "put", reference: h.record.reference, content: next, expected: h.record.version,
+    provenance: { verb: "save", lifecycleAction: "edit" } }));
+  const current = await h.stored();
+  const writer = { ...await createProjectionEnginePorts(h.checkout).writer(), processInstance: "interrupted-archive-writer" };
+  const renderer = createRecordRenderer({ store: h.store });
+  const staged = success(await stageRecordFile({ checkout: h.checkout, path: h.path, record: current,
+    replacing: original.base.blob, writer, format: "sha1", readOnly: false, renderer }));
+  const takeIn = async () => { throw new Error("The unedited original must not be sent"); };
+  const replace = await guardReplacement({ checkout: h.checkout, path: h.path, entry: original, staged,
+    reference: await readReference(h.checkout), format: "sha1", store: h.store, writer, renderer, takeIn });
+  if (replace.kind !== "replace") throw new Error("The unedited companion could not be replaced");
+  await expect(swapBatch({ location: h.location, checkout: h.checkout, index: h.index, files: [{ path: h.path, replace }],
+    readBack: false, writer, format: "sha1", takeIn, hooks: { afterRecheck: async () => { throw new Error("interrupted before moving"); } },
+  })).rejects.toThrow("interrupted before moving");
+  const content = `${next}\nOwner correction after interruption.\n`;
+  await writeFile(join(h.checkout, h.path), content);
+  const missing = lackingEndedHistory(h.store, h.owner);
+  let pulls = 0;
+  const store = overrideEngineStore(missing, { pull: input => { pulls++; return missing.pull(input); } });
+  expect(await startProjection({ store, checkout: h.checkout })).toMatchObject({ kind: "ready" });
+  const root = projectionProcessState().roots.get(h.checkout);
+  if (root === undefined) throw new Error("The command did not bind its projection root");
+  const disk = await readProjectionIndex(h.location, true);
+  if (disk.kind !== "index") throw new Error("The interrupted index is unavailable");
+  expect(disk.index.entries[h.path]).toMatchObject({ inProgress: { replaces: original.base } });
+  await withProjectionLock(h.location, async session => {
+    root.checkpoint = session.step;
+    try { await writeBackProjectionFiles(root, disk.index, [h.path]); }
+    finally { root.checkpoint = null; }
+  });
+  let diagnostic = "";
+  createProjectionReporter(store, text => { diagnostic += text; })();
+  expect((await h.stored()).content).toBe(next);
+  expect(await h.file()).toBe(content);
+  expect(pulls).toBe(0);
+  expect(await readProjectionIndex(h.location, true)).toMatchObject({ kind: "index", index: { entries: { [h.path]: { pending: true } } } });
+  expect(diagnostic).toContain(h.path);
+  expect(diagnostic).toContain("arc save");
+  expect((await save({ store, checkout: h.checkout })).errors).toBe("");
+  expect((await h.stored()).content).toBe(content);
+  expect((await h.stored()).placement).toEqual(h.placement);
+  expect(pulls).toBe(1);
+});
+
+it.each(["meta", "tasks"] as const)("protects another person's archived %s and lands the same correction for its owner", async artifact => {
+  const h = await archivedView(artifact, "bob");
+  expect((await lstat(join(h.checkout, h.path))).mode & 0o222).toBe(0);
+  expect(await h.file()).toContain("Code generated by ARC. DO NOT EDIT.");
+  expect(await h.file()).toContain("andrew");
+  const content = `${h.record.content}\nArchived owner correction.\n`;
+  await chmod(join(h.checkout, h.path), 0o644);
+  await h.edit(content);
+  const bytes = await h.file();
+  const denied = await save(h);
+  expect(denied.errors).toContain("andrew");
+  expect((await h.stored()).content).toBe(h.record.content);
+  expect(await h.file()).toBe(bytes);
+  await h.exec("git", ["config", "arc.identity", "andrew"], { cwd: h.checkout });
+  expect((await save(h)).errors).toBe("");
+  expect((await h.stored()).content).toBe(content);
+  expect((await h.stored()).placement).toEqual(h.placement);
+  const disk = await readProjectionIndex(h.location, true);
+  expect(disk).toMatchObject({ kind: "index", index: { entries: { [h.path]: { protected: false, refused: null } } } });
+  expect((await lstat(join(h.checkout, h.path))).mode & 0o222).not.toBe(0);
+});
+
+it.each(["no-history-named", "namespace-corrupt"] as const)("does not pull an archived %s refusal and saves after local repair", async kind => {
+  const h = await archivedView();
+  const content = `${h.record.content}\nLocally repaired correction.\n`;
+  await h.edit(content);
+  const bytes = await h.file();
+  const refusal = StoreRefusalSchema.parse(kind === "no-history-named"
+    ? { code: "state-unresolvable", class: "recoverable", reference: h.record.reference, historyRefs: [],
+      condition: "The captured state version is unavailable.", remedy: { text: "Restore the captured version locally, then retry this edit." } }
+    : { code: "namespace-corrupt", class: "terminal", namespace: h.history,
+      condition: "The retained archive namespace is malformed.", remedy: { text: "Restore valid archive namespace data locally, then retry." } });
+  let blocked = true, pulls = 0;
+  const store = overrideEngineStore(h.store, {
+    write: input => blocked ? Promise.resolve({ status: "refused", refusal }) : h.store.write(input),
+    pull: input => { pulls++; return h.store.pull(input); },
+  });
+  const refused = await save({ store, checkout: h.checkout });
+  expect(refused.errors).toContain(refusal.condition);
+  expect(refused.errors).toContain(refusal.remedy.text);
+  expect((await h.stored()).content).toBe(h.record.content);
+  expect(await h.file()).toBe(bytes);
+  expect(pulls).toBe(0);
+  blocked = false;
+  expect((await save({ store, checkout: h.checkout })).errors).toBe("");
+  expect((await h.stored()).content).toBe(content);
+  expect((await h.stored()).placement).toEqual(h.placement);
+  expect(pulls).toBe(0);
+});
+
+it("keeps the retried history refusal's remedy until the archived base is repaired", async () => {
+  const h = await staleArchivedView();
+  const bytes = await h.file();
+  const refusing = createHistoryRefusingStore(h.store, [h.record.reference]);
+  const retried = StoreRefusalSchema.parse({ code: "state-unresolvable", class: "recoverable",
+    reference: h.record.reference, historyRefs: [h.history], condition: `The tip or a tree of ${h.history} is unavailable locally.`,
+    remedy: { text: `Restore or fetch the missing objects for ${h.history} in the store repository, then retry.` } });
+  let repaired = false;
+  const store = overrideEngineStore(refusing.store, { history: async input => {
+    if (repaired) return h.store.history(input);
+    const result = await refusing.store.history(input);
+    return refusing.calls("history") > 1 ? { status: "refused", refusal: retried } : result;
+  } });
+  const refused = await save({ store, checkout: h.checkout });
+  expect(refused.errors).toContain(retried.condition);
+  expect(refused.errors).toContain(retried.remedy.text);
+  expect(refused.errors).not.toContain("This clone has not fetched the record's history.");
+  expect((await h.stored()).content).toBe(h.remote);
+  expect(await h.file()).toBe(bytes);
+  expect(refusing.calls("pull")).toBe(1);
+  expect(refusing.calls("history")).toBe(2);
+  repaired = true;
+  expect((await save({ store, checkout: h.checkout })).errors).toBe("");
+  expect((await h.stored()).content).toBe(h.merged);
+  expect((await h.stored()).placement).toEqual(h.placement);
+  expect(refusing.calls("pull")).toBe(1);
 });
 
 it("uses the hook's selected Store for the registered save action's result", async () => {
