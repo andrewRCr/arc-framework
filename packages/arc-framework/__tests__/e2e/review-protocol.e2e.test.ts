@@ -12,6 +12,7 @@ import {
 import { afterEach, describe, expect, it } from "vitest";
 
 import { responsePolicyRequest } from "../fixtures/review-response-policy.js";
+import { fakeCodeRabbitCompletionLines } from "../helpers/fake-coderabbit.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 import {
@@ -636,8 +637,7 @@ describe("built review protocol", () => {
       'if [ "${1:-}" = "--version" ]; then printf "coderabbit 0.6.5\\n"; exit 0; fi',
       'printf "started\\n" > "$STARTED_FILE"',
       'while [ ! -f "$RELEASE_FILE" ]; do sleep 0.1; done',
-      "printf '%s\\n' '{\"type\":\"complete\",\"status\":\"review_completed\",\"findings\":0,"
-        + "\"reviewedFiles\":[\"reviewed.txt\"]}'", ""].join("\n"));
+      ...fakeCodeRabbitCompletionLines(0), ""].join("\n"));
     await chmod(executable, 0o755);
     const request = {
       schemaVersion: 1, target,
@@ -684,8 +684,7 @@ describe("built review protocol", () => {
       "fi",
       "printf 'run\\n' >> \"$COUNT_FILE\"",
       "sleep 1",
-      "printf '%s\\n' '{\"type\":\"complete\",\"status\":\"review_completed\",\"findings\":0,"
-        + "\"reviewedFiles\":[\"reviewed.txt\"]}'",
+      ...fakeCodeRabbitCompletionLines(0),
       "",
     ].join("\n"), "utf8");
     await chmod(executable, 0o755);
