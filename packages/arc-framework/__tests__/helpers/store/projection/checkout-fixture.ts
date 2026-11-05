@@ -7,7 +7,7 @@ import { createWriteBackPort } from "../../../../src/lib/store/projection/write-
 
 /** Land separated edits so the stored merge differs from the input kept beside its old stamp. */
 export async function createCheckoutFixture(input: { kind?: KindId; path?: string; base?: string; current?: string; incoming?: string } = {}) {
-  const source = await createWriteBackFixture({ kind: input.kind, path: input.path, content: input.base });
+  const source = await createWriteBackFixture({ kind: input.kind, path: input.path, content: input.base, identity: "andrew" });
   const remote = await source.store.write({ action: "put", reference: source.entry.reference, expected: source.entry.base.version,
     content: input.current ?? "opening\nbase\nclosing\nremote note\n", provenance: { verb: "edit", lifecycleAction: "edit" } });
   if (remote.status !== "ok") { await source.dispose(); throw new Error(`Remote seed refused: ${remote.refusal.condition}`); }

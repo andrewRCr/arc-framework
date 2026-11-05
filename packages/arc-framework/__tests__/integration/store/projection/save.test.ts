@@ -44,6 +44,8 @@ import { seedStatusConflict } from "../../../helpers/store/status-conflicts.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
+import { writeWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { META_REGISTRATION } from "../../../../src/lib/store/kinds/meta/registration.js";
 import { withProjectionLock, PROJECTION_LOCK_FILE } from "../../../../src/lib/store/projection/lock.js";
 import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
@@ -111,7 +113,9 @@ it("refuses a standing hold's markers, then sends its resolved text against the 
 
 async function conflictedProjection(path: string, unplaced = true) {
   const fixture = createReferenceFixture();
-  const base = await seed(fixture, fixture.reference("personal/document"), "opening\nbase\nclosing\n");
+  fixture.identity("andrew");
+  const base = await seed(fixture, RecordReferenceSchema.parse({ ...fixture.reference("personal/document"),
+    owner: { type: "person", name: "andrew" } }), "opening\nbase\nclosing\n");
   for (const content of ["opening\ncurrent\nclosing\n", "opening\nincoming\nclosing\n"]) {
     success(await fixture.store.write({ action: "put", reference: base.reference, expected: base.version, content,
       provenance: { verb: "edit", lifecycleAction: "edit" } }));
@@ -232,6 +236,8 @@ async function wholeRecordProjection(change: "removal" | "placement" | "verb-own
   const projected = await seedProjection({ store: fixture.store, files: [{ reference: base.reference, path }] });
   directories.push(projected.checkout);
   await configureEngineCheckout(projected.checkout);
+  await writeWorktreeMarker(projected.checkout, { spawnedByArc: false, spawningIdentity: "andrew",
+    createdAt: "2026-10-24T00:00:00Z", createdFor: boundWorkUnitSubject(base) });
   return { ...fixture, ...projected, fixture, reference: base.reference, conflict, current };
 }
 
@@ -365,8 +371,9 @@ it("refuses a malformed set with its repair, then draws the unseen conflict afte
 });
 
 it("resolves the indexed completed owner's UID even when a live owner has the same name", async () => {
-  const fixture = createReferenceFixture();
-  const primary = await seed(fixture, fixture.reference("work-item/meta"));
+  const fixture = createReferenceFixture({}, { "work-item/meta": { parser: META_REGISTRATION.parser } });
+  const meta = makeMetaFixture("work-item-one", { owner: "andrew", workClass: "Light", priority: "P1" });
+  const primary = await seed(fixture, fixture.reference("work-item/meta"), meta);
   const subject = await seed(fixture, RecordReferenceSchema.parse({ kind: "work-item/notes", owner: primary.reference.owner }),
     "opening\nbase\nclosing\n");
   for (const content of ["opening\ncurrent\nclosing\n", "opening\nincoming\nclosing\n"]) success(await fixture.store.write({
@@ -377,8 +384,9 @@ it("resolves the indexed completed owner's UID even when a live owner has the sa
   if (conflict === undefined) throw new Error("No conflict was produced");
   success(await fixture.store.write({ action: "put", reference: subject.reference, expected: current.version,
     content: "unplaced old owner content\n", provenance: { verb: "edit", lifecycleAction: "edit" } }));
-  success(await fixture.store.write({ ...update(fixture, primary), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
-  const live = await seed(fixture, fixture.reference("work-item/meta"));
+  success(await fixture.store.write({ ...update(fixture, primary, meta.replace("`Active`", "`Shipped`")),
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
+  const live = await seed(fixture, fixture.reference("work-item/meta"), meta);
   expect(live.reference.owner).not.toEqual(primary.reference.owner);
   const projected = await seedProjection({ store: fixture.store, files: [{ reference: subject.reference,
     path: ".arc/completed/2026-q4/notes-work-item-one.txt" }] });

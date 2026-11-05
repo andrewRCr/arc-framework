@@ -24,6 +24,8 @@ import { PRODUCTION_REGISTRATIONS } from "../../../../src/lib/store/kinds/regist
 import { RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
 import { ConflictRecordSchema } from "../../../../src/lib/store/conflict.js";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
+import { writeWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
+import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 
 const directories: string[] = [];
 afterEach(async () => { binding.store = null; await removeGitBackedDirs(directories.splice(0)); });
@@ -48,7 +50,7 @@ async function fixture() {
   source.identity("andrew");
   const document = await seed(source, RecordReferenceSchema.parse({ kind: "personal/document",
     owner: { type: "person", name: "andrew" }, key: "scratch/round-trip.md" }), "opening\nbase\nclosing\n");
-  await seed(source, source.reference("work-item/meta"), makeMetaFixture("work-item-one", {
+  const primary = await seed(source, source.reference("work-item/meta"), makeMetaFixture("work-item-one", {
     owner: "andrew", workClass: "Light", priority: "P1", currentWorkflow: "process-task-loop", design: ["spec-work-item-one.md"],
   }));
   const tasks = await seed(source, source.reference("work-item/task-list"), TASK_RULE_CONTENT);
@@ -59,6 +61,8 @@ async function fixture() {
   ] });
   directories.push(projected.checkout);
   await configureEngineCheckout(projected.checkout);
+  await writeWorktreeMarker(projected.checkout, { spawnedByArc: false, spawningIdentity: "andrew",
+    createdAt: "2026-10-24T00:00:00Z", createdFor: boundWorkUnitSubject(primary) });
   binding.store = source.store;
   const file = (path: string) => readFile(join(projected.checkout, path), "utf8");
   const edit = async (path: string, content: string) => {

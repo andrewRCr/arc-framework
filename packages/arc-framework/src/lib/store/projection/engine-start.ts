@@ -18,6 +18,7 @@ import { reportProjectionCopy } from "./report.js";
 import { selectProjectionResolution, recheckProjectionResolution } from "./save-resolution.js";
 import { sameReference } from "../identity.js";
 import type { ProjectionIndex } from "./index-schema.js";
+import { bindProjectionRights, refuseProjectionEdit } from "./rights-binding.js";
 
 /** Start independent reads together, drain them all, then sweep and take in files under the lease. */
 export async function startUnderLease(input: ProjectionCommandInput, ports: ProjectionEnginePorts,
@@ -114,10 +115,12 @@ async function bindRoot(input: ProjectionCommandInput, ports: ProjectionEnginePo
   const send = createWriteBackPort(context);
   const root: ProjectionRootState = { checkout: input.checkout, store: input.store, location, ports, context, identity: config.identity.identity,
     claim: null, layoutActive: "nested", checkpoint: session.step, copies: [], removals: [], unsent, discovered: [], changed: false,
-    ready: false, writable: () => false, takeIn: async request => {
+    ready: false, writable: () => false, rights: bindProjectionRights(input.store, config.identity.identity), takeIn: async request => {
       const denied = await root.rights?.(request);
-      return denied === undefined || denied === null ? send(request)
-        : { answer: "refused", mark: denied, entry: { ...request.entry, pending: true, refused: denied } };
+      if (denied === undefined || denied === null) return send(request);
+      root.unsent.add(request.path);
+      context.report?.({ path: request.path, copy: request.copy, mark: denied });
+      return refuseProjectionEdit(request.entry, denied);
     } };
   return root;
 }

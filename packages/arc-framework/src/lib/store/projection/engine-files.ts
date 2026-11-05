@@ -9,6 +9,7 @@ import { sendWriteBack } from "./write-back.js";
 import { writeBackFile } from "./read-back.js";
 import { unshownConflicts } from "./held-conflicts.js";
 import type { TakeInRequest, TakeInResult } from "./take-in-port.js";
+import { refuseProjectionEdit } from "./rights-binding.js";
 
 /** Check indexed files found by the walk, always re-reading stats after the sweep's possible moves. */
 export async function writeBackProjectionFiles(root: ProjectionRootState, initial: ProjectionIndex, files: readonly string[]): Promise<ProjectionIndex> {
@@ -58,8 +59,10 @@ async function sendFile(root: ProjectionRootState, index: ProjectionIndex, reque
   const { path, entry } = request;
   const denied = await root.rights?.(request);
   if (denied !== undefined && denied !== null) {
-    projectionProcessState().diagnostics.push({ path, copy: null, mark: denied });
-    return withEntry(index, path, { ...entry, pending: true, refused: denied });
+    root.unsent.add(path);
+    root.context.report?.({ path, copy: request.copy, mark: denied });
+    return commitProjectionIndex({ location: root.location, checkout: root.checkout,
+      index: withEntry(index, path, refuseProjectionEdit(entry, denied).entry), checkpoint: root.context.checkpoint });
   }
   let updated: ProjectionIndex;
   if (root.writable(path)) {

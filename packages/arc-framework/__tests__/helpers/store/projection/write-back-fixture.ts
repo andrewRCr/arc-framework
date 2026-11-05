@@ -24,13 +24,16 @@ import { runSecondCheck } from "../../../../src/lib/store/projection/second-chec
 import { readReference } from "../../../../src/lib/store/projection/change-detection.js";
 
 /** Seed a store record and its projected copy; callers dispose of the checkout when finished. */
-export async function createWriteBackFixture(input: { kind?: KindId; path?: string; content?: string; fixture?: ConformanceFixture } = {}) {
+export async function createWriteBackFixture(input: { kind?: KindId; path?: string; content?: string; fixture?: ConformanceFixture; identity?: string } = {}) {
   const checkout = await mkdtemp(join(tmpdir(), "arc-read-back-"));
   const gitDir = join(checkout, ".git");
   const location: ProjectionLocation = { gitDir, commonDir: gitDir, primary: true, stateDir: join(gitDir, "arc-projection") };
   await mkdir(location.stateDir, { recursive: true });
   const fixture = input.fixture ?? createReferenceFixture(ENTRY_CONFIGS);
-  const reference = fixture.reference(input.kind ?? "personal/document");
+  const selected = fixture.reference(input.kind ?? "personal/document");
+  const identity = SlugSchema.parse(input.identity ?? "test-user");
+  const reference = selected.owner.type === "person" ? { ...selected, owner: { ...selected.owner, name: identity } } : selected;
+  fixture.identity(identity);
   if (reference.owner.type === "work-item" && reference.kind !== "work-item/meta") {
     const primary = fixture.reference("work-item/record");
     const result = await fixture.store.write({ action: "put", reference: primary, expected: null,
@@ -53,7 +56,7 @@ export async function createWriteBackFixture(input: { kind?: KindId; path?: stri
     base: { blob, version: read.result.version }, markers: null, notices: [], unshown: [], protected: false,
     changed: false, pending: false, withheld: false, refused: null, persisted: null, inProgress: null, copies: [] };
   const index: ProjectionIndex = await commitProjectionIndex({ location, checkout, installing: new Set([path]), index: {
-    format: 1, state: null, projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("test-user"), claim: null, layoutActive: "nested" },
+    format: 1, state: null, projectedUnder: { view: { mode: "mine", pins: [] }, identity, claim: null, layoutActive: "nested" },
     withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries: { [path]: entry },
   } });
   const reports: WriteBackDiagnostic[] = [];

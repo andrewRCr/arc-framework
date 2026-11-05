@@ -265,7 +265,7 @@ whose grammar is not yet declared (spec § 7.6), or an edit to a record no longe
 its path until the person resolves it (spec § 7.8; `spec-projection-substrate.md` § 5.6) — has none, and every other,
 `namespace-corrupt` and a backend's key refusals among them, has one.
 
-### `[ ]` **2.1 Edit rights by lifecycle state and kind of record — § 8.1**
+### `[x]` **2.1 Edit rights by lifecycle state and kind of record — § 8.1**
 
 - _Goal:_ Write-back decides who may edit a file by its record's lifecycle state and kind, never by the folder it
   projects to: stubs by anyone; an in-flight work unit's prose by its owner from any checkout, and its meta and task
@@ -273,22 +273,9 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   checkout; cohort documents, live or archived, and the project inbox by anyone; personal records by their identity
   alone; archived work by its owner (2.3); and nothing of another person's work items, their inbound lists included,
   where routing inserts arrive through the routing verb.
-
-    - One function in `lib/store/projection/` answers from the record's lifecycle state, kind, and owner, the editing
-      identity, and the work item the checkout's marker names (`projection-worktrees`). This task binds it to the rights
-      port 1.9.a leaves unbound, through which write-back reads it; the persist refusal (2.2), adoption (2.8), the
-      protected mark a refresh records (`RecordEntry`, `lib/store/projection/index-schema.ts`), and the removal check
-      (`projection-worktrees`) read it too, and rights follow the worktree whose file holds the edit
-      (`TakeInRequest.checkout`, `lib/store/projection/take-in-port.ts`).
-    - Build `test-first` (one behavior at a time):
-        - a stub's file is editable by any identity
-        - an in-flight work unit's spec is editable by its owner from another checkout, and its meta is not
-        - an Errand's description and a work item's inbound list are editable by their owner from any checkout
-        - another person's inbound list is protected
-        - a cohort document, live and archived, and the project inbox are editable by any identity
-        - another identity's working memory is protected
-        - with the port bound, write-back reads rights through it, refusing an edit to another identity's working memory
-          and landing one to its own
+- _Outcome:_ Record-based rights now gate command-start and take-in against the file-holding checkout's exact claim.
+  Refused edits remain pending, report their path or aside copy, and keep explicit resolution intent and hold tokens.
+  Repairing ownership permits retry; archived work retains its owner's correction rights.
 
 ### `[ ]` **2.2 Protect a file in three layers — § 8.2**
 
