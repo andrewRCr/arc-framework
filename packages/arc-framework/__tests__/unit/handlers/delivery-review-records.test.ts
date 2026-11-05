@@ -17,6 +17,7 @@ import { selectPendingDeliveryReviewFixAuthority, selectDurableDeliveryReviewFix
 import { currentApprovedDispositionNode } from "../../../src/scripts/review-gate/core/advisory-records.js";
 import { DeliveryLocalReviewAdmissionSchema } from "../../../src/scripts/review-gate/policy/delivery-local-review-admission.js";
 import { createProjectIdentityReader, ProjectIdentityError } from "../../../src/lib/store/project-identity.js";
+import { createReviewResponsePort } from "../../../src/lib/store/kinds/review/evidence-root-selection/responses.js";
 
 it("opens and retains the branch-linked native owner without projected metadata or an injected owner", async () => {
   const h = createReviewHarness(), projectId = "123e4567-e89b-42d3-a456-426614174099";
@@ -47,13 +48,14 @@ async function localMemberResponse() {
       deliverableId: admission.vehicle.deliverableId }, vehicle: { kind: "delivery-member", identity: admission.vehicle.deliverableId },
     outcome: "findings", findings: [{ findingId: "finding-1", severity: "major", locus: "src/example.ts:1", evidenceUrlOrId: "finding:1", sourceOrdinal: 1 }] }));
   const outcomes = createReviewOutcomePort(h.store, primary.reference.owner), evidence = createReviewEvidencePort(h.store, primary.reference.owner);
+  const responses = createReviewResponsePort(h.store, primary.reference.owner);
   await outcomes.create(outcome);
   const record = composeReviewDispositionRecord(outcome, [{ ...reviewEvidenceFixture(outcome, "fix"),
     binding: { kind: "delivery-member", deliveryMember: admission.vehicle } }], primary.reference.owner);
-  await publishNativeReviewApproval({ outcomes, evidence, record, readProjectId: h.projectId, now: () => "2026-10-20T18:00:00Z" });
+  await publishNativeReviewApproval({ outcomes, evidence, record, readProjectId: h.projectId, now: () => "2026-10-20T18:00:00Z", responses });
   const checkout = await createReviewCheckout(h);
   onTestFinished(checkout.cleanup);
-  return { h, primary, outcome, record, checkout, outcomes, evidence };
+  return { h, primary, outcome, record, checkout, outcomes, evidence, responses };
 }
 
 it("reads an ended local member's exact source after working-state pruning and from a fresh checkout", async () => {
@@ -124,10 +126,11 @@ it("continues a native hosted fix from its approved policy snapshot after prunin
       commentId: "comment-1", threadId: "thread-1", settlement: "reply-and-resolve", locus: "src/main.ts:1",
       url: "https://example.invalid/thread-1" }] }));
   const outcomes = createReviewOutcomePort(h.store, primary.reference.owner), evidence = createReviewEvidencePort(h.store, primary.reference.owner);
+  const responses = createReviewResponsePort(h.store, primary.reference.owner);
   await outcomes.create(outcome);
   const approved = { ...reviewEvidenceFixture(outcome, "fix"), binding: { kind: "delivery-member" as const, deliveryMember: member } };
   const record = composeReviewDispositionRecord(outcome, [approved], primary.reference.owner);
-  await publishNativeReviewApproval({ outcomes, evidence, record, readProjectId: h.projectId, now: () => "2026-10-20T18:00:00Z" });
+  await publishNativeReviewApproval({ outcomes, evidence, record, readProjectId: h.projectId, now: () => "2026-10-20T18:00:00Z", responses });
   const checkout = await createReviewCheckout(h);
   onTestFinished(checkout.cleanup);
   const context = await createDeliveryReviewRecordContext({ ...checkout, workItem: primary.reference.owner })();

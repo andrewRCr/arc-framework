@@ -38,7 +38,7 @@ it("cites an approved-fix decision on admission and keeps that citation after fr
   onTestFinished(second.cleanup);
   const secondPublisher = new RepositoryGitCommonStatePublisher(second.exec, second.cwd);
   const secondOperations = new NativeReviewInFlightStateStore({ publisher: secondPublisher, workItem: f.primary.reference.owner,
-    outcomes: f.input.outcomes, evidence: f.input.evidence, decisions: f.input.decisions, projectId: f.input.readProjectId });
+    outcomes: f.input.outcomes, evidence: f.input.evidence, decisions: f.input.decisions, projectId: f.input.readProjectId, responses: f.input.responses });
   const snapshot = await secondOperations.readOperationSnapshot();
   expect(snapshot.status === "complete" && snapshot.records.some(record => record.state.kind === "lane-progress"
     && record.state.attempts.some(attempt => attempt.attemptId === admission.operationId && attempt.admittedBy === authorizationId))).toBe(true);

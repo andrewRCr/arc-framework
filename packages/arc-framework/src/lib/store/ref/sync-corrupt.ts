@@ -8,13 +8,13 @@ import { readUnpublishedRefBatches, expandRefBatchExclusion, type UnpublishedRef
 import { syncRefIsAncestor } from "./sync-graph.js";
 import { readBatchObjects, readRefTrees, type RefTreeEntry, type BatchObject } from "./batch-read.js";
 import { refPrototype } from "./read.js";
-import { corruptRef } from "./namespace-health.js";
 import { readLineageOwners } from "./lineage-resolution.js";
 import { holdLifecycleRef, lifecycleRefHeld } from "./sync-lifecycle-holds.js";
 import { isUnavailableGraphFailure } from "./history-graph.js";
 import { HistoryRefSchema } from "../refusal.js";
 import { matchesFamilyRef } from "./codec.js";
 import { isStateRef } from "./manifest.js";
+import { refDiagnosticRefusal, refObjectFault } from "./object-fault.js";
 
 /** Unreadable archive or lineage evidence holds potentially affected item refs until repair. */
 export async function readCorruptLifecycleBatchRefs(context: RefBackendContext, held: ReadonlyMap<string, string>,
@@ -116,11 +116,14 @@ function incomingArchiveNotices(context: RefBackendContext, ref: string, entries
     const owner = refPrototype(context, live, family).owner;
     const own = entries ? archiveOwnerTrees(new Map([[ref, entries]]), [owner]).get(ref) : undefined;
     if (entries && !own?.length) continue;
-    const diagnostic = own ? archivedFolders(family, ref, own, objects).diagnostics[0] : corruptRef(ref, true);
+    const diagnostic = own ? archivedFolders(family, ref, own, objects).diagnostics[0] : refObjectFault(ref, "missing", {
+      condition: `The tip or a tree of ${ref} is unavailable locally.`,
+    }).diagnostic;
     if (!diagnostic) continue;
+    const refusal = refDiagnosticRefusal(ref, diagnostic);
     notices.push({ kind: "namespace-corrupt", ref: live,
-      condition: `${live} remains held until incoming ${ref} can establish its lifecycle evidence. ${diagnostic.condition}`,
-      remedy: diagnostic.remedy });
+      condition: `${live} remains held until incoming ${ref} can establish its lifecycle evidence. ${refusal.condition}`,
+      remedy: refusal.remedy });
   }
   return notices;
 }
@@ -153,8 +156,8 @@ async function hasCompetingHistory(context: RefBackendContext, held: ReadonlyMap
     if (compared === "unavailable") {
       holdLifecycleRef(blocked, ref);
       const live = ref.replace("refs/arc/history/", "refs/arc/");
-      notices.push({ kind: "namespace-corrupt", ref: live, condition: `Lifecycle history for ${live} is unavailable locally.`,
-        remedy: corruptRef(ref, true).remedy });
+      const { condition, remedy } = refObjectFault(ref, "missing", { condition: `Lifecycle history for ${live} is unavailable locally.` });
+      notices.push({ kind: "namespace-corrupt", ref: live, condition, remedy });
     }
   }
   return false;

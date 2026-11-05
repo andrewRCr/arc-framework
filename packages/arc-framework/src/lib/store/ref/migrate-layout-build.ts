@@ -8,7 +8,8 @@ import type { RefBackendContext } from "./context.js";
 import { bindRefRepository } from "./repository-context.js";
 import { isStateRef, readObjectFormat } from "./manifest.js";
 import { readSyncRefs } from "./sync-graph.js";
-import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
+import type { RefChange } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import { MOVE_REF, type LayoutMoveRecord } from "./migrate-record.js";
 import { IMPORT_KEPT_PREFIX } from "./import/transient-cleanup.js";
 import { IMPORT_PUBLICATION_REF } from "./import/transient-publication.js";
@@ -72,7 +73,7 @@ export async function fetchLayoutObjects(context: RefBackendContext, source: str
 /** One compare-and-swap transaction publishes the complete prepared destination. */
 export async function requireLayoutTransaction(context: RefBackendContext, changes: RefChange[]): Promise<void> {
   if (!changes.length) return;
-  const result = await updateRefTransaction(context, changes, { cwd: context.checkoutRoot });
+  const result = await updateStoreRefTransaction(context, changes, { cwd: context.checkoutRoot });
   if (result.status !== "committed") throw new MigrationRefusal({ code: "move-unfinished", class: "recoverable",
     condition: `The held layout changed during its ref transaction: ${result.refs.map(({ ref }) => ref).join(", ")}. The transaction applied no updates.`,
     remedy: { text: "Run arc store migrate with no target to finish any retained move, then retry the original command if needed.", argv: ["arc", "store", "migrate"] } });

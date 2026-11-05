@@ -36,6 +36,22 @@
     { "module": "packages/arc-framework/src/scripts/build-compiler.ts", "finds": [] },
     { "module": "packages/arc-framework/src/lib/local-vitest-runner.ts", "finds": [] },
     {
+      "module": "packages/arc-framework/__tests__/helpers/cli-spawn.ts",
+      "finds": [
+        "packages/arc-framework/bin/arc.js",
+        {
+          "closureOf": [
+            "packages/arc-framework/src/cli.ts",
+            "packages/arc-framework/tsup.config.ts",
+            "packages/arc-framework/tsup.fast.config.ts",
+            "packages/arc-framework/build-compiler.config.ts",
+            "packages/arc-framework/src/scripts/run-build.ts",
+            "packages/arc-framework/src/scripts/build-compiler.ts"
+          ]
+        }
+      ]
+    },
+    {
       "module": "packages/arc-framework/__tests__/helpers/native-build-fixture.ts",
       "finds": [
         "package.json",

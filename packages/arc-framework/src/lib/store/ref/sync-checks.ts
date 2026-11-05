@@ -20,7 +20,7 @@ export async function observeSyncChecks(context: RefBackendContext, tips: Readon
     const definition = context.registry[reference.kind];
     if (!definition.check) continue;
     const previous = checkSide(definition, prior), selected = checkSide(definition, next);
-    const rules = await definition.check({ reference, before, after, observations: [],
+    const rules = await definition.check({ reference, before, after, observations: [], purpose: "sync-observation",
       writer: { kind: "verb", verb: "sync", lifecycleAction: "merge" },
       ...previous ? { prior: previous } : {},
       ...selected ? { next: { content: selected.content, fields: selected.fields } } : {},

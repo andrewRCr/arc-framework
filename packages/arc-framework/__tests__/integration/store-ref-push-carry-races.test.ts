@@ -1,14 +1,15 @@
 import { createRefClock } from "../helpers/store/ref-clock.js";
 import { unconfirmedCancellation } from "../helpers/store/unconfirmed-cancellation.js";
 import { join } from "node:path";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { refCarryFixture, carriedBranch, carriedDocument, carryProvenance } from "../helpers/store/ref-carry.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { createRefStore, PushInputSchema, PushResultSchema, RecordReferenceSchema } from "../../src/lib/store/index.js";
-import { GitProcessError, isGitProcessError } from "../../src/lib/git/process-error.js";
+import { GitProcessError, isCompletedGitFailure, isGitProcessError } from "../../src/lib/git/process-error.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
 
 async function codeRaceFixture(mode: "leased" | "unleased", layout: "default" | "separate" = "default") {
   const h = await refCarryFixture(layout);
@@ -33,12 +34,70 @@ exit 0
 }
 
 describe("carried branch receiver races", () => {
+  it.each([
+    { layout: "default", fault: "invalid-config", receiver: "native receiver" },
+    { layout: "separate", fault: "removed-remote", receiver: "legacy receiver contract" },
+  ] as const)(
+    "retains a typed $layout carried result with $receiver after $fault observation and retries configuration repair", async ({ layout, fault }) => {
+    const race = await carriedObservationFixture(layout), { h, ports, receiverTip } = race;
+    const configPath = join(h.a.root, ".git", "config"), config = await readFile(configPath);
+    let changed = false, nativeFailure: unknown;
+    const store = createRefStore({ ...ports, exec: async (command, args, options) => {
+      if (!changed && carriedTransportLookup(args, layout, h.origin)
+        && existsSync(join(h.origin, "code-moved"))) {
+        changed = true;
+        if (fault === "invalid-config") await writeFile(configPath, Buffer.concat([config, Buffer.from("\n[unclosed\n")]));
+        else await h.a.exec("git", ["config", "--remove-section", "remote.origin"]);
+        try { return await ports.exec(command, args, options); }
+        catch (error) { nativeFailure = error; throw error; }
+        finally { await writeFile(configPath, config); }
+      }
+      return ports.exec(command, args, options);
+    } });
+    const observed: unknown = await store.push({ carry: { ref: carriedBranch } }).catch(error => error);
+    expect(changed).toBe(true);
+    expect(isCompletedGitFailure(nativeFailure)).toBe(true);
+    expect(await readFile(configPath)).toEqual(config);
+    expect(observed).toMatchObject({ status: "ok", result: { carry: { ref: carriedBranch,
+      status: "unreachable", cause: "error", message: expect.stringContaining("Repair") } } });
+    if (typeof observed !== "object" || observed === null || !("result" in observed)) throw new Error("Push returned no result");
+    const result = PushResultSchema.parse(observed.result);
+    expect(result.pulls).toContainEqual(expect.objectContaining({ remote: h.remoteName }));
+    expect(success(await store.read({ reference: carriedDocument })).content).toBe("State after code race.\n");
+    expect((await h.remote("git", ["rev-parse", carriedBranch])).stdout.trim()).toBe(receiverTip);
+    await expectRepairedCarry(race, store);
+  }, 60_000);
+
+  it.each((["default", "separate"] as const).flatMap(layout =>
+    (["canceled", "signaled", "untyped"] as const).map(kind => ({ layout, kind,
+      receiver: layout === "default" ? "native receiver" : "legacy receiver contract" }))))(
+    "propagates a $layout $kind observation failure with $receiver and retries", async ({ layout, kind }) => {
+    const race = await carriedObservationFixture(layout), { h, ports } = race;
+    let armed = true, failure: Error | undefined;
+    const store = createRefStore({ ...ports, exec: async (command, args, options) => {
+      if (armed && carriedTransportLookup(args, layout, h.origin)
+        && existsSync(join(h.origin, "code-moved"))) {
+        armed = false;
+        failure = kind === "untyped" ? new TypeError("The carried transport observer failed")
+          : makeGitProcessError({ command, args, ...kind === "canceled" ? { isCanceled: true as const }
+            : { signal: "SIGTERM", exitCode: 128 } });
+        throw failure;
+      }
+      return ports.exec(command, args, options);
+    } });
+    const observed: unknown = await store.push({ carry: { ref: carriedBranch } }).catch(error => error);
+    expect(failure).toBeDefined();
+    expect(observed).toBe(failure);
+    expect(success(await store.read({ reference: carriedDocument })).content).toBe("State after code race.\n");
+    await expectRepairedCarry(race, store);
+  }, 60_000);
+
   it.each(([
     { point: "listing", kind: "unexpected" }, { point: "listing", kind: "spawn-failure" },
     { point: "config", kind: "unexpected" }, { point: "config", kind: "nonzero-exit" },
     { point: "ancestry", kind: "unexpected" }, { point: "ancestry", kind: "nonzero-exit" },
   ] as const))(
-    "propagates a local $kind from post-rejection $point observation and retries", async ({ point, kind }) => {
+    "holds publication after a local $kind at post-rejection $point observation and retries", async ({ point, kind }) => {
     const { h, code, other } = await codeRaceFixture("unleased");
     if (point === "ancestry") await h.a.exec("git", ["fetch", "origin", "refs/test/code-race:refs/test/known-code-race"]);
     const cause = kind === "spawn-failure" ? Object.assign(new Error("spawn git ENOENT"), { code: "ENOENT" })
@@ -55,10 +114,16 @@ describe("carried branch receiver races", () => {
       }
       return h.a.ports.exec(command, args, options);
     } });
-    const observed: unknown = await store.push({ carry: { ref: carriedBranch } }).then(() => undefined, error => error);
+    const observed: unknown = await store.push({ carry: { ref: carriedBranch } }).then(result => result, error => error);
     expect(failure).toBeDefined();
-    expect(observed).toBe(failure);
-    expect(observed).toMatchObject({ kind, cause });
+    if (point === "config" && kind === "nonzero-exit") expect(observed).toMatchObject({ status: "ok", result: {
+      publishes: expect.arrayContaining([expect.objectContaining({ status: "failed",
+        failure: expect.objectContaining({ code: "refused", message: expect.stringContaining("local observer failure") }) })]),
+    } });
+    else {
+      expect(observed).toBe(failure);
+      expect(observed).toMatchObject({ kind, cause });
+    }
     expect(success(await store.read({ reference: carriedDocument })).content).toBe("State after code race.\n");
     expect((await h.remote("git", ["rev-parse", carriedBranch])).stdout.trim()).toBe(other.tip);
     broken = false;
@@ -222,3 +287,39 @@ exit 0
     expect(success(await h.a.store.read({ reference: extra })).content).toBe("Other state.\n");
   });
 });
+
+function carriedTransportLookup(args: string[], layout: "default" | "separate", origin: string): boolean {
+  return layout === "default" ? args.includes("ls-remote") && args.includes("--get-url") && args.at(-1) === origin
+    : args.includes("remote") && args.includes("get-url") && args.includes("--push") && args.at(-1) === "origin";
+}
+
+async function carriedObservationFixture(layout: "default" | "separate") {
+  const race = await codeRaceFixture("unleased", layout), { h, code, other } = race;
+  if (layout === "default") return { ...race, ports: h.a.ports, receiverTip: other.tip };
+  // Replay a complete Git 2.43 receiver rejection at GitExec; lookup and repair still use native Git.
+  await h.a.exec("git", ["push", "origin", `${code.tip}:refs/test/rejected-code`]);
+  await h.remote("git", ["update-ref", "-d", "refs/test/rejected-code", code.tip]);
+  let replay = true;
+  const ports = { ...h.a.ports, exec: async (...args: Parameters<typeof h.a.ports.exec>) => {
+    if (replay && args[1].includes("push") && args[1].some(arg => arg.endsWith(`:${carriedBranch}`))) {
+      replay = false;
+      await h.remote("git", ["update-ref", carriedBranch, other.tip, h.code.tip]);
+      await writeFile(join(h.origin, "code-moved"), "done");
+      throw makeGitProcessError({ command: args[0], args: args[1], exitCode: 1,
+        stdout: `To ${h.origin}\n!\t${code.tip}:${carriedBranch}\t[remote rejected] (failed to update ref)\nDone\n`,
+        stderr: `remote: error: cannot lock ref '${carriedBranch}': is at ${other.tip} but expected ${h.code.tip}        \n`
+          + `error: failed to push some refs to '${h.origin}'\n` });
+    }
+    return h.a.ports.exec(...args);
+  } };
+  return { ...race, ports, receiverTip: other.tip };
+}
+
+async function expectRepairedCarry({ h, code, receiverTip }: Awaited<ReturnType<typeof carriedObservationFixture>>,
+  store: ReturnType<typeof createRefStore>): Promise<void> {
+  expect(success(await store.push({ carry: { ref: carriedBranch, expect: receiverTip } })).carry)
+    .toEqual({ ref: carriedBranch, status: "pushed" });
+  expect((await h.remote("git", ["rev-parse", carriedBranch])).stdout.trim()).toBe(code.tip);
+  success(await h.b.store.pull());
+  expect(success(await h.b.store.read({ reference: carriedDocument })).content).toBe("State after code race.\n");
+}

@@ -53,11 +53,15 @@ export function checkRefPathCollision(reference: RecordReference, home: RefPathN
     const other = neighbor.home.path;
     if (other === home.path && neighbor.reference && sameReference(reference, neighbor.reference)) continue;
     if (findRefNamespaceCollision(home.ref, [home.path, other])) {
-      const record = neighbor.reference ? `${neighbor.reference.kind} ${JSON.stringify(neighbor.reference.key)}` : "stored entry";
-      return unsupportedKey(reference, `The path ${home.path} collides with ${record} at ${other}`);
+      return pathCollisionRefusal(reference, home, neighbor);
     }
   }
   return undefined;
+}
+
+function pathCollisionRefusal(reference: RecordReference, home: RefPathNeighbor["home"], neighbor: RefPathNeighbor): StoreRefusal {
+  const record = neighbor.reference ? `${neighbor.reference.kind} ${JSON.stringify(neighbor.reference.key)}` : "stored entry";
+  return unsupportedKey(reference, `The path ${home.path} collides with ${record} at ${neighbor.home.path}`);
 }
 
 function personalCollisionPath(person: string, path: string): string {
@@ -67,17 +71,40 @@ function personalCollisionPath(person: string, path: string): string {
 
 /** Check proposed puts together; unresolved owner names remain separate until canonical resolution. */
 export function checkRefBatchPaths(references: readonly RecordReference[], registry: RefBackendContext["registry"]): StoreRefusal | undefined {
-  const records = references.map((reference) => {
+  const groups = new Map<string, Map<string, BatchPath>>();
+  for (const reference of references) {
     const home = refKeyHome(reference, registry);
     const owner = reference.owner;
     const unresolved = (owner.type === "work-item" || owner.type === "cohort") && owner.uid === undefined;
-    return { reference, home: { ...home, ref: unresolved ? `${home.ref}:${owner.type}:${owner.name}` : home.ref } };
-  });
-  for (const record of records) {
-    const refusal = checkRefPathCollision(record.reference, record.home, records);
-    if (refusal) return refusal;
+    const key = unresolved ? `${home.ref}:${owner.type}:${owner.name}` : home.ref;
+    let group = groups.get(key);
+    if (!group) { group = new Map(); groups.set(key, group); }
+    const previous = group.get(home.path);
+    if (previous && sameReference(reference, previous.reference)) continue;
+    if (previous) return pathCollisionRefusal(reference, home, previous);
+    group.set(home.path, { reference, home });
+  }
+  for (const [ref, group] of groups) {
+    const collision = findRefNamespaceCollision(ref, group.keys());
+    if (!collision) continue;
+    const [record, other] = batchCollisionRows(ref, group, collision);
+    return pathCollisionRefusal(record.reference, record.home, other);
   }
   return undefined;
+}
+
+type BatchPath = RefPathNeighbor & { reference: RecordReference };
+
+function batchCollisionRows(ref: string, group: ReadonlyMap<string, BatchPath>, collision: RefPathCollision): [BatchPath, BatchPath] {
+  const first = group.get(collision.path), other = group.get(collision.other);
+  if (first && other && first !== other) return [first, other];
+  const person = /^refs\/arc\/user\/([^/]+)\/personal$/u.exec(ref)?.[1];
+  if (!person) throw new Error("A stored path collision did not name two proposed paths");
+  const rows = [...group.values()];
+  const logicalFirst = rows.find(row => personalCollisionPath(person, row.home.path) === collision.path);
+  const logicalOther = rows.find(row => row !== logicalFirst && personalCollisionPath(person, row.home.path) === collision.other);
+  if (!logicalFirst || !logicalOther) throw new Error("A logical path collision did not name two proposed paths");
+  return [logicalFirst, logicalOther];
 }
 
 /** Admit a key; defer owner-dependent companion aliases until the stored owner is resolved. */

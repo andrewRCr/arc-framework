@@ -5,11 +5,12 @@ import { NativeReviewInFlightStateStore } from "../hosts/local/in-flight-state-s
 import type { Store } from "../../../lib/store/contract.js";
 import type { OwnerIdentity } from "../../../lib/store/identity.js";
 import type { ApprovedDispositionRecordIndex, ApprovedDispositionRecordStore, ReviewInFlightPort,
-  ReviewOutcomePort, ReviewEvidencePort, ReviewDecisionPort } from "../core/ports.js";
+  ReviewOutcomePort, ReviewEvidencePort, ReviewDecisionPort, ReviewResponsePort } from "../core/ports.js";
 import { createReviewOutcomePort } from "../../../lib/store/kinds/review/outcome/access.js";
 import { createReviewEvidencePort } from "../../../lib/store/kinds/review/evidence/access.js";
 import { createReviewDecisionPort } from "../../../lib/store/kinds/review/decision/access.js";
 import { requireReviewWorkItem } from "../../../lib/store/kinds/review/access-shared.js";
+import { createReviewResponsePort } from "../../../lib/store/kinds/review/evidence-root-selection/responses.js";
 
 /** Compatibility adapters already opened by the invocation. */
 export interface RepositoryReviewFamilyPorts {
@@ -23,6 +24,7 @@ export interface StoredReviewFamilyPorts {
   outcomes: ReviewOutcomePort;
   evidence: ReviewEvidencePort;
   decisions: ReviewDecisionPort;
+  responses: ReviewResponsePort;
   dispositions: ReviewEvidencePort;
 }
 
@@ -35,7 +37,8 @@ export function bindReviewFamilyPorts<T extends RepositoryReviewFamilyPorts>(inp
   const evidence = createReviewEvidencePort(input.store, owner);
   const outcomes = createReviewOutcomePort(input.store, owner);
   const decisions = createReviewDecisionPort(input.store, owner);
+  const responses = createReviewResponsePort(input.store, owner);
   const inFlight = new NativeReviewInFlightStateStore({ publisher: input.publisher, workItem: owner,
-    outcomes, evidence, decisions, projectId: input.projectId ?? createProjectIdentityReader(input.store) });
-  return { mode: "stored", ports: { inFlight, outcomes, evidence, decisions, dispositions: evidence } };
+    outcomes, evidence, decisions, responses, projectId: input.projectId ?? createProjectIdentityReader(input.store) });
+  return { mode: "stored", ports: { inFlight, outcomes, evidence, decisions, responses, dispositions: evidence } };
 }

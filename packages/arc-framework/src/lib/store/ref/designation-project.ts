@@ -1,11 +1,13 @@
 /** Isolated registry acquisition before a remote can publish this clone's project. */
 
+import { RefGitLockError, refGitLockRefusal } from "./git-lock.js";
 import { parseFetchPorcelain, type FetchOutcome } from "../../git/fetch.js";
 import { normalizeGitRejection, isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
 import { PASSIVE_REMOTE_INTERACTION } from "../../git/remote-ref-reader.js";
-import { updateRefTransaction } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import type { PullOutcome } from "../sync.js";
-import type { Remedy, StoreResult } from "../refusal.js";
+import type { Remedy, StoreResult, StoreRefusal } from "../refusal.js";
+import { quoteShellArgument } from "../../release/commit-message-retry.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
 import { readRefRepository } from "./repository.js";
@@ -17,6 +19,9 @@ import { readSyncRefs } from "./sync-graph.js";
 import { readForwardingRecord } from "./forwarding-record.js";
 import { refSyncCleanupContext, refSyncDeadlineExpired } from "./sync-deadline.js";
 import type { StoreCommandRefusal } from "../commands.js";
+import { localFetchObjectFailure } from "./fetch-local-loss.js";
+import { EffectiveTransportError, resolveTransport } from "./effective-transport.js";
+import { refTransportTargetFailure } from "./object-fault.js";
 
 type ProjectFailure = Extract<PullOutcome, { status: "failed" }>["failure"];
 /** Candidate checks retain exact project identities and forwarding refusals for their callers. */
@@ -42,24 +47,33 @@ export async function checkRefDesignationProject(context: RefBackendContext, rem
     const forwarding = await readForwardingRecord(context, fetched.moved, remote.name);
     if (forwarding.status === "refused") return { status: "control-refused", refusal: forwarding.refusal };
     const incoming = await projectIdFromTip(context, fetched.registry);
-    if (incoming.status === "refused") return projectReadFailure(incoming.refusal.condition);
+    if (incoming.status === "refused") {
+      if (!fetched.registry) throw new Error("A candidate identity refusal has no registry tip");
+      return candidateProjectFailure(context, remote, fetched.registry, fetched.target, incoming.refusal);
+    }
     const foreign = [incoming.result, forwarding.result?.projectId].find(id => id && id !== local.result);
     if (foreign) return { status: "identity-mismatch", local: local.result, remote: foreign };
     if (forwarding.result) return { status: "control-refused", refusal: { code: "moved", class: "recoverable",
       condition: `State moved from remote ${remote.name}.`, remedy: { text: `Bring in the tracked pointer's change and run arc store migrate to follow. If this clone does not fetch ${remote.name}, first run arc store remote ${remote.name} read. To move state back, run arc store migrate --to ${remote.name} from its current home.` } } };
     return { status: "ok" };
   } catch (error) {
-    if (!isGitProcessError(error) || error.kind !== "canceled" || !refSyncDeadlineExpired(context)) throw error;
-    return { status: "failed", failure: { code: "unreachable", class: "recoverable", cause: "timeout",
-      condition: [error.message, error.diagnosticStderr || error.stderr].filter(Boolean).join("\n"),
-      remedy: { text: `Retry the designation after the candidate check times out; no role was set on ${remote.name}.` } } };
+    return projectCheckFailure(context, remote, error);
   } finally {
     const cleanup = refSyncCleanupContext(context);
     // Cleanup cannot replace the candidate decision; the next entry clears any retained temporary tips.
     for (const [ref, expected] of observed) {
-      await updateRefTransaction(cleanup, [{ ref, delete: true, expected }], { cwd: cleanup.checkoutRoot }).catch(() => undefined);
+      await updateStoreRefTransaction(cleanup, [{ ref, delete: true, expected }], { cwd: cleanup.checkoutRoot }).catch(() => undefined);
     }
   }
+}
+
+function projectCheckFailure(context: RefBackendContext, remote: RefRemoteDesignation,
+  error: unknown): Extract<RefDesignationProjectCheck, { status: "failed" }> {
+  if (error instanceof EffectiveTransportError) return { status: "failed", failure: refTransportTargetFailure(error.message) };
+  if (!isGitProcessError(error) || error.kind !== "canceled" || !refSyncDeadlineExpired(context)) throw error;
+  return { status: "failed", failure: { code: "unreachable", class: "recoverable", cause: "timeout",
+    condition: [error.message, error.diagnosticStderr || error.stderr].filter(Boolean).join("\n"),
+    remedy: { text: `Retry the designation after the candidate check times out; no role was set on ${remote.name}.` } } };
 }
 
 async function projectIdAt(context: RefBackendContext, ref: string): Promise<StoreResult<string | null>> {
@@ -81,20 +95,24 @@ async function clearProjectCheck(context: RefBackendContext, prefix: string): Pr
       if (!tips.size) return;
       subject = [...tips.keys()].join(", ");
       const changes = [...tips].map(([ref, expected]) => ({ ref, delete: true as const, expected }));
-      if ((await updateRefTransaction(context, changes, { cwd: context.checkoutRoot })).status === "committed") return;
+      if ((await updateStoreRefTransaction(context, changes, { cwd: context.checkoutRoot })).status === "committed") return;
     }
   } catch (error) {
+    if (error instanceof RefGitLockError) {
+      const refusal = refGitLockRefusal(error);
+      return projectReadFailure(refusal.condition, refusal.remedy);
+    }
     if (!isGitProcessError(error) || !isCompletedGitFailure(error)) throw error;
     return projectReadFailure(`Could not clear stale candidate refs ${subject}: ${error.message}`);
   }
 }
 
 async function fetchProjectCheck(context: RefBackendContext, remote: RefRemoteDesignation, designation: RefDesignation,
-  prefix: string, observed: Map<string, string>): Promise<{ status: "ok"; registry?: string; moved?: string } | { status: "failed"; failure: ProjectFailure }> {
+  prefix: string, observed: Map<string, string>): Promise<{ status: "ok"; target: string; registry?: string; moved?: string } | { status: "failed"; failure: ProjectFailure }> {
   const target = remote.repository === "backing" && designation.backing?.url !== remote.url ? remote.url : await refFetchTarget(context, remote, designation);
   const args = refFetchArgs(remote.name, await refFetchNegotiation(context, await context.identity()), target);
   const input = [`+refs/arc/project/registry*:${prefix}registry*`, `+refs/arc/project/moved*:${prefix}moved*`].join("\n") + "\n";
-  const completed = await completeProjectFetch(context, args, input, await runProjectFetch(context, args, input, observed), observed);
+  const completed = await completeProjectFetch(context, remote.name, args, input, await runProjectFetch(context, args, input, observed), observed);
   if ("failure" in completed) return completed;
   const { fetched, rejected } = completed;
   if (fetched.status === "unreachable") return { status: "failed", failure: { code: "unreachable", class: "recoverable",
@@ -103,14 +121,15 @@ async function fetchProjectCheck(context: RefBackendContext, remote: RefRemoteDe
     remedy: { text: `Repair ${remote.name} and retry the designation; no role was set.` } } };
   return rejected || fetched.refs.some(({ flag }) => flag === "!")
     ? projectReadFailure(fetched.stderr || "The candidate registry fetch refused a temporary ref update.") : {
-      status: "ok", registry: fetched.refs.find(({ ref, flag, next }) => ref === `${prefix}registry` && flag !== "-" && !/^0+$/u.test(next))?.next,
+      status: "ok", target, registry: fetched.refs.find(({ ref, flag, next }) => ref === `${prefix}registry` && flag !== "-" && !/^0+$/u.test(next))?.next,
       moved: fetched.refs.find(({ ref, flag, next }) => ref === `${prefix}moved` && flag !== "-" && !/^0+$/u.test(next))?.next,
     };
 }
 
 interface ProjectFetch { fetched: FetchOutcome; rejected: boolean }
+type ProjectFetchResult = ProjectFetch | { status: "failed"; failure: ProjectFailure };
 
-async function runProjectFetch(context: RefBackendContext, args: string[], input: string, observed: Map<string, string>): Promise<ProjectFetch> {
+async function runProjectFetch(context: RefBackendContext, args: string[], input: string, observed: Map<string, string>): Promise<ProjectFetchResult> {
   let result: ProjectFetch;
   try { result = { rejected: false, fetched: parseFetchPorcelain(await context.exec("git", args, { cwd: context.checkoutRoot, input,
     diagnosticLocale: "stable", interaction: PASSIVE_REMOTE_INTERACTION, preserveOutput: true })) }; }
@@ -120,23 +139,44 @@ async function runProjectFetch(context: RefBackendContext, args: string[], input
     if (failure.kind === "spawn-failure") throw failure;
     result = { rejected: true, fetched: parseFetchPorcelain(failure) };
   }
-  if (result.fetched.status === "refs") for (const row of result.fetched.refs) {
+  const localFailure = await localFetchObjectFailure(context, result.fetched);
+  if (localFailure) return { status: "failed", failure: localFailure };
+  rememberProjectFetch(result.fetched, observed);
+  return result;
+}
+
+function rememberProjectFetch(fetched: FetchOutcome, observed: Map<string, string>): void {
+  if (fetched.status !== "refs") return;
+  for (const row of fetched.refs) {
     if (row.flag === "!") continue;
     if (/^0+$/u.test(row.next)) observed.delete(row.ref);
     else observed.set(row.ref, row.next);
   }
-  return result;
 }
 
-async function completeProjectFetch(context: RefBackendContext, args: string[], input: string, first: ProjectFetch, observed: Map<string, string>):
-Promise<ProjectFetch | { status: "failed"; failure: ProjectFailure }> {
+async function completeProjectFetch(context: RefBackendContext, remote: string, args: string[], input: string, first: ProjectFetchResult, observed: Map<string, string>):
+Promise<ProjectFetchResult> {
+  if ("failure" in first) return first;
   if (first.rejected || first.fetched.status !== "refs" || first.fetched.refs.some(({ flag }) => flag === "!")
-    || !await refFetchNeedsCompleteness(context) || !(await missingRefFetchObjects(context, first.fetched)).length) return first;
+    || !await resolveTransport(remote, "fetch", () => refFetchNeedsCompleteness(context))
+    || !(await missingRefFetchObjects(context, first.fetched)).length) return first;
   const at = args.indexOf("fetch");
   const retry = await runProjectFetch(context, [...args.slice(0, at + 1), "--refetch", ...args.slice(at + 1)], input, observed);
+  if ("failure" in retry) return retry;
   if (retry.rejected || retry.fetched.status !== "refs") return retry;
   const missing = await missingRefFetchObjects(context, retry.fetched);
   return missing.length ? { status: "failed", failure: new RefFetchIncompleteError(missing, []).failure } : retry;
+}
+
+function candidateProjectFailure(context: RefBackendContext, remote: RefRemoteDesignation, commit: string,
+  target: string, refusal: StoreRefusal): { status: "failed"; failure: ProjectFailure } {
+  const condition = `Candidate registry ${commit} from remote ${remote.name}: ${refusal.condition}`;
+  if (refusal.code !== "state-unresolvable") return projectReadFailure(condition, {
+    text: `Repair identity.json on ${remote.name}'s refs/arc/project/registry (${target}) with exactly projectId and a lowercase UUID, then retry the designation; no role was set.`,
+  });
+  const argv = ["git", ...context.repository?.gitDir ? [`--git-dir=${context.repository.gitDir}`] : [],
+    "fetch", "--refetch", "--", target, "refs/arc/project/registry"];
+  return projectReadFailure(condition, { text: `Restore the missing candidate objects in this clone, or run ${argv.map(quoteShellArgument).join(" ")}, then retry the designation; no role was set.`, argv });
 }
 
 function projectReadFailure(condition: string,

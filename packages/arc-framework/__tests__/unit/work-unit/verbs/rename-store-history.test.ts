@@ -1,9 +1,9 @@
 /** A rename refused for missing history retries once after pulling it, surfacing what the pull reported. */
 import { expect, it } from "vitest";
 import type { Store } from "../../../../src/lib/store/contract.js";
-import { HistoryRefSchema } from "../../../../src/lib/store/refusal.js";
+import { HistoryRefSchema, StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 import { OwnerIdentitySchema } from "../../../../src/lib/store/identity.js";
-import { PullResultSchema, type PullOutcome } from "../../../../src/lib/store/sync.js";
+import { PullResultSchema, type PullOutcome, type SyncState } from "../../../../src/lib/store/sync.js";
 import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store.js";
 import { createDecomposeHarness } from "../../../helpers/store/decompose-harness.js";
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
@@ -15,7 +15,7 @@ const pending: PullOutcome = { status: "pulled", remote: "origin", role: "state"
 const offline = (role: "state" | "read"): PullOutcome => ({ status: "failed", remote: role === "read" ? "upstream" : "origin", role, families: ["work-item"],
   notices: [], failure: { code: "unreachable", class: "recoverable", cause: "network", condition: `The ${role} remote is offline.`, remedy: { text: "Reconnect." } } });
 
-async function renameAfterHistoryPull(pulls: PullOutcome[]) {
+async function renameAfterHistoryPull(pulls: PullOutcome[], states: SyncState[] = []) {
   const h = createDecomposeHarness();
   await h.seedStub("alpha");
   let missing = true;
@@ -27,7 +27,7 @@ async function renameAfterHistoryPull(pulls: PullOutcome[]) {
       return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", condition: "History is not local.",
         remedy: { text: "Pull the history, then retry." }, historyRefs: [history] } };
     };
-    if (key === "pull") return async () => ({ status: "ok", result: PullResultSchema.parse({ states: [], pulls }) });
+    if (key === "pull") return async () => ({ status: "ok", result: PullResultSchema.parse({ states, pulls }) });
     const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
   } });
   const result = await runStoreRename({ store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main", writeNotice: line => written.push(line) },
@@ -46,4 +46,32 @@ it("keeps the history refusal when the state remote fails, still writing what th
   const { result, written } = await renameAfterHistoryPull([{ ...offline("state"), notices: pending.notices }]);
   expect(result).toMatchObject({ status: "rejected", refusal: { code: "state-unresolvable" } });
   expect(written).toEqual(["Gamma's end remains pending. Pull again to settle it."]);
+});
+
+it("returns Missing unchanged when there is no history to pull and renames after local repair", async () => {
+  const h = createDecomposeHarness();
+  await h.seedStub("alpha");
+  const refusal = StoreRefusalSchema.parse({ code: "state-unresolvable", class: "recoverable", historyRefs: [],
+    condition: "The live namespace has a missing object.", remedy: { text: "Restore or fetch the missing object, then retry." } });
+  let damaged = true;
+  const store: Store = new Proxy(h.store, { get(target, key) {
+    if (key === "lookup" && damaged) return async () => ({ status: "refused", refusal });
+    if (key === "pull") return async () => { throw new Error("No retained history was named"); };
+    const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  const context = { store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main" };
+  expect(await runStoreRename(context, { sourceSlug: "alpha", targetSlug: "beta" }))
+    .toEqual({ status: "rejected", reason: refusal.condition, refusal });
+  damaged = false;
+  expect(await runStoreRename(context, { sourceSlug: "alpha", targetSlug: "beta" })).toMatchObject({ status: "renamed" });
+});
+
+it.each([false, true])("shows the designation question and retains the rename refusal: readFailure=%s", async readFailure => {
+  const { result, written } = await renameAfterHistoryPull(readFailure ? [pending, offline("read")] : [], [{
+    status: "designation-needed", remote: "backup", choices: ["push", "read", "off"],
+    remedy: { text: "Choose the backup role.", argv: ["arc", "store", "remote", "backup", "push"] } }]);
+  expect(result).toMatchObject({ status: "rejected", refusal: { code: "state-unresolvable", condition: "History is not local." } });
+  expect(written).toEqual([...readFailure ? ["Read source upstream was not pulled: The read remote is offline. Reconnect.",
+    "Gamma's end remains pending. Pull again to settle it."] : [],
+    "Remote backup needs a store designation. Choose the backup role. arc store remote backup push"]);
 });

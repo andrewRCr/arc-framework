@@ -11,6 +11,7 @@ import { createKindRegistry } from "../../src/lib/store/registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import { splitEntryList } from "../../src/lib/store/concurrency/entries.js";
 import { generateRankBetween } from "../../src/lib/store/concurrency/rank.js";
+import { inboxEntrySourceDigest, mutateInboxEntries } from "../../src/lib/user-sync/inbox-writer.js";
 
 const mark = "- _Disposition:_ `execute-bound`\n\n";
 const held = "### **Held**\n\n- _Hold:_ `true`\n- _WU_Target:_ `alpha`\n- _Created:_ `2026-01-03`\n\nHeld prose.\n\n";
@@ -39,6 +40,25 @@ function ref(kind: "personal/inbox" | "personal/errand-queue" | "work-item/inbou
 }
 
 describe.each(["default", "separate"] as const)("pending import in %s", layout => {
+  it("queues a bodyless capture and removes its trailing execute-bound mark", async () => {
+    const h = await importFixture(layout), source = "# Inbox\n\n## Errand\n\n### **Bodyless**\n";
+    const marked = mutateInboxEntries(source, [{ kind: "mark", title: "Bodyless",
+      sourceDigest: inboxEntrySourceDigest(source, "Bodyless") }]).content;
+    await mkdir(join(h.root, ".arc/user/andrew"), { recursive: true });
+    await writeFile(join(h.root, ".arc/user/andrew/USER-INBOX.md"), marked);
+    await saveImportPersonal(h.root);
+    expect(await h.migrate()).toMatchObject({ status: "ok" });
+    const store = createRefStore(h.ports);
+    const queue = parsed(success(await store.read({ reference: ref("personal/errand-queue") })).content, "personal/errand-queue").entries;
+    const inboxContent = success(await store.read({ reference: ref("personal/inbox") })).content;
+    const captures = parsed(inboxContent, "personal/inbox").entries;
+    expect(queue).toHaveLength(1);
+    expect(captures).toHaveLength(1);
+    expect(captures[0]).toMatchObject({ title: "Bodyless", id: expect.any(String) });
+    expect(queue[0]).toMatchObject({ title: "Bodyless", id: captures[0]!.id, fields: { Inbox: "personal" } });
+    expect(inboxContent).not.toContain("execute-bound");
+  }, 30_000);
+
   it("compares moved sources and reads queues and inbound entries without routing receipts", async () => {
     const h = await importComparisonFixture(layout, seed);
     h.comparators.set("work-item/draft", { normalize: (expected, actual) => ({

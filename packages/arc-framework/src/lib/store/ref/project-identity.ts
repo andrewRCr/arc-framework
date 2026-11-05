@@ -7,7 +7,7 @@ import type { Mutation } from "../write.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { parseRefTreeObject } from "./tree-content.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
 import { historicalMetadataFailure } from "./metadata.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 
@@ -44,8 +44,9 @@ export function capturedRegistry(tips: ReadonlyMap<string, string>, objects: Rea
 
 /** Refuse ownership resolved over a registry whose captured tree is unavailable. */
 export function registryTreeUnavailable(): StoreRefusal {
-  return { code: "namespace-corrupt", class: "terminal", namespace: "refs/arc/project/registry",
-    condition: "The registry's captured tree is unavailable.", remedy: { text: "Restore or fetch the registry objects, then retry." } };
+  return refObjectFault("refs/arc/project/registry", "missing", {
+    condition: "The registry's captured tree is unavailable.", remedy: { text: "Restore or fetch the registry objects, then retry." },
+  }).refusal;
 }
 
 /** Resolve the one project from already acquired objects, distinguishing absent and unavailable identity. */
@@ -62,10 +63,10 @@ export function projectOwnerFromEntries(entries: readonly RefTreeEntry[], object
   if (!entry) return { status: "ok", result: projectOwner() };
   const object = captured ?? objects.get(entry.oid);
   const reference = RecordReferenceSchema.parse({ owner: projectOwner(), kind: "project-registry/identity" });
-  if (object?.type !== "blob") return { status: "refused", refusal: { ...corruptRef("refs/arc/project/registry", true),
-    condition: `The project identity blob ${entry.oid} is unavailable locally.` } };
-  const content = new TextDecoder().decode(object.bytes);
-  const identity = parseProjectIdentity(content);
+  if (!object) return { status: "refused", refusal: refObjectFault("refs/arc/project/registry", "missing", {
+    condition: `The project identity blob ${entry.oid} is unavailable locally.`,
+  }).refusal };
+  const identity = object.type === "blob" ? parseProjectIdentity(new TextDecoder().decode(object.bytes)) : null;
   if (!identity) return { status: "refused", refusal: { ...projectIdentityFailure(reference),
     remedy: saved ? historicalMetadataFailure("refs/arc/project/registry").remedy
       : { text: "Repair identity.json forward on refs/arc/project/registry with exactly projectId and a lowercase UUID, then retry." } } };

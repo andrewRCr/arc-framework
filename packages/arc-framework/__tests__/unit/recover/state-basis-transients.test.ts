@@ -99,6 +99,25 @@ it.each((["errand", "groom", "housekeep"] as const).flatMap(kind => (["null", "e
     const result = await resolveRecoveryStateBasis({ seed: h.original, recover: h.recover, store: h.selected });
     expect(result).toEqual({ rebuilt: true, seed: { ...h.original, stateVersion: lifecycleSuccess(await h.store.version()) } });
 });
+
+it("rebuilds a missing-object change window over current state without changing the original seed", async () => {
+  const h = await emitted("errand", "current"), original = structuredClone(h.original);
+  await h.seedMeta("later");
+  const current = lifecycleSuccess(await h.store.version());
+  expect(current).not.toBe(original.stateVersion);
+  let reads = 0;
+  h.selected.changes = async () => {
+    reads++;
+    return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", historyRefs: [],
+      condition: "A missing object prevents reading the saved change window.",
+      remedy: { text: "Restore or fetch the missing object, then retry." } } };
+  };
+  h.selected.pull = async () => { throw new Error("The missing live object has no history route"); };
+  expect(await resolveRecoveryStateBasis({ seed: h.original, recover: h.recover, store: h.selected, currentStateVersion: current }))
+    .toEqual({ rebuilt: true, seed: { ...original, stateVersion: current } });
+  expect(reads).toBe(2);
+  expect(h.original).toEqual(original);
+});
 it.each(["checkout", "parent", "work-unit"] as const)("refuses a changed warm transient %s basis", async changed => {
   const h = await emitted("errand", "null");
   const frame = h.recover.recoveryFrame.value;

@@ -17,10 +17,11 @@ interface NativeHostedSettlementInput extends Omit<NativeReviewApprovalInput, "r
 
 /** Append one completed finding action, preserving exact settlement replay. */
 export async function publishNativeHostedSettlement(input: NativeHostedSettlementInput): Promise<StoredReviewFact<ReviewEvidence>> {
-  const result = await new StoredReviewResultReader(input).readResult(input.producerId);
+  const authority = await new StoredReviewResultReader(input).readAuthority(input.producerId);
+  const { result } = authority;
   const entry = HostedSettlementEvidenceSchema.parse(input.settlement);
-  const prior = await input.evidence.read(entry.dispositionSetId);
-  if (prior === null) throw new Error("Approve the hosted response before recording settlement, then retry.");
+  const prior = authority.evidence.find(record => record.value.dispositionSet.dispositionSetId === entry.dispositionSetId);
+  if (prior === undefined) throw new Error("Hosted settlement requires the current approved response for this producer; restore it and retry. Only the selected branch grants authority.");
   const settlement = prior.value.settlement;
   if (result.kind !== "hosted" || result.originalOutcome !== "findings"
     || prior.value.dispositionSet.producerId !== input.producerId || settlement === undefined

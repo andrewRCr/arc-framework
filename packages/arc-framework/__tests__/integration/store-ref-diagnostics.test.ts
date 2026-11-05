@@ -42,7 +42,9 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
       .toMatchObject({ status: "ok", result: { reference: { kind: "work-item/meta", owner } } });
     const beta = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "beta" }, kind: "review/evidence", key: "good" });
     expect(await createRefStore(f.ports).read({ reference: beta }))
-      .toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: `refs/arc/work/${damagedUid}` } });
+      .toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", historyRefs: [],
+        condition: expect.stringContaining(`refs/arc/work/${damagedUid}`), remedy: { text: expect.stringMatching(/restore|fetch/iu) },
+      } });
   });
 
   it("keeps readable records beside each malformed, missing, newer, and mismatched entry", async () => {
@@ -147,8 +149,8 @@ describe.each(["files", "reftable"] as const)("ref diagnostics (%s)", (format) =
     const metadataOnlyUid = "abcdef78-1234-4234-8234-123456789abc", metadataOnlyRef = `refs/arc/work/${metadataOnlyUid}`;
     await plantRef(f.root, metadataOnlyRef, [{ path: `metadata-${metadataOnlyUid}.json`, content: "not JSON" }]);
     await plantRef(f.root, "refs/arc/user/andrew/personal", [{ path: "andrew/metadata-andrew.json", content: "not JSON" }]);
-    expect(await f.store.list({ family: "work-item" })).toMatchObject({ status: "ok", result: { status: "complete", records: [], diagnostics: [] } });
-    expect(await f.store.list({ family: "personal" })).toMatchObject({ status: "ok", result: { status: "complete", records: [], diagnostics: [] } });
+    expect(await f.store.list({ family: "work-item" })).toMatchObject({ status: "ok", result: { status: "absent" } });
+    expect(await f.store.list({ family: "personal" })).toMatchObject({ status: "ok", result: { status: "absent" } });
     const byUid = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "metadata-only", uid: metadataOnlyUid },
       kind: "work-item/companion", key: "extra" });
     expect(await f.store.read({ reference: byUid })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });

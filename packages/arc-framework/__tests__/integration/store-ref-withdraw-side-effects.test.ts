@@ -201,12 +201,16 @@ describe.each(["default", "separate"] as const)("withdrawal side effects in the 
       const notices = success(await h.a.store[operation]()).pulls.flatMap(({ notices }) => notices);
       expect(notices).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref: quarterRef,
         remedy: { text: expect.stringMatching(/restore|fetch/iu) } }));
+      expect(notices).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref: history,
+        remedy: { text: expect.stringMatching(/restore|fetch/iu) } }));
+      for (const notice of notices) if (notice.kind === "namespace-corrupt") expect(notice.remedy.text).not.toMatch(/forward/iu);
       expect(notices).not.toContainEqual(expect.objectContaining({ kind: "end-withdrawn" }));
       expect((await h.a.git(["rev-parse", quarterRef])).stdout).toBe(before);
       expect((await h.a.git(["rev-parse", history])).stdout).toBe(ownHistory);
       expect((await h.remote("git", ["rev-parse", history])).stdout).toBe(publishedHistory);
     }
-    await h.a.ports.rawExec([...scope, "hash-object", "-t", "tree", "-w", "--stdin"], { cwd: h.a.root, input: bytes, objectAccess: "local-only" });
+    const restored = await h.a.ports.rawExec([...scope, "hash-object", "-t", "tree", "-w", "--stdin"], { cwd: h.a.root, input: bytes, objectAccess: "local-only" });
+    expect(new TextDecoder().decode(restored.stdout).trim()).toBe(originalTree);
     const repaired = success(await h.a.store.pull());
     expect(repaired.pulls.flatMap(({ notices }) => notices)).toContainEqual(expect.objectContaining({ kind: "end-withdrawn", item: owner }));
     expect(success(await h.a.store.read({ reference: made.reference })).placement).toMatchObject({ kind: "completed", quarter: publishedQuarter });

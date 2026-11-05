@@ -9,6 +9,7 @@ import { readRefRepository } from "../repository.js";
 import { readRefDesignation } from "../designation.js";
 import { captureMoveRemote } from "../migrate-remote-target.js";
 import { clearMigrationRefs, fetchMigrationRemote } from "../migrate-remote-fetch.js";
+import { MigrationAcquisitionRefusal, MigrationTransportRefusal } from "../migrate-refusal.js";
 
 /** Code-repository journal, independent of destination layout and source-generation keepers. */
 export const IMPORT_PUBLICATION_REF = "refs/arc/tmp/migrate/import-required";
@@ -26,11 +27,13 @@ export async function keepImportPublication(context: RefBackendContext, refs: Re
 export async function unpublishedImportClaims(context: RefBackendContext, identities: ReadonlySet<string>): Promise<{ condition: string; remedy: string } | undefined> {
   if (!identities.size) return;
   const tip = (await readSyncRefs(context, IMPORT_PUBLICATION_REF)).get(IMPORT_PUBLICATION_REF);
-  if (!tip) return { condition: "The import's retained publication requirements are unavailable; source retirement is not authorized.",
-    remedy: `Restore ${IMPORT_PUBLICATION_REF} from this import's retained journal, then rerun arc store migrate --import. Preserve the kept source tips until it finishes.` };
+  if (!tip) return publicationJournalFault("unavailable");
   const object = (await readBatchObjects(context, [tip])).get(tip);
-  if (object?.type !== "blob") throw new Error("The import's publication requirements are unavailable; preserve its source keepers.");
-  const required = Object.fromEntries(Object.entries(RequirementsSchema.parse(JSON.parse(new TextDecoder().decode(object.bytes))))
+  if (object?.type !== "blob") return publicationJournalFault("unavailable");
+  let journal: z.infer<typeof RequirementsSchema>;
+  try { journal = RequirementsSchema.parse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(object.bytes))); }
+  catch { return publicationJournalFault("unparseable"); }
+  const required = Object.fromEntries(Object.entries(journal)
     .filter(([ref]) => identities.has(ref.split("/")[3] ?? "")));
   if (!Object.keys(required).length) return;
   context.operationScope?.refreshConfiguration();
@@ -39,6 +42,7 @@ export async function unpublishedImportClaims(context: RefBackendContext, identi
     remedy: "Designate the intended remote with arc store remote <remote> push, publish the imported identities' claims, then rerun arc store migrate --import. Preserve the kept source tips until it finishes." };
   const physical = await readRefRepository(context), remote = await captureMoveRemote(context, context, publisher);
   const prefix = "refs/arc/tmp/migrate/import-published/";
+  let retainGathering = false;
   try {
     const published = await fetchMigrationRemote(physical, { ...remote, fetchUrl: remote.pushUrl }, true, { prefix });
     for (const [ref, expected] of Object.entries(required)) {
@@ -48,5 +52,13 @@ export async function unpublishedImportClaims(context: RefBackendContext, identi
       return { condition: `The imported claims for ${person} have not published to ${publisher.name}; origin's transient source remains retained.`,
         remedy: `Publish the imported store with arc.identity set to ${person}, then rerun arc store migrate --import. Preserve the kept source tips until it finishes.` };
     }
-  } finally { await clearMigrationRefs(physical, prefix); }
+  } catch (error) {
+    retainGathering = error instanceof MigrationTransportRefusal || error instanceof MigrationAcquisitionRefusal;
+    throw error;
+  } finally { if (!retainGathering) await clearMigrationRefs(physical, prefix); }
+}
+
+function publicationJournalFault(condition: "unavailable" | "unparseable"): { condition: string; remedy: string } {
+  return { condition: `The import's retained publication requirements are ${condition}; source retirement is not authorized.`,
+    remedy: `Restore ${IMPORT_PUBLICATION_REF} from this import's retained journal, then rerun arc store migrate --import. Preserve the kept source tips until it finishes.` };
 }

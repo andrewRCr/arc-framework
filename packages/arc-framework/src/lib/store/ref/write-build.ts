@@ -7,11 +7,11 @@ import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import type { BatchInput, BatchResult, WriteResult, RecordObservation } from "../write.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
-import { metadataFailure, parseRefMetadata, type RefMetadata } from "./metadata.js";
+import { readRefMetadata, type RefMetadata } from "./metadata.js";
 import { refRecordVersion } from "./record-version.js";
 import { writeRefBlob } from "./tree-write.js";
 import type { RefBackendContext } from "./context.js";
-import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
+import type { ResolvedBatch, ResolvedMutation, RefWriteTarget } from "./write-resolution.js";
 import { refWriteTargets, mutationHome } from "./write-resolution.js";
 import { expandStoredPath, holdsNoRecord } from "../stored-path.js";
 import type { RecordReference } from "../identity.js";
@@ -24,15 +24,16 @@ import { refFormatKey } from "./format-key.js";
 import { prepareRefCommits, type RefWriteGroup } from "./write-commits.js";
 import { checkRefWrites } from "./write-checks.js";
 import { bindProjectMutations } from "./project-identity.js";
-import { planRefReopens, reopenRefChanges } from "./write-reopen.js";
-import { archiveRefChanges } from "./write-archive.js";
+import { planRefReopens, reopenRefChanges, type RefReopenPlan } from "./write-reopen.js";
+import { archiveRefChanges, type RefArchivePlan } from "./write-archive.js";
 import { planRefCloseouts } from "./write-closeouts.js";
 import { prepareRefAnchors } from "./write-anchors.js";
 import { stampCompletedWrites, refreshCompletedChanges } from "./write-completed.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
+import { missingHistoryRefs } from "./missing-history.js";
 import { latestFolderPlacement } from "./archive-read.js";
 import { withCompletedPlacement } from "./archive-refresh.js";
-import { planRefRetirements, sweepRefRetirements, retirementRefChanges } from "./write-retirement.js";
+import { planRefRetirements, sweepRefRetirements, retirementRefChanges, type RefRetirementPlan } from "./write-retirement.js";
 import { prepareRefConflicts } from "./write-conflicts.js";
 import { proposedRefCreatedOwners } from "./write-creation.js";
 import { refAdmissionBasisChanged } from "./write-admission.js";
@@ -40,14 +41,30 @@ import { stagePublicationMetadata } from "./write-metadata.js";
 import { anchorRefWriteManifest } from "./write-manifest.js";
 import { checkRefHistoryDestinations } from "./write-history.js";
 import { publishRefBatchChanges } from "./write-publication.js";
+import type { PreparedRefMutation } from "./write-merge.js";
+import type { RefWriteRetry } from "./write-retry.js";
 
 import { prepareRefRenames } from "./write-rename.js";
 
 type RefGroup = RefWriteGroup;
 
-/** Land prepared mutations over one captured namespace using expected old ref values. */
-export async function commitRefWrites(context: RefBackendContext, resolved: ResolvedBatch,
-  provenance: BatchInput["provenance"], batchId: string, observations: readonly RecordObservation[] = []): Promise<StoreResult<BatchResult> | "retry" | "resolve" | "layout-changed"> {
+interface RefWriteProposal {
+  context: RefBackendContext; resolved: ResolvedBatch; groups: Map<string, RefGroup>;
+  writes: PreparedRefMutation[]; results: WriteResult[];
+  reopens: RefReopenPlan[]; archives: RefArchivePlan[]; retirements: RefRetirementPlan[];
+  historyMoves: { live: string; history: string }[];
+}
+
+/** Inspect exact destinations over a coherent capture without publishing the provisional proposal. */
+export async function capturedRefHistoryDestinations(context: RefBackendContext, resolved: ResolvedBatch,
+  provenance: BatchInput["provenance"], batchId: string): Promise<ReadonlyMap<string, string | null> | null> {
+  const proposal = await prepareRefWriteProposal(context, resolved, provenance, batchId);
+  if (proposal === "resolve" || proposal.status === "refused") return null;
+  return new Map(proposal.result.historyMoves.map(({ history }) => [history, resolved.tips.get(history) ?? null]));
+}
+
+async function prepareRefWriteProposal(context: RefBackendContext, resolved: ResolvedBatch,
+  provenance: BatchInput["provenance"], batchId: string): Promise<StoreResult<RefWriteProposal> | "resolve"> {
   const project = await bindLockedProjects(context, resolved);
   if (project.status === "refused") return project;
   resolved = project.result;
@@ -76,31 +93,49 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
   const retirements = await planRefRetirements(context, resolved, refWriteTargets(context, resolved), groups);
   if (retirements.status === "refused") return retirements;
   const historyMoves = [...archives.result.map(({ source, history }) => ({ live: source, history })), ...retirements.result];
+  return { status: "ok", result: { context, resolved, groups, writes: prepared.result, results,
+    reopens: reopens.result, archives: archives.result, retirements: retirements.result, historyMoves } };
+}
+
+/** Land prepared mutations over one captured namespace using expected old ref values. */
+export async function commitRefWrites(context: RefBackendContext, resolved: ResolvedBatch,
+  provenance: BatchInput["provenance"], batchId: string, observations: readonly RecordObservation[],
+  observeHistory: (destinations: ReadonlyMap<string, string | null>) => StoreRefusal | undefined): Promise<StoreResult<BatchResult> | RefWriteRetry | "resolve" | "layout-changed"> {
+  const proposal = await prepareRefWriteProposal(context, resolved, provenance, batchId);
+  if (proposal === "resolve" || proposal.status === "refused") return proposal;
+  const { groups, writes, results, reopens, archives, retirements, historyMoves } = proposal.result;
+  context = proposal.result.context;
+  resolved = proposal.result.resolved;
+  const tips = resolved.tips;
+  const destinations = new Map(historyMoves.map(({ history }) => [history, tips.get(history) ?? null]));
   const historyRefusal = await checkRefHistoryDestinations(context, tips, historyMoves);
   if (historyRefusal) return { status: "refused", refusal: historyRefusal };
-  const completed = await prepareRefConflicts(context, prepared.result, groups, results);
+  const captureRefusal = observeHistory(destinations);
+  if (captureRefusal) return { status: "refused", refusal: captureRefusal };
+  const completed = await prepareRefConflicts(context, writes, groups, results);
   await stagePublicationMetadata(context, resolved, groups, completed);
   const namespace = finalWriteNamespaceRefusal(context, resolved, groups, completed);
   if (namespace) return { status: "refused", refusal: namespace };
-  const step = await commitRefStep(context, async (physical): Promise<StoreResult<BatchResult> | "retry"> => {
-    if (await refAdmissionBasisChanged(physical, tips)) return "retry";
-    const proposedCreatedOwners = proposedRefCreatedOwners(resolved, prepared.result, completed);
-    const broken = await checkRefWrites(physical, prepared.result, completed, tips, provenance, proposedCreatedOwners, observations);
+  const step = await commitRefStep(context, async (physical): Promise<StoreResult<BatchResult> | RefWriteRetry> => {
+    const admission = await refAdmissionBasisChanged(physical, tips);
+    if (admission.size) return { status: "retry", destinations, observed: admission };
+    const proposedCreatedOwners = proposedRefCreatedOwners(resolved, writes, completed);
+    const broken = await checkRefWrites(physical, writes, completed, tips, provenance, proposedCreatedOwners, observations);
     if (broken) return { status: "refused", refusal: broken };
     const receipt = BatchCreationReceiptSchema.parse({ schemaVersion: 1, batchId, createdOwners: proposedCreatedOwners });
-    sweepRefRetirements(retirements.result, groups, completed);
+    sweepRefRetirements(retirements, groups, completed);
     const identity = await physical.identity(), actor = identity === null ? undefined : await physical.actor(identity);
-    const committed = await prepareRefCommits(physical, prepared.result, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId, receipt, actor);
-    const archived = await archiveRefChanges(physical, committed, archives.result, groups, completed, prepared.result, tips, provenance, batchId, receipt);
+    const committed = await prepareRefCommits(physical, writes, refWriteTargets(context, resolved), groups, completed, tips, provenance, batchId, receipt, actor);
+    const archived = await archiveRefChanges(physical, committed, archives, groups, completed, writes, tips, provenance, batchId, receipt);
     if (archived.status === "refused") return archived;
-    const reopened = await reopenRefChanges(physical, archived.result, reopens.result, resolved.writes, tips, provenance, batchId, receipt);
+    const reopened = await reopenRefChanges(physical, archived.result, reopens, resolved.writes, tips, provenance, batchId, receipt);
     const refreshed = await refreshCompletedChanges(physical, reopened, resolved, completed, provenance, batchId, receipt, actor);
     if (refreshed.status === "refused") return refreshed;
-    const anchored = await anchorRefWriteManifest(physical, { changes: retirementRefChanges(refreshed.result, retirements.result, tips),
-      ended: archives.result.length > 0 || retirements.result.length > 0, tips, provenance, batchId, actor, receipt });
+    const anchored = await anchorRefWriteManifest(physical, { changes: retirementRefChanges(refreshed.result, retirements, tips),
+      ended: archives.length > 0 || retirements.length > 0, tips, provenance, batchId, actor, receipt });
     if (anchored.status === "refused") return anchored;
     const changes = anchored.result;
-    return publishRefBatchChanges(physical, changes, new Set(historyMoves.map(({ history }) => history)), { batchId, writes: results });
+    return publishRefBatchChanges(physical, changes, destinations, { batchId, writes: results });
   });
   return step.status === "layout-changed" ? "layout-changed" : step.result;
 }
@@ -253,27 +288,33 @@ async function readWriteGroups(context: RefBackendContext, resolved: ResolvedBat
     if (groups.has(home.ref)) continue;
     const tip = tips.get(home.ref);
     // A tip whose tree cannot be read names restoration; only a readable tree without usable metadata needs a forward repair.
-    if (tip && !trees.has(home.ref)) return { status: "refused", refusal: corruptRef(home.ref, true) };
-    const priorMetadata = tip ? objects.get(metadataOids.get(home.ref) ?? "") ?? null : undefined;
-    const metadata = capturedGroupMetadata(resolved, home.ref, reference, priorMetadata)
-      ?? (holdsNoRecord(home, (trees.get(home.ref) ?? []).map(({ path }) => path))
-        ? capturedGroupMetadata(resolved, home.ref, reference, undefined) : null);
-    if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
-      namespace: home.ref, ...metadataFailure(home.ref) } };
+    if (tip && !trees.has(home.ref)) return { status: "refused", refusal: refObjectFault(home.ref, "missing", {
+      historyRefs: await missingHistoryRefs(context, [home.ref], resolved.tips),
+      condition: `The tip or a tree of ${home.ref} is unavailable locally.`,
+    }).refusal };
+    const metadata = await capturedGroupMetadata(context, resolved, { reference, home }, trees.get(home.ref) ?? [], objects);
+    if (metadata.status === "refused") return metadata;
     const entries = new Map((trees.get(home.ref) ?? []).map((entry) => [entry.path, entry]));
-    groups.set(home.ref, { metadata, entries, original: new Map(entries) });
+    groups.set(home.ref, { metadata: metadata.result, entries, original: new Map(entries) });
   }
   return { status: "ok", result: groups };
 }
 
 /**
- * Parse a captured ref's metadata, or start a new ref's. An ended owner's version names its latest folder's quarter,
+ * Read a captured ref's metadata, or start a readable record-free ref's. An ended owner's version names its latest folder's quarter,
  * so admission and results agree with what reads return.
  */
-function capturedGroupMetadata(resolved: ResolvedBatch, ref: string, reference: RecordReference, object: BatchObject | null | undefined): RefMetadata | null {
-  // A missing ref starts metadata afresh. A readable existing value keeps auxiliary identity and history facts.
-  const metadata = object !== undefined ? parseRefMetadata(object, ref)
-    : { formatVersion: 1 as const, formats: {}, ...(/^refs\/arc\/(?:work|cohort)\//u.test(ref) ? { slug: reference.owner.name } : {}) };
-  const latest = latestFolderPlacement(resolved.archived ?? [], ref);
-  return metadata && latest ? withCompletedPlacement(metadata, latest) : metadata;
+async function capturedGroupMetadata(context: RefBackendContext, resolved: ResolvedBatch, { reference, home }: RefWriteTarget,
+  entries: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>): Promise<StoreResult<RefMetadata>> {
+  const entry = entries.find(({ path }) => path === home.metadataPath);
+  const read = readRefMetadata(home.ref, entry, objects);
+  if (read.kind !== "parsed" && (read.kind === "missing" || !holdsNoRecord(home, entries.map(({ path }) => path)))) {
+    return { status: "refused", refusal: refObjectFault(home.ref, read.kind === "absent" ? "no-metadata" : read.kind, {
+      historyRefs: read.kind === "missing" ? await missingHistoryRefs(context, [home.ref], resolved.tips) : undefined,
+    }).refusal };
+  }
+  const metadata = read.kind === "parsed" ? read.metadata
+    : { formatVersion: 1 as const, formats: {}, ...(/^refs\/arc\/(?:work|cohort)\//u.test(home.ref) ? { slug: reference.owner.name } : {}) };
+  const latest = latestFolderPlacement(resolved.archived ?? [], home.ref);
+  return { status: "ok", result: latest ? withCompletedPlacement(metadata, latest) : metadata };
 }

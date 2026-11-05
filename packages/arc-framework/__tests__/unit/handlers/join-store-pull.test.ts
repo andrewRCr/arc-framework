@@ -23,7 +23,7 @@ it("reports designation without selecting or executing in a non-interactive join
       execute: async () => { throw new Error("Guessed a designation"); },
     });
     expect(result).toMatchObject({ status: "designation-needed", actions: [designation.remedy] });
-    expect(lines.join("")).toContain("arc store remote upstream state");
+    expect(lines.join("").split("arc store remote upstream state")).toHaveLength(2);
   } finally { output.mockRestore(); }
 });
 it("runs the explicit alternate answer while marking the remedy as the recommended option", async () => {
@@ -90,7 +90,8 @@ it("asks for a designation the pull raised beside a failed read source, and repo
   try {
     expect(await join(false)).toMatchObject({ status: "incomplete", summary: expect.stringContaining("Upstream is offline.") });
   } finally { output.mockRestore(); }
-  expect(lines.join("")).toContain("arc store remote fork read");
+  expect(lines.join("").split("arc store remote fork read")).toHaveLength(2);
+  expect(lines.join("")).toContain("Read source upstream was not pulled: Upstream is offline. Reconnect.");
   expect(roles.size).toBe(0);
   await join(true);
   expect(roles.get("fork")).toBe("off");

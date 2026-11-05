@@ -1,5 +1,6 @@
 /** Entry point for the ref-backed operational state implementation. */
 
+import { RefGitLockError, refGitLockRefusal } from "./git-lock.js";
 import type { z } from "zod";
 import type { StoreConflictInput, StoreConflictResult, StoreMigrateInput, StoreMigrateResult, StoreRemoteInput, StoreRemoteResult } from "../commands.js";
 import type { Store, ReadOnlyStore } from "../contract.js";
@@ -64,7 +65,13 @@ function refReadOperations(context: RefBackendContext, operations = createRefRea
     capabilities: { stateOffBranch: true },
     read: (input) => operations.read((reader) => input.asOf ? readSnapshotRecord(scoped(reader), input) : readRefRecord(scoped(reader), input)),
     list: (input) => operations.read((reader) => input.asOf ? listSnapshotRecords(scoped(reader), input) : listRefRecords(scoped(reader), input)),
-    version: () => operations.read(async (reader) => ({ status: "ok", result: await refStateVersion(scoped(reader)) })),
+    version: () => operations.read(async (reader) => {
+      try { return { status: "ok", result: await refStateVersion(scoped(reader)) }; }
+      catch (error) {
+        if (error instanceof RefGitLockError) return { status: "refused", refusal: refGitLockRefusal(error) };
+        throw error;
+      }
+    }),
     history: (input) => operations.read((reader) => historyRefRecord(scoped(reader), input)),
     changes: (input) => operations.read((reader) => changesRefRecords(scoped(reader), input)),
     lookup: (input) => operations.read((reader) => lookupRefRecord(scoped(reader), input)),

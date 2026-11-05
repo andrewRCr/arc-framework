@@ -57,6 +57,7 @@ const expectedImplementationModules = [
   "./commands/store-conflict.js",
   "./commands/store-migrate.js",
   "./commands/store-remote.js",
+  "./commands/store-review-root-repair.js",
   "./scripts/remedy-roadmap-conflict.js",
   "./scripts/validate-frontmatter.js",
 ] as const;
