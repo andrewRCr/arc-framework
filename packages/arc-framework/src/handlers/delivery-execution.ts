@@ -6601,8 +6601,10 @@ async function executeDeliveryCommand(
       },
       proveContribution: () => proveGitDeliveryContribution({
         exec: rawExec,
-        before: { predecessor, member: currentCoordinates },
-        after: { predecessor, member: requestedCandidate },
+        ...projectDeliveryContributionEndpoints({
+          before: { predecessor, member: currentCoordinates },
+          after: { predecessor, member: requestedCandidate },
+        }),
       }),
       stateStore,
     });
