@@ -1,6 +1,7 @@
 # Roadmap: Project Status
 
 > **Generated from meta files — re-render at ceremony boundaries.**
+> Source scope: tree + local refs. Live view: `arc status --project`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -12,20 +13,19 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit                       | Priority | Owner  | Depends on                                                         | Cohort             |
-| ------------- | ------------------------------- | -------- | ------ | ------------------------------------------------------------------ | ------------------ |
-| `Planning`    | cutover-flip                    | P1       | andrew | projection-write-back, cohort-identity-verbs, projection-worktrees | storage-cutover    |
-| `Active`      | projection-write-back           | P1       | andrew | —                                                                  | storage-projection |
-| `Active`      | cohort-identity-verbs           | P1       | andrew | —                                                                  | storage-seam       |
-| `Planning`    | adopter-install-authority       | P1       | andrew | storage-cutover                                                    | —                  |
-| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —                                                                  | —                  |
-| `Planning`    | decomposition-doctrine          | P1       | andrew | —                                                                  | —                  |
-| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —                                                                  | —                  |
-| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —                                                                  | —                  |
-| `Planning`    | stub-mint-to-launch             | P1       | andrew | —                                                                  | —                  |
-| `Integrating` | adr-accept-timing               | P2       | andrew | —                                                                  | —                  |
-| `Planning`    | cli-output-contract             | P2       | andrew | —                                                                  | —                  |
-| `Planning`    | test-typecheck-heap             | P3       | andrew | —                                                                  | —                  |
+| State      | Work unit                       | Priority | Owner  | Depends on                                                         | Cohort             |
+| ---------- | ------------------------------- | -------- | ------ | ------------------------------------------------------------------ | ------------------ |
+| `Planning` | cutover-flip                    | P1       | andrew | projection-write-back, cohort-identity-verbs, projection-worktrees | storage-cutover    |
+| `Active`   | projection-write-back           | P1       | andrew | —                                                                  | storage-projection |
+| `Active`   | cohort-identity-verbs           | P1       | andrew | —                                                                  | storage-seam       |
+| `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover                                                    | —                  |
+| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                                                                  | —                  |
+| `Planning` | decomposition-doctrine          | P1       | andrew | —                                                                  | —                  |
+| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                                                                  | —                  |
+| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                                                                  | —                  |
+| `Planning` | stub-mint-to-launch             | P1       | andrew | —                                                                  | —                  |
+| `Planning` | cli-output-contract             | P2       | andrew | —                                                                  | —                  |
+| `Planning` | test-typecheck-heap             | P3       | andrew | —                                                                  | —                  |
 
 ## Ready
 
@@ -65,6 +65,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | operational-advisory-registers        | P2       | andrew | —          | —                          |
 | package-project-development-sync      | P2       | andrew | —          | —                          |
 | planning-lane-relief                  | P2       | andrew | —          | —                          |
+| reader-surface-norms                  | P2       | andrew | —          | —                          |
 | review-orchestration-right-sizing     | P2       | andrew | —          | —                          |
 | store-cross-call-sharing              | P2       | andrew | —          | —                          |
 | test-suite-contention-hardening       | P2       | andrew | —          | —                          |
@@ -128,7 +129,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | goal-aware-direction            | P2       | andrew | cutover-flip                  | —                          |
 | history-policy                  | P2       | andrew | cutover-flip                  | —                          |
 | operational-state-docs          | P2       | andrew | cutover-flip                  | —                          |
-| reader-surface-norms            | P2       | andrew | adr-accept-timing             | —                          |
 | documentation-surface-routing   | P3       | andrew | handoff-optimization          | agent-context-optimization |
 | instruction-optimization        | P3       | andrew | composable-workflows          | agent-context-optimization |
 | workflow-template-loads         | P3       | andrew | composable-workflows          | principle-anchored-core    |
