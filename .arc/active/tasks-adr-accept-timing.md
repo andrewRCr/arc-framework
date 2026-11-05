@@ -175,23 +175,13 @@ while it reads Proposed, naming the file and its `Accepted (<today>)` remedy, an
 - _Outcome:_ Bound ADR bodies to reader independence while retaining Status tracking, and aligned the sync strategy with
   locking at the accepting merge.
 
-### `[ ]` **4.6 Write ADR-040 — D8**
+### `[x]` **4.6 Write ADR-040 — D8**
 
 - _Goal:_ ADR-040 records the accept-at-merge lifecycle, detection at planning close, the merge-gate checks, and the
   reader rule in a body that stands without planning history, and it reads Proposed until verification.
 
-- _Note:_ Leave its Status at `Proposed`. Verification's merge gate fails on it, and setting `Accepted (<today>)` per
-  the remedy exercises the status check end to end; flipping it earlier forfeits that evidence.
-
-    - `.arc/reference/adr/adr-040-accept-adrs-when-their-work-merges.md`, titled "ADR-040: Accept ADRs When Their Work
-      Merges", from the updated `template-adr.md`
-    - Context: the four defects, the number-collision risk, and the spec's Alternatives & Rationale; Decision: the
-      lifecycle, planning-close detection, both checks, and the reader rule; Consequences: the four acceptances and
-      why ADR-020 stays Proposed
-    - The whole body meets the reader-independence rule; planning references stay in its Status section
-    - Before writing, confirm no ADR-040 has landed on the base (`git ls-tree --name-only origin/main
-      .arc/reference/adr/`); a local number check sees only this branch's tree, so one landing later surfaces on the
-      pull-request run, which checks the merge into the base, and is renumbered as that remedy names
+- _Outcome:_ Added the standalone decision record, including the inherited-number collision rule, the four historical
+  acceptances, and why ADR-020 stays Proposed. ADR-040 remains Proposed for the verification exercise.
 
 ## **Phase 5:** Verification
 
