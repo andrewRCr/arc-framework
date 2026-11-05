@@ -175,73 +175,35 @@ that ordering returns to the Owner. The resolver built here serves Phases 3–5.
   verb type rules. Results retain the original operand, whole store refusals, or actionable unselected evidence; Errand
   slug operands pass unchanged to their runtime.
 
-### `[ ]` **2.3 Close and abandon an Errand by UID, the selected record replacing the slug — § 9.1, § 9.2**
+### `[x]` **2.3 Close and abandon an Errand by UID, the selected record replacing the slug — § 9.1, § 9.2**
 
 - _Goal:_ `arc errand close <uid>` and `arc errand abandon <uid>` end the named one of two clashed Errands, every step
   that used the operand as the Errand's slug reading the selected record instead.
 
-- _Note:_ The handler resolves before `readBasis`'s pull, so a UID only a remote holds refuses `not-found` naming the
-  pull; and the hardening also edits `errand/store-runtime.ts`'s pull site, so expect a merge there.
+    - `[x]` **2.3.a Resolving before the protection branch**
 
-- _Context:_ The base merge retains `readBasis`'s `consumePull` and notice writer. The handler's store-opening seam is
-  now `openErrandTerminalStore`; insert off-branch subject selection after it returns, before the protection branch,
-  retaining its in-repo slug admission and the runtime's existing pull order.
+        - Close and abandon select off-branch UID operands before protection dispatch. Missing or refused evidence renders
+          under `identity-conflict` with its condition and repair; thrown listing reads use `identity-read`.
 
-    - `[ ]` **2.3.a Resolving before the protection branch**
+    - `[x]` **2.3.b Close**
 
-        - Where `usesOffBranchState` holds, `handleErrandClose` and `handleErrandAbandon` (`handlers/errand.ts`) resolve
-          the operand right after the store opens and before they branch on protection; a partial Errand keeps no record,
-          so a UID under partial protection refuses `not-found` rather than reaching `settlePartialErrandAtRuntime`'s
-          roster match by slug. The in-repo arms keep Task 1.9.c's slug parse.
-        - On both verbs each refusal of Task 2.2's resolver renders as a `refused` outcome under `identity-conflict`,
-          the reason both give an identity that is not a closeable Errand (`close-locus.ts`, `abandon-locus.ts`), its
-          condition and remedy as the prompt text; a UID selecting nothing is § 1.2's `not-found` refusal in that form,
-          and a listing read that throws renders under the `identity-read` stage.
+        - Close carries the selected primary through its initial read, slug checks, and finalized fallback. Its target guard
+          requires the exact local subject or a sole branch link before reading branch evidence.
 
-    - `[ ]` **2.3.b Close**
+    - `[x]` **2.3.c Abandon**
 
-        - `readReconciledCloseIdentity` (`lib/errand/close-runtime.ts`), the check of the record's slug, and the
-          already-finalized fallback (`close-locus.ts`) take the selected record, and the recovery call passes its slug,
-          and its claim once Task 2.4 gives the receipt match that parameter; later steps already read by the record's
-          claim.
-        - Where `usesOffBranchState` holds, a guard in the target-resolution step `close-runtime.ts` wires to
-          `resolveTarget`, ahead of `resolveCloseChangeRequest`, reads the frame (`readFrame`) and matches its roster by
-          the subject's slug and claim, as `authorizeErrandTerminal` does (`sameSubject`); where no row matches and
-          `lookup({ kind: "ref" })` of the subject's branch returns anything but the subject alone, close refuses before
-          the branch is read, naming the machine holding the subject's checkout. `readCloseOccupancy`, `onAuthority`, and
-          every other step keep today's order.
+        - Abandon carries the selected primary through store reads and transitions. Its return plan keeps the original
+          operand and compares the holding Errand by owner UID, retaining another same-slug owner’s entries.
 
-    - `[ ]` **2.3.c Abandon**
+    - `[x]` **2.3.d Retries repeat the operand given**
 
-        - The matching steps in `abandon-runtime.ts` and `abandon-locus.ts`, and `readBasis`
-          (`lib/errand/store-runtime.ts`) where it serves them, take the selected record.
-        - The return plan (`prepareHandlerErrandReturn`, through `prepareErrandReturn`, `lib/inbox/errand-return.ts`)
-          takes the operand given, which its list resolution already selects by UID, and `prepareReturnEntry` compares
-          the holding Errand with the subject by UID rather than by slug: `openErrandHolding`
-          (`lib/inbox/errand-home.ts`) adds the holder's reference to `EntryErrandHome.held` beside its slug, which
-          `lib/inbox/offer.ts` and `errand-adoption.ts` keep reading unchanged.
+        - Terminal authority keeps the original operand in confirmation and off-branch retries, defaulting to the slug for
+          callers that supply none.
 
-    - `[ ]` **2.3.d Retries repeat the operand given**
-
-        - `AuthorizeErrandTerminalOptions` (`lib/errand/terminal-authority.ts`) gains an optional `operand`, defaulting
-          to the subject's slug for its other callers, which `renderRetry` and `renderOffBranchRefusal` repeat rather
-          than the record's slug, which refuses under the clash.
-
-    - Build `test-first` (one behavior at a time):
-        - over the ref backend, with two live Errand owners planted on one slug through `plantRef`
-          (`__tests__/helpers/store/ref-plant.ts`), each carrying a v3 `TransientIdentityRecord` body, a branch, a
-          checkout, and merged evidence — a fixture this task builds, modeled on the store-backed Errand CLI fixture in
-          `errand-preservation-store-cli.test.ts` (`createLifecycleHarness`, `dispatchRegisteredCli`) —
-          `arc errand close <uid>` closes the named one and the slug then resolves to the other
-        - `arc errand abandon <uid>` lands the same way and returns only its own held inbox entries
-        - closing one by UID on the machine holding the other's checkout, and none of its own, refuses naming the
-          machine holding its checkout
-        - a slug close with no clash and no checkout here takes today's foreign-confirmation path unchanged
-        - before the flip, a full-protection close with no checkout here takes today's identity-only path
-        - a UID under partial protection refuses `not-found`, a `refused` outcome under `identity-conflict` naming the
-          UID, in text and `--json`
-        - the confirmation retry and the off-branch retry each print repeat the UID given
-        - a slug operand with no clash closes and abandons as today, the slug reaching the Errand runtime unchanged
+- _Outcome:_ Exact UID-selected exits work under same-slug clashes without changing pull order. Marker corroboration
+  now resolves a complete inventory’s overwritten slug entry through its full claim, preserving both checkout identities
+  and the original discovery evidence. Real-ref command scenarios cover isolated retirement, held-entry retention,
+  wrong-machine refusal and repair, and the unambiguous slug’s foreign-confirmation continuation.
 
 ### `[ ]` **2.4 Clear only the selected Errand's finalized head locks — § 9.2**
 

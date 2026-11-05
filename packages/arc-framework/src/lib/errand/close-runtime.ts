@@ -3,6 +3,7 @@ import { readRuntimeErrand, transitionRuntimeErrand, type ErrandRuntimeStorageOp
 
 import type { RawGitExec } from "../git/exec.js";
 import { readCloseLandingCommit } from "./close-store-landing.js";
+import { guardCloseSubjectBranch } from "./close-subject-branch.js";
 import type { ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
@@ -87,7 +88,8 @@ export async function closeOrdinaryErrandAtRuntime(
   const remote = await configuredIdentityRemote(exec);
   const dependencies: CloseOrdinaryErrandDependencies = {
     readIdentity: () => readReconciledCloseIdentity(identityIO, options.slug, remote, options),
-    resolveTarget: (record) => resolveCloseChangeRequest(runtimeOptions, record),
+    resolveTarget: async (record) => await guardCloseSubjectBranch(runtimeOptions, record)
+      ?? resolveCloseChangeRequest(runtimeOptions, record),
     readLifecycle: (target) => target.kind === "merged"
       ? lifecyclePort.read(target.changeRequest, target.changeRequest)
       : Promise.reject(new Error("An unchanged-base close has no change request lifecycle.")),
@@ -221,6 +223,7 @@ async function readCloseOccupancy(
     store: options.store,
     frame,
     operation: "close",
+    operand: options.operand,
     subject: { kind: "errand", slug: target.record.slug, claimId: target.record.claimId },
     confirmForeignGeneration: options.confirmForeignGeneration,
   });

@@ -23,7 +23,7 @@ import { restoreErrandInboxOrigin, type ErrandInboxOrigin } from "../lib/errand/
 
 
 import { openDefaultStore } from "./lifecycle-shared.js";
-import { openErrandTerminalStore } from "./errand-terminal-store.js";
+import { openErrandTerminalStore, selectErrandTerminalSubject } from "./errand-terminal-store.js";
 import { readRuntimeErrand } from "../lib/store/errand-runtime-transactions.js";
 import { readFile, readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -1295,6 +1295,8 @@ async function runErrandCloseHandler(
     refuse: (code, message) => { emitErrandCloseFailure(`locus.errand-close.${code}`, message, opts.json === true); } });
   if (opened === null) return;
   const { store, execInput } = opened;
+  const selected = await selectErrandTerminalSubject(store, slug, "errand-close");
+  if (selected.kind === "stop") { emitErrandCloseResult(selected.result, opts.json === true); return; }
   const inboxContext = { store, identity, now: () => new Date() };
   let captureDisposition: "removed" | "retained" | "absent" = "absent";
   const queueReport: { value: QueueExecutionOffer | null } = { value: null };
@@ -1303,7 +1305,7 @@ async function runErrandCloseHandler(
   try {
     if (protection === "partial") {
       result = await settlePartialErrandAtRuntime({
-        slug,
+        slug: selected.slug,
         action: "close",
         base,
         exec: io.exec,
@@ -1346,7 +1348,9 @@ async function runErrandCloseHandler(
     } else {
       result = await closeOrdinaryErrandAtRuntime({
       store,
-        slug,
+        selectedRecord: selected.selectedRecord,
+        operand: slug,
+        slug: selected.slug,
         base,
         protection: "full",
         identity,
@@ -1562,6 +1566,8 @@ async function runErrandAbandonHandler(
     refuse: (code, message) => { emitErrandAbandonFailure(`locus.errand-abandon.${code}`, message, opts.json === true); } });
   if (opened === null) return;
   const { store, execInput } = opened;
+  const selected = await selectErrandTerminalSubject(store, input.slug, "errand-abandon");
+  if (selected.kind === "stop") { emitErrandAbandonResult(selected.result, opts.json === true); return; }
   let returnPlan: import("../lib/inbox/errand-return.js").ErrandReturn | null = null;
   let result: TerminalOperationOutcome;
   let observedAuthority: ErrandTerminalAuthority | null = null;
@@ -1569,7 +1575,7 @@ async function runErrandAbandonHandler(
     returnPlan = await prepareHandlerErrandReturn(input.slug, protection, { store, identity, now: () => new Date() });
     if (protection === "partial") {
       result = await settlePartialErrandAtRuntime({
-        slug: input.slug,
+        slug: selected.slug,
         action: "abandon",
         base,
         exec: io.exec,
@@ -1593,9 +1599,11 @@ async function runErrandAbandonHandler(
     } else {
       result = await abandonOrdinaryErrandAtRuntime({
       store,
+        selectedRecord: selected.selectedRecord,
+        operand: input.slug,
         companionWrites: returnPlan?.writes,
         provenanceVerb: "errand-abandon",
-        slug: input.slug,
+        slug: selected.slug,
         protection: "full",
         base,
         identity,
