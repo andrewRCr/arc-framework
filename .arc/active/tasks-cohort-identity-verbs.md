@@ -337,13 +337,15 @@ nothing without `--yes`; and a member a pull lands naming a removed cohort refus
   leaves and parents; each command completes after the field edit. Session context still treats the missing document
   as none.
 
-### `[ ]` **3.8 A cohort retired end to end** — validate exit criterion at segment scope
+### `[x]` **3.8 A cohort retired end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds end to end: every retiring path refuses or stays open while a record holds
   the cohort, and each report names a command that then lands.
 
-- _Note:_ Both backends choose a closing cohort's letter from its subcohorts' `Parent` text (`cohortClosePlacement`), so
-  a closed subcohort left on its parent's former slug does not count toward the parent's letter.
+- _Outcome:_ The registered-command scenarios passed over both backends: former-name stubs block close until cleared,
+  archive retains and reports them, and unrelated cohort clashes block neither close nor archive closeout. Reported
+  retirement commands execute; archived holders prevent removal; confirmation previews write nothing; and a pulled
+  member naming a removed cohort archives after its field repair. Closeout letters still follow stored `Parent` text.
 
 ## **Phase 4:** The work-unit rename under a clash
 

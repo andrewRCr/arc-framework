@@ -109,7 +109,7 @@ describe.each(["reference", "ref"] as const)("cohort close over %s", backend => 
     if (f.ref !== undefined) expect((await f.ref.ports.exec("git", ["ls-remote", "origin", "refs/arc/*"], { cwd: f.ref.root })).stdout).toBe("");
   }, 60_000);
 
-  it.each([false, true])("names a holder before confirmation and closes after it archives, former=%s", async former => {
+  it.each([false, true])("names a holder before confirmation and closes once its open holding settles, former=%s", async former => {
     const f = await fixture(backend), ref = f.reference("cohort/document", "held");
     const group = await seed(f, ref, content(ref.owner.name)), memberRef = f.reference("work-item/meta", "held");
     const held = await seed(f, memberRef, makeMetaFixture(memberRef.owner.name, { state: "Planning", cohort: ref.owner.name }),
@@ -126,7 +126,8 @@ describe.each(["reference", "ref"] as const)("cohort close over %s", backend => 
       condition: expect.stringContaining(memberRef.owner.name), remedy: { text: expect.stringMatching(/archive.*abandon.*Cohort/isu) } } } });
     if (former) expect(refused.result).toMatchObject({ refusal: { condition: expect.stringContaining(`Cohort "${ref.owner.name}" -> "renamed"`) } });
     expect(success(await f.store.version())).toBe(before);
-    success(await f.store.write({ ...update(f, held, makeMetaFixture(memberRef.owner.name, { state: "Shipped", cohort: ref.owner.name })),
+    if (former) success(await f.store.write(update(f, held, writeMetaCohort(held.content, null))));
+    else success(await f.store.write({ ...update(f, held, makeMetaFixture(memberRef.owner.name, { state: "Shipped", cohort: ref.owner.name })),
       placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
     const owner = primary.reference.owner;
     if (owner.type === "person" || owner.uid === undefined) throw new Error("Expected cohort UID");
@@ -213,6 +214,24 @@ it("counts ambiguous own-name holdings before confirming a UID-selected close", 
     .toMatchObject({ result: { status: "closed", reference: first } });
   expect(success(await f.store.read({ reference: first })).placement?.kind).toBe("completed");
   expect(success(await f.store.read({ reference: second })).placement?.kind).not.toBe("completed");
+}, 60_000);
+
+it("closes an unrelated cohort while a member names two other cohorts sharing a slug", async () => {
+  const f = await fixture("ref");
+  if (f.ref === undefined) throw new Error("Expected real refs");
+  const shared = [];
+  for (const uid of ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"]) {
+    shared.push(await plantRefPrimary(f.ref, { kind: "cohort/document", name: "shared", uid, content: content("shared") }));
+  }
+  const member = await plantRefPrimary(f.ref, { kind: "work-item/meta", name: "held", uid: "00000000-0000-4000-8000-000000000003",
+    content: makeMetaFixture("held", { cohort: "shared" }) });
+  const held = success(await f.store.read({ reference: member })), ref = f.reference("cohort/document", "unrelated");
+  const group = await seed(f, ref, content(ref.owner.name));
+  expect(await f.invoke(["cohort", "close", ref.owner.name, "--yes", "--json"]))
+    .toMatchObject({ result: { status: "closed", reference: group.reference } });
+  expect(success(await f.store.read({ reference: group.reference })).placement?.kind).toBe("completed");
+  expect(success(await f.store.read({ reference: member }))).toEqual(held);
+  for (const reference of shared) expect(success(await f.store.read({ reference })).placement?.kind).not.toBe("completed");
 }, 60_000);
 
 describe.each(["reference", "ref"] as const)("cohort remove over %s", backend => {
