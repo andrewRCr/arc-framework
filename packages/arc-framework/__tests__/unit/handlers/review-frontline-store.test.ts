@@ -40,6 +40,20 @@ import { canonicalDigest } from "../../../src/lib/kernel/index.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const head = "a".repeat(40), base = "b".repeat(40);
+/** The captured findings run's own target, as Git lists its changed files. */
+const capturedChangedFiles = [
+  ".arc/system/workflows/arc/supplemental/run-errand.md",
+  "packages/arc-framework/__tests__/unit/scripts/review-gate/policy/frontline-command.test.ts",
+  "packages/arc-framework/__tests__/unit/scripts/review-gate/policy/pre-publication-composition.test.ts",
+  "packages/arc-framework/__tests__/unit/scripts/review-gate/policy/review-policy-driver.test.ts",
+  "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
+  "packages/arc-framework/src/handlers/review.ts",
+  "packages/arc-framework/src/scripts/review-gate/policy/frontline-command.ts",
+  "packages/arc-framework/src/scripts/review-gate/policy/frontline-phase.ts",
+  "packages/arc-framework/src/scripts/review-gate/policy/pre-publication-composition.ts",
+  "packages/arc-framework/src/scripts/review-gate/policy/review-policy-driver.ts",
+].map(path => `1\t1\t${path}\0`).join("");
+
 async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand", findings = false) {
   const h = createReviewHarness();
   const advancedHead = "e".repeat(40);
@@ -92,6 +106,7 @@ async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand
       await mkdir(root, { recursive: true }); return { stdout: "" };
     }] },
     { match: { prefix: ["worktree", "remove", "--force"] }, responses: [{ stdout: "" }] },
+    { match: { prefix: ["diff", "--numstat", "-z"] }, responses: [{ stdout: capturedChangedFiles }] },
   ] });
   onTestFinished(checkout.cleanup);
   const providerPath = join(checkout.cwd, "provider");

@@ -7,6 +7,7 @@ import { createReviewCompositionContext } from "./composition-context.js";
 import {
   LocalFrontlineOutcomeStore,
 } from "../hosts/local/frontline-outcome-store.js";
+import { listFrontlineChangedFiles } from "../hosts/local/frontline-changed-files.js";
 import {
   prepareFrontlineTargetMaterialization,
 } from "../hosts/local/frontline-materialization.js";
@@ -39,7 +40,7 @@ export interface CodeRabbitProcessOptions {
   run?: typeof runCodeRabbitProcess;
 }
 
-/** Bind frontline run to exact Git materialization, the invocation's result store, and CodeRabbit. */
+/** Bind frontline run to exact Git materialization and changed files, the invocation's result store, and CodeRabbit. */
 export function createFrontlineRunDependencies(options: ReviewInvocationInput & {
   interaction: InteractionContext["subprocess"];
   codeRabbit?: CodeRabbitProcessOptions;
@@ -91,6 +92,7 @@ export function createFrontlineRunDependencies(options: ReviewInvocationInput & 
                     ...options,
                     interaction: input.interaction,
                   }),
+                  listChangedFiles: listing => listFrontlineChangedFiles(input.exec, listing),
                 }),
               }
             : {
