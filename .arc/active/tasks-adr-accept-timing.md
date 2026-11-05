@@ -185,52 +185,59 @@ while it reads Proposed, naming the file and its `Accepted (<today>)` remedy, an
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Forced merge gate (21 local checks), both typechecks, lint, build, full unit and reached store
+  suites, focused ADR/entrypoint integration tests, and hosted CI run `42046311900` at `2428dc459d` passed. Observed
+  ADR-040's Proposed refusal and dated acceptance remedy before the passing Accepted runs.
+
+- _Success criteria:_ All 15 met. One minor heading-parser finding was corrected with fail-first unit and Git-tree
+  regressions; both ADR checks executed in CI's `lint-typecheck`/`default` step. ADR-020 is the only Proposed record.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The unit and integration `check-adr-records.test.ts` files and `one-shot-script-entrypoints.test.ts` pass,
+- `[x]` The unit and integration `check-adr-records.test.ts` files and `one-shot-script-entrypoints.test.ts` pass,
   covering every case the spec's Testing list names.
 
-- `[ ]` A merge-gate run fails `lint:adr:status`, naming the file and its remedy, for a new ADR reading Proposed, a new
+- `[x]` A merge-gate run fails `lint:adr:status`, naming the file and its remedy, for a new ADR reading Proposed, a new
   ADR with no Status section, an ADR returned to Proposed, and a removed Status section, and passes once the base
   Status section is restored or a new ADR reads Accepted.
 
-- `[ ]` An edit or rename of ADR-020 that leaves it Proposed passes `lint:adr:status`, and a same-number file never
+- `[x]` An edit or rename of ADR-020 that leaves it Proposed passes `lint:adr:status`, and a same-number file never
   supplies a base version.
 
-- `[ ]` With no base, `lint:adr:status` refuses with the no-base text naming the resolvable-base and merge-base
+- `[x]` With no base, `lint:adr:status` refuses with the no-base text naming the resolvable-base and merge-base
   remedies.
 
-- `[ ]` A tree holding two ADRs with one number fails `lint:adr:numbers` at any merge gate, naming both files and the
+- `[x]` A tree holding two ADRs with one number fails `lint:adr:numbers` at any merge gate, naming both files and the
   renumber target when the change adds one or both, stating the rule when it adds neither, and asking for a
   resolvable base when none resolved.
 
-- `[ ]` At verification, `arc check gate merge --force` fails `lint:adr:status` on ADR-040 while it reads Proposed and
+- `[x]` At verification, `arc check gate merge --force` fails `lint:adr:status` on ADR-040 while it reads Proposed and
   passes once it reads `Accepted (<date>)`.
 
-- `[ ]` CI's run at the verified head executes both checks at the `lint-typecheck`/`default` step.
+- `[x]` CI's run at the verified head executes both checks at the `lint-typecheck`/`default` step.
 
-- `[ ]` `assess-draft-readiness` § The bar carries the fourth criterion with the four dispositions and the gap rule,
+- `[x]` `assess-draft-readiness` § The bar carries the fourth criterion with the four dispositions and the gap rule,
   and counts four criteria throughout, in both copies.
 
-- `[ ]` `strategy-adr-methodology.md` locks an ADR only at the accepting change's merge, says nothing of "just before
+- `[x]` `strategy-adr-methodology.md` locks an ADR only at the accepting change's merge, says nothing of "just before
   starting", and carries the binding disposition, the Reader independence subsection, and Tier 1's renumbering.
 
-- `[ ]` `template-adr.md`'s Status section starts at the bare line `Proposed`, with its guidance comment after it.
+- `[x]` `template-adr.md`'s Status section starts at the bare line `Proposed`, with its guidance comment after it.
 
-- `[ ]` The `STRATEGY-INDEX` entry for `arc/strategy-adr-methodology.md` reads as the spec gives it, in package source
+- `[x]` The `STRATEGY-INDEX` entry for `arc/strategy-adr-methodology.md` reads as the spec gives it, in package source
   and `.arc/`.
 
-- `[ ]` At the verified head, ADR-020 is the only ADR whose Status reads Proposed, and ADR-024 names no
+- `[x]` At the verified head, ADR-020 is the only ADR whose Status reads Proposed, and ADR-024 names no
   `assess-cohort-fit`.
 
-- `[ ]` At the verified head, ADR-040 reads Accepted and its body stands without planning history.
+- `[x]` At the verified head, ADR-040 reads Accepted and its body stands without planning history.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
 ---
