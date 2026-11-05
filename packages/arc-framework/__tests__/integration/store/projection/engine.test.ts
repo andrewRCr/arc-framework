@@ -1,6 +1,6 @@
 /** Command entry over a real repository and the reference store. */
 import { access, lstat, readdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
@@ -152,8 +152,8 @@ describe("projection command entry", () => {
     } });
     const ports = { ...native, walkFs: { readdir, lstat: async (path: string) => {
       await access(join(h.location.stateDir, PROJECTION_LOCK_FILE));
-      if (path.endsWith(".arc/backlog")) sharedStarted();
-      if (path.includes(".arc/user/") && !identified) throw new Error("personal walk ran before identity");
+      if (path === join(h.checkout, ".arc/backlog")) sharedStarted();
+      if (path.startsWith(`${join(h.checkout, ".arc/user")}${sep}`) && !identified) throw new Error("personal walk ran before identity");
       return lstat(path);
     } }, exec: (async (command, args, options) => {
       if (args.includes("--get-regexp")) {
@@ -163,7 +163,7 @@ describe("projection command entry", () => {
         await alongside(shared);
       }
       const result = await native.exec(command, args, options);
-      identified = true;
+      if (args.includes("--get-regexp")) identified = true;
       return result;
     }) as typeof native.exec };
     expect((await startProjection({ store, checkout: h.checkout, ports: () => ports })).kind).toBe("ready");
