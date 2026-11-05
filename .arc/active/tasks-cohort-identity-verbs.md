@@ -232,10 +232,14 @@ that ordering returns to the Owner. The resolver built here serves Phases 3–5.
   write leaves a former-name tie, a retry by the promoted name settles the original Errand claim without changing the
   role-written meta or its recorded cut.
 
-### `[ ]` **2.6 A clashed Errand's exit end to end** — validate exit criterion at segment scope
+### `[x]` **2.6 A clashed Errand's exit end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds end to end: a clash of two Errands names its repair, the repair runs by
   UID on either verb, and the slug then resolves to the remaining Errand, which promote then takes.
+
+- _Outcome:_ The real-ref registered-command scenario passed: UID close and abandon retire only the selected owner,
+  retain the other holder and its locks or entries, and leave its slug selectable. Retries retain the UID; the
+  wrong-machine stop repairs from the selected checkout; promotion names the close and takes the remaining Errand.
 
 ## **Phase 3:** Counting a cohort's holders by resolution, and retiring a cohort
 
