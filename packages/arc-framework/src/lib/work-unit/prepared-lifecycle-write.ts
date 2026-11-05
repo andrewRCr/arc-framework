@@ -4,10 +4,14 @@ import { sameReference, type RecordReference } from "../store/identity.js";
 import type { StoreRecord } from "../store/read.js";
 import type { StoreResult, StoreRefusal } from "../store/refusal.js";
 import type { CallerProvenance } from "../store/links.js";
-import type { BatchResult, Mutation } from "../store/write.js";
+import type { BatchResult, Mutation, RecordObservation } from "../store/write.js";
 import { batchLifecycleWrites, recordPut } from "../store/lifecycle-write.js";
 /** Every selected input keeps its exact version even when no edit is needed. */
-export interface PreparedLifecycleWrite { records: readonly StoreRecord[]; writes: readonly Mutation[] }
+export interface PreparedLifecycleWrite {
+  records: readonly StoreRecord[];
+  writes: readonly Mutation[];
+  observations?: readonly RecordObservation[];
+}
 /** Acquire the whole artifact group plus explicitly selected cohort documents. */
 export async function acquireLifecycleRecords(store: Pick<Store, "read" | "list">, reference: RecordReference,
   additional: readonly RecordReference[] = []): Promise<StoreResult<readonly StoreRecord[]>> {
@@ -40,7 +44,7 @@ export async function applyPreparedLifecycleWrite(store: Store, prepared: Prepar
   for (const record of prepared.records) {
     if (!writes.some((write) => sameReference(write.reference, record.reference))) writes.push(recordPut(record));
   }
-  return batchLifecycleWrites(store, writes, provenance);
+  return batchLifecycleWrites(store, writes, provenance, prepared.observations);
 }
 function incomplete(reference: RecordReference, condition: string): StoreRefusal {
   return { code: "record-malformed", class: "recoverable", reference, rule: "lifecycle.prepared-write", condition,

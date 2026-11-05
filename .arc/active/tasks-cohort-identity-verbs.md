@@ -421,11 +421,10 @@ its history refs, discharging the edges naming it.
 - _Goal:_ A rename onto a reused slug leaves no edge naming the subject itself or the slug's prior holder unsettled where
   the rename may write it, and refuses where only a dependent's owner can settle one.
 
-    - `[ ]` **4.4.a The batch carries observations**
+    - `[x]` **4.4.a The batch carries observations**
 
-        - The prepared rename (`PreparedStoreRename`, over `PreparedLifecycleWrite`) carries observations into its batch,
-          where `applyPreparedLifecycleWrite` passes none today, so the settler's observations and the retired-edge
-          records reach it.
+        - Prepared writes carry read-only observations into their atomic batch. Versions, conflict sets, and absences
+          remain backend-checked without writing the observed records; refreshed or restored evidence permits retry.
 
     - `[ ]` **4.4.b Stubs' edges**
 
