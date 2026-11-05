@@ -36,14 +36,13 @@ renamed references, so no flipped body is rewritten for reader independence.
 - _Outcome:_ Confirmed the cohort model and its implementation at source; accepted ADR-024 and corrected all three references
   to the shipped `assess-boundary-fit` method.
 
-### `[ ]` **1.3 Accept ADR-025 — D7**
+### `[x]` **1.3 Accept ADR-025 — D7**
 
 - _Goal:_ ADR-025 reads Accepted after its doctrine and each enforcement mechanism it names are confirmed shipped,
   and its Status section records what shipped.
 
-    - Confirm at source: `strategy-concurrent-work`, `assess-parallel-fit`, the behind-base detector and the
-      foreign-write backstop, the single-owner model, and the awaiting-review lifecycle seam
-    - Flip the Status and append the realization sentence; its dated ADR-035 paragraph stays as record
+- _Outcome:_ Confirmed the doctrine, advisory method, enforcement backstops, single-owner model, and awaiting-review seam;
+  accepted ADR-025 while retaining its existing ADR-035 history-policy qualification.
 
 ### `[ ]` **1.4 Accept ADR-033 — D7**
 
