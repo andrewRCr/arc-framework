@@ -15,14 +15,15 @@ import { writeMetaTitle, writeMetaDesign, writeMetaTaskList, writeMetaPause } fr
 import { rewriteCohortMemberHeading } from "./kinds/cohort/index.js";
 import type { Store } from "./contract.js";
 import type { StoreRecord } from "./read.js";
-import type { StoreResult } from "./refusal.js";
+import type { StoreResult, Remedy } from "./refusal.js";
 import type { BranchLink } from "./links.js";
 import { memberCohortReadRefusal } from "./cohort-membership-refusal.js";
+import { checkCreationAdmission, renderCreationAdmissionRefusal } from "./creation-admission.js";
 /** Selected subject and reporting evidence retained independently of physical checkout steps. */
 export interface StoreRenameSubject { primary: StoreRecord; operand: string; resuming: boolean; originName: string; advisories: string[] }
 /** Complete acquisition and expected-version writes prepared before physical renames. */
 export interface PreparedStoreRename extends PreparedLifecycleWrite { subject: StoreRenameSubject }
-/** Read a complete inventory, collision-check the target, and recover a prior rename's original name.
+/** Read a complete inventory, admit the target by creation rules, and recover a prior rename's original name.
  * @param store - Operational state contract.
  * @param request - Selected primary, original operand, and proposed current name.
  * @returns Selected primary and coordination advisories, or exact store refusal.
@@ -31,9 +32,11 @@ export async function readStoreRenameSubject(store: Store, request: { primary: S
   const target = SlugSchema.parse(request.targetSlug), primary = request.primary;
   const view = await readLifecycleView(store); if (view.status === "refused") return view;
   requireCompleteInventory(store, view.result.listing);
-  const collision = await store.lookup({ kind: "slug", slug: target });
-  if (collision.status === "ok" && !sameReference(collision.result.reference, primary.reference)) return malformed(primary, `The name ${target} belongs to another work item.`);
-  if (collision.status === "refused" && collision.refusal.code !== "not-found") return collision;
+  const admission = await checkCreationAdmission(store, target, [primary.reference.owner]);
+  if (admission.kind !== "free") {
+    const rendered = renderCreationAdmissionRefusal(target, admission);
+    return malformed(primary, rendered.condition, { ...rendered.remedy, text: rendered.remedy.text.replaceAll("retry creation", "retry rename") });
+  }
   const fields = ParsedMetaRecordSchema.parse(primary.fields);
   const resuming = primary.reference.owner.name === target;
   const publication = await checkRenamePublication(store, primary, resuming, fields.candidateId);
@@ -44,6 +47,13 @@ export async function readStoreRenameSubject(store: Store, request: { primary: S
   const advisories = view.result.entries.filter((entry) => entry.fields.state === "Integrating" && entry.fields.dependsOn.includes(origin.result))
     .map((entry) => `Work unit \`${entry.reference.owner.name}\` is Integrating with a live \`Depends On\` edge to \`${origin.result}\`. Coordinate before transforming the origin; this transform will not mutate that dependent.`);
   return { status: "ok", result: { primary, operand: request.operand, resuming, originName: origin.result, advisories } };
+}
+
+/** Preserve strict namespace admission for a cohort's proposed rename target. */
+export async function checkCohortRenameTarget(store: Store, primary: StoreRecord, target: string): Promise<StoreResult<never> | undefined> {
+  const collision = await store.lookup({ kind: "slug", slug: SlugSchema.parse(target) });
+  if (collision.status === "ok" && !sameReference(collision.result.reference, primary.reference)) return malformed(primary, `The name ${target} belongs to another work item.`);
+  return collision.status === "refused" && collision.refusal.code !== "not-found" ? collision : undefined;
 }
 async function checkRenamePublication(store: Store, primary: StoreRecord, resuming: boolean,
   legacyCandidateId: string | null): Promise<StoreResult<never> | undefined> {
@@ -158,9 +168,10 @@ function renameMeta(content: string, source: string, target: string, own: boolea
   }
   return result;
 }
-function malformed(primary: StoreRecord, condition: string): StoreResult<never> {
+function malformed(primary: StoreRecord, condition: string,
+  remedy: Remedy = { text: "Repair the reported rename condition or choose an unused work-unit name, then retry." }): StoreResult<never> {
   return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: primary.reference, rule: "lifecycle.rename",
-    condition, remedy: { text: "Repair the reported rename condition or choose an unused work-unit name, then retry." } } };
+    condition, remedy } };
 }
 
 async function checkSharedPairedReferences(store: Store, records: readonly StoreRecord[], primary: StoreRecord,

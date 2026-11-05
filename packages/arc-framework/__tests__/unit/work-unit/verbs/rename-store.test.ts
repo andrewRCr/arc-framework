@@ -4,12 +4,13 @@ import { createClashDouble } from "../../../helpers/store/clash-double.js";
 import { expect, it } from "vitest";
 import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
-import { recordReferences, OwnerIdentitySchema } from "../../../../src/lib/store/identity.js";
+import { recordReferences, OwnerIdentitySchema, sameReference } from "../../../../src/lib/store/identity.js";
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import { recordKey } from "../../../helpers/store/model.js";
 import { SlugSchema, ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { writeMetaPause } from "../../../../src/lib/store/kinds/meta/writers.js";
 import type { LocusPorts } from "../../../../src/lib/work-unit/locus-ports.js";
+import { StoreRecordSchema } from "../../../../src/lib/store/read.js";
 const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => ({ kind: "none" as const }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
 it("refuses a changed caller primary even when acquisition sees the newer version", async () => {
   const h = createLifecycleHarness(), primary = await h.seedMeta("source", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "provisional" });
@@ -37,13 +38,85 @@ it("rewrites the cohort member and exact artifact references in the same batch a
   expect(cohortHistory[0]?.provenance).toMatchObject({ batchId: primaryProvenance.batchId });
 });
 it("refuses an occupied target or incomplete inventory before invoking any physical adapter", async () => {
-  const h = createLifecycleHarness(); const primary = await h.seedMeta("source"); await h.seedMeta("target");
+  const h = createLifecycleHarness(); const primary = await h.seedMeta("source"), holder = await h.seedMeta("target");
   const git = scriptGitExec([]), ctx = { store: h.store, cwd: "/repo", exec: git.exec, baseBranch: "main", locusPorts };
-  expect(await runStoreRename(ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "rejected", refusal: { code: "record-malformed" } });
+  const result = await runStoreRename(ctx, { operand: "source", targetSlug: "target" });
+  expect(result).toMatchObject({ status: "rejected", refusal: { code: "record-malformed", rule: "lifecycle.rename",
+    condition: expect.stringContaining("live work unit 'target'"), remedy: { text: expect.stringMatching(/choose another name/iu) } } });
+  if (holder.reference.owner.type !== "work-item" || holder.reference.owner.uid === undefined) throw new Error("Expected holder UID");
+  expect(JSON.stringify(result)).toContain(holder.reference.owner.uid);
   const saved = h.store.state.records.get(recordKey(primary.reference)); if (saved === undefined) throw new Error("Missing fixture record");
   saved.content = "Malformed metadata";
   expect(await runStoreRename(ctx, { operand: "source", targetSlug: "unused" })).toMatchObject({ status: "rejected", reason: expect.stringContaining("source") });
   expect(git.calls).toEqual([]);
+});
+
+it("names the current holder when the rename target is its former slug", async () => {
+  const h = createLifecycleHarness(), source = await h.seedMeta("source"), holder = await h.seedMeta("target");
+  const git = scriptGitExec([]), ctx = { store: h.store, cwd: "/repo", exec: git.exec, baseBranch: "main", locusPorts };
+  expect(await runStoreRename(ctx, { operand: "target", targetSlug: "current-holder" })).toMatchObject({ status: "renamed" });
+  const before = lifecycleSuccess(await h.store.version());
+  const result = await runStoreRename(ctx, { operand: "source", targetSlug: "target" });
+  expect(result).toMatchObject({ status: "rejected", refusal: { rule: "lifecycle.rename",
+    condition: expect.stringContaining("live work unit 'current-holder'"), remedy: { text: "Choose another name." } } });
+  if (holder.reference.owner.type !== "work-item" || holder.reference.owner.uid === undefined) throw new Error("Expected holder UID");
+  expect(JSON.stringify(result)).toContain(holder.reference.owner.uid);
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect(lifecycleSuccess(await h.store.read({ reference: source.reference }))).toEqual(source);
+  expect(git.calls).toEqual([]);
+});
+
+it("renders every tied target holder as rename admission instead of a clash repair", async () => {
+  const h = createLifecycleHarness(); await h.seedMeta("source");
+  const holder = await h.seedMeta("target");
+  const cohort = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "target" })),
+    "# Cohort: `target`\n\n**Purpose:** Coordinate.\n");
+  const git = scriptGitExec([]), before = lifecycleSuccess(await h.store.version());
+  const result = await runStoreRename({ store: h.store, cwd: "/repo", exec: git.exec, baseBranch: "main", locusPorts },
+    { operand: "source", targetSlug: "target" });
+  expect(result).toMatchObject({ status: "rejected", refusal: { code: "record-malformed", rule: "lifecycle.rename",
+    remedy: { text: expect.stringMatching(/choose another name/iu) } } });
+  for (const record of [holder, cohort]) {
+    const owner = record.reference.owner;
+    if (owner.type === "person" || owner.uid === undefined) throw new Error("Expected target UID");
+    expect(JSON.stringify(result)).toContain(owner.uid);
+  }
+  expect(JSON.stringify(result)).toContain("work unit"); expect(JSON.stringify(result)).toContain("cohort");
+  expect(JSON.stringify(result)).not.toContain("arc rename");
+  expect(lifecycleSuccess(await h.store.version())).toBe(before); expect(git.calls).toEqual([]);
+});
+
+it("admits current-name continuation and a return to the same owner's former name", async () => {
+  const h = createLifecycleHarness(), primary = await h.seedMeta("source", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "provisional" });
+  const git = scriptGitExec([]), ctx = { store: h.store, cwd: "/repo", exec: git.exec, baseBranch: "main", locusPorts };
+  expect(await runStoreRename(ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  const current = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
+  expect(await runStoreRename(ctx, { operand: "target", targetSlug: "target" })).toMatchObject({ status: "renamed", recordBatch: "existing" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toEqual(current);
+  expect(await runStoreRename(ctx, { operand: "target", targetSlug: "source" })).toMatchObject({ status: "renamed", recordBatch: "applied" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).reference.owner).toEqual(primary.reference.owner);
+  expect(git.calls).toEqual([]);
+});
+
+it("refuses a conflicted current-name continuation and completes after the holder is repaired", async () => {
+  const h = createLifecycleHarness(), primary = await h.seedMeta("source", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "provisional" });
+  const git = scriptGitExec([]), ctx = { store: h.store, cwd: "/repo", exec: git.exec, baseBranch: "main", locusPorts };
+  expect(await runStoreRename(ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  const current = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
+  const conflict = recordReferences["work-item/conflict-record"](current.reference.owner, "unresolved");
+  const read = h.store.read.bind(h.store); let conflicted = true;
+  h.store.read = async input => {
+    const result = await read(input);
+    return result.status === "ok" && conflicted && sameReference(result.result.reference, current.reference)
+      ? { status: "ok", result: StoreRecordSchema.parse({ ...result.result, conflicts: [conflict] }) } : result;
+  };
+  const before = lifecycleSuccess(await h.store.version()), result = await runStoreRename(ctx, { operand: "target", targetSlug: "target" });
+  expect(result).toMatchObject({ status: "rejected", refusal: { rule: "lifecycle.rename",
+    condition: expect.stringContaining(JSON.stringify(conflict)), remedy: { text: expect.stringContaining("retry rename") } } });
+  expect(JSON.stringify(result)).not.toContain("retry creation"); expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  conflicted = false;
+  expect(await runStoreRename(ctx, { operand: "target", targetSlug: "target" })).toMatchObject({ status: "renamed", recordBatch: "existing" });
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toEqual(current); expect(git.calls).toEqual([]);
 });
 it("renames a paused work unit's group and shared stubs in one batch while in-flight dependents keep the old alias", async () => {
   const h = createLifecycleHarness();

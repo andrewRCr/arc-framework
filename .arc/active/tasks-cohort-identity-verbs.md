@@ -406,24 +406,15 @@ its history refs, discharging the edges naming it.
   rerunning by current name completes with unchanged records and marker. Before the flip, a rejecting commit hook
   yields a JSON refusal and the repaired attempt returns an empty report.
 
-### `[ ]` **4.3 Admit the target through the creation check — § 2.2**
+### `[x]` **4.3 Admit the target through the creation check — § 2.2**
 
 - _Goal:_ A rename may take a slug a completed work unit holds, as creation may, and refuses any slug a live holder or a
   refusing completed holder has, naming each holder and telling the person to choose another slug.
 
-    - The target runs `checkCreationAdmission` (`lib/store/creation-admission.ts`) with the subject as writing owner,
-      replacing the arm's own collision check in `readStoreRenameSubject`, which moves into a helper the cohort arm keeps
-      (Task 5.4).
-    - A held or refused answer becomes a `lifecycle.rename` refusal carrying `renderCreationAdmissionRefusal`'s condition
-      and remedy, its "retry creation" worded for the rename, never the admission's `ambiguous-match`, which the
-      renderers would print as the clash's repair. `rename-store.test.ts`'s case asserting `record-malformed` changes.
-
-    - Build `test-first` (one behavior at a time):
-        - over both backends, renaming onto an archived work unit's slug lands
-        - renaming onto a live holder's current or former slug refuses naming that holder by type, name, and UID, with
-          the remedy to choose another slug
-        - a resumed rename, and a rename back to the subject's former slug, land
-        - on a resume, a subject with unresolved conflicts refuses as any holder does
+- _Outcome:_ Work-unit targets use shared creation admission with the exact writing owner. An archived current-name work
+  unit's slug is reusable; refused targets name each holder and carry rename-specific guidance instead of clash repairs.
+  Current-name continuations and a return to the owner's former name land; a conflicted continuation waits for repair.
+  The cohort's strict namespace lookup is retained separately.
 
 ### `[ ]` **4.4 Settle the edges naming a reused slug in the rename's batch — § 2.3**
 
