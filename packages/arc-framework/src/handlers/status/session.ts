@@ -27,6 +27,8 @@ import type { SessionStatusContext } from "./session-context.js";
 import { openDefaultStore } from "../lifecycle-shared.js";
 import { releaseRoutingFromSettings } from "./session-evidence.js";
 import { pullStoreStatus } from "./store-locus.js";
+import { readProjectionStatus } from "../../lib/store/projection/status.js";
+import { createProjectionEnginePorts } from "../../lib/store/projection/engine-ports.js";
 
 function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput {
   if (execInput === undefined) {
@@ -221,6 +223,7 @@ export async function handleRecoverStatus(context: SessionStatusContext, opts: S
  */
 export async function handleCompositeStatus(context: SessionStatusContext, opts: StatusCliOptions): Promise<void> {
   const { cwd, exec, io, identity, role } = context;
+  const store = context.store ?? openDefaultStore(cwd, exec);
   const json = Boolean(opts.json);
   const warnings = context.store?.capabilities.stateOffBranch === true && opts.fetch === true && !opts.local
     ? await pullStoreStatus({ sync: context.storeSync }) : [];
@@ -228,6 +231,7 @@ export async function handleCompositeStatus(context: SessionStatusContext, opts:
     user: (id) => runUserStatus({ cwd, io, identity: id }),
     config: () => runConfigStatus({ cwd }),
     active: () => runActiveStatus({ cwd, exec, store: context.store }),
+    projection: () => readProjectionStatus({ store, checkout: cwd, ports: () => ({ ...createProjectionEnginePorts(cwd), exec }) }),
   };
   const result = await runStatus({ identity, role, probes });
 

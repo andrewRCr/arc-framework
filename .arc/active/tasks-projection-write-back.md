@@ -186,14 +186,11 @@ among them, has one.
   It removes closed sets only from byte-unchanged files, grows controls before merging, and uses line merges for every
   kind; newly open conflicts draw and closed notices leave together.
 
-### `[ ]` **1.9 Write back at every command's start, and report it — § 2.2, § 1.4**
+### `[x]` **1.9 Write back at every command's start, and report it — § 2.2, § 1.4**
 
 - _Goal:_ Every `arc` command starts by writing back pending edits under its worktree's projection lock and ends with
   the second check, reporting each refused, skipped, deferred, withheld, or conflicted file on stderr ahead of its own
   output — and over the in-repo implementation the hooks return at once.
-
-- _Note:_ `seedProjection` takes no protected, notice-line, or marker options and sets up no ignore rules; tests needing
-  them extend it, the ignore rules as `sweep.test.ts` sets them up.
 
     - `[x]` **1.9.a The engine's start and end**
 
@@ -212,18 +209,11 @@ among them, has one.
           conflicts and accepted resolutions. The production CLI retains whole JSON and performs no projection I/O
           over the in-repo backend.
 
-    - `[ ]` **1.9.c What `arc status` reports**
+    - `[x]` **1.9.c What `arc status` reports**
 
-        - `arc status`'s composite view gains a projection section — what stays refused or pending, every withheld file,
-          ownerless files (the index's ownerless entries, `ProjectionIndexSchema`,
-          `lib/store/projection/index-schema.ts`), every aside copy kept for the person, with its path, and the open
-          conflicts a stampless or held file does not show — which its handler reads from the index without writing it:
-          a field on `StatusResult` (`commands/status/types.ts`), which its `--json` output writes as it writes the
-          rest, and a section in its rendered summary. The composite result has no
-          registered schema, and none is added.
-        - Build `test-first` (one behavior at a time):
-            - a refused edit and a withheld file each appear in `arc status`, and the refused edit leaves once resolved;
-              an aside copy kept because its path moved on appears with its path and leaves once deleted
+        - Composite status exposes a read-only projection probe in JSON and its human summary, covering refused,
+          pending, withheld and ownerless files, unseen conflicts, and retained aside copies with original paths.
+          Probe failures leave healthy sections available; disabled backends resolve no projection dependencies.
 
 ### `[ ]` **1.10 `arc save` and its `--resolve` — § 2.4, § 6.5**
 

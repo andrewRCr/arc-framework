@@ -168,6 +168,11 @@ to inspect. Native bindings check the backend capability before resolving a root
 projection I/O. `report.ts` flushes new diagnostics and resolutions to stderr before the action and after completion,
 including corrective argv, unseen conflicts, pending saves, and retained aside copies with their original paths.
 
+`status.ts` reads outstanding file marks, ownerless entries, unseen conflicts, and recorded aside copies without a
+lease or index write. Its JSON view omits filesystem stats, and its summary retains repair guidance and copy paths.
+Composite status runs this reader as an independent probe; an unreadable projection leaves the other sections
+available. Disabled backends resolve no projection dependency.
+
 `check-edit.ts` runs the kind's production check over merged content, with current parsed fields or raw prior content
 when parsing fails. It stamps only the entry merge's check copy and reports every broken rule with its remedy.
 `after-view.ts` overlays that caller-parsed pending record on reads and family listings, retaining its prior envelope

@@ -255,6 +255,7 @@ function fullProbes(overrides: Partial<StatusProbes> = {}): StatusProbes {
     user: vi.fn(async () => userResult()),
     config: vi.fn(async () => configResult()),
     active: vi.fn(async () => activeResult()),
+    projection: vi.fn(async () => ({ kind: "disabled" as const })),
     ...overrides,
   };
 }
@@ -362,6 +363,20 @@ describe("retired probe absence", () => {
 });
 
 describe("runStatus — orchestration", () => {
+  it("carries the projection snapshot in the full composite", async () => {
+    const projection = { kind: "ready" as const, files: [], copies: [] };
+    const result = await runStatus({ identity: "andrew", role: "maintainer",
+      probes: fullProbes({ projection: async () => projection }) });
+    expect(result).toMatchObject({ projection: { ok: true, value: projection } });
+  });
+
+  it("isolates a projection read failure while the other composite sections remain available", async () => {
+    const result = await runStatus({ identity: "andrew", role: "maintainer",
+      probes: fullProbes({ projection: async () => { throw new Error("Projection cannot be read."); } }) });
+    expect(result).toMatchObject({ projection: { ok: false, error: { kind: "runtime", message: "Projection cannot be read." } },
+      config: { ok: true }, active: { ok: true }, user: { ok: true } });
+  });
+
   it("invokes every probe helper exactly once", async () => {
     const probes = fullProbes();
     await runStatus({ identity: "andrew", role: "maintainer", probes });
@@ -390,16 +405,17 @@ describe("runStatus — orchestration", () => {
       user: tracked(userResult()),
       config: tracked(configResult()),
       active: tracked(activeResult()),
+      projection: tracked({ kind: "disabled" as const }),
     });
     await runStatus({ identity: "andrew", role: "maintainer", probes });
-    expect(peakInFlight).toBe(3);
+    expect(peakInFlight).toBe(4);
   });
 
   it("returns the full set of expected slots", async () => {
     const probes = fullProbes();
     const result = await runStatus({ identity: "andrew", role: "maintainer", probes });
     expect(Object.keys(result).sort()).toEqual(
-      ["active", "config",  "identity", "mode", "user"],
+      ["active", "config", "identity", "mode", "projection", "user"],
     );
   });
 

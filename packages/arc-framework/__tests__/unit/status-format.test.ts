@@ -19,6 +19,7 @@ import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
 import { describeStorePull } from "../../src/lib/session-init/store-user-pull.js";
+import { nameAsideFile } from "../../src/lib/store/projection/aside.js";
 import type {
   Probe,
   SessionInitProbeResult,
@@ -122,6 +123,7 @@ function makeFullResult(overrides: Partial<StatusResult> = {}): StatusResult {
     user: okUser(),
     config: okConfig(),
     active: okActive(),
+    projection: { ok: true, value: { kind: "disabled" } },
     ...overrides,
   };
 }
@@ -271,6 +273,28 @@ function makeSessionInitResult(
 }
 
 describe("buildStatusSummary — full mode", () => {
+  it("renders projection file states, remedies, unseen conflicts, and retained-copy paths", () => {
+    const copy = nameAsideFile({ path: ".arc/document.md", base: "a".repeat(40), role: "aside",
+      writer: { pid: 123, processInstance: "status-test", processScope: "unit" } });
+    const conflict = RecordReferenceSchema.parse({ owner: { type: "person", name: "andrew" },
+      kind: "personal/conflict-record", key: "11111111-1111-4111-8111-111111111111" });
+    const text = buildStatusSummary(makeFullResult({ projection: { ok: true, value: { kind: "ready",
+      files: [{ path: ".arc/document.md", ownerless: false, pending: true, withheld: true,
+        refused: { reason: "parser: Invalid prose.", remedy: { text: "Repair this file.", argv: ["repair-prose", "local data"] } },
+        unshown: [conflict] }],
+      copies: [{ path: ".arc/document.md", copy, withheld: false }],
+    } } }));
+    for (const value of ["Projection", ".arc/document.md", "pending", "withheld", "Invalid prose.", "Repair this file.",
+      "repair-prose 'local data'", "personal/person/andrew/11111111-1111-4111-8111-111111111111", copy])
+      expect(text).toContain(value);
+  });
+
+  it("shows an unavailable projection alongside the healthy status sections", () => {
+    const text = buildStatusSummary(makeFullResult({ projection: { ok: false,
+      error: { kind: "runtime", message: "Projection cannot be read." } } }));
+    for (const value of ["Projection", "Projection cannot be read.", "User", "Config", "Active"]) expect(text).toContain(value);
+  });
+
   it("omits the retired probe heading", () => {
     expect(buildStatusSummary(makeFullResult())).not.toContain("Extensions:");
   });
