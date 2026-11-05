@@ -367,6 +367,8 @@ its history refs, discharging the edges naming it.
 - _Goal:_ `arc rename <slug|uid> <new-slug>` starts from the record Task 2.2's resolver selects, never reads its subject
   by name again, and repeats the operand the person gave in every retry and continuation it prints.
 
+    - _Amended in:_ 4.11.R (A1)
+
     - `[x]` **4.1.a The entry contract**
 
         - Rename resolves its operand inside each retry, dispatches an Errand to its exit remedy and a cohort to the
@@ -508,6 +510,8 @@ its history refs, discharging the edges naming it.
 - _Goal:_ A rerun after a failed push or a refused delete completes the rename without deleting the old remote branch,
   and the preservation refusal tells the person how to settle the branch whichever holder's it is.
 
+    - _Amended in:_ 4.11.R (A1)
+
 - _Outcome:_ Continuations publish the remaining new ref and report the old remote kept, without repeating record or
   checkout changes. Store preservation refusals distinguish this work unit's commits from another holder's branch;
   their retry keeps either safely, while tracked renames retain the existing default remedy.
@@ -529,6 +533,23 @@ its history refs, discharging the edges naming it.
         - before the catch-up, the other holder's rename, run where its own checkout is not, leaves the branch both links
           name and keeps the old remote branch
         - after the catch-up, the branch-link lookup returns one holder and the session-start checks warn no more
+
+### `[ ]` **4.11.R Preserve the pending push after catch-up publication fails**
+
+- _Goal:_ A catch-up whose link-only batch lands but publication fails retains its selected reference and report and
+  returns the exact repository-scoped Git push that finishes publication without further store or checkout changes (A1).
+
+    - `finishRename` distinguishes a landed catch-up from an ordinary rename continuation. Its partial remedy carries
+      `git -C <checkout> push -u origin <actual-new-branch>`; it does not offer a rename retry as an equivalent repair.
+      Ordinary rename continuations keep their supplied operand and automatic publication path.
+
+    - Build `test-first` (one behavior at a time):
+        - a failed push after catching up an older, nonfinal alias returns the actual new branch and repository in its
+          remedy, with the selected reference and retained old branch
+        - executing that exact argv publishes the actual new branch and keeps the actual old remote without changing
+          stored records, history, markers, or checkout paths
+        - a deliberately unpublished caught-up branch remains unpublished, and ordinary failed-push continuations still
+          complete through their original rename operand
 
 ### `[ ]` **4.12 A work-unit clash repaired by rename end to end** — validate exit criterion at segment scope
 
@@ -735,6 +756,11 @@ Over the ref backend and, where it can form the state, the reference backend, fr
 
 - `[ ]` Before the flip every command behaves as today, but for § 10's refusal order, or refuses `unsupported` naming
   what serves.
+
+- `[ ]` A rejected push after an older-alias catch-up returns the exact repository-scoped Git push for the actual new
+  branch, preserving the selected reference and retained-branch report. Executing that argv publishes the new branch,
+  keeps the actual old remote, and changes no stored records, history, markers, or checkout paths; ordinary rename
+  continuations retain their original operand and automatic publication recovery.
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
 

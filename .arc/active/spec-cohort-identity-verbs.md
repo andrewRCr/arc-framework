@@ -193,6 +193,10 @@ and `finishRename`'s remedy argv (`lib/work-unit/verbs/rename-store.ts`) take it
 name and the requested source slug. A rerun by slug resolves the subject's current name, which on a resume is the
 target and is free for the subject itself (§ 2.2).
 
+A catch-up whose link-only batch lands but publication fails returns the exact pending Git push instead of a rename
+retry (A1). Its repository-scoped remedy is `git -C <checkout> push -u origin <actual-new-branch>`, with the selected
+reference and retained-branch report. An ordinary rename invocation does not reconstruct that publication intent.
+
 #### 2.2 The target takes the shared admission check
 
 The target slug runs `checkCreationAdmission` with the subject as its writing owner, replacing the arm's own collision
@@ -266,10 +270,11 @@ as teardown's branch gate reads it (`teardown-store.ts`):
   (`requirePublishedPreservation`), where the link was created rather than adopted and the lookup returns the subject,
   a completed holder, or nothing. Where it returns another live holder or refuses, the branch is kept, as an adopted
   branch's is today (`keepOld`), and the result reports it.
-- **A continuation never deletes the old remote branch.** A rerun after a failed push or a refused delete pushes what
-  remains and reports the old branch kept. A rerun cannot re-decide on the first run's evidence, since the batch has
-  moved the subject's link and the other holder may have moved its own since, so the continuation takes the outcome
-  that is safe either way. Today's rerun deletes it; the report now leaves that to the person.
+- **A continuation never deletes the old remote branch.** An ordinary rename rerun after a failed push or a refused
+  delete pushes what remains and reports the old branch kept. A rerun cannot re-decide on the first run's evidence,
+  since the batch has moved the subject's link and the other holder may have moved its own since, so the continuation
+  takes the outcome that is safe either way. Today's rerun deletes it; the report now leaves that to the person.
+  Catch-up publication failures take the exact Git repair below (A1).
 - **The preservation check's remedy names both readings.** The lookup says who links a remote branch, not whose commits
   it holds, so where the old branch holds commits the new one lacks, the refusal says to merge them into the new branch
   and delete the old one if they are this work unit's, and to leave it if the branch is another's; a continuation then
@@ -281,6 +286,12 @@ as teardown's branch gate reads it (`teardown-store.ts`):
   remote branch as any continuation does. Elsewhere a continuation still runs no local step (`persistRename`), and the
   branch step matches only a branch named after the current slug (`branchRename`), so without the catch-up nothing would
   move the link.
+
+  If the link-only batch lands and the new-name push fails, the partial result preserves its selected reference and
+  report and names only the exact remaining push, scoped to the invoking repository checkout (A1). Running that
+  command publishes the actual new branch while leaving the old remote untouched; it changes no stored record,
+  marker, or folder. A later rename invocation is not an equivalent publication repair: `renameOrigin` recovers the
+  latest logical source name, which need not be the alias the caught-up branch carried. No recovery record is added.
 
 So where both holders link one branch, the rename lands from any machine, a released or remote-only subject's among
 them, and a checkout elsewhere keeps the branch its link still names; the other holder's later rename, run where its
@@ -978,12 +989,18 @@ Over the ref backend and, where it can form the state, the reference backend, fr
 14. **Before the flip,** every command above behaves as today, but for § 10's refusal order, or refuses `unsupported`
     naming what serves.
 
+15. **Catch-up publication recovery (A1).** After catching up a branch named for an older alias, a rejected push
+    returns the exact repository-scoped Git push for the actual new branch, preserving the selected reference and
+    retained-branch report. Executing it publishes the new branch, keeps the actual old remote, and changes no stored
+    records, markers, or folders. Ordinary rename continuations still repeat the original operand and finish publication.
+
 ## Open Questions
 
 None.
 
 ## Amendments
 
-None.
+- **A1** — 2026-11-05 — design: failed catch-up pushes use Git recovery. _Supersedes:_ § 2.1 ¶2; § 2.5 ¶4, ¶6.
+  _Trigger:_ 4.11 must-stop. _Work:_ 4.11.R. _Revalidated:_ pending → 4.12.
 
 ---
