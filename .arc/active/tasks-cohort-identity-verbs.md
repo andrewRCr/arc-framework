@@ -165,36 +165,15 @@ that ordering returns to the Owner. The resolver built here serves Phases 3–5.
 - _Outcome:_ UID scans accept caller-selected primary kinds and list each in its own family, retaining the two work-item
   defaults. Cross-family ties name each kind; incomplete listings preserve their own or their diagnostics' repairs.
 
-### `[ ]` **2.2 Resolve a subject operand by UID or slug under each verb's type rule — § 1.1, § 1.2, § 1.3**
+### `[x]` **2.2 Resolve a subject operand by UID or slug under each verb's type rule — § 1.1, § 1.2, § 1.3**
 
 - _Goal:_ Rename, the cohort verbs, and the Errand verbs share one operand rule from the flip: an operand `z.uuid()`
   accepts selects that exact owner by its lowercased UID, any other is a slug through the lookup, and each verb applies
   its own type rule to what is selected.
 
-    - A resolver in `lib/store/` beside `work-item-uid.ts`, taking the operand, the primary kinds to scan, the verb's
-      type rule, and whether a slug resolves through the lookup: a UID scans through `readWorkItemByUid`; for rename and
-      the cohort verbs a slug resolves through `lookup({ kind: "slug" })`, while the Errand verbs, which keep their own
-      slug reads (§ 1.3), get a slug back unchanged. No lineage arm.
-    - Its result, which Phases 3–5 consume:
-        - selected: the primary re-read by its reference, so it carries fields, placement, and version, with whether it
-          was selected by UID or slug, and the operand as given;
-        - a store refusal, a refused lookup's included, passed through whole, `candidates`, `tie`, and remedy intact;
-        - `unselected`, with a condition and remedy, for an `incomplete` scan, as teardown's condition and remedy, and
-          for a UID selecting nothing, naming the UID and saying to pull state or check the UID; each verb renders it
-          through its own refusal, since a store `not-found` must name a reference or a lookup and no lookup arm takes a
-          UID;
-        - a type-rule refusal as `record-malformed` naming its rule, as `readWorkUnit`'s `lifecycle.work-unit` does.
-    - The type rules, per § 1.2's table: rename scans all three kinds and refuses an Errand naming
-      `arc errand close <uid>`; the cohort verbs scan all three and refuse a work unit naming the work-unit verbs and an
-      Errand naming `arc errand close <uid>`; the Errand verbs scan the two work-item kinds and refuse a work unit naming
-      the work-unit verbs.
-
-    - Build `test-first` (one behavior at a time):
-        - each cell of § 1.2's table selects or refuses as stated
-        - an upper-case UID selects the same owner as its lower-case form
-        - a slug shaped like a UUID selects by UID, and its holder stays reachable by its own UID
-        - a slug the lookup refuses returns the refusal whole, and an Errand verb's slug returns unchanged
-        - an incomplete scan returns `unselected` with its condition and remedy
+- _Outcome:_ Added `resolveSubjectOperand` with exact UID scans, optional slug lookup, primary re-reads, and the three
+  verb type rules. Results retain the original operand, whole store refusals, or actionable unselected evidence; Errand
+  slug operands pass unchanged to their runtime.
 
 ### `[ ]` **2.3 Close and abandon an Errand by UID, the selected record replacing the slug — § 9.1, § 9.2**
 
