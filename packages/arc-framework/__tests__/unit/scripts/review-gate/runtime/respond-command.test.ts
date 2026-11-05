@@ -2274,7 +2274,7 @@ Approve: 2 fixes → focused verification → commit → push?`,
       throw new Error("capture write failed");
     };
     const base = policyRequest(records);
-    const request = localRequest(records, "defer");
+    const request = localRequest(records);
 
     await expect(respondToReviewCommand(withReviewReport({
       ...request,
@@ -2302,7 +2302,7 @@ Approve: 2 fixes → focused verification → commit → push?`,
     const base = policyRequest(records);
 
     await expect(respondToReviewCommand(withReviewReport({
-      ...localRequest(records, "defer"),
+      ...localRequest(records),
       policyRequest: {
         ...base,
         ceilingOverride: {
@@ -2321,6 +2321,31 @@ Approve: 2 fixes → focused verification → commit → push?`,
     await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId)).resolves.toBeNull();
   });
 
+  it.each(["defer", "reject"] as const)(
+    "refuses conditional next-pass consent on a %s-only approval before appending, then settles it without one",
+    async (disposition) => {
+      const records = fixture();
+      const deps = dependencies(records);
+      const capture = vi.spyOn(deps, "captureConditionalNextPass");
+      const base = policyRequest(records);
+
+      await expect(respondToReviewCommand(withReviewReport({
+        ...localRequest(records, disposition),
+        policyRequest: { ...base, ceilingOverride: { target: base.target, lane: base.lane, exhaustedPassCount: 1, nextPass: 2 } },
+        conditionalNextPassAuthorization: { authorizedBy: records.authority.authorIdentity, exhaustedPassCount: 1, nextPass: 2 },
+      }), deps)).rejects.toMatchObject({
+        code: "invalid-input",
+        message: expect.stringContaining("omit the authorization and its ceiling override"),
+      });
+      await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId)).resolves.toBeNull();
+      expect(capture).not.toHaveBeenCalled();
+
+      await expect(respondToReviewCommand(withReviewReport(localRequest(records, disposition)), deps)).resolves
+        .toMatchObject({ state: "settled", nextAction: "reduce" });
+      expect(capture).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([
     ["one pass short of its producer", 0, 1],
     ["a skipped pass", 1, 3],
@@ -2332,7 +2357,7 @@ Approve: 2 fixes → focused verification → commit → push?`,
     const capture = vi.spyOn(deps, "captureConditionalNextPass");
     const base = policyRequest(records);
     const approval = (passes: { exhaustedPassCount: number; nextPass: number }) => withReviewReport({
-      ...localRequest(records, "defer"),
+      ...localRequest(records),
       policyRequest: { ...base, ceilingOverride: { target: base.target, lane: base.lane, ...passes } },
       conditionalNextPassAuthorization: { authorizedBy: records.authority.authorIdentity, ...passes },
     });
@@ -2345,7 +2370,7 @@ Approve: 2 fixes → focused verification → commit → push?`,
     expect(capture).not.toHaveBeenCalled();
 
     await expect(respondToReviewCommand(approval({ exhaustedPassCount: 1, nextPass: 2 }), deps)).resolves
-      .toMatchObject({ state: "settled", nextAction: "reduce" });
+      .toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
     expect(capture).toHaveBeenCalledOnce();
   });
 
@@ -2355,13 +2380,13 @@ Approve: 2 fixes → focused verification → commit → push?`,
     const base = policyRequest(records);
     const ceilingOverride = { target: base.target, lane: base.lane, exhaustedPassCount: 1, nextPass: 2 };
     const approval = (override: typeof ceilingOverride & { decisionKey?: ReturnType<typeof canonicalDigest> }) => withReviewReport({
-      ...localRequest(records, "defer"), policyRequest: { ...base, ceilingOverride: override },
+      ...localRequest(records), policyRequest: { ...base, ceilingOverride: override },
       conditionalNextPassAuthorization: { authorizedBy: records.authority.authorIdentity, exhaustedPassCount: 1, nextPass: 2 } });
 
     await expect(respondToReviewCommand(approval({ ...ceilingOverride, decisionKey: canonicalDigest({ grant: 1 }) }), deps))
       .rejects.toMatchObject({ code: "invalid-input", message: expect.stringContaining("omit decisionKey") });
     await expect(deps.dispositionStore.readDispositionRecord(records.operation.operationId)).resolves.toBeNull();
-    expect(await respondToReviewCommand(approval(ceilingOverride), deps)).toMatchObject({ state: "settled", nextAction: "reduce" });
+    expect(await respondToReviewCommand(approval(ceilingOverride), deps)).toMatchObject({ state: "ready-to-fix", nextAction: "apply-fix" });
   });
 
   it("returns the persisted conditional next-pass authorization with the response action", async () => {
@@ -2370,7 +2395,7 @@ Approve: 2 fixes → focused verification → commit → push?`,
     const base = policyRequest(records);
 
     const result = await respondToReviewCommand(withReviewReport({
-      ...localRequest(records, "defer"),
+      ...localRequest(records),
       policyRequest: {
         ...base,
         ceilingOverride: {
@@ -2386,13 +2411,13 @@ Approve: 2 fixes → focused verification → commit → push?`,
         nextPass: 2,
       },
     }), deps);
-    if (result.state !== "settled" || !("conditionalPassAuthorizationId" in result.payload)) {
-      throw new Error("expected a settled response with conditional pass authorization");
+    if (result.state !== "ready-to-fix" || !("conditionalPassAuthorizationId" in result.payload)) {
+      throw new Error("expected a fix response with conditional pass authorization");
     }
     const authorizationId = result.payload.conditionalPassAuthorizationId;
     expect(result).toMatchObject({
-      state: "settled",
-      nextAction: "reduce",
+      state: "ready-to-fix",
+      nextAction: "apply-fix",
       payload: {
         conditionalPassAuthorizationId: authorizationId,
         policyRequest: {
@@ -3466,12 +3491,14 @@ function movingCheckout(records: ReturnType<typeof fixture>) {
 
 describe("approved-settlement replay", () => {
   it("replays a durably approved conditional pass without approval-time consent fields", async () => {
-    const records = fixture();
+    const records = fixture(errandVehicle);
     const { deps, moveTo } = movingCheckout(records);
+    deps.readCandidateLineage = async () => null;
+    deps.resolveActiveErrand = async () => activeErrandBinding();
     const base = policyRequest(records);
     const settledFixTarget = settledHead(records.target.repositoryId, objectId("e"), objectId("f"));
     const request = {
-      ...localRequest(records, "defer"),
+      ...localRequest(records),
       policyRequest: {
         ...base,
         ceilingOverride: {
@@ -3488,11 +3515,13 @@ describe("approved-settlement replay", () => {
       },
     };
     const approved = await respondToReviewCommand(withReviewReport(request), deps);
-    if (approved.state !== "settled") throw new Error("expected approved response");
+    if (approved.state !== "ready-to-fix") throw new Error("expected approved fix response");
     moveTo(settledFixTarget);
+    await expect(respondToReviewCommand(withReviewReport(verifiedFixRequest(records)), deps))
+      .resolves.toMatchObject({ state: "errand-advanced" });
 
     await expect(respondToReviewCommand(withReviewReport({
-      ...localRequest(records, "defer"),
+      ...localRequest(records),
       policyRequest: approved.payload.policyRequest,
       settledFixTarget,
     }), deps)).resolves.toMatchObject({ state: "already-settled", nextAction: "reduce" });
