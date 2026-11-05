@@ -2,7 +2,7 @@
 import { OwnerIdentitySchema, recordReferences } from "../../identity.js";
 import type { Remedy } from "../../refusal.js";
 import { brokenRule, observeRecord, observeNamedRecord, type RuleObservation } from "../rule-support.js";
-import { changedCohortFields, observeOpenCohorts, observeOpenMembers, observeOpenCohortHoldings, type OpenCohort, type OpenMember } from "./check-support.js";
+import { changedCohortFields, observeOpenCohorts, observeOpenMembers, observeOpenHoldings, describeCohortHoldings, type OpenCohort, type OpenMember } from "./check-support.js";
 import { parseCohortDocument } from "./parser.js";
 import type { BrokenRule, StoreView, WriteCheckInput } from "../../write-check.js";
 /** Require an authored Purpose on creation or a proved Purpose change.
@@ -49,13 +49,9 @@ export async function checkCohortOpenMembers(input: WriteCheckInput): Promise<re
   const retirement = await observeRetirement(input);
   if (retirement.status !== "known") return fail(retirement.status === "unavailable" ? retirement.condition : "Cohort retirement evidence is unavailable.");
   if (!retirement.value) return [];
-  const [cohorts, members] = await Promise.all([observeOpenCohorts(input.after), observeOpenMembers(input.after)]);
-  if (cohorts.status !== "known") return fail(cohorts.status === "unavailable" ? cohorts.condition : "Open cohort evidence is unavailable.");
-  if (members.status !== "known") return fail(members.status === "unavailable" ? members.condition : "Open membership evidence is unavailable.");
-  const name = input.reference.owner.name;
-  const held = [...members.value.filter(({ cohort }) => cohort?.split("/").includes(name)).map(({ record }) => record.reference.owner.name),
-    ...cohorts.value.filter(({ fields }) => fields.parent === name).map(({ record }) => record.reference.owner.name)];
-  return held.length === 0 ? [] : fail(`The cohort still has open members or subcohorts: ${held.join(", ")}.`);
+  const held = await observeOpenHoldings(input.after, input.before, input.reference);
+  if (held.status !== "known") return fail(held.status === "unavailable" ? held.condition : "Open holding evidence is unavailable.");
+  return held.value.length === 0 ? [] : fail(describeCohortHoldings(held.value, input.reference.owner.name));
 }
 /** Require local archive closeout in the batch that removes the final open holding.
  * @param input - Cohort write and whole-batch membership views.
@@ -69,7 +65,8 @@ export async function checkCohortArchiveCloseout(input: WriteCheckInput): Promis
   if (cohort.status !== "known") return fail(cohort.status === "unavailable" ? cohort.condition : "The proposed cohort is unavailable.");
   if (cohort.value.placement?.kind === "completed") return [];
   const name = input.reference.owner.name;
-  const [before, after] = await Promise.all([observeOpenCohortHoldings(input.before, name), observeOpenCohortHoldings(input.after, name)]);
+  const [before, after] = await Promise.all([observeOpenHoldings(input.before, input.before, input.reference),
+    observeOpenHoldings(input.after, input.after, input.reference)]);
   if (before.status !== "known") return fail(before.status === "unavailable" ? before.condition : "Prior membership evidence is unavailable.");
   if (after.status !== "known") return fail(after.status === "unavailable" ? after.condition : "Proposed membership evidence is unavailable.");
   return before.value.length > 0 && after.value.length === 0

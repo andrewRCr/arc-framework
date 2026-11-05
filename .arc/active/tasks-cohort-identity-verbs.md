@@ -273,28 +273,21 @@ nothing without `--yes`; and a member a pull lands naming a removed cohort refus
           Ambiguous child paths require repair first; closed subtrees stay with an ambiguous name's keeper, and unsafe
           clear/restore recipes onto a completed child are withheld.
 
-### `[ ]` **3.2 Count holders by resolution in the open-members rule and archive's closeout rule — § 7.2**
+### `[x]` **3.2 Count holders by resolution in the open-members rule and archive's closeout rule — § 7.2**
 
 - _Goal:_ No close the store admits — archive's in-batch close, `arc cohort close`, or `arc cohort remove` — leaves an
   open record that holds the cohort, a record on a former slug included, and none admits on evidence it cannot read.
 
-    - `[ ]` **3.2.a `cohort.open-members`**
+    - `[x]` **3.2.a `cohort.open-members`**
 
-        - `checkCohortOpenMembers` (`kinds/cohort/rules.ts`) lists the open members and open subcohorts in the view after
-          the batch and resolves their segments in the view before it, counting an ambiguous segment only where its
-          candidates include the retiring cohort; its condition names each holder and, on a former slug, its edit.
+        - Lists open candidates after the batch and resolves before it, retaining former and relevant ambiguous
+          holdings. Refusals name exact holders and ordered repairs; closed-child advice uses retained resolution-view
+          Parent evidence without adding closed candidates to the open count.
 
-    - `[ ]` **3.2.b Archive's closeout rule**
+    - `[x]` **3.2.b Archive's closeout rule**
 
-        - `checkCohortArchiveCloseout` counts by the same resolution in the views before and after the batch, and
-          `observeOpenCohortHoldings`, whose text count it was the only consumer of, is removed.
-
-    - Build `test-first` (one behavior at a time):
-        - closing a cohort an open stub holds by a former slug refuses `cohort.open-members`, naming the stub and its edit
-        - a member the same batch archives no longer counts
-        - over the ref backend, a clash between two other cohorts blocks no retirement
-        - archive's closeout rule admits a batch leaving open a cohort a record on a former slug still holds
-        - a segment read that refuses makes each rule refuse rather than admit
+        - Counts resolved holdings in each view and admits retaining a cohort still held through a former name.
+          Removed the text-only observer; unavailable segment evidence refuses both rules.
 
 ### `[ ]` **3.3 Leave a held cohort open at archive, and report the record on a former slug — § 7.2**
 

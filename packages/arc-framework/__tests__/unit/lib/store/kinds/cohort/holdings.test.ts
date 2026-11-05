@@ -92,6 +92,10 @@ it("keeps a closed subcohort and its stragglers with the holder retaining an amb
     ruleView([first, other, child, held]), first.reference);
   if (holdings.status !== "known") throw new Error("Expected cohort holdings");
   expect(cohortHoldingEdits(holdings.value, "renamed")).toEqual({ status: "known", value: [] });
+  const openOnly = await observeCohortHoldings([candidate(held, "cohort", "group/child")],
+    ruleView([first, other, child, held]), first.reference);
+  if (openOnly.status !== "known") throw new Error("Expected open-only holdings");
+  expect(cohortHoldingEdits(openOnly.value, "renamed")).toEqual({ status: "known", value: [] });
 });
 
 it("needs no edit when a closed subcohort's Parent and straggler path are already current", async () => {

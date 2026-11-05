@@ -2,6 +2,7 @@
 import { OwnerIdentitySchema, recordReferences, sameOwner, type RecordReference } from "../../identity.js";
 import { SlugSchema } from "../../../kernel/index.js";
 import type { StoreView } from "../../write-check.js";
+import type { StoreRecord } from "../../read.js";
 import { observeNamedRecord, type NamedRecordObservation, type RuleObservation } from "../rule-support.js";
 
 /** Candidate membership and completion facts come from the caller's selected view. */
@@ -11,9 +12,9 @@ export interface CohortHoldingCandidate {
   path: string;
   completed: boolean;
 }
-/** Name evidence keeps ambiguous owners distinct without inventing a current slug. */
+/** Resolution-view records support repair prerequisites; candidate-view completion remains separate. */
 export type CohortHoldingSegment =
-  | { name: string; status: "known"; reference: RecordReference; currentSlug: string }
+  | { name: string; status: "known"; reference: RecordReference; currentSlug: string; resolutionRecord: StoreRecord }
   | ({ name: string; status: "ambiguous" } & Pick<Extract<NamedRecordObservation, { status: "ambiguous" }>,
     "candidates" | "condition" | "remedy" | "tie">)
   | { name: string; status: "absent" | "invalid" };
@@ -68,7 +69,7 @@ async function observeSegment(name: string, view: StoreView): Promise<CohortHold
   const observed = await observeNamedRecord(view, reference);
   if (observed.status === "unavailable") return observed;
   if (observed.status === "known") return { name, status: "known", reference: observed.value.reference,
-    currentSlug: observed.value.reference.owner.name };
+    currentSlug: observed.value.reference.owner.name, resolutionRecord: observed.value };
   return { name, ...observed };
 }
 

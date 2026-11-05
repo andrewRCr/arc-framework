@@ -1,6 +1,8 @@
 /** Ordered field edits for re-pointing cohort holdings without violating Parent checks. */
 import type { RuleObservation } from "../rule-support.js";
 import type { CohortHolding, CohortHoldingCandidate, CohortHoldingSegment, ResolvedCohortCandidate } from "./holdings.js";
+import { parseCohortDocument } from "./parser.js";
+import { describeRecordConflicts } from "../../conflict-diagnostics.js";
 
 /** A field edit names the exact record whose authored value changes. */
 export interface CohortHoldingEdit {
@@ -87,7 +89,24 @@ function directEdit(holding: ResolvedCohortCandidate, changed: ReadonlySet<numbe
   for (const [index, segment] of holding.segments.entries()) {
     if (!changed.has(index) && segment.status !== "known") return unresolvedSegment(segment, holding.candidate.path);
   }
+  const closed = closedLeafDisposition(holding, parts, changed);
+  if (closed !== null) return closed;
   return fieldEdit(holding.candidate, holding.candidate.path, to);
+}
+
+function closedLeafDisposition(holding: ResolvedCohortCandidate, parts: readonly string[], changed: ReadonlySet<number>): RuleObservation<null> | null {
+  const leaf = holding.segments.at(-1);
+  if (holding.candidate.field !== "cohort" || leaf?.status !== "known" || leaf.resolutionRecord.placement?.kind !== "completed") return null;
+  const record = leaf.resolutionRecord, parsed = parseCohortDocument(record.content);
+  if (record.conflicts.length > 0) return { status: "unavailable", condition: `The completed child Parent is disputed.${describeRecordConflicts(record.conflicts)}` };
+  if (!parsed.success) return { status: "unavailable", condition: `The completed child Parent is unavailable: ${parsed.error}` };
+  const parent = parts.length === 2 ? parts[0] : null;
+  if (parsed.data.parent === parent) return null;
+  const priorParent = holding.segments[0];
+  if (changed.has(0) && priorParent?.status === "ambiguous" && parsed.data.parent === priorParent.name) return { status: "known", value: null };
+  return { status: "unavailable", condition: `Closed subcohort '${record.reference.owner.name}' still has Parent ${JSON.stringify(parsed.data.parent)}. `
+    + "Keep Parent unchanged, or have its open members' owners move or clear Cohort before changing Parent. "
+    + "Cleared memberships cannot be restored onto this closed cohort." };
 }
 
 function fieldEdit(candidate: CohortHoldingCandidate, from: string | null, to: string | null): RuleObservation<CohortHoldingEdit> {

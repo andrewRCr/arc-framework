@@ -5,6 +5,9 @@ import { observeRecords, type RuleObservation } from "../rule-support.js";
 import { parseCohortDocument, type ParsedCohortDocument } from "./parser.js";
 import type { StoreRecord } from "../../read.js";
 import type { StoreView, WriteCheckInput } from "../../write-check.js";
+import type { RecordReference } from "../../identity.js";
+import { observeCohortHoldings, type CohortHolding, type CohortHoldingCandidate } from "./holdings.js";
+import { cohortHoldingEdits } from "./holding-edits.js";
 export { observeCohortHoldings, type CohortHoldingCandidate, type CohortHoldingSegment,
   type ResolvedCohortCandidate, type CohortHolding } from "./holdings.js";
 export { cohortHoldingEdits, type CohortHoldingEdit } from "./holding-edits.js";
@@ -65,17 +68,31 @@ export async function observeOpenMembers(view: StoreView): Promise<RuleObservati
   return { status: "known", value: result };
 }
 
-/** Observe the open members and immediate subcohorts that keep a cohort open.
- * @param view - Found or whole proposed state.
- * @param name - Cohort whose membership is inspected.
- * @returns Complete holding names or the original observation failure.
- */
-export async function observeOpenCohortHoldings(view: StoreView, name: string): Promise<RuleObservation<readonly string[]>> {
+/** List open candidates in one view and resolve their paths in the caller-selected view. */
+export async function observeOpenHoldings(view: StoreView, resolve: StoreView, cohort: RecordReference): Promise<RuleObservation<readonly CohortHolding[]>> {
   const [cohorts, members] = await Promise.all([observeOpenCohorts(view), observeOpenMembers(view)]);
   if (cohorts.status !== "known") return cohorts;
   if (members.status !== "known") return members;
-  return { status: "known", value: [
-    ...members.value.filter(({ cohort }) => cohort?.split("/").includes(name)).map(({ record }) => record.reference.owner.name),
-    ...cohorts.value.filter(({ fields }) => fields.parent === name).map(({ record }) => record.reference.owner.name),
-  ] };
+  const candidates: CohortHoldingCandidate[] = [];
+  for (const { record, cohort: path } of members.value) {
+    if (path !== null) candidates.push({ reference: record.reference, field: "cohort", path, completed: false });
+  }
+  for (const { record, fields } of cohorts.value) {
+    if (fields.parent !== null) candidates.push({ reference: record.reference, field: "parent", path: fields.parent, completed: false });
+  }
+  return observeCohortHoldings(candidates, resolve, cohort);
+}
+
+/** Name exact holders and the ordered field repairs supported by their resolved paths. */
+export function describeCohortHoldings(holdings: readonly CohortHolding[], slug: string): string {
+  const holders = [...new Set(holdings.map(({ candidate }) => {
+    const { owner } = candidate.reference;
+    return `${owner.type} ${owner.name} (UID ${owner.type === "person" ? "unavailable" : owner.uid ?? "unavailable"})`;
+  }))];
+  const edits = cohortHoldingEdits(holdings, slug);
+  const names = `The cohort is held by: ${holders.join(", ")}.`;
+  if (edits.status !== "known") return `${names} ${edits.status === "unavailable" ? edits.condition : "Holding edits are unavailable."}`;
+  const repair = edits.value.map(edit => `${edit.record.type} ${edit.record.name} (UID ${edit.record.uid}): `
+    + `${edit.field === "cohort" ? "Cohort" : "Parent"} ${JSON.stringify(edit.from)} -> ${JSON.stringify(edit.to)}.`).join(" ");
+  return `${names}${repair === "" ? "" : ` Re-pointing edits, in order: ${repair}`}`;
 }
