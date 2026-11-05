@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** `tasks-adr-accept-timing.md` generated; independent review converged and the work unit activated.
-- **Next Task:** Task 1.1 — Accept ADR-023 — D7 (line ~23)
+- **Last Completed:** Task 4.6 — Write ADR-040 — D8; Phase 4 complete.
+- **Next Task:** Task 5.1 — Complete verification (line ~188)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 1.1 — confirm ADR-023's named realizations at source, then flip its Status
+- **Next Action:** Start Task 5.1 — load and follow `verify-work-unit.md` in a fresh session
 
 - **PR URL:** [none]
 - **Completed:** [none]
