@@ -7,6 +7,7 @@ export {
   identifyWorkUnitArtifactPath,
   isProjectDocumentPath,
   type IdentifiedWorkUnitArtifact,
+  type ActiveLayoutContext,
 } from "./identification.js";
 export { materializeArcPath } from "./materialization.js";
 export { LAYOUT_SCHEMA_IDS, createLayoutRegistry } from "./registry.js";
@@ -51,4 +52,5 @@ export type {
   TemplateRelativePath,
   WorkUnitArtifactKind,
   WorkUnitPlacement,
+  OwnActiveLocation,
 } from "./schema.js";

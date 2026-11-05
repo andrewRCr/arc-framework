@@ -122,3 +122,11 @@ describe("layout schemas", () => {
     },
   );
 });
+
+it.each(["work-unit-container", "work-unit-artifact"] as const)("refuses %s addresses for another slug at the checkout's own location", kind => {
+  for (const layoutActive of ["nested", "flat"] as const) {
+    const placement = { kind: "active", scope: { kind: "project", location: { kind: "own", claim: "claimed-item", layoutActive } } };
+    const address = { kind, placement, slug: "different-item", ...(kind === "work-unit-artifact" ? { artifact: "meta" } : {}) };
+    expect(ArcLayoutAddressSchema.safeParse(address).success).toBe(false);
+  }
+});

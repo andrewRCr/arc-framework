@@ -1275,11 +1275,6 @@
       "count": 1
     }
   },
-  "src/lib/layout/identification.ts": {
-    "sonarjs/cognitive-complexity": {
-      "count": 1
-    }
-  },
   "src/lib/load-set/projection.ts": {
     "sonarjs/cognitive-complexity": {
       "count": 1

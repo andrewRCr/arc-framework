@@ -26,6 +26,12 @@ export interface IdentifiedWorkUnitArtifact {
   readonly artifact: WorkUnitArtifactKind;
 }
 
+/** Checkout facts required to interpret its own active folder without reading local state. */
+export interface ActiveLayoutContext {
+  readonly claim: Slug | null;
+  readonly layoutActive: "nested" | "flat";
+}
+
 const PROJECT_DOCUMENT_PATHS: ReadonlySet<string> = new Set(
   ProjectDocumentKindSchema.options.map((document) => resolveArcPath({ kind: "project-document", document })),
 );
@@ -50,13 +56,10 @@ function parseArtifactFilename(file: string): { slug: Slug; artifact: WorkUnitAr
  * Every candidate is a guess the projection then accepts or rejects, so a shape that resembles two
  * placements costs one extra comparison rather than an ambiguity the caller has to resolve.
  */
-function candidatePlacements(directory: readonly string[]): WorkUnitPlacement[] {
+function candidatePlacements(directory: readonly string[], active?: ActiveLayoutContext): WorkUnitPlacement[] {
   const [root, ...rest] = directory;
   if (root !== ".arc") return [];
-  const candidates: WorkUnitPlacement[] = [];
-  if (rest.length === 1 && rest[0] === "active") {
-    candidates.push({ kind: "active", scope: { kind: "project" } });
-  }
+  const candidates = activePlacements(rest, active);
   if (rest.length === 3 && rest[0] === "user" && rest[2] === "active") {
     const identity = SlugSchema.safeParse(rest[1]);
     if (identity.success) {
@@ -81,19 +84,33 @@ function candidatePlacements(directory: readonly string[]): WorkUnitPlacement[] 
   return candidates;
 }
 
+function activePlacements(directory: readonly string[], context?: ActiveLayoutContext): WorkUnitPlacement[] {
+  if (directory[0] !== "active") return [];
+  if (directory.length === 3 && directory[1] === "in-flight") {
+    return [{ kind: "active", scope: { kind: "project", location: { kind: "another" } } }];
+  }
+  if (context === undefined) return directory.length === 1 ? [{ kind: "active", scope: { kind: "project" } }] : [];
+  if (context.claim === null) return [];
+  const matches = context.layoutActive === "flat" ? directory.length === 1 : directory.length === 2 && directory[1] === "current";
+  return matches ? [{ kind: "active", scope: { kind: "project", location: {
+    kind: "own", claim: context.claim, layoutActive: context.layoutActive,
+  } } }] : [];
+}
+
 /**
  * Recognize one managed path as a work-unit artifact.
  *
  * @param path - Repository-relative POSIX path to recognize.
+ * @param active - Explicit checkout context; omission retains the legacy flat project layout.
  * @returns The artifact's placement, slug, and kind, or `null` when the path is not one.
  */
-export function identifyWorkUnitArtifactPath(path: string): IdentifiedWorkUnitArtifact | null {
+export function identifyWorkUnitArtifactPath(path: string, active?: ActiveLayoutContext): IdentifiedWorkUnitArtifact | null {
   const segments = path.split("/");
   const file = segments.pop();
   if (file === undefined) return null;
   const parsed = parseArtifactFilename(file);
   if (parsed === null) return null;
-  for (const placement of candidatePlacements(segments)) {
+  for (const placement of candidatePlacements(segments, active)) {
     const address = { kind: "work-unit-artifact", placement, ...parsed } as const;
     let projected: string;
     try {

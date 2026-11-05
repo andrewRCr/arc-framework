@@ -1,12 +1,15 @@
 /** Invert file addresses without assigning directory paths a fabricated owner. */
-import { identifyWorkUnitArtifactPath } from "./identification.js";
+import { identifyWorkUnitArtifactPath, type ActiveLayoutContext } from "./identification.js";
 import { ArcLayoutAddressSchema, type ArcLayoutAddress } from "./schema.js";
 import { resolveArcPath } from "./projection.js";
-/** Recognize a managed file by reading coordinates and confirming them through the projection. */
-export function identifyArcFileAddress(path: string): ArcLayoutAddress | null {
-  const artifact = identifyWorkUnitArtifactPath(path);
+/**
+ * Recognize a file through projection; supplied active context governs the checkout's own folder,
+ * while omission retains legacy flat recognition.
+ */
+export function identifyArcFileAddress(path: string, active?: ActiveLayoutContext): ArcLayoutAddress | null {
+  const artifact = identifyWorkUnitArtifactPath(path, active);
   if (artifact !== null) return { kind: "work-unit-artifact", ...artifact };
-  const guesses = [...internalFiles(path), ...userFiles(path), ...cohortFiles(path)];
+  const guesses = [...internalFiles(path), ...userFiles(path), ...cohortCopies(path, active), ...cohortFiles(path)];
   if (path === ".arc/backlog/ATOMIC-INBOX.md") guesses.push({ kind: "inbox", scope: { kind: "project" } });
   if (path === ".arc/backlog/ROADMAP.md") guesses.push({ kind: "project-document", document: "roadmap" });
   for (const guess of guesses) {
@@ -42,4 +45,11 @@ function cohortFiles(path: string): unknown[] {
   const completed = /^\.arc\/completed\/([^/]+)\/([0-9]+)([ab])_cohort-([^/]+)\/cohort-([^/]+)\.md$/u.exec(path);
   if (completed === null) return [];
   return [{ kind: "cohort-document", cohort: [completed[4]], placement: { kind: "completed", quarter: completed[1], sequence: completed[2], closeout: completed[3] === "a" ? "leaf" : "parent" } }];
+}
+
+function cohortCopies(path: string, active?: ActiveLayoutContext): unknown[] {
+  if (active?.claim === undefined || active.claim === null) return [];
+  const match = /^cohort-(.+)\.md$/u.exec(path.split("/").at(-1) ?? "");
+  return match === null ? [] : [{ kind: "cohort-copy", cohort: match[1],
+    location: { kind: "own", claim: active.claim, layoutActive: active.layoutActive } }];
 }

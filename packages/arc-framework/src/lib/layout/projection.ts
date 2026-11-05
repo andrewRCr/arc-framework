@@ -6,6 +6,7 @@ import {
   ArcLayoutAddressSchema,
   type ArcLayoutAddress,
   type WorkUnitPlacement,
+  type OwnActiveLocation,
 } from "./schema.js";
 
 const EDITOR_DOCUMENT_ROOT = ".arc/system/.internal/schemas";
@@ -23,9 +24,7 @@ function projectPlacementRoot(tier: "active" | "planned" | "provisional" | "comp
 function projectContainer(placement: WorkUnitPlacement, slug: Slug): string {
   switch (placement.kind) {
     case "active":
-      return placement.scope.kind === "project"
-        ? ".arc/active"
-        : `.arc/user/${placement.scope.identity}/active`;
+      return projectActive(placement.scope, slug);
     case "backlog": {
       const cohort = placement.cohort.length === 0 ? "" : `/${placement.cohort.join("/")}`;
       return `.arc/backlog/${placement.commitment}${cohort}/${slug}`;
@@ -35,6 +34,17 @@ function projectContainer(placement: WorkUnitPlacement, slug: Slug): string {
     default:
       return assertNever(placement);
   }
+}
+
+function projectActive(scope: Extract<WorkUnitPlacement, { kind: "active" }>["scope"], slug: Slug): string {
+  if (scope.kind === "contributor") return `.arc/user/${scope.identity}/active`;
+  const location = scope.location;
+  if (location === undefined) return ".arc/active";
+  return location.kind === "another" ? `.arc/active/in-flight/${slug}` : projectOwnActive(location);
+}
+
+function projectOwnActive(location: OwnActiveLocation): string {
+  return location.layoutActive === "nested" ? ".arc/active/current" : ".arc/active";
 }
 
 function projectAddress(address: ArcLayoutAddress): string {
@@ -61,6 +71,8 @@ function projectAddress(address: ArcLayoutAddress): string {
       return `${projectContainer(address.placement, address.slug)}/${address.artifact}-${address.slug}.md`;
     case "cohort-document":
       return projectCohort(address);
+    case "cohort-copy":
+      return `${projectOwnActive(address.location)}/cohort-${address.cohort}.md`;
     case "procedure-root":
       return `.arc/system/${address.family}`;
     case "project-document":

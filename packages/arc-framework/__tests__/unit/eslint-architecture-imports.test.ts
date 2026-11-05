@@ -190,6 +190,7 @@ describe("work-unit path ratchet", () => {
     [`${named}resolveArcPath({ kind: "work-unit-artifact", placement, slug, artifact: "meta" });`, "work-unit path work-unit-artifact outside the store"],
     ['import { resolveArcPath as project } from "../lib/layout/projection.js"; project({ kind: "placement-root", tier: "active" });', "work-unit path placement-root outside the store"],
     [`${namespace}layout.resolveArcPath({ kind: "cohort-document", cohort: [slug], placement });`, "work-unit path cohort-document outside the store"],
+    [`${named}resolveArcPath({ kind: "cohort-copy", cohort: slug, location });`, "work-unit path cohort-copy outside the store"],
     [`${namespace}layout["resolveArcPath"]({ kind: "transition-record", origin: slug });`, "work-unit path transition-record outside the store"],
     [`${named}resolveArcPath({ placement, slug, kind: "work-unit-container" as const });`, "work-unit path work-unit-container outside the store"],
     [`${named}resolveArcPath(address);`, unread],

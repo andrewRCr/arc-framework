@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 
-import { ArchiveQuarterSchema, ArchiveSequenceSchema, SlugSchema, validateManagedPath } from "../kernel/index.js";
+import { ArchiveQuarterSchema, ArchiveSequenceSchema, SlugSchema, validateManagedPath, type Slug } from "../kernel/index.js";
 
 /** Runtime authority for project lifecycle placement roots. */
 export const ArcPlacementTierSchema = z.enum(["active", "planned", "provisional", "completed"]);
@@ -55,6 +55,15 @@ export const TemplateOutputPathSchema = z.string()
 export type TemplateOutputPath = z.infer<typeof TemplateOutputPathSchema>;
 
 const ProjectActiveScopeSchema = z.strictObject({ kind: z.literal("project") });
+/** The checkout's own active folder carries its claim and effective physical layout explicitly. */
+export const OwnActiveLocationSchema = z.strictObject({
+  kind: z.literal("own"), claim: SlugSchema, layoutActive: z.enum(["nested", "flat"]),
+});
+/** Coordinates of the checkout's own active folder. */
+export type OwnActiveLocation = z.infer<typeof OwnActiveLocationSchema>;
+const ProjectWorkUnitActiveScopeSchema = ProjectActiveScopeSchema.extend({
+  location: z.discriminatedUnion("kind", [OwnActiveLocationSchema, z.strictObject({ kind: z.literal("another") })]).optional(),
+});
 const IdentityInboxScopeSchema = z.strictObject({ kind: z.literal("identity"), identity: SlugSchema });
 const ContributorActiveScopeSchema = z.strictObject({
   kind: z.literal("contributor"),
@@ -63,7 +72,7 @@ const ContributorActiveScopeSchema = z.strictObject({
 
 const ActivePlacementSchema = z.strictObject({
   kind: z.literal("active"),
-  scope: z.discriminatedUnion("kind", [ProjectActiveScopeSchema, ContributorActiveScopeSchema]),
+  scope: z.discriminatedUnion("kind", [ProjectWorkUnitActiveScopeSchema, ContributorActiveScopeSchema]),
 });
 const BacklogPlacementSchema = z.strictObject({
   kind: z.literal("backlog"),
@@ -84,6 +93,12 @@ export const WorkUnitPlacementSchema = z.discriminatedUnion("kind", [
 ]);
 /** A caller-selected physical work-unit placement. */
 export type WorkUnitPlacement = z.infer<typeof WorkUnitPlacementSchema>;
+
+function matchesOwnClaim(address: { placement: WorkUnitPlacement; slug: Slug }): boolean {
+  const placement = address.placement;
+  return placement.kind !== "active" || placement.scope.kind !== "project"
+    || placement.scope.location?.kind !== "own" || placement.scope.location.claim === address.slug;
+}
 
 const PlannedCohortPlacementSchema = z.strictObject({ kind: z.literal("planned") });
 const CompletedCohortPlacementSchema = z.strictObject({
@@ -117,13 +132,14 @@ export const ArcLayoutAddressSchema = z.discriminatedUnion("kind", [
     kind: z.literal("work-unit-container"),
     placement: WorkUnitPlacementSchema,
     slug: SlugSchema,
-  }),
+  }).refine(matchesOwnClaim, "An own location must name the checkout's claimed work item."),
   z.strictObject({
     kind: z.literal("work-unit-artifact"),
     placement: WorkUnitPlacementSchema,
     slug: SlugSchema,
     artifact: WorkUnitArtifactKindSchema,
-  }),
+  }).refine(matchesOwnClaim, "An own location must name the checkout's claimed work item."),
+  z.strictObject({ kind: z.literal("cohort-copy"), cohort: SlugSchema, location: OwnActiveLocationSchema }),
   z.strictObject({
     kind: z.literal("cohort-document"),
     cohort: CohortCoordinateSchema,
