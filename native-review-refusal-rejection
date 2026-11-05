@@ -3,7 +3,7 @@
   "slug": "native-review-refusal-rejection",
   "claimId": "beee3c92bceb5b37d106ed44f531893b",
   "createdAt": "2026-11-05T21:58:40.711Z",
-  "updatedAt": "2026-11-05T22:07:19.335Z",
+  "updatedAt": "2026-11-05T22:09:09.512Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Diagnose the unhandled native review-outcome refusal and establish the correction boundary",
@@ -11,7 +11,7 @@
   "origin": "inbox",
   "originEntry": "Diagnose the unhandled rejection after a native review outcome refusal",
   "originEntrySourceDigest": "sha256:5ba6f8d4834146fbd0606ff824953550c3b0ca18ee342ca6ddf891a723e1594b",
-  "state": "paused",
-  "savedHead": "97a7f471c2007fb7bd57455892068cbbb13c6ed5",
+  "state": "open",
+  "savedHead": null,
   "changeRequest": null
 }
