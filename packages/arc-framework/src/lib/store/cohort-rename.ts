@@ -2,19 +2,21 @@
 import type { Store } from "./contract.js";
 import type { StoreRecord } from "./read.js";
 import type { StoreResult, StoreRefusal } from "./refusal.js";
-import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences, sameReference } from "./identity.js";
-import { batchLifecycleWrites, recordPut, recordWritePlacement } from "./lifecycle-write.js";
+import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences, sameReference, sameOwner } from "./identity.js";
+import { batchLifecycleWrites, recordPut, recordWritePlacement, readLifecycleMetaFields } from "./lifecycle-write.js";
 import { observeRecords } from "./record-observations.js";
 import { checkCohortRenameTarget } from "./lifecycle-rename.js";
-import { rewriteCohortHeading, writeCohortParent, parseCohortDocument } from "./kinds/cohort/index.js";
-import { observeRenameFormerName } from "./rename-reference-resolution.js";
+import { rewriteCohortHeading, writeCohortParent, parseCohortDocument, rewriteCohortFilenameReferences } from "./kinds/cohort/index.js";
+import { observeRenameFormerName, resolveRenameReferences } from "./rename-reference-resolution.js";
 import { emptyRenameReport, type RenameReport, type RenameReportRecord } from "../work-unit/rename-report.js";
 import type { RunRenameResult } from "../work-unit/verbs/rename.js";
 import { observeAllHoldings, cohortHoldingEdits, type CohortHolding } from "./kinds/cohort/check-support.js";
 import { writeMetaCohort } from "./kinds/meta/writers.js";
 import type { StoreView } from "./write-check.js";
 import type { Mutation } from "./write.js";
+import { acquireLifecycleRecords } from "../work-unit/prepared-lifecycle-write.js";
 interface CohortRenameWrites { writes: Mutation[]; report: RenameReport; advisories: string[] }
+interface CohortRenamePlan { primary: StoreRecord; target: string; records: StoreRecord[]; contents: Map<StoreRecord, string> }
 
 /** Rename the UID-selected cohort without any code-branch or checkout operation. */
 export async function runCohortRename(store: Store, primary: StoreRecord,
@@ -48,30 +50,78 @@ export async function runCohortRename(store: Store, primary: StoreRecord,
 
 async function prepareMembershipWrites(store: Store, primary: StoreRecord, target: string,
   document: { content: string; records: StoreRecord[] }): Promise<StoreResult<CohortRenameWrites>> {
-  const holdings = await observeAllHoldings(capturedView(store, document.records), primary.reference);
+  const view = capturedView(store, document.records), holdings = await observeAllHoldings(view, primary.reference);
   if (holdings.status !== "known") return malformed(primary, holdings.status === "unavailable" ? holdings.condition : "Cohort holdings are unavailable.");
   const closed = holdings.value.filter(holding => holding.resolution === "ambiguous" && holding.candidate.field === "parent" && holding.candidate.completed);
-  const kept = closed.flatMap(holding => [holding.candidate, ...holding.members.map(member => member.candidate)]);
-  const contents = new Map<StoreRecord, string>([[primary, document.content]]);
-  for (const holding of holdings.value) {
-    if (holding.resolution !== "sole" || kept.some(candidate => sameReference(candidate.reference, holding.candidate.reference))) continue;
-    const record = document.records.find(item => sameReference(item.reference, holding.candidate.reference));
-    if (record === undefined) return malformed(primary, "A cohort holding has no captured record.");
-    const path = currentHoldingPath(holding, primary, target);
-    if (path === null) return malformed(primary, `The cohort path ${holding.candidate.path} has an unresolved companion segment.`);
-    const content = contents.get(record) ?? record.content;
-    contents.set(record, holding.candidate.field === "cohort" ? writeMetaCohort(content, path) : writeCohortParent(content, path) ?? content);
-  }
+  const plan: CohortRenamePlan = { primary, target, records: document.records, contents: new Map([[primary, document.content]]) };
+  const membership = prepareSoleHoldings(plan, holdings.value, closed);
+  if (membership.status === "refused") return membership;
   const retained = reportAmbiguousHoldings(primary, holdings.value.filter(holding => holding.resolution === "ambiguous"), target, closed);
   if (retained.status === "refused") return retained;
-  return { status: "ok", result: { ...retained.result, writes: cohortRenameMutations(document.records, contents, primary, target) } };
+  const filenames = await prepareFilenameReferences(view, plan, retained.result.report);
+  if (filenames.status === "refused") return filenames;
+  return { status: "ok", result: { ...retained.result, report: filenames.result,
+    writes: cohortRenameMutations(document.records, plan.contents, primary, target) } };
+}
+
+function prepareSoleHoldings(plan: CohortRenamePlan, holdings: readonly CohortHolding[], closed: readonly CohortHolding[]): StoreResult<true> {
+  const kept = closed.flatMap(holding => [holding.candidate, ...holding.members.map(member => member.candidate)]);
+  for (const holding of holdings) {
+    if (holding.resolution !== "sole" || kept.some(candidate => sameReference(candidate.reference, holding.candidate.reference))) continue;
+    const record = plan.records.find(item => sameReference(item.reference, holding.candidate.reference));
+    if (record === undefined) return malformed(plan.primary, "A cohort holding has no captured record.");
+    const path = currentHoldingPath(holding, plan.primary, plan.target);
+    if (path === null) return malformed(plan.primary, `The cohort path ${holding.candidate.path} has an unresolved companion segment.`);
+    const content = plan.contents.get(record) ?? record.content;
+    plan.contents.set(record, holding.candidate.field === "cohort" ? writeMetaCohort(content, path) : writeCohortParent(content, path) ?? content);
+  }
+  return { status: "ok", result: true };
+}
+
+async function prepareFilenameReferences(view: StoreView, plan: CohortRenamePlan, report: RenameReport): Promise<StoreResult<RenameReport>> {
+  const resolution = await resolveRenameReferences(view, plan.primary.reference, plan.primary.reference.owner.name);
+  if (resolution.status === "refused") return resolution;
+  if (resolution.result === "other") return { status: "ok", result: report };
+  const eligible = await filenameRecords(view, plan.records);
+  if (eligible.status === "refused") return eligible;
+  const references = [...report.references];
+  for (const record of eligible.result) {
+    const content = plan.contents.get(record) ?? record.content;
+    const rewritten = rewriteCohortFilenameReferences(content, plan.primary.reference.owner.name, plan.target);
+    if (content === rewritten) continue;
+    if (resolution.result === "subject") { plan.contents.set(record, rewritten); continue; }
+    const owner = holdingReportRecord(record.reference);
+    if (owner === null) return malformed(plan.primary, "A filename reference has no exact holding owner identity.");
+    const own = sameReference(record.reference, plan.primary.reference);
+    const document = own ? RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name: plan.target } }) : record.reference;
+    const lines = content.split(/\r?\n/u);
+    references.push({ record: own ? { ...owner, name: plan.target } : owner,
+      edits: rewritten.split(/\r?\n/u).flatMap((replacement, index) => replacement === lines[index] ? []
+        : [{ kind: "text" as const, document, line: index + 1, replacement }]) });
+  }
+  return { status: "ok", result: { ...report, references } };
+}
+
+async function filenameRecords(view: StoreView, records: StoreRecord[]): Promise<StoreResult<readonly StoreRecord[]>> {
+  const stubs: StoreRecord[] = [];
+  for (const primary of records.filter(record => record.reference.kind === "work-item/meta" && record.placement?.kind === "backlog")) {
+    const fields = readLifecycleMetaFields(primary);
+    if (fields.status === "refused") return fields;
+    if (fields.result.state !== "Planning") continue;
+    const group = await acquireLifecycleRecords(view, primary.reference);
+    if (group.status === "refused") return group;
+    stubs.push(primary);
+  }
+  return { status: "ok", result: records.filter(record => record.reference.kind === "cohort/document"
+    ? record.placement?.kind !== "completed"
+    : record.reference.kind !== "work-item/cut-map" && stubs.some(stub => sameOwner(stub.reference.owner, record.reference.owner))) };
 }
 
 function cohortRenameMutations(records: readonly StoreRecord[], contents: ReadonlyMap<StoreRecord, string>, primary: StoreRecord, target: string): Mutation[] {
   return records.flatMap(record => {
     const content = contents.get(record) ?? record.content, own = sameReference(record.reference, primary.reference);
     if (!own && content === record.content) return [];
-    const placement = recordWritePlacement(record);
+    const placement = record.reference.kind === "cohort/document" ? recordWritePlacement(record) : undefined;
     const write = recordPut(record, { content, ...(placement === undefined ? {} : { placement }) });
     if (own) write.reference = RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name: target } });
     return [write];

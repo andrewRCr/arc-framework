@@ -578,22 +578,15 @@ old name refuses naming the current one.
   carry ordered edits that land; closed ambiguous subtrees retain their Parent and member paths, including members
   on unique former aliases, with exact identity rows and an explanatory advisory.
 
-### `[ ]` **5.3 Rewrite references to the document's filename where the old slug names the cohort alone — § 5.1, § 4**
+### `[x]` **5.3 Rewrite references to the document's filename where the old slug names the cohort alone — § 5.1, § 4**
 
 - _Goal:_ Stubs and open cohort documents citing `` `cohort-<old>.md` `` name the new file after the batch where the old
   slug names the cohort alone, each such reference is reported where it is ambiguous, and no work-item reference sharing
   the text changes.
 
-    - A filename-reference rewriter in the cohort kind's folder rewrites the references in the stubs the rename sweeps —
-      the whole group less the cut map, as `renameSweepRecords` selects — and in open cohort documents, where Task 4.5.a's
-      resolution among cohorts names the subject alone; ambiguous among cohorts, none is rewritten and each is reported.
-      The work-item sweep (`rewriteBacktickedArtifactReferences`) keeps leaving every `cohort-` reference unchanged.
-
-    - Build `test-first` (one behavior at a time):
-        - a parent's citation of a renamed subcohort's document, and a stub's, name the new file
-        - over the ref backend, under a two-cohort clash, the filename references are rewritten none and each is reported
-        - a work-item edge whose text equals the cohort's old slug is unchanged
-        - a closed cohort's document keeps its text
+- _Outcome:_ The cohort kind rewrites exact filename citations in open documents and whole Planning stub groups,
+  excluding cut maps, while preserving work-item edges and started or closed prose. Ambiguous citations carry exact
+  document, companion key, line, and replacement in text and JSON; all acquired group records join the batch observations.
 
 ### `[ ]` **5.4 Refuse a closed cohort and a taken target — § 5.1, § 5.4, § 5.5**
 

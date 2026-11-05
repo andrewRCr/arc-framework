@@ -20,9 +20,13 @@ import { writeCohortParent } from "../../src/lib/store/kinds/cohort/index.js";
 
 const production = createKindRegistry(PRODUCTION_REGISTRATIONS);
 const document = (name: string, parent?: string) => `# Cohort: \`${name}\`\n\n**Purpose:** Coordinate.\n${parent === undefined ? "" : `\n**Parent:** \`${parent}\`\n`}`;
+const reportRecord = z.object({ type: z.enum(["work-unit", "cohort"]), name: SlugSchema, uid: z.uuid() });
 const holdingReport = z.object({ report: z.object({ references: z.array(z.object({
-  record: z.object({ type: z.enum(["work-unit", "cohort"]), name: SlugSchema, uid: z.uuid() }),
+  record: reportRecord,
   edits: z.array(z.object({ kind: z.literal("field"), field: z.enum(["cohort", "parent"]), from: z.string().nullable(), to: z.string().nullable() })),
+})) }) });
+const filenameReport = z.object({ report: z.object({ references: z.array(z.object({ record: reportRecord,
+  edits: z.array(z.object({ kind: z.literal("text"), document: RecordReferenceSchema, line: z.int().positive(), replacement: z.string() })),
 })) }) });
 
 async function fixture(backend: "reference" | "ref") {
@@ -46,6 +50,42 @@ async function fixture(backend: "reference" | "ref") {
 }
 
 describe.each(["reference", "ref"] as const)("cohort rename over %s", backend => {
+  it("rewrites filename citations in open documents and complete stub groups while retaining started and closed prose", async () => {
+    const f = await fixture(backend), parentRef = f.reference("cohort/document", "parent"), childRef = f.reference("cohort/document", "before");
+    const citation = `See \`cohort-${childRef.owner.name}.md\`.\n`, nextCitation = "See `cohort-after.md`.\n";
+    const parent = await seed(f, parentRef, `${document(parentRef.owner.name)}\n${citation}`);
+    const child = await seed(f, childRef, `${document(childRef.owner.name, parentRef.owner.name)}\n${citation}`);
+    const stubRef = f.reference("work-item/meta", "waiting");
+    const stub = await seed(f, stubRef, `${makeMetaFixture(stubRef.owner.name, { state: "Planning", currentWorkflow: null })}\n${citation}Keep \`spec-${childRef.owner.name}.md\`.\n`,
+      { kind: "backlog", commitment: "planned" });
+    const companions = [];
+    for (const [kind, key] of [["work-item/draft", undefined], ["work-item/companion", "research"], ["work-item/companion", "analysis"]] as const) {
+      companions.push(await seed(f, RecordReferenceSchema.parse({ kind, owner: stub.reference.owner, ...(key === undefined ? {} : { key }) }), `# Detail\n\n${citation}`));
+    }
+    const startedRef = f.reference("work-item/meta", "started"), closedRef = f.reference("cohort/document", "closed");
+    const started = await seed(f, startedRef, `${makeMetaFixture(startedRef.owner.name,
+      { state: "Active", currentWorkflow: "process-task-loop", cohort: `${parentRef.owner.name}/${childRef.owner.name}` })}\n${citation}`, { kind: "active" });
+    const closed = await seed(f, closedRef, `${document(closedRef.owner.name)}\n${citation}`);
+    success(await f.store.write({ ...recordPut(closed, { placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }),
+      provenance: { verb: "cohort-close", lifecycleAction: "close" } }));
+    const closedDocument = success(await f.store.read({ reference: closed.reference }));
+    const result = await f.invoke(["rename", childRef.owner.name, "after", "--json"]);
+    expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+    for (const record of [parent, child, stub, ...companions]) {
+      const content = success(await f.store.read({ reference: record.reference })).content;
+      expect(content).toContain(nextCitation); expect(content).not.toContain(citation);
+    }
+    expect(success(await f.store.read({ reference: stub.reference })).content).toContain(`Keep \`spec-${childRef.owner.name}.md\`.`);
+    const afterStarted = success(await f.store.read({ reference: started.reference }));
+    expect(afterStarted.content).toContain(citation);
+    expect(afterStarted.fields).toMatchObject({ cohort: `${parentRef.owner.name}/after` });
+    expect(success(await f.store.read({ reference: closed.reference }))).toEqual(closedDocument);
+    const events = await Promise.all([parent, child, stub, ...companions].map(async record => success(await f.store.history({ reference: record.reference }))[0]?.provenance));
+    const event = events[0];
+    if (event === undefined || !("batchId" in event)) throw new Error("Expected composed rename batch");
+    for (const other of events) expect(other).toMatchObject({ batchId: event.batchId });
+  }, 60_000);
+
   it("rewrites a sole closed subcohort and its completed member in place", async () => {
     const f = await fixture(backend), parentRef = f.reference("cohort/document", "parent"), childRef = f.reference("cohort/document", "child");
     const parent = await seed(f, parentRef, document(parentRef.owner.name));
@@ -120,6 +160,10 @@ describe.each(["reference", "ref"] as const)("cohort rename over %s", backend =>
       reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: cohortRef.owner.name } }),
       content: makeMetaFixture(cohortRef.owner.name, { state: "Planning", currentWorkflow: null }),
       placement: { kind: "backlog", commitment: "planned" }, provenance: { verb: "create", lifecycleAction: "create" } }));
+    const waiting = success(await peer.write({ action: "put", expected: null,
+      reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "waiting" } }),
+      content: `${makeMetaFixture("waiting", { state: "Planning", currentWorkflow: null, dependsOn: [cohortRef.owner.name] })}\nSee \`cohort-${cohortRef.owner.name}.md\`.\n`,
+      placement: { kind: "backlog", commitment: "planned" }, provenance: { verb: "create", lifecycleAction: "create" } }));
     if (f.native !== undefined) success(await peer.push());
     success(await store.pull());
     expect(await store.lookup({ kind: "slug", slug: SlugSchema.parse(cohortRef.owner.name) }))
@@ -130,6 +174,9 @@ describe.each(["reference", "ref"] as const)("cohort rename over %s", backend =>
     expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
     expect(success(await store.read({ reference: member.reference })).fields).toMatchObject({ cohort: "after" });
     expect(success(await store.read({ reference: other.reference }))).toEqual(retained);
+    const afterWaiting = success(await store.read({ reference: waiting.reference }));
+    expect(afterWaiting.fields).toMatchObject({ dependsOn: [cohortRef.owner.name] });
+    expect(afterWaiting.content).toContain("See `cohort-after.md`.");
     expect(success(await store.lookup({ kind: "slug", slug: SlugSchema.parse(cohortRef.owner.name) })).reference).toEqual(retained.reference);
   }, 60_000);
 
@@ -319,4 +366,53 @@ it.each([{ closed: false, former: false }, { closed: true, former: false }, { cl
   expect(success(await f.store.read({ reference: completed.reference })).fields).toMatchObject({ cohort: closed ? path : `after/${childRef.owner.name}` });
   expect(success(await f.store.read({ reference: direct.reference })).fields).toMatchObject({ cohort: "after" });
   expect(success(await f.store.read({ reference: other })).reference).toEqual(other);
+}, 60_000);
+
+it.each([false, true])("reports every eligible ambiguous filename citation without rewriting it, json=%s", async json => {
+  const f = await fixture("ref");
+  if (f.native === undefined) throw new Error("Expected native store");
+  const primaryRef = f.reference("cohort/document", "shared"), citation = `See \`cohort-${primaryRef.owner.name}.md\`.\n`;
+  const primary = await seed(f, primaryRef, `${document(primaryRef.owner.name)}\n${citation}`);
+  const citingRef = f.reference("cohort/document", "citing"), stubRef = f.reference("work-item/meta", "waiting");
+  const citing = await seed(f, citingRef, `${document(citingRef.owner.name)}\n${citation}`);
+  const stub = await seed(f, stubRef, `${makeMetaFixture(stubRef.owner.name, { state: "Planning", currentWorkflow: null })}\n${citation}`,
+    { kind: "backlog", commitment: "planned" });
+  const eligible = [primary, citing, stub];
+  for (const [kind, key] of [["work-item/draft", undefined], ["work-item/companion", "research"], ["work-item/companion", "analysis"]] as const) {
+    eligible.push(await seed(f, RecordReferenceSchema.parse({ kind, owner: stub.reference.owner, ...(key === undefined ? {} : { key }) }), `# Detail\n\n${citation}`));
+  }
+  const startedRef = f.reference("work-item/meta", "started"), closedRef = f.reference("cohort/document", "closed");
+  const started = await seed(f, startedRef, `${makeMetaFixture(startedRef.owner.name,
+    { state: "Active", currentWorkflow: "process-task-loop" })}\n${citation}`, { kind: "active" });
+  const closed = await seed(f, closedRef, `${document(closedRef.owner.name)}\n${citation}`);
+  success(await f.store.write({ ...recordPut(closed, { placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }),
+    provenance: { verb: "cohort-close", lifecycleAction: "close" } }));
+  const closedDocument = success(await f.store.read({ reference: closed.reference }));
+  const other = await plantRefPrimary(f.native, { kind: "cohort/document", name: primaryRef.owner.name,
+    uid: "00000000-0000-4000-8000-000000000099", content: document(primaryRef.owner.name) });
+  const owner = primary.reference.owner;
+  if (owner.type !== "cohort" || owner.uid === undefined) throw new Error("Expected cohort UID");
+  const result = await f.invoke(["rename", owner.uid, "after", ...json ? ["--json"] : []]);
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  for (const record of [...eligible.slice(1), started, closedDocument]) expect(success(await f.store.read({ reference: record.reference }))).toEqual(record);
+  expect(success(await f.store.read({ reference: primary.reference })).content).toBe(`${document("after")}\n${citation}`);
+  expect(success(await f.store.read({ reference: other })).reference).toEqual(other);
+  if (json) {
+    const rows = filenameReport.parse(result.result).report.references;
+    expect(rows).toHaveLength(eligible.length);
+    for (const record of eligible) {
+      const own = record === primary;
+      const identity = RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner,
+        name: own ? "after" : record.reference.owner.name } });
+      expect(rows).toContainEqual({ record: { type: record.reference.kind === "cohort/document" ? "cohort" : "work-unit",
+        name: identity.owner.name, uid: record.reference.owner.type === "person" ? undefined : record.reference.owner.uid }, edits: [
+        { kind: "text", document: identity, line: record.content.split(/\r?\n/u).findIndex(line => line === citation.trimEnd()) + 1,
+          replacement: "See `cohort-after.md`." },
+      ] });
+    }
+  } else {
+    for (const key of ["research", "analysis"]) expect(result.stdout).toContain(`Document: work-item/companion ["${key}"]`);
+    expect(result.stdout).toContain("See `cohort-after.md`.");
+    for (const excluded of [started, closedDocument]) expect(result.stdout).not.toContain(`Reference: ${excluded.reference.kind === "cohort/document" ? "cohort" : "work-unit"} ${excluded.reference.owner.name}`);
+  }
 }, 60_000);
