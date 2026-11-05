@@ -45,7 +45,7 @@ export async function withRepairStore<T>(store: Store, read: () => Promise<T>): 
   try { binding.store = store; return await read(); }
   finally { binding.store = previous; }
 }
-export async function repairCli(f: RepairCliFixture, args: readonly string[], options: { stdin?: string; store?: Store } = {}) {
+export async function repairCli(f: RepairCliFixture, args: readonly string[], options: { stdin?: string; store?: Store; storeFactory?: () => Promise<Store> } = {}) {
   const oldCwd = process.cwd(), oldExit = process.exitCode;
   let stdout = "", stderr = "";
   const out = vi.spyOn(process.stdout, "write").mockImplementation(chunk => { stdout += String(chunk); return true; });
@@ -53,7 +53,8 @@ export async function repairCli(f: RepairCliFixture, args: readonly string[], op
   const stdin = options.stdin === undefined ? null : vi.spyOn(process.stdin, Symbol.asyncIterator).mockImplementation(async function* (): AsyncGenerator<string, undefined> { yield options.stdin ?? ""; return undefined; });
   try {
     binding.store = options.store ?? f.h.context.store; process.chdir(f.cwd); process.exitCode = undefined;
-    await dispatchRegisteredCli(["--no-input", ...args]);
+    const factory = options.storeFactory;
+    await dispatchRegisteredCli(["--no-input", ...args], factory === undefined ? undefined : async () => { binding.store = await factory(); });
     return { exitCode: process.exitCode, stdout, stderr, result: stdout.trim().startsWith("{") ? JSON.parse(stdout) as unknown : null };
   } finally { binding.store = null; stdin?.mockRestore(); out.mockRestore(); err.mockRestore(); process.chdir(oldCwd); process.exitCode = oldExit; }
 }

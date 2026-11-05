@@ -289,27 +289,15 @@ nothing without `--yes`; and a member a pull lands naming a removed cohort refus
         - Counts resolved holdings in each view and admits retaining a cohort still held through a former name.
           Removed the text-only observer; unavailable segment evidence refuses both rules.
 
-### `[ ]` **3.3 Leave a held cohort open at archive, and report the record on a former slug — § 7.2**
+### `[x]` **3.3 Leave a held cohort open at archive, and report the record on a former slug — § 7.2**
 
 - _Goal:_ Archiving a cohort's last current-path member lands the member and leaves the cohort open where a record on a
   former slug still holds it, reporting that record with its edit, rather than refusing or closing the cohort under it.
 
-    - Archive's trigger in `prepareObservedCohorts` (`lib/work-unit/verbs/archive-store.ts`) counts each cohort's open
-      holders through `observeCohortHoldings` in place of `isArchivalTriggeredWithDescendants`'s text match, its
-      candidates built from `view.result.entries` (`LifecycleEntry`, which carries a reference, unlike
-      `membershipIndex`'s entries), the subject marked completed in `runStoreArchive`'s preparation, and the open
-      subcohorts less those the same batch closes, resolved in the store its cohort preparation holds. The in-repo
-      archive keeps `isArchivalTriggeredWithDescendants` (`verbs/archive.ts`).
-    - The report comes only from the final `prepareStoredCloseout` preparation, the one with no writes that
-      `reportStoredArchive` consumes, which every archive reaches after publication (`settleStoredArchiveSteps`), its
-      holdings joining the `notices` that become `warnings`; `runStoreArchive`'s preparation, and a closeout preparation
-      that writes, report none.
-
-    - Build `test-first` (one behavior at a time):
-        - archive of the last current-path member, with an open stub on the former slug, lands, leaves the cohort open,
-          and reports the stub with its edit once, on the first run and on the retry path
-        - a rerun for a member at `p/s` that closes `s` and finds `p` held by a former slug reports that holder once
-        - with no such record, archive closes the cohort as today
+- _Outcome:_ Archive uses identity-bearing lifecycle candidates and resolved Parent holdings, excluding the completing
+  subject and subcohorts already closing in the batch. Former-name holders keep the cohort open and are reported only
+  from the final persisted closeout plan with no writes, including publication recovery and nested reruns. Registered
+  CLI tests can construct dependencies after the module reset, keeping real Git error identities coherent.
 
 ### `[ ]` **3.4 Close a cohort — § 8.1, § 8.5**
 

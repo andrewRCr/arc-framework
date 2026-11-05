@@ -4,10 +4,12 @@ import type { Command } from "commander";
 
 /** Load an unparsed production tree and run argv through its real Commander actions.
  * @param argv - User arguments, excluding the Node executable and entry path.
+ * @param prepare - Optional dependency setup in the same module generation as CLI dispatch.
  * @returns Completion of the action registered by cli.ts; parser failures throw.
  */
-export async function dispatchRegisteredCli(argv: readonly string[]): Promise<void> {
+export async function dispatchRegisteredCli(argv: readonly string[], prepare?: () => Promise<void>): Promise<void> {
   vi.resetModules();
+  await prepare?.();
   const { Command: CommanderCommand } = await import("commander");
   const captured: { program?: Command } = {};
   const entry = vi.spyOn(CommanderCommand.prototype, "parseAsync").mockImplementationOnce(function (this: Command) {
