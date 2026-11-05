@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "native-delivery-refusal-tests",
+  "claimId": "81d1ee59a6e6c5aa6376aa0de606a6a1",
+  "createdAt": "2026-11-05T01:58:08.910Z",
+  "updatedAt": "2026-11-05T01:58:08.910Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Cover native delivery typed-refusal propagation and successful repair with a reusable reference-backend test fixture.",
+  "branch": "chore/native-delivery-refusal-tests",
+  "origin": "inbox",
+  "originEntry": "Test the native refusal sites `seam-delivery-review` carried untested, through a native delivery fixture",
+  "originEntrySourceDigest": "sha256:a80b871a4daccd1a2195cf23661123990da1556db3c480b46da6517f254ac20c",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
