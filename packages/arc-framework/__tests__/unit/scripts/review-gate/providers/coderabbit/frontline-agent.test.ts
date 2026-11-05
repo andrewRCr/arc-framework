@@ -513,6 +513,15 @@ describe("CodeRabbit structured frontline parser", () => {
         .toEqual({ kind: "capability-unsupported" });
     });
 
+    it("compares each reported path exactly as Git names it", () => {
+      const changedFiles = [text(" lead.ts"), text("trail.ts "), { path: " logo.png", binary: true }];
+
+      expect(parse(cleanCompletion([" lead.ts", "trail.ts "], { excludedBinaryFiles: [" logo.png"] }), { changedFiles }))
+        .toEqual({ kind: "clean" });
+      expect(parse(cleanCompletion(["lead.ts", "trail.ts"], { excludedBinaryFiles: ["logo.png"] }), { changedFiles }))
+        .toEqual({ kind: "capability-unsupported" });
+    });
+
     it("accepts reviewed files beyond the changed set, such as a deleted path", () => {
       expect(parse(cleanCompletion(["src/gone.ts", "src/one.ts"]), { changedFiles: [text("src/one.ts")] }))
         .toEqual({ kind: "clean" });

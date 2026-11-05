@@ -144,12 +144,15 @@ function parseFindingEvent(event: Record<string, unknown>): ParsedAgentFinding |
   };
 }
 
-/** Read a list of provider-reported paths, refusing anything but non-blank strings. */
+/**
+ * Read a list of provider-reported paths exactly as reported, so each compares with Git's own name for the file;
+ * anything but non-blank strings is refused.
+ */
 function pathList(value: unknown): string[] | null {
   if (!Array.isArray(value) || value.some((file) => typeof file !== "string" || file.trim().length === 0)) {
     return null;
   }
-  return value.map((file) => String(file).trim());
+  return value.map(String);
 }
 
 function parseCompleteEvent(event: Record<string, unknown>): AgentCompleteEvent | null {
