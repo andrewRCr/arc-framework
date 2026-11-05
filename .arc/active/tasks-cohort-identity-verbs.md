@@ -556,33 +556,17 @@ backend, renaming one of two cohorts sharing a slug rewrites none of the other's
 the slug with the edits that re-point it, in order, which then land; and an edit putting a member's `Cohort` back on the
 old name refuses naming the current one.
 
-### `[ ]` **5.1 Write a cohort's document, heading, and own `Parent` under its new name, in one batch — § 5.1, § 5.2**
+### `[x]` **5.1 Write a cohort's document, heading, and own `Parent` under its new name, in one batch — § 5.1, § 5.2**
 
 - _Goal:_ `arc rename <cohort> <new-slug>` renames an open cohort's document, recording its former slug, with its
   heading and its own `Parent` rewritten so its members' rewritten paths agree with it, in one version-checked batch
   that writes only what changes.
 
-    - `[ ]` **5.1.a The arm and its batch**
+    - `[x]` **5.1.a The arm and its batch**
 
-        - The cohort arm, in its own module, takes Task 4.1.a's dispatch in place of its `unsupported` refusal. Its batch
-          puts each record whose content changes once, combining Tasks 5.1–5.3's rewrites, since `BatchInputSchema`
-          refuses a duplicate, and binds every record it read but leaves unchanged — the parent, an ambiguous holder,
-          another cohort's members — as an observation, never through `applyPreparedLifecycleWrite`, which puts every
-          acquired record.
-        - The document's put carries its UID-bearing owner under the new name, the rename `requestedRenames` and
-          `resolvedOwnerWrite` read, as `renameMutation` does, and the backend records the former slug
-          (`prepareRefRenames`); its `# Cohort:` heading through `rewriteCohortHeading`, and a `Parent` naming its parent
-          by a former slug through `writeCohortParent` at the parent's current slug.
-        - Its result takes Task 4.2's report under the cohort's reference, old and new slug, in text and `--json`. A rerun
-          whose target is already the cohort's name, its old slug resolving as a former one, reports the cohort already
-          renamed and writes nothing.
-
-    - Build `test-first` (one behavior at a time):
-        - over both backends, an open cohort with no members is renamed, its heading names the new slug, its old slug
-          resolves to it as a former name, and the result prints and emits the rename
-        - a subcohort whose `Parent` a pull left on its parent's former slug has it rewritten to the current one
-        - a rerun after the batch landed reports already renamed and writes nothing
-        - the batch puts only changed records, every unchanged read bound as an observation
+        - `runCohortRename` writes the selected UID's heading and canonical Parent once, observing its unchanged parent.
+          Concurrent parent changes refuse atomically. Cohort results retain source, target, reference, and report in text
+          and JSON; a history-proven rerun changes no records or history.
 
 ### `[ ]` **5.2 Rewrite every record holding the cohort alone, and report the ambiguous ones — § 5.1, § 4**
 

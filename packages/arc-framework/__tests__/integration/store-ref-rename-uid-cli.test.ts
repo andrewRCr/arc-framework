@@ -311,15 +311,16 @@ it("refuses an Errand UID with its own exit command before changing records", as
   expect(success(await f.store.read({ reference }))).toEqual(primary);
 }, 60_000);
 
-it("dispatches a cohort UID to the unavailable cohort rename arm without writing", async () => {
+it("dispatches a cohort UID to its own atomic rename arm", async () => {
   const f = await fixture(), uid = "12345678-abcd-4abc-8abc-123456789abc";
   const reference = await plantRefPrimary(f, { kind: "cohort/document", name: "group", uid,
     content: "# Cohort: `group`\n\n**Purpose:** Coordinate.\n" });
-  const primary = success(await f.store.read({ reference })), before = success(await f.store.version());
-  const result = await f.invoke(["rename", uid, "renamed"]);
-  expect(result.exitCode).toBe(1); expect(result.stdout + result.stderr).toContain("unsupported");
-  expect(success(await f.store.version())).toBe(before);
-  expect(success(await f.store.read({ reference }))).toEqual(primary);
+  const result = await f.invoke(["rename", uid, "renamed", "--json"]);
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  const renamed = success(await f.store.read({ reference }));
+  expect(renamed.reference.owner).toEqual({ ...reference.owner, name: "renamed" });
+  expect(renamed.content).toBe("# Cohort: `renamed`\n\n**Purpose:** Coordinate.\n");
+  expect(result.result).toMatchObject({ status: "renamed", shape: "cohort", reference: renamed.reference });
 }, 60_000);
 
 it.each([false, true])("retains the uppercase UID after a failed push and resumes by the current slug without another record batch, json=%s", async json => {

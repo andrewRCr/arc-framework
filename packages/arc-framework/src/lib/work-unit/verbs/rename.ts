@@ -58,9 +58,8 @@ export interface RenamePlan {
 
 /** Result of the tracked commit plus applicable identity legs. */
 export type RunRenameResult = (
-  | {
+  | ({
       status: "renamed";
-      shape: RenameSubjectShape;
       trackedCommit?: "created" | "existing";
       recordBatch?: "applied" | "existing";
       report: RenameReport;
@@ -69,7 +68,7 @@ export type RunRenameResult = (
       remote?: RenameRemoteBranchResult;
       worktree?: RenameWorktreeMoveResolution | ReconcileWorkUnitWorktreeResult;
       checkout?: RenameWorktreeTransactionOutcome;
-    }
+    } & ({ shape: RenameSubjectShape } | { shape: "cohort"; sourceSlug: string; targetSlug: string }))
   | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy; recovery?: LifecycleRollbackRecovery; unbound?: UnboundHoldingCheckout }
   | { status: "partial"; reason: string; remedy?: Remedy; report: RenameReport })
   & { /** Exact operational subject; tracked results have no store reference. */ reference?: RecordReference };

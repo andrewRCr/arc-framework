@@ -23,6 +23,7 @@ import type { LookupResult } from "../../store/lookup.js";
 import { observeRenameFormerName } from "../../store/rename-reference-resolution.js";
 import type { RunRenameResult, RenameCheckoutReport, RenameSubjectShape } from "./rename.js";
 import { emptyRenameReport, type RenameReport, type RenameKeptBranch } from "../rename-report.js";
+import { runCohortRename } from "../../store/cohort-rename.js";
 /** A checkout rename retains its exact inverse until the record batch lands. */
 export interface StoreRenameCheckoutReceipt { report: RenameCheckoutReport; rollback: () => Promise<void>; repositoryCwd?: string; shape?: "spawned" | "in-place" }
 /** Physical checkout rename coordinates are marker-selected, independent of Branch. */
@@ -64,7 +65,7 @@ async function rename(ctx: StoreRenameContext, params: { operand: string; target
   if (!usesOffBranchState(ctx.store)) return { status: "rejected", reason: "Store rename is unsupported before the storage flip." };
   const target = SlugSchema.parse(params.targetSlug), selection = await selectRenamePrimary(ctx.store, params.operand);
   if (selection.status === "rejected") return selection;
-  if (selection.primary.reference.kind === "cohort/document") return renameCohort(selection.primary);
+  if (selection.primary.reference.kind === "cohort/document") return runCohortRename(ctx.store, selection.primary, params);
   const selected = await readStoreRenameSubject(ctx.store, { primary: selection.primary, operand: params.operand, targetSlug: target });
   if (selected.status === "refused") return { status: "rejected", reason: selected.refusal.condition, refusal: selected.refusal };
   return renameSelectedWorkUnit(ctx, params, selected.result, target);
@@ -78,12 +79,6 @@ async function selectRenamePrimary(store: Store, operand: string): Promise<
   if (selected.status === "refused") return { status: "rejected", reason: selected.refusal.condition, refusal: selected.refusal };
   return selected.status === "unselected" ? { status: "rejected", reason: selected.condition, remedy: selected.remedy }
     : { status: "rejected", reason: "The operand did not select a rename subject." };
-}
-
-function renameCohort(primary: StoreRecord): Extract<RunRenameResult, { status: "rejected" }> {
-  const reason = `Cohort rename for ${primary.reference.owner.name} is not available yet.`;
-  return { status: "rejected", reason, reference: primary.reference, refusal: { code: "unsupported", class: "terminal", case: "rename",
-    condition: reason, remedy: { text: "Keep this cohort's current name, or name a work unit." } } };
 }
 
 async function renameSelectedWorkUnit(ctx: StoreRenameContext, params: { operand: string; targetSlug: string },

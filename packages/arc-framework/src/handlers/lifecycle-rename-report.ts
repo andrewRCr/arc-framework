@@ -22,7 +22,7 @@ export function reportRenameResult(renameSource: string, renameTarget: string, r
   }
   for (const advisory of result.advisories) p.log.warn(advisory);
   const lines = [
-    `Work unit: ${renameSource} → ${renameTarget}`,
+    result.shape === "cohort" ? `Cohort: ${result.sourceSlug} → ${result.targetSlug}` : `Work unit: ${renameSource} → ${renameTarget}`,
     `Shape:     ${result.shape}`,
   ];
   if (result.pendingIntegration) {
