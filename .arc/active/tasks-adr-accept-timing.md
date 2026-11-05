@@ -20,16 +20,13 @@ shipped differently is accepted with a dated note in the Status section naming w
 was not carried out stops for the Owner, and that ADR stays Proposed. Only Status sections change, plus ADR-024's
 renamed references, so no flipped body is rewritten for reader independence.
 
-### `[ ]` **1.1 Accept ADR-023 — D7**
+### `[x]` **1.1 Accept ADR-023 — D7**
 
 - _Goal:_ ADR-023 reads Accepted only after every realization its Status names is confirmed shipped, and its Status
   section records what shipped.
 
-    - Confirm at source the constitutional core: the `Class` rule in `DEV-RULES.ARC`, the `AGENT-BRIEF` vocabulary,
-      `classify-work-unit`, the meta `Class` field, and the model in `strategy-work-organization`
-    - Confirm at source the downstream pieces: the three spec-form templates, the per-stage planning-depth grammar
-      (`resolve-planning-depth`), and the cohort and `Cohort` field semantics
-    - Flip the Status and append the realization sentence
+- _Outcome:_ Confirmed the constitutional Class model, the three spec forms (detailed split into PRD/RFC), planning-depth
+  grammar, and cohort semantics at source; accepted ADR-023 with its realization recorded in Status.
 
 ### `[ ]` **1.2 Accept ADR-024 and name its decide method correctly — D7**
 
