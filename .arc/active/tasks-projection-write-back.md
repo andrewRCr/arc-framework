@@ -239,6 +239,8 @@ among them, has one.
     - On the branch head, dispatch the portability pair with `run_portability_pair: true`, and record the run in this
       task's completion note.
 
+- _Note:_ Qualification corrections preserve native path observations and the schema fixture's default Store fallback.
+
 ## **Phase 2:** Edit rights, the `active/` layout, adoption, and settings
 
 _Purpose:_ Settle the rules every write-back and refresh obeys — who may edit what, where each record projects, which
