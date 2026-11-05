@@ -104,33 +104,14 @@ reads the unit tier cannot reach.
 - _Outcome:_ Added real-repository scenarios for both rules and their repairs, including uncommitted snapshots, renamed
   base-Proposed records, no-base outcomes, and conflicting worktree bytes.
 
-### `[ ]` **3.3 Declare both checks and the `lint:adr` script — D3, D4, D5**
+### `[x]` **3.3 Declare both checks and the `lint:adr` script — D3, D4, D5**
 
 - _Goal:_ A merge-gate request selects `lint:adr:status` over the change's ADRs and `lint:adr:numbers` once over the
   whole set, each keyed on the script's content as well as the ADRs.
 
-    - Root `package.json`: `"lint:adr": "node --import tsx packages/arc-framework/src/scripts/check-adr-records.ts"`
-    - `.arc/system/arc-checks.yml`: both declarations as the spec's §§ 3.1 and 4.1 give them; `runtime_inputs` is an
-      enumerated content hash of the script in `check-package-sync`'s form
-    - `packages/arc-framework/__tests__/integration/one-shot-script-entrypoints.test.ts`: add `lint:adr` beside the
-      `lint:arc:*` entries
-    - Exercise through `arc check run lint:adr:status lint:adr:numbers`, which snapshots the worktree
-      (`stagedWorktreeTree`, `lib/checks/tree.ts`) and receives the automatic base: an uncommitted scratch ADR reading
-      Proposed fails `lint:adr:status` with its remedy, and a scratch copy carrying an existing number fails
-      `lint:adr:numbers` naming it with its target; remove both
-    - Run each `runtime_inputs` command directly and confirm it prints a hash, then run
-      `arc check run lint:adr:status lint:adr:numbers` twice with nothing changed: the second run reports both
-      `reused`. A failing hash command leaves the key null (`runtimeOutputs`, `lib/checks/key-resolver.ts`), which
-      `executeNativeSelectedCheck` neither reuses nor records, and the check still passes
-    - `arc check gate merge --ci --dry-run --json` forecasts both checks; neither is named in
-      `.github/check-plumbing.yml`, so CI runs both at the `lint-typecheck`/`default` step (`runCiCheckStep`,
-      `lib/ci-check-runner.ts`), which has no step condition
-    - The CI criterion's evidence is the run dispatched at the pushed verified head (`gh workflow run ci.yml --ref
-      <branch>`), which verification already requires: its setup job creates the local base branch before
-      forecasting, so `lint:adr:status` judges rather than refuses, and its `lint-typecheck` job runs both checks at
-      the `default` step; the pull-request run repeats this at integration over the merge with the base
-    - `packages/arc-framework/__tests__/integration/ci-check-plumbing.test.ts` still passes; it parses every merge-gate
-      declaration through `CheckDeclarationSchema`, and checks no entry the plumbing map leaves out
+- _Outcome:_ Declared both merge checks with script-content runtime keys and the in-process npm entrypoint. Scratch
+  failures, repair, unchanged reuse, and CI default-step forecasting were exercised; hosted execution remains for
+  verification.
 
 ## **Phase 4:** State the lifecycle in the methodology and record it
 
