@@ -8,17 +8,16 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-adr-accept-timing.md`
+- **Design:** `spec-adr-accept-timing.md`
 - **Task List:** [none]
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Draft captured; `spec-adr-accept-timing.md` saved (uncommitted) and author-checked.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** create-spec Finalize — run the independent adversarial pass over the saved spec (approved), then
-  Gate 1.
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
