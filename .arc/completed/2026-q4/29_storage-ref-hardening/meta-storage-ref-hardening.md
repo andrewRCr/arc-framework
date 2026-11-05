@@ -1,8 +1,8 @@
 # Metadata: storage-ref-hardening
 
-| **State**     | **Owner** | **Branch**                  | **Class** | **Priority** |
-| ------------- | --------- | --------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `fix/storage-ref-hardening` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage`
 - **Depends On:** [none]
@@ -13,15 +13,15 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:5deb409b9c12e6fbfe20c6e49c72d33b6ef4342e7c97699c5d0b1f22251f9ce6`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 8.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** —
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/1271>
+- **Completed:** 2026-11-04
 
 ## Release Notes Entry
 
