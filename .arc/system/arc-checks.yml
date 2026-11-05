@@ -322,6 +322,36 @@ checks:
         - -version
       - - shellcheck
         - --version
+  lint:adr:status:
+    command: [npm, run, -s, lint:adr, --, status]
+    gate: merge
+    mode: files
+    widen: false
+    inputs:
+      - .arc/reference/adr/adr-*.md
+    runtime_inputs:
+      - - node
+        - --input-type=module
+        - -e
+        - >-
+          import {readFileSync} from 'node:fs';import {createHash} from 'node:crypto';const
+          hash=createHash('sha256');for(const path of
+          ["packages/arc-framework/src/scripts/check-adr-records.ts"])hash.update(path).update(readFileSync(path));process.stdout.write(hash.digest('hex'));
+  lint:adr:numbers:
+    command: [npm, run, -s, lint:adr, --, numbers]
+    gate: merge
+    mode: files
+    pass_paths: false
+    inputs:
+      - .arc/reference/adr/adr-*.md
+    runtime_inputs:
+      - - node
+        - --input-type=module
+        - -e
+        - >-
+          import {readFileSync} from 'node:fs';import {createHash} from 'node:crypto';const
+          hash=createHash('sha256');for(const path of
+          ["packages/arc-framework/src/scripts/check-adr-records.ts"])hash.update(path).update(readFileSync(path));process.stdout.write(hash.digest('hex'));
   check-package-sync:
     command:
       - bash
