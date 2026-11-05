@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** generate-tasks — `tasks-cohort-identity-verbs.md` finalized
-- **Next Task:** Begin Task 1.1 — Build a branch link’s repair beside the clash repair
+- **Last Completed:** Task 5.6 — A cohort renamed end to end; Phases 1–5 complete
+- **Next Task:** Task 6.1 — Complete verification (`tasks-cohort-identity-verbs.md`, line ~620)
 - **Blockers:** [none]
 
-- **Next Action:** Implement Phase 1 under deferred review with atomic commits
+- **Next Action:** In a fresh session, start Task 6.1 by loading and following `verify-work-unit.md`.
 
 - **PR URL:** [none]
 - **Completed:** [none]
