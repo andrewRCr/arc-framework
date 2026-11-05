@@ -277,40 +277,15 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   Refused edits remain pending, report their path or aside copy, and keep explicit resolution intent and hold tokens.
   Repairing ownership permits retry; archived work retains its owner's correction rights.
 
-### `[ ]` **2.2 Protect a file in three layers — § 8.2**
+### `[x]` **2.2 Protect a file in three layers — § 8.2**
 
 - _Goal:_ A file the reader may not edit says so where it is read, is read-only on disk, and refuses at persist naming
   where on this machine the edit can be made — the refusal keyed on the content change, never the mode.
 
-- _Note:_ Protection rendering and live persistence refusals are implemented; dispatched portability qualification
-  remains pending.
-
-    - The notice line is an HTML comment beside the base stamp, after Go's `Code generated … DO NOT EDIT.`, naming where
-      an edit can be made: the checkout on this machine whose marker names the work item, from the holding-checkout
-      lookup keyed by the owner's UID (`findHoldingCheckout` over `ownerHolderRequest`); where none does,
-      `arc materialize <slug>` for its owner, with `--here` and the checkout where a markerless one has the work branch
-      out (`findMarkerlessWorkUnitCheckouts`); the owner for anyone else; for archived work another person owns, its
-      owner; and for a read-only source's file, the source (`projection-worktrees`). It never names another machine.
-      Where the lookup answers `unbound` — a checkout's marker naming the work item that no record binds — the notice
-      and the refusal name its recovery exits, and where it throws — two holders (`requireSingleHolder`,
-      `lib/locus/lifecycle-ports.ts`), a failed scan, an incomplete roster, an unreadable marker — they name its
-      message, which carries the repair, in place of a checkout.
-    - The file is written read-only (0444, or Windows' read-only attribute) by 1.7.c's renderer, which adds the notice
-      line; the swap keeps the mode (`swapBatch`, `lib/store/projection/swap.ts`). The persist refusal compares content
-      against the base, never the mode, and names the place from the markers as they stand when it fires. A file other
-      than Markdown carries the mode and the refusal but no notice line.
-    - The Windows read-only case is evidenced by a dispatched run of the portability pair, recorded in this task's
-      completion note.
-    - Build `test-first` (one behavior at a time):
-        - a protected meta the swap writes, driven directly over the seeded projection (`seedProjection`), is read-only
-          with a notice naming the owning checkout's path
-        - an edit forced through the mode is refused at persist, stays in the file, and is reported naming the checkout,
-          and the same edit made in that checkout lands
-        - with no checkout here holding the work item, the notice names `arc materialize <slug>` for its owner
-        - a markerless checkout with the work branch out makes the notice name `--here` and that checkout
-        - a lookup throwing over two holders makes the notice name its repair, and one answering `unbound` its exits
-        - a protected stampless file carries the mode and refuses an edit, with no notice line, and the same edit made
-          in the checkout that may make it lands
+- _Outcome:_ Winning replacements publish the protection bit, native read-only mode, and a notice naming where to
+  edit; stampless files carry mode and refusal alone. Persist rechecks native holders and recovery exits; yielded
+  swaps keep their original protection and bases. Windows/macOS qualified at `e3d2c509d8` in run `42102353178`
+  (attempt 2).
 
 ### `[ ]` **2.3 Edit archived work in place — § 8.4**
 
