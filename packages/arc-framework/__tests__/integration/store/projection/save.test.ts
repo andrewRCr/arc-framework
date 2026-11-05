@@ -276,7 +276,12 @@ it("names a held lock's holder and retry, then saves after release", async () =>
   const held = new Promise<void>(resolve => { acquired = resolve; });
   const holding = withProjectionLock(h.location, async () => { acquired(); await new Promise<void>(resolve => { release = resolve; }); });
   await held;
-  binding.ports = ports => ({ ...ports, maxWaitMs: 5 });
+  // Let the real holder be read before the wait expires, independent of filesystem or scheduler latency.
+  let seen = false;
+  binding.ports = ports => ({ ...ports, maxWaitMs: 50, lock: { ...ports.lock,
+    now: () => seen ? 1_000 : 0,
+    readFile: async path => { try { return await readFile(path, "utf8"); } finally { seen = true; } },
+  } });
   try {
     const refused = await save(h);
     expect(refused.result).toMatchObject({ status: "refused", refusal: { condition: expect.stringContaining("held"),
