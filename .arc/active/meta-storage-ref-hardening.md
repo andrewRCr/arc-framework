@@ -11,13 +11,14 @@
 - **Design:** `spec-storage-ref-hardening.md`
 - **Task List:** `tasks-storage-ref-hardening.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:5deb409b9c12e6fbfe20c6e49c72d33b6ef4342e7c97699c5d0b1f22251f9ce6`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Run a trial import of this repository's state in a disposable copy
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 8.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 in process-task-loop
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

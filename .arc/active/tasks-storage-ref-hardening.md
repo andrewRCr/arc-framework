@@ -979,42 +979,37 @@ before its fix and passes after it in the store suites.
 
 ## **Phase 8:** Verification
 
-### `[ ]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **8.1 Complete verification** — load and follow `verify-work-unit.md`
 
 - _Goal:_ Every success criterion is backed by evidence at the final implementation head, with required checks and
   integration readiness established through the work-unit verification workflow.
 
-**Additional Context:** `notes-storage-ref-hardening.md` § Remaining-task reground after shipped base.
+- _Quality gates:_ The forced merge gate passes all 19 selected checks, including lint, both type checks, build,
+  23,901 unit cases and 414 selected store suites. Normal CI `41928095350` passes at implementation `6343d32b6c`,
+  including the full Windows/macOS store pair, with no retry. The final actual-CLI import trial proposes 332 refs,
+  refuses no record, returns only five accepted notices and leaves copied refs unchanged.
 
-- _Note:_ See `notes-storage-ref-hardening.md` § Verification at the final head and § Review during execution.
-
-- _Note:_ A4 dispositions the approval-root repair and places it in 7.R2 before this task. Verification includes
-  criteria 17–19 and fresh final-head evidence; see the additional context above and the A4 notes.
-
-- _Note:_ The approved held-target repair and a fresh-save retry clear both final-trial blockers. The actual CLI's
-  clean report is retained; the personal-write hold is released. Normal CI qualifies the implementation head after its
-  one approved Windows job retry. See `notes-storage-ref-hardening.md` § Final-head trial and qualification.
-
-- _Note:_ Independent criteria Pass 1 leaves six criteria unmet and integration readiness held. Its five-fix set and
-  subsequent independent fix check are approved. A consolidated final trial follows the settled fix/review loop;
-  see `notes-storage-ref-hardening.md` § Independent criteria review.
+- _Success criteria:_ All 24 criteria are met. A4 and A5 supply their recorded envelope and role-coordinate
+  qualifications; the original criterion text is retained. The final fault-site inventory and author reconciliation
+  include A5–A7 and the approved review repairs. Working review ends after converged fix checks under the recorded
+  Owner stop. Detailed evidence is in `notes-storage-ref-hardening.md` § Final implementation evidence.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Every item in § 1–§ 11 has a case that fails before its fix and passes after it, wherever an input reaches the
+- `[x]` Every item in § 1–§ 11 has a case that fails before its fix and passes after it, wherever an input reaches the
   behavior it changes, run by a quality-gate check: a `store-ref-*` suite the store check's reach selects, or a unit
   test the push gate runs. An arm no input reaches, a change only the type checks or the documentation show, and a
   property case that already holds today are exempt where their task names them. Each refusal or failed outcome at a
   material boundary that the spec's Cross-cutting › Testing names also has a case that carries out its remedy and then
   succeeds.
 
-- `[ ]` No refusal, listing diagnostic, or notice gives a missing object a forward-repair or historical-metadata
+- `[x]` No refusal, listing diagnostic, or notice gives a missing object a forward-repair or historical-metadata
   remedy, and no point read or write refuses on one as terminal; each § 1.5 placement condition yields a `malformed`
   diagnostic with `rule: "placement"` and its remedy.
 
-- `[ ]` Every site the § 1.4 search finds that refuses, reports, or holds on a missing object classifies it by § 1.1;
+- `[x]` Every site the § 1.4 search finds that refuses, reports, or holds on a missing object classifies it by § 1.1;
   `corruptRef` has no missing-objects arm, and no refusal, diagnostic, or notice for such an object is built outside
   the helper; a saved read of an ended item whose archive tree is unavailable returns `state-unresolvable`; a pull
   still holds such a ref with a `namespace-corrupt` notice; every § 1.8 reader behaves as its table states.
@@ -1028,7 +1023,7 @@ before its fix and passes after it in the store suites.
 - `[x]` A pull that raises a designation question shows it in every consumer § 3 lists, and `pullHistoryForRetry` and
   `readStateHistory` stop on it with its remedy.
 
-- `[ ]` No § 4 transport failure escapes as an exception; each yields a per-remote failed outcome or a typed refusal,
+- `[x]` No § 4 transport failure escapes as an exception; each yields a per-remote failed outcome or a typed refusal,
   and follow's resume and cleanup return `move-unfinished`.
 
 - `[x]` A ref transaction past `prepare` when the deadline fires commits or fails on Git's own terms and leaves no lock,
@@ -1055,7 +1050,7 @@ before its fix and passes after it in the store suites.
 
 - `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
 - `[x]` After withdrawal, current completed reads expose final history conflicts and undone entry changes; surviving
   folders keep independent ends and placements, withdrawn folders stay removed, and refreshed copies publish
@@ -1069,7 +1064,7 @@ before its fix and passes after it in the store suites.
   conventional draft, single-spec, and paired-spec Design names and new-member Design admission stay unchanged
   (A3, spec criterion 16).
 
-- `[ ]` In both native layouts, independently approved competing roots with an eligible explicit choice can be selected
+- `[x]` In both native layouts, independently approved competing roots with an eligible explicit choice can be selected
   and read through the real command, preserving all evidence bytes and normal selected-branch continuation. Stale basis,
   additional/missing roots, orphan selectors, evidence conflicts, and excluded performance/settlement refuse safely;
   opposite selector choices have an executable conflict-resolution path. Native operation reads/snapshots, hosted
@@ -1082,20 +1077,20 @@ before its fix and passes after it in the store suites.
   response-snapshot capability. Existing Store methods and refusal/result/notice/publish-failure envelope shapes and
   discriminants otherwise remain unchanged. This supersedes criterion 4 only to that extent.
 
-- `[ ]` Response-selection reads obey the per-reader Store-call and access-scope bounds in § 9.1, retaining narrow
+- `[x]` Response-selection reads obey the per-reader Store-call and access-scope bounds in § 9.1, retaining narrow
   composed outcome access and unchanged immutable-only producer reads. New inventories on formerly raw-key authority
   paths are confined to the stated outcome/evidence listings and targeted selector lookup. Native Git-process deltas are
   measured in both layouts, with no added version capture, duplicate outcome listing, or unrelated-family enumeration;
   A2's exception and all paths outside the explicit response-authority changes retain their process budget.
 
-- `[ ]` Withdrawal restores role-compatible completed coordinates under A5 in both layouts, with unique original
+- `[x]` Withdrawal restores role-compatible completed coordinates under A5 in both layouts, with unique original
   restoration, absent-original allocation, ambiguity/collision repair and retry, independent ends and quarters,
   atomic publication and unchanged A2 process bounds (spec criterion 20). This supersedes the placement-preservation
   portion of the earlier A1 criterion only when restoring another primary role requires different coordinates.
 
-- `[ ]` The fetch description states the retained unnamed-blob thin-pack residual and bounded detector accurately,
+- `[x]` The fetch description states the retained unnamed-blob thin-pack residual and bounded detector accurately,
   retaining the existing classification and remedy (A6, spec criterion 21).
 
-- `[ ]` A completed failed acquisition survives cleanup, unavailable capture and inconclusive local diagnostics in
+- `[x]` A completed failed acquisition survives cleanup, unavailable capture and inconclusive local diagnostics in
   both layouts, with honest forwarding advice, retained earlier outcomes/notices, pending state and source leases,
   exact-repair/retry, failure controls and unchanged successful-path process budgets (A7, spec criterion 22).

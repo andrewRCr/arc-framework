@@ -16,9 +16,13 @@ selection. Earlier investigations are retained alongside their final disposition
   [Design admission](#a3--conventional-design-admission-and-companion-reports),
   [approval-root selection](#a4--explicit-repair-of-competing-approval-roots).
 - **Import and verification:** [bound rehearsal](#bound-mapping-trial-rehearsal), [clean trial](#clean-real-state-trial),
-  [final-head obligations](#verification-at-the-final-head), [fault inventory](#fault-site-inventory),
+  [final implementation](#final-implementation-evidence), [final-head obligations](#verification-at-the-final-head),
+  [fault inventory](#fault-site-inventory),
   [import review](#held-out-of-the-import-reviews-first-pass), [state faults](#import-state-faults),
   [review fixes](#import-review-fixes).
+- **Working-review corrections:** [withdrawal roles and fetch residual](#a5a6-working-review-repairs),
+  [failed acquisition](#a7-failed-acquisition-precedence), [advisory sync admission](#advisory-sync-admission),
+  [failure evidence preservation](#failure-evidence-preservation).
 
 ## Coordination with `store-operation-git-access`
 
@@ -830,6 +834,37 @@ Verification takes each again at the head it checks and records each result: § 
 trial run as Task 5.13 runs it; and the Windows deadline-kill case and both layouts' publishing bursts, from its CI
 dispatch at that head made with `-f run_portability_pair=true`, so one run carries them.
 
+### Final implementation evidence
+
+The implementation at `6343d32b6c` is clean and pushed. Its local merge gate passes, including 23,901 unit cases and
+414 selected store suites. Normal CI `41928095350` passes on its first attempt with 38 successful jobs and four
+expected skips, the full Windows/macOS store pair included. The working review's third complete pass finds one major
+and one minor; its approved repairs converge after two independent fix-check rounds, the last returning no findings.
+The Owner-directed stop ends working review without a fourth complete pass; it does not turn the earlier full pass
+into a clean result. Prompts, reports, source verification and qualification are retained under
+`~/dev/arc-evidence/storage-ref-hardening/working-code-review-e0bf2bdc7f/pass-3/`.
+
+The consolidated final real-state trial, `task-8.1-20261105T000620Z/`, runs at that implementation head after saving
+all 13 current registered personal directories. The actual CLI and bound mapping run in a full disposable copy,
+without replacement ports or set-aside sources. The report proposes 332 refs, refuses no record, and returns exactly
+the five accepted derived-task-capture notices. All 3,308 review sources are explicitly accounted for, with no unmapped
+or in-flight source. The six legacy broken-chain rows match the accepted prior trial. All 497 differing-note rows are
+disk-only, with no disagreement or snapshot-only row. The copied refs remain unchanged.
+
+The changed input inventory accounts for the differences from the earlier trial: three held Errand identities are
+replaced by one, reducing work-item refs by two; the previously mapped review sources no longer have live owners; and
+twelve earlier disk-only files are absent from the current source copy. The trial takes 11m58.83s at 2,226,924 KiB peak
+resident memory, within the same 2.5 GiB in-process and 6 GiB address-space limits. The live reads finish and the hold
+requirement ends before the retained-copy assessment. This clears final-head trial qualification; no further trial
+or personal-write hold is planned for this implementation head.
+
+The final author reconciliation resolves all 24 task-list criteria, preserving every criterion's text and the A4/A5
+qualifications. The required forced closeout merge gate passes all 19 selected checks. Earlier independent criteria
+reviews remain bound to their recorded subjects; later working reviews and fix checks retain their own exact ranges.
+The Owner-directed stop answers the additional full-pass offer, so no fourth complete pass is launched or claimed.
+The current author report, criterion digests, fault-site inventory, measured-source comparisons, Windows case evidence
+and local qualification are retained under `~/dev/arc-evidence/storage-ref-hardening/verification-6343d32b6c/`.
+
 ### Final-head trial and qualification
 
 At implementation head `6429ca093c`, the forced local merge gate passes all 19 selected checks, including the 404
@@ -1382,10 +1417,9 @@ trial report.
 
 ## Import review fixes
 
-Filled as each fix lands, from whichever phase lands it: each commit that fixes an import review finding, by SHA, with
-the finding and the task it landed in, a fold into any task and a corrective parent's fix included. 5.10's fix check,
-and the `6.R` and `7.R` checks 1.3 adds for a Phase 6 or Phase 7 fold, take these commits as their target; base merges
-are not on it.
+This ledger records the commits that fix import-review findings, including fixes folded into another task or a
+corrective parent. Tasks 5.10, `6.R`, and `7.R` use these correction commits as their fix-check target; base merges
+are excluded.
 
 - **H1 — Publication journal errors:** fixed in `9e2344e35d909873e62d5a4ce26df05cb8b43ccf` (Task 3.8 —
   `tasks-storage-ref-hardening.md`). Missing and malformed publication requirements stop source retirement with the
@@ -1486,7 +1520,7 @@ restores all source files automatically. Native executor counts match before/aft
 successful pull and 17 for a no-op pull, with identical command inventories. The temporary measurement suite is removed;
 its source, before/after logs and source bindings remain with the review evidence.
 
-## Code-review Pass 2 — advisory sync admission
+## Advisory sync admission
 
 Owner, 2026-11-04 — complete working code-review Pass 2 covers all 399 changed paths at `77f6ec0ed2` through twelve
 fresh closure reviewers, a dedicated seam, and a fresh aggregate under all five `standard-review/v1` dimensions. It
@@ -1512,7 +1546,7 @@ The approved repair proceeds through focused verification, required gates, one a
 One independent fix-check round is separately authorized after CI. Task 8.1 remains open; the consolidated final
 trial and personal-write hold remain deferred until the repair/review loop settles.
 
-## Code-review Pass 3 — failure evidence preservation
+## Failure evidence preservation
 
 Owner, 2026-11-04 — the complete working pass covers 401 changed paths at `783e04c885` through twelve fresh chunks,
 a dedicated seam and a fresh aggregate. It returns one major and one minor; source verification confirms both. The
