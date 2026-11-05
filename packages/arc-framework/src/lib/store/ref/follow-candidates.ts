@@ -4,13 +4,13 @@ import type { Remedy } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefFollowDue } from "./follow-due.js";
 import { migrationCodeContext, type MoveRemote } from "./migrate-record.js";
-import { captureLiteralMoveRemote, captureMoveRemote, migrationTransportTarget } from "./migrate-remote-target.js";
+import { captureLiteralMoveRemote, captureMoveRemote, migrationTransportTarget, migrationTransportRefusal } from "./migrate-remote-target.js";
 import { clearMigrationRefs, fetchMigrationRemote } from "./migrate-remote-fetch.js";
-import { MigrationRefusal } from "./migrate-refusal.js";
+import { MigrationRefusal, MigrationTransportRefusal } from "./migrate-refusal.js";
 import { FORWARDING_REF, readForwardingRecord, type ForwardingRecord } from "./forwarding-record.js";
 import { readRefRegistryPresence } from "./designation-presence.js";
 import { readRefRepository } from "./repository.js";
-import { updateRefTransaction } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import { captureComparisonWitness, sameComparisonSource, withComparisonWitness,
   type ComparisonSource, type ComparisonWitness } from "./comparison-witness.js";
 import { isCompletedGitFailure, isGitProcessError } from "../../git/process-error.js";
@@ -32,10 +32,10 @@ export type RefFollowJudgment = { status: "none"; report?: MigrateReport }
 /** No designation, pointer, stored record, or remote state changes while candidates are judged. */
 export async function judgeRefFollow(context: RefBackendContext, due: RefFollowDue): Promise<RefFollowJudgment> {
   const code = await migrationCodeContext(context);
-  let readingSource = false;
+  let readingSource = false, retainGathering = false;
   try {
     const source = await captureMoveRemote(context, code, due.remote);
-    const witness = await captureComparisonWitness(context, source);
+    const witness = await captureComparisonWitness(context, source).catch(migrationTransportRefusal);
     readingSource = true;
     const refs = await readMigrationRemote(source.name, followReadRemedy(source.name, due.remote.name),
       () => fetchMigrationRemote(code, source, false, { prefix: "refs/arc/tmp/follow/source/", controls: ["moved"] }));
@@ -57,12 +57,18 @@ export async function judgeRefFollow(context: RefBackendContext, due: RefFollowD
     }
     return { status: "decided", source, witness, record, forwardingTip, accepted, result: followResult(due, accepted, rejected) };
   } catch (error) {
+    retainGathering = error instanceof MigrationTransportRefusal;
     if (!(error instanceof MigrationRefusal)) throw error;
-    if (readingSource && error.refusal.code === "store" && error.refusal.refusal.code === "unreachable") {
-      return { status: "refused", refusal: await departedSourceRemedy(context, code, due, error.refusal) };
-    }
-    return { status: "refused", refusal: error.refusal };
-  } finally { await clearMigrationRefs(code, "refs/arc/tmp/follow/"); }
+    return await failedFollowJudgment(context, code, due, error, readingSource, () => { retainGathering = true; });
+  } finally { if (!retainGathering) await clearMigrationRefs(code, "refs/arc/tmp/follow/"); }
+}
+
+async function failedFollowJudgment(context: RefBackendContext, code: RefBackendContext, due: RefFollowDue,
+  error: MigrationRefusal, readingSource: boolean, retainTransport: () => void): Promise<Extract<RefFollowJudgment, { status: "refused" }>> {
+  if (readingSource && error.refusal.code === "store" && error.refusal.refusal.code === "unreachable") {
+    return { status: "refused", refusal: await departedSourceRemedy(context, code, due, error.refusal, retainTransport) };
+  }
+  return { status: "refused", refusal: error.refusal };
 }
 
 async function followCandidates(context: RefBackendContext, code: RefBackendContext, due: RefFollowDue, exclude?: string): Promise<MoveRemote[]> {
@@ -80,7 +86,7 @@ async function followCandidates(context: RefBackendContext, code: RefBackendCont
 }
 
 async function departedSourceRemedy(context: RefBackendContext, code: RefBackendContext, due: RefFollowDue,
-  failure: Extract<StoreCommandRefusal, { code: "store" }>): Promise<StoreCommandRefusal> {
+  failure: Extract<StoreCommandRefusal, { code: "store" }>, retainTransport: () => void): Promise<StoreCommandRefusal> {
   const off = `arc store remote ${due.remote.name} off`;
   if (due.remote.repository === "code" && due.remote.role === "read") return { ...failure,
     refusal: { ...failure.refusal, remedy: { text: `Stop fetching the deleted read source with ${off}, then designate the remote the state moved to.` } } };
@@ -95,13 +101,18 @@ async function departedSourceRemedy(context: RefBackendContext, code: RefBackend
         if ((await readMigrationRemote(candidate.name, followReadRemedy(candidate.name, due.remote.name), () => judgeCandidate(code, candidate, record))).accepted) destinations.push(candidate);
       }
     }
-  } catch (error) { if (!(error instanceof MigrationRefusal)) throw error; }
+  } catch (error) { retainCandidateRefusal(error, retainTransport); }
   const targets = destinations.map(remote => remote.repository === "backing" ? remote.url : remote.name);
   const commands = (targets.length ? targets : ["<remote>"]).map(target => `arc store migrate --leave-source --to ${target}`);
   return { ...failure, refusal: { ...failure.refusal, remedy: {
     text: `Repair the old remote and retry arc store migrate, or leave it from this clone's last view with ${commands.join(" or ")}. To publish nothing, use ${off}.`,
     ...(targets.length === 1 ? { argv: ["arc", "store", "migrate", "--leave-source", "--to", targets[0] ?? ""] } : {}),
   } } };
+}
+
+function retainCandidateRefusal(error: unknown, retainTransport: () => void): void {
+  if (!(error instanceof MigrationRefusal)) throw error;
+  if (error instanceof MigrationTransportRefusal) retainTransport();
 }
 
 async function judgeCandidate(code: RefBackendContext, remote: MoveRemote, record: ForwardingRecord): Promise<
@@ -167,7 +178,7 @@ Promise<"applied" | "already-absent" | "superseded" | "unbound"> {
     const current = (await readSyncRefs(physical, due.trackingRef)).get(due.trackingRef);
     if (!current) return "already-absent" as const;
     if (current !== due.tip) return "superseded" as const;
-    const outcome = await updateRefTransaction(physical, [{ ref: due.trackingRef, delete: true, expected: due.tip }], { cwd: physical.checkoutRoot });
+    const outcome = await updateStoreRefTransaction(physical, [{ ref: due.trackingRef, delete: true, expected: due.tip }], { cwd: physical.checkoutRoot });
     if (outcome.status === "committed") return "applied" as const;
     return outcome.refs[0]?.actual === null ? "already-absent" as const : "superseded" as const;
   });

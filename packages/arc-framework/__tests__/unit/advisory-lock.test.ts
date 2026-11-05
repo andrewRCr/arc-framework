@@ -96,8 +96,8 @@ function buildMemoryLockFs(initial: Record<string, string>): {
 }
 
 describe("acquireAdvisoryLock", () => {
-  it("refuses an already-spent zero wait without creating a lock, and takes one with a fresh budget", async () => {
-    await expect(acquireAdvisoryLock(lockPath, { maxWaitMs: 0, now: () => 10 }))
+  it("refuses a negative wait without creating a lock, and takes one with a fresh budget", async () => {
+    await expect(acquireAdvisoryLock(lockPath, { maxWaitMs: -1, now: () => 10 }))
       .rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
     expect(await exists(lockPath)).toBe(false);
     const handle = await acquireAdvisoryLock(lockPath, { maxWaitMs: 10, now: () => 10, pid: 42 });
@@ -216,6 +216,46 @@ describe("acquireAdvisoryLock", () => {
     expect(holder.acquiredAt).toBe(1000);
     // The per-acquisition token round-trips to the lockfile so release can match it.
     expect(holder.token).toBe(handle.token);
+  });
+
+  it("acquires a free lock with one immediate zero-wait attempt", async () => {
+    let attempts = 0, time = 1000;
+    const handle = await acquireAdvisoryLock(lockPath, { maxWaitMs: 0, now: () => time++,
+      exclusiveCreate: async (path, content) => { attempts += 1; await atomicCreateFile(path, content); },
+      sleep: async () => { throw new Error("A zero-wait acquisition must not back off"); },
+      readFile: async () => { throw new Error("A zero-wait acquisition must not inspect holders"); },
+      removeFile: async () => { throw new Error("A zero-wait acquisition must not reclaim holders"); },
+    });
+    try {
+      expect(attempts).toBe(1);
+      expect(await readHolder(lockPath)).toMatchObject({ pid: handle.pid, token: handle.token });
+    } finally { await releaseAdvisoryLock(handle); }
+    expect(await exists(lockPath)).toBe(false);
+  });
+
+  it("tries a held lock once at zero wait without changing its owner and succeeds after release", async () => {
+    const owner = await acquireAdvisoryLock(lockPath);
+    const original = await readFile(lockPath, "utf8");
+    let attempts = 0, time = 1000;
+    const options: AdvisoryLockOptions = { maxWaitMs: 0, now: () => time++,
+      exclusiveCreate: async (path, content) => { attempts += 1; await atomicCreateFile(path, content); },
+      sleep: async () => { throw new Error("A zero-wait acquisition must not back off"); },
+      readFile: async () => { throw new Error("A zero-wait acquisition must not inspect holders"); },
+      removeFile: async () => { throw new Error("A zero-wait acquisition must not reclaim holders"); },
+    };
+    try {
+      await expect(acquireAdvisoryLock(lockPath, options)).rejects.toMatchObject({ name: "AdvisoryLockTimeoutError", phase: "acquire", lockPath, waitedMs: 0 });
+      expect(attempts).toBe(1);
+      expect(await readFile(lockPath, "utf8")).toBe(original);
+    } finally { await releaseAdvisoryLock(owner); }
+    attempts = 0;
+    const next = await acquireAdvisoryLock(lockPath, options);
+    try {
+      expect(attempts).toBe(1);
+      expect(next.token).not.toBe(owner.token);
+      expect(await readHolder(lockPath)).toMatchObject({ pid: next.pid, token: next.token });
+    } finally { await releaseAdvisoryLock(next); }
+    expect(await exists(lockPath)).toBe(false);
   });
 
   it("retries with bounded backoff while the lock is held-and-live, then proceeds once it frees", async () => {

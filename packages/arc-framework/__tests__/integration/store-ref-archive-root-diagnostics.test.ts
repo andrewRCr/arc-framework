@@ -65,7 +65,8 @@ describe.each(["default", "separate"] as const)("unattributed archive entries in
     armed = false;
     const repaired = await plantRef(f.root, ref, entries, { parents: [broken.tip], gitDir: f.gitDir });
     for (const family of families) {
-      expect(success(await f.store.list({ family }))).toMatchObject({ status: "complete", missed: false, diagnostics: [] });
+      expect(success(await f.store.list({ family }))).toMatchObject(family === "review" ? { status: "absent" }
+        : { status: "complete", missed: false, diagnostics: [] });
       expect(success(await f.store.list({ family, asOf }))).toMatchObject({ status: "complete", missed: true,
         diagnostics: expect.arrayContaining([expect.objectContaining({ ...diagnostic,
           remedy: { text: expect.stringMatching(/historical|ancestor/iu) } })]) });

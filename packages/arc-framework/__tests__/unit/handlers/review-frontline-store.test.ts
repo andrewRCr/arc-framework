@@ -37,9 +37,24 @@ import { publishNativeReviewApproval } from "../../../src/scripts/review-gate/ru
 import { publishNativeReviewPerformance } from "../../../src/scripts/review-gate/runtime/native-review-performance.js";
 import type { FrontlineResolveRequest } from "../../../src/scripts/review-gate/policy/frontline-command-schema.js";
 import { canonicalDigest } from "../../../src/lib/kernel/index.js";
+import { createReviewResponsePort } from "../../../src/lib/store/kinds/review/evidence-root-selection/responses.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const head = "a".repeat(40), base = "b".repeat(40);
+/** The captured findings run's own target, as Git lists its changed files. */
+const capturedChangedFiles = [
+  ".arc/system/workflows/arc/supplemental/run-errand.md",
+  "packages/arc-framework/__tests__/unit/scripts/review-gate/policy/frontline-command.test.ts",
+  "packages/arc-framework/__tests__/unit/scripts/review-gate/policy/pre-publication-composition.test.ts",
+  "packages/arc-framework/__tests__/unit/scripts/review-gate/policy/review-policy-driver.test.ts",
+  "packages/arc-framework/arc/system/workflows/arc/supplemental/run-errand.md",
+  "packages/arc-framework/src/handlers/review.ts",
+  "packages/arc-framework/src/scripts/review-gate/policy/frontline-command.ts",
+  "packages/arc-framework/src/scripts/review-gate/policy/frontline-phase.ts",
+  "packages/arc-framework/src/scripts/review-gate/policy/pre-publication-composition.ts",
+  "packages/arc-framework/src/scripts/review-gate/policy/review-policy-driver.ts",
+].map(path => `1\t1\t${path}\0`).join("");
+
 async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand", findings = false) {
   const h = createReviewHarness();
   const advancedHead = "e".repeat(40);
@@ -92,6 +107,7 @@ async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand
       await mkdir(root, { recursive: true }); return { stdout: "" };
     }] },
     { match: { prefix: ["worktree", "remove", "--force"] }, responses: [{ stdout: "" }] },
+    { match: { prefix: ["diff", "--numstat", "-z"] }, responses: [{ stdout: capturedChangedFiles }] },
   ] });
   onTestFinished(checkout.cleanup);
   const providerPath = join(checkout.cwd, "provider");
@@ -375,12 +391,13 @@ it("records an ordinary frontline ceiling pass and validates references before p
   const h = await completedFindings();
   const workItem = parseNativeReviewOperationReference(h.resolution.payload.operationRef ?? "").workItem;
   const outcomes = createReviewOutcomePort(h.store, workItem), evidence = createReviewEvidencePort(h.store, workItem);
+  const responses = createReviewResponsePort(h.store, workItem);
   const performed = performedEvidenceFixture("errand", h.outcome).value;
   if (performed.performance === undefined) throw new Error("Expected performed fix evidence");
   const approved = { ...performed, binding: { kind: "errand" as const, errand: { key: SlugSchema.parse("repair"), claimId: h.claimId, branch: "chore/repair" } },
     performance: undefined };
   const input = { outcomes, evidence, readProjectId: createProjectIdentityReader(h.store),
-    record: composeReviewDispositionRecord(h.outcome, [approved], workItem), now: () => "2026-10-20T13:00:00Z" };
+    record: composeReviewDispositionRecord(h.outcome, [approved], workItem), now: () => "2026-10-20T13:00:00Z", responses };
   await publishNativeReviewApproval(input);
   const record = composeReviewDispositionRecord(h.outcome, [{ ...approved, performance: performed.performance }], workItem);
   await publishNativeReviewPerformance({ ...input, record, performance: performed.performance });

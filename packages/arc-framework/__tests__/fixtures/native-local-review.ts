@@ -7,6 +7,7 @@ import { RepositoryGitCommonStatePublisher } from "../../src/lib/git-common-stat
 import { createReviewDecisionPort } from "../../src/lib/store/kinds/review/decision/access.js";
 import { createReviewOutcomePort } from "../../src/lib/store/kinds/review/outcome/access.js";
 import { createReviewEvidencePort } from "../../src/lib/store/kinds/review/evidence/access.js";
+import { createReviewResponsePort } from "../../src/lib/store/kinds/review/evidence-root-selection/responses.js";
 import { NativeReviewInFlightStateStore } from "../../src/scripts/review-gate/hosts/local/in-flight-state-store.js";
 import { RepositoryLocalReviewSourceStore } from "../../src/scripts/review-gate/hosts/local/source-store.js";
 
@@ -26,8 +27,9 @@ export async function nativeLocalReview(deliveryAdmission?: DeliveryLocalReviewA
     const outcomes = createReviewOutcomePort(h.store, primary.reference.owner);
     const evidence = createReviewEvidencePort(h.store, primary.reference.owner);
     const decisions = createReviewDecisionPort(h.store, primary.reference.owner);
+    const responses = createReviewResponsePort(h.store, primary.reference.owner);
     const operations = new NativeReviewInFlightStateStore({ publisher, workItem: primary.reference.owner,
-      outcomes, evidence, decisions, projectId: h.projectId });
+      outcomes, evidence, decisions, responses, projectId: h.projectId });
     const prepared = createLocalReviewPreparationFixture({ repositoryId: projectId });
     if (candidate !== undefined) {
       await h.seedCandidate(primary.reference.owner, candidate);
@@ -64,6 +66,6 @@ export async function nativeLocalReview(deliveryAdmission?: DeliveryLocalReviewA
     if (result.state !== "ready" || snapshot.status !== "complete") throw new Error(JSON.stringify(result));
     const state = snapshot.records.find(record => record.state.kind === "local-review")?.state;
     if (state?.kind !== "local-review") throw new Error("Expected actual pending local producer");
-    return { ...checkout, primary, publisher, outcomes, evidence, operations, prepared, state, result };
+    return { ...checkout, primary, publisher, outcomes, evidence, responses, operations, prepared, state, result };
   } catch (error) { await checkout.cleanup(); throw error; }
 }

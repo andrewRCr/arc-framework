@@ -2,40 +2,40 @@
 import type { Store } from "../../../contract.js";
 import { recordReferences, type OwnerIdentity } from "../../../identity.js";
 import type { ReviewEvidencePort } from "../../../../../scripts/review-gate/core/ports.js";
-import { createReviewFactAccess, reviewFactListingError } from "../fact-access.js";
+import { createReviewFactAccess } from "../fact-access.js";
 import { ReviewEvidenceSchema, type ReviewEvidence } from "./schema.js";
-import { createReviewOutcomePort } from "../outcome/access.js";
-import { composeReviewDispositionRecord, reviewEvidenceLineageRefusal } from "./composed-record.js";
+import { composeReviewDispositionRecord } from "./composed-record.js";
+import { createReviewSelectionLoader, type ReviewFactSnapshot } from "../evidence-root-selection/loader.js";
+import type { ReviewEvidenceRootSelection } from "../evidence-root-selection/schema.js";
+import type { StoredReviewFact } from "../../../../../scripts/review-gate/core/ports.js";
 
 /** Open typed evidence access on the supplied backend. */
 export function createReviewEvidencePort(store: Store, owner: OwnerIdentity): ReviewEvidencePort {
   const access = createReviewFactAccess(store, (key) => recordReferences["review/evidence"](owner, key),
     ReviewEvidenceSchema, (value) => value.dispositionSet.dispositionSetId);
-  const outcomes = createReviewOutcomePort(store, owner);
-  const completeEvidence = async (): Promise<readonly ReviewEvidence[]> => {
-    const listing = await access.list();
-    if (listing.status !== "complete") throw reviewFactListingError(listing);
-    return listing.records.map(({ value }) => value);
-  };
-  const composeProducer = async (producerId: string, records: readonly ReviewEvidence[]) => {
-    const evidence = records.filter((value) => value.dispositionSet.producerId === producerId);
-    const first = evidence[0];
-    if (first === undefined) return null;
-    const outcome = await outcomes.read(first.result.outcomeKey);
-    if (outcome === null) throw reviewEvidenceLineageRefusal(evidence, "outcome",
-      `Restore outcome ${first.result.outcomeKey} before reading its approved responses.`);
-    return composeReviewDispositionRecord(outcome.value, evidence, outcome.reference.owner);
+  const loader = createReviewSelectionLoader(store, owner);
+  const composeProducer = async (producerId: string, snapshot: ReviewFactSnapshot<ReviewEvidence>,
+    selector: StoredReviewFact<ReviewEvidenceRootSelection> | null) => {
+    const first = snapshot.records.find(record => record.value.dispositionSet.producerId === producerId);
+    const outcomeKey = first?.value.result.outcomeKey ?? selector?.value.outcomeKey;
+    const outcome = outcomeKey === undefined ? null : await loader.outcome(outcomeKey, snapshot.asOf);
+    const selected = loader.select(producerId, snapshot.records, selector, outcome);
+    return selected.outcome === null || selected.evidence.length === 0 ? null
+      : composeReviewDispositionRecord(selected.outcome.value, selected.evidence.map(record => record.value), selected.outcome.reference.owner);
   };
   return { read: access.read, list: access.list,
     create: (value) => access.write(value, null), prepareCreate: (value) => access.prepare(value, null),
     advance: access.write, prepareAdvance: access.prepare,
     async readDispositionRecord(producerId) {
-      return composeProducer(producerId, await completeEvidence());
+      const snapshot = await loader.evidence();
+      return composeProducer(producerId, snapshot, await loader.selector(producerId, snapshot.asOf));
     },
     async listDispositionRecords() {
-      const evidence = await completeEvidence();
-      const producers = [...new Set(evidence.map((value) => value.dispositionSet.producerId))];
-      const records = await Promise.all(producers.map((producerId) => composeProducer(producerId, evidence)));
+      const evidence = await loader.evidence(), selectors = await loader.selectors(evidence.asOf);
+      const producers = [...new Set([...evidence.records.map(record => record.value.dispositionSet.producerId),
+        ...selectors.records.map(record => record.value.producerId)])];
+      const records = await Promise.all(producers.map(producerId => composeProducer(producerId, evidence,
+        selectors.records.find(record => record.value.producerId === producerId) ?? null)));
       return records.filter((record) => record !== null);
     } };
 }

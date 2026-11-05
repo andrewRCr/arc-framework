@@ -1,5 +1,5 @@
 /** Full native inbox contention on linked worktrees and independently publishing clones. */
-import { lstat, mkdtemp } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
@@ -9,6 +9,7 @@ import type { RefProcessReport } from "../fixtures/store/ref-process-protocol.js
 import { startRefWriter } from "../helpers/store/ref-process.js";
 import { refSyncFixture, createRefSyncCheckout } from "../helpers/store/ref-sync.js";
 import { removeGitBackedDir } from "../helpers/temp-repo.js";
+import { recoverStrandedBurstPublication } from "../helpers/store/burst-recovery.js";
 import { success } from "../helpers/store/suite-tools.js";
 
 const WRITERS = 20;
@@ -77,9 +78,7 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1").each(["default", "separate
     assertInbox(success(await store.read({ reference: inbox })));
   }, BURST_TIMEOUT_MS);
 
-  // On Windows the sync deadline can abort a prepared ref transaction here and strand the separate store's lock,
-  // which no retry clears, so this case is skipped there until the deadline releases its own lock.
-  it.skipIf(process.platform === "win32" && layout === "separate")("converges twenty simultaneously publishing clones on every accepted inbox write", async () => {
+  it("converges twenty simultaneously publishing clones on every accepted inbox write", async () => {
     const f = await refSyncFixture(layout), store = nativeStore(f.cloneA);
     const parent = await mkdtemp(join(tmpdir(), "arc-inbox-clones-"));
     onTestFinished(() => removeGitBackedDir(parent));
@@ -108,15 +107,16 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1").each(["default", "separate
     await Promise.all(writers.map(({ ready }) => ready));
     writers.forEach(({ resume }) => resume());
     const reports = await Promise.all(writers.map(({ result }) => result));
-    for (const report of reports) {
+    for (const [index, report] of reports.entries()) {
       assertWritten(report);
       if (!report.publication) throw new Error("The clone never attempted to publish its accepted write");
       expect(report.publicationAttempts?.at(-1)).toEqual(report.publication);
-      // Every writer has exited, so a named lock that remains was stranded rather than held.
-      const lock = report.publication.status === "refused" && report.publication.refusal.code === "lock-held" ? report.publication.refusal.lock : null;
-      expect(report.publication.status, JSON.stringify({ attempts: report.publicationAttempts,
-        lockRemains: lock && await lstat(lock).then(() => true, () => false) })).toBe("ok");
-      assertPublished(success(report.publication));
+      // All writer processes have exited before any stranded-lock repair starts.
+      const publication = process.platform === "win32" ? await recoverStrandedBurstPublication({
+        root: clients[index]!.root, layout, publication: report.publication, store: stores[index]!,
+      }) : report.publication;
+      expect(publication.status, JSON.stringify({ attempts: report.publicationAttempts, publication })).toBe("ok");
+      assertPublished(success(publication));
     }
     const remoteTip = (await f.remote("git", ["rev-parse", personalRef])).stdout;
     const settled = await Promise.all(stores.map(async (client, index) => ({

@@ -11,6 +11,7 @@ import { registerSchemaCommandSchemas } from "./lib/schema-command/envelope.js";
 import { registerSessionEnvelopeSchemas } from "./lib/session-envelope/registry.js";
 import { registerReviewDomainSchemas } from "./scripts/review-gate/core/register-review-schemas.js";
 import { registerHandoffWriteSchemas } from "./lib/handoff/write-schema.js";
+import { registerReviewRootRepairSchemas } from "./lib/store/review-root-repair-schema.js";
 
 /**
  * Compose every schema family served by the production CLI.
@@ -21,5 +22,5 @@ export function createProductionSchemaRegistry(): KernelRegistry {
   const registry = registerCheckDeclarationSchemas(registerSchemaCommandSchemas(registerCutMapSchemas(registerDecomposeSchemas(registerSessionEnvelopeSchemas(registerDeliveryAuthoringSchemas(
     registerDeliveryDomainSchemas(registerReviewDomainSchemas(createKernelRegistry())),
   ))))));
-  return registerInboxSchemas(registerHandoffWriteSchemas(registry));
+  return registerReviewRootRepairSchemas(registerInboxSchemas(registerHandoffWriteSchemas(registry)));
 }

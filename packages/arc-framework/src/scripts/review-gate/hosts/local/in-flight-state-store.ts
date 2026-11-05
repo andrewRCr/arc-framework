@@ -3,7 +3,7 @@ import { reviewFactListingError } from "../../../../lib/store/kinds/review/fact-
 import { rethrowNativeRefusal } from "../../../../lib/store/native-refusal.js";
 import type { GitCommonStatePublisher } from "../../../../lib/git-common-state.js";
 import type { OwnerIdentity } from "../../../../lib/store/identity.js";
-import type { ReviewOutcomePort, ReviewEvidencePort, ReviewDecisionPort, NativeReviewFactPorts, ReviewInFlightPort, ReviewOperationStateSnapshot } from "../../core/ports.js";
+import type { ReviewOutcomePort, ReviewEvidencePort, ReviewDecisionPort, ReviewResponsePort, NativeReviewFactPorts, ReviewInFlightPort, ReviewOperationStateSnapshot } from "../../core/ports.js";
 import type { ReviewOperationState } from "../../core/operation-state-schema.js";
 import { canonicalDigest, canonicalize } from "../../../../lib/kernel/index.js";
 import { composeReviewInFlightState, projectReviewInFlightState, ReviewInFlightRecordSchema,
@@ -15,7 +15,7 @@ import type { ReviewOutcome } from "../../../../lib/store/kinds/review/outcome/s
 import { pruneEndedReviewExecution, assertReviewPassStillOpen } from "./in-flight-outcomes.js";
 
 interface InFlightContext { publisher: GitCommonStatePublisher; workItem: OwnerIdentity; outcomes: ReviewOutcomePort;
-  projectId: () => Promise<string>; evidence: ReviewEvidencePort; decisions: ReviewDecisionPort }
+  projectId: () => Promise<string>; evidence: ReviewEvidencePort; decisions: ReviewDecisionPort; responses: ReviewResponsePort }
 const location = { root: "review-gate", namespace: "in-flight" } as const;
 
 function recordPrefix(uid: string): string { return `operation-${canonicalDigest({ uid }).slice(7)}-`; }
@@ -45,7 +45,8 @@ export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
   private readonly uid: string;
   constructor(private readonly input: InFlightContext) {
     this.outcomeWriter = input.outcomes;
-    this.nativeFacts = { outcomes: input.outcomes, evidence: input.evidence, decisions: input.decisions, readProjectId: input.projectId };
+    this.nativeFacts = { outcomes: input.outcomes, evidence: input.evidence, decisions: input.decisions,
+      responses: input.responses, readProjectId: input.projectId };
     if (input.workItem.type !== "work-item" || input.workItem.uid === undefined) {
       throw new LocalOperationStateStoreError("work-item-uid-required");
     }
@@ -83,11 +84,9 @@ export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
     return listing.records.map(record => record.value);
   }
 
-  private async evidence() {
-    const listing = await this.input.evidence.list();
-    if (listing.status !== "complete") throw listing.refusal === undefined ? new LocalOperationStateStoreError(listing.reason)
-      : reviewFactListingError(listing);
-    return listing.records.map(record => record.value);
+  private async responses() {
+    const snapshot = await this.input.responses.list();
+    return { outcomes: snapshot.outcomes.map(record => record.value), evidence: snapshot.evidence.map(record => record.value) };
   }
 
   private compose(operationId: string, state: ReviewOperationState | null, outcomes: readonly ReviewOutcome[], evidence: readonly ReviewEvidence[]): ReviewOperationState | null {
@@ -110,14 +109,15 @@ export class NativeReviewInFlightStateStore implements ReviewInFlightPort {
 
   async readOperation(operationId: string): Promise<{ version: number; state: ReviewOperationState | null }> {
     const record = await this.readRetainedRecord(operationId);
+    const { outcomes, evidence } = await this.responses();
     return { version: record?.version ?? 0, state: this.compose(operationId,
-      record === null ? null : composeReviewInFlightState(record.state), await this.outcomes(), await this.evidence()) };
+      record === null ? null : composeReviewInFlightState(record.state), outcomes, evidence) };
   }
 
   async readOperationSnapshot(): Promise<ReviewOperationStateSnapshot> {
     try {
       const records = new Map<string, { version: number; state: ReviewOperationState | null }>();
-      const outcomes = await this.outcomes(), evidence = await this.evidence();
+      const { outcomes, evidence } = await this.responses();
       for (const entry of await this.input.publisher.snapshot(location)) {
         if (!entry.name.startsWith(this.prefix)) continue;
         if (entry.kind !== "file") return { status: "incomplete",

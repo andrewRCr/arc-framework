@@ -51,7 +51,10 @@ describe("lookup with an unreadable item ref", () => {
       { kind: "ref", repository, ref: "feat/unknown" },
       { kind: "claim", claim: { kind: "work-unit", slug: SlugSchema.parse("unknown"), uid: unknownUid } },
     ];
-    for (const input of inputs) expect(await f.store.lookup(input)).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: f.ref } });
+    for (const input of inputs) expect(await f.store.lookup(input)).toMatchObject({ status: "refused", refusal: damage === "root"
+      ? { code: "state-unresolvable", class: "recoverable", historyRefs: [], condition: expect.stringContaining(f.ref),
+        remedy: { text: expect.stringMatching(/restore|fetch/iu) } }
+      : { code: "namespace-corrupt", class: "terminal", namespace: f.ref } });
   });
   it("refuses a readable former-name match when the skipped owner could hold the current name", async () => {
     const f = await brokenScan("metadata"), git = makeGitExec(f.root);

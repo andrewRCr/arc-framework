@@ -2,7 +2,7 @@
 
 import type { RefBackendContext } from "./context.js";
 import { readRefTrees, readBatchObjects, type RefTreeEntry, type BatchObject } from "./batch-read.js";
-import { parseRefMetadata, type RefMetadata } from "./metadata.js";
+import { parseRefMetadata, readRefMetadata, type RefMetadata } from "./metadata.js";
 import { viewRefFamily } from "./view-state.js";
 import { refPrototype } from "./read.js";
 import { refOwner } from "./codec.js";
@@ -26,6 +26,7 @@ import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { RefSyncLabelError } from "./sync-label.js";
 import { findRefNamespaceCollision } from "./path-admission.js";
 import { cohortEndLiveSource, type SyncCohortEndRoute, type SyncControlSource, type SyncControlSelections } from "./sync-control-sources.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** One immutable side's raw entries and validated group metadata. */
 export interface SyncTreeSide { tip: string | null; entries: Map<string, RefTreeEntry>; metadata: RefMetadata; placement?: ReadPlacement; controlSource?: SyncControlSource }
@@ -106,8 +107,11 @@ function groupSides(ref: string, home: StoredRecordHome, trees: ReadonlyMap<stri
   for (const key of ["base", "local", "incoming"] as const) {
     if (key === "base" && !tips.has(key)) { sides.push({ tip: null, entries: new Map(), metadata: { formatVersion: 1, formats: {} },
       controlSource: { ref, tip: null, recordFree: true } }); continue; }
-    const entries = trees.get(key), metadata = sideMetadata(entries, objects, home, live, emptyMetadata, retiredName);
-    if (!entries || !metadata) return { status: "refused", refusal: corruptRef(ref, !entries) };
+    const entries = trees.get(key);
+    if (!entries) return { status: "refused", refusal: refObjectFault(ref, "missing").refusal };
+    const loaded = sideMetadata(entries, objects, home, ref, emptyMetadata, retiredName, key === "base");
+    if (loaded.status === "refused") return loaded;
+    const metadata = loaded.result;
     const sourceRef = key === "base" ? ref : sourceRefs[key], raw = metadataAt(entries, objects, home.metadataPath, live);
     const controlSource: SyncControlSource = { ref: sourceRef, tip: tips.get(key) ?? null,
       recordFree: holdsNoRecord(home, entries.map(({ path }) => path)),
@@ -165,10 +169,18 @@ function emptySideMetadata(prototype: RecordReference, home: StoredRecordHome,
   return named && !ownerName ? null : { formatVersion: 1, formats: {}, ...(named ? { slug: ownerName } : {}) };
 }
 
-function sideMetadata(entries: readonly RefTreeEntry[] | undefined, objects: ReadonlyMap<string, BatchObject | null>,
-  home: StoredRecordHome, ref: string, emptyMetadata: RefMetadata | null, retiredName: RefMetadata["slug"]): RefMetadata | null {
-  const metadata = metadataAt(entries, objects, home.metadataPath, ref);
-  if (!entries || !holdsNoRecord(home, entries.map(({ path }) => path))) return metadata;
-  if (retiredName) return { formatVersion: 1, formats: {}, slug: retiredName };
-  return metadata ?? (emptyMetadata ? { ...emptyMetadata, formats: {} } : null);
+function sideMetadata(entries: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>,
+  home: StoredRecordHome, ref: string, emptyMetadata: RefMetadata | null, retiredName: RefMetadata["slug"], saved: boolean): StoreResult<RefMetadata> {
+  const read = readRefMetadata(ref, entries.find(entry => entry.path === home.metadataPath), objects);
+  if (read.kind === "missing") return { status: "refused", refusal: refObjectFault(ref, "missing").refusal };
+  const metadata = read.kind === "parsed" ? read.metadata : null;
+  const recordFree = holdsNoRecord(home, entries.map(({ path }) => path));
+  if (recordFree) {
+    const empty: RefMetadata | null = retiredName ? { formatVersion: 1, formats: {}, slug: retiredName }
+      : metadata ?? (emptyMetadata ? { ...emptyMetadata, formats: {} } : null);
+    if (empty) return { status: "ok", result: empty };
+  }
+  if (metadata) return { status: "ok", result: metadata };
+  return { status: "refused", refusal: recordFree && read.kind === "absent" ? corruptRef(ref, { saved })
+    : refObjectFault(ref, read.kind === "absent" ? "no-metadata" : "unparseable", { saved }).refusal };
 }

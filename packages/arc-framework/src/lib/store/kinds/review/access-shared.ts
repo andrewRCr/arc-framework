@@ -5,7 +5,7 @@ import type { Store } from "../../contract.js";
 import { createStore } from "../../create.js";
 import { createDefaultStorePorts } from "../../default-store-ports.js";
 import { retryEndedItemHistory } from "../../history-retry.js";
-import { OwnerIdentitySchema, type RecordReference, type OwnerIdentity } from "../../identity.js";
+import { OwnerIdentitySchema, type RecordReference, type OwnerIdentity, type StateVersion } from "../../identity.js";
 import type { StoreRecord } from "../../read.js";
 import type { StoreResult } from "../../refusal.js";
 import { recordConflictRefusal } from "../../conflict-diagnostics.js";
@@ -116,8 +116,8 @@ export function unwrapReviewRecordResult<T>(store: Pick<Store, "capabilities">, 
 }
 
 /** Read one record, distinguishing established absence from every other refusal. */
-export async function readReviewRecord(store: Store, reference: RecordReference): Promise<StoreRecord | null> {
-  const result = await store.read({ reference });
+export async function readReviewRecord(store: Store, reference: RecordReference, asOf?: StateVersion): Promise<StoreRecord | null> {
+  const result = await store.read({ reference, ...(asOf === undefined ? {} : { asOf }) });
   if (result.status === "refused" && result.refusal.code === "not-found") return null;
   const record = unwrapReviewRecordResult(store, result);
   if (record.conflicts.length > 0) {

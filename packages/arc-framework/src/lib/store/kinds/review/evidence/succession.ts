@@ -7,14 +7,15 @@ import type { EvidenceHistory } from "./history.js";
 
 /** Check both lineage edges, their stable response context, one first approval per result, and creation in the same batch. */
 export function checkEvidenceSuccession(value: ReviewEvidence, prior: ReviewEvidence | undefined,
-  before: EvidenceHistory, after: EvidenceHistory): readonly BrokenRule[] {
-  const root = value.predecessorDispositionSetId === null && hasSecondRoot(value, after)
+  before: EvidenceHistory, after: EvidenceHistory, allowSelectedRoot = false): readonly BrokenRule[] {
+  const root = value.predecessorDispositionSetId === null && hasSecondRoot(value, after) && !allowSelectedRoot
     ? [brokenRule("review.evidence.root", "Another first approval already holds this review result's approved-response lineage.",
       "Approve this response as the successor of the result's current approval, in one batch with it.")] : [];
   return [...root, ...checkEvidenceEdges(value, prior, before, after)];
 }
 
-function checkEvidenceEdges(value: ReviewEvidence, prior: ReviewEvidence | undefined,
+/** Validate reciprocal edges and unchanged response context independently of root selection. */
+export function checkEvidenceEdges(value: ReviewEvidence, prior: ReviewEvidence | undefined,
   before: EvidenceHistory, after: EvidenceHistory): readonly BrokenRule[] {
   const parent = value.predecessorDispositionSetId === null ? undefined : after.get(value.predecessorDispositionSetId);
   const successor = value.successorDispositionSetId === null ? undefined : after.get(value.successorDispositionSetId);

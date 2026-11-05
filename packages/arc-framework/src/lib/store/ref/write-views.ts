@@ -17,7 +17,7 @@ import { appendArchivedLookupTrees, type RefLookupCapture } from "./lookup-trees
 import { isArchiveRef } from "./archive-read.js";
 import { lookupCapturedRefTrees, type RefLookupTree } from "./lookup.js";
 import { expandStoredPath, holdsNoRecord, type StoredRecordHome } from "../stored-path.js";
-import { canonicalPrimaryKind, type RefMetadata } from "./metadata.js";
+import { canonicalPrimaryKind, type RefMetadata, type RefMetadataRead } from "./metadata.js";
 import { projectOwnerFromEntries, admitProjectReference, projectListInput, projectListingBinding, registryTreeUnavailable,
   type CapturedRegistry } from "./project-identity.js";
 import { archivedViewRecords } from "./archive-view.js";
@@ -25,6 +25,10 @@ import { checkRefKey } from "./path-admission.js";
 import { rootFamily } from "./path-decode.js";
 import { readCapturedRefHistory } from "./history.js";
 import { captureArchivedFolders, selectEndedOwners } from "./ended-owners.js";
+import { refObjectFault, refDiagnosticRefusal, type RefFaultOptions } from "./object-fault.js";
+import type { RefCaptureFault } from "./capture-diagnostic.js";
+import { missingHistoryRefs } from "./missing-history.js";
+import { listingRefMatches } from "./listing-scope.js";
 
 /** Build lazy views which never recapture a live ref during a check. */
 export function createRefWriteViews(context: RefBackendContext, tips: ReadonlyMap<string, string>,
@@ -68,28 +72,36 @@ function pointViewKey(context: RefBackendContext, reference?: RecordReference): 
   return JSON.stringify(reference);
 }
 
-function lookupView(context: RefBackendContext, state: RefViewState, input: LookupInput, identity: string | null = null): StoreResult<LookupResult> {
+async function lookupView(context: RefBackendContext, state: RefViewState, input: LookupInput, identity: string | null = null): Promise<StoreResult<LookupResult>> {
   const missingIdentity = claimIdentityRefusal(input, identity);
   if (missingIdentity) return { status: "refused", refusal: missingIdentity };
-  const trees = lookupViewTrees(context, state, identity);
+  const trees = await lookupViewTrees(context, state, identity);
   return trees.status === "refused" ? trees : lookupCapturedRefTrees(context, input, trees.result.trees, trees.result.unreadable);
 }
 
-function lookupViewTrees(context: RefBackendContext, state: RefViewState, identity: string | null = null): StoreResult<RefLookupCapture> {
+async function lookupViewTrees(context: RefBackendContext, state: RefViewState, identity: string | null = null): Promise<StoreResult<RefLookupCapture>> {
   const trees = new Map<string, RefLookupTree>();
   const unreadable = new Map<string, StoreRefusal>();
   for (const [ref, group] of state.refs) {
     if (!matchesFamilyRef(ref, "work-item") && !matchesFamilyRef(ref, "cohort") && ref !== "refs/arc/project/registry"
       && !(identity !== null && ref === `refs/arc/user/${identity}/claims`)) continue;
-    const family = viewRefFamily(ref);
-    const metadata = family ? viewRefMetadata(context, state, ref, family) : null;
-    if (family && group.entries && holdsNoRecord(expandStoredPath(refPrototype(context, ref, family),
-      { registry: context.registry }), group.entries.map(({ path }) => path))) continue;
-    if (!group.entries || !metadata) { unreadable.set(ref, corruptRef(ref, !group.entries, state.saved)); continue; }
-    trees.set(ref, { entries: group.entries, metadata, objects: state.objects });
+    const decoded = await lookupViewTree(context, state, ref, group);
+    if (!decoded) continue;
+    if ("code" in decoded) unreadable.set(ref, decoded); else trees.set(ref, decoded);
   }
   appendArchivedLookupTrees(trees, state, unreadable);
   return { status: "ok", result: { trees, unreadable } };
+}
+
+async function lookupViewTree(context: RefBackendContext, state: RefViewState, ref: string, group: RefViewGroup): Promise<RefLookupTree | StoreRefusal | undefined> {
+  const family = viewRefFamily(ref);
+  if (family && group.entries && holdsNoRecord(expandStoredPath(refPrototype(context, ref, family),
+    { registry: context.registry }), group.entries.map(({ path }) => path))) return;
+  if (!group.entries) return viewObjectFault(context, ref, "missing", { condition: `The tip or a tree of ${ref} is unavailable locally.` });
+  if (!family) return corruptRef(ref, { saved: state.saved });
+  const read = viewRefMetadata(context, state, ref, family);
+  if (read.kind !== "parsed") return viewObjectFault(context, ref, read.kind === "absent" ? "no-metadata" : read.kind, { saved: state.saved });
+  return { entries: group.entries, metadata: read.metadata, objects: state.objects };
 }
 
 async function listView(context: RefBackendContext, state: RefViewState, input: ListInput): Promise<StoreResult<ListingOutcome>> {
@@ -97,10 +109,11 @@ async function listView(context: RefBackendContext, state: RefViewState, input: 
   if (unsupported) return { status: "refused", refusal: unsupported };
   const identity = await listingIdentity(context, input.family);
   if (identity === undefined) return { status: "ok", result: { status: "absent" } };
-  const resolved = resolveViewListInput(context, state, input);
+  const resolved = await resolveViewListInput(context, state, input);
   if (resolved.status === "refused") return resolved;
   input = resolved.result;
-  const refs = [...state.refs].filter(([ref]) => matchesFamilyRef(ref, input.family) && !otherIdentityRef(ref, identity, input.owner));
+  const refs = [...state.refs].filter(([ref]) => matchesFamilyRef(ref, input.family) && !otherIdentityRef(ref, identity, input.owner)
+    && listingRefMatches(ref, input, state.refs));
   const archived = archivedViewRecords(context, state, input);
   if (refs.length === 0 && !archived.records.length && !archived.diagnostics.length) return { status: "ok", result: { status: "absent" } };
   const project = input.family === "project-registry" || input.family === "project-inbox" ? projectListingBinding(viewRegistry(state), state.objects, state.saved) : undefined;
@@ -126,9 +139,9 @@ function mergeProjectDiagnostic(diagnostics: ListingDiagnostic[], project: Listi
   else if (saved) diagnostics[matching] = project;
 }
 
-function resolveViewListInput(context: RefBackendContext, state: RefViewState, input: ListInput): StoreResult<ListInput> {
+async function resolveViewListInput(context: RefBackendContext, state: RefViewState, input: ListInput): Promise<StoreResult<ListInput>> {
   if (!listOwnerReference(input)) return { status: "ok", result: input };
-  const trees = lookupViewTrees(context, state);
+  const trees = await lookupViewTrees(context, state);
   return trees.status === "refused" ? trees : resolveCapturedListInput(context, input, trees.result.trees, trees.result.unreadable);
 }
 
@@ -141,15 +154,16 @@ async function readView(context: RefBackendContext, state: RefViewState, input: 
   reference = project.result;
   const personal = reference.owner.type === "person" ? await resolveReadReference(context, reference) : null;
   if (personal?.status === "refused") return personal;
-  const resolved = resolveViewOwner(context, state, reference);
+  const resolved = await resolveViewOwner(context, state, reference);
   if (resolved.status === "refused") return resolved;
   reference = resolved.result;
   let home = expandStoredPath(reference, { registry: context.registry });
   const group = state.refs.get(home.ref);
   if (!group) return archivedViewRead(context, state, reference);
   const family = context.registry[reference.kind].family;
-  const metadata = viewRefMetadata(context, state, home.ref, family);
-  if (!metadata) return missingViewMetadata(state, reference, home);
+  const read = viewRefMetadata(context, state, home.ref, family);
+  if (read.kind !== "parsed") return missingViewMetadata(context, state, reference, home, read);
+  const metadata = read.metadata;
   if (family !== "lineage" && reference.owner.type !== "project") {
     reference = canonicalViewReference(context, reference, home.ref, metadata);
     home = expandStoredPath(reference, { registry: context.registry });
@@ -159,19 +173,20 @@ async function readView(context: RefBackendContext, state: RefViewState, input: 
   return readViewRecord(context, state, reference, home, metadata, group);
 }
 
-function readViewRecord(context: RefBackendContext, state: RefViewState, reference: RecordReference, home: StoredRecordHome,
-  metadata: RefMetadata, group: RefViewGroup): StoreResult<StoreRecord> {
+async function readViewRecord(context: RefBackendContext, state: RefViewState, reference: RecordReference, home: StoredRecordHome,
+  metadata: RefMetadata, group: RefViewGroup): Promise<StoreResult<StoreRecord>> {
   const entry = group.entries?.find(({ path }) => path === home.path);
   if (!entry) return missing(reference, state.saved);
   const object = state.objects.get(entry.oid);
-  if (object?.type !== "blob") return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", reference, historyRefs: [],
+  if (object?.type !== "blob") return { status: "refused", refusal: await viewObjectFault(context, home.ref, "missing", { reference,
     condition: "The captured record blob is unavailable.", remedy: { text: state.saved
       ? "Restore or fetch the missing record objects, then retry this saved-state read."
-      : "Restore or fetch the missing record objects, then retry the write." } } };
+      : "Restore or fetch the missing record objects, then retry the write." },
+  }) };
   const owner = resolveCapturedOwner(context, reference, home, metadata, object, state.saved);
   if (owner.status === "refused") return owner;
   reference = RecordReferenceSchema.parse({ ...reference, owner: owner.result });
-  const conflicts = viewOpenConflicts(context, state, home, reference);
+  const conflicts = await viewOpenConflicts(context, state, home, reference);
   if (conflicts.status === "refused") return conflicts;
   const record = decodeRecord(context, reference, object, metadata, home.path, conflicts.result, group.readPlacement, { saved: state.saved, pointRead: true });
   return "reference" in record ? { status: "ok", result: record } : { status: "refused", refusal: { code: "record-malformed", class: "recoverable",
@@ -182,10 +197,15 @@ function needsOwnerLookup(reference: RecordReference): boolean {
   return reference.owner.type !== "person" && reference.owner.type !== "project" && !reference.owner.uid && reference.kind !== "lineage/conflict-record";
 }
 
-function missingViewMetadata(state: RefViewState, reference: RecordReference, home: StoredRecordHome): StoreResult<never> {
+async function missingViewMetadata(context: RefBackendContext, state: RefViewState, reference: RecordReference, home: StoredRecordHome,
+  read: Exclude<RefMetadataRead, { kind: "parsed" }>): Promise<StoreResult<never>> {
   const entries = state.refs.get(home.ref)?.entries;
-  if (entries && holdsNoRecord(home, entries.map(({ path }) => path))) return missing(reference, state.saved);
-  return { status: "refused", refusal: corruptRef(home.ref, !entries, state.saved) };
+  if (!entries) return { status: "refused", refusal: await viewObjectFault(context, home.ref, "missing", {
+    reference, condition: `The tip or a tree of ${home.ref} is unavailable locally.`,
+  }) };
+  if (read.kind === "missing") return { status: "refused", refusal: await viewObjectFault(context, home.ref, "missing", { reference }) };
+  if (holdsNoRecord(home, entries.map(({ path }) => path))) return missing(reference, state.saved);
+  return { status: "refused", refusal: refObjectFault(home.ref, read.kind === "absent" ? "no-metadata" : "unparseable", { saved: state.saved }).refusal };
 }
 
 function missing(reference: RecordReference, saved = false): StoreResult<never> {
@@ -211,25 +231,33 @@ function viewProjectReference(state: RefViewState, reference: RecordReference): 
   return owner.status === "refused" ? owner : admitProjectReference(reference, owner.result);
 }
 
-function viewOpenConflicts(context: RefBackendContext, state: RefViewState, home: StoredRecordHome, reference: RecordReference): StoreResult<RecordReference[]> {
+async function viewOpenConflicts(context: RefBackendContext, state: RefViewState, home: StoredRecordHome, reference: RecordReference): Promise<StoreResult<RecordReference[]>> {
   const group = state.refs.get(home.ref);
   if (!group) throw new Error("A checked record has no captured ref group");
   const family = context.registry[reference.kind].family;
   const listed = decodeCapturedRef(context, { family }, home.ref, group.entries, state.objects, group.metadata,
     reference.owner.type === "project" ? reference.owner : undefined, group.readPlacement, { saved: state.saved, pointRead: true });
   const refusal = listed.conflictRefusals?.get(home.path);
-  if (refusal) return { status: "refused", refusal };
+  const diagnostic = listed.diagnostics.find(({ key }) => key === home.path);
+  if (refusal) return { status: "refused", refusal: diagnostic?.fault === "missing" && refusal.code === "state-unresolvable"
+    ? { ...refusal, historyRefs: await missingHistoryRefs(context, [home.ref]) } : refusal };
   const record = listed.records.find((record) => sameReference(record.reference, reference));
   if (record) return { status: "ok", result: record.conflicts };
-  const diagnostic = listed.diagnostics.find(({ key }) => key === home.path);
   return diagnostic ? { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference,
     rule: diagnostic.condition, condition: diagnostic.condition, remedy: diagnostic.remedy } } : missing(reference, state.saved);
 }
 
-function resolveViewOwner(context: RefBackendContext, state: RefViewState, reference: RecordReference): StoreResult<RecordReference> {
+async function resolveViewOwner(context: RefBackendContext, state: RefViewState, reference: RecordReference): Promise<StoreResult<RecordReference>> {
   if (!needsOwnerLookup(reference)) return { status: "ok", result: reference };
-  const trees = lookupViewTrees(context, state);
+  const trees = await lookupViewTrees(context, state);
   return trees.status === "refused" ? trees : resolveCapturedReference(context, reference, trees.result.trees, trees.result.unreadable);
+}
+
+async function viewObjectFault(context: RefBackendContext, ref: string, fault: RefCaptureFault,
+  options: RefFaultOptions = {}): Promise<StoreRefusal> {
+  return refObjectFault(ref, fault, { ...options,
+    ...fault === "missing" ? { historyRefs: await missingHistoryRefs(context, [ref]) } : {},
+  }).refusal;
 }
 
 function canonicalViewReference(context: RefBackendContext, reference: RecordReference, ref: string, metadata: RefMetadata): RecordReference {
@@ -241,11 +269,12 @@ function canonicalViewReference(context: RefBackendContext, reference: RecordRef
 function archivedViewRead(context: RefBackendContext, state: RefViewState, reference: RecordReference): StoreResult<StoreRecord> {
   if (!archivable(context, reference)) return missing(reference, state.saved);
   const unreadable = [...state.refs].find(([ref, captured]) => isArchiveRef(ref) && !captured.entries)?.[0];
-  if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true, state.saved) };
+  if (unreadable) return { status: "refused", refusal: refObjectFault(unreadable, "missing", {
+    condition: `The tip or a tree of ${unreadable} is unavailable locally.`,
+  }).refusal };
   const ended = selectEndedOwners(state, captureArchivedFolders(state, context.registry[reference.kind].family, [reference.owner]));
   const diagnostic = ended.diagnostics[0];
-  if (diagnostic) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
-    namespace: diagnostic.key.split(":")[0] ?? diagnostic.key, condition: diagnostic.condition, remedy: diagnostic.remedy } };
+  if (diagnostic) return { status: "refused", refusal: refDiagnosticRefusal(diagnostic.key.split(":")[0] ?? diagnostic.key, diagnostic) };
   const folder = ended.folders.find(({ owner }) => sameOwner(owner, reference.owner));
   return folder ? readArchivedFolder(context, folder, reference, state.objects, state.saved) : missing(reference, state.saved);
 }

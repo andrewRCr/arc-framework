@@ -44,6 +44,7 @@ import { composeReviewDispositionRecord } from "../../../src/lib/store/kinds/rev
 import { publishNativeReviewApproval } from "../../../src/scripts/review-gate/runtime/native-review-approval.js";
 import { publishNativeConditionalPass } from "../../../src/scripts/review-gate/runtime/native-conditional-pass.js";
 import { publishNativeReviewPerformance } from "../../../src/scripts/review-gate/runtime/native-review-performance.js";
+import { createReviewResponsePort } from "../../../src/lib/store/kinds/review/evidence-root-selection/responses.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 
@@ -1080,6 +1081,7 @@ it("reuses performed conditional authority through explicit retry without ordina
   const current = await readCandidateRecord(h.cwd, "example", { store: h.store, owner });
   if (current === null) throw new Error("Expected Candidate");
   const outcomes = createReviewOutcomePort(h.store, owner), evidence = createReviewEvidencePort(h.store, owner);
+  const responses = createReviewResponsePort(h.store, owner);
   const decisions = createReviewDecisionPort(h.store, owner);
   const outcome = ReviewOutcomeSchema.parse(localOutcome({ target: createHostedHandleFixture({ repositoryId: projectId }).admission.reviewTarget,
     lineage: { kind: "candidate", candidateId: current.attestation.candidateId },
@@ -1092,7 +1094,7 @@ it("reuses performed conditional authority through explicit retry without ordina
   if (value.performance === undefined) throw new Error("Expected performance");
   const input = { outcomes, evidence, decisions, readProjectId: h.projectId,
     record: composeReviewDispositionRecord(outcome, [{ ...value, performance: undefined }], owner),
-    now: () => "2026-10-20T12:01:00Z" };
+    now: () => "2026-10-20T12:01:00Z", responses };
   await publishNativeReviewApproval(input);
   const decision = await publishNativeConditionalPass({ ...input, capture: { lane: "standard", repositoryId: projectId,
     headSha: outcome.target.headSha, lineage: outcome.lineage, producerId: outcome.attemptId,

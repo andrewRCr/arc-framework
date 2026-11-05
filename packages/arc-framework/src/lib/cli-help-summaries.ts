@@ -5,6 +5,7 @@ export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
   "store conflict": "Inspect or explicitly discard an exact stored conflict",
   "store migrate": "Move or import state into the ref store",
   "store remote": "Inspect or set the ref store's remote roles",
+  "store repair-review-roots": "Preview or select a competing approved-response root",
   "inbox": "List entries in an inbox or work item",
   "route": "Move or insert a routed entry",
   "locus release": "Release the checkout's work-item occupancy",

@@ -4,12 +4,13 @@ import { ArchiveQuarterSchema, ArchiveSequenceSchema } from "../../kernel/index.
 import { OwnerIdentitySchema, StoredUidSchema, type OwnerIdentity } from "../identity.js";
 import type { FamilyId } from "../catalog.js";
 import type { ReadPlacement } from "../placement.js";
-import type { ListingDiagnostic } from "../read.js";
+import type { CapturedRefDiagnostic } from "./capture-diagnostic.js";
 import { rootFamily } from "./path-decode.js";
-import { parseRefMetadata, historicalMetadataFailure, unparsedMetadata, type RefMetadata } from "./metadata.js";
+import { readRefMetadata, historicalMetadataFailure, unparsedMetadata, type RefMetadata } from "./metadata.js";
 import type { RefTreeEntry, BatchObject } from "./batch-read.js";
 import { isOwnerMetadataName } from "./metadata-filename.js";
 import { projectRefTreeEntry } from "./entry-path.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** One archived owner with paths relative to its retained live tree layout. */
 export interface ArchivedFolder {
@@ -56,7 +57,7 @@ export function archiveOwnerTrees(trees: ReadonlyMap<string, readonly RefTreeEnt
 
 /** The first diagnostic in an owned or unattributed archive namespace, retaining its exact path and repair. */
 export function firstOwnedArchiveDiagnostic(trees: ReadonlyMap<string, readonly RefTreeEntry[]>, owners: readonly OwnerIdentity[],
-  objects: ReadonlyMap<string, BatchObject | null>): { ref: string; diagnostic: ListingDiagnostic } | undefined {
+  objects: ReadonlyMap<string, BatchObject | null>): { ref: string; diagnostic: CapturedRefDiagnostic } | undefined {
   for (const [ref, entries] of archiveOwnerTrees(trees, owners)) for (const family of ["work-item", "cohort"] as const) {
     const diagnostic = archivedFolders(family, ref, entries, objects).diagnostics[0];
     if (diagnostic) return { ref, diagnostic };
@@ -65,8 +66,8 @@ export function firstOwnedArchiveDiagnostic(trees: ReadonlyMap<string, readonly 
 
 /** Decode folder metadata independently, retaining one diagnostic for each unreadable owner; a saved quarter names historical repair. */
 export function archivedFolders(family: FamilyId, ref: string, entries: readonly RefTreeEntry[],
-  objects: ReadonlyMap<string, BatchObject | null>, saved = false): { folders: ArchivedFolder[]; diagnostics: ListingDiagnostic[] } {
-  const folders: ArchivedFolder[] = [], diagnostics: ListingDiagnostic[] = [];
+  objects: ReadonlyMap<string, BatchObject | null>, saved = false): { folders: ArchivedFolder[]; diagnostics: CapturedRefDiagnostic[] } {
+  const folders: ArchivedFolder[] = [], diagnostics: CapturedRefDiagnostic[] = [];
   const familyRoot = rootFamily(family);
   if (familyRoot !== "work-item" && familyRoot !== "cohort") return { folders, diagnostics };
   const quarter = ArchiveQuarterSchema.parse(ref.split("/").at(-1));
@@ -82,24 +83,31 @@ export function archivedFolders(family: FamilyId, ref: string, entries: readonly
 export interface ArchiveFolderScope { family: "work-item" | "cohort"; ref: string; quarter: ReturnType<typeof ArchiveQuarterSchema.parse>; saved: boolean }
 
 function decodeArchiveFolder({ family, ref, quarter, saved }: ArchiveFolderScope, root: string,
-  entries: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>): ArchivedFolder | ListingDiagnostic | undefined {
+  entries: readonly RefTreeEntry[], objects: ReadonlyMap<string, BatchObject | null>): ArchivedFolder | CapturedRefDiagnostic | undefined {
   const members = entries.filter(({ path }) => path.startsWith(root));
   const candidates = members.filter(({ path }) => isArchiveMetadataName(path.slice(root.length)));
   if (candidates.length > 1) return ambiguousFolderMetadata(ref, root, candidates, saved);
   const entry = candidates[0];
-  const metadata = parseRefMetadata(entry ? objects.get(entry.oid) : undefined);
+  const read = readRefMetadata(ref, entry, objects);
+  const metadata = read.kind === "parsed" ? read.metadata : null;
   const controls = decodeArchiveFolderControls({ family, ref, quarter, saved }, root, entry, metadata);
-  if (!controls || "kind" in controls) return controls;
-  return { ref, root, ...controls, entries: members.map(member => projectRefTreeEntry(member, { fromPrefix: root, toPrefix: "" })) };
+  if (controls && !("kind" in controls)) {
+    return { ref, root, ...controls, entries: members.map(member => projectRefTreeEntry(member, { fromPrefix: root, toPrefix: "" })) };
+  }
+  if (!controls || controls.kind !== "unreadable") return controls;
+  const fault = read.kind === "parsed" ? "unparseable" : read.kind === "absent" ? "no-metadata" : read.kind;
+  return refObjectFault(ref, fault, { key: `${ref}:${root}`, saved,
+    ...read.kind === "missing" ? {} : { condition: controls.condition, remedy: controls.remedy },
+  }).diagnostic;
 }
 
 /** Shared pure reader rules for the owner and completed coordinate an emitted folder must name. */
 export function decodeArchiveFolderControls({ family, ref, quarter, saved }: ArchiveFolderScope, root: string,
   entry: Pick<RefTreeEntry, "path"> | undefined, metadata: RefMetadata | null):
-  Pick<ArchivedFolder, "owner" | "metadata" | "placement" | "liveRef"> | ListingDiagnostic | undefined {
+  Pick<ArchivedFolder, "owner" | "metadata" | "placement" | "liveRef"> | CapturedRefDiagnostic | undefined {
   const cohort = metadata?.primary === undefined && (metadata?.placement?.kind === "completed" || /^\d+[ab]_cohort-/u.test(root));
   if (cohort !== (family === "cohort")) return;
-  const unreadable: ListingDiagnostic = { kind: "unreadable", key: `${ref}:${root}`, ...unparsedMetadata(`${ref}:${root}`, saved) };
+  const unreadable: CapturedRefDiagnostic = { kind: "unreadable", key: `${ref}:${root}`, ...unparsedMetadata(`${ref}:${root}`, saved) };
   if (!metadata?.slug || !entry) return unreadable;
   const uid = entry.path.slice(root.length + "metadata-".length, -".json".length);
   const owner = OwnerIdentitySchema.safeParse({ type: family, name: metadata.slug, uid });
@@ -107,11 +115,11 @@ export function decodeArchiveFolderControls({ family, ref, quarter, saved }: Arc
   const mismatch = folderOwnerMismatch(ref, root, owner.data, metadata, cohort, saved);
   if (mismatch) return mismatch;
   const placement = folderPlacement(root, metadata, quarter, cohort);
-  if (!placement) return unreadable;
+  if (!placement) return misplacedFolder({ family, ref, quarter, saved }, root, metadata);
   return { owner: owner.data, metadata, placement, liveRef: `refs/arc/${cohort ? "cohort" : "work"}/${uid}` };
 }
 
-function ambiguousFolderMetadata(ref: string, root: string, candidates: readonly RefTreeEntry[], saved: boolean): ListingDiagnostic {
+function ambiguousFolderMetadata(ref: string, root: string, candidates: readonly RefTreeEntry[], saved: boolean): CapturedRefDiagnostic {
   const key = `${ref}:${root}`;
   return { kind: "malformed", key,
     condition: `The archive folder ${key} has ambiguous owner metadata: ${candidates.map(({ path }) => path).join(", ")}.`,
@@ -121,7 +129,7 @@ function ambiguousFolderMetadata(ref: string, root: string, candidates: readonly
 }
 
 function folderOwnerMismatch(ref: string, root: string, owner: OwnerIdentity, metadata: RefMetadata,
-  cohort: boolean, saved: boolean): ListingDiagnostic | undefined {
+  cohort: boolean, saved: boolean): CapturedRefDiagnostic | undefined {
   const uid = "uid" in owner ? owner.uid ?? "" : "";
   const matches = cohort ? new RegExp(`^\\d+[ab]_cohort-${owner.name}/$`, "u").test(root)
     : metadata.primary?.role === "work-item/record" ? root === `${owner.name}-${uid.slice(0, 8)}/`
@@ -134,7 +142,7 @@ function folderOwnerMismatch(ref: string, root: string, owner: OwnerIdentity, me
     } };
 }
 
-function archiveRootDiagnostics(ref: string, entries: readonly RefTreeEntry[], saved: boolean): ListingDiagnostic[] {
+function archiveRootDiagnostics(ref: string, entries: readonly RefTreeEntry[], saved: boolean): CapturedRefDiagnostic[] {
   return entries.filter(({ path }) => !path.includes("/")).map(({ path }) => {
     const key = `${ref}:${path}`;
     return { kind: "malformed", key, condition: `The archive entry ${key} is outside an owner folder.`,
@@ -143,7 +151,7 @@ function archiveRootDiagnostics(ref: string, entries: readonly RefTreeEntry[], s
   });
 }
 
-function malformedFolderOwner(ref: string, path: string, saved: boolean): ListingDiagnostic {
+function malformedFolderOwner(ref: string, path: string, saved: boolean): CapturedRefDiagnostic {
   const key = `${ref}:${path}`;
   return { kind: "malformed", key, condition: `The archive metadata filename ${key} does not name a valid owner UID.`,
     remedy: saved ? historicalMetadataFailure(key).remedy
@@ -181,4 +189,21 @@ function folderPlacement(root: string, metadata: RefMetadata | null, quarter: Re
   if (!sequence.success) return null;
   if (cohort) return match?.[2] === "a" || match?.[2] === "b" ? { ...stored, sequence: sequence.data, closeout: match[2] } : null;
   return { ...stored, sequence: sequence.data };
+}
+
+function misplacedFolder({ family, ref, quarter, saved }: ArchiveFolderScope, root: string, metadata: RefMetadata): CapturedRefDiagnostic {
+  const stored = family === "cohort" ? metadata.placement : metadata.primary?.placement;
+  const key = `${ref}:${root}`;
+  let condition: string, remedy: string;
+  if (stored?.kind !== "completed") {
+    condition = `The archive folder ${key} holds metadata whose placement is ${stored?.kind ?? "absent"}, not completed.`;
+    remedy = `Record the folder's completed placement for quarter ${quarter} in its metadata in a new commit, or, if the item has not ended, remove the folder from the archive; then retry.`;
+  } else if (stored.quarter !== quarter) {
+    condition = `The archive folder ${key} is in quarter ${quarter}, but its metadata records quarter ${stored.quarter}.`;
+    remedy = `Move the folder to the archive for quarter ${stored.quarter}, or correct its metadata's quarter to ${quarter}, whichever matches when the item ended, in a new commit; then retry.`;
+  } else {
+    condition = `The archive folder ${key} has no valid sequence prefix.`;
+    remedy = "Rename the folder to <sequence>_<slug>/ (a cohort's <sequence><a or b>_cohort-<slug>/), restoring its assigned sequence and preserving its quarter, in a new commit; then retry.";
+  }
+  return refObjectFault(ref, "misplaced", { key, saved, condition, ...saved ? {} : { remedy: { text: remedy } } }).diagnostic;
 }

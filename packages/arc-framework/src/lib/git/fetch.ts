@@ -11,7 +11,7 @@ export interface FetchRefOutcome { flag: " " | "+" | "*" | "-" | "!" | "="; old:
 /** Original process evidence plus per-ref reports or a rowless remote failure. */
 export type FetchOutcome = { stdout: string; stderr: string } & (
   | { status: "refs"; refs: FetchRefOutcome[] }
-  | { status: "unreachable"; cause: RemoteFailureReason }
+  | { status: "unreachable"; cause: RemoteFailureReason; completedFailure?: true }
 );
 
 /** Interpret complete fetch output or a typed process rejection. */
@@ -27,5 +27,5 @@ export function parseFetchPorcelain(input: ExecResult | GitProcessError): FetchO
   });
   const evidence = { stdout: input.stdout, stderr: input.stderr ?? "" };
   if (refs.length > 0 || !(input instanceof GitProcessError)) return { status: "refs", refs, ...evidence };
-  return { status: "unreachable", cause: classifyRemoteFailure(input), ...evidence };
+  return { status: "unreachable", cause: classifyRemoteFailure(input), completedFailure: true, ...evidence };
 }

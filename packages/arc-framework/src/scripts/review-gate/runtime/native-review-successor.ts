@@ -20,17 +20,18 @@ export interface NativeReviewSuccessorInput extends NativeReviewApprovalInput {
 
 /** Create a successor and mark its current unperformed predecessor in one batch. */
 export async function publishNativeReviewSuccessor(input: NativeReviewSuccessorInput): Promise<StoredReviewFact<ReviewEvidence>> {
-  const result = await new StoredReviewResultReader(input).readResult(input.record.operationId);
+  const authority = await new StoredReviewResultReader(input).readAuthority(input.record.operationId);
+  const { result, outcome } = authority;
   const record = validateApprovedDispositionRecordForResult(input.record, result);
   const node = currentApprovedDispositionNode(record), predecessorId = node.predecessorDispositionSetId;
   if (predecessorId === null || node.successorDispositionSetId !== null) {
     throw new Error("A successor approval requires its exact predecessor; restore the approved response and retry.");
   }
   const id = node.approvedDisposition.dispositionSet.dispositionSetId;
-  const existing = await input.evidence.read(id);
-  if (existing !== null) return replayNativeReviewApproval(existing, node, input.evidence);
-  const prior = await input.evidence.read(predecessorId);
-  if (prior === null) throw new Error("Restore the approved predecessor before approving its successor, then retry.");
+  const existing = authority.evidence.find(record => record.value.dispositionSet.dispositionSetId === id);
+  if (existing !== undefined) return replayNativeReviewApproval(existing, node, input.evidence);
+  const prior = authority.evidence.find(record => record.value.dispositionSet.dispositionSetId === predecessorId);
+  if (prior === undefined) throw new Error("Restore the approved predecessor in the selected branch before approving its successor, then retry.");
   assertCurrentUnperformedPredecessor(prior.value);
   const previousNode = record.approvedDispositionLineage.at(-2);
   if (canonicalize(previousNode?.approvedDisposition) !== canonicalize({ schemaVersion: 2,
@@ -40,8 +41,6 @@ export async function publishNativeReviewSuccessor(input: NativeReviewSuccessorI
   if (node.errandFixResponse !== null || node.deliveryMemberFixResponse !== null) {
     throw new Error("Approve the successor before publishing its performed response.");
   }
-  const outcome = await input.outcomes.read(prior.value.result.outcomeKey);
-  if (outcome === null) throw new Error("Restore the exact producer outcome before approving its successor.");
   const next = { ...createNativeReviewApprovalEvidence(record, node, outcome.value, input.now()),
     binding: prior.value.binding, predecessorDispositionSetId: predecessorId };
   if (result.kind === "hosted" && next.settlement !== undefined) {

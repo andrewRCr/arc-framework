@@ -1,17 +1,18 @@
 /** Prove current sibling ends independently of the earlier batch's tree shape. */
 import { OwnerIdentitySchema, type OwnerIdentity } from "../identity.js";
-import { parseLineageRecord } from "../kinds/lineage/index.js";
+import { requireWithdrawLineage } from "./sync-withdraw-lineage.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
 import { isUnavailableGraphFailure } from "./history-graph.js";
 import { syncRefIsAncestor } from "./sync-graph.js";
-import { readItemEndCandidates, type ItemEndCandidate } from "./sync-lifecycle-log.js";
+import { readItemEndCandidates, type ItemEndCandidate, type ItemEndFault } from "./sync-lifecycle-log.js";
 import { UnavailableWithdrawJournal, type WithdrawJournalStep } from "./sync-withdraw-journal.js";
 import type { WithdrawalBasis } from "./sync-withdraw-prepare.js";
 import { archiveOwnerTrees, isArchiveRef, isArchiveMetadataPath, latestArchivedFolders, type ArchivedFolder } from "./archive-read.js";
 import { archiveStateFromCapture, captureArchivedFolders } from "./ended-owners.js";
 import { refPrototype } from "./read.js";
-import { parseRefMetadata } from "./metadata.js";
+import { readRefMetadata } from "./metadata.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** Keep only siblings whose current end has a distinct, later, unwithdrawn history witness. */
 export async function laterSiblingEnds(context: RefBackendContext, basis: WithdrawalBasis,
@@ -34,7 +35,7 @@ export async function laterSiblingEnds(context: RefBackendContext, basis: Withdr
       if (await hasLaterEnd(context, original, candidates, basis.batches)) retained.set(step.ref, owner);
     } catch (error) {
       if (!await isUnavailableGraphFailure(context, error)) throw error;
-      throw new UnavailableWithdrawJournal(step.ref, `History required to preserve a later end on ${step.ref} is unavailable.`);
+      throw new UnavailableWithdrawJournal(step.ref, `History required to preserve a later end on ${step.ref} is unavailable.`, "missing");
     }
   }
   return retained;
@@ -49,7 +50,8 @@ async function siblingFolders(context: RefBackendContext, state: ReadonlyMap<str
   const capture = archiveStateFromCapture(quarters, trees, objects);
   const results = (["work-item", "cohort"] as const).map(family => captureArchivedFolders(capture, family, owners));
   const diagnostic = results.flatMap(result => result.diagnostics)[0];
-  if (diagnostic) throw new UnavailableWithdrawJournal(diagnostic.key.split(":")[0] ?? diagnostic.key, diagnostic.condition);
+  if (diagnostic) throw new UnavailableWithdrawJournal(diagnostic.key.split(":")[0] ?? diagnostic.key, diagnostic.condition,
+    diagnostic.fault, { key: diagnostic.key, remedy: diagnostic.remedy });
   return latestArchivedFolders(results.flatMap(result => result.folders));
 }
 
@@ -58,31 +60,53 @@ async function terminalOwner(context: RefBackendContext, basis: WithdrawalBasis,
   const ref = "refs/arc/project/registry", tip = basis.state.get(ref), uid = history.split("/").at(-1);
   if (!tip) return;
   const entries = (await readRefTrees(context, new Map([[ref, tip]]))).get(ref);
-  if (!entries) throw new UnavailableWithdrawJournal(ref, "The registry tree required to establish a later terminal owner is unavailable.");
+  if (!entries) throw new UnavailableWithdrawJournal(ref, "The registry tree required to establish a later terminal owner is unavailable.", "missing");
   const entry = entries.find(({ path }) => path === `lineage/${uid}.json`);
   if (!entry) return;
   const object = (await readBatchObjects(context, [entry.oid])).get(entry.oid);
-  const lineage = object?.type === "blob" ? parseLineageRecord(new TextDecoder().decode(object.bytes)) : null;
-  if (!lineage || lineage.origin.uid !== uid) throw new UnavailableWithdrawJournal(ref, "The terminal owner's retained lineage cannot be decoded.");
+  const condition = "The terminal owner's retained lineage cannot be decoded.";
+  const lineage = requireWithdrawLineage(ref, entry.path, object, condition);
+  if (lineage.origin.uid !== uid) throw new UnavailableWithdrawJournal(ref, condition);
   return lineage.kind === "rename" ? undefined : OwnerIdentitySchema.parse({ type: "work-item", ...lineage.origin });
 }
 
 async function currentEndCandidates(context: RefBackendContext, basis: WithdrawalBasis, ref: string, tip: string, owner: OwnerIdentity,
   folder?: ArchivedFolder): Promise<ItemEndCandidate[]> {
   const evidence = await readItemEndCandidates(context, tip, owner, folder ? "all" : "retirement");
-  if (evidence.unavailable.size) throw new UnavailableWithdrawJournal(ref, "A tree required to establish the sibling's current end is unavailable.");
+  if (evidence.unavailable.size) throw new UnavailableWithdrawJournal(ref, "A tree required to establish the sibling's current end is unavailable.", "missing");
   if (!folder) return evidence.candidates;
   const batch = folder.metadata.endBatch;
+  const fault = evidence.faults.find(candidate => batch && candidate.batch === batch);
+  if (fault) throw endMetadataFault(ref, fault.commit, fault.fault);
   const candidates = evidence.candidates.filter(candidate => batch && candidate.batch === batch);
   // Another machine's published end is never in the local history, and as an independent end it keeps no sibling.
   if (!candidates.length && await publishedFolder(context, basis.incoming, owner, folder)) return [];
   if (!candidates.length) throw new UnavailableWithdrawJournal(ref, "The current archive folder's original end cannot be witnessed in its retained history.");
   const uid = "uid" in owner ? owner.uid : undefined;
-  const objects = await readBatchObjects(context, candidates.map(({ commit }) => `${commit}:metadata-${uid}.json`));
-  if (candidates.some(({ commit }) => parseRefMetadata(objects.get(`${commit}:metadata-${uid}.json`), ref)?.endBatch !== batch)) {
+  await requireEndMetadata(context, ref, candidates, `metadata-${uid}.json`, batch);
+  return candidates;
+}
+
+async function requireEndMetadata(context: RefBackendContext, ref: string, candidates: readonly ItemEndCandidate[],
+  path: string, batch: string | undefined): Promise<void> {
+  const objects = await readBatchObjects(context, candidates.map(({ commit }) => `${commit}:${path}`));
+  for (const { commit } of candidates) {
+    const object = objects.get(`${commit}:${path}`);
+    if (!object) {
+      const entries = (await readRefTrees(context, new Map([[commit, commit]]))).get(commit);
+      if (!entries || entries.some(entry => entry.path === path)) throw endMetadataFault(ref, commit, "missing");
+    } else {
+      const read = readRefMetadata(ref, object);
+      if (read.kind === "parsed" && read.metadata.endBatch === batch) continue;
+      if (read.kind === "unparseable") throw endMetadataFault(ref, commit, read.kind);
+    }
     throw new UnavailableWithdrawJournal(ref, "Metadata required to establish the current archive end is unavailable or cannot be decoded.");
   }
-  return candidates;
+}
+
+function endMetadataFault(ref: string, commit: string, fault: ItemEndFault["fault"]): UnavailableWithdrawJournal {
+  const { condition } = refObjectFault(ref, fault, { saved: true });
+  return new UnavailableWithdrawJournal(ref, `${condition} End commit: ${commit}.`, fault, { saved: true });
 }
 
 async function publishedFolder(context: RefBackendContext, incoming: ReadonlyMap<string, string>, owner: OwnerIdentity,

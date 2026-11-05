@@ -25,25 +25,33 @@ export function reviewEvidenceLineageRefusal(evidence: readonly ReviewEvidence[]
 export function orderReviewEvidenceLineage(evidence: readonly ReviewEvidence[]): ReviewEvidence[] {
   const roots = evidence.filter((value) => value.predecessorDispositionSetId === null);
   const records = new Map(evidence.map((value) => [value.dispositionSet.dispositionSetId, value]));
-  if (roots.length !== 1 || records.size !== evidence.length) throw reviewEvidenceLineageRefusal(evidence, "root",
-    "A single approved-response root is required. No command currently repairs a pull-merged second root.");
+  const root = roots[0];
+  if (root === undefined || roots.length !== 1 || records.size !== evidence.length) throw reviewEvidenceLineageRefusal(evidence, "root",
+    "A single approved-response root is required. Preview an explicit selection with arc store repair-review-roots; use --schema for the exact owner and producer request.");
+  const ordered = orderReviewEvidenceBranch(root, records);
+  if (ordered.length !== evidence.length) throw reviewEvidenceLineageRefusal(evidence, "connected",
+    "Restore every connected approved response before reading the lineage.");
+  return ordered;
+}
+
+/** Order one root's reciprocal branch while preserving the complete inventory in damaged-edge refusals. */
+export function orderReviewEvidenceBranch(root: ReviewEvidence, records: ReadonlyMap<string, ReviewEvidence>): ReviewEvidence[] {
+  const refuse = (rule: string, remedy: string) => reviewEvidenceLineageRefusal([...records.values()], rule, remedy);
   const ordered: ReviewEvidence[] = [];
   const seen = new Set<string>();
-  let current = roots[0];
-  while (current !== undefined) {
+  let current = root;
+  for (;;) {
     const id = current.dispositionSet.dispositionSetId;
-    if (seen.has(id)) throw reviewEvidenceLineageRefusal(evidence, "cycle", "Restore an acyclic approved-response lineage.");
+    if (seen.has(id)) throw refuse("cycle", "Restore an acyclic approved-response lineage.");
     seen.add(id);
     ordered.push(current);
     if (current.successorDispositionSetId === null) break;
     const successor = records.get(current.successorDispositionSetId);
-    if (successor === undefined) throw reviewEvidenceLineageRefusal(evidence, "successor", "Restore the missing approved-response successor.");
-    if (successor.predecessorDispositionSetId !== id) throw reviewEvidenceLineageRefusal(evidence, "predecessor",
+    if (successor === undefined) throw refuse("successor", "Restore the missing approved-response successor.");
+    if (successor.predecessorDispositionSetId !== id) throw refuse("predecessor",
       "Restore reciprocal predecessor and successor links in the approved-response lineage, then retry.");
     current = successor;
   }
-  if (ordered.length !== evidence.length) throw reviewEvidenceLineageRefusal(evidence, "connected",
-    "Restore every connected approved response before reading the lineage.");
   return ordered;
 }
 

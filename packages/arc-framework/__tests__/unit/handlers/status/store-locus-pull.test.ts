@@ -2,6 +2,8 @@
 import { expect, it } from "vitest";
 import { pullStoreStatus } from "../../../../src/handlers/status/store-locus.js";
 import { createStoreSyncPort } from "../../../../src/lib/store/operational-sync.js";
+import { projectPull } from "../../../../src/lib/store/operational-sync-bindings.js";
+import { PullResultSchema } from "../../../../src/lib/store/sync.js";
 import type { PullResult } from "../../../../src/lib/store/operational-sync.js";
 
 it.each(["pulled", "noop", "no-remote"] as const)("renders %s without a warning", async status => {
@@ -62,4 +64,19 @@ it("renders an unfinished move beside a synchronized pull as a notice with its r
     remedy: { text: "Finish the move.", argv: ["arc", "store", "migrate"] } }] };
   expect(await pullStoreStatus({ sync: createStoreSyncPort({ pull: async () => pull }) }))
     .toEqual([{ code: "pull-notice", rendered: "A remote move remains unfinished. Finish the move. arc store migrate" }]);
+});
+
+it("shows the designation question and separate command once beside a failed read source in status", async () => {
+  const readFailure = true;
+  const result = projectPull(PullResultSchema.parse({ states: [{ status: "designation-needed", remote: "backup", choices: ["push", "read", "off"],
+    remedy: { text: "Choose the backup role.", argv: ["arc", "store", "remote", "backup", "push"] } }],
+    pulls: readFailure ? [{ status: "failed", remote: "upstream", role: "read", families: ["work-item"], notices: [],
+      failure: { code: "unreachable", class: "recoverable", cause: "network", condition: "Upstream is offline.",
+        remedy: { text: "Reconnect the read source." } } }] : [] }));
+  const warnings = await pullStoreStatus({ sync: createStoreSyncPort({ pull: async () => result }) });
+  expect(warnings[0]?.code).toBe("pull-incomplete");
+  const rendered = warnings.map(warning => warning.rendered).join(" ");
+  expect(rendered).toContain("Remote backup needs a store designation. Choose the backup role. arc store remote backup push");
+  expect(rendered.split("arc store remote backup push")).toHaveLength(2);
+  expect(rendered).toContain("Upstream is offline.");
 });

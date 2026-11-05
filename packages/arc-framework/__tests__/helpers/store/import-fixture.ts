@@ -31,12 +31,12 @@ export const IMPORT_DOCUMENTS = [
 export const IMPORT_COHORT = "# Cohort: `group`\n\n**Purpose:** Coordinate the example work.\n";
 export const IMPORT_INBOX = "# Project Inbox\n\n## Inbox\n\n### **First**\n\n- _Description:_ First source entry.\n\n### **Second**\n\n- _Id:_ `11111111`\n- _Description:_ Second source entry.\n";
 
-export interface ImportFixtureOptions { completed?: boolean; lineage?: boolean }
+export interface ImportFixtureOptions { completed?: boolean; lineage?: boolean; refFormat?: "files" | "reftable" }
 const templates = new Map<string, Promise<PreparedRepositoryTemplate>>();
 afterAll(async () => { for (const template of templates.values()) await removeGitBackedDir((await template).root); });
 
-async function build(completed: boolean, lineage: boolean): Promise<string> {
-  const root = await createTempRepoCore({ prefix: "arc-import-", identity: "andrew" });
+async function build(completed: boolean, lineage: boolean, refFormat?: "files" | "reftable"): Promise<string> {
+  const root = await createTempRepoCore({ prefix: "arc-import-", identity: "andrew", refFormat });
   const git = makeGitExec(root);
   const meta = resolveArcPath({ kind: "work-unit-artifact", artifact: "meta", slug: SlugSchema.parse("alpha"),
     placement: { kind: "active", scope: { kind: "project" } } });
@@ -72,10 +72,11 @@ async function build(completed: boolean, lineage: boolean): Promise<string> {
 /** Copy the prepared source without precreating either the store or review-gate identity. */
 export async function importFixture(layout: "default" | "separate" = "default", options: ImportFixtureOptions = {}) {
   const completed = options.completed === true, lineage = options.lineage === true;
-  const key = `tracked-import${completed ? "-archives" : ""}${lineage ? "-lineage" : ""}`;
+  const refFormat = options.refFormat;
+  const key = `tracked-import${completed ? "-archives" : ""}${lineage ? "-lineage" : ""}${refFormat ? `-${refFormat}` : ""}`;
   const shape = { kind: "remote-bearing", key } as const;
   let template = templates.get(key);
-  if (!template) { template = prepareRepositoryTemplate(shape, () => build(completed, lineage)); templates.set(key, template); }
+  if (!template) { template = prepareRepositoryTemplate(shape, () => build(completed, lineage, refFormat)); templates.set(key, template); }
   const root = await copyPreparedRepository(await template, shape);
   onTestFinished(() => removeGitBackedDir(root));
   const git = makeGitExec(root);

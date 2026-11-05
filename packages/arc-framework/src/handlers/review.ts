@@ -284,7 +284,8 @@ import {
   type HostedReviewObserver,
 } from "../scripts/review-gate/hosted/await.js";
 import { resolveHostedAwaitTiming } from "../scripts/review-gate/hosted/await-config.js";
-import { AwaitTimingError, resolveAwaitTiming, type AwaitTiming } from "../scripts/review-gate/await-timing.js";
+import { AwaitTimingError, resolveAwaitTiming, type AwaitTimingDiagnostic, type ResolvedAwaitTiming }
+  from "../scripts/review-gate/await-timing.js";
 import {
   acknowledgeHostedRequest,
   hostedLaneAttemptId,
@@ -1224,8 +1225,9 @@ export interface ReviewChecksAwaitHandlerDependencies {
 async function parseChecksAwaitInput(
   options: ReviewChecksAwaitOptions,
   dependencies: Pick<ReviewChecksAwaitHandlerDependencies, "readTimingSettings">,
-): Promise<{ success: true; data: z.infer<typeof ChecksAwaitInputSchema> } | { success: false; detail: string }> {
-  let timing: AwaitTiming;
+): Promise<{ success: true; data: z.infer<typeof ChecksAwaitInputSchema>; diagnostics: readonly AwaitTimingDiagnostic[] }
+  | { success: false; detail: string }> {
+  let timing: ResolvedAwaitTiming;
   try {
     timing = resolveAwaitTiming({
       wait: "required-check await",
@@ -1248,10 +1250,11 @@ async function parseChecksAwaitInput(
     repository: options.repository,
     pullRequest: Number(options.pullRequest),
     headSha: options.headSha,
-    ...timing,
+    timeoutMs: timing.timeoutMs,
+    pollIntervalMs: timing.pollIntervalMs,
   });
   return parsed.success
-    ? { success: true, data: parsed.data }
+    ? { success: true, data: parsed.data, diagnostics: timing.diagnostics }
     : { success: false, detail: parsed.error.issues.map((issue) => issue.message).join("; ") };
 }
 
@@ -1318,7 +1321,9 @@ export async function handleReviewChecksAwait(
         }),
       );
     }
-    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse(result))}\n`);
+    const { diagnostics } = parsed;
+    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse(
+      diagnostics.length === 0 ? result : { ...result, diagnostics }))}\n`);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse({
@@ -3951,12 +3956,15 @@ function defaultHostedAwaitDependencies(context: InteractionContext, invocation:
       if (request.handle.admission.repositoryId !== repositoryId) {
         throw new Error("Hosted await does not match the current repository.");
       }
+      // Limit notices describe this call's own wait, so they reach only its output, never the sealed result.
+      let diagnostics: readonly AwaitTimingDiagnostic[] = [];
       const resolved = await resolveHostedAwaitResult(store, {
         repositoryId,
         handle: request.handle,
         observe: async () => {
           const settings = (await readConfigSettings(root)).settings;
           const timing = resolveHostedAwaitTiming(request, settings);
+          diagnostics = timing.diagnostics ?? [];
           return await awaitHostedReview(timing.request, {
             observers,
             attentionAfterMs: timing.attentionAfterMs,
@@ -3989,7 +3997,7 @@ function defaultHostedAwaitDependencies(context: InteractionContext, invocation:
             }),
           }
         : result;
-      return retainHostedAwaitReference(selected, published);
+      return retainHostedAwaitReference(selected, diagnostics.length === 0 ? published : { ...published, diagnostics });
     },
   };
 }

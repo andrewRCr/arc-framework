@@ -59,6 +59,21 @@ function tableMapping(input: ReviewMappingInput): ReviewMappingResult {
   return { records, listing: listing(input, records.map(record => record.reference)) };
 }
 
+it("imports one review record when its mapping emits the same qualified record twice", async () => {
+  const h = await opaqueReviewImport();
+  h.ports.reviewMapping = input => {
+    const mapped = tableMapping(input);
+    return { ...mapped, records: mapped.records.flatMap(record => [record, { ...record, reference: { ...record.reference } }]) };
+  };
+  expect(await h.migrate()).toMatchObject({ status: "ok" });
+  const store = createRefStore(h.ports);
+  const reference = RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name: "alpha" } });
+  const record = success(await store.read({ reference }));
+  expect(JSON.parse(record.content)).toMatchObject({ projectId: expect.any(String), workItems: [expect.objectContaining({ slug: "alpha" })] });
+  const listing = success(await store.list({ family: "review", kind: "review/candidate", owner: reference.owner }));
+  expect(listing).toMatchObject({ status: "complete", records: [expect.objectContaining({ reference: record.reference })] });
+});
+
 it("uses a mapping's records after supplying exact gate bytes and the live Candidate history and boundary", async () => {
   const h = await opaqueReviewImport();
   const reference = RecordReferenceSchema.parse({ kind: "review/candidate", owner: { type: "work-item", name: "alpha" } });

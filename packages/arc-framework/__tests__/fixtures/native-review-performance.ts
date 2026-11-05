@@ -6,6 +6,7 @@ import { createHostedHandleFixture } from "./hosted-review.js";
 import { TransientIdentityRecordSchema } from "../../src/lib/errand/identity-record.js";
 import { createReviewOutcomePort } from "../../src/lib/store/kinds/review/outcome/access.js";
 import { createReviewEvidencePort } from "../../src/lib/store/kinds/review/evidence/access.js";
+import { createReviewResponsePort } from "../../src/lib/store/kinds/review/evidence-root-selection/responses.js";
 import { ReviewOutcomeSchema } from "../../src/lib/store/kinds/review/outcome/schema.js";
 import { ReviewEvidenceSchema } from "../../src/lib/store/kinds/review/evidence/schema.js";
 import { composeReviewDispositionRecord } from "../../src/lib/store/kinds/review/evidence/composed-record.js";
@@ -44,7 +45,7 @@ export async function createNativeReviewPerformanceFixture(kind: "candidate" | "
   const { performance: ignoredPerformance, ...approved } = value;
   void ignoredPerformance;
   const approval = composeReviewDispositionRecord(outcome, [approved], primary.reference.owner);
-  const ports = { outcomes, evidence, readProjectId: h.projectId };
+  const ports = { outcomes, evidence, responses: createReviewResponsePort(h.store, primary.reference.owner), readProjectId: h.projectId };
   const initial = await publishNativeReviewApproval({ ...ports, record: { ...approval,
     approvedDispositionLineage: approval.approvedDispositionLineage.map(node => ({ ...node,
       ...(options.pendingPolicy ? { policyProjectionPending: true as const } : {}) })) }, now: () => "2026-10-20T12:01:00Z" });

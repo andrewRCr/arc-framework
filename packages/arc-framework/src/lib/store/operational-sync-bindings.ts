@@ -9,7 +9,7 @@ interface Issue { condition: string; remedy: Remedy }
 type ReportedState = Exclude<SyncState, { status: "no-remote" }>;
 
 /** Pull through the exact selected store, forwarding only the history names the caller supplied. */
-export async function pullSelectedStore(store: Store, refs?: readonly string[]): Promise<PullResult> {
+export async function pullSelectedStore(store: Pick<Store, "pull">, refs?: readonly string[]): Promise<PullResult> {
   const pulled = await store.pull(refs === undefined ? undefined : { history: refs.map(ref => HistoryRefSchema.parse(ref)) });
   if (pulled.status === "refused") return { status: pulled.refusal.code === "unreachable" ? "unreachable" : "incomplete",
     condition: pulled.refusal.condition, remedy: pulled.refusal.remedy };
@@ -23,8 +23,8 @@ export async function maintainSelectedStore(store: Store): Promise<MaintainResul
   return result.result;
 }
 
-// An unfinished move stops nothing: it travels beside whatever the pull reports, never as an issue of its own.
-function projectPull(result: StorePullResult): PullResult {
+/** Project pull outcomes and states; an unfinished move remains advisory beside the pull. */
+export function projectPull(result: StorePullResult): PullResult {
   const notices = result.pulls.flatMap(pull => pull.notices);
   const advisories = result.states.flatMap(state => state.status === "move-unfinished"
     ? [{ condition: state.condition, remedy: state.remedy }] : []);

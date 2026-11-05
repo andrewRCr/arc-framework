@@ -1,7 +1,8 @@
 /** Restartable retirement of re-homed identity refs, leased to retained source tips. */
 import type { RefBackendContext } from "../context.js";
 import type { MigrateReport, StoreMigrateResult } from "../../commands.js";
-import { updateRefTransaction, type RefChange } from "../../../git/ref-transaction.js";
+import type { RefChange } from "../../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "../ref-transaction.js";
 import { pushRefs } from "../../../git/push.js";
 import { classifyPushOutcome } from "../../../git/push-classification.js";
 import { readSyncRefs } from "../sync-graph.js";
@@ -10,6 +11,7 @@ import { IMPORT_PUBLICATION_REF, unpublishedImportClaims } from "./transient-pub
 import { listRemoteRefs } from "../remote-listing.js";
 import { captureMoveRemote, migrationTransportTarget } from "../migrate-remote-target.js";
 import { MigrationRefusal } from "../migrate-refusal.js";
+import { importCommandFailure } from "./refusal.js";
 
 /** Kept tips live in the code repository until all licensed cleanup finishes. */
 export const IMPORT_KEPT_PREFIX = "refs/arc/tmp/migrate/import/kept/";
@@ -20,7 +22,7 @@ export async function keepImportTransients(context: RefBackendContext, tips: Rea
   const kept = new Map([...tips].map(([ref, next]) => [keptRef(ref), next]));
   const changes: RefChange[] = [...[...kept].map(([ref, next]) => ({ ref, next, expected: held.get(ref) ?? null })),
     ...[...held].filter(([ref]) => !kept.has(ref)).map(([ref, expected]) => ({ ref, expected, delete: true as const }))];
-  if (changes.length && (await updateRefTransaction(context, changes, { cwd: context.checkoutRoot })).status !== "committed") {
+  if (changes.length && (await updateStoreRefTransaction(context, changes, { cwd: context.checkoutRoot })).status !== "committed") {
     throw new Error("The import's retained transient tips changed during its build");
   }
 }
@@ -32,8 +34,8 @@ export function importTransientDeletes(tips: ReadonlyMap<string, string>): RefCh
 
 /** Delete what local transient refs remain before any publication: a separate landing leaves them, and a move into the default layout keeps them. */
 export async function retireImportLocals(context: RefBackendContext): Promise<StoreMigrateResult | undefined> {
-  const kept = await readSyncRefs(context, IMPORT_KEPT_PREFIX);
-  if (!kept.size) return;
+  const { kept, publication } = await readCleanupTips(context);
+  if (!kept.size) return dropKeptTips(context, kept, publication);
   await context.migrateStep?.("import.transient.local-delete");
   const local = await readSyncRefs(context, "refs/arc/user/");
   const changes: RefChange[] = [];
@@ -43,32 +45,36 @@ export async function retireImportLocals(context: RefBackendContext): Promise<St
     if (actual !== undefined && actual !== expected) return cleanupRefused(`${source} advanced after the import read it.`);
     if (actual !== undefined) changes.push({ ref: source, expected, delete: true });
   }
-  if (changes.length && (await updateRefTransaction(context, changes, { cwd: context.checkoutRoot })).status !== "committed") {
+  if (changes.length && (await updateStoreRefTransaction(context, changes, { cwd: context.checkoutRoot })).status !== "committed") {
     return cleanupRefused("Transient identity refs changed during their local deletion.");
   }
 }
 
 /** After publication, remove only the origin generations actually re-homed; with no state remote, name them instead. */
 export async function retireImportRemote(context: RefBackendContext, report: MigrateReport): Promise<StoreMigrateResult | undefined> {
-  const kept = await readSyncRefs(context, IMPORT_KEPT_PREFIX);
-  if (!kept.size) return;
+  const { kept, publication } = await readCleanupTips(context);
+  if (!kept.size) return dropKeptTips(context, kept, publication);
   if (!(await readRefDesignation(context)).pushes.length) {
     try { report.notices.push(...await retainedRemoteNotices(context, kept)); }
     catch (error) {
       if (!(error instanceof MigrationRefusal)) throw error;
-      return cleanupRefused(`Could not read origin's transient refs: ${error.message}`,
-        "Preserve the kept tips. Restore access to origin, then rerun arc store migrate --import to list its retained transient refs and finish cleanup.");
+      return importCommandFailure(error.refusal);
     }
-    return dropKeptTips(context, kept);
+    return dropKeptTips(context, kept, publication);
   }
   await context.migrateStep?.("import.transient.remote-delete");
   let refused: string | { condition: string; remedy: string } | undefined;
   try { refused = await retireOriginRefs(context, kept); }
   catch (error) {
     if (!(error instanceof MigrationRefusal)) throw error;
-    refused = `Could not retire origin's transient refs: ${error.message}`;
+    return importCommandFailure(error.refusal);
   }
-  return refused ? typeof refused === "string" ? cleanupRefused(refused) : cleanupRefused(refused.condition, refused.remedy) : dropKeptTips(context, kept);
+  return refused ? typeof refused === "string" ? cleanupRefused(refused) : cleanupRefused(refused.condition, refused.remedy) : dropKeptTips(context, kept, publication);
+}
+
+async function readCleanupTips(context: RefBackendContext): Promise<{ kept: ReadonlyMap<string, string>; publication?: string }> {
+  const tips = await readSyncRefs(context, [IMPORT_KEPT_PREFIX, IMPORT_PUBLICATION_REF]);
+  return { kept: new Map([...tips].filter(([ref]) => ref.startsWith(IMPORT_KEPT_PREFIX))), publication: tips.get(IMPORT_PUBLICATION_REF) };
 }
 
 /** Delete each re-homed origin ref under its kept tip's lease, naming the first that cannot go. */
@@ -91,12 +97,12 @@ async function retireOriginRefs(context: RefBackendContext, kept: ReadonlyMap<st
 }
 
 /** The kept tips go last, so an interrupted cleanup still knows what it re-homed. */
-async function dropKeptTips(context: RefBackendContext, kept: ReadonlyMap<string, string>): Promise<StoreMigrateResult | undefined> {
+async function dropKeptTips(context: RefBackendContext, kept: ReadonlyMap<string, string>, publication?: string): Promise<StoreMigrateResult | undefined> {
+  if (!kept.size && !publication) return;
   await context.migrateStep?.("import.transient.drop-kept");
-  const publication = (await readSyncRefs(context, IMPORT_PUBLICATION_REF)).get(IMPORT_PUBLICATION_REF);
   const changes = [...kept, ...publication ? [[IMPORT_PUBLICATION_REF, publication] as const] : []]
     .map(([ref, expected]) => ({ ref, expected, delete: true as const }));
-  if ((await updateRefTransaction(context, changes, { cwd: context.checkoutRoot })).status !== "committed") {
+  if ((await updateStoreRefTransaction(context, changes, { cwd: context.checkoutRoot })).status !== "committed") {
     return cleanupRefused("The import's retained transient tips changed during cleanup.");
   }
 }
@@ -122,7 +128,8 @@ async function captureOrigin(context: RefBackendContext) {
 
 async function originTips(context: RefBackendContext, endpoint: string, refs: string[]): Promise<Map<string, string>> {
   const listed = await listRemoteRefs(context, await migrationTransportTarget(context, endpoint, "fetch"), refs);
-  if (listed.status === "unreachable") throw new MigrationRefusal(cleanupRefused(listed.condition).refusal);
+  if (listed.status === "unreachable") throw new MigrationRefusal(cleanupRefused(listed.condition,
+    "Preserve the kept tips. Restore access to origin, then rerun arc store migrate --import to list its retained transient refs and finish cleanup.").refusal);
   return listed.tips;
 }
 

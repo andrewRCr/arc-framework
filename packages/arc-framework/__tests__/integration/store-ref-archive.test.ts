@@ -146,7 +146,8 @@ describe("local ref archives", () => {
     await removeLooseObject(f.root, tree);
     const before = success(await f.store.version());
     const write = { ...update(f, second), placement: { kind: "completed" as const, quarter } };
-    expect(await f.store.write(write)).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: ref,
+    expect(await f.store.write(write)).toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", historyRefs: [],
+      condition: expect.stringContaining(ref),
       remedy: { text: expect.stringMatching(/restore|fetch/iu) } } });
     expect(success(await f.store.version())).toBe(before);
     await f.ports.rawExec(["hash-object", "-t", "tree", "-w", "--stdin"], { cwd: f.root, input: bytes, objectAccess: "local-only" });

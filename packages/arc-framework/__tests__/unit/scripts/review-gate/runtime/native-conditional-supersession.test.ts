@@ -19,7 +19,7 @@ it.each(["pending", "ended"] as const)("refuses to supersede a consumed grant wi
   if (checkout !== null) onTestFinished(checkout.cleanup);
   const inFlight = checkout === null ? h.operations : new NativeReviewInFlightStateStore({
     publisher: new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd), workItem: h.f.primary.reference.owner,
-    outcomes: h.f.input.outcomes, evidence: h.f.input.evidence, decisions: h.f.input.decisions, projectId: h.f.input.readProjectId });
+    outcomes: h.f.input.outcomes, evidence: h.f.input.evidence, decisions: h.f.input.decisions, projectId: h.f.input.readProjectId, responses: h.f.input.responses });
   const before = await h.f.input.decisions.read(h.authorizationId);
   expect(await inspectNativeConditionalPassSupersession({ ...h.f.input, inFlight, supersession: {
     ...h.f.input.capture, successorDispositionSetId: canonicalDigest({ successor: 1 }) } })).toMatchObject({

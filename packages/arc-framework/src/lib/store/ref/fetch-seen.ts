@@ -1,14 +1,14 @@
 /** Preserve the last verified tracking head across pruning without making it stored state. */
 
 import type { FetchOutcome } from "../../git/fetch.js";
-import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
+import type { RefChange } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import type { PullNotice } from "../sync.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { compareFetchedRefTips, unavailableFetchGraphNotice } from "./fetch-graph.js";
 import { refFetchRewriteRemedy } from "./fetch-remedy.js";
-import { rethrowRefFetchKeeperLock } from "./fetch-keeper-lock.js";
 import { withRefLocks } from "./write-locks.js";
 import { REF_SYNC_DEADLINE_MS } from "./sync-deadline.js";
 
@@ -18,7 +18,9 @@ export interface RefFetchBasis { tracking: Map<string, string>; seen: Map<string
 /**
  * Every checkout of the clone shares one remote's keepers, and a pull releases those whose tracking ref survived its
  * fetch, so a sibling's basis, fetch, and release must not interleave with it: one pull's release would drop a keeper
- * the other's pruning fetch still needs. A sibling holds the lock for at most its own sync deadline.
+ * the other's pruning fetch still needs. This lease spans the remote fetch and is bounded by the sync deadline.
+ * A sibling that outwaits its remaining deadline ends with RefSyncDeadlineError and refSyncDeadlineRemedy's retry
+ * remedy; the keeper lease and move lock are the only locks held across network calls.
  */
 export async function withRefFetchKeepers<T>(context: RefBackendContext, remote: string, operation: () => Promise<T>): Promise<T> {
   return withRefLocks(context, [`refs/arc/tmp/seen/${remote}`], operation, REF_SYNC_DEADLINE_MS);
@@ -34,8 +36,7 @@ export async function readRefFetchBasis(context: RefBackendContext, remote: stri
       seen: new Map([...tips].filter(([ref]) => ref.startsWith(seen))), blocked: new Set() };
     const { changes, normalized } = await planKeeperChanges(context, basis, tracking, seen);
     if (!changes.length) return basis;
-    const outcome = await updateRefTransaction(context, changes, { cwd: context.checkoutRoot })
-      .catch((error: unknown) => rethrowRefFetchKeeperLock(context, changes.map(({ ref }) => ref), error));
+    const outcome = await updateStoreRefTransaction(context, changes, { cwd: context.checkoutRoot });
     if (outcome.status === "committed" && !normalized) return basis;
   }
 }
@@ -70,12 +71,10 @@ export async function finishRefFetchBasis(context: RefBackendContext, remote: st
   const releases = [...basis.tracking].filter(([ref]) => current.has(ref) && !basis.blocked.has(ref) && ref !== `${prefix}project/moved`)
     .map(([ref, tip]) => ({ ref: `refs/arc/tmp/seen/${remote}/${ref.slice(prefix.length)}`, delete: true as const, expected: tip }));
   if (!releases.length) return;
-  const outcome = await updateRefTransaction(context, releases, { cwd: context.checkoutRoot })
-    .catch((error: unknown) => rethrowRefFetchKeeperLock(context, releases.map(({ ref }) => ref), error));
+  const outcome = await updateStoreRefTransaction(context, releases, { cwd: context.checkoutRoot });
   if (outcome.status === "committed") return;
   // A keeper another step already moved stays; each other one is still released.
-  for (const release of releases) await updateRefTransaction(context, [release], { cwd: context.checkoutRoot })
-    .catch((error: unknown) => rethrowRefFetchKeeperLock(context, [release.ref], error));
+  for (const release of releases) await updateStoreRefTransaction(context, [release], { cwd: context.checkoutRoot });
 }
 
 /** A returned ref must agree with its kept history until an explicit forced fetch chooses a new basis. */
@@ -100,12 +99,10 @@ export async function checkSeenRefFetch(context: RefBackendContext, remote: RefR
       continue;
     }
     if (compared === "related") {
-      await updateRefTransaction(context, [{ ref: retained, delete: true, expected: kept }], { cwd: context.checkoutRoot })
-        .catch((error: unknown) => rethrowRefFetchKeeperLock(context, [retained], error));
+      await updateStoreRefTransaction(context, [{ ref: retained, delete: true, expected: kept }], { cwd: context.checkoutRoot });
       continue;
     }
-    await updateRefTransaction(context, [{ ref: row.ref, delete: true, expected: row.next }], { cwd: context.checkoutRoot })
-      .catch((error: unknown) => rethrowRefFetchKeeperLock(context, [row.ref], error));
+    await updateStoreRefTransaction(context, [{ ref: row.ref, delete: true, expected: row.next }], { cwd: context.checkoutRoot });
     row.flag = "!"; blocked.add(row.ref);
     notices.push({ kind: "history-diverged", ref, local: kept, remote: row.next,
       condition: `The returned ${ref} neither descends from its kept tip nor is an ancestor of it; both local heads were kept.`,

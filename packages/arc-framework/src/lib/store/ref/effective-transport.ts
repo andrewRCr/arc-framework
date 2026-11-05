@@ -12,6 +12,15 @@ export class EffectiveTransportError extends Error {
   }
 }
 
+/** Classify completed lookup failures at a transport consumer without caching a failed answer. */
+export async function resolveTransport<T>(endpoint: string, operation: TransportOperation, read: () => Promise<T>): Promise<T> {
+  try { return await read(); }
+  catch (error) {
+    if (!isGitProcessError(error) || !isCompletedGitFailure(error)) throw error;
+    throw new EffectiveTransportError(endpoint, operation, `could not be resolved (${error.message})`);
+  }
+}
+
 /** Read every publication destination, retaining Git's configured fetch spelling separately at the caller. */
 export async function readRemoteTransports(context: RefBackendContext, name: string): Promise<{ fetchUrl: string; pushUrls: string[] }> {
   return rememberRefLookup(context, readRemoteTransports, [name], async () => {

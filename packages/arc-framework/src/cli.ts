@@ -265,6 +265,12 @@ program
   });
 
 const storeCmd = program.command("store", { hidden: true }).description("Operate on the ref store explicitly");
+storeCmd.command("repair-review-roots").argument("[file]", "JSON request file, or - for stdin")
+  .option("--schema", "Emit the versioned JSON request schema")
+  .action(withInteractionContext({ machineReadable: () => true },
+    async (_context, file: string | undefined, options: import("./commands/store-review-root-repair.js").StoreReviewRootRepairOptions) => {
+      await (await import("./commands/store-review-root-repair.js")).handleStoreReviewRootRepair(file, options);
+    }));
 storeCmd.command("conflict").argument("<uid>", "Owner UID").argument("<kind>", "Registered work-item conflict kind")
   .argument("<id>", "Exact conflict ID")
   .option("--discard", "Accept the current state and discard this retained alternative")
@@ -2126,10 +2132,11 @@ reviewCmd
   .requiredOption("--repository <owner/repo>", "Exact repository coordinates")
   .requiredOption("--pull-request <number>", "Pull-request number")
   .requiredOption("--head-sha <oid>", "Exact 40-hex pull-request head")
-  .option("--timeout-ms <milliseconds>", "Bounded wait duration (default: review.checks_await_timeout_seconds)")
+  .option("--timeout-ms <milliseconds>",
+    "Bounded wait duration; a longer one waits 1800000 (default: review.checks_await_timeout_seconds)")
   .option(
     "--poll-interval-ms <milliseconds>",
-    "Initial polling interval (default: review.checks_await_initial_poll_interval_seconds)",
+    "Initial polling interval; a longer one polls every 60000 (default: review.checks_await_initial_poll_interval_seconds)",
   )
   .addOption(new Option("--json").hideHelp())
   .on("option:json", rejectUnsupportedReviewOutputJson)

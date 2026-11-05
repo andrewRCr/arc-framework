@@ -5,7 +5,7 @@ import type { OwnerIdentity } from "../identity.js";
 import { RecordReferenceSchema } from "../identity.js";
 import { parseStoreCommitProvenance } from "../commit-provenance.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
-import { parseRefMetadata } from "./metadata.js";
+import { readRefMetadata } from "./metadata.js";
 import { readLifecycleLog } from "./sync-lifecycle-evidence.js";
 
 /**
@@ -20,11 +20,14 @@ export async function readItemEndBatches(context: RefBackendContext, tip: string
 /** One original end's commit and batch, before a consumer orders its ancestry or establishes publication. */
 export interface ItemEndCandidate { commit: string; batch: string }
 
-/** Preserve end coordinates and unavailable trees separately so callers can choose their own completeness policy. */
+/** A nonempty commit whose metadata cannot establish whether it carries its batch's end. */
+export interface ItemEndFault extends ItemEndCandidate { fault: "missing" | "unparseable" | "no-metadata" }
+
+/** Preserve end coordinates, unavailable trees, and faulted metadata so callers choose their completeness policy. */
 export async function readItemEndCandidates(context: RefBackendContext, tip: string | undefined,
-  owner: OwnerIdentity, kind: "all" | "retirement" = "all"): Promise<{ candidates: ItemEndCandidate[]; unavailable: Set<string> }> {
-  const unavailable = new Set<string>();
-  if (!tip || !("uid" in owner)) return { candidates: [], unavailable };
+  owner: OwnerIdentity, kind: "all" | "retirement" = "all"): Promise<{ candidates: ItemEndCandidate[]; unavailable: Set<string>; faults: ItemEndFault[] }> {
+  const unavailable = new Set<string>(), faults: ItemEndFault[] = [];
+  if (!tip || !("uid" in owner)) return { candidates: [], unavailable, faults };
   const reference = RecordReferenceSchema.parse({ owner, kind: owner.type === "cohort" ? "cohort/document" : "work-item/meta" });
   const withdrawn = new Set<string>();
   const commits = (await readLifecycleLog(context, tip)).flatMap(({ commit, message }) => {
@@ -36,7 +39,7 @@ export async function readItemEndCandidates(context: RefBackendContext, tip: str
     }
     return commit && "batchId" in provenance && provenance.batchId ? [{ commit, batch: provenance.batchId }] : [];
   });
-  if (!commits.length) return { candidates: [], unavailable };
+  if (!commits.length) return { candidates: [], unavailable, faults };
   const trees = await readRefTrees(context, new Map(commits.map(({ commit }) => [commit, commit])));
   const path = `metadata-${owner.uid}.json`;
   const metadata = [...trees.values()].flatMap((entries) => entries.filter((entry) => entry.path === path));
@@ -45,8 +48,13 @@ export async function readItemEndCandidates(context: RefBackendContext, tip: str
     const entries = trees.get(commit);
     if (!entries) { unavailable.add(commit); return false; }
     if (withdrawn.has(batch)) return false;
+    if (entries.length === 0) return true;
+    if (kind !== "all") return false;
     const entry = entries.find((entry) => entry.path === path);
-    return entries.length === 0 || kind === "all" && parseRefMetadata(entry ? objects.get(entry.oid) : undefined)?.endBatch === batch;
+    // End discovery keeps slug validation at the consumer's exact history coordinate.
+    const read = readRefMetadata(undefined, entry, objects);
+    if (read.kind !== "parsed") faults.push({ commit, batch, fault: read.kind === "absent" ? "no-metadata" : read.kind });
+    return read.kind === "parsed" && read.metadata.endBatch === batch;
   });
-  return { candidates, unavailable };
+  return { candidates, unavailable, faults };
 }

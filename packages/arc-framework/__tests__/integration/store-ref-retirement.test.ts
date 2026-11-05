@@ -110,7 +110,8 @@ describe("local ref retirement", () => {
     await removeLooseObject(f.root, tree);
     const before = (await git("git", ["for-each-ref", "--format=%(objectname) %(refname)", "refs/arc/"])).stdout;
     const write = { action: "remove" as const, reference: primary.reference, expected: primary.version, provenance: testProvenance };
-    expect(await f.store.write(write)).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", namespace: registry } });
+    expect(await f.store.write(write)).toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", historyRefs: [],
+      condition: expect.stringContaining("lineage registry tree"), remedy: { text: expect.stringMatching(/restore|fetch/iu) } } });
     expect((await git("git", ["for-each-ref", "--format=%(objectname) %(refname)", "refs/arc/"])).stdout).toBe(before);
     await f.ports.rawExec(["hash-object", "-w", "-t", "tree", "--stdin"], { input: bytes });
     success(await f.store.write(write));

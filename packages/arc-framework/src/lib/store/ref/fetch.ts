@@ -8,17 +8,25 @@ import { readRefFetchBasis, finishRefFetchBasis, withRefFetchKeepers, type RefFe
 import { readSyncRefs } from "./sync-graph.js";
 import type { HistoryRef } from "../refusal.js";
 import { parseFetchPorcelain, type FetchOutcome } from "../../git/fetch.js";
-import { normalizeGitRejection } from "../../git/process-error.js";
+import { isCompletedGitFailure, isGitProcessError, normalizeGitRejection } from "../../git/process-error.js";
 import { PASSIVE_REMOTE_INTERACTION } from "../../git/remote-ref-reader.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
-import { refFetchNeedsCompleteness, missingRefFetchObjects, combineRefFetchOutcomes, RefFetchIncompleteError } from "./fetch-completeness.js";
+import { refFetchNeedsCompleteness, missingRefFetchObjects, combineRefFetchOutcomes, RefFetchIncompleteError, RefFetchRefusalError } from "./fetch-completeness.js";
+import { EffectiveTransportError, resolveTransport } from "./effective-transport.js";
+import { refTransportTargetFailure } from "./object-fault.js";
 
 type RefFetchResult = FetchOutcome & { notices: PullNotice[] };
-/** Parsed Git acquisition with its coherent, invocation-owned comparison evidence. */
-export type RefFetchOutcome = RefFetchResult & {
+/** Maps captured with one acquisition while its keeper lease is held. */
+interface RefFetchObservation {
+  previous: ReadonlyMap<string, string>; tracking: ReadonlyMap<string, string>; keepers: ReadonlyMap<string, string>;
+}
+/** Successful acquisition requires captured evidence; a completed failed acquisition may lack it. */
+export type RefFetchOutcome =
+  | Extract<RefFetchResult, { status: "refs" }> & { observation: RefFetchObservation }
+  | Extract<RefFetchResult, { status: "unreachable" }> & {
   /** Ephemeral evidence captured with this fetch's keeper lease, never a later sibling's listing. */
-  observation: { previous: ReadonlyMap<string, string>; tracking: ReadonlyMap<string, string>; keepers: ReadonlyMap<string, string> };
+  observation: RefFetchObservation | null;
 };
 
 /** Fetch registered state and explicitly requested history without configured refmaps or code negotiation. */
@@ -38,6 +46,9 @@ export async function fetchRefHistories(context: RefBackendContext, remote: RefR
     remote.role === "read" ? null : await context.identity(), signal);
 }
 
+/** Hold the keeper lease across basis capture, the remote fetch, and release, bounded by the sync deadline.
+ * A sibling outwaiting its remaining deadline receives RefSyncDeadlineError with refSyncDeadlineRemedy's retry remedy.
+ */
 async function fetchRefPatterns(context: RefBackendContext, remote: RefRemoteDesignation, designation: RefDesignation,
   patterns: readonly string[], identity: string | null, signal?: AbortSignal): Promise<RefFetchOutcome> {
   const negotiation = await refFetchNegotiation(context, identity);
@@ -46,7 +57,13 @@ async function fetchRefPatterns(context: RefBackendContext, remote: RefRemoteDes
     const previous = await readSyncRefs(context, tracking);
     const basis = await readRefFetchBasis(context, remote.name, patterns);
     const fetched = await fetchKeptRefPatterns(context, remote, designation, patterns, negotiation, basis, signal);
-    const tips = await readSyncRefs(refSyncCleanupContext(context), [tracking, seen]);
+    let tips: Map<string, string>;
+    try { tips = await readSyncRefs(refSyncCleanupContext(context), [tracking, seen]); }
+    catch (error) {
+      if (fetched.status !== "unreachable" || !fetched.completedFailure
+        || !isGitProcessError(error) || !isCompletedGitFailure(error)) throw error;
+      return { ...fetched, observation: null };
+    }
     return { ...fetched, observation: {
       previous: new Map([...previous].map(([ref, tip]) => [`refs/arc/${ref.slice(tracking.length)}`, tip])),
       tracking: new Map([...tips].filter(([ref]) => ref.startsWith(tracking))),
@@ -60,10 +77,11 @@ async function fetchKeptRefPatterns(context: RefBackendContext, remote: RefRemot
   const target = await refFetchTarget(context, remote, designation);
   const args = refFetchArgs(remote.name, negotiation, target);
   const input = patterns.map((pattern) => `${pattern}:refs/arc-remotes/${remote.name}/${pattern.slice("refs/arc/".length)}\n`).join("");
+  let retainBasis = false;
   try {
     let fetched = await runRefFetch(context, args, input, signal);
     const notices = await checkRefFetchUpdates(context, remote, designation, fetched.outcome, basis, fetched.failed);
-    if (fetched.outcome.status === "refs" && await refFetchNeedsCompleteness(context)
+    if (fetched.outcome.status === "refs" && await needsCompleteFetch(context, remote.name, notices)
       && (await missingRefFetchObjects(context, fetched.outcome)).length) {
       const at = args.indexOf("fetch");
       const repaired = await runRefFetch(context, [...args.slice(0, at + 1), "--refetch", ...args.slice(at + 1)], input, signal);
@@ -75,8 +93,21 @@ async function fetchKeptRefPatterns(context: RefBackendContext, remote: RefRemot
       }
       fetched = { outcome, failed: repaired.failed };
     }
+    retainBasis = fetched.outcome.status === "unreachable" && fetched.outcome.completedFailure === true;
     return { ...fetched.outcome, notices };
-  } finally { await finishRefFetchBasis(refSyncCleanupContext(context), remote.name, basis); }
+  } catch (error) {
+    retainBasis = error instanceof EffectiveTransportError
+      || error instanceof RefFetchRefusalError && !(error instanceof RefFetchIncompleteError);
+    throw error;
+  } finally { if (!retainBasis) await finishRefFetchBasis(refSyncCleanupContext(context), remote.name, basis); }
+}
+
+async function needsCompleteFetch(context: RefBackendContext, remote: string, notices: readonly PullNotice[]): Promise<boolean> {
+  try { return await resolveTransport(remote, "fetch", () => refFetchNeedsCompleteness(context)); }
+  catch (error) {
+    if (!(error instanceof EffectiveTransportError)) throw error;
+    throw new RefFetchRefusalError(refTransportTargetFailure(error.message), notices);
+  }
 }
 
 async function runRefFetch(context: RefBackendContext, args: string[], input: string, signal?: AbortSignal): Promise<{ outcome: FetchOutcome; failed: boolean }> {

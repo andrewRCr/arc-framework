@@ -15,11 +15,13 @@ import { withRefLocks } from "./write-locks.js";
 import { commitRefStep } from "./commit-step.js";
 import { readObjectFormat } from "./manifest.js";
 import { writeRefTree } from "./tree-write.js";
-import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
+import type { RefChange } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import type { PullNotice } from "../sync.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
 import { isArchiveRef } from "./archive-read.js";
 import { RefSyncLabelError } from "./sync-label.js";
+import { captureWithdrawCopyBatches } from "./sync-withdraw-copies.js";
 
 /** One unpublished end whose record still stands beside another machine's published end. */
 export interface WithdrawEnd { owner: OwnerIdentity; live: string; history: string; batch: string }
@@ -28,8 +30,11 @@ export interface WithdrawEnd { owner: OwnerIdentity; live: string; history: stri
 export async function commitWithdrawEnd(context: RefBackendContext, end: WithdrawEnd, held: ReadonlyMap<string, string>,
   state: ReadonlyMap<string, string>, incoming: ReadonlyMap<string, string>, options: RefMergeOptions): Promise<RefMergeResult> {
   const reference = RecordReferenceSchema.parse({ owner: end.owner, kind: end.owner.type === "cohort" ? "cohort/document" : "work-item/meta" }), batches = new Set([end.batch]);
-  let journal: WithdrawJournalDescription[];
-  try { journal = await describeWithdrawJournal(context, held, batches, reference, end.history); }
+  let journal: WithdrawJournalDescription[], copyBatches: Map<string, ReadonlySet<string>>;
+  try {
+    journal = await describeWithdrawJournal(context, held, batches, reference, end.history);
+    copyBatches = await captureWithdrawCopyBatches(context, state, journal, end.history);
+  }
   catch (error) {
     if (!(error instanceof UnavailableWithdrawJournal)) throw error;
     return heldWithdrawal(error, end);
@@ -39,7 +44,7 @@ export async function commitWithdrawEnd(context: RefBackendContext, end: Withdra
     ...held.has("refs/arc/project/registry") || state.has("refs/arc/project/registry") ? ["refs/arc/project/registry"] : [],
     ...journal.some(({ ref }) => /^refs\/arc\/history\/(?:work|cohort)\//u.test(ref) && ref !== end.history)
       ? [...state.keys()].filter(isArchiveRef) : []]);
-  const basis: WithdrawalBasis = { end, held, state, incoming, reference, batches, journal };
+  const basis: WithdrawalBasis = { end, held, state, incoming, reference, batches, journal, copyBatches };
   return withRefLocks({ ...context, lock: options.lock }, [...watched].map((ref) => options.targetRef?.(ref) ?? ref), async () => {
     const captured = await readSyncRefs(context, "refs/arc/");
     if ([...watched].some((ref) => captured.get(options.targetRef?.(ref) ?? ref) !== state.get(ref))) return { status: "restart" };
@@ -78,7 +83,7 @@ async function commitWithdrawal(context: RefBackendContext, basis: WithdrawalBas
       changes.push({ ref: options.targetRef?.(destination) ?? destination, next: stdout.trim(), expected: state.get(destination) ?? null });
       if (destination !== ref && parent) changes.push({ ref: options.targetRef?.(ref) ?? ref, delete: true, expected: parent });
     }
-    return { applied: changes, transaction: await updateRefTransaction(physical, changes, { cwd: context.checkoutRoot }) };
+    return { applied: changes, transaction: await updateStoreRefTransaction(physical, changes, { cwd: context.checkoutRoot }) };
   }, options.commitMode);
   if (committed.status === "layout-changed" || committed.result.transaction.status === "lost-race") return { status: "restart" };
   const notices: PullNotice[] = [{ kind: "end-withdrawn", item: end.owner,
@@ -94,7 +99,7 @@ async function commitWithdrawal(context: RefBackendContext, basis: WithdrawalBas
 /** A ref whose tree no longer reads cannot be inverted: commit nothing, and withdraw once its objects are restored. */
 function heldWithdrawal(error: UnavailableWithdrawJournal, end: WithdrawEnd): RefMergeResult {
   const refs = new Set([error.ref, end.live, end.history]);
-  const { remedy } = corruptRef(error.ref, true);
-  const notices: PullNotice[] = [...refs].map((ref) => ({ kind: "namespace-corrupt", ref, condition: error.message, remedy }));
+  const { condition, remedy } = refObjectFault(error.ref, error.fault ?? "missing", { ...error.options, condition: error.message });
+  const notices: PullNotice[] = [...refs].map((ref) => ({ kind: "namespace-corrupt", ref, condition, remedy }));
   return { status: "complete", changed: false, notices };
 }

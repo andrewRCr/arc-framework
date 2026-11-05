@@ -3,7 +3,7 @@
 import { restartOnVanishedStore } from "./repository.js";
 import { hashObjectTree, writeObjectTrees } from "./object-trees.js";
 import { join } from "node:path";
-import { updateRefTransaction } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import { readGitDirectories } from "../../git/directories.js";
 import { FAMILY_IDS } from "../catalog.js";
 import { StateVersionSchema, type StateVersion } from "../identity.js";
@@ -89,7 +89,7 @@ export async function saveCapturedManifest(context: RefBackendContext, tips: Rea
   if (tips.get(tokenRef) === manifest.version) return manifest.version;
   await writeObjectTrees(context, manifest.trees);
   // A competing checkout may retain a newer token; this captured manifest remains a valid result.
-  await updateRefTransaction(context, [{ ref: tokenRef, next: manifest.version, expected: tips.get(tokenRef) ?? null }], {
+  await updateStoreRefTransaction(context, [{ ref: tokenRef, next: manifest.version, expected: tips.get(tokenRef) ?? null }], {
     cwd: context.checkoutRoot,
   });
   return manifest.version;
