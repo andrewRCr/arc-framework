@@ -443,14 +443,11 @@ its history refs, discharging the edges naming it.
 - _Goal:_ A work unit's rename changes another record's reference to its old slug only where that slug, resolved among
   work items, names the subject alone, and reports every reference to the subject it leaves.
 
-    - `[ ]` **4.5.a Resolving once**
+    - `[x]` **4.5.a Resolving once**
 
-        - Before its batch the verb resolves the old slug among work items once, through a resolver Task 5.2 shares for
-          cohorts: names the subject → the sweep over records the subject does not own (`acquireRenameGroups`,
-          `planRenameReferences`, `renameMutation`), `renameMeta`'s `waits-on` branch, and the cohort document's
-          backticked filenames rewrite as today; ambiguous — the family includes Errands, so a work unit and an Errand
-          sharing the slug are this case — → rewritten none and each reported; names another holder → left unreported.
-        - A started dependent's edge keeps the old slug, as today, and is reported with the edit that re-points it.
+        - Family-scoped resolution gates shared stub and selected-cohort reference rewrites. Ambiguous references remain
+          with field and text repairs; other holders' references stay unreported. Started work keeps its authored edges
+          and prose, and publication failures retain the reference report from the landed batch.
 
     - `[ ]` **4.5.b The member heading**
 

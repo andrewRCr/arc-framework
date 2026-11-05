@@ -82,7 +82,7 @@ async function renameSelectedWorkUnit(ctx: StoreRenameContext, params: { operand
   const exec: GitExec = (command, args, options) => ctx.exec(command, args, { cwd: state.cwd, ...options });
   const persisted = await persistRename({ ...ctx, exec }, subject, target, holder, branch, state);
   if (persisted !== undefined) return persisted;
-  const report = retainedBranchReport(subject.primary, branch);
+  const report = { ...(state.report ?? emptyRenameReport()), keptBranches: retainedBranchReport(subject.primary, branch).keptBranches };
   const post = await finishRename({ ...ctx, exec, cwd: state.cwd }, branch, params);
   const reference = RecordReferenceSchema.parse({ ...subject.primary.reference, owner: { ...subject.primary.reference.owner, name: target } });
   if (post.status === "partial") return { ...post, reference, report };
@@ -100,7 +100,7 @@ function retainedBranchReport(primary: StoreRecord, branch: BranchRename | undef
   if (branch?.prior.linkedAs === "adopted" && branch.oldRemoteOid !== null) keptBranches.push({ branch: branch.oldBranch, reason: "adopted" });
   return { ...emptyRenameReport(), keptBranches };
 }
-interface RenameRuntime { cwd: string; checkout?: StoreRenameCheckoutReceipt }
+interface RenameRuntime { cwd: string; checkout?: StoreRenameCheckoutReceipt; report?: RenameReport }
 async function persistRename(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string, holder: string | null,
   branch: BranchRename | undefined, state: RenameRuntime): Promise<Extract<RunRenameResult, { status: "rejected" }> | undefined> {
   if (subject.resuming) return undefined;
@@ -113,6 +113,7 @@ async function persistRename(ctx: StoreRenameContext, subject: StoreRenameSubjec
     write: () => applyPreparedLifecycleWrite(ctx.store, prepared.result, { verb: "rename", lifecycleAction: "rename" }) });
   if (written.status === "failed") return { status: "rejected", reason: written.reason, ...(written.recovery === undefined ? {} : { recovery: written.recovery }) };
   if (written.status === "refused") return { status: "rejected", reason: `${written.refusal.condition}${written.rollbackFailure === undefined ? "" : `; rollback failed: ${written.rollbackFailure}`}`, refusal: written.refusal, ...(written.recovery === undefined ? {} : { recovery: written.recovery }) };
+  state.report = prepared.result.report;
   return undefined;
 }
 async function branchRename(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string): Promise<BranchRename | undefined> {
