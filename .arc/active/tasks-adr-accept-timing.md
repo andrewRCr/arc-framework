@@ -28,21 +28,13 @@ renamed references, so no flipped body is rewritten for reader independence.
 - _Outcome:_ Confirmed the constitutional Class model, the three spec forms (detailed split into PRD/RFC), planning-depth
   grammar, and cohort semantics at source; accepted ADR-023 with its realization recorded in Status.
 
-### `[ ]` **1.2 Accept ADR-024 and name its decide method correctly — D7**
+### `[x]` **1.2 Accept ADR-024 and name its decide method correctly — D7**
 
 - _Goal:_ ADR-024 reads Accepted after its realizations are confirmed, and every reference names its decide method
   by its shipped name.
 
-- _Note:_ `cohort-state-storage.md`'s storage-coupling register already lists ADR-024 among the Accepted ADRs whose
-  old-substrate passages the storage cutover's documentation pass supersedes or amends, so accepting it matches that
-  plan.
-
-    - Confirm at source: the cohort vocabulary entry in `AGENT-BRIEF.ARC`, the `cohort-*` movable-artifact enumeration
-      in `DEV-RULES.ARC`, the taxonomy in `strategy-work-organization`, `assess-boundary-fit`, `template-cohort.md`,
-      `validate-cohort-consistency.ts`, and `decompose-work-unit`
-    - Replace all three `assess-cohort-fit` references, one in Status and two in Decision, with
-      `assess-boundary-fit` — a Tier 1 correction of the method's rename (`eaa0c68432`)
-    - Flip the Status and append the realization sentence
+- _Outcome:_ Confirmed the cohort model and its implementation at source; accepted ADR-024 and corrected all three references
+  to the shipped `assess-boundary-fit` method.
 
 ### `[ ]` **1.3 Accept ADR-025 — D7**
 
