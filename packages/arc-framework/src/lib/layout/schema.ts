@@ -16,6 +16,33 @@ export const WorkUnitArtifactKindSchema = z.enum(["meta", "draft", "spec", "task
 /** A conventional work-unit artifact kind. */
 export type WorkUnitArtifactKind = z.infer<typeof WorkUnitArtifactKindSchema>;
 
+/** Conventional companion names, excluding the two names with paired-spec spellings. */
+const CompanionNameSchema = SlugSchema.refine(name => name !== "spec-prd" && name !== "spec-rfc");
+const RESERVED_COMPANION_KEYS: ReadonlySet<string> = new Set([
+  ...WorkUnitArtifactKindSchema.options, "errand", "inbound", "cohort", "spec-prd", "spec-rfc",
+]);
+
+/** Decode a companion filename after fixed forms, or refuse a reserved root filename. */
+export function companionFileKey(key: string, slug: Slug): string | null {
+  if (key.startsWith("cohort-")) return null;
+  if (key.includes("/")) return key;
+  if (key === `spec-${slug}-prd.md` || key === `spec-${slug}-rfc.md`) return null;
+  const suffix = `-${slug}.md`;
+  const name = key.endsWith(suffix) ? key.slice(0, -suffix.length) : "";
+  if (CompanionNameSchema.safeParse(name).success) return RESERVED_COMPANION_KEYS.has(name) ? null : name;
+  if (key === `spec-prd-${slug}.md` || key === `spec-rfc-${slug}.md`) return key;
+  const artifact = /^([a-z]+)-(.+)\.md$/u.exec(key);
+  if (WorkUnitArtifactKindSchema.safeParse(artifact?.[1]).success && SlugSchema.safeParse(artifact?.[2]).success) return null;
+  return key;
+}
+
+function hasDistinctCompanionKey({ key, slug, placement }: { key: string; slug: Slug; placement: WorkUnitPlacement }): boolean {
+  if (placement.kind === "active" && placement.scope.kind === "project" && placement.scope.location?.kind === "own"
+    && placement.scope.location.layoutActive === "flat" && key.startsWith("in-flight/")) return false;
+  const file = SlugSchema.safeParse(key).success ? `${key}-${slug}.md` : key;
+  return companionFileKey(file, slug) === key;
+}
+
 /** Runtime authority for code-owned project documents regenerated from tracked lifecycle state. */
 export const ProjectDocumentKindSchema = z.enum(["roadmap"]);
 /** A code-owned project document regenerated from tracked lifecycle state. */
@@ -84,6 +111,10 @@ const CompletedPlacementSchema = z.strictObject({
   quarter: ArchiveQuarterSchema,
   sequence: ArchiveSequenceSchema,
 });
+const ErrandPlacementSchema = z.discriminatedUnion("kind", [
+  ActivePlacementSchema,
+  z.strictObject({ kind: z.literal("completed"), quarter: ArchiveQuarterSchema }),
+]);
 
 /** Runtime authority for caller-selected physical work-unit placement. */
 export const WorkUnitPlacementSchema = z.discriminatedUnion("kind", [
@@ -94,7 +125,7 @@ export const WorkUnitPlacementSchema = z.discriminatedUnion("kind", [
 /** A caller-selected physical work-unit placement. */
 export type WorkUnitPlacement = z.infer<typeof WorkUnitPlacementSchema>;
 
-function matchesOwnClaim(address: { placement: WorkUnitPlacement; slug: Slug }): boolean {
+function matchesOwnClaim(address: { placement: WorkUnitPlacement | z.infer<typeof ErrandPlacementSchema>; slug: Slug }): boolean {
   const placement = address.placement;
   return placement.kind !== "active" || placement.scope.kind !== "project"
     || placement.scope.location?.kind !== "own" || placement.scope.location.claim === address.slug;
@@ -139,6 +170,17 @@ export const ArcLayoutAddressSchema = z.discriminatedUnion("kind", [
     slug: SlugSchema,
     artifact: WorkUnitArtifactKindSchema,
   }).refine(matchesOwnClaim, "An own location must name the checkout's claimed work item."),
+  z.strictObject({ kind: z.literal("work-unit-companion"), placement: WorkUnitPlacementSchema, slug: SlugSchema,
+    key: z.string().superRefine(managedPathRefinement),
+  }).refine(matchesOwnClaim, "An own location must name the checkout's claimed work item.")
+    .refine(hasDistinctCompanionKey, "The companion key is reserved or has an earlier filename interpretation."),
+  z.strictObject({ kind: z.literal("work-unit-spec-part"), placement: WorkUnitPlacementSchema, slug: SlugSchema,
+    part: z.enum(["prd", "rfc"]),
+  }).refine(matchesOwnClaim, "An own location must name the checkout's claimed work item."),
+  z.strictObject({ kind: z.literal("work-unit-inbound"), placement: WorkUnitPlacementSchema, slug: SlugSchema,
+  }).refine(matchesOwnClaim, "An own location must name the checkout's claimed work item."),
+  z.strictObject({ kind: z.literal("errand-description"), placement: ErrandPlacementSchema, slug: SlugSchema,
+  }).refine(matchesOwnClaim, "An own location must name the checkout's claimed work item."),
   z.strictObject({ kind: z.literal("cohort-copy"), cohort: SlugSchema, location: OwnActiveLocationSchema }),
   z.strictObject({
     kind: z.literal("cohort-document"),
@@ -151,6 +193,9 @@ export const ArcLayoutAddressSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("procedure-root"), family: ProcedureFamilySchema }),
   z.strictObject({ kind: z.literal("project-document"), document: ProjectDocumentKindSchema }),
   z.strictObject({ kind: z.literal("user-root"), identity: SlugSchema }),
+  z.strictObject({ kind: z.literal("scratch-document"), identity: SlugSchema,
+    key: z.string().superRefine(managedPathRefinement).refine(key => key.startsWith("scratch/") && key.length > "scratch/".length),
+  }),
   z.strictObject({
     kind: z.literal("user-document"),
     identity: SlugSchema,

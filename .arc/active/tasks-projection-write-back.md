@@ -492,15 +492,11 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
 - _Note:_ Build 2.4.R.a before 2.4.b's backlog companion inverse; compose 2.4.R.b with 2.8.a–b, and close 2.4.R.c
   after those callers are bound.
 
-    - `[ ]` **2.4.R.a Classify relative to an explicit container**
+    - `[x]` **2.4.R.a Classify relative to an explicit container**
 
-        - Give the pure layout inverse the semantic work-item container and classify its strict descendant's relative
-          path using that container's slug. Keep `resolveArcPath` as the path authority and filename precedence within
-          the selected container; add no store or filesystem reads to layout.
-        - Build `test-first` (one behavior at a time): the same path `.arc/backlog/planned/alpha/beta/note.txt`
-          classifies as `beta/note.txt` for alpha's container and as `note.txt` for beta's container under cohort alpha;
-          an unrelated container cannot classify it, and a missing container cannot silently choose a backlog companion
-          owner.
+        - The pure inverse takes an established `work-unit-container`, confirms a strict descendant through
+          `resolveArcPath`, and interprets its relative filename by that container's slug. The nested counterexample
+          resolves to either owner only when supplied that owner's container; absent or unrelated context guesses none.
 
     - `[ ]` **2.4.R.b Establish and bind container evidence for unindexed paths**
 

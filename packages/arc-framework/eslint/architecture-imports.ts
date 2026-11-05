@@ -88,7 +88,7 @@ const SURFACE_NAME = /USER-INBOX|ATOMIC-INBOX|ROADMAP|STATUS\.USER|\.arc\/active
  * roots that hold them. System, configuration, project-document, and personal addresses stay outside the ratchet.
  */
 const WORK_UNIT_ADDRESS_KINDS: ReadonlySet<string> = new Set([
-  "work-unit-artifact", "work-unit-container", "placement-root", "cohort-document", "cohort-copy",
+  "work-unit-artifact", "work-unit-container", "work-unit-companion", "work-unit-spec-part", "work-unit-inbound", "errand-description", "placement-root", "cohort-document", "cohort-copy",
   "candidate-record", "integration-boundary-record", "transition-record",
 ]);
 

@@ -1,6 +1,6 @@
 /** Public API for semantic ARC layout projection and materialization. */
 
-export { identifyArcFileAddress } from "./file-identification.js";
+export { identifyArcFileAddress, type FileAddressContext } from "./file-identification.js";
 export { LayoutError } from "./errors.js";
 export type { LayoutErrorCode } from "./errors.js";
 export {

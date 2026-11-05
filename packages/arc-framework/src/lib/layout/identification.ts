@@ -11,6 +11,9 @@
 import { SlugSchema, type Slug } from "../kernel/index.js";
 import { resolveArcPath } from "./projection.js";
 import {
+  ArcLayoutAddressSchema,
+  companionFileKey,
+  type ArcLayoutAddress,
   ArchiveQuarterSchema,
   ArchiveSequenceSchema,
   ProjectDocumentKindSchema,
@@ -121,4 +124,31 @@ export function identifyWorkUnitArtifactPath(path: string, active?: ActiveLayout
     if (projected === path) return { placement, slug: parsed.slug, artifact: parsed.artifact };
   }
   return null;
+}
+
+/** Recognize a file strictly within the work-item container established by the caller. */
+export function identifyWorkUnitFileAddress(path: string,
+  container: Extract<ArcLayoutAddress, { kind: "work-unit-container" }>): ArcLayoutAddress | null {
+  const prefix = `${resolveArcPath(container)}/`;
+  if (!path.startsWith(prefix)) return null;
+  const relative = path.slice(prefix.length);
+  const copy = /^cohort-([^/]+)\.md$/u.exec(relative);
+  const placement = container.placement;
+  const location = placement.kind === "active" && placement.scope.kind === "project" ? placement.scope.location : undefined;
+  const coordinates = workItemFileCoordinates(relative, container.slug);
+  const parsed = ArcLayoutAddressSchema.safeParse(copy !== null && location?.kind === "own"
+    ? { kind: "cohort-copy", cohort: copy[1], location }
+    : coordinates === null ? null : { ...coordinates, placement, slug: container.slug });
+  return parsed.success && resolveArcPath(parsed.data) === path ? parsed.data : null;
+}
+
+function workItemFileCoordinates(relative: string, slug: Slug): Record<string, unknown> | null {
+  const artifact = parseArtifactFilename(relative);
+  if (artifact !== null && artifact.slug === slug) return { kind: "work-unit-artifact", artifact: artifact.artifact };
+  if (relative === `spec-${slug}-prd.md`) return { kind: "work-unit-spec-part", part: "prd" };
+  if (relative === `spec-${slug}-rfc.md`) return { kind: "work-unit-spec-part", part: "rfc" };
+  if (relative === `inbound-${slug}.md`) return { kind: "work-unit-inbound" };
+  if (relative === `errand-${slug}.md`) return { kind: "errand-description" };
+  const key = companionFileKey(relative, slug);
+  return key === null ? null : { kind: "work-unit-companion", key };
 }

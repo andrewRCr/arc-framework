@@ -9,11 +9,16 @@ const artifactKinds = { meta: "work-item/meta", draft: "work-item/draft", spec: 
 export function classifyStoreAddress(address: ArcLayoutAddress): ClassifiedStoreTarget | null {
   switch (address.kind) {
     case "work-unit-artifact": return { kind: artifactKinds[address.artifact], workItem: address.slug, entryList: false };
+    case "work-unit-companion": return { kind: "work-item/companion", workItem: address.slug, key: address.key, entryList: false };
+    case "work-unit-spec-part": return { kind: "work-item/companion", workItem: address.slug, key: `spec-${address.part}`, entryList: false };
+    case "work-unit-inbound": return { kind: "work-item/inbound", workItem: address.slug, entryList: true };
+    case "errand-description": return { kind: "work-item/description", workItem: address.slug, entryList: true };
     case "candidate-record": return { kind: "review/candidate", workItem: address.slug, entryList: false };
     case "integration-boundary-record": return { kind: "review/integration-boundary", workItem: address.slug, entryList: false };
     case "transition-record": return { kind: "lineage/transition", workItem: address.origin, entryList: false };
     case "inbox": return address.scope.kind === "project" ? { kind: "project-inbox/inbox", entryList: true }
       : { kind: "personal/inbox", identity: address.scope.identity, entryList: true };
+    case "scratch-document": return { kind: "personal/document", identity: address.identity, key: address.key, entryList: false };
     case "user-document": return address.document.kind === "working-memory" ? { kind: "personal/working-memory", identity: address.identity, entryList: true }
       : { kind: "personal/session-context", key: address.document.workUnit, identity: address.identity, entryList: false };
     case "cohort-document": return { kind: "cohort/document", cohort: address.cohort[1] ?? address.cohort[0], entryList: false };

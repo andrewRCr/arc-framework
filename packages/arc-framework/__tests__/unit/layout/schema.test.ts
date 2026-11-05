@@ -130,3 +130,21 @@ it.each(["work-unit-container", "work-unit-artifact"] as const)("refuses %s addr
     expect(ArcLayoutAddressSchema.safeParse(address).success).toBe(false);
   }
 });
+
+it.each([
+  "meta", "tasks", "draft", "spec", "notes", "errand", "inbound", "cohort", "cohort-x", "spec-prd", "spec-rfc",
+  "meta-beta.md", "spec-beta-prd.md", "spec-beta-rfc.md", "inbound-beta.md", "errand-beta.md", "cohort-x.md", "notes-x-beta.md",
+])("refuses a companion key claimed by an earlier file form: %s", key => {
+  expect(ArcLayoutAddressSchema.safeParse({ kind: "work-unit-companion", slug: "beta", key,
+    placement: { kind: "backlog", commitment: "planned", cohort: [] } }).success).toBe(false);
+});
+
+it("refuses a root path key that names another owner's artifact", () => {
+  expect(ArcLayoutAddressSchema.safeParse({ kind: "work-unit-companion", slug: "beta", key: "meta-other.md",
+    placement: { kind: "backlog", commitment: "planned", cohort: [] } }).success).toBe(false);
+});
+
+it("reserves the in-flight tree against own-flat companion path keys", () => {
+  expect(ArcLayoutAddressSchema.safeParse({ kind: "work-unit-companion", slug: "beta", key: "in-flight/other/note.txt",
+    placement: { kind: "active", scope: { kind: "project", location: { kind: "own", claim: "beta", layoutActive: "flat" } } } }).success).toBe(false);
+});

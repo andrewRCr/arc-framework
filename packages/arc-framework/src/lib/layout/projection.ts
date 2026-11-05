@@ -1,6 +1,6 @@
 /** Pure projection from semantic ARC layout addresses to managed paths. */
 
-import { assertNever, validateManagedPath, type ManagedPath, type Slug } from "../kernel/index.js";
+import { assertNever, validateManagedPath, SlugSchema, type ManagedPath, type Slug } from "../kernel/index.js";
 import { LayoutError } from "./errors.js";
 import {
   ArcLayoutAddressSchema,
@@ -69,6 +69,19 @@ function projectAddress(address: ArcLayoutAddress): string {
       return projectContainer(address.placement, address.slug);
     case "work-unit-artifact":
       return `${projectContainer(address.placement, address.slug)}/${address.artifact}-${address.slug}.md`;
+    case "work-unit-companion": {
+      const file = SlugSchema.safeParse(address.key).success ? `${address.key}-${address.slug}.md` : address.key;
+      return `${projectContainer(address.placement, address.slug)}/${file}`;
+    }
+    case "work-unit-spec-part":
+      return `${projectContainer(address.placement, address.slug)}/spec-${address.slug}-${address.part}.md`;
+    case "work-unit-inbound":
+      return `${projectContainer(address.placement, address.slug)}/inbound-${address.slug}.md`;
+    case "errand-description": {
+      const directory = address.placement.kind === "completed" ? `.arc/completed/${address.placement.quarter}`
+        : projectActive(address.placement.scope, address.slug);
+      return `${directory}/errand-${address.slug}.md`;
+    }
     case "cohort-document":
       return projectCohort(address);
     case "cohort-copy":
@@ -79,6 +92,8 @@ function projectAddress(address: ArcLayoutAddress): string {
       return ".arc/backlog/ROADMAP.md";
     case "user-root":
       return `.arc/user/${address.identity}`;
+    case "scratch-document":
+      return `.arc/user/${address.identity}/${address.key}`;
     case "user-document":
       return projectUserDocument(address);
     default:
