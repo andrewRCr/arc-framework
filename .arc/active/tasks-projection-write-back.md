@@ -228,18 +228,13 @@ among them, has one.
   preserve their recorded tokens until accepted. Marker, whole-record and lookup refusals carry their repair routes,
   and decomposition's source-conflict remedy names the registered resolution command.
 
-### `[ ]` **1.11 A hand edit persists through write-back** — validate exit criterion at segment scope
+### `[x]` **1.11 A hand edit persists through write-back** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds end to end on a freshly merged base.
 
-    - Merge base into the branch (append-only); run `npm ci` first if the merge changed `package-lock.json`.
-    - In one scripted repository over the reference backend, run the exit criterion's scenario through the engine's
-      start and `arc save`'s handler — an edit, a stale edit and its conflict, its resolution, a refused edit — then the
-      CLI over the in-repo implementation, and request `arc check segment`.
-    - On the branch head, dispatch the portability pair with `run_portability_pair: true`, and record the run in this
-      task's completion note.
-
-- _Note:_ Qualification corrections preserve native path observations and the schema fixture's default Store fallback.
+- _Outcome:_ One reference-store checkout carries command-start write-back, a stale conflict, marker resolution, and
+  a refused edit through repair via the registered CLI. In-repo hooks stay dark and save names `arc user save`.
+  Windows/macOS portability qualified at `c3cbda01b7` in run `42060487448`.
 
 ## **Phase 2:** Edit rights, the `active/` layout, adoption, and settings
 
