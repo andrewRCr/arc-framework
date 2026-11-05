@@ -159,13 +159,13 @@ while it reads Proposed, naming the file and its `Accepted (<today>)` remedy, an
 - _Outcome:_ Added the fourth readiness criterion, its four dispositions and invalid-coverage gap, and updated every
   criterion count in both copies.
 
-### `[ ]` **4.4 Make the index entry a directive — D2**
+### `[x]` **4.4 Make the index entry a directive — D2**
 
 - _Goal:_ An agent about to write, amend, or accept an ADR loads the strategy, and the index names draft readiness as
   the home of the planning-close test.
 
-    - The `arc/strategy-adr-methodology.md` entry reads exactly as the spec's § 2.4 gives it
-    - Configurable file: the same targeted edit in both copies' ARC Framework Strategies section, never a copy
+- _Outcome:_ Made the ADR strategy entry an explicit load directive in both copies, pointing to draft readiness for the
+  planning-close test.
 
 ### `[ ]` **4.5 Bring this repository's rules into line — D6, D1**
 
