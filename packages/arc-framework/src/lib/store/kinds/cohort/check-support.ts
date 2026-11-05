@@ -5,6 +5,9 @@ import { observeRecords, type RuleObservation } from "../rule-support.js";
 import { parseCohortDocument, type ParsedCohortDocument } from "./parser.js";
 import type { StoreRecord } from "../../read.js";
 import type { StoreView, WriteCheckInput } from "../../write-check.js";
+export { observeCohortHoldings, type CohortHoldingCandidate, type CohortHoldingSegment,
+  type ResolvedCohortCandidate, type CohortHolding } from "./holdings.js";
+export { cohortHoldingEdits, type CohortHoldingEdit } from "./holding-edits.js";
 /** An open document with proved parsed nesting fields. */
 export interface OpenCohort { readonly record: StoreRecord; readonly fields: ParsedCohortDocument }
 /** An open work unit with its proved membership field. */

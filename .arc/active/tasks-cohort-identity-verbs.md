@@ -256,44 +256,22 @@ closes it; `arc cohort remove` removes a cohort nothing ever named and refuses o
 nothing without `--yes`; and a member a pull lands naming a removed cohort refuses archive naming the edit to its
 `Cohort`, then archives after it.
 
-### `[ ]` **3.1 Resolve each holding of a cohort once per view — § 7.1**
+### `[x]` **3.1 Resolve each holding of a cohort once per view — § 7.1**
 
 - _Goal:_ One helper says which records hold a cohort — a member's `Cohort` through each segment, a subcohort's
   `Parent` through its one — whether alone or ambiguously, and one builder says how to re-point a holding, so every
   retiring path and both renames count and repair holdings alike.
 
-    - `[ ]` **3.1.a The helper**
+    - `[x]` **3.1.a The helper**
 
-        - `observeCohortHoldings(candidates, resolve, cohort)` in `lib/store/kinds/cohort/check-support.ts`. Each
-          candidate is `{ reference, field: "cohort" | "parent", path }`, built by its site from what it lists — store
-          records for the rules and the verbs, `LifecycleEntry` for archive's trigger, since `LifecycleIndexEntry`
-          carries no reference. `cohort` is the cohort's UID-bearing reference, compared with `sameOwner`.
-        - It resolves each distinct segment once in the view `resolve`, through Task 1.4's `observeNamedRecord`; a
-          segment resolving to another cohort or to nothing, or one that is not a slug (`SlugSchema.safeParse`; a pulled
-          meta's `Cohort` is a free string), holds none. Any unavailable segment read makes the whole result
-          `unavailable`, so every caller fails closed.
-        - Each holding carries its candidate, the segment that holds, `sole` or `ambiguous` (the cohort among an
-          `ambiguous` observation's candidates), and every segment's resolved current slug, so a caller can rewrite a
-          whole path such as `pOld/s`.
+        - Added `observeCohortHoldings` with cached typed segment resolution, UID-based sole and ambiguous holdings,
+          current path evidence, and child members retained from the caller's candidate view. Unavailable reads fail closed.
 
-    - `[ ]` **3.1.b The edit builder**
+    - `[x]` **3.1.b The edit builder**
 
-        - `cohortHoldingEdits(holdings, slug)` returns the ordered edits that re-point holdings onto `slug` — the current
-          slug for the retiring paths, a renamed cohort's new slug for Task 5.2 — each a structured
-          `{ record: type, name, UID; field; from; to }` change that the rename's report (Task 4.2) reuses. A
-          subcohort's `Parent` whose open members' paths name it takes § 4's three edits in order, its completed members'
-          `Cohort` after the second.
-
-    - Build `test-first` (one behavior at a time):
-        - over both backends, a member's `Cohort` on the cohort's current slug and one on its former slug each hold it
-          `sole`, the second re-pointed by the builder onto the current path
-        - over the ref backend, a segment naming a slug two cohorts share holds `ambiguous` for each
-        - a path on another cohort, on nothing, or not a slug holds none, and an unavailable segment read makes the
-          result unavailable
-        - a subcohort's `Parent` on a former slug with open members there yields the three edits in order, a completed
-          member's after the second
-        - fixtures place a holding on a former slug by renaming the cohort document with a direct store write, which both
-          backends record as a former slug
+        - Added structured UID-bearing field edits with open-member clears before Parent and restorations afterward.
+          Ambiguous child paths require repair first; closed subtrees stay with an ambiguous name's keeper, and unsafe
+          clear/restore recipes onto a completed child are withheld.
 
 ### `[ ]` **3.2 Count holders by resolution in the open-members rule and archive's closeout rule — § 7.2**
 
