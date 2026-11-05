@@ -455,26 +455,14 @@ its history refs, discharging the edges naming it.
           exact document-line repair, including completed holders and former cohort paths. Unavailable holding evidence
           refuses with the original retry; repair permits continuation, and a distinct cohort permits the heading rewrite.
 
-### `[ ]` **4.6 Pull history refs round after round — § 2.6**
+### `[x]` **4.6 Pull history refs round after round — § 2.6**
 
 - _Goal:_ A rename batch that writes completed records lands on a clone lacking their history refs, pulling each round
   only the refs the backend names.
 
-- _Context:_ The shipped `pullHistoryForRetry` writes designation guidance and returns false, preserving the caller's
-  held refusal. Other consumers present questions through their own channels (`pullJoinStore` prompts and handoff's
-  `requireHistoryPull` raises). `missingHistoryRefs` names only owners without live refs; archive-quarter loss or a live
-  owner's missing object can carry no history refs. A named history ref is a repair route, not a guarantee of restoration.
-
-    - In place of `runStoreRename`'s one retry, pull the refs each `state-unresolvable` names through
-      `pullHistoryForRetry` and retry until the batch lands, a round's refusal names no refs or only refs already pulled,
-      or the pull returns false, which ends the rounds with the refusal the round holds, its notices written through the
-      arm's notice writer; the `recovery === undefined` guard holds every round.
-
-    - Build `test-first` (one behavior at a time):
-        - over the ref backend, renaming an archived work unit whose cohort archive closed lands on a clone lacking both
-          history refs
-        - a designation question during a round ends the rounds with its notice
-        - a refusal naming no refs, or only refs already pulled, ends the rounds with it
+- _Outcome:_ Empty or already attempted ref sets return the latest refusal; stopped pulls preserve their notices, and
+  every retry keeps the original operand and recovery guard. Archived subjects and closed-cohort headings now land
+  together after their required histories are restored, while unrelated histories remain unfetched.
 
 ### `[ ]` **4.7 Report a former-slug tie the batch leaves — § 2.7**
 

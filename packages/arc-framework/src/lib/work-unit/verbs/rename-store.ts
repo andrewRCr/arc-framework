@@ -17,6 +17,7 @@ import type { LocusPorts } from "../locus-ports.js";
 import { resolveSubjectOperand } from "../../store/subject-operand.js";
 import { RecordReferenceSchema } from "../../store/identity.js";
 import type { StoreRecord } from "../../store/read.js";
+import type { HistoryRef } from "../../store/refusal.js";
 import type { RunRenameResult, RenameCheckoutReport, RenameSubjectShape } from "./rename.js";
 import { emptyRenameReport, type RenameReport, type RenameKeptBranch } from "../rename-report.js";
 /** A checkout rename retains its exact inverse until the record batch lands. */
@@ -35,14 +36,20 @@ interface BranchRename { prior: BranchLink; next: BranchLink; oldBranch: string;
 /** Rename one logical owner while respecting record and checkout authority.
  * @param ctx - Operational store and physical adapters.
  * @param params - Subject operand and proposed current name.
- * @returns A complete rename, original refusal, or exact physical continuation.
+ * @returns A complete rename, latest refusal, or exact physical continuation.
  */
 export async function runStoreRename(ctx: StoreRenameContext, params: { operand: string; targetSlug: string }): Promise<RunRenameResult> {
   try {
-    const result = await rename(ctx, params);
-    if (result.status !== "rejected" || result.recovery !== undefined || result.refusal?.code !== "state-unresolvable"
-      || result.refusal.historyRefs.length === 0) return result;
-    return await pullHistoryForRetry(ctx.store, result.refusal.historyRefs, ctx.writeNotice) ? await rename(ctx, params) : result;
+    const pulled = new Set<HistoryRef>();
+    let result = await rename(ctx, params);
+    while (result.status === "rejected" && result.recovery === undefined && result.refusal?.code === "state-unresolvable") {
+      const refs = result.refusal.historyRefs;
+      if (refs.every(reference => pulled.has(reference))) return result;
+      for (const reference of refs) pulled.add(reference);
+      if (!await pullHistoryForRetry(ctx.store, refs, ctx.writeNotice)) return result;
+      result = await rename(ctx, params);
+    }
+    return result;
   }
   catch (error) { return { status: "rejected", reason: error instanceof Error ? error.message : String(error) }; }
 }
