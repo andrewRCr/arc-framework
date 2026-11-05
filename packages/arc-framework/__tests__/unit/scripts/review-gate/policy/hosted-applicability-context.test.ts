@@ -99,3 +99,28 @@ it.each(["repository", "native", "discharge"] as const)("retains the selected so
   expect(source).toEqual({ kind: "hosted", operationId: lane.operationId, durableRef: terminal.attemptId,
     ...(native ? { repositoryId, workItem: primary.reference.owner } : {}) });
 });
+
+it("rejects context construction with the native snapshot refusal and constructs it after repair", async () => {
+  const h = createReviewHarness();
+  const repositoryId = "123e4567-e89b-42d3-a456-426614174099";
+  await h.seedProject(repositoryId);
+  const primary = await h.seedMeta("example", { branch: null });
+  const checkout = await createReviewCheckout(h);
+  onTestFinished(checkout.cleanup);
+  const { refuseNativeListing } = await import("../../../../helpers/store/native-record-fault.js");
+  const fault = await refuseNativeListing(h.store, { family: "review", kind: "review/outcome", owner: primary.reference.owner });
+  const context = createReviewCompositionContext({ ...checkout, store: fault.store, workItem: primary.reference.owner });
+  const candidate = candidateFixture();
+  const input = { ...checkout, nativeWorkItem: primary.reference.owner, store: context.family.ports.inFlight,
+    dispositions: context.family.ports.dispositions, repositoryId: h.projectId,
+    rawExec: async (): Promise<never> => { throw new Error("Snapshot refusal precedes Git proof"); },
+    args: { baseRevision: candidate.attestation.baseRevision, approvedHead: "c".repeat(40),
+      changeRequest: { repository: "owner/repo", pullRequest: 23 }, candidate } };
+  try {
+    await expect(createHostedApplicabilityContext(input)).rejects.toMatchObject({ name: "StoreRefusalError",
+      refusal: fault.refusal });
+  } finally { fault.repair(); }
+  const repaired = await createHostedApplicabilityContext(input);
+  expect(repaired.currentRepositoryId).toBe(repositoryId);
+  expect(repaired.readEarlierAttemptApplicability).toBeTypeOf("function");
+});
