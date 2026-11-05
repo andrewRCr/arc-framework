@@ -426,10 +426,11 @@ its history refs, discharging the edges naming it.
         - Prepared writes carry read-only observations into their atomic batch. Versions, conflict sets, and absences
           remain backend-checked without writing the observed records; refreshed or restored evidence permits retry.
 
-    - `[ ]` **4.4.b Stubs' edges**
+    - `[x]` **4.4.b Stubs' edges**
 
-        - Through `settleCreationSlugEdges` (`lib/store/creation-slug-settlement.ts`) with the subject as writing owner,
-          the rename's reference sweep seeded from the settler's puts, so each stub takes one put.
+        - Stub settlements seed the rename sweep, sharing one put per stub. Original versions and provider observations
+          bind the batch. A newly observed stub outside the acquired groups forces a retry; started dependents and stubs
+          naming both slugs retain the dependency refusal until their edges are repaired.
 
     - `[ ]` **4.4.c The subject's own edge**
 

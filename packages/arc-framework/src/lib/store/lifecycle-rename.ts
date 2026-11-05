@@ -19,6 +19,8 @@ import type { StoreResult, Remedy } from "./refusal.js";
 import type { BranchLink } from "./links.js";
 import { memberCohortReadRefusal } from "./cohort-membership-refusal.js";
 import { checkCreationAdmission, renderCreationAdmissionRefusal } from "./creation-admission.js";
+import { settleCreationSlugEdges } from "./creation-slug-settlement.js";
+import type { Mutation } from "./write.js";
 /** Selected subject and reporting evidence retained independently of physical checkout steps. */
 export interface StoreRenameSubject { primary: StoreRecord; operand: string; resuming: boolean; originName: string; advisories: string[] }
 /** Complete acquisition and expected-version writes prepared before physical renames. */
@@ -81,14 +83,19 @@ export async function prepareStoreRename(store: Store, subject: StoreRenameSubje
   const groups = await acquireRenameGroups(store, subject.primary); if (groups.status === "refused") return groups;
   const basis = await revalidateLifecycleRecords(store, [subject.primary]); if (basis.status === "refused") return basis;
   const records = groups.result;
+  const settlement = await settleCreationSlugEdges(store, targetSlug, subject.primary.reference.owner);
+  const unseen = settlement.writes.filter(write => !records.some(record => sameReference(record.reference, write.reference)));
+  if (unseen.length > 0) return { status: "refused", refusal: { code: "version-conflict", class: "recoverable",
+    records: unseen.map(write => write.reference), condition: "The set of backlog records changed during rename preparation.",
+    remedy: { text: "Acquire the complete rename groups again, then retry.", argv: ["arc", "rename", subject.operand, targetSlug] } } };
   const artifactRenames = ownedArtifactRenames(records, subject.primary, targetSlug);
   const ambiguity = await checkSharedPairedReferences(store, records, subject.primary, artifactRenames, subject.originName, targetSlug);
   if (ambiguity !== undefined) return ambiguity;
-  const virtual = renameProjection(records, subject.primary);
+  const virtual = renameProjection(records, subject.primary, settlement.writes);
   const sweep = await planRenameReferences({ arcRoot: ".arc", sourceSlug: subject.originName, targetSlug, artifactRenames }, virtual.context);
   await applyRenameReferencePlan(sweep, virtual.context);
   const writes = records.flatMap((record) => renameMutation(record, subject, targetSlug, virtual.contents.get(record), branch, artifactRenames));
-  return { status: "ok", result: { subject, records, writes } };
+  return { status: "ok", result: { subject, records, writes, observations: settlement.observations } };
 }
 function ownedArtifactRenames(records: readonly StoreRecord[], primary: StoreRecord, target: string): Map<string, string> {
   const renamed = { ...primary, reference: RecordReferenceSchema.parse({ ...primary.reference,
@@ -122,8 +129,11 @@ async function acquireRenameGroups(store: Store, primary: StoreRecord): Promise<
 function renameSweepRecords(records: readonly StoreRecord[]): StoreRecord[] {
   return records.filter(record => record.reference.kind !== "work-item/cut-map");
 }
-function renameProjection(records: StoreRecord[], primary: StoreRecord) {
-  const contents = new Map(records.map((record) => [record, record.content]));
+function renameProjection(records: StoreRecord[], primary: StoreRecord, seeds: readonly Mutation[]) {
+  const contents = new Map(records.map((record) => {
+    const seed = seeds.find(write => sameReference(write.reference, record.reference));
+    return [record, seed?.action === "put" ? seed.content : record.content] as const;
+  }));
   const paths = new Map<string, StoreRecord>();
   for (const record of renameSweepRecords(records)) {
     const own = record.reference.owner.type !== "person" && primary.reference.owner.type !== "person" && record.reference.owner.uid === primary.reference.owner.uid;
