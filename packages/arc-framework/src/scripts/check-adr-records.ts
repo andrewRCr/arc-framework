@@ -1,5 +1,8 @@
 /** Validate architectural decision record status and number uniqueness over exact Git trees. */
 
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
 /** One ADR's path, number, and Git object identity. */
 export interface AdrEntry {
   path: string;
@@ -174,4 +177,87 @@ export function checkNumbers(tree: readonly AdrEntry[], base?: readonly AdrEntry
     renumberRemedy(records, basePaths, allocate),
     "Also update the records that cite the renumbered ADR by number.",
   ].join("\n"));
+}
+
+/** Git object reads needed by the ADR checks. */
+export interface AdrReader {
+  list(revision: string): AdrEntry[];
+  read(revision: string, path: string): string;
+}
+
+/** One script invocation's exit status and diagnostics. */
+export interface AdrCheckResult {
+  exitCode: number;
+  diagnostics: string[];
+}
+
+/** Format a date using its local calendar fields. */
+export function localCalendarDate(date: Date): string {
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
+}
+
+function gitOutput(args: string[]): string {
+  return execFileSync("git", args, { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+}
+
+const gitReader: AdrReader = {
+  list(revision) {
+    const output = gitOutput(["ls-tree", "-r", "-z", "--full-tree", revision, "--", ".arc/reference/adr/"]);
+    return output.split("\0").filter(Boolean).flatMap(row => {
+      const tab = row.indexOf("\t");
+      const [, kind, objectId] = row.slice(0, tab).split(" ");
+      const path = row.slice(tab + 1);
+      if (tab < 0 || objectId === undefined) throw new Error("Malformed git ls-tree output");
+      if (kind !== "blob" || !/^\.arc\/reference\/adr\/adr-[^/]*\.md$/u.test(path)) return [];
+      return [{ path, objectId, number: adrNumber(path) }];
+    });
+  },
+  read: (revision, path) => gitOutput(["show", `${revision}:${path}`]),
+};
+
+function readStatusInputs(reader: AdrReader, coordinates: { tree: string; base: string }, paths: readonly string[]): { tree: AdrRecord[]; base: AdrRecord[] } {
+  const tree = reader.list(coordinates.tree);
+  const base = reader.list(coordinates.base);
+  const examined = selectExaminedAdrs(tree, base, paths);
+  const neededTree = new Set(examined.map(entry => entry.path));
+  const neededBase = new Set(examined.flatMap(entry => {
+    const original = resolveBaseVersion(entry, tree, base);
+    return original === undefined ? [] : [original.path];
+  }));
+  const records = (entries: AdrEntry[], revision: string, needed: ReadonlySet<string>): AdrRecord[] => entries.map(entry => ({
+    ...entry, status: needed.has(entry.path) ? parseStatusSection(reader.read(revision, entry.path)) : null,
+  }));
+  return { tree: records(tree, coordinates.tree, neededTree), base: records(base, coordinates.base, neededBase) };
+}
+
+function result(diagnostics: string[]): AdrCheckResult {
+  return { exitCode: diagnostics.length === 0 ? 0 : 1, diagnostics };
+}
+
+/** Run one rule against supplied content coordinates and a Git reader. */
+export function runAdrCheck(
+  args: readonly string[],
+  environment: Readonly<Record<string, string | undefined>>,
+  reader: AdrReader = gitReader,
+  today = localCalendarDate(new Date()),
+): AdrCheckResult {
+  const rule = args[0];
+  if (rule !== "status" && rule !== "numbers") return result(["Usage: lint:adr status <paths...> | lint:adr numbers"]);
+  const tree = environment.ARC_CHECK_TREE;
+  const base = environment.ARC_CHECK_BASE;
+  if (!tree) return result([`ARC_CHECK_TREE is required. Run arc check run lint:adr:${rule}.`]);
+  if (rule === "status" && !base) return result([NO_STATUS_BASE]);
+  try {
+    if (rule === "numbers") return result(checkNumbers(reader.list(tree), base ? reader.list(base) : undefined));
+    const coordinates = { tree, base: base ?? "" };
+    return result(checkStatuses({ ...readStatusInputs(reader, coordinates, args.slice(1)), paths: args.slice(1), today, baseLabel: coordinates.base.slice(0, 7) }));
+  } catch (error) {
+    return result([error instanceof Error ? error.message : String(error)]);
+  }
+}
+
+if (fileURLToPath(import.meta.url) === process.argv[1]) {
+  const outcome = runAdrCheck(process.argv.slice(2), process.env);
+  for (const diagnostic of outcome.diagnostics) process.stderr.write(`${diagnostic}\n`);
+  process.exitCode = outcome.exitCode;
 }

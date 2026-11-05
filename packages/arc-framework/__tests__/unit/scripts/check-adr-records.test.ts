@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adrNumber, parseStatusSection, resolveBaseVersion, checkNumbers, checkStatuses, selectExaminedAdrs, type AdrRecord, type AdrEntry } from "../../../src/scripts/check-adr-records.js";
+import { adrNumber, parseStatusSection, resolveBaseVersion, runAdrCheck, localCalendarDate, type AdrReader, checkNumbers, checkStatuses, selectExaminedAdrs, type AdrRecord, type AdrEntry } from "../../../src/scripts/check-adr-records.js";
 
 const path = (name: string): string => `.arc/reference/adr/adr-${name}.md`;
 const entry = (name: string, objectId = name): AdrEntry => ({ path: path(name), number: Number(/^(\d+)/u.exec(name)?.[1]) || null, objectId });
@@ -192,5 +192,75 @@ describe("ADR number collisions", () => {
   });
   it("ignores names without a number and passes unique numbers even without a base", () => {
     expect(checkNumbers([entry("unnumbered"), entry("other"), entry("001-unique")])).toEqual([]);
+  });
+});
+
+const environment = { ARC_CHECK_TREE: "tree", ARC_CHECK_BASE: "abcdef1234" };
+const fakeReader = (base: AdrRecord[], tree: AdrRecord[]): AdrReader => ({
+  list: revision => revision === environment.ARC_CHECK_TREE ? tree : base,
+  read: (revision, path) => {
+    const found = (revision === environment.ARC_CHECK_TREE ? tree : base).find(record => record.path === path);
+    if (found === undefined) throw new Error(`Missing blob ${revision}:${path}`);
+    return found.status === null ? "# No Status" : `## Status\n${found.status.text}`;
+  },
+});
+
+describe("ADR check entry", () => {
+  it.each([{ args: [] }, { args: ["other"] }])("rejects an unknown rule: $args", ({ args }) => {
+    expect(runAdrCheck(args, {}, fakeReader([], []), today)).toMatchObject({ exitCode: 1, diagnostics: [expect.stringContaining("Usage:")] });
+  });
+  it.each(["status", "numbers"])("names the proper check when %s has no tree", rule => {
+    expect(runAdrCheck([rule], {}, fakeReader([], []), today)).toEqual({
+      exitCode: 1, diagnostics: [`ARC_CHECK_TREE is required. Run arc check run lint:adr:${rule}.`],
+    });
+  });
+  it("fails with a reader's Git error", () => {
+    const reader: AdrReader = { list: () => { throw new Error("fatal: bad tree object"); }, read: () => "" };
+    expect(runAdrCheck(["numbers"], environment, reader, today)).toEqual({ exitCode: 1, diagnostics: ["fatal: bad tree object"] });
+  });
+  it("fails with a blob read error instead of judging missing content", () => {
+    const reader: AdrReader = { list: () => [entry("040-new")], read: () => { throw new Error("fatal: missing blob"); } };
+    expect(runAdrCheck(["status", path("040-new")], { ARC_CHECK_TREE: "tree", ARC_CHECK_BASE: "base" }, {
+      ...reader, list: revision => revision === "base" ? [] : reader.list(revision),
+    }, today)).toEqual({ exitCode: 1, diagnostics: ["fatal: missing blob"] });
+  });
+  it("routes status through the supplied revisions and local run date", () => {
+    const added = record("040-new", "Proposed");
+    expect(runAdrCheck(["status", added.path], environment, fakeReader([], [added]), today)).toEqual({
+      exitCode: 1, diagnostics: statusCheck([added]),
+    });
+    const accepted = record("040-new", "Accepted");
+    expect(runAdrCheck(["status", accepted.path], environment, fakeReader([], [accepted]), today)).toEqual({ exitCode: 0, diagnostics: [] });
+  });
+  it("reads Status sections only for examined ADRs and their base versions", () => {
+    const base = [record("020-original", "Proposed"), record("001-unchanged", "Accepted")];
+    const tree = [record("020-original", "Proposed\n\nUpdated"), base[1]!];
+    const reader = fakeReader(base, tree);
+    const selective: AdrReader = { ...reader, read: (revision, name) => {
+      if (name !== path("020-original")) throw new Error("Unexamined contents must not be read");
+      return reader.read(revision, name);
+    } };
+    expect(runAdrCheck(["status", ...tree.map(item => item.path), "notes.md"], environment, selective, today)).toEqual({ exitCode: 0, diagnostics: [] });
+  });
+  it("routes number checks without reading any contents", () => {
+    const tree = [record("001-original", "Accepted"), record("001-added", "Accepted")];
+    const reader: AdrReader = { ...fakeReader([tree[0]!], tree), read: () => { throw new Error("Names suffice"); } };
+    const result = runAdrCheck(["numbers"], environment, reader, today);
+    expect(result.exitCode).toBe(1);
+    expect(result.diagnostics).toEqual(checkNumbers(tree, [tree[0]!]));
+    expect(runAdrCheck(["numbers"], environment, fakeReader([], []), today)).toEqual({ exitCode: 0, diagnostics: [] });
+  });
+  it("refuses status without a base without attempting a Git read", () => {
+    const reader: AdrReader = { list: () => { throw new Error("No read expected"); }, read: () => "" };
+    expect(runAdrCheck(["status"], { ARC_CHECK_TREE: "tree" }, reader, today)).toEqual({
+      exitCode: 1, diagnostics: checkStatuses({ tree: [], base: undefined, paths: [], today, baseLabel: "" }),
+    });
+  });
+  it("dates the remedy by local fields instead of the UTC day", () => {
+    const evening = new Date("2026-11-05T04:30:00Z");
+    evening.getFullYear = () => 2026;
+    evening.getMonth = () => 10;
+    evening.getDate = () => 4;
+    expect(localCalendarDate(evening)).toBe("2026-11-04");
   });
 });

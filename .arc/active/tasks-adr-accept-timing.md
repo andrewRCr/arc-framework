@@ -88,49 +88,21 @@ _Purpose:_ The reader, entry point, npm script, and both declarations, so `arc c
 merge gate and in CI over the check's own tree and base. An integration test over a real repository covers the git
 reads the unit tier cannot reach.
 
-### `[ ]` **3.1 Read the ADR sets from the check's tree and base — D5**
+### `[x]` **3.1 Read the ADR sets from the check's tree and base — D5**
 
 - _Goal:_ The script builds its rule inputs from `ARC_CHECK_TREE` and `ARC_CHECK_BASE` alone, never the worktree,
   dispatches its rule argument, and fails on any read error or unknown rule rather than passing.
 
-    - Reader: the ADR list at each revision through `git ls-tree`, contents through `git show <revision>:<path>` as
-      `checkEntryChanged` (`lib/reach-check.ts`) reads them; injectable, so unit tests substitute it
-    - Entry point: the first argument is `status`, with paths after it, or `numbers`; anything else is a usage error;
-      a guarded main as `audit-section-refs.ts` has, taking its environment as an input so the unit cases never read
-      the runner's `process.env`, which a files-mode test run fills with this repository's `ARC_CHECK_*` values
-    - Exit zero when every rule holds, non-zero on a failure, a refusal, or a usage error; a git or read failure fails
-      the check with the git error
-    - A missing `ARC_CHECK_TREE` is a usage error naming the check that matches the rule argument,
-      `arc check run lint:adr:status` or `arc check run lint:adr:numbers`: every files-mode run receives one
-      (`runGitCheck` in `handlers/check/run.ts` passes `content` to `executeSelectedCheck`), so only a direct
-      `npm run lint:adr` lacks it
-    - `<today>` is the local calendar date, built from the local date fields, never a slice of `toISOString()`, which
-      reads a day late in the evening west of UTC
-    - Import only Node built-ins, so each declaration's `runtime_inputs` hashes the script file alone
-    - Build `test-first` (one behavior at a time):
-        - A read failure injected through the reader fails with the git error
-        - An unknown rule argument is a usage error
-        - A missing tree under `status` is a usage error naming `lint:adr:status`; under `numbers`, one naming
-          `lint:adr:numbers`
-        - `status` and `numbers` each reach their rule with the reader's sets
+- _Outcome:_ Added the Node-only Git reader and guarded entrypoint over explicit tree/base inputs. Status reads cover only
+  examined records and their originals; number checks use names alone, and read errors remain failures.
 
-### `[ ]` **3.2 Drive both rules over a temporary repository — D3, D4**
+### `[x]` **3.2 Drive both rules over a temporary repository — D3, D4**
 
 - _Goal:_ Both rules behave as specified against real git objects, with the tree and base supplied as
   `checkEnvironment` (`lib/checks/process.ts`) supplies them, including an ADR the change adds but has not committed.
 
-    - `packages/arc-framework/__tests__/integration/check-adr-records.test.ts`: a temporary repository with a base
-      commit; the tree for the uncommitted case comes from `createWorktreeSnapshot` (`lib/checks/tree.ts`); the script
-      runs as a child process with `ARC_CHECK_TREE` and `ARC_CHECK_BASE` set
-    - Build each child environment as `package-sync-check.test.ts` does: start from `environmentForGitCwd`, delete the
-      inherited `ARC_CHECK_TREE`, `ARC_CHECK_BASE` and `ARC_CHECK_MERGED`, pass `extendEnv: false`, and set only the
-      variables the case names; `test:integration:content` and `test:changed` are files-mode checks, so a run under
-      either carries this repository's values, and the no-base case would otherwise inherit its base
-    - Status cases: a new Proposed ADR fails and passes once Accepted; an ADR returned to Proposed fails quoting its
-      base section and passes once that section is restored; a renamed base-Proposed ADR passes; an uncommitted new
-      ADR is examined; no base refuses
-    - Number cases: a collision the change adds fails naming the added path and target; with no base it names both
-      paths and states the rule
+- _Outcome:_ Added real-repository scenarios for both rules and their repairs, including uncommitted snapshots, renamed
+  base-Proposed records, no-base outcomes, and conflicting worktree bytes.
 
 ### `[ ]` **3.3 Declare both checks and the `lint:adr` script — D3, D4, D5**
 
