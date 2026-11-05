@@ -327,18 +327,15 @@ nothing without `--yes`; and a member a pull lands naming a removed cohort refus
   close and remove carry structured parent reports in JSON and render them in text. Unreadable evidence remains an
   advisory beside the landed operation. Tied and UUID-shaped names use the intended owner's UID.
 
-### `[ ]` **3.7 Refuse a member's cohort read on a removed cohort, naming the edit to its `Cohort` — § 8.4**
+### `[x]` **3.7 Refuse a member's cohort read on a removed cohort, naming the edit to its `Cohort` — § 8.4**
 
 - _Goal:_ A member a pull lands naming a removed cohort is told how to repair it, where the store's not-found remedy
   names a pull that cannot.
 
-    - Archive's cohort read (`prepareObservedCohorts`) and the rename's member-heading read (`acquireRenameGroups`,
-      `lib/store/lifecycle-rename.ts`) refuse a `Cohort` naming no document, naming the member and the edit that clears
-      or re-points it, in place of `resolveCapturedReference`'s "Pull state or name the owner by UID, then retry".
-
-    - Build `test-first` (one behavior at a time):
-        - archive and rename of a member naming a removed cohort each refuse naming the edit, and land after it
-        - the session frame reads the missing document as none (`readStoreCohortDoc`), as today
+- _Outcome:_ Archive and rename contextualize a missing cohort with the member's identity, full `Cohort` path, and
+  the edit that clears or re-points it. Other refusals retain their original recovery. Two-store pulls cover missing
+  leaves and parents; each command completes after the field edit. Session context still treats the missing document
+  as none.
 
 ### `[ ]` **3.8 A cohort retired end to end** — validate exit criterion at segment scope
 

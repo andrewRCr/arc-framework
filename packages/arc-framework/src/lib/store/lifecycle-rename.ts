@@ -17,6 +17,7 @@ import type { Store } from "./contract.js";
 import type { StoreRecord } from "./read.js";
 import type { StoreResult } from "./refusal.js";
 import type { BranchLink } from "./links.js";
+import { memberCohortReadRefusal } from "./cohort-membership-refusal.js";
 /** Selected subject and reporting evidence retained independently of physical checkout steps. */
 export interface StoreRenameSubject { primary: StoreRecord; resuming: boolean; originName: string; advisories: string[] }
 /** Complete acquisition and expected-version writes prepared before physical renames. */
@@ -104,7 +105,7 @@ async function acquireRenameGroups(store: Store, primary: StoreRecord): Promise<
   const cohort = ParsedMetaRecordSchema.parse(primary.fields).cohort?.split("/").at(-1);
   if (cohort !== undefined) {
     const doc = await store.read({ reference: recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: cohort })) });
-    if (doc.status === "refused") return doc;
+    if (doc.status === "refused") return { status: "refused", refusal: memberCohortReadRefusal(primary, doc.refusal) };
     records.push(doc.result);
   }
   return { status: "ok", result: records };
