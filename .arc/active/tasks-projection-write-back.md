@@ -282,6 +282,9 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
 - _Goal:_ A file the reader may not edit says so where it is read, is read-only on disk, and refuses at persist naming
   where on this machine the edit can be made — the refusal keyed on the content change, never the mode.
 
+- _Note:_ Protection rendering and live persistence refusals are implemented; dispatched portability qualification
+  remains pending.
+
     - The notice line is an HTML comment beside the base stamp, after Go's `Code generated … DO NOT EDIT.`, naming where
       an edit can be made: the checkout on this machine whose marker names the work item, from the holding-checkout
       lookup keyed by the owner's UID (`findHoldingCheckout` over `ownerHolderRequest`); where none does,

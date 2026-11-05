@@ -10,9 +10,11 @@ import { swapBatch, type SwapBatchResult, type SwapHooks } from "./swap.js";
 import { createRecordRenderer } from "./record-render.js";
 import { unshownConflicts } from "./held-conflicts.js";
 import { drawCheckoutClash } from "./checkout-drawing.js";
+import type { ProjectionProtection } from "./protection.js";
 
 /** The write-back walk supplies its writer in addition to the send context. */
 export interface ReadBackContext extends WriteBackContext {
+  readonly protection?: ProjectionProtection;
   readonly writer: AsideWriterInput;
   readonly takeIn?: import("./take-in-port.js").TakeInPort;
   readonly hooks?: SwapHooks;

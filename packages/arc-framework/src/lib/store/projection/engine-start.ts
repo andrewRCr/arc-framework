@@ -19,6 +19,7 @@ import { selectProjectionResolution, recheckProjectionResolution } from "./save-
 import { sameReference } from "../identity.js";
 import type { ProjectionIndex } from "./index-schema.js";
 import { bindProjectionRights, refuseProjectionEdit } from "./rights-binding.js";
+import { createProjectionProtection } from "./protection.js";
 
 /** Start independent reads together, drain them all, then sweep and take in files under the lease. */
 export async function startUnderLease(input: ProjectionCommandInput, ports: ProjectionEnginePorts,
@@ -99,6 +100,7 @@ async function bindRoot(input: ProjectionCommandInput, ports: ProjectionEnginePo
     await root.checkpoint();
   };
   const context: ReadBackContext = { store: input.store, location, format: config.objectFormat, actor, writer, memo: state.history, versionRecoveries: [],
+    protection: createProjectionProtection({ store: input.store, checkout: input.checkout, identity: config.identity.identity, exec: ports.exec }),
     verb: input.mode ?? "write-back", checkpoint, hooks: ports.hooks, takeIn: request => root.takeIn(request), onWrite: () => { root.changed = true; },
     report: diagnostic => {
       state.diagnostics.push(diagnostic);
@@ -115,7 +117,7 @@ async function bindRoot(input: ProjectionCommandInput, ports: ProjectionEnginePo
   const send = createWriteBackPort(context);
   const root: ProjectionRootState = { checkout: input.checkout, store: input.store, location, ports, context, identity: config.identity.identity,
     claim: null, layoutActive: "nested", checkpoint: session.step, copies: [], removals: [], unsent, discovered: [], changed: false,
-    ready: false, writable: () => false, rights: bindProjectionRights(input.store, config.identity.identity), takeIn: async request => {
+    ready: false, writable: () => false, rights: bindProjectionRights(input.store, config.identity.identity, ports.exec), takeIn: async request => {
       const denied = await root.rights?.(request);
       if (denied === undefined || denied === null) return send(request);
       root.unsent.add(request.path);

@@ -165,6 +165,7 @@ function renderedEntry(original: RecordEntry, staged: StagedFile): RecordEntry {
   const state = staged.rendering;
   if (state === undefined) return original;
   return { ...original, markers: state.markers, notices: state.notices, unshown: state.unshown,
+    ...(state.protected === undefined ? {} : { protected: state.protected }),
     ...(state.refused === undefined ? {} : { refused: state.refused }) };
 }
 
@@ -259,8 +260,8 @@ async function linkBack(
 
 /** The entry of a file whose replacement yielded to a save: the replaced version still recorded, pending. */
 function yielded(swap: PlannedSwap): RecordEntry {
-  const { base, written, stat, markers, notices, unshown, refused } = swap.original;
-  return { ...swap.entry, base, written, stat, markers, notices, unshown, refused, pending: true };
+  const { base, written, stat, markers, notices, unshown, refused, protected: protectedFile } = swap.original;
+  return { ...swap.entry, base, written, stat, markers, notices, unshown, refused, protected: protectedFile, pending: true };
 }
 
 function withEntry(index: ProjectionIndex, path: string, entry: RecordEntry): ProjectionIndex {

@@ -17,6 +17,7 @@ export interface RenderedFileState {
   readonly unshown: RecordEntry["unshown"];
   readonly refused?: RefusedMark | null;
   readonly keepPending?: boolean;
+  readonly protected?: boolean;
 }
 
 /** A staged file: where it sits, the blob id of the bytes it holds, and the stored version it lays. */
@@ -44,7 +45,9 @@ export async function stageRecordFile(input: {
     stamped: input.path.endsWith(".md"), markerLength: input.markerLength });
   if (rendered.status === "refused") return rendered;
   const staged = await stageRenderedRecordFile({ ...input, content: rendered.result.content, notices: rendered.result.notices,
-    rendering: { ...rendered.result.state, ...input.rendering } });
+    readOnly: rendered.result.protected ?? input.readOnly,
+    rendering: { ...rendered.result.state, ...input.rendering,
+      ...(rendered.result.protected === undefined ? {} : { protected: rendered.result.protected }) } });
   return { status: "ok", result: staged };
 }
 

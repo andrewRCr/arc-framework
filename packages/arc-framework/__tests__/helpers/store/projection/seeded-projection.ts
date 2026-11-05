@@ -38,10 +38,10 @@ const noGit: GitExec = (_cmd, args) => Promise.reject(new Error(`no Git process 
  * @returns The seeded worktree.
  */
 export async function seedProjection(input: {
-  store: Store; files: readonly SeededFile[]; identity?: Slug; format?: ObjectFormat;
+  store: Store; files: readonly SeededFile[]; identity?: Slug; format?: ObjectFormat; checkout?: string;
 }): Promise<SeededProjection> {
   const format = input.format ?? "sha1";
-  const checkout = await createTempRepoCore({ prefix: "arc-projection-seeded-", objectFormat: format });
+  const checkout = input.checkout ?? await createTempRepoCore({ prefix: "arc-projection-seeded-", objectFormat: format });
   const location = await locateProjection(checkout, { fs, exec: noGit });
   if (await ensureProjectionStateFolder(location) !== "ready") throw new Error("The seeded repository has no Git directory");
   const entries: Record<string, RecordEntry> = {};
