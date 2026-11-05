@@ -11,7 +11,9 @@ import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { seed, success } from "../helpers/store/suite-tools.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import type { Store } from "../../src/lib/store/contract.js";
-import { StoreRefusalSchema } from "../../src/lib/store/refusal.js";
+import { StoreRefusalSchema, RemedySchema } from "../../src/lib/store/refusal.js";
+import { resolveStoreBranch } from "../../src/lib/session-init/store-branch-classification.js";
+import { writeMetaNextAction } from "../../src/lib/store/kinds/meta/writers.js";
 import { ensureWorktreeMarkerIgnored, nodeWorktreeMarkerIgnoreFs, readWorktreeMarker, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 
 async function fixture(clash = true, linkedAs: "created" | "adopted" = "created") {
@@ -26,7 +28,7 @@ async function fixture(clash = true, linkedAs: "created" | "adopted" = "created"
     const record = success(await f.store.read({ reference }));
     success(await f.store.write({ ...recordPut(record, { links: { branches: [link] } }), provenance: { verb: "fixture", lifecycleAction: "link" } }));
   }
-  const invoke = (args: readonly string[], decorate?: (store: Store) => Store) => repairCli(cli, args, { storeFactory: async () => {
+  const invoke = (args: readonly string[], decorate?: (store: Store) => Store, cwd = cli.cwd) => repairCli({ ...cli, cwd }, args, { storeFactory: async () => {
     const { createRefStore } = await import("../../src/lib/store/create.js");
     const { createDefaultRefStorePorts } = await import("../../src/lib/store/default-ports.js");
     const fresh = createDefaultRefStorePorts({ checkoutRoot: f.root, backingRepository: async () => null });
@@ -40,13 +42,161 @@ async function fixture(clash = true, linkedAs: "created" | "adopted" = "created"
   return { ...f, cli, source, other, link, repository, uid, otherUid, invoke, marker };
 }
 
-async function publish(f: Awaited<ReturnType<typeof fixture>>) {
+async function publish(f: Awaited<ReturnType<typeof fixture>>, includeWork = true) {
   const remote = join(f.cli.cwd, ".git", "code-origin.git");
   await f.cli.exec("git", ["init", "--bare", remote]);
   await f.cli.exec("git", ["remote", "add", "origin", remote]);
-  await f.cli.exec("git", ["push", "origin", "main", "feat/shared"]);
+  await f.cli.exec("git", ["push", "origin", "main", ...(includeWork ? ["feat/shared"] : [])]);
   return (await f.cli.exec("git", ["rev-parse", "feat/shared"])).stdout.trim();
 }
+
+async function remoteHolderFixture(published = true) {
+  const f = await fixture();
+  await f.cli.exec("git", ["switch", "-c", "feat/shared"]);
+  await f.marker(f.cli.cwd, f.otherUid);
+  const oid = await publish(f, published), peer = join(f.cli.cwd, ".git", "selected-clone");
+  await f.cli.exec("git", ["clone", "--branch", published ? "feat/shared" : "main", join(f.cli.cwd, ".git", "code-origin.git"), peer]);
+  if (!published) await f.cli.exec("git", ["switch", "-c", "feat/shared"], { cwd: peer });
+  await f.cli.exec("git", ["config", "arc.identity", "test-user"], { cwd: peer });
+  await ensureWorktreeMarkerIgnored(peer, f.cli.exec, nodeWorktreeMarkerIgnoreFs);
+  await f.marker(peer, f.uid);
+  const first = await f.invoke(["rename", f.uid, "renamed", "--json"]);
+  expect(first.exitCode ?? 0, first.stdout + first.stderr).toBe(0);
+  expect(success(await f.store.read({ reference: f.source })).links?.branches).toEqual([f.link]);
+  return { ...f, peer, oid };
+}
+
+it.each(["detached", "unrelated"] as const)("does not authorize catch-up from a %s subject checkout", async mode => {
+  const f = await remoteHolderFixture();
+  await f.cli.exec("git", mode === "detached" ? ["switch", "--detach"] : ["switch", "-c", "personal/unrelated"], { cwd: f.peer });
+  const primary = success(await f.store.read({ reference: f.source })), history = success(await f.store.history({ reference: f.source }));
+  const marker = await readWorktreeMarker(f.peer), branch = (await f.cli.exec("git", ["branch", "--show-current"], { cwd: f.peer })).stdout;
+  const result = await f.invoke(["rename", f.uid, "renamed", "--json"], undefined, f.peer);
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  expect(result.result).toMatchObject({ status: "renamed", recordBatch: "existing" });
+  expect(success(await f.store.read({ reference: f.source }))).toEqual(primary);
+  expect(success(await f.store.history({ reference: f.source }))).toEqual(history);
+  expect(await readWorktreeMarker(f.peer)).toEqual(marker);
+  expect((await f.cli.exec("git", ["branch", "--show-current"], { cwd: f.peer })).stdout).toBe(branch);
+  expect((await f.cli.exec("git", ["for-each-ref", "--format=%(refname)", "refs/heads/feat/renamed"], { cwd: f.peer })).stdout).toBe("");
+  expect((await f.cli.exec("git", ["ls-remote", "origin", "refs/heads/feat/renamed"])).stdout).toBe("");
+}, 60_000);
+
+it("keeps an unpublished branch unpublished while catching up its local name and link", async () => {
+  const f = await remoteHolderFixture(false), marker = await readWorktreeMarker(f.peer);
+  const result = await f.invoke(["rename", f.uid, "renamed", "--json"], undefined, f.peer);
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  expect(result.result).toMatchObject({ status: "renamed", recordBatch: "applied", remote: { status: "unpublished" } });
+  expect(success(await f.store.read({ reference: f.source })).links?.branches).toEqual([{ ...f.link, ref: "feat/renamed" }]);
+  expect((await f.cli.exec("git", ["branch", "--show-current"], { cwd: f.peer })).stdout.trim()).toBe("feat/renamed");
+  for (const name of ["shared", "renamed"]) expect((await f.cli.exec("git", ["ls-remote", "origin", `refs/heads/feat/${name}`])).stdout).toBe("");
+  expect(await readWorktreeMarker(f.peer)).toEqual(marker);
+}, 60_000);
+
+it("rolls back a caught-up branch and upstream when its primary advances before the batch", async () => {
+  const f = await remoteHolderFixture(), primary = success(await f.store.read({ reference: f.source }));
+  const marker = await readWorktreeMarker(f.peer);
+  const upstream = (await f.cli.exec("git", ["for-each-ref", "--format=%(upstream)", "refs/heads/feat/shared"], { cwd: f.peer })).stdout;
+  const content = writeMetaNextAction(primary.content, "Preserve the concurrent action.");
+  const refused = await f.invoke(["rename", f.uid, "renamed", "--json"], store => {
+    const batch = store.batch.bind(store); let once = true;
+    store.batch = async input => {
+      if (once) {
+        once = false;
+        success(await f.store.write({ ...recordPut(primary, { content }), provenance: { verb: "fixture", lifecycleAction: "concurrent-edit" } }));
+      }
+      return batch(input);
+    };
+    return store;
+  }, f.peer);
+  expect(refused.exitCode).toBe(1);
+  expect(refused.result).toMatchObject({ status: "rejected", refusal: { code: "version-conflict" } });
+  const concurrent = success(await f.store.read({ reference: f.source }));
+  expect(concurrent).toMatchObject({ content, links: primary.links });
+  expect((await f.cli.exec("git", ["branch", "--show-current"], { cwd: f.peer })).stdout.trim()).toBe("feat/shared");
+  expect((await f.cli.exec("git", ["for-each-ref", "--format=%(upstream)", "refs/heads/feat/shared"], { cwd: f.peer })).stdout).toBe(upstream);
+  expect((await f.cli.exec("git", ["for-each-ref", "--format=%(refname)", "refs/heads/feat/renamed"], { cwd: f.peer })).stdout).toBe("");
+  expect((await f.cli.exec("git", ["ls-remote", "origin", "refs/heads/feat/renamed"])).stdout).toBe("");
+  expect(await readWorktreeMarker(f.peer)).toEqual(marker);
+  const retry = await f.invoke(["rename", f.uid, "renamed", "--json"], undefined, f.peer);
+  expect(retry.exitCode ?? 0, retry.stdout + retry.stderr).toBe(0);
+  expect(retry.result).toMatchObject({ status: "renamed", recordBatch: "applied" });
+  expect(success(await f.store.read({ reference: f.source }))).toMatchObject({ content, links: { branches: [{ ...f.link, ref: "feat/renamed" }] } });
+  expect(await readWorktreeMarker(f.peer)).toEqual(marker);
+}, 60_000);
+
+it("recovers an older nonfinal alias catch-up through its exact pending push", async () => {
+  const f = await remoteHolderFixture();
+  const second = await f.invoke(["rename", f.uid, "latest", "--json"]);
+  expect(second.exitCode ?? 0, second.stdout + second.stderr).toBe(0);
+  const record = success(await f.store.read({ reference: f.source }));
+  const priorLink = { ...f.link, excluded: [{ repository: f.repository, sha: f.oid }] };
+  const extra = { ...f.link, ref: "chore/latest" };
+  success(await f.store.write({ ...recordPut(record, { links: { branches: [priorLink, extra] } }),
+    provenance: { verb: "fixture", lifecycleAction: "link" } }));
+  const hook = join(f.cli.cwd, ".git", "code-origin.git", "hooks", "pre-receive");
+  await writeFile(hook, "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+  const partial = await f.invoke(["rename", f.uid, "latest", "--json"], undefined, f.peer);
+  expect(partial.exitCode).toBe(1);
+  expect(partial.result).toMatchObject({ status: "partial", reference: { owner: { name: "latest", uid: f.uid } },
+    remedy: { argv: ["git", "-C", f.peer, "push", "-u", "origin", "feat/latest"] },
+    report: { keptBranches: [{ branch: "chore/latest", reason: "other-link" }, { branch: "feat/shared", reason: "continuation" }] } });
+  const landed = success(await f.store.read({ reference: f.source }));
+  expect(landed).toMatchObject({ content: record.content, links: { branches: [extra, { ...priorLink, ref: "feat/latest" }] } });
+  const history = success(await f.store.history({ reference: f.source }));
+  const marker = await readWorktreeMarker(f.peer), otherMarker = await readWorktreeMarker(f.cli.cwd);
+  expect((await f.cli.exec("git", ["branch", "--show-current"], { cwd: f.peer })).stdout.trim()).toBe("feat/latest");
+  expect((await f.cli.exec("git", ["ls-remote", "origin", "refs/heads/feat/latest"])).stdout).toBe("");
+  await rm(hook);
+  if (typeof partial.result !== "object" || partial.result === null || !("remedy" in partial.result)) throw new Error("Expected partial repair");
+  const repair = RemedySchema.parse(partial.result.remedy);
+  if (repair.argv === undefined || repair.argv[0] !== "git") throw new Error("Expected exact Git repair");
+  await f.cli.exec("git", repair.argv.slice(1));
+  for (const branch of ["shared", "latest"]) expect((await f.cli.exec("git", ["ls-remote", "origin", `refs/heads/feat/${branch}`])).stdout).toContain(f.oid);
+  expect((await f.cli.exec("git", ["ls-remote", "origin", "refs/heads/chore/latest"])).stdout).toBe("");
+  expect(success(await f.store.read({ reference: f.source }))).toEqual(landed);
+  expect(success(await f.store.history({ reference: f.source }))).toEqual(history);
+  expect(await readWorktreeMarker(f.peer)).toEqual(marker);
+  expect(await readWorktreeMarker(f.cli.cwd)).toEqual(otherMarker);
+}, 60_000);
+
+it("catches up only the subject's remote checkout after both holders rename elsewhere", async () => {
+  const f = await remoteHolderFixture();
+  if (f.other === undefined) throw new Error("Expected namesake");
+  const otherRename = await f.invoke(["rename", f.otherUid, "other-renamed", "--json"], undefined, f.peer);
+  expect(otherRename.exitCode ?? 0, otherRename.stdout + otherRename.stderr).toBe(0);
+  const other = success(await f.store.read({ reference: f.other })), prior = success(await f.store.read({ reference: f.source }));
+  expect(other.links?.branches).toEqual([f.link]);
+  expect((await f.cli.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe("feat/shared");
+  expect((await f.cli.exec("git", ["branch", "--show-current"], { cwd: f.peer })).stdout.trim()).toBe("feat/shared");
+  const before = await resolveStoreBranch(f.store, "feat/shared", async () => f.repository);
+  expect(before).toMatchObject({ status: "unavailable", reason: expect.stringContaining(`arc rename ${f.uid} renamed`) });
+  const marker = await readWorktreeMarker(f.peer), otherMarker = await readWorktreeMarker(f.cli.cwd);
+  const history = success(await f.store.history({ reference: f.source }));
+  const caughtUp = await f.invoke(["rename", f.uid, "renamed", "--json"], undefined, f.peer);
+  expect(caughtUp.exitCode ?? 0, caughtUp.stdout + caughtUp.stderr).toBe(0);
+  expect(caughtUp.result).toMatchObject({ status: "renamed", recordBatch: "applied", remote: { status: "retained", oldBranch: "feat/shared" },
+    report: { keptBranches: [{ branch: "feat/shared", reason: "continuation" }] } });
+  const current = success(await f.store.read({ reference: f.source }));
+  expect(current).toMatchObject({ reference: prior.reference, content: prior.content, placement: prior.placement,
+    links: { branches: [{ ...f.link, ref: "feat/renamed" }] } });
+  expect(success(await f.store.history({ reference: f.source }))).toHaveLength(history.length + 1);
+  expect((await f.cli.exec("git", ["branch", "--show-current"], { cwd: f.peer })).stdout.trim()).toBe("feat/renamed");
+  expect((await f.cli.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe("feat/shared");
+  expect(await readWorktreeMarker(f.peer)).toEqual(marker);
+  expect(await readWorktreeMarker(f.cli.cwd)).toEqual(otherMarker);
+  expect(success(await f.store.read({ reference: f.other }))).toEqual(other);
+  expect(await resolveStoreBranch(f.store, "feat/shared", async () => f.repository)).toMatchObject({ status: "ready", record: { reference: other.reference } });
+  expect(await resolveStoreBranch(f.store, "feat/renamed", async () => f.repository)).toMatchObject({ status: "ready", record: { reference: current.reference } });
+  for (const branch of ["shared", "renamed"]) expect((await f.cli.exec("git", ["ls-remote", "origin", `refs/heads/feat/${branch}`])).stdout).toContain(f.oid);
+  const afterHistory = success(await f.store.history({ reference: f.source }));
+  const again = await f.invoke(["rename", f.uid, "renamed", "--json"], undefined, f.peer);
+  expect(again.exitCode ?? 0, again.stdout + again.stderr).toBe(0);
+  expect(again.result).toMatchObject({ status: "renamed", recordBatch: "existing" });
+  expect(success(await f.store.read({ reference: f.source }))).toEqual(current);
+  expect(success(await f.store.history({ reference: f.source }))).toEqual(afterHistory);
+  expect(await readWorktreeMarker(f.peer)).toEqual(marker);
+}, 60_000);
 
 it("explains both readings of unpreserved commits and completes its retry with the old remote kept", async () => {
   const f = await fixture(false);

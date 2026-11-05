@@ -516,40 +516,19 @@ its history refs, discharging the edges naming it.
   checkout changes. Store preservation refusals distinguish this work unit's commits from another holder's branch;
   their retry keeps either safely, while tracked renames retain the existing default remedy.
 
-### `[ ]` **4.11 Move a branch the first run left through the catch-up run — § 2.5, § 3.3**
+### `[x]` **4.11 Move a branch the first run left through the catch-up run — § 2.5, § 3.3**
 
 - _Goal:_ Rerunning the rename with the subject's current slug on the machine holding its checkout renames the branch a
   first run left and moves its link, ending the branch-link tie.
 
-    - `arc rename <uid> <slug>`, with the subject's current slug, finds the checkout by UID; where it holds a branch the
-      subject's link names after one of the subject's former slugs (`record.aliases`, since `renameOrigin` gives only the
-      newest), it renames that branch to `<prefix>/<slug>`, moves the link in a link-only batch, and pushes the new name,
-      keeping the old remote branch. The checkout's marker and folder are unchanged. Elsewhere a continuation still runs
-      no local step (`persistRename`), and `branchRename` matches only a branch named after the current slug.
+- _Outcome:_ Catch-up selects the UID-held branch across retained aliases and lands only its observed primary link.
+  Refused batches restore the branch and upstream while markers and folders stay fixed. Shared branch ownership
+  resolves singly afterward; a failed push follows A1’s exact Git action without changing the landed records.
 
-    - Build `test-first` (one behavior at a time):
-        - after a first run elsewhere, the catch-up run on the checkout's machine moves the branch and link and keeps the
-          old remote branch
-        - before the catch-up, the other holder's rename, run where its own checkout is not, leaves the branch both links
-          name and keeps the old remote branch
-        - after the catch-up, the branch-link lookup returns one holder and the session-start checks warn no more
-
-### `[ ]` **4.11.R Preserve the pending push after catch-up publication fails**
+### `[x]` **4.11.R Preserve the pending push after catch-up publication fails**
 
 - _Goal:_ A catch-up whose link-only batch lands but publication fails retains its selected reference and report and
   returns the exact repository-scoped Git push that finishes publication without further store or checkout changes (A1).
-
-    - `finishRename` distinguishes a landed catch-up from an ordinary rename continuation. Its partial remedy carries
-      `git -C <checkout> push -u origin <actual-new-branch>`; it does not offer a rename retry as an equivalent repair.
-      Ordinary rename continuations keep their supplied operand and automatic publication path.
-
-    - Build `test-first` (one behavior at a time):
-        - a failed push after catching up an older, nonfinal alias returns the actual new branch and repository in its
-          remedy, with the selected reference and retained old branch
-        - executing that exact argv publishes the actual new branch and keeps the actual old remote without changing
-          stored records, history, markers, or checkout paths
-        - a deliberately unpublished caught-up branch remains unpublished, and ordinary failed-push continuations still
-          complete through their original rename operand
 
 ### `[ ]` **4.12 A work-unit clash repaired by rename end to end** — validate exit criterion at segment scope
 
