@@ -596,21 +596,15 @@ old name refuses naming the current one.
   holders, preserves lookup evidence, and offers another slug. Text-only ambiguity remedies render as JSON. A cut's map
   stays unchanged by rename; revising to a fresh cohort placement moves its stubs and lets finish retire the origin.
 
-### `[ ]` **5.5 Land the mixed-state batch through the history rounds — § 5.3**
+### `[x]` **5.5 Land the mixed-state batch through the history rounds — § 5.3**
 
 - _Goal:_ The cohort rename's batch, whose completed members and closed subcohorts Task 5.2 writes in place, lands
   whatever its holders' states, on a clone missing their history refs.
 
-    - The arm runs inside Task 4.6's rounds through Task 4.1.a's dispatch; a completed member's path takes `meta.cohort`'s
-      completed-meta rule and an open straggler of a closed subcohort its re-pointing rule (Task 1.7).
-
-    - Build `test-first` (one behavior at a time):
-        - over both backends, renaming a parent cohort with a started member, a completed member, an open subcohort,
-          and a closed subcohort with a completed member lands in one batch
-        - over the ref backend, the same batch lands on a clone lacking the completed records' history refs
-        - renaming a parent whose closed subcohort holds an open stub a pull landed after its close lands, re-pointing it
-        - a closed subcohort's Parent names a unique former alias while a pulled member names a clashed current slug;
-          the reported member edit lands after the batch rewrites that Parent
+- _Outcome:_ Mixed-state parents rename in one batch on both backends; cold native clones fetch only the completed
+  holdings' required histories in both layouts. Late open members re-point without changing placement. Ambiguous
+  completed-member repairs use the exact planned Parent content and execute after the batch, retaining captured
+  ownership evidence and the original observations; retained closed ambiguous subtrees stay unchanged.
 
 ### `[ ]` **5.6 A cohort renamed end to end** — validate exit criterion at segment scope
 

@@ -10,7 +10,7 @@ import { rewriteCohortHeading, writeCohortParent, parseCohortDocument, rewriteCo
 import { observeRenameFormerName, resolveRenameReferences } from "./rename-reference-resolution.js";
 import { emptyRenameReport, type RenameReport, type RenameReportRecord } from "../work-unit/rename-report.js";
 import type { RunRenameResult } from "../work-unit/verbs/rename.js";
-import { observeAllHoldings, cohortHoldingEdits, type CohortHolding } from "./kinds/cohort/check-support.js";
+import { observeAllHoldings, cohortHoldingEdits, type CohortHolding, type CohortHoldingSegment } from "./kinds/cohort/check-support.js";
 import { writeMetaCohort } from "./kinds/meta/writers.js";
 import type { StoreView } from "./write-check.js";
 import type { Mutation } from "./write.js";
@@ -56,7 +56,7 @@ async function prepareMembershipWrites(store: Store, primary: StoreRecord, targe
   const plan: CohortRenamePlan = { primary, target, records: document.records, contents: new Map([[primary, document.content]]) };
   const membership = prepareSoleHoldings(plan, holdings.value, closed);
   if (membership.status === "refused") return membership;
-  const retained = reportAmbiguousHoldings(primary, holdings.value.filter(holding => holding.resolution === "ambiguous"), target, closed);
+  const retained = reportAmbiguousHoldings(plan, holdings.value.filter(holding => holding.resolution === "ambiguous"), closed);
   if (retained.status === "refused") return retained;
   const filenames = await prepareFilenameReferences(view, plan, retained.result.report);
   if (filenames.status === "refused") return filenames;
@@ -128,9 +128,10 @@ function cohortRenameMutations(records: readonly StoreRecord[], contents: Readon
   });
 }
 
-function reportAmbiguousHoldings(primary: StoreRecord, holdings: readonly CohortHolding[], target: string,
+function reportAmbiguousHoldings(plan: CohortRenamePlan, holdings: readonly CohortHolding[],
   closed: readonly CohortHolding[]): StoreResult<Pick<CohortRenameWrites, "report" | "advisories">> {
-  const edits = cohortHoldingEdits(holdings, target);
+  const { primary, target } = plan;
+  const edits = cohortHoldingEdits(postBatchHoldings(holdings, plan), target);
   if (edits.status !== "known") return malformed(primary, edits.status === "unavailable" ? edits.condition : "Holding edits are unavailable.");
   const references: Array<RenameReport["references"][number]> = edits.value.map(({ record, ...edit }) => ({ record, edits: [{ kind: "field", ...edit }] }));
   const advisories: string[] = [];
@@ -144,6 +145,21 @@ function reportAmbiguousHoldings(primary: StoreRecord, holdings: readonly Cohort
     }
   }
   return { status: "ok", result: { report: { ...emptyRenameReport(), references }, advisories } };
+}
+
+/** Repairs use persisted prerequisite content while retaining captured ownership and candidate identity. */
+function postBatchHoldings(holdings: readonly CohortHolding[], plan: CohortRenamePlan): CohortHolding[] {
+  return holdings.map(holding => ({ ...holding, segments: postBatchSegments(holding.segments, plan),
+    members: holding.members.map(member => ({ ...member, segments: postBatchSegments(member.segments, plan) })) }));
+}
+
+function postBatchSegments(segments: readonly CohortHoldingSegment[], plan: CohortRenamePlan): CohortHoldingSegment[] {
+  return segments.map(segment => {
+    if (segment.status !== "known") return segment;
+    const record = plan.records.find(candidate => sameReference(candidate.reference, segment.resolutionRecord.reference));
+    const content = record === undefined ? undefined : plan.contents.get(record);
+    return content === undefined ? segment : { ...segment, resolutionRecord: { ...segment.resolutionRecord, content } };
+  });
 }
 
 function holdingReportRecord(reference: StoreRecord["reference"]): RenameReportRecord | null {

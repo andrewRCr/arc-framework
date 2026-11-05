@@ -7,6 +7,7 @@ import { repairCliFixture, repairCli } from "../helpers/repair-cli.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { RecordReferenceSchema, createKindRegistry } from "../../src/lib/store/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
+import type { WritePlacement } from "../../src/lib/store/placement.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 
 async function productionStore(checkout: RefSyncFixture["a"]) {
@@ -18,6 +19,65 @@ async function productionStore(checkout: RefSyncFixture["a"]) {
 }
 
 describe.each(["default", "separate"] as const)("rename history rounds in the %s layout", layout => {
+  it("renames a mixed-state cohort while pulling only its completed holdings' histories", async () => {
+    const h = await refSyncFixture(layout), a = await productionStore(h.a), b = await productionStore(h.b);
+    const completed = { kind: "completed" as const, quarter: ArchiveQuarterSchema.parse("2026-q4") };
+    const put = async (kind: "cohort/document" | "work-item/meta", name: string, content: string, placement?: WritePlacement) => {
+      const written = success(await a.write({ action: "put", expected: null,
+        reference: RecordReferenceSchema.parse({ kind, owner: { type: kind === "cohort/document" ? "cohort" : "work-item", name } }),
+        content, ...(placement === undefined ? {} : { placement }), provenance: { verb: "create", lifecycleAction: "create" } }));
+      return success(await a.read({ reference: written.reference }));
+    };
+    const document = (name: string, parent?: string) => `# Cohort: \`${name}\`\n\n**Purpose:** See \`cohort-parent.md\`.\n${parent === undefined ? "" : `\n**Parent:** \`${parent}\`\n`}`;
+    const parent = await put("cohort/document", "parent", document("parent"));
+    const open = await put("cohort/document", "open-child", document("open-child", "parent"));
+    const child = await put("cohort/document", "closed-child", document("closed-child", "parent"));
+    const members = [];
+    for (const [name, state, cohort] of [["started", "Active", "parent"], ["completed", "Shipped", "parent"],
+      ["closed-member", "Shipped", "parent/closed-child"], ["waiting", "Planning", "parent/open-child"]] as const) {
+      members.push(await put("work-item/meta", name, `${makeMetaFixture(name,
+        { state, currentWorkflow: state === "Active" ? "process-task-loop" : null, cohort })}\nSee \`cohort-parent.md\`.\n`,
+      state === "Shipped" ? completed : state === "Active" ? { kind: "active" } : { kind: "backlog", commitment: "planned" }));
+    }
+    success(await a.write({ ...recordPut(child, { placement: completed }), provenance: { verb: "cohort-close", lifecycleAction: "close" } }));
+    const closed = success(await a.read({ reference: child.reference }));
+    const unrelated = await put("work-item/meta", "unrelated", makeMetaFixture("unrelated", { state: "Shipped", currentWorkflow: null }), completed);
+    const history = (record: typeof parent) => {
+      const owner = record.reference.owner;
+      if (owner.type === "person" || owner.uid === undefined) throw new Error("Expected completed owner UID");
+      return `refs/arc/history/${owner.type === "cohort" ? "cohort" : "work"}/${owner.uid}`;
+    };
+    const histories = [closed, ...members.filter(member => member.placement?.kind === "completed")].map(history);
+    const unrelatedHistory = history(unrelated);
+    success(await a.push()); success(await b.pull());
+    for (const ref of [...histories, unrelatedHistory]) expect((await h.b.git(["for-each-ref", "--format=%(refname)", ref])).stdout).toBe("");
+    const before = await Promise.all([parent, open, closed, ...members].map(async record => success(await b.read({ reference: record.reference }))));
+    const retained = success(await b.read({ reference: unrelated.reference }));
+    const owner = parent.reference.owner;
+    if (owner.type !== "cohort" || owner.uid === undefined) throw new Error("Expected parent UID");
+    const cli = await repairCliFixture();
+    const result = await repairCli(cli, ["rename", owner.uid, "after", "--json"], { storeFactory: () => productionStore(h.b) });
+    expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+    expect(result.result).toMatchObject({ status: "renamed", shape: "cohort", recordBatch: "applied" });
+    for (const ref of histories) expect((await h.b.git(["for-each-ref", "--format=%(refname)", ref])).stdout.trim()).toBe(ref);
+    expect((await h.b.git(["for-each-ref", "--format=%(refname)", unrelatedHistory])).stdout).toBe("");
+    const after = await Promise.all(before.map(async record => success(await b.read({ reference: record.reference }))));
+    expect(after[0]?.content).toContain("# Cohort: `after`");
+    for (const current of after.slice(0, 2)) expect(current.content).toContain("See `cohort-after.md`.");
+    for (const current of after.slice(1, 3)) expect(current.fields).toMatchObject({ parent: "after" });
+    expect(after[2]?.content).toContain("See `cohort-parent.md`.");
+    for (const [index, current] of after.entries()) {
+      expect(current.placement).toEqual(before[index]?.placement);
+      if (index >= 3) expect(current.fields).toMatchObject({ cohort: index < 5 ? "after" : index === 5 ? "after/closed-child" : "after/open-child" });
+    }
+    expect(after[6]?.content).toContain("See `cohort-after.md`.");
+    const events = await Promise.all(after.map(async record => success(await b.history({ reference: record.reference }))[0]?.provenance));
+    const event = events[0];
+    if (event === undefined || !("batchId" in event)) throw new Error("Expected composed cohort batch");
+    for (const other of events) expect(other).toMatchObject({ batchId: event.batchId });
+    expect(success(await b.read({ reference: unrelated.reference }))).toEqual(retained);
+  }, 60_000);
+
   it("reuses an archived target and settles edges while pulling successive subject histories", async () => {
     const h = await refSyncFixture(layout);
     const a = await productionStore(h.a), b = await productionStore(h.b);
