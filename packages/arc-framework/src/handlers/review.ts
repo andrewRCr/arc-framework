@@ -351,7 +351,7 @@ import {
 } from "../scripts/review-gate/hosted/gh-process.js";
 import { CodeRabbitHostedAdapter } from "../scripts/review-gate/hosted/coderabbit.js";
 import { CodexHostedAdapter } from "../scripts/review-gate/hosted/codex.js";
-import { frontlineRetryRemedy } from "../scripts/review-gate/runtime/frontline-retry-remedy.js";
+import { frontlineResolveRemedy, frontlineRetryRemedy } from "../scripts/review-gate/runtime/frontline-retry-remedy.js";
 import { createFrontlineRunDependencies, type CodeRabbitProcessOptions } from "../scripts/review-gate/runtime/frontline-run-composition.js";
 import {
   FrontlineRunCommandError,
@@ -409,6 +409,7 @@ import {
 import { createGhChangeRequestResolutionPort } from "../scripts/review-gate/hosts/github/change-request.js";
 import {
   composeDeliveryMemberTarget,
+  assertLocalReviewTargetBase,
   confirmLocalReviewTarget,
   deriveLocalReviewTarget,
   deriveLocalReviewTargetFromCoordinates,
@@ -2534,12 +2535,11 @@ async function deriveFrontlineCommandRequest(
 ): Promise<FrontlineCommandRequest> {
   const publisher = new RepositoryGitCommonStatePublisher(exec, root);
   const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocation);
-  return FrontlineCommandRequestSchema.parse({
-    ...request,
-    target: await deriveLocalReviewTargetFromCoordinates({
-      exec, cwd: root, repositoryId, coordinates: request.target,
-    }),
+  const target = await deriveLocalReviewTargetFromCoordinates({
+    exec, cwd: root, repositoryId, coordinates: request.target,
   });
+  await assertLocalReviewTargetBase({ exec, cwd: root, target });
+  return FrontlineCommandRequestSchema.parse({ ...request, target });
 }
 
 class PlannedFrontlineMemberRefreshError extends Error {
@@ -2774,6 +2774,7 @@ export async function handleReviewFrontlineResolve(
   await executeReviewHandler({
     mode: "review-frontline-resolve",
     source,
+    remedyFor: frontlineResolveRemedy,
     requestSchema: FrontlineResolveRequestSchema,
     resultSchema: FrontlineResolveEnvelopeSchema,
     dependencies,

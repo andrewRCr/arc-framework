@@ -47,6 +47,7 @@ function repositoryPrecondition(reason: LocalTargetInvalidReason) {
     case "non-commit-head":
       return "commit-head" as const;
     case "ambiguous-merge-base":
+    case "diff-base-mismatch":
     case "invalid-base":
     case "no-merge-base":
     case "unresolved-base":
