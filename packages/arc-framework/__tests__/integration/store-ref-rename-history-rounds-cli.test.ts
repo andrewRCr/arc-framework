@@ -18,7 +18,7 @@ async function productionStore(checkout: RefSyncFixture["a"]) {
 }
 
 describe.each(["default", "separate"] as const)("rename history rounds in the %s layout", layout => {
-  it("pulls successive work-unit and cohort histories without pulling unrelated retained work", async () => {
+  it("reuses an archived target and settles edges while pulling successive subject histories", async () => {
     const h = await refSyncFixture(layout);
     const a = await productionStore(h.a), b = await productionStore(h.b);
     const placement = { kind: "completed" as const, quarter: ArchiveQuarterSchema.parse("2026-q4") };
@@ -33,6 +33,14 @@ describe.each(["default", "separate"] as const)("rename history rounds in the %s
       provenance: { verb: "archive", lifecycleAction: "archive" } }));
     success(await a.write({ ...recordPut(cohort, { content: cohort.content, placement }),
       provenance: { verb: "archive", lifecycleAction: "archive" } }));
+    const target = success(await a.write({ action: "put", expected: null, placement,
+      reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "reused" }, kind: "work-item/meta" }),
+      content: makeMetaFixture("reused", { state: "Shipped", currentWorkflow: null }),
+      provenance: { verb: "archive", lifecycleAction: "archive" } }));
+    const waiting = success(await a.write({ action: "put", expected: null, placement: { kind: "backlog", commitment: "planned" },
+      reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "waiting" }, kind: "work-item/meta" }),
+      content: makeMetaFixture("waiting", { state: "Planning", currentWorkflow: null, dependsOn: ["reused"] }),
+      provenance: { verb: "create", lifecycleAction: "create" } }));
     const unrelated = success(await a.write({ action: "put", expected: null, placement,
       reference: RecordReferenceSchema.parse({ owner: { type: "work-item", name: "unrelated" }, kind: "work-item/meta" }),
       content: makeMetaFixture("unrelated", { state: "Shipped", currentWorkflow: null }),
@@ -43,17 +51,29 @@ describe.each(["default", "separate"] as const)("rename history rounds in the %s
     const histories = [`refs/arc/history/work/${memberOwner.uid}`, `refs/arc/history/cohort/${cohortOwner.uid}`];
     const unrelatedHistory = `refs/arc/history/work/${unrelatedOwner.uid}`;
     success(await a.push()); success(await b.pull());
-    for (const history of [...histories, unrelatedHistory]) expect((await h.b.git(["for-each-ref", "--format=%(refname)", history])).stdout).toBe("");
+    const targetOwner = target.reference.owner;
+    if (targetOwner.type !== "work-item" || targetOwner.uid === undefined) throw new Error("Expected target UID");
+    const targetHistory = `refs/arc/history/work/${targetOwner.uid}`;
+    for (const history of [...histories, unrelatedHistory, targetHistory]) expect((await h.b.git(["for-each-ref", "--format=%(refname)", history])).stdout).toBe("");
     const before = success(await b.read({ reference: member.reference })), document = success(await b.read({ reference: cohort.reference }));
+    const retainedTarget = success(await b.read({ reference: target.reference }));
     const cli = await repairCliFixture();
-    const result = await repairCli(cli, ["rename", memberOwner.uid.toUpperCase(), "after", "--json"], { storeFactory: () => productionStore(h.b) });
+    const result = await repairCli(cli, ["rename", memberOwner.uid.toUpperCase(), "reused", "--json"], { storeFactory: () => productionStore(h.b) });
     expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
     expect(result.result).toMatchObject({ status: "renamed", shape: "archived" });
     const after = success(await b.read({ reference: member.reference })), renamedDocument = success(await b.read({ reference: cohort.reference }));
-    expect(after.reference.owner.name).toBe("after"); expect(after.placement).toEqual(before.placement);
-    expect(renamedDocument.content).toContain("### `after`"); expect(renamedDocument.placement).toEqual(document.placement);
+    expect(after.reference.owner.name).toBe("reused"); expect(after.placement).toEqual(before.placement);
+    expect(renamedDocument.content).toContain("### `reused`"); expect(renamedDocument.placement).toEqual(document.placement);
+    const settled = success(await b.read({ reference: waiting.reference }));
+    expect(settled.fields).toMatchObject({ dependsOn: [] });
+    const ownEvent = success(await b.history({ reference: after.reference }))[0]?.provenance;
+    const settledEvent = success(await b.history({ reference: settled.reference }))[0]?.provenance;
+    expect(ownEvent).toMatchObject({ batchId: expect.any(String) });
+    expect(settledEvent).toMatchObject({ batchId: ownEvent !== undefined && "batchId" in ownEvent ? ownEvent.batchId : undefined });
+    expect(success(await b.read({ reference: target.reference }))).toEqual(retainedTarget);
     for (const history of histories) expect((await h.b.git(["for-each-ref", "--format=%(refname)", history])).stdout.trim()).toBe(history);
     expect((await h.b.git(["for-each-ref", "--format=%(refname)", unrelatedHistory])).stdout).toBe("");
+    expect((await h.b.git(["for-each-ref", "--format=%(refname)", targetHistory])).stdout).toBe("");
     expect(success(await b.read({ reference: unrelated.reference })).reference.owner.name).toBe("unrelated");
   }, 60_000);
 });

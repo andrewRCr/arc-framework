@@ -235,6 +235,10 @@ it.each(["work-unit", "errand"] as const)("leaves ambiguous work-item references
   const other = await plantRefPrimary(f, { kind: kind === "work-unit" ? "work-item/meta" : "work-item/record", name: "shared", uid: otherUid,
     content: kind === "work-unit" ? makeMetaFixture("shared") : serializeTransientIdentityRecord(errand) });
   const kept = success(await f.store.read({ reference: other }));
+  const refused = await f.invoke(["rename", "shared", "renamed", "--json"]);
+  expect(refused.exitCode).toBe(1);
+  expect(refused.result).toMatchObject({ refusal: { code: "ambiguous-match" },
+    remedy: { text: expect.stringContaining(kind === "work-unit" ? `arc rename ${uid}` : `arc errand close ${otherUid}`) } });
   const result = await f.invoke(["rename", uid, "renamed", "--json"]);
   expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
   expect(success(await f.store.read({ reference: source })).reference.owner.name).toBe("renamed");

@@ -530,10 +530,15 @@ its history refs, discharging the edges naming it.
 - _Goal:_ A catch-up whose link-only batch lands but publication fails retains its selected reference and report and
   returns the exact repository-scoped Git push that finishes publication without further store or checkout changes (A1).
 
-### `[ ]` **4.12 A work-unit clash repaired by rename end to end** — validate exit criterion at segment scope
+### `[x]` **4.12 A work-unit clash repaired by rename end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds end to end: a clash of two work units refuses naming the rename, the rename
   by UID lands changing only what names its subject, and the slug then resolves to the other holder.
+
+- _Outcome:_ Registered commands carry the clash refusal through UID repair and exact omitted-reference reports,
+  preserve the other checkout and shared remote, catch up the selected branch, and report the former-name tie. A cold
+  clone reuses an archived target and discharges edges in the same batch through successive history rounds in both
+  layouts. A1's exact pending push publishes the actual new branch without another record or checkout change.
 
 ## **Phase 5:** The cohort rename
 

@@ -1001,6 +1001,6 @@ None.
 ## Amendments
 
 - **A1** — 2026-11-05 — design: failed catch-up pushes use Git recovery. _Supersedes:_ § 2.1 ¶2; § 2.5 ¶4, ¶6.
-  _Trigger:_ 4.11 must-stop. _Work:_ 4.11.R. _Revalidated:_ pending → 4.12.
+  _Trigger:_ 4.11 must-stop. _Work:_ 4.11.R. _Revalidated:_ 4.12.
 
 ---
