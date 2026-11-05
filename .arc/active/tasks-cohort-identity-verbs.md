@@ -464,16 +464,14 @@ its history refs, discharging the edges naming it.
   every retry keeps the original operand and recovery guard. Archived subjects and closed-cohort headings now land
   together after their required histories are restored, while unrelated histories remain unfetched.
 
-### `[ ]` **4.7 Report a former-slug tie the batch leaves — § 2.7**
+### `[x]` **4.7 Report a former-slug tie the batch leaves — § 2.7**
 
 - _Goal:_ Renaming the second holder of a repaired clash away from the slug reports the former-slug tie it leaves and its
   repair.
 
-    - After its batch the rename looks the old slug up; an `ambiguous-match` with `tie.name: "former"` enters the report
-      with `clashRepair`'s repair, naming the intended holder by its current name.
-
-    - Build `test-first` (one behavior at a time):
-        - over the ref backend, renaming both holders of a clash off the slug, the second reports the tie
+- _Outcome:_ The post-batch lookup reports former-name ties with the store's condition and repair, on first runs and
+  continuations. Unavailable or throwing lookups remain visible diagnostics while publication follows its existing path,
+  and resumed runs preserve the landed record batch.
 
 ### `[ ]` **4.8 Pin the subject's checkout by UID, and type the unbound-marker refusal — § 2.4**
 

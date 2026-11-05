@@ -2,6 +2,9 @@
 import type { Store } from "./contract.js";
 import { OwnerIdentitySchema, RecordReferenceSchema, sameOwner, type RecordReference } from "./identity.js";
 import type { StoreResult } from "./refusal.js";
+import { SlugSchema } from "../kernel/index.js";
+import { renderExplained } from "./pull-consumption.js";
+import type { RenameReport } from "../work-unit/rename-report.js";
 
 /** Whether ranked references to one name can designate this rename's subject. */
 export type RenameReferenceResolution = "subject" | "ambiguous" | "other";
@@ -16,4 +19,24 @@ export async function resolveRenameReferences(store: Pick<Store, "read">, subjec
   if (read.status === "ok") return { status: "ok", result: sameOwner(read.result.reference.owner, subject.owner) ? "subject" : "other" };
   if (read.refusal.code !== "ambiguous-match") return read;
   return { status: "ok", result: read.refusal.candidates.some(candidate => sameOwner(candidate.owner, subject.owner)) ? "ambiguous" : "other" };
+}
+
+/** Observe ties left by a landed rename without turning a diagnostic failure into another mutation attempt. */
+export async function observeRenameFormerName(store: Pick<Store, "lookup">, source: string): Promise<{
+  ties: RenameReport["formerSlugTies"]; advisories: string[];
+}> {
+  const empty = { ties: [], advisories: [] };
+  const unavailable = `Could not check ties for former name ${JSON.stringify(source)}:`;
+  try {
+    const found = await store.lookup({ kind: "slug", slug: SlugSchema.parse(source) });
+    if (found.status === "ok" || found.refusal.code === "not-found") return empty;
+    const refusal = found.refusal;
+    if (refusal.code === "ambiguous-match" && refusal.tie?.name === "former") return {
+      ties: [{ slug: source, condition: refusal.condition, remedy: refusal.remedy }], advisories: [],
+    };
+    if (refusal.code === "ambiguous-match" && refusal.tie?.name === "current") return empty;
+    return { ties: [], advisories: [renderExplained([unavailable, refusal.condition], refusal.remedy)] };
+  } catch (error) {
+    return { ties: [], advisories: [`${unavailable} ${error instanceof Error ? error.message : String(error)}`] };
+  }
 }

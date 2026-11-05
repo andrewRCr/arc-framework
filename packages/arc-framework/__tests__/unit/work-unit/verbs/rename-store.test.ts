@@ -11,6 +11,7 @@ import { SlugSchema, ArchiveQuarterSchema } from "../../../../src/lib/kernel/ind
 import { writeMetaPause } from "../../../../src/lib/store/kinds/meta/writers.js";
 import type { LocusPorts } from "../../../../src/lib/work-unit/locus-ports.js";
 import { StoreRecordSchema } from "../../../../src/lib/store/read.js";
+import { HistoryRefSchema, StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 const locusPorts: LocusPorts = { checkMarkerExclusivity: async () => ({ kind: "clear" }), findHoldingCheckout: async () => ({ kind: "none" as const }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) };
 it("refuses a changed caller primary even when acquisition sees the newer version", async () => {
   const h = createLifecycleHarness(), primary = await h.seedMeta("source", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "provisional" });
@@ -202,6 +203,41 @@ async function branchFixture(linkedAs: "created" | "adopted" = "created", failPu
   ]);
   return { ...h, primary, link, refs, git, ctx: { store: h.store, exec: git.exec, cwd: "/repo", baseBranch: "main", projectId: async () => "repo", locusPorts } };
 }
+it.each([
+  { fault: "refusal", failPush: false }, { fault: "refusal", failPush: true },
+  { fault: "exception", failPush: false }, { fault: "exception", failPush: true },
+])("keeps a landed rename after a tie-lookup $fault, failed publication=$failPush", async ({ fault, failPush }) => {
+  const h = await branchFixture("created", failPush), batch = h.store.batch.bind(h.store), lookup = h.store.lookup.bind(h.store);
+  const before = lifecycleSuccess(await h.store.history({ reference: h.primary.reference }));
+  const unavailable = StoreRefusalSchema.parse({ code: "state-unresolvable", class: "recoverable",
+    condition: "Tie lookup is unavailable.", remedy: { text: "Restore tie evidence.", argv: ["arc", "status", "--json"] },
+    historyRefs: [HistoryRefSchema.parse("refs/arc/history/cohort/33333333-3333-4333-8333-333333333333")] });
+  let landed = false, broken = true;
+  h.store.batch = async input => { const result = await batch(input); if (result.status === "ok") landed = true; return result; };
+  h.store.lookup = async input => {
+    if (landed && broken && input.kind === "slug" && input.slug === "source") {
+      if (fault === "exception") throw new Error("Tie lookup threw.");
+      return { status: "refused", refusal: unavailable };
+    }
+    return lookup(input);
+  };
+  h.store.pull = async () => { throw new Error("A diagnostic must not start history recovery."); };
+  const result = await runStoreRename(h.ctx, { operand: "source", targetSlug: "target" });
+  const detail = fault === "exception" ? "Tie lookup threw." : "Tie lookup is unavailable.";
+  if (failPush) expect(result).toMatchObject({ status: "partial", reason: expect.stringContaining(detail),
+    remedy: { argv: ["arc", "rename", "source", "target"] } });
+  else expect(result).toMatchObject({ status: "renamed", remote: { status: "renamed" },
+    advisories: [expect.stringContaining(detail)] });
+  const renamed = lifecycleSuccess(await h.store.read({ reference: h.primary.reference }));
+  expect(renamed.reference.owner.name).toBe("target"); expect(h.refs).toEqual(new Set(["feat/target"]));
+  const history = lifecycleSuccess(await h.store.history({ reference: h.primary.reference }));
+  expect(history).toHaveLength(before.length + 1);
+  broken = false;
+  expect(await runStoreRename(h.ctx, { operand: "target", targetSlug: "target" }))
+    .toMatchObject({ status: "renamed", recordBatch: "existing", advisories: [] });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.primary.reference }))).toEqual(renamed);
+  expect(lifecycleSuccess(await h.store.history({ reference: h.primary.reference }))).toEqual(history);
+});
 it("renames a detached Planning holder through its final qualified work link", async () => {
   const h = await branchFixture("created", false, true);
   expect(await runStoreRename({ ...h.ctx, locusPorts: { ...locusPorts, findHoldingCheckout: boundHolderLookup(h.primary, () => "/holder/source") },

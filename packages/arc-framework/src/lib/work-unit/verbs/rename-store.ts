@@ -18,6 +18,7 @@ import { resolveSubjectOperand } from "../../store/subject-operand.js";
 import { RecordReferenceSchema } from "../../store/identity.js";
 import type { StoreRecord } from "../../store/read.js";
 import type { HistoryRef } from "../../store/refusal.js";
+import { observeRenameFormerName } from "../../store/rename-reference-resolution.js";
 import type { RunRenameResult, RenameCheckoutReport, RenameSubjectShape } from "./rename.js";
 import { emptyRenameReport, type RenameReport, type RenameKeptBranch } from "../rename-report.js";
 /** A checkout rename retains its exact inverse until the record batch lands. */
@@ -89,14 +90,16 @@ async function renameSelectedWorkUnit(ctx: StoreRenameContext, params: { operand
   const exec: GitExec = (command, args, options) => ctx.exec(command, args, { cwd: state.cwd, ...options });
   const persisted = await persistRename({ ...ctx, exec }, subject, target, holder, branch, state);
   if (persisted !== undefined) return persisted;
-  const report = { ...(state.report ?? emptyRenameReport()), keptBranches: retainedBranchReport(subject.primary, branch).keptBranches };
+  const former = await observeRenameFormerName(ctx.store, subject.originName);
+  const report = { ...(state.report ?? emptyRenameReport()), formerSlugTies: former.ties,
+    keptBranches: retainedBranchReport(subject.primary, branch).keptBranches };
   const post = await finishRename({ ...ctx, exec, cwd: state.cwd }, branch, params);
   const reference = RecordReferenceSchema.parse({ ...subject.primary.reference, owner: { ...subject.primary.reference.owner, name: target } });
-  if (post.status === "partial") return { ...post, reference, report };
+  if (post.status === "partial") return { ...post, reason: [post.reason, ...former.advisories].join("\n"), reference, report };
   const shape: RenameSubjectShape = subject.primary.placement?.kind === "backlog" ? "stub"
     : subject.primary.placement?.kind === "completed" ? "archived" : state.checkout?.shape ?? (holder === null ? "in-place" : "spawned");
   return { status: "renamed", reference, shape, recordBatch: subject.resuming ? "existing" : "applied", pendingIntegration: false,
-    advisories: subject.advisories, remote: post.remote,
+    advisories: [...subject.advisories, ...former.advisories], remote: post.remote,
     report,
     ...(state.checkout === undefined ? {} : state.checkout.report) };
 }

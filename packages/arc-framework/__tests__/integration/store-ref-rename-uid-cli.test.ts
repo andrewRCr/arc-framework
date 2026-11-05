@@ -33,6 +33,38 @@ async function fixture() {
   }) };
 }
 
+it.each([false, true])("reports the former-name tie left by the second rename and its continuation, json=%s", async json => {
+  const f = await fixture(), firstUid = "12345678-abcd-4abc-8abc-123456789abc", secondUid = "12345678-abcd-4abc-8abc-123456789def";
+  const first = await plantRefPrimary(f, { kind: "work-item/meta", name: "shared", uid: firstUid, content: makeMetaFixture("shared") });
+  const second = await plantRefPrimary(f, { kind: "work-item/meta", name: "shared", uid: secondUid, content: makeMetaFixture("shared") });
+  const flags = json ? ["--json"] : [];
+  const initial = await f.invoke(["rename", firstUid, "first", ...flags]);
+  expect(initial.exitCode ?? 0, initial.stdout + initial.stderr).toBe(0);
+  if (json) expect(initial.result).toMatchObject({ report: { formerSlugTies: [] } });
+  else expect(initial.stdout + initial.stderr).not.toContain("Former slug:");
+  const kept = success(await f.store.read({ reference: first }));
+  const result = await f.invoke(["rename", secondUid, "second", ...flags]);
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  const tie = await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("shared") });
+  expect(tie).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match", tie: { name: "former", liveness: "live" } } });
+  if (tie.status !== "refused" || tie.refusal.code !== "ambiguous-match") throw new Error("Expected a former-name tie");
+  const expected = [{ slug: "shared", condition: tie.refusal.condition, remedy: tie.refusal.remedy }];
+  if (json) expect(result.result).toMatchObject({ status: "renamed", report: { formerSlugTies: expected } });
+  else for (const text of ["Former slug: shared", "Name the intended holder by its current name", "`first`", "`second`"]) {
+    expect(result.stdout + result.stderr).toContain(text);
+  }
+  expect(success(await f.store.read({ reference: first }))).toEqual(kept);
+  const renamed = success(await f.store.read({ reference: second }));
+  expect(renamed.reference.owner.name).toBe("second");
+  const history = success(await f.store.history({ reference: second }));
+  const resumed = await f.invoke(["rename", "second", "second", ...flags]);
+  expect(resumed.exitCode ?? 0, resumed.stdout + resumed.stderr).toBe(0);
+  if (json) expect(resumed.result).toMatchObject({ status: "renamed", recordBatch: "existing", report: { formerSlugTies: expected } });
+  else expect(resumed.stdout + resumed.stderr).toContain("Former slug: shared");
+  expect(success(await f.store.read({ reference: second }))).toEqual(renamed);
+  expect(success(await f.store.history({ reference: second }))).toEqual(history);
+}, 60_000);
+
 it("holds a heading decision on unreadable cohort evidence and retries after repair", async () => {
   const f = await fixture(), uid = "12345678-abcd-4abc-8abc-123456789def", cohortRef = f.reference("cohort/document", "group");
   const cohort = await seed(f, cohortRef, `# Cohort: \`${cohortRef.owner.name}\`\n\n**Purpose:** Coordinate.\n\n## Members\n\n### \`shared\`\n`);
