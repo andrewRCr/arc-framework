@@ -1,4 +1,5 @@
 /** Aside copies over a seeded projection, each made as the swap makes it: the file renamed aside, a new one linked in. */
+import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { link, mkdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -61,7 +62,9 @@ async function swapped(path = PATH, contents: readonly [string, string] = ["# Co
   const aside = join(seeded.checkout, name);
   await mkdir(dirname(aside), { recursive: true });
   await rename(file, aside);
-  const staged = await stageRecordFile({ checkout: seeded.checkout, path, record: record.result, replacing: laid.base.blob, writer: WRITER, format: "sha1" });
+  const stagedResult = await stageRecordFile({ checkout: seeded.checkout, path, record: record.result, replacing: laid.base.blob, writer: WRITER, format: "sha1", renderer: createRecordRenderer({ store: fixture.store }) });
+  if (stagedResult.status !== "ok") throw new Error("staging refused");
+  const staged = stagedResult.result;
   await link(join(seeded.checkout, staged.location), file);
   const copy: AsideCopyRecord = { name, moving: laid.written, linked: staged.written, writeBackSent: false, landed: null };
   const entry: RecordEntry = { ...laid, base: staged.base, written: staged.written, stat: await readStat(file), copies: [copy] };
@@ -197,6 +200,6 @@ it.each([false, true])("finalizes a missing stampless copy only for the installe
     await writeFile(h.file, "plain: text\n");
     const memo = { read: async () => { throw new Error("unexpected history read"); }, drop: () => {} };
     expect(await readStamplessFile({ entry: result.entry, text: await readFile(h.file, "utf8"), mtimeNs: 0n, format: "sha1", memo }))
-      .toEqual({ status: "ok", result: { kind: "edit", base: h.entry.base } });
+      .toEqual({ status: "ok", result: { kind: "edit", base: h.entry.base, replaces: null } });
   }
 });

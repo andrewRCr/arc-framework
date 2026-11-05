@@ -1,4 +1,5 @@
 /** The replace guard over a seeded projection: an edit found at the re-check is taken in before the file is replaced. */
+import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { mkdir, readFile, rename, rm, stat as fsStat, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -33,15 +34,18 @@ async function projected(content = "# Cohort: one\n\nBody.\n", path = PATH) {
   const entry = seeded.index.entries[path];
   if (entry?.kind !== "record") throw new Error("expected the file's record entry");
   const file = join(seeded.checkout, path);
+  const renderer = createRecordRenderer({ store: fixture.store });
   const stage = async (): Promise<StagedFile> => {
     const read = await fixture.store.read({ reference });
     if (read.status !== "ok") throw new Error("the fixture read was refused");
-    return stageRecordFile({ checkout: seeded.checkout, path, record: read.result, replacing: entry.base.blob, writer: WRITER, format: "sha1" });
+    const result = await stageRecordFile({ checkout: seeded.checkout, path, record: read.result, replacing: entry.base.blob, writer: WRITER, format: "sha1", renderer });
+    if (result.status !== "ok") throw new Error("staging refused");
+    return result.result;
   };
   const staged = await stage();
   const guard = async (takeIn: TakeInPort, overrides: Partial<ReplaceGuardInput> = {}) => guardReplacement({
     checkout: seeded.checkout, path, entry, staged, reference: await readReference(seeded.checkout), format: "sha1",
-    store: fixture.store, writer: WRITER, takeIn, ...overrides,
+    store: fixture.store, writer: WRITER, takeIn, renderer, ...overrides,
   });
   /** Save content to the file under the stamp it was laid with, as an editor would. */
   const save = (body: string) => writeFile(file, renderStampedFile({ content: body, stamp: entry.base.blob }));

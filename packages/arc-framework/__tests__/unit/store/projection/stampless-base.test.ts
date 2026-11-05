@@ -141,9 +141,10 @@ describe("stampless base agreement", () => {
     if (read.status !== "ok") throw new Error("record unavailable");
     const staged = await stageRecordFile({ ...fixture.context, checkout: fixture.checkout, path: fixture.path,
       record: read.result, replacing: fixture.entry.base.blob });
+    if (staged.status !== "ok") throw new Error("staging refused");
     const takeIn = createWriteBackPort(fixture.context);
     const guarded = await guardReplacement({ ...fixture.context, checkout: fixture.checkout, path: fixture.path,
-      entry: fixture.entry, staged, reference: await readReference(fixture.checkout), takeIn });
+      entry: fixture.entry, staged: staged.result, reference: await readReference(fixture.checkout), takeIn });
     if (guarded.kind !== "replace") throw new Error("replacement unavailable");
     await expect(swapBatch({ ...fixture.context, checkout: fixture.checkout, index: fixture.index,
       files: [{ path: fixture.path, replace: guarded }], readBack: false, takeIn,

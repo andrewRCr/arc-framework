@@ -1,4 +1,5 @@
 /** A file-backed projection over the memory store, without a Git process. */
+import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -56,7 +57,8 @@ export async function createWriteBackFixture(input: { kind?: KindId; path?: stri
     withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries: { [path]: entry },
   } });
   const reports: WriteBackDiagnostic[] = [];
-  const context = { store: fixture.store, location, format: "sha1" as const, memo: createHistoryMemo(fixture.store), actor: "test-user@fixture-machine",
+  const memo = createHistoryMemo(fixture.store);
+  const context = { renderer: createRecordRenderer({ store: fixture.store, memo }), store: fixture.store, location, format: "sha1" as const, memo, actor: "test-user@fixture-machine",
     writer: { pid: process.pid, processInstance: "read-back-test", processScope: "unit" },
     report: (diagnostic: WriteBackDiagnostic) => { reports.push(diagnostic); } };
   const request = { checkout, path, copy: null, entry, base: path.endsWith(".md")
@@ -80,8 +82,9 @@ export async function refreshWriteBackFixture(
   const read = await context.store.read({ reference: entry.reference });
   if (read.status !== "ok") throw new Error("refresh read refused");
   const staged = await stageRecordFile({ ...context, checkout, path, record: read.result, replacing: entry.base.blob });
+  if (staged.status !== "ok") throw new Error("refresh rendering refused");
   const takeIn = createWriteBackPort(context);
-  const guarded = await guardReplacement({ ...context, checkout, path, entry, staged,
+  const guarded = await guardReplacement({ ...context, checkout, path, entry, staged: staged.result,
     reference: await readReference(checkout), takeIn });
   if (guarded.kind !== "replace") throw new Error("refresh was not admitted");
   const swapped = await swapBatch({ ...context, checkout, index, files: [{ path, replace: guarded }], readBack: false, takeIn, hooks });

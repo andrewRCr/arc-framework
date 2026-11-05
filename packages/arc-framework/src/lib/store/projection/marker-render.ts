@@ -24,12 +24,12 @@ export function createMarkerRenderer(contents: readonly string[]): MarkerRendere
     for (const match of content.matchAll(/^([<=>|])\1{6,}/gmu)) longest = Math.max(longest, match[0].length);
   }
   const length = longest === 0 ? 7 : longest + 4;
-  const render = (conflict: Pick<TextConflictRecord, "current" | "incoming">, origin: MarkerOrigin): string => {
+  const render = (conflict: StoredMarkerSides, origin: MarkerOrigin): string => {
     const source = origin.shows === "checkout" ? "checkout" : JSON.stringify(formatConflictToken(origin.conflict));
     return `${"<".repeat(length)} ${label(conflict.current.label)} [arc-conflict: ${source}]\n`
       + (length === 7 ? "" : `${RESOLVE_BY_HAND_LINE}\n`)
-      + renderMarkerSide(conflict.current.content) + `${"=".repeat(length)}\n`
-      + renderMarkerSide(conflict.incoming.content) + `${">".repeat(length)} ${label(conflict.incoming.label)}\n`;
+      + renderStoredSide(conflict, "current") + `${"=".repeat(length)}\n`
+      + renderStoredSide(conflict, "incoming") + `${">".repeat(length)} ${label(conflict.incoming.label)}\n`;
   };
   return { length, render, renderLines: (set, origin) => render({
     current: { content: lines(set.current.lines), label: set.current.label },
@@ -46,4 +46,13 @@ export function renderMarkerSide(content: string): string {
 
 function label(value: TextConflictRecord["current"]["label"]): string {
   return `${value.actor.replaceAll("\r", "\\r").replaceAll("\n", "\\n")} @ ${value.time}`;
+}
+
+type StoredMarkerSides = Pick<TextConflictRecord, "current" | "incoming"> & { readonly currentLines?: number; readonly incomingLines?: number };
+
+/** Expand a stored hunk's joined lines with their exact count; entry sides retain their existing boundaries. */
+export function renderStoredSide(conflict: StoredMarkerSides, side: "current" | "incoming"): string {
+  const count = side === "current" ? conflict.currentLines : conflict.incomingLines;
+  const content = conflict[side].content;
+  return count === undefined ? renderMarkerSide(content) : count === 0 ? "" : `${content}\n`;
 }

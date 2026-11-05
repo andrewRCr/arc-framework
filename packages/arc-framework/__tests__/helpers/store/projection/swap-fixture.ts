@@ -3,6 +3,7 @@
  * replace it — or to remove, the guard re-checking it with nothing staged, each with a batch over a seeded projection in
  * a new temporary repository.
  */
+import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { chmod, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createReferenceFixture } from "../reference-fixture.js";
@@ -64,12 +65,15 @@ export async function prepareSwap(options: PrepareSwapOptions = {}) {
   if (record.status !== "ok") throw new Error("the fixture read was refused");
   if (readOnly) await chmod(join(seeded.checkout, path), 0o444);
   await options.guarded?.before?.(join(seeded.checkout, path));
-  const staged = await stageRecordFile({
-    checkout: seeded.checkout, path, record: record.result, replacing: laid.base.blob, writer: SWAP_WRITER, format: "sha1", readOnly,
+  const renderer = createRecordRenderer({ store: fixture.store });
+  const stagedResult = await stageRecordFile({
+    checkout: seeded.checkout, path, record: record.result, replacing: laid.base.blob, writer: SWAP_WRITER, format: "sha1", readOnly, renderer,
   });
+  if (stagedResult.status !== "ok") throw new Error("staging refused");
+  const staged = stagedResult.result;
   const replace = await guardReplacement({
     checkout: seeded.checkout, path, entry: laid, staged, reference: await readReference(seeded.checkout), format: "sha1",
-    store: fixture.store, writer: SWAP_WRITER, takeIn: options.guarded?.takeIn ?? deferring,
+    store: fixture.store, writer: SWAP_WRITER, renderer: createRecordRenderer({ store: fixture.store }), takeIn: options.guarded?.takeIn ?? deferring,
   });
   if (replace.kind !== "replace") throw new Error("expected the guard to replace the file");
   const file = join(seeded.checkout, path);
@@ -138,7 +142,7 @@ export async function prepareRemoval(options: PrepareRemovalOptions = {}) {
   await options.guarded?.before?.(file);
   const guarded = await guardReplacement({
     checkout: seeded.checkout, path, entry: laid, staged: null, reference: await readReference(seeded.checkout), format: "sha1",
-    store: fixture.store, writer: SWAP_WRITER, takeIn: options.guarded?.takeIn?.(fixture.store) ?? deferring,
+    store: fixture.store, writer: SWAP_WRITER, renderer: createRecordRenderer({ store: fixture.store }), takeIn: options.guarded?.takeIn?.(fixture.store) ?? deferring,
   });
   const remove = (overrides: Partial<SwapBatchInput> = {}) => {
     if (guarded.kind !== "replace") throw new Error(`expected the guard to remove the file, found ${guarded.cause}`);

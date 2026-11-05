@@ -7,6 +7,8 @@ import { readReference } from "./change-detection.js";
 import { guardReplacement } from "./replace-guard.js";
 import { stageRecordFile } from "./staging.js";
 import { swapBatch, type SwapHooks } from "./swap.js";
+import { createRecordRenderer } from "./record-render.js";
+import { unshownConflicts } from "./held-conflicts.js";
 import { drawCheckoutClash } from "./checkout-drawing.js";
 
 /** The write-back walk supplies its writer in addition to the send context. */
@@ -23,13 +25,22 @@ export async function writeBackFile(context: ReadBackContext, index: ProjectionI
   let updated = { ...index, entries: { ...index.entries, [request.path]: sent.result.entry } };
   if (sent.kind === "clashed") return drawCheckoutClash(context, updated, request, sent);
   if (sent.kind !== "landed") return { result: sent.result, index: updated };
+  const renderer = createRecordRenderer(context);
   const staged = await stageRecordFile({ checkout: request.checkout, path: request.path, record: sent.record,
-    replacing: sent.result.entry.base.blob, writer: context.writer, format: context.format, readOnly: sent.result.entry.protected });
+    replacing: sent.result.entry.base.blob, writer: context.writer, format: context.format, readOnly: sent.result.entry.protected, renderer });
+  if (staged.status === "refused") {
+    const entry = { ...sent.result.entry, pending: true, unshown: unshownConflicts(sent.result.entry, sent.record.conflicts) };
+    context.report?.({ path: request.path, copy: request.copy, mark: {
+      reason: `The edit landed, but read-back rendering failed: ${staged.refusal.condition}`, remedy: staged.refusal.remedy } });
+    return { result: { answer: "pending", entry }, index: { ...updated, entries: { ...updated.entries, [request.path]: entry } } };
+  }
   const takeIn = createWriteBackPort(context);
   const guarded = await guardReplacement({ checkout: request.checkout, path: request.path, entry: sent.result.entry,
-    staged, baseline: sent.result.read, reference: await readReference(request.checkout), format: context.format,
+    staged: staged.result, renderer, baseline: sent.result.read, reference: await readReference(request.checkout), format: context.format,
     store: context.store, writer: context.writer, takeIn });
   if (guarded.kind === "unreplaced") {
+    if (guarded.cause === "refresh-refused") context.report?.({ path: request.path, copy: null, mark: {
+      reason: `The edit landed, but restaging failed: ${guarded.refusal.condition}`, remedy: guarded.refusal.remedy } });
     return { result: { ...sent.result, entry: guarded.entry }, index: {
       ...updated, entries: { ...updated.entries, [request.path]: guarded.entry },
     } };

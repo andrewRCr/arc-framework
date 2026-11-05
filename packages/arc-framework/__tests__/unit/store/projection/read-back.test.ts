@@ -165,4 +165,25 @@ describe("write-back read-back", () => {
     expect(landed.result.answer).toBe("taken-in");
     expect(parseStampedFile(await fixture.file()).content).toBe(incoming);
   });
+  it("draws a newly filed stored hunk under the stored stamp and records the laid blob", async () => {
+    fixture = await createWriteBackFixture();
+    const { store, entry, context, index, request } = fixture;
+    const current = "opening\nstored side\nclosing\n";
+    const incoming = "opening\nincoming side\nclosing\n";
+    expect(await store.write({ action: "put", reference: entry.reference, expected: entry.base.version, content: current,
+      provenance: { verb: "edit", lifecycleAction: "edit" } })).toMatchObject({ status: "ok" });
+    await fixture.edit(incoming);
+    const written = await writeBackFile(context, index, request);
+    expect(written.result.answer).toBe("taken-in");
+    const record = await store.read({ reference: entry.reference });
+    if (record.status !== "ok") throw new Error("Record missing");
+    const bytes = await fixture.file();
+    expect(parseStampedFile(bytes).content).toContain("<<<<<<<");
+    expect(parseStampedFile(bytes).content).toContain("stored side\n=======\nincoming side");
+    expect(parseStampedFile(bytes).stamp).toBe(gitBlobId(record.result.content, "sha1"));
+    expect(written.index.entries[fixture.path]).toMatchObject({ written: gitBlobId(bytes, "sha1"),
+      markers: { length: 7, sets: [{ shows: "stored", conflict: record.result.conflicts[0] }] }, unshown: [] });
+    expect(record.result.content).not.toContain("<<<<<<<");
+  });
+
 });

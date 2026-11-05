@@ -3,6 +3,7 @@
  * reads an edit only once its save has settled, a saver on its own thread that fires a save at a sampled moment, and a
  * run of commands over one projected file that finds where each save ended.
  */
+import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { readProjectionConfiguration } from "../../../../src/lib/store/projection/configuration.js";
 import { randomBytes } from "node:crypto";
 import { constants } from "node:fs";
@@ -331,7 +332,7 @@ export async function runSaveLoss(run: SaveLossRun): Promise<SaveLossCounts> {
       stage = "re-check";
       const guarded = await guardReplacement({
         checkout, path: run.path, entry, staged, reference: await readReference(checkout), format: "sha1", store: run.store,
-        writer: SWAP_WRITER, takeIn,
+        writer: SWAP_WRITER, takeIn, renderer: createRecordRenderer({ store: run.store }),
       });
       guard = guarded.kind === "replace" ? "replace" : `unreplaced: ${guarded.cause}`;
       at("guarded");
@@ -404,10 +405,12 @@ async function stageNext(run: SaveLossRun, entry: RecordEntry, cycle: number): P
   if (written.status !== "ok") throw new Error("the fixture write was refused");
   const record = await run.store.read({ reference: run.reference });
   if (record.status !== "ok") throw new Error("the fixture read was refused");
-  return stageRecordFile({
+  const staged = await stageRecordFile({
     checkout: run.seeded.checkout, path: run.path, record: record.result, replacing: entry.base.blob, writer: SWAP_WRITER,
-    format: "sha1",
+    format: "sha1", renderer: createRecordRenderer({ store: run.store }),
   });
+  if (staged.status !== "ok") throw new Error("staging refused");
+  return staged.result;
 }
 
 /** Find a save: landed in the store, at its path, or in an aside copy, else lost; a save that failed was seen to. */

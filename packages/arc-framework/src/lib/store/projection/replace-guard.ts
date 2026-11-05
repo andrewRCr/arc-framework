@@ -5,7 +5,7 @@
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { Store } from "../contract.js";
-import type { Remedy, StoreRefusal, StoreResult } from "../refusal.js";
+import type { Remedy, StoreRefusal } from "../refusal.js";
 import type { AsideWriterInput } from "./aside.js";
 import type { ObjectFormat } from "./blob-id.js";
 import { checkChange, readStat } from "./change-detection.js";
@@ -13,6 +13,8 @@ import { notAFileRemedy } from "./read-gate.js";
 import type { FileStat, RecordEntry } from "./index-schema.js";
 import { parseStampedFile } from "./stamp.js";
 import { stageRecordFile, type StagedFile } from "./staging.js";
+import { unshownConflicts } from "./held-conflicts.js";
+import type { RecordRenderer } from "./record-render.js";
 import type { TakeInBase, TakeInHeld, TakeInPort, TakeInResult } from "./take-in-port.js";
 
 /** How many times the guard re-checks a file, taking in an edit each finds, before leaving it to the next command. */
@@ -33,6 +35,7 @@ export interface ReplaceGuardInput {
   readonly store: Store;
   readonly writer: AsideWriterInput;
   readonly takeIn: TakeInPort;
+  readonly renderer: RecordRenderer;
 }
 
 /** What the guard decided. */
@@ -97,7 +100,7 @@ async function recheck(input: ReplaceGuardInput): Promise<GuardResult> {
     const restaged = await restage(input, entry, staged);
     if (restaged.status === "refused") {
       // A refused refresh is retryable: the file stays as it is, pending for the next command.
-      return { kind: "unreplaced", entry: { ...entry, pending: true }, cause: "refresh-refused", refusal: restaged.refusal };
+      return { kind: "unreplaced", entry: { ...restaged.entry, pending: true }, cause: "refresh-refused", refusal: restaged.refusal };
     }
     staged = restaged.result;
   }
@@ -115,14 +118,18 @@ function baseOf(path: string, bytes: Uint8Array, entry: RecordEntry): TakeInBase
   return { kind: "stamp", stamp: parseStampedFile(new TextDecoder().decode(bytes)).stamp };
 }
 
+type RestageResult = { readonly status: "ok"; readonly result: StagedFile }
+  | { readonly status: "refused"; readonly refusal: StoreRefusal; readonly entry: RecordEntry };
+
 /** Re-read the record's current version and stage it in place of what was staged. */
-async function restage(input: ReplaceGuardInput, entry: RecordEntry, staged: StagedFile): Promise<StoreResult<StagedFile>> {
+async function restage(input: ReplaceGuardInput, entry: RecordEntry, staged: StagedFile): Promise<RestageResult> {
   const read = await input.store.read({ reference: entry.reference });
-  if (read.status !== "ok") return read;
+  if (read.status !== "ok") return { ...read, entry };
   const restaged = await stageRecordFile({
     checkout: input.checkout, path: input.path, record: read.result, replacing: entry.base.blob, writer: input.writer,
-    format: input.format, readOnly: entry.protected,
+    format: input.format, readOnly: entry.protected, renderer: input.renderer,
   });
+  if (restaged.status === "refused") return { ...restaged, entry: { ...entry, unshown: unshownConflicts(entry, read.result.conflicts) } };
   await rm(join(input.checkout, staged.location), { force: true });
-  return { status: "ok", result: restaged };
+  return restaged;
 }

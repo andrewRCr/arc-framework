@@ -1,6 +1,8 @@
 /** Staging a record's file: its bytes written exclusively into the aside folder, ready to link onto its path. */
 import { chmod } from "node:fs/promises";
 import { join } from "node:path";
+import type { StoreResult } from "../refusal.js";
+import type { RecordRenderer } from "./record-render.js";
 import type { RecordVersion } from "../identity.js";
 import type { StoreRecord } from "../read.js";
 import { createStagedFile, nameAsideFile, type AsideWriterInput } from "./aside.js";
@@ -34,20 +36,25 @@ export interface StagedFile {
  */
 export async function stageRecordFile(input: {
   checkout: string; path: string; record: StoreRecord; replacing: string; writer: AsideWriterInput; format: ObjectFormat;
-  readOnly?: boolean;
-}): Promise<StagedFile> {
-  return stageRenderedRecordFile({ ...input, content: input.record.content,
-    rendering: { markers: null, notices: [], unshown: input.record.conflicts } });
+  readOnly?: boolean; renderer: RecordRenderer; content?: string; markerLength?: number;
+  rendering?: Pick<RenderedFileState, "refused" | "keepPending">;
+}): Promise<StoreResult<StagedFile>> {
+  const rendered = await input.renderer({ record: input.record, content: input.content ?? input.record.content,
+    stamped: input.path.endsWith(".md"), markerLength: input.markerLength });
+  if (rendered.status === "refused") return rendered;
+  const staged = await stageRenderedRecordFile({ ...input, content: rendered.result.content, notices: rendered.result.notices,
+    rendering: { ...rendered.result.state, ...input.rendering } });
+  return { status: "ok", result: staged };
 }
 
 /** Stage rendered content under the stored record's base stamp and version. */
 export async function stageRenderedRecordFile(input: {
   checkout: string; path: string; record: StoreRecord; replacing: string; writer: AsideWriterInput; format: ObjectFormat;
-  content: string; markerLength?: number; readOnly?: boolean; rendering?: RenderedFileState;
+  content: string; markerLength?: number; notices?: readonly string[]; readOnly?: boolean; rendering?: RenderedFileState;
 }): Promise<StagedFile> {
   const { record, format } = input;
   const blob = gitBlobId(record.content, format);
-  const text = input.path.endsWith(".md") ? renderStampedFile({ content: input.content, stamp: blob }) : input.content;
+  const text = input.path.endsWith(".md") ? renderStampedFile({ content: input.content, stamp: blob, notices: input.notices }) : input.content;
   const location = nameAsideFile({ path: input.path, base: input.replacing, writer: input.writer, role: "staged" });
   await createStagedFile(input.checkout, location, text);
   // A link shares its file's mode, so a protected file is staged read-only and linked in that way.

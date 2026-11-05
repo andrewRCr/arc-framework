@@ -4,7 +4,7 @@ import { sameReference, type RecordReference } from "../identity.js";
 import type { RecordEntry, RefusedMark } from "./index-schema.js";
 import { formatConflictToken } from "../../status/conflict-token.js";
 import { scanMarkers, type MarkerSetSpan } from "./marker-scan.js";
-import { renderMarkerSide, RESOLVE_BY_HAND_LINE } from "./marker-render.js";
+import { renderStoredSide, RESOLVE_BY_HAND_LINE } from "./marker-render.js";
 import type { EntryListConfig } from "../concurrency/entries.js";
 import { malformedEntries, restoreMalformedEntries } from "./marker-entries.js";
 
@@ -38,7 +38,7 @@ export function parseMarkerContent(input: MarkerInput): MarkerParseResult {
       reason: `resolution-in-progress: ${formatConflictToken(conflict.reference)} still has markers around edited sides.`,
       remedy: { text: "Finish this set's resolution by removing its markers, or restore both original sides, then save again." },
     } };
-    content += input.content.slice(cursor, span.start) + renderMarkerSide(conflict.data.current.content);
+    content += input.content.slice(cursor, span.start) + renderStoredSide(conflict.data, "current");
     shown.push(conflict.reference);
     cursor = span.end;
   }
@@ -82,7 +82,7 @@ function partialEntries(input: MarkerInput, malformed: readonly { start: number;
 function unchangedSides(span: MarkerSetSpan, conflict: TextConflictRecord, length: number): boolean {
   const current = length > 7 && span.current.startsWith(`${RESOLVE_BY_HAND_LINE}\n`)
     ? span.current.slice(RESOLVE_BY_HAND_LINE.length + 1) : span.current;
-  return current === renderMarkerSide(conflict.current.content) && span.incoming === renderMarkerSide(conflict.incoming.content);
+  return current === renderStoredSide(conflict, "current") && span.incoming === renderStoredSide(conflict, "incoming");
 }
 
 /** Explain the safe repair for incomplete controls and leftover instructions. */
