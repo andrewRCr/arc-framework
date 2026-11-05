@@ -122,37 +122,26 @@ _Exit criterion:_ At this work's verification, `arc check gate merge --force` fa
 while it reads Proposed, naming the file and its `Accepted (<today>)` remedy, and passes once it reads
 `Accepted (<date>)`.
 
-### `[ ]` **4.1 Restate the ADR lifecycle in the strategy — D1, D6**
+### `[x]` **4.1 Restate the ADR lifecycle in the strategy — D1, D6**
 
 - _Goal:_ The shipped strategy locks an ADR when the change that accepts it merges, keeps the decision and its
   disposition in the planning record until the file is written with the implementation, and states the
   reader-independence rule.
 
-- _Note:_ Shipped-content register: no work-unit, specification, or repository-script references reach the strategy.
+    - `[x]` **4.1.a Reword the lifecycle passages**
+        - Restated writing, acceptance, and locking at merge, binding planning dispositions, base-Proposed edits, and
+          later realization.
 
-    - `[ ]` **4.1.a Reword the lifecycle passages**
-        - § What Are ADRs › Key Characteristics, "Stable": final once the accepting change merges
-        - § ADR Format and Structure › 2. Status: the section's first line carries the status; the four states with
-          `Accepted (YYYY-MM-DD)`; the record locks when the change that sets `Accepted` merges
-        - § ADR Lifecycle › Proposed: the When and Process of the spec's § 1.6, and the base-branch Proposed rule
-        - § ADR Lifecycle › Accepted: the When and Process, later realization, and that a project can enforce the
-          rule at its merge gate, without describing this repository's script
-        - § Amending Accepted ADRs: the `[invariant]` opening reads final once the accepting change merges
+    - `[x]` **4.1.b Add renumbering to Tier 1**
+        - Added collision renumbering and its citing-record corrections to Tier 1; distinguished same-number renames
+          from renumbers.
 
-    - `[ ]` **4.1.b Add renumbering to Tier 1**
-        - Renumbering an ADR whose number collides with another's, together with the records that cite it by number
+    - `[x]` **4.1.c Add the "Reader independence" subsection**
+        - Added reader independence, its three sourced reference rules, Status as the tracking slot, and the changed-
+          footprint boundary.
 
-    - `[ ]` **4.1.c Add the "Reader independence" subsection**
-        - Closing subsection of § ADR Format and Structure, unnumbered, since the five numbered subsections are an
-          ADR's own sections
-        - Names `spec-review`'s Reader independence item and quotes its three Reference-boundaries sentences, naming
-          `spec-review` as their source
-        - States the scope (Context, Decision, and Consequences meet it; Status carries tracking; a new ADR meets it
-          across its body, an edit to an existing ADR over what the edit changes) and the goes-and-stays sentence
-
-    - `[ ]` **4.1.d Render the `.arc/` copy**
-        - Edit the package source only, then
-          `npm run render:framework -- packages/arc-framework/arc/reference/strategies/arc/strategy-adr-methodology.md`
+    - `[x]` **4.1.d Render the `.arc/` copy**
+        - Rendered the completed strategy into the project instance and verified the two copies match.
 
 ### `[ ]` **4.2 Start the ADR template at Proposed — D1**
 
