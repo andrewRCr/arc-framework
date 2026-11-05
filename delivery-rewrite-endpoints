@@ -3,7 +3,7 @@
   "slug": "delivery-rewrite-endpoints",
   "claimId": "013bc2900f0f81a74f0cf8919d1f011d",
   "createdAt": "2026-11-05T19:51:14.420Z",
-  "updatedAt": "2026-11-05T19:51:14.420Z",
+  "updatedAt": "2026-11-05T21:57:04.257Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Normalize native delivery rewrite contribution endpoints before proving equivalence",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Normalize delivery rewrite contribution endpoints before proving them",
   "originEntrySourceDigest": "sha256:e32ae7f3daef55d0517545a63bed1c7e77bd0129c29ca2ce1f838405281f006b",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/delivery-rewrite-endpoints",
+    "headSha": "e4ca3eb36aff874aefdcaa4c270ae60af3e884f3"
+  }
 }
