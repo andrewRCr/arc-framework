@@ -89,14 +89,23 @@ describe("the swap", () => {
     expect(saved.index.entries[yielding.path]).toMatchObject({ inProgress: { replaces: yielding.laid.base, copy: null }, pending: true });
   });
 
-  it("leaves a file whose move is still refused past the retry bound in place, its entry restored and pending", async () => {
-    const { laid, file, swap } = await prepared();
+  it.each(["older", "racy"] as const)("leaves a file whose move is still refused past the retry bound in place, its entry restored and pending (%s stat)", async age => {
+    const { laid, file, swap, seeded } = await prepared();
+    if (laid.stat === null) throw new Error("Expected the laid file's stat");
     const held = await readFile(file, "utf8");
     const busy = Object.assign(new Error("EBUSY: resource busy or locked"), { code: "EBUSY" });
-    const result = await swap({ fs: { rename: async () => { throw busy; } }, retrySleep: async () => undefined });
+    const tick = new Date(Number(laid.stat.mtimeNs / 1_000_000n) + (age === "racy" ? -1000 : 1000));
+    const result = await swap({ fs: { rename: async () => { throw busy; } }, retrySleep: async () => undefined,
+      hooks: { afterRecheck: async () => { await utimes(join(seeded.checkout, PROJECTION_REFERENCE), tick, tick); } } });
     expect(await readFile(file, "utf8")).toBe(held);
-    expect(result.index.entries[PATH]).toEqual({ ...laid, pending: true });
+    expect(result.index.entries[PATH]).toEqual({ ...laid, pending: true,
+      stat: { ...laid.stat, size: age === "racy" ? 0n : laid.stat.size } });
     expect(result.copies).toEqual([]);
+    const entry = result.index.entries[PATH];
+    if (entry?.kind !== "record") throw new Error("The restored entry is missing");
+    expect(await checkChange({ path: file, recorded: entry.stat, written: entry.written,
+      reference: await readReference(seeded.checkout), format: "sha1" }))
+      .toMatchObject({ status: expect.stringMatching(/^(clean|hashed-clean)$/) });
   });
 
   it("clears the pending mark of a file put in place once the swaps are done, and keeps it for one whose move was refused", async () => {
