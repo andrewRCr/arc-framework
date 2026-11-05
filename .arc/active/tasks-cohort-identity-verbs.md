@@ -606,10 +606,14 @@ old name refuses naming the current one.
   completed-member repairs use the exact planned Parent content and execute after the batch, retaining captured
   ownership evidence and the original observations; retained closed ambiguous subtrees stay unchanged.
 
-### `[ ]` **5.6 A cohort renamed end to end** — validate exit criterion at segment scope
+### `[x]` **5.6 A cohort renamed end to end** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds end to end: one batch renames a cohort and every record holding it alone,
   in every state, and the store's checks then hold every path to the new slug.
+
+- _Outcome:_ The mixed-state batch lands on both backends and cold native clones in both layouts, preserving
+  placement and rewriting eligible filenames. Ordered clash repairs execute, other holders remain unchanged by the
+  rename, and former-path edits refuse with the current name.
 
 ## **Phase 6:** Verification
 
