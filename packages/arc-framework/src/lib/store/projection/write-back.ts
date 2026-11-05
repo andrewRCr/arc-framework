@@ -7,7 +7,7 @@ import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
 import type { FileStat, RecordEntry, RefusedMark } from "./index-schema.js";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import type { ProjectionLocation } from "./location.js";
-import { gateRead } from "./read-gate.js";
+import { gateRead, type ReadGateVerdict } from "./read-gate.js";
 import { parseStampedFile } from "./stamp.js";
 import type { TakeInPort, TakeInRead, TakeInRequest, TakeInResult } from "./take-in-port.js";
 import type { WriteInput } from "../write.js";
@@ -180,8 +180,7 @@ async function readEdit(context: WriteBackContext, request: TakeInRequest): Prom
   if (gate.kind !== "read") {
     return { kind: "held", result: { answer: gate.kind === "pending" ? "pending" : "no-edit",
       entry: gate.kind === "pending" ? { ...request.entry, pending: true } : request.entry },
-    ...(gate.kind === "no-edit" && gate.deleted === "not-a-file"
-      ? { diagnostic: { reason: "not-a-file", remedy: gate.remedy } } : {}) };
+    ...readGateDiagnostic(gate) };
   }
   const bytes = await readFile(path);
   const text = bytes.toString("utf8");
@@ -192,6 +191,13 @@ async function readEdit(context: WriteBackContext, request: TakeInRequest): Prom
   const parsed = request.path.endsWith(".md") ? parseStampedFile(text) : null;
   const stamp = parsed === null ? null : parsed.stamp;
   return { kind: "read", content: parsed?.content ?? text.replaceAll("\r\n", "\n"), stamp, read: { stat: gate.stat, blob: gitBlobId(bytes, context.format) } };
+}
+
+function readGateDiagnostic(gate: ReadGateVerdict): { diagnostic?: RefusedMark } {
+  if (gate.kind === "pending") return { diagnostic: { reason: `pending: ${gate.reason}`,
+    remedy: { text: "Let the editor finish saving; the next command will retry this file." } } };
+  return gate.kind === "no-edit" && gate.deleted === "not-a-file"
+    ? { diagnostic: { reason: "not-a-file", remedy: gate.remedy } } : {};
 }
 
 async function stamplessVerdict(

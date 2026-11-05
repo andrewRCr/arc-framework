@@ -29,6 +29,12 @@ export type ProjectionStart =
 /** Take in pending edits before the command runs, preserving its ordinary execution when projection is unavailable. */
 export async function startProjection(input: ProjectionCommandInput): Promise<ProjectionStart> {
   const state = beginProjectionCommand();
+  state.start = await initializeProjection(input);
+  return state.start;
+}
+
+async function initializeProjection(input: ProjectionCommandInput): Promise<ProjectionStart> {
+  const state = projectionProcessState();
   state.capabilities.set(input.checkout, input.store.capabilities.stateOffBranch);
   if (!input.store.capabilities.stateOffBranch) return { kind: "disabled" };
   const ports = input.ports?.() ?? createProjectionEnginePorts(input.checkout);
@@ -46,7 +52,11 @@ export async function startProjection(input: ProjectionCommandInput): Promise<Pr
     ports.maxWaitMs === undefined ? {} : { maxWaitMs: ports.maxWaitMs }, ports.lock);
   if (result.status !== "done") return skipped(input.checkout, result, unsent);
   if (result.value.kind === "refused") state.diagnostics.push({ path: input.checkout, copy: null, mark: result.value.mark });
-  if (result.value.kind === "skipped") state.diagnostics.push({ path: input.checkout, copy: null, mark: result.value.skip.mark });
+  if (result.value.kind === "skipped") {
+    const mark = result.value.skip.mark;
+    state.diagnostics.push({ path: input.checkout, copy: null, mark });
+    for (const path of result.value.pending) state.diagnostics.push({ path, copy: null, mark });
+  }
   const root = state.roots.get(input.checkout);
   if (root?.ready && root.changed) {
     state.fanOutRounds.add(input.checkout);

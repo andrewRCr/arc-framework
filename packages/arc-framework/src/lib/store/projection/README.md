@@ -161,6 +161,13 @@ edit and their remedy without pulling history. A failed read-back after acceptan
 An existing ambiguity hold retains its original token across refused attempts; backend diagnostics remain separate
 from that durable hold, which a successful send clears.
 
+`command-hooks.ts` registers the root Commander's entry after the development guard and its completion after the
+development refresh registration, so Commander's reverse completion order settles copies before rebuilding. Root
+`save` uses save provenance and includes completed roots. Every start outcome remains in process state for the action
+to inspect. Native bindings check the backend capability before resolving a root; the in-repo backend returns without
+projection I/O. `report.ts` flushes new diagnostics and resolutions to stderr before the action and after completion,
+including corrective argv, unseen conflicts, pending saves, and retained aside copies with their original paths.
+
 `check-edit.ts` runs the kind's production check over merged content, with current parsed fields or raw prior content
 when parsing fails. It stamps only the entry merge's check copy and reports every broken rule with its remedy.
 `after-view.ts` overlays that caller-parsed pending record on reads and family listings, retaining its prior envelope

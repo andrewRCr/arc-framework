@@ -6,6 +6,7 @@ import { withProjectionLock, SIBLING_LOCK_WAIT_MS } from "./lock.js";
 import { readProjectionIndex } from "./index-file.js";
 import { runSecondCheck } from "./second-check.js";
 import { removeTakenInCopies, TAKEN_IN_FOLDER } from "./taken-in.js";
+import { reportProjectionCopy } from "./report.js";
 
 /** Settle only this command's copies and collect unreferenced kept content under the same lease. */
 export async function finishProjectionRoot(root: ProjectionRootState): Promise<void> {
@@ -18,9 +19,10 @@ export async function finishProjectionRoot(root: ProjectionRootState): Promise<v
       await session.step();
       const fresh = await readProjectionIndex(root.location, true);
       if (fresh.kind !== "index") return;
-      await runSecondCheck({ location: root.location, checkout: root.checkout, index: fresh.index,
+      const checked = await runSecondCheck({ location: root.location, checkout: root.checkout, index: fresh.index,
         copies: root.copies, removals: root.removals, format: root.context.format, takeIn: root.takeIn,
         writer: root.context.writer, checkpoint: root.context.checkpoint });
+      for (const copy of checked.settled) reportProjectionCopy(copy.path, copy.copy, copy.settlement);
       const settled = await readProjectionIndex(root.location, true);
       if (settled.kind !== "index") return;
       const named = new Set(Object.values(settled.index.entries).flatMap(entry => (

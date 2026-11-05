@@ -7,6 +7,7 @@
  */
 import { rejectUnsupportedReviewJson, rejectUnsupportedReviewOutputJson } from "./lib/command-input/review-json-option.js";
 import { formatCommandPath } from "./lib/command-input/command-path.js";
+import { registerProjectionHooks } from "./lib/store/projection/command-hooks.js";
 
 import { fileURLToPath } from "node:url";
 
@@ -2515,6 +2516,8 @@ program.hook("postAction", async () => {
   );
   process.exitCode = 1;
 });
+
+registerProjectionHooks(program);
 
 // --- Entry ---
 

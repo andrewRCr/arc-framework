@@ -204,28 +204,13 @@ among them, has one.
           recover interrupted links by filesystem identity.
         - _Retired in:_ Phase 2
 
-    - `[ ]` **1.9.b The root hooks and the report**
+    - `[x]` **1.9.b The root hooks and the report**
 
-        - `cli.ts` registers the start as a root `preAction` hook after the dev-build guard, and the end as a root
-          `postAction` hook registered after the dev-build refresh; Commander runs `postAction` hooks in reverse, so the
-          end runs before the refresh. Commander skips `postAction` only when the action throws, so the end still runs
-          where an action sets `process.exitCode`. The start hook runs `arc save`'s start too, in its `save` form, which
-          1.10 builds and tests: every projected root written back under `save`, `completed/` included; a lock the start
-          finds held, lost, or gone, or no identity, recorded in the engine's process state as the start's outcome, on
-          which `arc save`'s handler refuses, the hook itself throwing nothing; a missing history ref pulled and retried
-          once (2.3); and each `--resolve` conflict attached to its subject file's write. Its sweep, refresh, port
-          binding, and fan-out are any start's.
-        - The report lists each file refused, skipped, deferred, withheld, or kept as a conflict, with its typed reason
-          and each rule's remedy, argv included, each aside copy kept because its path moved on, with its path, each
-          open conflict a file held for a resolution in progress or a malformed set does not show, and each resolution
-          sent; it goes to stderr before the command's output, so a JSON result on stdout stays whole.
-        - Build `test-first` (one behavior at a time):
-            - a refused task-list tick (`task-list.close`) is reported ahead of the command's output, at the integration
-              tier through the start over the reference backend
-            - an aside copy kept because its path moved on, and an open conflict a held file does not show, are each
-              reported, the copy with its path
-            - E2E tier, through the CLI over the in-repo implementation: the hooks run around a command and its
-              `--json` stdout parses whole
+        - Root hooks start after the development guard and settle before refresh, including actions that set an exit
+          code. Root `save` includes completed roots under save provenance; every start outcome remains in process
+          state. Stderr reports carry file and copy paths, pending reasons, rule remedies and quoted argv, unseen
+          conflicts and accepted resolutions. The production CLI retains whole JSON and performs no projection I/O
+          over the in-repo backend.
 
     - `[ ]` **1.9.c What `arc status` reports**
 

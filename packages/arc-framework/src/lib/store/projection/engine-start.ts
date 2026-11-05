@@ -14,6 +14,7 @@ import type { ProjectionEnginePorts } from "./engine-ports.js";
 import type { ProjectionLocation } from "./location.js";
 import type { ProjectionLockSession } from "./lock.js";
 import type { ReadBackContext } from "./read-back.js";
+import { reportProjectionCopy } from "./report.js";
 
 /** Start independent reads together, drain them all, then sweep and take in files under the lease. */
 export async function startUnderLease(input: ProjectionCommandInput, ports: ProjectionEnginePorts,
@@ -55,6 +56,7 @@ export async function startUnderLease(input: ProjectionCommandInput, ports: Proj
       mark: { reason: `Projection ignore guard refused: ${swept.ignores.reason}`, remedy: { text: swept.ignores.remedy } } });
     for (const left of swept.left) state.diagnostics.push({ path: left.path, copy: left.copy,
       mark: { reason: left.reason, remedy: left.remedy ?? { text: "Keep the aside copy until its edit is recovered or explicitly removed." } } });
+    for (const copy of swept.swept) reportProjectionCopy(copy.path, copy.copy, copy.outcome);
     const recovered = swept.swept.map(each => each.path).filter(path => input.mode === "save" || !path.startsWith(".arc/completed/"));
     if (swept.index !== null) await writeBackProjectionFiles(root, swept.index, [...new Set([...files, ...recovered])].sort());
     await root.refresh?.();
