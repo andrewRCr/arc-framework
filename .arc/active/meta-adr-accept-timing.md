@@ -1,8 +1,8 @@
 # Metadata: ADR Proposed→Accepted Timing
 
-| **State**  | **Owner** | **Branch**               | **Class** | **Priority** |
-| ---------- | --------- | ------------------------ | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/adr-accept-timing` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch**               | **Class** | **Priority** |
+| --------- | --------- | ------------------------ | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/adr-accept-timing` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,12 +12,12 @@
 - **Task List:** `tasks-adr-accept-timing.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** `spec-adr-accept-timing.md` finalized; independent review converged and the draft retired.
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Accept ADR-023
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Load process-task-loop and begin Task 1.1
 
 - **PR URL:** [none]
 - **Completed:** [none]
