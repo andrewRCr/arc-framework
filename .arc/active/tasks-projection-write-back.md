@@ -174,101 +174,34 @@ among them, has one.
           command once the store answers again
         - a prose write landed but unrecorded is sent again, and the record's content holds the edit once
 
-### `[ ]` **1.7 Draw the conflicts the store files into the file — § 6.3**
+### `[x]` **1.7 Draw the conflicts the store files into the file — § 6.3**
 
 - _Goal:_ A conflict the store files shows in every checkout that renders its record — markers where placement's check
   passes and its span meets no other set, and a notice line where the check fails, where it would meet another set, or
   where the conflict is whole-record — never markers placed by guess.
 
-- **Additional Context:** `notes-projection-write-back.md` § Spike 6
+    - `[x]` **1.7.a Placing an entry or hunk conflict**
 
-    - `[ ]` **1.7.a Placing an entry or hunk conflict**
+        - `placeStoredConflict` locates entry spans by ID and hunks through memoized base history, checking the current
+          side and both neighbors or file edges. Exact side counts preserve blank lines and deletion points; unreadable
+          history leaves the conflict unplaced until repair.
 
-        - An entry conflict goes around the entry its `_Id:_` names; one whose ID the content being written lacks shows
-          as a notice line. A hunk conflict is placed at its start line moved through a diff from the base content into
-          the content being written (`relocateTextOffsets`, `lib/store/concurrency/line-merge.ts`, its character offsets
-          converted from the record's line range), spanning `currentLines`, and accepted only where those lines equal
-          the current side and the line beside each end equals the line beside the base range in the base content, or
-          the file's edge; the base content is read through `history` at the record's `baseVersion`, empty where it is
-          null, and `incomingLines` draws the incoming side exactly. Where `history` refuses `state-unresolvable` or
-          `namespace-corrupt`, the conflict shows as a notice line and nothing is pulled.
-        - Build `test-first` (one behavior at a time):
-            - an entry conflict is drawn around its entry
-            - a hunk conflict rendered at its filing version is placed on its lines
-            - after an unrelated later edit it is still placed, and after an edit touching its neighbors it is not
-            - an empty incoming side and a side of one blank line draw differently, by their counts
-            - a `history` refusing `state-unresolvable` or `namespace-corrupt` shows the conflict as a notice line,
-              nothing pulled
-            - an entry conflict whose ID the content being written lacks shows as a notice line
+    - `[x]` **1.7.b Notice lines and stampless files**
 
-    - `[ ]` **1.7.b Notice lines and stampless files**
+        - Unplaceable and whole-record conflicts render as notices with their token, incoming label, status command,
+          and resolution remedy. Stampless files record unshown conflicts only in their index; held files retain their
+          bytes and draw fresh conflicts after repair.
 
-        - A placement that fails its check, a whole-record conflict, and a stored conflict whose placed span overlaps a
-          set already laid (1.7.c) show as a notice line (`renderStampedFile`, `lib/store/projection/stamp.ts`) naming
-          the conflict by its token, `<family>/<owner type>/<owner name>/<key>`, formatted by status's own
-          `formatConflictToken` (`lib/status/conflict-token.ts`), which `arc save --resolve` parses back (1.10); the
-          incoming side's machine or session and time; where that side reads, `arc status --conflicts <conflict>`, which
-          shows both sides (`handlers/status/conflicts.ts`); and the remedy, `arc save --resolve <conflict>`. Refresh
-          writes the line only while the conflict is open; deleting it changes nothing.
-        - A file with no stamp takes the markers of a conflict whose placement passes and whose placed span overlaps no
-          set already laid, and shows any other nowhere in the file, its index entry recording it; a file the replace
-          guard holds whole (1.4.b) is not drawn into, its entry recording its open conflicts until the file is next
-          replaced with the record. The index maps each marker set and notice line to its conflict record.
-        - Build `test-first` (one behavior at a time):
-            - a failed placement shows as a notice line naming the conflict's token, `arc status --conflicts` with it,
-              and the remedy, and the token parses back to the conflict's reference
-            - an entry merge's prose hunk spanning an entry shows as a notice line
-            - a whole-record conflict a pull files shows as a notice line
-            - a stampless file takes a placeable conflict's markers, and records an unplaceable one in its entry alone
-            - a file held for a resolution in progress or a malformed set is not drawn into, its conflicts recorded in
-              its entry, and draws them once the resolution is sent or the set repaired
+    - `[x]` **1.7.c One renderer for every replacement**
 
-    - `[ ]` **1.7.c One renderer for every replacement**
+        - `createRecordRenderer` binds stored evidence and history for read-back, checkout drawings, and guard restaging.
+          Held sets retain their origins; token-ordered placements share one marker length and reserve lines and empty
+          points. Restaging refusals retain fresh unshown conflicts and reach the caller's diagnostic report.
 
-        - The one renderer in `lib/store/projection/`, whose core 1.1.b builds and 1.5 extends, and which this task
-          completes, takes the record, the content being written, and the marker length the sets that content holds are
-          at: the stored content, which holds none; a clash's drawing's merge result, which holds the sets found in the
-          checkout (1.5); or a conflicted file's refresh, the line merge's result, which holds the file's sets, stored
-          and found in the checkout (1.8). It parses the held sets at that length (1.4.b), mapping each to its conflict
-          by its start label; reads the record's open conflicts the content holds no set for and, through the command's
-          `history` memo, the base content their placement needs; draws them in the order of their tokens
-          (`formatConflictToken`) by 1.7.a and 1.7.b, except that one whose placed span overlaps a set already laid — a
-          held set, or one drawn before it — shows as a notice line, or, in a file with no stamp, in its entry alone, so
-          no two sets meet, two spans overlapping where they share a line, or where one spans no lines, marking only the
-          point before the line it is placed at, and that point lies inside the other's lines, at either of its ends, or
-          at the other's own point where that spans none too; writes notice lines for open conflicts alone and adds, for
-          a protected file, the protection notice 2.2 supplies; lays every set at the one length 1.4.a gives over every
-          line the file shows, the drawn conflicts' sides included; and returns the laid text with the index's mapping
-          of each marker set and notice line to its conflict, a set found in the checkout marked as such. The stamp and
-          `base.blob` stay the stored content's, and `written` is the laid bytes' blob id.
-        - Every replacement lays its file through it: the read-back (1.1.b), a clash's drawing (1.5), a conflicted
-          file's refresh (1.8), the refresh (`projection-worktrees`), and the replace guard's restage, which re-reads
-          the record's current version after an edit it took in landed whole. `ReplaceGuardInput`
-          (`lib/store/projection/replace-guard.ts`) takes the renderer in place of staging the stored content alone
-          (`stageRecordFile`, `staging.ts`), and the guard's `replace` result carries the entry with the mapping the
-          renderer returned.
-        - Build `test-first` (one behavior at a time):
-            - a read-back laying a record with an open hunk conflict draws its markers, the stamp naming the stored
-              content's blob id and `written` the file's
-            - an edit taken in by the replace guard's re-check, then restaged, keeps the record's markers and notice
-              lines in the file the guard replaces
-            - a clash's drawing over a record with open stored conflicts draws the markers of one whose span meets no
-              set found in the checkout, and shows one overlapping such a set as a notice line
-            - the renderer, given a line merge's result holding stored sets and a set found in the checkout, keeps each
-              held set mapped to its conflict, draws an open conflict the content holds no set for, and writes no notice
-              line for a closed conflict
-            - two open conflicts on one span, a clash filed twice, draw the first by token as markers and show the other
-              as a notice line, and in a file with no stamp record the other in its entry alone
-            - an entry conflict and a hunk conflict inside its entry draw the first by token as markers and show the
-              other as a notice line
-            - a delete/modify clash filed twice, two spans of no lines at one point, draws the first by token as markers
-              and shows the other as a notice line
-            - a span of no lines inside a drawn set's lines, or at either of its ends, shows as a notice line, and so
-              does a span of lines drawn after a set of no lines that sits at its start or its end
-            - a drawn conflict whose side holds a setext `=======` lays every set, the held ones among them, at the
-              escalated length
+- _Outcome:_ Stored hunk line counts now govern rendering and parse-back, so unchanged blank sides remain open
+  conflicts. Closed held sets keep their work-item generation, and a failed rendering preserves a landed take-in.
 
-### `[ ]` **1.8 Keep a conflicted file refreshing — § 6.6**
+### `[x]` **1.8 Keep a conflicted file refreshing — § 6.6**
 
 - _Goal:_ A conflicted file keeps taking the store's other changes by a three-way line merge, takes a resolution made
   elsewhere when unchanged since it was written, and waits, reported, only where the store's change overlaps an open
@@ -276,28 +209,9 @@ among them, has one.
   malformed set never reaches it: the replace guard holds it whole, a refused edit, until the resolution is sent or the
   set repaired (1.4.b).
 
-    - Base: the stored version the file was rendered from, read through `history` by way of the command's memo
-      (`createHistoryMemo`, `lib/store/projection/base-recovery.ts`); current: the store's newer version; incoming: the
-      file, markers included, merged by `mergeLineText` whatever the kind's mechanism. Where `history` refuses
-      `state-unresolvable` or `namespace-corrupt`, the file keeps its version, pending and reported, and nothing is
-      pulled.
-    - A marker set whose conflicts all closed elsewhere leaves when the file is unchanged since the projection wrote it;
-      a closed conflict's notice line leaves at the same refresh; the merge's result is laid through the one renderer
-      (1.7.c) at the length the file's sets are at, which maps the file's sets, draws a conflict the newer version files
-      by 1.7's rules, and lays the file's one length over all it then shows; where the newer version holds a marker-like
-      line for which 1.4.a's length grows past the file's, the file's sets are parsed at the recorded length and
-      rendered again at the grown one before the merge, since a line merged in at the file's length would parse as a
-      marker; an overlap keeps the file's version, pending and reported, and each later command retries.
-    - Build `test-first` (one behavior at a time):
-        - a change elsewhere in a conflicted file refreshes in, its markers kept
-        - a conflict resolved from another checkout leaves an unchanged file's markers
-        - a store change overlapping open markers keeps the file pending and reported
-        - a newer version bringing a setext `=======` re-renders the markers escalated before the merge, and the merged
-          file parses back
-        - a `history` refusing `state-unresolvable` or `namespace-corrupt` keeps the file's version, pending, nothing
-          pulled
-        - a newer version filing a conflict has it drawn in the refreshed file, and a conflict closed elsewhere loses
-          its notice line at the same refresh
+- _Outcome:_ `prepareConflictedRefresh` returns the shared rendered view or a retryable pending remedy without writing.
+  It removes closed sets only from byte-unchanged files, grows controls before merging, and uses line merges for every
+  kind; newly open conflicts draw and closed notices leave together.
 
 ### `[ ]` **1.9 Write back at every command's start, and report it — § 2.2, § 1.4**
 

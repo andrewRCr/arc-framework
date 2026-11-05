@@ -145,8 +145,24 @@ or inheriting a new companion's owner placement. Other reads, saved-state querie
 Name-only queries resolve through the backend's canonical record or owner, so a reused name retains the generation the
 backend selects.
 
+`conflict-placement.ts` locates stored entry conflicts by their stable ID. Hunk placement relocates the base range
+through the line diff, then checks the exact current side and neighboring lines or file edges. Historical content comes
+from the command's memo; an unreadable base leaves the conflict unplaced. Side line counts distinguish a blank line from
+an empty side, whose span is an insertion point.
+
 `marker-render.ts` creates one renderer from the whole file and its preserved conflict sides. Every set uses its
 chosen length, names its stored conflict or checkout origin, and carries a resolve-by-hand instruction when escalated.
+
+`record-render.ts` composes checked placement with the whole file's marker rendering. It preserves existing sets by
+their labels, draws remaining conflicts in token order against stable content coordinates, and emits notices for
+unplaceable, overlapping, or whole-record conflicts. A stampless file records those conflicts only in its index.
+`render-held.ts` reserves each set's lines and each empty side's insertion point, including its edges, and excludes
+generated controls when selecting the final marker length.
+
+`conflicted-refresh.ts` prepares a marked file's next view by merging its indexed stored base, the newer record, and
+the file with its markers. Closed sets leave only when the file's bytes still equal what was written; open sets grow
+before merging marker-like prose. An overlap or unreadable base returns a retryable pending remedy. A clean result
+passes through the shared renderer, removing closed notices and drawing newly open conflicts together.
 
 `marker-scan.ts` locates complete and malformed controls at exactly the indexed length. `marker-preparation.ts` reads
 indexed conflict evidence, including retained history for conflicts already closed elsewhere; `marker-parse.ts`
@@ -191,7 +207,9 @@ records, and a staged file is created exclusively.
 `staging.ts` stages rendered content in the aside folder, created exclusively under the name `aside.ts` gives it. A
 Markdown file carries its stored content's blob id as its stamp, while its `written` blob identifies the rendered bytes;
 its base keeps the stored version. A file without a stamp carries the rendered content directly. A protected file is
-staged read-only, and a link shares that mode.
+staged read-only, and a link shares that mode. The record-to-stage operation returns store refusals before creating
+staged bytes. Read-back and checkout drawings bind the same renderer for the guard's restage; a rendering failure keeps
+the original file pending, retaining any write that already landed.
 
 `take-in-port.ts` is the port reading and replacing hand every edit they meet to, and write-back answers once bound: the
 worktree whose file holds the edit, the path or the aside copy, its entry, and its base — the stamp it carries, or, for
