@@ -1,8 +1,8 @@
 # Metadata: ADR Proposed→Accepted Timing
 
-| **State**     | **Owner** | **Branch**               | **Class** | **Priority** |
-| ------------- | --------- | ------------------------ | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/adr-accept-timing` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,15 +13,15 @@
 - **Review Rubric:** [none]
 - **Candidate:** `sha256:c9cba45ea2f2ec5fbe1de6f083e302b68613008648c98be85ca7bce0b551f3db`
 
-- **Current Workflow:** `integrate-work-unit`
+- **Current Workflow:** [none]
 - **Last Completed:** Task 5.1 — Complete verification
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** —
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/1276>
+- **Completed:** 2026-11-05
 
 ---
 
