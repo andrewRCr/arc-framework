@@ -135,44 +135,17 @@ among them, has one.
   positions and sides. Stampless holds retain their token and final-newline choice. Staged metadata and observed edits
   protect saves at guarded swaps, while malformed entries keep the whole file undrawn until repaired.
 
-### `[ ]` **1.6 Handle each refusal the store returns — § 7.8, § 1.5**
+### `[x]` **1.6 Handle each refusal the store returns — § 7.8, § 1.5**
 
 - _Goal:_ A refusal lands nothing and loses nothing: each code leaves the edit in its file, marked refused or pending,
   and takes the path its section names, exercised over the reference backend and, for the refusals it cannot return,
   the test stores (1.3).
 
-- _Note:_ Built once `storage-ref-hardening` is on base and this branch has merged it, never on that work's branch; the
-  arms keyed on `state-unresolvable` and `namespace-corrupt` are confirmed against it as shipped first (spec § 18). See
-  `notes-projection-write-back.md` § Grounding against `storage-ref-hardening`. Until then, 1.7–1.10, which use nothing
-  from it, build first, and 1.11 closes the phase after it.
-
-    - `record-malformed` leaves a refused edit reported with its rule and remedy. `version-conflict` on a merge kind
-      reads the record: gone, it takes the removal path's refused edit (`spec-projection-substrate.md` § 5.6); still
-      there, the stamp is treated as lost and the file goes to stamp recovery (`recoverBase`,
-      `lib/store/projection/base-recovery.ts`) once per command, a second `version-conflict` leaving it pending and
-      reported. `lock-held` marks the file pending, reported with the backend's remedy.
-    - `state-unresolvable` naming a history ref comes only for an item this clone holds no live ref for, a completed one
-      (`missingHistoryRefs`, `lib/store/ref/missing-history.ts`), on a write or on a merge's `history`, and is 2.3's.
-      One naming none (`historyRefs: []`) — a captured object this clone cannot read under a ref it holds
-      (`checkRecord`, `lib/store/ref/write-checks.ts`) or an anchor field naming a state version it cannot resolve
-      (`prepareAnchor`, `lib/store/ref/write-anchors.ts`) — leaves a refused edit carrying the backend's remedy, and
-      nothing is pulled. `namespace-corrupt`, a terminal fault in the store's data, leaves a refused edit carrying the
-      backend's remedy, and nothing is pulled; the edit stays in its file, so each command sends it again, and it
-      lands once the store is repaired. `unsupported` `unhomed-kind` is 1.3's. Any other refusal lands nothing, and
-      the next command sends the edit again.
-    - A command stopped after a write lands and before the index records it sends the edit again at its next run.
-    - Build `test-first` (one behavior at a time):
-        - a stale-base merge the kind's parser rejects refuses `record-malformed`, the edit stays reported, and the
-          repaired edit lands
-        - `version-conflict` for a record now absent takes the removal path's refused edit
-        - `version-conflict` whose expected version is outside the record's history recovers the stamp once, and a
-          second leaves the file pending
-        - `lock-held` leaves the file pending, reported with its remedy, and the next command lands it
-        - `state-unresolvable` naming no history ref leaves a refused edit carrying the remedy, records no pull, and
-          the edit lands at the next command once the remedy is applied
-        - `namespace-corrupt` leaves a refused edit carrying the remedy, records no pull, and the edit lands at the next
-          command once the store answers again
-        - a prose write landed but unrecorded is sent again, and the record's content holds the edit once
+- _Outcome:_ Store refusals retain their rule and backend remedy without changing the saved bytes. A rejected merge
+  base recovers once per command across the walk and aside take-ins, preserving the carried stamp and pre-send copy
+  marks and standing ambiguity tokens; a second rejection or held lock stays pending. Removed records remain refused
+  with a copy-out remedy. Local data faults pull nothing and retry after repair; an accepted write is never resent for
+  a read-back refusal. The shipped hardening surfaces match the grounding notes.
 
 ### `[x]` **1.7 Draw the conflicts the store files into the file — § 6.3**
 

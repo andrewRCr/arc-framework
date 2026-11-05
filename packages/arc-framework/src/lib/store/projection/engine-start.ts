@@ -79,7 +79,7 @@ async function bindRoot(input: ProjectionCommandInput, ports: ProjectionEnginePo
     if (root.checkpoint === null) throw new Error("A projection mutation requires its worktree's lease");
     await root.checkpoint();
   };
-  const context: ReadBackContext = { store: input.store, location, format: config.objectFormat, actor, writer, memo: state.history,
+  const context: ReadBackContext = { store: input.store, location, format: config.objectFormat, actor, writer, memo: state.history, versionRecoveries: [],
     verb: input.mode ?? "write-back", checkpoint, hooks: ports.hooks, takeIn: request => root.takeIn(request), onWrite: () => { root.changed = true; },
     report: diagnostic => { state.diagnostics.push(diagnostic); }, reportResolution: resolution => { state.resolutions.push(resolution); },
     recordBatch: batch => { root.copies.push(...batch.copies); root.removals.push(...batch.removals); } };

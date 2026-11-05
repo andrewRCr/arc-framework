@@ -24,6 +24,7 @@ export async function selectWriteBackBase(
 ): Promise<StoreResult<WriteBackBaseDecision>> {
   const memo = context.memo ?? createHistoryMemo(context.store);
   if (!request.path.endsWith(".md")) return selectStamplessBase({ ...context, memo }, request, content);
+  if (context.recoveringBase) return recoverSelectedBase({ ...context, memo }, request, content, stamp);
   const persisted = await selectPersistedBase({ location: context.location, entry: request.entry, stamp });
   if (persisted.status === "refused") return persisted;
   if (persisted.result !== null && stamp !== null) return { status: "ok", result: { kind: "selected", base: persisted.result, stamp } };
@@ -45,7 +46,7 @@ async function recoverSelectedBase(
   context: BaseSelectionContext & { memo: HistoryMemo }, request: TakeInRequest, content: string, stamp: string | null,
 ): Promise<StoreResult<SelectedWriteBackBase>> {
   const recovered = await recoverBase({ content, entry: request.entry, format: context.format, memo: context.memo,
-    readCopy: name => readTakenInCopy(context.location, name) });
+    readCopy: name => readTakenInCopy(context.location, name), ignoreIndexedMatch: context.recoveringBase });
   if (recovered.status === "refused") return recovered;
   if (stamp !== null) return { status: "ok", result: { kind: "selected", base: recovered.result, stamp } };
   const blob = recovered.result.kind === "stored" && recovered.result.version === request.entry.base.version

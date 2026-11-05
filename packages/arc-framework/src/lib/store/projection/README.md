@@ -153,6 +153,14 @@ walk's guarded read-back batch, using the exact bytes read as its baseline and r
 The operation supplies `write-back` or `save`, each with `edit`; editable bytes supply neither provenance field.
 Backend record-malformed refusals retain their rule ID with the condition and remedy.
 
+`write-refusal.ts` handles a rejected merge base by reading the record and claiming one recovery allowance per logical
+record for the command. Recovery consults fresh history while retaining the save's original stamp or carried blob;
+stampless candidate agreement still applies. A removed record leaves a refused edit with a copy-out remedy. A second
+version conflict or a held store lock leaves the edit pending with the backend's remedy. Other refusals preserve the
+edit and their remedy without pulling history. A failed read-back after acceptance stays pending without another send.
+An existing ambiguity hold retains its original token across refused attempts; backend diagnostics remain separate
+from that durable hold, which a successful send clears.
+
 `check-edit.ts` runs the kind's production check over merged content, with current parsed fields or raw prior content
 when parsing fails. It stamps only the entry merge's check copy and reports every broken rule with its remedy.
 `after-view.ts` overlays that caller-parsed pending record on reads and family listings, retaining its prior envelope

@@ -10,8 +10,9 @@ import { createProjectionEnginePorts } from "../../../../src/lib/store/projectio
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import type { ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
 
-export async function createEngineFixture(directories: string[], input: { path?: string; content?: string; extraPaths?: readonly string[] } = {}) {
-  const fixture = createReferenceFixture();
+export async function createEngineFixture(directories: string[], input: { path?: string; content?: string; extraPaths?: readonly string[];
+  registryOverrides?: Parameters<typeof createReferenceFixture>[1] } = {}) {
+  const fixture = createReferenceFixture(undefined, input.registryOverrides);
   const record = await seed(fixture, fixture.reference("personal/document"), input.content ?? "opening\nbase\nclosing\n");
   const path = input.path ?? ".arc/user/andrew/document.md";
   const extra = await Promise.all((input.extraPaths ?? []).map(async (path, i) => ({ path,

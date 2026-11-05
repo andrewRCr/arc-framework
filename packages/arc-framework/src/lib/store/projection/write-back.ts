@@ -30,6 +30,7 @@ import type { MarkerParseResult } from "./marker-parse.js";
 import type { RecordReference } from "../identity.js";
 import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
 import { mergeCheckoutBase, prepareAmbiguousDrawing, type CheckoutDrawing, type CheckoutMerge } from "./checkout-merge.js";
+import { decideWriteBackRefusal } from "./write-refusal.js";
 
 const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
@@ -46,6 +47,8 @@ export interface WriteBackContext {
   readonly verb?: typeof HAND_EDIT_VERBS[number];
   readonly report?: (diagnostic: WriteBackDiagnostic) => void;
   readonly reportResolution?: (resolution: WriteBackResolution) => void;
+  readonly versionRecoveries?: RecordReference[];
+  readonly recoveringBase?: boolean;
 }
 
 /** A file-specific diagnostic retained for the command's report. */
@@ -68,7 +71,7 @@ export type PreparedWriteBack =
       readonly stamp: string; readonly takenIn: string; readonly random?: () => number; readonly retained?: RefusedMark }
   | { readonly kind: "clashed"; readonly drawing: CheckoutDrawing; readonly read: TakeInRead; readonly result: TakeInResult; readonly diagnostic: RefusedMark }
   | { readonly kind: "held"; readonly result: TakeInResult; readonly diagnostic?: RefusedMark;
-      readonly diagnostics?: readonly RefusedMark[] };
+      readonly diagnostics?: readonly RefusedMark[]; readonly refusal?: StoreRefusal };
 
 /** Read and parse an edit without writing a file, publishing an index, or acquiring a lock. */
 export async function prepareWriteBack(context: WriteBackContext, request: TakeInRequest): Promise<PreparedWriteBack> {
@@ -213,7 +216,7 @@ function pendingRead(request: TakeInRequest, refusal: StoreRefusal): HeldWriteBa
 
 function refusedPreparation(entry: RecordEntry, refusal: StoreRefusal): HeldWriteBack {
   const mark = markStoreRefusal(refusal);
-  return { kind: "held", result: { answer: "refused", entry: { ...entry, refused: mark }, mark } };
+  return { kind: "held", refusal, result: { answer: "refused", entry: { ...entry, refused: mark }, mark } };
 }
 
 function markStoreRefusal(refusal: StoreRefusal): RefusedMark {
@@ -244,7 +247,7 @@ async function currentWritePlacement(store: Store, request: TakeInRequest): Prom
 
 /** Bind write-back to a caller's store; locking and publication remain with that caller. */
 export function createWriteBackPort(context: WriteBackContext): TakeInPort {
-  const bound = { ...context, memo: context.memo ?? createHistoryMemo(context.store) };
+  const bound = { ...context, memo: context.memo ?? createHistoryMemo(context.store), versionRecoveries: context.versionRecoveries ?? [] };
   return async (request) => {
     const { result } = await sendWriteBack(bound, request);
     if (request.rendering === undefined) return result;
@@ -262,26 +265,49 @@ export type WriteBackSend =
   | { readonly kind: "clashed"; readonly result: TakeInResult; readonly drawing: CheckoutDrawing; readonly read: TakeInRead }
   | { readonly kind: "landed"; readonly result: Extract<TakeInResult, { answer: "taken-in" }>; readonly record: StoreRecord };
 
-/** Prepare, send once, and record the landed content without replacing any projected file. */
+type RefusedSend = { kind: "store-refused"; refusal: StoreRefusal; entry: RecordEntry };
+
+/** Prepare and send an edit, recovering a rejected base once without retrying an already-landed write. */
 export async function sendWriteBack(context: WriteBackContext, request: TakeInRequest): Promise<WriteBackSend> {
+  const bound = { ...context, memo: context.memo ?? createHistoryMemo(context.store), versionRecoveries: context.versionRecoveries ?? [] };
+  let current = request;
+  for (const recoveringBase of [false, true]) {
+    const attempt = await sendAttempt({ ...bound, recoveringBase }, current);
+    if (attempt.kind !== "store-refused") return attempt.kind === "held"
+      ? { ...attempt, result: keepStandingHold(attempt.result, current.entry) } : attempt;
+    current = { ...current, entry: { ...attempt.entry, refused: current.entry.refused } };
+    const decision = await decideWriteBackRefusal(bound, current, attempt.refusal);
+    if (decision.kind === "recover" && !recoveringBase) continue;
+    const refusal = decision.kind === "recover" ? attempt.refusal : decision.refusal;
+    const mark = markStoreRefusal(refusal);
+    context.report?.({ path: request.path, copy: request.copy, mark });
+    const result: TakeInResult = refusal.code === "version-conflict" || refusal.code === "lock-held"
+      ? { answer: "pending", entry: { ...current.entry, pending: true } }
+      : { answer: "refused", entry: { ...current.entry, refused: mark }, mark };
+    return { kind: "held", result: keepStandingHold(result, current.entry) };
+  }
+  throw new Error("A write-back recovery exceeded its retry bound");
+}
+
+function keepStandingHold<T extends TakeInResult>(result: T, prior: RecordEntry): T {
+  const mark = prior.refused;
+  if (mark?.reason !== "bases-disagree") return result;
+  return { ...result, entry: { ...result.entry, refused: mark }, ...("mark" in result ? { mark } : {}) };
+}
+
+async function sendAttempt(context: WriteBackContext, request: TakeInRequest): Promise<WriteBackSend | RefusedSend> {
   const prepared = await prepareWriteBack(context, request);
   if (prepared.kind === "clashed") {
     context.report?.({ path: request.path, copy: request.copy, mark: prepared.diagnostic });
     return { kind: "clashed", result: prepared.result, drawing: prepared.drawing, read: prepared.read };
   }
   if (prepared.kind === "held") {
-    const mark = "mark" in prepared.result ? prepared.result.mark : prepared.diagnostic;
-    for (const diagnostic of prepared.diagnostics ?? (mark === undefined ? [] : [mark])) {
-      context.report?.({ path: request.path, copy: request.copy, mark: diagnostic });
-    }
-    return { kind: "held", result: prepared.result };
+    return heldPreparation(context, request, prepared);
   }
   const entry = await markOtherCopies(context, request);
   const sent = await sendLeasedWrite(context, prepared.write);
   if (sent.status === "refused") {
-    const mark = markStoreRefusal(sent.refusal);
-    context.report?.({ path: request.path, copy: request.copy, mark });
-    return { kind: "held", result: { answer: "refused", entry: { ...entry, refused: mark }, mark } };
+    return { kind: "store-refused", refusal: sent.refusal, entry };
   }
   if (sent.result.version === undefined) throw new Error("A landed content put returned no version");
   for (const reference of prepared.write.resolves ?? []) {
@@ -309,6 +335,15 @@ export async function sendWriteBack(context: WriteBackContext, request: TakeInRe
     entry: { ...recorded.entry, refused: null, copies: entry.copies.map(copy => (
       copy.name === request.copy ? { ...copy, landed: prepared.read.blob } : copy
     )) } } };
+}
+
+function heldPreparation(context: WriteBackContext, request: TakeInRequest, prepared: HeldWriteBack): WriteBackSend | RefusedSend {
+  if (prepared.refusal !== undefined) return { kind: "store-refused", refusal: prepared.refusal, entry: prepared.result.entry };
+  const mark = "mark" in prepared.result ? prepared.result.mark : prepared.diagnostic;
+  for (const diagnostic of prepared.diagnostics ?? (mark === undefined ? [] : [mark])) {
+    context.report?.({ path: request.path, copy: request.copy, mark: diagnostic });
+  }
+  return { kind: "held", result: prepared.result };
 }
 
 async function markOtherCopies(context: WriteBackContext, request: TakeInRequest): Promise<RecordEntry> {

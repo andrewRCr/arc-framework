@@ -46,6 +46,8 @@ export interface BaseRecoveryInput {
   readonly memo: HistoryMemo;
   /** Reads a copy of what a persisted write-back took in, kept beside the index, by its name. */
   readonly readCopy: (name: string) => Promise<string>;
+  /** A rejected expected version requires history even when the content matches the indexed blob. */
+  readonly ignoreIndexedMatch?: boolean;
 }
 
 /**
@@ -65,7 +67,7 @@ export type RecoveredBase =
 export async function recoverBase(input: BaseRecoveryInput): Promise<StoreResult<RecoveredBase>> {
   const { content, entry } = input;
   // The index's version first, by its blob id, so a file still holding it reads no history.
-  if (gitBlobId(content, input.format) === entry.base.blob) return found({ kind: "stored", version: entry.base.version });
+  if (!input.ignoreIndexedMatch && gitBlobId(content, input.format) === entry.base.blob) return found({ kind: "stored", version: entry.base.version });
   const history = await input.memo.read(entry.reference);
   if (history.status === "refused") {
     return history.refusal.code === "state-unresolvable" ? found(await withoutHistory(input)) : history;

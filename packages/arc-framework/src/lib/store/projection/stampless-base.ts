@@ -57,17 +57,18 @@ async function resolveCarriedBase(
   context: BaseContext, request: TakeInRequest, content: string, blob: string,
 ): Promise<StoreResult<WriteBackBaseDecision>> {
   const selected = (base: RecoveredBase): StoreResult<WriteBackBaseDecision> => ({ status: "ok", result: { kind: "selected", base, stamp: blob } });
-  if (blob === request.entry.base.blob) return selected({ kind: "stored", version: request.entry.base.version });
+  if (!context.recoveringBase && blob === request.entry.base.blob) return selected({ kind: "stored", version: request.entry.base.version });
   const replaced = request.entry.inProgress?.replaces;
-  if (replaced?.blob === blob) return selected({ kind: "stored", version: replaced.version });
+  if (!context.recoveringBase && replaced?.blob === blob) return selected({ kind: "stored", version: replaced.version });
   const history = await context.memo.read(request.entry.reference);
   if (history.status === "refused") return history;
   const found = history.result.find(each => each.content !== null && gitBlobId(each.content, context.format) === blob);
-  if (found?.version !== undefined && found.version !== null) return selected({ kind: "stored", version: found.version });
+  if (!context.recoveringBase && found?.version !== undefined && found.version !== null) return selected({ kind: "stored", version: found.version });
   const kept = request.entry.persisted?.takenIn;
   const copy = kept?.kind === "copy" ? await keptCopy(context, kept.name) : undefined;
   if (copy?.kind === "held") return { status: "ok", result: copy };
   const recovered = await recoverBase({ content, entry: request.entry, format: context.format, memo: context.memo,
+    ignoreIndexedMatch: context.recoveringBase,
     readCopy: () => {
       if (copy === undefined) throw new Error("Recovery requested a retained base the entry does not name");
       return Promise.resolve(copy.content);

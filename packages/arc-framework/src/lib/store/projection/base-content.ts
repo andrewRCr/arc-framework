@@ -13,6 +13,7 @@ export interface BaseSelectionContext {
   readonly location: ProjectionLocation;
   readonly format: ObjectFormat;
   readonly memo?: HistoryMemo;
+  readonly recoveringBase?: boolean;
 }
 
 /** Read the content a selected base names, without substituting a newer version. */
