@@ -47,7 +47,7 @@ export async function updateRefTransaction(
   try {
     await ports.execInput([
       ...gitRefLockArgs(options.lockWaitMs), "update-ref", "--no-deref", "--stdin",
-    ], ["start", ...commands, "prepare", "commit", ""].join("\n"), execution);
+    ], ["start", ...commands, "prepare", "commit", ""].join("\n"), { ...execution, uninterruptible: true });
     return { status: "committed" };
   } catch (error) {
     if (!isCompletedGitFailure(error)) throw error;

@@ -22,6 +22,7 @@ import { releaseCopyJournal, requireNoPendingCopy } from "./migrate-copy-journal
 import { accountCopyJournal } from "./migrate-copy-account.js";
 import { handoffFollowCopy } from "./follow-copy-account.js";
 import { appendCleanupReport } from "./migrate-report.js";
+import { migrationTransportRefusal } from "./migrate-remote-target.js";
 import { captureComparisonWitness, type ComparisonWitness } from "./comparison-witness.js";
 
 type DecidedFollow = Extract<RefFollowJudgment, { status: "decided" }>;
@@ -83,7 +84,7 @@ export async function resumeRefFollow(context: RefBackendContext, store: Store, 
   try {
     const code = await migrationCodeContext(context);
     if (!copied && recorded.record.answer === "push" && !await sourceSwitchComplete(context, recorded)) {
-      const witness = await captureComparisonWitness(context, recorded.record.source);
+      const witness = await captureComparisonWitness(context, recorded.record.source).catch(migrationTransportRefusal);
       const copiedState = await copyFollowState(code, recorded.record, true);
       if (copiedState === null || copiedState === "moved") return await endRecordedFollow(context, store, code, recorded, copiedState ?? "stale", witness);
     }

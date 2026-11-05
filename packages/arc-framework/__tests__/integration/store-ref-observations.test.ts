@@ -213,7 +213,9 @@ describe.each(["default", "separate"] as const)("native record observations in %
     await rm(path);
     const request = { writes: [mutationOf(update(f, target, "accepted\n"))], provenance: testProvenance,
       observations: [{ reference: absent, expected: null }] };
-    const unavailable = { status: "refused", refusal: { code: "namespace-corrupt", namespace: `refs/arc/archive/${quarter}` } };
+    const unavailable = { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable",
+      historyRefs: [], condition: expect.stringContaining(`refs/arc/archive/${quarter}`),
+      remedy: { text: expect.stringMatching(/restore|fetch/iu) } } };
     expect(await f.store.batch(request)).toMatchObject(unavailable);
     expect(await f.store.read({ reference: absent })).toMatchObject(unavailable);
     expect(await f.store.history({ reference: archived.reference })).toMatchObject(unavailable);

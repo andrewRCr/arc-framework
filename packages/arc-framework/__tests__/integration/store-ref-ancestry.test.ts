@@ -12,7 +12,8 @@ import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
 import { FAMILY_IDS } from "../../src/lib/store/catalog.js";
 import { createRefClock } from "../helpers/store/ref-clock.js";
-import { isGitProcessError } from "../../src/lib/git/process-error.js";
+import { GitProcessError, isCompletedGitFailure, isGitProcessError } from "../../src/lib/git/process-error.js";
+import { parseFetchPorcelain } from "../../src/lib/git/fetch.js";
 
 const provenance = { verb: "save", lifecycleAction: "save" };
 
@@ -71,10 +72,10 @@ async function repairMissingGraphRewrite(h: Awaited<ReturnType<typeof rewrittenF
   expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Rewritten remote value.\n");
 }
 
-async function trackingLockStore(h: RefSyncFixture, tracking: string, afterFailure?: () => Promise<void>) {
+async function trackingLockStore(h: RefSyncFixture, tracking: string, afterFailure?: () => Promise<void>, presentation?: "rejected") {
   const format = (await h.b.git(["rev-parse", "--show-ref-format"])).stdout.trim();
   const lock = join(h.b.gitDir ?? join(h.b.root, ".git"), format === "reftable" ? "reftable/tables.list.lock" : `${tracking}.lock`);
-  let armed = true, nativeStdout = "", nativeStderr = "";
+  let armed = true, nativeStdout = "", nativeStderr = "", presentedStdout = "";
   const store = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
     if (!armed || !args.includes("fetch")) return h.b.ports.exec(command, args, options);
     armed = false;
@@ -85,10 +86,30 @@ async function trackingLockStore(h: RefSyncFixture, tracking: string, afterFailu
     try { return await h.b.ports.exec(command, failing, options); }
     catch (error) { failure = error; if (isGitProcessError(error)) ({ stdout: nativeStdout, stderr: nativeStderr } = error); }
     finally { await rm(lock, { force: true }); }
+    if (presentation === "rejected") failure = await rejectedFetchEvidence(h, tracking, failure);
+    if (isGitProcessError(failure)) presentedStdout = failure.stdout;
     await afterFailure?.();
     throw failure;
   } });
-  return { store, format, observed: () => ({ armed, nativeStdout, nativeStderr }) };
+  return { store, format, observed: () => ({ armed, nativeStdout, nativeStderr, presentedStdout }) };
+}
+
+async function rejectedFetchEvidence(h: RefSyncFixture, tracking: string, failure: unknown): Promise<GitProcessError> {
+  if (!isGitProcessError(failure) || !isCompletedGitFailure(failure)) throw new Error("Expected a completed native fetch refusal", { cause: failure });
+  const fetched = parseFetchPorcelain(failure);
+  if (fetched.status !== "refs") throw new Error("The native refusal supplied no fetch rows");
+  const targets = fetched.refs.filter(row => row.ref === tracking), target = targets[0];
+  if (targets.length !== 1 || !target) throw new Error("The native refusal must contain exactly one targeted row");
+  const actual = (await h.b.git(["for-each-ref", "--format=%(objectname)", tracking])).stdout.trim();
+  if (actual !== (/^0+$/u.test(target.old) ? "" : target.old)) throw new Error("The targeted native update did not remain refused");
+  let presented = 0;
+  const stdout = failure.stdout.split("\n").map(line => {
+    if (!line.replace(/\r$/u, "").endsWith(` ${tracking}`)) return line;
+    presented += 1;
+    return `!${line.slice(1)}`;
+  }).join("\n");
+  if (presented !== 1) throw new Error("The native protocol did not supply one replaceable targeted row");
+  return new GitProcessError({ ...failure, stdout, cause: failure });
 }
 
 describe.each(["default", "separate"] as const)("rewrite refusal in the %s layout", (layout) => {
@@ -457,6 +478,65 @@ describe.each(["default", "separate"] as const)("rewrite refusal in the %s layou
     expect(success(await store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
     expect(success(await h.b.store.read({ reference: h.other })).content).toBe(h.otherContent);
   });
+
+  it("accepts an explicit rejected row after a sibling advanced tracking to a descendant", async () => {
+    const h = await rewrittenFixture(layout);
+    await h.remote("git", ["update-ref", h.ref, h.second, h.first]);
+    success(await h.b.store.pull());
+    const before = success(await h.a.store.read({ reference: h.reference }));
+    success(await h.a.store.write({ action: "put", reference: h.reference, expected: before.version, content: "Third published value.\n", provenance }));
+    await h.a.git(["push", h.remoteName, `${h.ref}:${h.ref}`]);
+    const { store, observed } = await trackingLockStore(h, h.tracking, async () => {
+      const current = success(await h.a.store.read({ reference: h.reference }));
+      success(await h.a.store.write({ action: "put", reference: h.reference, expected: current.version, content: "Fourth published value.\n", provenance }));
+      await h.a.git(["push", h.remoteName, `${h.ref}:${h.ref}`]);
+      await h.b.git(["fetch", "--refmap=", "--no-tags", "--no-filter", "--negotiation-tip=refs/arc/*", h.remoteName, `${h.ref}:${h.tracking}`]);
+    }, "rejected");
+    const result = success(await store.pull());
+    expect(parseFetchPorcelain({ stdout: observed().presentedStdout, stderr: observed().nativeStderr })).toMatchObject({ status: "refs",
+      refs: expect.arrayContaining([expect.objectContaining({ flag: "!", ref: h.tracking })]) });
+    expect(result.pulls.flatMap(({ notices }) => notices)).toEqual([]);
+    expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Fourth published value.\n");
+    expect(success(await h.b.store.read({ reference: h.other })).content).toBe(h.otherContent);
+    expect(success(await store.push()).publishes.every(({ status }) => status !== "failed")).toBe(true);
+  }, 20_000);
+
+  it("keeps an explicit rejected ancestor rewrite while tracking retains its old tip", async () => {
+    const h = await rewrittenFixture(layout);
+    await h.b.git(["fetch", "--refmap=", "--no-tags", "--no-filter", "--negotiation-tip=refs/arc/*", h.remoteName,
+      `refs/arc/project/inbox:refs/arc-remotes/${h.remoteName}/project/inbox`]);
+    const { store, observed } = await trackingLockStore(h, h.tracking, undefined, "rejected");
+    const result = success(await store.pull()), notices = result.pulls.flatMap(({ notices }) => notices);
+    expect(parseFetchPorcelain({ stdout: observed().presentedStdout, stderr: observed().nativeStderr })).toMatchObject({ status: "refs",
+      refs: expect.arrayContaining([expect.objectContaining({ flag: "!", ref: h.tracking })]) });
+    expect(notices).toEqual([expect.objectContaining({ kind: "history-diverged", ref: h.ref })]);
+    expect((await h.b.git(["rev-parse", h.tracking])).stdout.trim()).toBe(h.second);
+    expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Second published value.\n");
+    const notice = notices[0];
+    if (notice?.kind !== "history-diverged") throw new Error("Expected an explicit ancestor rewrite remedy");
+    await applyRemedy(h, notice.remedy.text, "Take theirs");
+    expect(success(await store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
+    expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("First published value.\n");
+  }, 20_000);
+
+  it("accepts an explicit rejected deletion after a sibling already removed tracking", async () => {
+    const h = await rewrittenFixture(layout);
+    await h.b.git(["fetch", "--refmap=", "--no-tags", "--no-filter", "--negotiation-tip=refs/arc/*", h.remoteName,
+      `refs/arc/project/inbox:refs/arc-remotes/${h.remoteName}/project/inbox`]);
+    await h.remote("git", ["update-ref", "-d", h.ref, h.first]);
+    const { store, observed } = await trackingLockStore(h, h.tracking, async () => {
+      await h.b.git(["update-ref", "-d", h.tracking, h.second]);
+    }, "rejected");
+    const result = success(await store.pull());
+    expect(parseFetchPorcelain({ stdout: observed().presentedStdout, stderr: observed().nativeStderr })).toMatchObject({ status: "refs",
+      refs: expect.arrayContaining([expect.objectContaining({ flag: "!", ref: h.tracking, next: expect.stringMatching(/^0+$/u) })]) });
+    expect(result.pulls.flatMap(({ notices }) => notices)).toEqual([]);
+    expect((await h.b.git(["for-each-ref", "--format=%(refname)", h.tracking])).stdout).toBe("");
+    expect(success(await h.b.store.read({ reference: h.reference })).content).toBe("Second published value.\n");
+    expect(success(await store.push()).publishes.every(({ status }) => status !== "failed")).toBe(true);
+    expect((await h.remote("git", ["rev-parse", h.ref])).stdout.trim()).toBe(h.second);
+    expect(success(await store.pull()).pulls.flatMap(({ notices }) => notices)).toEqual([]);
+  }, 20_000);
 
   it("contains a missing rejected-update graph and resumes its explicit rewrite remedy", async () => {
     const h = await rewrittenFixture(layout, true);

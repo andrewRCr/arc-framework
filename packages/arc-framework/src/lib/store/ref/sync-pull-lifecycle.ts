@@ -26,7 +26,10 @@ export async function mergePulledRefState(context: RefBackendContext, incoming: 
   return mergeCapturedRefState(context, incoming, requested, { ...options, previous,
     acquireHistories: async (histories) => {
       const fetched = await fetchRefHistories(context, remote, designation, histories, context.syncDeadline?.signal);
-      if (fetched.status === "unreachable") return { status: "fetch-failed", fetched };
+      if (fetched.status === "unreachable") {
+        options.onObserved?.(fetched.notices);
+        return { status: "fetch-failed", fetched };
+      }
       captureFetchedHistories(incoming, histories, remote.name, fetched);
       return { status: "complete", notices: fetched.notices };
     },
@@ -62,6 +65,7 @@ export async function mergeCapturedRefState(context: RefBackendContext, incoming
   let pending = await readPendingRefEnds(context, held, state, incoming, published, blocked);
   const required = new Map([...pending, ...completed].map((item) => [item.history, item]));
   const discovered = [...required.values()].filter(({ history }) => !requested.includes(history));
+  options.onObserved?.([...unavailable, ...corrupt.notices, ...first.notices]);
   const acquired = await acquireDiscoveredHistories(discovered.map(({ history }) => history), options);
   if (acquired.status === "fetch-failed") return acquired;
   first.notices.push(...acquired.notices);

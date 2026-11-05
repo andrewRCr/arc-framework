@@ -33,6 +33,7 @@ import { StoredReviewResultReader } from "../../src/scripts/review-gate/hosts/lo
 import { readReviewLane } from "../../src/scripts/review-gate/runtime/lane-read-composition.js";
 import { IntegrationBoundaryLocusV2Schema } from "../../src/scripts/review-gate/policy/integration-boundary-locus-v2.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { createReviewResponsePort } from "../../src/lib/store/kinds/review/evidence-root-selection/responses.js";
 
 async function fixture(kind: "local" | "private-frontline" | "history" | "hosted") {
   const h = await createReviewRepositoryHarness();
@@ -85,6 +86,7 @@ async function fixture(kind: "local" | "private-frontline" | "history" | "hosted
       responseBinding: { candidate: { ...candidate, target: rootTarget }, deliveryMember: member } }));
   const outcomes = createReviewOutcomePort(h.reference.store, primary.reference.owner);
   const evidence = createReviewEvidencePort(h.reference.store, primary.reference.owner);
+  const responses = createReviewResponsePort(h.reference.store, primary.reference.owner);
   await outcomes.create(outcome);
   const approved = reviewEvidenceFixture(outcome, "fix");
   const { dispositionSetId: ignored, ...setInput } = approved.dispositionSet;
@@ -98,7 +100,7 @@ async function fixture(kind: "local" | "private-frontline" | "history" | "hosted
       ? { kind: "candidate" as const, candidate } : { kind: "candidate-member" as const, candidate, deliveryMember: member } };
   const record = composeReviewDispositionRecord(outcome, [value], primary.reference.owner);
   await publishNativeReviewApproval({ outcomes, evidence, record, readProjectId: h.reference.projectId,
-    now: () => "2026-10-20T18:01:00Z" });
+    now: () => "2026-10-20T18:01:00Z", responses });
   await writeFile(join(cwd, "reviewed.txt"), "changed and repaired\n");
   await git("commit", "-am", "Apply approved repair");
   const approvedHead = await git("rev-parse", "HEAD");
@@ -120,7 +122,7 @@ async function fixture(kind: "local" | "private-frontline" | "history" | "hosted
 it.each(["local", "hosted"] as const)("continues a native %s fix through only its export commit", async kind => {
   const f = await fixture(kind), context = createReviewCompositionContext(f.invocation);
   if (context.family.mode !== "stored") throw new Error("Expected the native review family");
-  const { inFlight, dispositions, outcomes, evidence } = context.family.ports;
+  const { inFlight, dispositions, outcomes, evidence, responses } = context.family.ports;
   const coordinates = { lane: "standard" as const, repositoryId: f.outcome.target.repositoryId,
     headSha: f.outcome.target.headSha, lineage: f.outcome.lineage, attemptId: f.outcome.attemptId,
     dispositionSetId: f.record.currentDispositionSetId, now: "2026-10-20T18:03:00Z" };
@@ -158,8 +160,8 @@ it.each(["local", "hosted"] as const)("continues a native %s fix through only it
       producerId: f.outcome.attemptId, confirmResponseHeadContinuation: proof, settlement: { ...receipt,
         disposition: "fix",
         dispositionSetId: f.record.currentDispositionSetId, target: f.outcome.hosted.target,
-        fixTarget: { ...f.outcome.hosted.target, headSha } } });
-    expect(await new StoredReviewResultReader({ outcomes, evidence, readProjectId: f.reference.projectId }).readResult(f.outcome.attemptId)).toMatchObject({ settled: true });
+        fixTarget: { ...f.outcome.hosted.target, headSha } }, responses });
+    expect(await new StoredReviewResultReader({ responses, readProjectId: f.reference.projectId }).readResult(f.outcome.attemptId)).toMatchObject({ settled: true });
   }
 }, 30_000);
 

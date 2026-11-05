@@ -16,6 +16,7 @@ const paths: Partial<Record<KindId, string>> = {
   "project-inbox/inbox": "ATOMIC-INBOX.md", "review/candidate": `review/candidate-${uid}.json`,
   "review/integration-boundary": `review/integration-boundary-${uid}.json`,
   "review/evidence": `review/evidence-event-${uid}.json`, "review/outcome": `review/outcome-event-${uid}.json`,
+  "review/evidence-root-selection": `review/root-selection-event-${uid}.json`,
   "review/decision": `review/decision-event-${uid}.json`,
   "review/adversarial-pass": `review/adversarial-pass-design-2-${uid}.json`,
   "project-registry/identity": "identity.json", "project-registry/counter": "counters/extra.json",

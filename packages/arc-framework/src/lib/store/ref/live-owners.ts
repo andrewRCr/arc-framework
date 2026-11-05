@@ -5,9 +5,10 @@ import type { StoreResult, StoreRefusal } from "../refusal.js";
 import { expandStoredPath, holdsNoRecord } from "../stored-path.js";
 import { readBatchObjects, readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import { matchesFamilyRef, refOwner } from "./codec.js";
-import { parseRefMetadata, type RefMetadata } from "./metadata.js";
+import { readRefMetadata, type RefMetadata, type RefMetadataRead } from "./metadata.js";
 import type { RefBackendContext } from "./context.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
+import { missingHistoryRefs } from "./missing-history.js";
 import type { Slug } from "../../kernel/schema/slug.js";
 import type { LiveRefOwner } from "./namespace-admission.js";
 
@@ -20,26 +21,46 @@ export interface LiveRefOwners { owners: LiveRefOwnerEvidence[]; recordFree: Liv
 /** Read owner names and primary presence from exactly the caller's captured tips; saved tips name historical repair. */
 export async function readLiveRefOwners(context: RefBackendContext, tips: ReadonlyMap<string, string>, saved = false): Promise<StoreResult<LiveRefOwners>> {
   const refs = [...tips].filter(([ref]) => matchesFamilyRef(ref, "work-item") || matchesFamilyRef(ref, "cohort"));
-  const query = (ref: string, tip: string) => `${tip}:metadata-${ref.split("/").at(-1)}.json`;
-  const objects = await readBatchObjects(context, refs.map(([ref, tip]) => query(ref, tip)));
   const trees = refs.length > 0 ? await readRefTrees(context, new Map(refs)) : new Map<string, RefTreeEntry[]>();
+  const metadataEntries = new Map(refs.flatMap(([ref]) => {
+    const entry = trees.get(ref)?.find(({ path }) => path === `metadata-${ref.split("/").at(-1)}.json`);
+    return entry ? [[ref, entry] as const] : [];
+  }));
+  const objects = await readBatchObjects(context, [...metadataEntries.values()].map(({ oid }) => oid));
   const owners: LiveRefOwnerEvidence[] = [];
   const recordFree: LiveRefOwner[] = [];
   const unreadable = new Map<string, StoreRefusal>();
-  for (const [ref, tip] of refs) {
-    const entries = trees.get(ref);
-    const family = matchesFamilyRef(ref, "work-item") ? "work-item" : "cohort";
-    const shell = expandStoredPath(RecordReferenceSchema.parse({ kind: family === "work-item" ? "work-item/meta" : "cohort/document",
-      owner: { type: family, name: "unresolved", uid: ref.split("/").at(-1) } }), { registry: context.registry });
-    const metadata = parseRefMetadata(objects.get(query(ref, tip)), ref);
-    if (entries && holdsNoRecord(shell, entries.map(({ path }) => path))) {
-      recordFree.push(...capturedRecordFreeOwners(ref, family, metadata));
-      continue;
-    }
-    if (!entries || !metadata) { unreadable.set(ref, corruptRef(ref, !entries, saved)); continue; }
-    owners.push(captureLiveRefOwner(context, ref, family, entries, metadata));
+  for (const [ref] of refs) {
+    const captured = await decodeLiveOwner(context, { ref, entries: trees.get(ref),
+      read: readRefMetadata(ref, metadataEntries.get(ref), objects), saved, current: saved ? undefined : tips });
+    if (captured.kind === "live") owners.push(captured.owner);
+    else if (captured.kind === "record-free") recordFree.push(...captured.owners);
+    else unreadable.set(ref, captured.refusal);
   }
   return { status: "ok", result: { owners, recordFree, unreadable } };
+}
+
+interface LiveOwnerRead {
+  ref: string; entries?: readonly RefTreeEntry[]; read: RefMetadataRead; saved: boolean; current?: ReadonlyMap<string, string>;
+}
+type LiveOwnerCapture = { kind: "live"; owner: LiveRefOwnerEvidence }
+  | { kind: "record-free"; owners: LiveRefOwner[] } | { kind: "unreadable"; refusal: StoreRefusal };
+
+async function decodeLiveOwner(context: RefBackendContext, { ref, entries, read, saved, current }: LiveOwnerRead): Promise<LiveOwnerCapture> {
+  const family = matchesFamilyRef(ref, "work-item") ? "work-item" : "cohort";
+  const shell = expandStoredPath(RecordReferenceSchema.parse({ kind: family === "work-item" ? "work-item/meta" : "cohort/document",
+    owner: { type: family, name: "unresolved", uid: ref.split("/").at(-1) } }), { registry: context.registry });
+  if (entries && holdsNoRecord(shell, entries.map(({ path }) => path))) return { kind: "record-free",
+    owners: capturedRecordFreeOwners(ref, family, read.kind === "parsed" ? read.metadata : null) };
+  if (!entries) return { kind: "unreadable", refusal: refObjectFault(ref, "missing", {
+    condition: `The tip or a tree of ${ref} is unavailable locally.`,
+    historyRefs: await missingHistoryRefs(context, [ref], current),
+  }).refusal };
+  if (read.kind !== "parsed") return { kind: "unreadable", refusal: refObjectFault(ref,
+    read.kind === "absent" ? "no-metadata" : read.kind, { saved,
+      historyRefs: read.kind === "missing" ? await missingHistoryRefs(context, [ref], current) : undefined,
+    }).refusal };
+  return { kind: "live", owner: captureLiveRefOwner(context, ref, family, entries, read.metadata) };
 }
 
 /** Apply the same actual-primary evidence rule to a live Git capture and an already captured lookup tree. */

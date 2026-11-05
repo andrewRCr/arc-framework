@@ -20,6 +20,8 @@ import { bindHostedAttemptDisposition } from "../../../../../src/scripts/review-
 import { createDispositionSet, approveDispositionSet } from "../../../../../src/scripts/review-gate/core/dispositions.js";
 import { ReviewEvidenceSchema } from "../../../../../src/lib/store/kinds/review/evidence/schema.js";
 import { publishNativeReviewSuccessor } from "../../../../../src/scripts/review-gate/runtime/native-review-successor.js";
+import { createReviewResponsePort } from "../../../../../src/lib/store/kinds/review/evidence-root-selection/responses.js";
+import type { ListInput } from "../../../../../src/lib/store/read.js";
 
 async function nativeSettlement(fix = false, perform = true) {
   const h = createReviewHarness(), seed = hostedSettlementFixture();
@@ -33,8 +35,9 @@ async function nativeSettlement(fix = false, perform = true) {
   await h.seedProject(outcome.target.repositoryId);
   const primary = await h.seedMeta("example");
   const outcomes = createReviewOutcomePort(h.store, primary.reference.owner), evidence = createReviewEvidencePort(h.store, primary.reference.owner);
+  const responses = createReviewResponsePort(h.store, primary.reference.owner);
   const original = await outcomes.create(outcome);
-  const ports = { outcomes, evidence, readProjectId: h.projectId };
+  const ports = { outcomes, evidence, readProjectId: h.projectId, responses };
   const approved = await publishNativeReviewApproval({ ...ports,
     record: composeReviewDispositionRecord(outcome, [{ ...prior, performance: undefined }], primary.reference.owner), now: () => "2026-10-20T12:00:00Z" });
   const performanceInput = prior.performance === undefined ? null : { ...ports,
@@ -114,14 +117,20 @@ it("refuses settlement when the producer observation is no longer findings and r
   const h = await nativeSettlement();
   const clean = ReviewOutcomeSchema.parse(hostedOutcome({ repositoryId: h.outcome.target.repositoryId, outcome: "clean" }));
   expect(clean.attemptId).toBe(h.outcome.attemptId);
-  const outcomes = { ...h.ports.outcomes, list: async () => {
-    const listing = await h.ports.outcomes.list();
-    return listing.status !== "complete" ? listing : { ...listing, records: listing.records.map(record =>
-      record.value.attemptId === clean.attemptId ? { ...record, value: clean } : record) };
-  } };
+  const observedStore = new Proxy(h.h.store, { get(target, key) {
+    if (key === "list") return async (input: ListInput) => {
+      const result = await target.list(input);
+      if (input.kind !== "review/outcome" || result.status !== "ok" || result.result.status !== "complete") return result;
+      return { ...result, result: { ...result.result, records: result.result.records.map(record =>
+        record.reference.key === h.original.reference.key ? { ...record, content: JSON.stringify(clean) } : record) } };
+    };
+    const value: unknown = Reflect.get(target, key, target);
+    return typeof value === "function" ? value.bind(target) : value;
+  } });
+  const responses = createReviewResponsePort(observedStore, h.primary.reference.owner);
   const before = await h.ports.evidence.list();
-  await expect(publishNativeHostedSettlement({ ...h.input, outcomes })).rejects.toThrow(
-    "Hosted settlement requires the current approved response for this producer; restore it and retry.");
+  await expect(publishNativeHostedSettlement({ ...h.input, responses })).rejects.toMatchObject({
+    refusal: { code: "record-malformed", class: "recoverable", rule: "review.evidence.context" } });
   expect(await h.ports.evidence.list()).toEqual(before);
   expect((await publishNativeHostedSettlement(h.input)).value.settlement?.evidence).toHaveLength(1);
 });

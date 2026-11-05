@@ -1,5 +1,6 @@
 /** Validated local mutations resolved onto state refs before object construction. */
 
+import { RefGitLockError, refGitLockRefusal } from "./git-lock.js";
 import { malformedStoreInput } from "../malformed-input.js";
 import { storeDirectoryVanished, writeRefRepository } from "./repository.js";
 import { BatchInputSchema, WriteInputSchema, type Mutation, type BatchInput, type BatchResult, type WriteInput, type WriteResult, type RecordObservation } from "../write.js";
@@ -9,8 +10,8 @@ import type { StoreRefusal, StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { randomUUID } from "node:crypto";
 import { resolveRefWrites, refWriteTargets, refWriteIdentityRefusal } from "./write-resolution.js";
-import { commitRefWrites } from "./write-build.js";
-import { archivedLockRefs, archiveBasisChanged } from "./archive-resolution.js";
+import { capturedRefHistoryDestinations, commitRefWrites } from "./write-build.js";
+import { archivedLockRefs, changedArchiveBasisRefs } from "./archive-resolution.js";
 import { completedMoveLockRefs } from "./write-completed.js";
 import { retirementLockRefs } from "./write-retirement.js";
 import { archiveLockRefs } from "./write-archive.js";
@@ -21,9 +22,10 @@ import type { ResolvedBatch } from "./write-resolution.js";
 import { checkSerializationRules } from "../serialization.js";
 import { checkRefKey, checkRefBatchPaths } from "./path-admission.js";
 import { prepareRefPut } from "./prepare-content.js";
-import { retainedBasisChanged } from "./write-retained.js";
+import { changedRetainedBasisRefs } from "./write-retained.js";
 import { checkRefWriterRules } from "./writer-admission.js";
 import { RefSyncLabelError } from "./sync-label.js";
+import { observeRefHistoryRead, recordRefHistoryRetry, type RefHistoryRetryState, type RefHistoryResolution, type RefHistoryAttempt } from "./write-retry.js";
 
 /** Describe invalid mutation content without changing any state. */
 function malformedMutation(reference: RecordReference, condition: string, rule = "store.mutation"): StoreRefusal {
@@ -71,6 +73,7 @@ export async function batchRefRecords(context: RefBackendContext, input: BatchIn
 }
 
 function refBatchFailure(error: unknown): StoreResult<never> {
+  if (error instanceof RefGitLockError) return { status: "refused", refusal: refGitLockRefusal(error) };
   if (error instanceof RefSyncLabelError) return { status: "refused", refusal: error.refusal };
   if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
   return { status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,
@@ -114,20 +117,22 @@ async function executeRefBatch(context: RefBackendContext, input: BatchInput, ba
   const identity = await refWriteIdentityRefusal(context, input.writes);
   if (identity) return { status: "refused", refusal: identity };
   const source = context.repository?.source ?? context;
+  const history: RefHistoryRetryState = { observed: new Map(), consecutive: 0, resolution: "initial" };
   for (;;) {
     let captured: ReadonlyMap<string, string> | undefined;
     const bound = await writeRefRepository(source, tips => { captured = tips; });
     let result: StoreResult<BatchResult> | "layout-changed" | null;
-    try { result = await attemptRefBatch({ ...bound, writeEvidence: { objects: new Map(), trees: new Map() } }, input, batchId, captured); }
-    catch (error) { if (await storeDirectoryVanished(bound, error)) { await context.operationScope?.refresh(); continue; } throw error; }
+    try { result = await attemptRefBatch({ ...bound, writeEvidence: { objects: new Map(), trees: new Map() } }, input, batchId, captured, history); }
+    catch (error) { if (await storeDirectoryVanished(bound, error)) { history.resolution = "uncompared"; await context.operationScope?.refresh(); continue; } throw error; }
     if (result !== null && result !== "layout-changed") return result;
+    if (result === "layout-changed") history.resolution = "uncompared";
     await context.operationScope?.refresh();
   }
 }
 
 /** Resolve and commit one batch against the layout its attempt bound; null or a changed layout starts it again. */
 async function attemptRefBatch(context: RefBackendContext, input: BatchInput, batchId: string,
-  captured: ReadonlyMap<string, string> | undefined): Promise<StoreResult<BatchResult> | "layout-changed" | null> {
+  captured: ReadonlyMap<string, string> | undefined, history: RefHistoryRetryState): Promise<StoreResult<BatchResult> | "layout-changed" | null> {
   const resolved = await resolveRefWrites(context, input.writes, captured);
   if (resolved.status === "refused") return resolved;
   // Handles that differ before resolution, a name and a UID or two primary roles of one new owner, can name one record.
@@ -139,26 +144,57 @@ async function attemptRefBatch(context: RefBackendContext, input: BatchInput, ba
   const collision = checkRefBatchPaths(resolved.result.writes.filter((write) => write.mutation.action === "put")
     .map((write) => write.mutation.reference), context.registry);
   if (collision) return { status: "refused", refusal: collision };
-  return withRefLocks(context, [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...registryAnchorLockRefs(context, resolved.result), ...(resolved.result.retained?.length ? ["refs/arc/project/registry", ...resolved.result.retained.map(({ home }) => home.ref.replace("refs/arc/history/", "refs/arc/"))] : []), ...archiveLockRefs(resolved.result), ...archivedLockRefs(resolved.result), ...completedMoveLockRefs(resolved.result), ...retirementLockRefs(refWriteTargets(context, resolved.result))], () =>
-    commitLockedRefBatch(context, resolved.result, input.provenance, batchId, input.observations ?? []));
+  const anchor = await registryAnchorLockRefs(context, resolved.result);
+  if (anchor.status === "refused") return anchor;
+  const locks = [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...anchor.result, ...(resolved.result.retained?.length ? ["refs/arc/project/registry", ...resolved.result.retained.map(({ home }) => home.ref.replace("refs/arc/history/", "refs/arc/"))] : []), ...archiveLockRefs(resolved.result), ...archivedLockRefs(resolved.result), ...completedMoveLockRefs(resolved.result), ...retirementLockRefs(refWriteTargets(context, resolved.result))];
+  return withRefLocks(context, locks, () =>
+    commitLockedRefBatch(context, { resolved: resolved.result, provenance: input.provenance, batchId,
+      observations: input.observations ?? [], locks: new Set(locks), history }));
 }
 
-async function commitLockedRefBatch(context: RefBackendContext, resolved: ResolvedBatch,
-  provenance: BatchInput["provenance"], batchId: string, observations: readonly RecordObservation[]): Promise<StoreResult<BatchResult> | "layout-changed" | null> {
+interface LockedRefBatch {
+  resolved: ResolvedBatch; provenance: BatchInput["provenance"]; batchId: string;
+  observations: readonly RecordObservation[]; locks: ReadonlySet<string>; history: RefHistoryRetryState;
+}
+
+async function commitLockedRefBatch(context: RefBackendContext, batch: LockedRefBatch): Promise<StoreResult<BatchResult> | "layout-changed" | null> {
+  const resolution: RefHistoryResolution = { tips: batch.resolved.tips, pending: batch.history.resolution };
   for (;;) {
-    const tips = await readRefTips(context, { includeHistory: true });
-    if (ownerLocationsChanged(context, resolved, tips) || archiveBasisChanged(resolved, tips) || retainedBasisChanged(resolved.retained ?? [], resolved.tips, tips)) return null;
-    const result = await commitRefWrites(context, { ...resolved, tips }, provenance, batchId, observations);
-    if (result === "resolve") return null;
+    const result = await attemptLockedRefBatch(context, batch, resolution);
     if (result !== "retry") return result;
   }
 }
 
-function ownerLocationsChanged(context: RefBackendContext, resolved: ResolvedBatch, tips: ReadonlyMap<string, string>): boolean {
-  return refWriteTargets(context, resolved).some(({ home }) => {
+async function attemptLockedRefBatch(context: RefBackendContext, batch: LockedRefBatch,
+  resolution: RefHistoryResolution): Promise<StoreResult<BatchResult> | "retry" | "layout-changed" | null> {
+  const { resolved, provenance, batchId, observations, locks, history } = batch;
+  const attempt: RefHistoryAttempt = { resolution, counted: false };
+  const tips = await readRefTips(context, { includeHistory: true });
+  const changed = [...new Set([...changedOwnerLocationRefs(context, resolved, tips), ...changedArchiveBasisRefs(resolved, tips),
+    ...changedRetainedBasisRefs(resolved.retained ?? [], resolved.tips, tips)])];
+  if (changed.length) {
+    const destinations = await capturedRefHistoryDestinations(context, resolved, provenance, batchId);
+    const refusal = destinations ? recordRefHistoryRetry(history, { status: "retry", destinations,
+      observed: new Map([...destinations.keys()].map(ref => [ref, tips.get(ref) ?? null])) }, attempt, changed) : undefined;
+    history.resolution = destinations ? "basis" : "uncompared";
+    return refusal ? { status: "refused", refusal } : null;
+  }
+  const anchor = await registryAnchorLockRefs(context, { ...resolved, tips });
+  if (anchor.status === "refused") return anchor;
+  if (anchor.result.some(ref => !locks.has(ref))) { history.resolution = "uncompared"; return null; }
+  const result = await commitRefWrites(context, { ...resolved, tips }, provenance, batchId, observations,
+    destinations => observeRefHistoryRead(history, destinations, attempt));
+  if (result === "resolve") { history.resolution = "uncompared"; return null; }
+  if (result === "layout-changed" || result.status !== "retry") return result;
+  const refusal = recordRefHistoryRetry(history, result, attempt);
+  return refusal ? { status: "refused", refusal } : "retry";
+}
+
+function changedOwnerLocationRefs(context: RefBackendContext, resolved: ResolvedBatch, tips: ReadonlyMap<string, string>): string[] {
+  return refWriteTargets(context, resolved).flatMap(({ home }) => {
     const refs = [home.ref];
     if (/^refs\/arc\/(?:work|cohort)\//u.test(home.ref)) refs.push(home.ref.replace("refs/arc/", "refs/arc/history/"));
-    return refs.some((ref) => tips.has(ref) !== resolved.tips.has(ref));
+    return refs.filter((ref) => tips.has(ref) !== resolved.tips.has(ref));
   });
 }
 

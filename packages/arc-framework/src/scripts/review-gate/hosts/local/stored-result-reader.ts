@@ -1,8 +1,7 @@
 /** Immutable producer results read from the invocation's portable review facts. */
 import { StoreRefusalError } from "../../../../lib/store/refusal-error.js";
-import { reviewFactListingError } from "../../../../lib/store/kinds/review/fact-access.js";
 import { projectStoredFrontlineOutcome } from "../../core/frontline-result.js";
-import type { ReviewOutcomePort, ReviewEvidencePort, ReviewResultReader } from "../../core/ports.js";
+import type { ReviewResponsePort, ReviewResultReader, StoredReviewFact } from "../../core/ports.js";
 import type { ReviewResult } from "../../core/review-result.js";
 import type { ReviewOutcome } from "../../../../lib/store/kinds/review/outcome/schema.js";
 import type { OwnerIdentity } from "../../../../lib/store/identity.js";
@@ -16,38 +15,47 @@ import { LocalReviewResultReaderError } from "./review-result-reader.js";
 
 /** Read results without requiring machine-local execution or source records. */
 export class StoredReviewResultReader implements ReviewResultReader {
-  constructor(private readonly dependencies: { outcomes: ReviewOutcomePort; readProjectId: () => Promise<string>;
-    evidence: Pick<ReviewEvidencePort, "list"> }) {}
+  constructor(private readonly dependencies: { responses: ReviewResponsePort; readProjectId: () => Promise<string> }) {}
 
   /** Read one exact producer admitted under the selected native owner. */
   async readResult(producerId: string): Promise<ReviewResult> {
+    return (await this.readProducerResult(producerId)).result;
+  }
+
+  /** Retain the immutable producer fact for a prepared write without rediscovering its result. */
+  async readProducerResult(producerId: string): Promise<{ result: ReviewResult; outcome: StoredReviewFact<ReviewOutcome> }> {
+    const { response, result } = await this.readProducer(producerId, "producer-result");
+    return { result, outcome: response.outcome };
+  }
+
+  /** Retain selected authority and its mutation basis together with the projected result. */
+  async readAuthority(producerId: string): Promise<{ result: ReviewResult; outcome: StoredReviewFact<ReviewOutcome>;
+    evidence: readonly StoredReviewFact<ReviewEvidence>[] }> {
+    const { response, result } = await this.readProducer(producerId, "authority");
+    if (response.authority !== "loaded") throw new LocalReviewResultReaderError("corrupt-result", "Response authority was not loaded.");
+    return { result, outcome: response.outcome, evidence: response.evidence };
+  }
+
+  private async readProducer(producerId: string, purpose: "authority" | "producer-result") {
     try {
       const projectId = await this.dependencies.readProjectId();
-      const listing = await this.dependencies.outcomes.list();
-      if (listing.status !== "complete") throw listing.refusal === undefined
-        ? new LocalReviewResultReaderError("corrupt-result", listing.reason) : reviewFactListingError(listing);
-      const matches = listing.records.filter(({ value }) => value.attemptId === producerId);
-      if (matches.length === 0) throw new LocalReviewResultReaderError("missing-producer", `No review producer matches '${producerId}'.`);
-      if (matches.length !== 1) throw new LocalReviewResultReaderError("ambiguous-result");
-      const stored = matches[0];
-      if (stored === undefined) throw new LocalReviewResultReaderError("missing-producer");
+      const response = purpose === "authority" ? await this.dependencies.responses.read(producerId, "authority")
+        : await this.dependencies.responses.read(producerId, "producer-result");
+      if (response.status === "missing-producer") throw new LocalReviewResultReaderError("missing-producer", `No review producer matches '${producerId}'.`);
+      const stored = response.outcome;
       if (stored.value.target.repositoryId !== projectId || stored.reference.owner.type !== "work-item"
         || stored.reference.owner.uid === undefined) throw new LocalReviewResultReaderError("corrupt-result", "Restore the producer under its selected project and exact work-item owner.");
-      if (stored.value.hosted !== undefined) return await this.readHostedResult(stored.value, stored.reference.owner);
-      return stored.value.frontline === undefined ? localResult(stored.value, stored.reference.owner)
-        : frontlineResult(stored.value, stored.reference.owner);
+      if (stored.value.hosted !== undefined) {
+        if (response.authority !== "loaded") throw new LocalReviewResultReaderError("corrupt-result", "Hosted results require loaded response authority.");
+        return { response, result: hostedResult(stored.value, stored.reference.owner, response.evidence.map(record => record.value)) };
+      }
+      return { response, result: stored.value.frontline === undefined ? localResult(stored.value, stored.reference.owner)
+        : frontlineResult(stored.value, stored.reference.owner) };
     } catch (error) {
       if (error instanceof LocalReviewResultReaderError || error instanceof ProjectIdentityError
         || (error instanceof StoreRefusalError && error.offBranch)) throw error;
       throw new LocalReviewResultReaderError("corrupt-result", error instanceof Error ? error.message : "producer result cannot be validated");
     }
-  }
-
-  private async readHostedResult(outcome: ReviewOutcome, workItem: OwnerIdentity): Promise<ReviewResult> {
-    const listing = await this.dependencies.evidence.list();
-    if (listing.status !== "complete") throw listing.refusal === undefined
-      ? new LocalReviewResultReaderError("corrupt-result", listing.reason) : reviewFactListingError(listing);
-    return hostedResult(outcome, workItem, listing.records.map(record => record.value));
   }
 }
 

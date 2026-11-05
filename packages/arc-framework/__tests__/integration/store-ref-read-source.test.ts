@@ -8,6 +8,7 @@ import { writeLineageRecord } from "../../src/lib/store/kinds/lineage/index.js";
 import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { createReadSourceStore, createRefStore, HistoryRefSchema, RecordReferenceSchema, PushResultSchema } from "../../src/lib/store/index.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
+import { removeLooseObject } from "../helpers/store/ref-plant.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 
@@ -264,6 +265,36 @@ describe.each(["default", "separate"] as const)("concurrent read-source adoption
     await h.b.git(["config", `remote.${h.remoteName}.arc-state`, "off"]);
     return h;
   }
+  it("refuses the whole pull when the fetched identity blob is missing and adopts after repair", async () => {
+    const h = await uninitialized();
+    let removed = false, oid = "", bytes = "", directory = "";
+    const store = createRefStore({ ...h.b.ports, exec: async (command, args, options) => {
+      const fetched = await h.b.ports.exec(command, args, options);
+      if (!removed && args.includes("fetch") && options?.input?.includes(":refs/arc-remotes/upstream/")) {
+        directory = (await h.b.git(["rev-parse", "--absolute-git-dir"])).stdout.trim();
+        oid = (await h.b.git(["rev-parse", "refs/arc-remotes/upstream/project/registry:identity.json"])).stdout.trim();
+        bytes = (await h.b.git(["cat-file", "blob", oid])).stdout;
+        removed = true;
+        await removeLooseObject(h.b.root, oid, directory);
+      }
+      return fetched;
+    } });
+    const refused = await store.pull();
+    expect(removed).toBe(true);
+    await expect(h.b.git(["cat-file", "-e", oid])).rejects.toBeDefined();
+    expect(refused).toMatchObject({ status: "refused", refusal: {
+      code: "state-unresolvable", class: "recoverable", historyRefs: [],
+      condition: expect.stringContaining(oid), remedy: { text: expect.stringMatching(/restore|fetch/iu) },
+    } });
+    expect(await h.b.store.read({ reference: identity })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    const restored = await h.b.exec("git", [`--git-dir=${directory}`, "hash-object", "-t", "blob", "-w", "--stdin"], { input: bytes });
+    expect(restored.stdout.trim()).toBe(oid);
+    expect(success(await store.pull()).pulls).toContainEqual(expect.objectContaining({ remote: "upstream", status: "pulled" }));
+    expect(success(await h.b.store.read({ reference: identity })).content).toBe(content);
+    expect(success(await h.b.store.history({ reference: identity }))).toEqual([
+      expect.objectContaining({ provenance: expect.objectContaining({ lifecycleAction: "adopt-project-id" }) }),
+    ]);
+  });
   it("accepts a concurrently created identity without recording a second adoption", async () => {
     const h = await uninitialized();
     let race = true;

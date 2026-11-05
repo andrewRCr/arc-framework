@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RecordReferenceSchema, type RecordReference } from "../../src/lib/store/identity.js";
+import { OwnerIdentitySchema, RecordReferenceSchema, type RecordReference } from "../../src/lib/store/identity.js";
 import { KIND_REGISTRY } from "../../src/lib/store/registry.js";
 import { canonicalize } from "../../src/lib/kernel/canonical/canonical-json.js";
 import { expandStoredPath } from "../../src/lib/store/stored-path.js";
@@ -19,15 +19,31 @@ import { reviewEvidenceFixture } from "../fixtures/review-evidence.js";
 import { localOutcome } from "../fixtures/review-outcome.js";
 import { terminusDecision } from "../fixtures/review-decision.js";
 import { adversarialPassFixture } from "../fixtures/review-adversarial-pass.js";
+import { ReviewOutcomeSchema } from "../../src/lib/store/kinds/review/outcome/schema.js";
+import { reviewOutcomeKey } from "../../src/lib/store/kinds/review/outcome/key.js";
+import { reviewOutcomeResultDigest } from "../../src/lib/store/kinds/review/outcome/result.js";
+import { ReviewEvidenceRootSelectionSchema } from "../../src/lib/store/kinds/review/evidence-root-selection/schema.js";
+import { reviewEvidenceRootSelectionKey } from "../../src/lib/store/kinds/review/evidence-root-selection/key.js";
 
 const uid = "12345678-1234-4234-8234-123456789abc";
 const retiredUid = "abcdef12-1234-4234-8234-123456789abc";
 const owner = { type: "work-item", name: "alpha", uid } as const;
+const rootSelection = rootSelectionContent();
 const REVIEW_CONTENT: Partial<Record<RecordReference["kind"], () => unknown>> = {
   "review/candidate": () => candidateRecordFixture().record, "review/integration-boundary": () => boundaryV2Fixture(),
   "review/evidence": () => reviewEvidenceFixture(), "review/outcome": () => localOutcome(),
   "review/decision": terminusDecision, "review/adversarial-pass": () => adversarialPassFixture(),
+  "review/evidence-root-selection": () => rootSelection,
 };
+function rootSelectionContent() {
+  const outcome = ReviewOutcomeSchema.parse(localOutcome({ outcome: "findings", findings: [{ findingId: "finding-1",
+    severity: "major", locus: "src/main.ts:1", evidenceUrlOrId: "finding:1", sourceOrdinal: 1 }] }));
+  const roots = (["fix", "defer"] as const)
+    .map(disposition => reviewEvidenceFixture(outcome, disposition).dispositionSet.dispositionSetId).sort();
+  return ReviewEvidenceRootSelectionSchema.parse({ schemaVersion: 1, producerId: outcome.attemptId,
+    outcomeKey: reviewOutcomeKey(outcome), resultDigest: reviewOutcomeResultDigest(outcome), roots, selectedRoot: roots[0],
+    decidedBy: "andrew", decidedAt: "2026-11-03T10:00:00Z", reason: "Retain the selected response in the raw codec fixture." });
+}
 function machineContent(reference: RecordReference): string | undefined {
   if (reference.kind === "work-item/cut-map") {
     const map = cutMapFixture();
@@ -60,7 +76,8 @@ describe.each(["files", "reftable"] as const)("registered ref decode (%s)", (for
           : { type: kind.owner, name: origin ? "retired" : errand ? "errand" : "alpha",
             uid: origin ? retiredUid : errand ? "23456789-1234-4234-8234-123456789abc"
               : kind.owner === "cohort" ? "56789012-1234-4234-8234-123456789abc" : uid };
-      const key = kind.key === "pass" ? { activity: "design", number: 2 } : kind.id === "claims/groom" ? "groom-one"
+      const key = kind.id === "review/evidence-root-selection" ? reviewEvidenceRootSelectionKey(OwnerIdentitySchema.parse(owner), rootSelection.producerId)
+        : kind.key === "pass" ? { activity: "design", number: 2 } : kind.id === "claims/groom" ? "groom-one"
         : kind.id === "personal/document" ? "extra.svg" : "one";
       const reference = RecordReferenceSchema.parse({ owner: recordOwner, kind: kind.id, ...(kind.key === null ? {} : { key }) });
       references.push(reference);

@@ -13,6 +13,8 @@ import { isTerminalSnapshotRepair } from "../kinds/lineage/repair.js";
 import { mergeRefMutation, type PreparedRefMutation } from "./write-merge.js";
 import type { StoreResult } from "../refusal.js";
 import { latestFolderPlacement } from "./archive-read.js";
+import { refObjectFault } from "./object-fault.js";
+import { missingHistoryRefs } from "./missing-history.js";
 
 /** Captured tree and metadata shared by admission and tree preparation. */
 export interface CapturedWriteGroup { entries: Map<string, RefTreeEntry>; metadata: RefMetadata }
@@ -28,21 +30,13 @@ export async function prepareCapturedWrites(context: RefBackendContext, resolved
     const write = primaryWriteBasis(context, requested, group);
     const basis = { ...write, mutation: { ...write.mutation, reference: write.prior?.reference ?? write.mutation.reference },
       home: write.prior?.home ?? write.home };
-    if (!await staleMutation(context, basis, group, provenance)) { prepared.push({ ...write, conflicts: [] }); continue; }
-    const { mutation } = write;
-    const home = write.prior?.home ?? write.home;
-    const definition = context.registry[mutation.reference.kind];
-    const entry = group.entries.get(home.path);
-    const tip = resolved.tips.get(home.ref);
-    if (mutation.action === "put" && mutation.expected !== null && entry && tip
-      && basis.mutation.reference.kind === mutation.reference.kind && definition.merge !== "single-writer" && !["create-only", "write-once"].includes(definition.writerRule)) {
-      const current = refRecordVersion(mutation.reference, entry.oid, group.metadata,
-        group.metadata.formats[refFormatKey(mutation.reference)] ?? 1);
-      const merged = await mergeRefMutation(context, { ...write, home }, tip, current, latestFolderPlacement(resolved.archived ?? [], home.ref));
-      if (merged.status === "refused") return merged;
-      if (merged.result) { prepared.push({ ...merged.result, home: write.home }); continue; }
-    }
-    stale.push(mutation.reference);
+    const admission = await staleMutation(context, basis, group, provenance, resolved.tips);
+    if (admission.status === "refused") return admission;
+    if (!admission.result) { prepared.push({ ...write, conflicts: [] }); continue; }
+    const merged = await mergeCapturedStaleWrite(context, resolved, write, basis, group);
+    if (merged.status === "refused") return merged;
+    if (merged.result) { prepared.push(merged.result); continue; }
+    stale.push(write.mutation.reference);
   }
   return stale.length > 0 ? { status: "refused", refusal: {
     code: "version-conflict", class: "recoverable", records: stale,
@@ -51,22 +45,37 @@ export async function prepareCapturedWrites(context: RefBackendContext, resolved
   } } : { status: "ok", result: prepared };
 }
 
+async function mergeCapturedStaleWrite(context: RefBackendContext, resolved: ResolvedBatch, write: ResolvedMutation,
+  basis: ResolvedMutation, group: CapturedWriteGroup): Promise<StoreResult<PreparedRefMutation | undefined>> {
+  const { mutation } = write, home = write.prior?.home ?? write.home;
+  const definition = context.registry[mutation.reference.kind], entry = group.entries.get(home.path), tip = resolved.tips.get(home.ref);
+  if (mutation.action !== "put" || mutation.expected === null || !entry || !tip
+    || basis.mutation.reference.kind !== mutation.reference.kind || definition.merge === "single-writer"
+    || ["create-only", "write-once"].includes(definition.writerRule)) return { status: "ok", result: undefined };
+  const current = refRecordVersion(mutation.reference, entry.oid, group.metadata, group.metadata.formats[refFormatKey(mutation.reference)] ?? 1);
+  const merged = await mergeRefMutation(context, { ...write, home }, tip, current, latestFolderPlacement(resolved.archived ?? [], home.ref));
+  return merged.status === "refused" ? merged : { status: "ok", result: merged.result ? { ...merged.result, home: write.home } : undefined };
+}
+
 async function staleMutation(context: RefBackendContext, { mutation, home }: ResolvedMutation,
-  group: CapturedWriteGroup, provenance: BatchInput["provenance"]): Promise<boolean> {
+  group: CapturedWriteGroup, provenance: BatchInput["provenance"], tips: ReadonlyMap<string, string>): Promise<StoreResult<boolean>> {
   const { reference } = mutation;
   const entry = group.entries.get(home.path);
   if (mutation.expected === null) {
-    if (entry) return true;
-    if (reference.kind !== "work-item/meta" && reference.kind !== "work-item/record") return false;
+    if (entry) return { status: "ok", result: true };
+    if (reference.kind !== "work-item/meta" && reference.kind !== "work-item/record") return { status: "ok", result: false };
     const other = { ...reference, kind: reference.kind === "work-item/meta" ? "work-item/record" as const : "work-item/meta" as const };
-    return group.entries.has(expandStoredPath(other, { registry: context.registry }).path);
+    return { status: "ok", result: group.entries.has(expandStoredPath(other, { registry: context.registry }).path) };
   }
   const format = group.metadata.formats[refFormatKey(reference)] ?? 1;
   const version = entry ? refRecordVersion(reference, entry.oid, group.metadata, format) : null;
-  if (mutation.expected !== version) return true;
-  if (mutation.action !== "put" || !["create-only", "write-once"].includes(context.registry[reference.kind].writerRule)) return false;
+  if (mutation.expected !== version) return { status: "ok", result: true };
+  if (mutation.action !== "put" || !["create-only", "write-once"].includes(context.registry[reference.kind].writerRule)) return { status: "ok", result: false };
   const object = entry ? (await readBatchObjects(context, [entry.oid])).get(entry.oid) : null;
-  return !isTerminalSnapshotRepair({ ...mutation, provenance }, object?.type === "blob" ? new TextDecoder().decode(object.bytes) : null);
+  if (object?.type !== "blob") return { status: "refused", refusal: refObjectFault(home.ref, "missing", {
+    reference, key: `${home.ref}:${home.path}`, historyRefs: await missingHistoryRefs(context, [home.ref], tips),
+  }).refusal };
+  return { status: "ok", result: !isTerminalSnapshotRepair({ ...mutation, provenance }, new TextDecoder().decode(object.bytes)) };
 }
 
 function primaryWriteBasis(context: RefBackendContext, write: ResolvedMutation, group: CapturedWriteGroup): ResolvedMutation {

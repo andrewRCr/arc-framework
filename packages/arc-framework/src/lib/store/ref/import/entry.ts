@@ -11,9 +11,9 @@ import { readRefRepository, writeRefRepository } from "../repository.js";
 import type { Store } from "../../contract.js";
 import { inspectImportDestination } from "./occupied.js";
 import { publishImport } from "./finish.js";
-import { landImportRefs } from "./land.js";
+import { landImportRefs, type ImportLandingOutcome } from "./land.js";
 import { keepImportPublication } from "./transient-publication.js";
-import { keepImportTransients } from "./transient-cleanup.js";
+import { keepImportTransients, importTransientDeletes } from "./transient-cleanup.js";
 import { prepareImportCodeLinks, qualifyImportCodeLinks } from "./code-links.js";
 import { mapImportReview } from "./review-mapping.js";
 
@@ -29,14 +29,15 @@ export async function importTrackedState(context: RefBackendContext, store: Stor
   await context.migrateStep?.("import.build");
   const codeHead = (await context.exec("git", ["rev-parse", "HEAD"], { cwd: context.checkoutRoot })).stdout.trim();
   const transients = { tips: new Map<string, string>(), notices: [] as MigrateReport["notices"] };
+  const informational: MigrateReport["notices"] = [];
   const proposedId = existingId ?? randomUUID();
-  const source = await mapImportReview(context, await readImportSource(context, report, codeHead, transients), report, proposedId);
+  const source = await mapImportReview(context, await readImportSource(context, report, codeHead, transients, informational), report, proposedId);
   const records = prepareImportRecords(context, source.records, report);
   const candidates = prepareImportCandidateSources(context, source.candidates, report);
   const skipped: MigrateReport["notices"] = [];
   await prepareImportCodeLinks(context, records, report, skipped);
   const blocked = report.refused.length > 0 || report.notices.length > 0;
-  report.notices.push(...transients.notices, ...skipped);
+  report.notices.push(...transients.notices, ...skipped, ...informational);
   if (existingId === null) report.notices.push({ condition: "The landing would mint the repository identity ID." });
   if (blocked) return input.trial ? { status: "ok", result: report } : importRefused(report);
   const projectId = input.trial ? proposedId : await resolveRepositoryIdentity(publisher, () => proposedId);
@@ -54,12 +55,13 @@ export async function importTrackedState(context: RefBackendContext, store: Stor
 async function landImport(context: RefBackendContext, store: Store, report: MigrateReport, records: readonly ImportRecord[],
   landing: { codeHead: string; projectId: string; tips: ReadonlyMap<string, string>; trial: boolean;
     candidates: readonly ImportCandidateSource[] }): Promise<StoreMigrateResult> {
-  const { codeHead, projectId, tips, trial, candidates } = landing;
+  const { codeHead, tips, trial, candidates } = landing;
   if (!trial) await keepImportTransients(context, tips);
   const physical = trial ? await readRefRepository(context) : await writeRefRepository(context);
   const refs = await buildImportCommits(physical, records, codeHead, randomUUID(), candidates);
   if (!trial && tips.size) await keepImportPublication(context, refs);
-  if (!await landImportRefs(physical, refs, trial, tips)) return landingRace(context, store, report, projectId, trial);
+  const landed = await landImportRefs(physical, refs, trial, tips);
+  if (landed.status !== "committed") return landingRace(context, store, report, landing, landed);
   return trial ? { status: "ok", result: report } : publishImport(context, store, report);
 }
 
@@ -70,13 +72,27 @@ function reviewIdentityChanged(context: RefBackendContext, report: MigrateReport
   return true;
 }
 
-async function landingRace(context: RefBackendContext, store: Store, report: MigrateReport, projectId: string, trial: boolean): Promise<StoreMigrateResult> {
-  const occupied = await inspectImportDestination(context, store, projectId);
+async function landingRace(context: RefBackendContext, store: Store, report: MigrateReport,
+  landing: { projectId: string; trial: boolean; tips: ReadonlyMap<string, string> },
+  failure: Exclude<ImportLandingOutcome, { status: "committed" }>): Promise<StoreMigrateResult> {
+  const occupied = await inspectImportDestination(context, store, landing.projectId);
   if (occupied.status === "refused") return occupied;
-  if (occupied.result) return trial ? { status: "ok", result: report } : publishImport(context, store, report);
-  report.notices.push({ condition: "The import's private refs changed while its landing was being committed.",
-    remedy: { text: "Retry arc store migrate --import to rebuild its private gathering refs.", argv: ["arc", "store", "migrate", "--import"] } });
-  return trial ? { status: "ok", result: report } : importRefused(report);
+  if (occupied.result) return landing.trial ? { status: "ok", result: report } : publishImport(context, store, report);
+  report.notices.push(landingRaceNotice(failure, landing.tips));
+  return landing.trial ? { status: "ok", result: report } : importRefused(report);
+}
+
+function landingRaceNotice(failure: Exclude<ImportLandingOutcome, { status: "committed" }>,
+  tips: ReadonlyMap<string, string>): MigrateReport["notices"][number] {
+  if (failure.status === "lost-race") {
+    const deletions = new Map(importTransientDeletes(tips).map(change => [change.ref, change.expected] as const));
+    const lost = failure.refs.filter(row => deletions.get(row.ref) === row.expected);
+    if (lost.length) return { condition: `The import lost its captured transient-source delete lease for ${lost.map(row => `${row.ref} (expected ${row.expected}, found ${row.actual ?? "absent"})`).join(", ")}.`,
+      remedy: { text: "Reconcile the named local transient source refs, then retry arc store migrate --import to recapture their current state.",
+        argv: ["arc", "store", "migrate", "--import"] } };
+  }
+  return { condition: "The import's private refs changed while its landing was being committed.",
+    remedy: { text: "Retry arc store migrate --import to rebuild its private gathering refs.", argv: ["arc", "store", "migrate", "--import"] } };
 }
 
 function importRefused(report: MigrateReport): StoreMigrateResult {

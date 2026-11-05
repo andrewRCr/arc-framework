@@ -18,11 +18,20 @@ interface NativeReviewPerformanceInput extends Omit<NativeReviewApprovalInput, "
 
 /** Publish a response's performance and fix transition together, retaining exact replay and Candidate binding. */
 export async function publishNativeReviewPerformance(input: NativeReviewPerformanceInput): Promise<StoredReviewFact<ReviewEvidence>> {
-  const result = await new StoredReviewResultReader(input).readResult(input.record.operationId);
+  const authority = await new StoredReviewResultReader(input).readAuthority(input.record.operationId);
+  return publishNativeReviewPerformanceInView(input, authority);
+}
+
+/** Complete the invocation's already loaded authority read without rediscovering its producer or approval. */
+export async function publishNativeReviewPerformanceInView(input: NativeReviewPerformanceInput,
+  authority: Awaited<ReturnType<StoredReviewResultReader["readAuthority"]>>): Promise<StoredReviewFact<ReviewEvidence>> {
+  const { result } = authority;
   const record = validateApprovedDispositionRecordForResult(input.record, result);
   const node = currentApprovedDispositionNode(record);
-  const prior = await input.evidence.read(input.performance.dispositionSetId);
-  if (prior === null) throw new Error("Approve this response before recording its performance, then retry.");
+  const prior = authority.evidence.find(record => record.value.dispositionSet.dispositionSetId === input.performance.dispositionSetId);
+  if (prior === undefined || prior.value.successorDispositionSetId !== null) {
+    throw new Error("Record performance only for the current approved response in the selected branch, then retry.");
+  }
   if (input.performance.producerId !== record.operationId
     || input.performance.dispositionSetId !== node.approvedDisposition.dispositionSet.dispositionSetId
     || canonicalize(prior.value.approval) !== canonicalize(node.approvedDisposition.approval)) {

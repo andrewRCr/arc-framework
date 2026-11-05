@@ -106,6 +106,16 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
   ...Object.fromEntries(automaticRequestPaths.map((path) => [path, {
     summary: COMMAND_SUMMARIES[path], notes: requestSourceNotes,
   }])),
+  "store repair-review-roots": {
+    summary: COMMAND_SUMMARIES["store repair-review-roots"],
+    purpose: "Preview competing approvals and explicitly select one eligible branch while retaining every approved response.",
+    notes: requestNotes,
+    examples: [
+      ["arc store repair-review-roots --schema", "Read the preview/apply request schema"],
+      ["arc store repair-review-roots preview.json", "Preview an exact owner's producer before choosing a root"],
+      ["arc store repair-review-roots - < apply.json", "Apply an explicit choice using its fresh preview basis"],
+    ],
+  },
   "errand merge": {
     summary: COMMAND_SUMMARIES["errand merge"],
     notes: [["Input and output:", "Read the exact approved merge request from a JSON file or - for stdin. "
@@ -165,7 +175,10 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
   "review changeset resolve": { summary: COMMAND_SUMMARIES["review changeset resolve"], notes: requestNotes },
   "review planning-grooming resolve": { summary: COMMAND_SUMMARIES["review planning-grooming resolve"], notes: requestNotes },
   "review frontline run": { summary: COMMAND_SUMMARIES["review frontline run"], notes: requestNotes },
-  "review hosted await": { summary: COMMAND_SUMMARIES["review hosted await"], notes: requestNotes },
+  "review hosted await": { summary: COMMAND_SUMMARIES["review hosted await"], notes: [...requestNotes, ["Timing:",
+    "timeoutSeconds defaults to review.hosted_await_timeout_seconds and initialPollIntervalSeconds to "
+    + "review.hosted_await_initial_poll_interval_seconds. A request above the 1800-second timeout or 60-second "
+    + "interval limit waits at the limit, and the result's diagnostics name what the call used."]] },
   "review reduce": { summary: COMMAND_SUMMARIES["review reduce"], notes: requestNotes },
   "review respond": { summary: COMMAND_SUMMARIES["review respond"], notes: requestNotes },
   "review hosted request": {

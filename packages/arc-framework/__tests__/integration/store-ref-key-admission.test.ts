@@ -49,6 +49,7 @@ describe.each(["default", "separate"] as const)("ref key admission (%s)", (layou
       const malformed = [document("STATUS.USER.md"), document(".internal/notes.md"), document("work/.internal/notes.md"), document("scratch/bad\n.md")];
       for (const key of ["a/b", "a\0b", "a\nb"]) {
         malformed.push(RecordReferenceSchema.parse({ owner: root.reference.owner, kind: "review/evidence", key }));
+        malformed.push(RecordReferenceSchema.parse({ owner: root.reference.owner, kind: "review/evidence-root-selection", key }));
         malformed.push(RecordReferenceSchema.parse({ owner: root.reference.owner, kind: "review/adversarial-pass", key: { activity: key, number: 1 } }));
       }
       for (const reference of malformed) {

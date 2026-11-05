@@ -1,4 +1,4 @@
-/** Complete successors of verified clean fix checks preserve their grant and coverage boundaries. */
+/** Complete successors of verified converged fix checks preserve their grant and coverage boundaries. */
 import { expect, it } from "vitest";
 import { resolveReviewPolicy } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 
@@ -26,6 +26,17 @@ it.each(["whole-target", "chunked"] as const)("admits the required complete succ
 });
 
 
+it("admits the complete successor of a fix check that converged with only minor findings", () => {
+  const input = request("whole-target");
+  const minorOnly = { ...input,
+    attempts: [{ sourceId: "delegated-agent", outcome: "findings", reviewOperationId: predecessor, chunkSeriesComplete: true }],
+    verifiedTerminalSignal: { ...input.verifiedTerminalSignal, confirmedFindingCount: 1, maxConfirmedSeverity: "minor" } };
+  expect(resolveReviewPolicy({ ...minorOnly, additionalPassAuthorization: undefined }))
+    .toMatchObject({ state: "coverage-required", payload: { responseRequired: false } });
+  expect(resolveReviewPolicy(minorOnly)).toMatchObject({ state: "ready", nextAction: "local-prepare",
+    payload: { pass: 4, coverage: "complete", ceilingOverrideApplied: true } });
+});
+
 it("does not spend clean fix-check authority on another incremental look", () => {
   const input = request("chunked");
   expect(resolveReviewPolicy({ ...input, chosenCoverage: "incremental" }))
@@ -49,4 +60,33 @@ it("does not reinterpret an incomplete local chunk aggregate as a finished prede
   expect(() => resolveReviewPolicy({ ...input,
     attempts: [{ ...input.attempts[0], chunkSeriesComplete: false }] }))
     .toThrow("chunked terminal attempt requires one complete aggregate producer");
+});
+
+const fresh = { ...request("whole-target"), attempts: [], verifiedTerminalSignal: undefined,
+  additionalPassAuthorization: undefined, completedPasses: 2, maxPasses: 3 };
+const scope = { schemaVersion: 1, predecessorProducerId: predecessor, predecessorHeadSha: "c".repeat(40),
+  basisHeadSha: "c".repeat(40), headSha: target.headSha,
+  requiredFindings: [{ producerId: predecessor, findingId: "minor-one", locus: "src/example.ts:7" }] };
+
+it("names the complete look a converged full-final review leaves no choice about", () => {
+  expect(resolveReviewPolicy(fresh)).toMatchObject({ state: "ready", nextAction: "local-prepare",
+    payload: { pass: 3, coverage: "complete" } });
+});
+
+it("names a delta check as incremental unless complete coverage was chosen", () => {
+  const delta = { ...fresh, nextPassContext: { ...fresh.nextPassContext, incremental: { basis: "delta-check", scope } } };
+  expect(resolveReviewPolicy(delta)).toMatchObject({ state: "ready", payload: { coverage: "incremental" } });
+  expect(resolveReviewPolicy({ ...delta, chosenCoverage: "complete" }))
+    .toMatchObject({ state: "ready", payload: { coverage: "complete" } });
+});
+
+it("leaves the coverage unnamed while preparation still offers the fix-check choice", () => {
+  const offered = { ...fresh, standardReview: { ...fresh.standardReview, retrigger: "incremental" },
+    nextPassContext: { ...fresh.nextPassContext, convergence: "pending", incremental: { basis: "fix-check", scope } } };
+  const ready = resolveReviewPolicy(offered);
+  expect(ready).toMatchObject({ state: "ready" });
+  if (ready.state !== "ready") throw new Error("expected a ready look");
+  expect(ready.payload).not.toHaveProperty("coverage");
+  expect(resolveReviewPolicy({ ...offered, chosenCoverage: "incremental" }))
+    .toMatchObject({ state: "ready", payload: { coverage: "incremental" } });
 });

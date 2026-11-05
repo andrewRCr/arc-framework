@@ -8,6 +8,7 @@ import type { RefBackendContext } from "./context.js";
 import { readRefTrees } from "./batch-read.js";
 import type { RefWriteGroup } from "./write-commits.js";
 import type { ResolvedBatch, RefWriteTarget } from "./write-resolution.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** A lineage write also observes and locks its origin, even when it removed its primary earlier. */
 export function retirementTargets(context: Pick<RefBackendContext, "registry">, batch: ResolvedBatch): RefWriteTarget[] {
@@ -25,16 +26,25 @@ export function retirementLockRefs(targets: readonly RefWriteTarget[]): string[]
 /** One live origin whose final tree must be swept and retained under its UID. */
 export interface RefRetirementPlan { live: string; history: string }
 
+/** Read the captured lineage inventory once per immutable registry tip, preserving object-loss refusals. */
+export async function readRetirementLineagePaths(context: RefBackendContext, tips: ReadonlyMap<string, string>): Promise<StoreResult<Set<string>>> {
+  const ref = "refs/arc/project/registry", tip = tips.get(ref);
+  if (!tip) return { status: "ok", result: new Set() };
+  const entries = (await readRefTrees(context, new Map([[ref, tip]]))).get(ref);
+  if (!entries) return { status: "refused", refusal: refObjectFault(ref, "missing", {
+    condition: "The lineage registry tree is unavailable.", remedy: { text: `Restore or fetch the missing objects for ${ref}, then retry retirement.` },
+  }).refusal };
+  return { status: "ok", result: new Set(entries.map(({ path }) => path)) };
+}
+
 /** Classify ends from the complete proposed batch, rejecting origin puts that would be swept. */
 export async function planRefRetirements(context: RefBackendContext, batch: ResolvedBatch, targets: readonly RefWriteTarget[],
   groups: ReadonlyMap<string, RefWriteGroup>): Promise<StoreResult<RefRetirementPlan[]>> {
   if (![...groups.keys()].some((ref) => /^refs\/arc\/work\//u.test(ref) && batch.tips.has(ref))) return { status: "ok", result: [] };
-  const registryRef = "refs/arc/project/registry", registryTip = batch.tips.get(registryRef);
-  const registry = groups.get(registryRef)?.entries;
-  const captured = !registry && registryTip ? await readRefTrees(context, new Map([[registryRef, registryTip]])) : undefined;
-  if (!registry && registryTip && !captured?.has(registryRef)) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: registryRef,
-    condition: "The lineage registry tree is unavailable.", remedy: { text: `Restore or fetch the missing objects for ${registryRef}, then retry retirement.` } } };
-  const lineagePaths = new Set(registry ? registry.keys() : captured?.get(registryRef)?.map(({ path }) => path));
+  const registry = groups.get("refs/arc/project/registry")?.entries;
+  const captured = registry ? { status: "ok" as const, result: new Set(registry.keys()) } : await readRetirementLineagePaths(context, batch.tips);
+  if (captured.status === "refused") return captured;
+  const lineagePaths = captured.result;
   const plans: RefRetirementPlan[] = [];
   for (const [ref, group] of groups) {
     if (!/^refs\/arc\/work\//u.test(ref) || !batch.tips.has(ref)) continue;

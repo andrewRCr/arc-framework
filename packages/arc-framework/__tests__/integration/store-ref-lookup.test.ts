@@ -116,7 +116,9 @@ describe("lookup over live state refs", () => {
     const oid = (await f.exec("git", ["rev-parse", query])).stdout;
     await removeLooseObject(f.root, oid);
     const input = { kind: "slug" as const, slug: SlugSchema.parse("alpha") };
-    expect(await f.store.lookup(input)).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt" } });
+    expect(await f.store.lookup(input)).toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", class: "recoverable",
+      historyRefs: [], remedy: { text: expect.stringMatching(/restore|fetch/iu) },
+    } });
     await f.execInput(["hash-object", "-w", "--stdin"], metadata);
     expect(success(await f.store.lookup(input))).toEqual({ reference });
   });

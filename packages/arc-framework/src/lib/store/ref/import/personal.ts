@@ -12,33 +12,43 @@ import { foldImportSession } from "./session-context.js";
 import { readImportWorkspaces } from "./personal-notes.js";
 import { RecordReferenceSchema } from "../../identity.js";
 import type { Slug } from "../../../kernel/schema/slug.js";
+import { followImportPersonalLinks } from "./personal-links.js";
+import { importCheckoutNotice, importPathInCheckout } from "./personal-checkouts.js";
 
 /** Read notes using load's own flat merge and refuse every content disagreement before landing. */
-export async function appendImportPersonal(context: RefBackendContext, report: MigrateReport, records: ImportRecord[]): Promise<void> {
+export async function appendImportPersonal(context: RefBackendContext, report: MigrateReport, records: ImportRecord[],
+  informational: MigrateReport["notices"]): Promise<void> {
   let disk: Awaited<ReturnType<typeof readImportPersonalDisk>>;
   try { disk = await readImportPersonalDisk(context); }
   catch (error) { reportReadFailure(report, "personal materializations", error); return; }
+  report.notices.push(...disk.checkouts.map(importCheckoutNotice));
   const live = new Set(records.filter(record => record.reference.kind === "work-item/meta" && record.placement?.kind !== "completed").map(record => record.reference.owner.name));
   for (const person of [...disk.people].sort()) {
-    try { await appendPerson(context, report, records, person, disk.files.filter(file => file.person === person), live); }
+    try { await appendPerson(context, report, records, person, disk, live, informational); }
     catch (error) { reportReadFailure(report, `${person}'s personal notes snapshot at refs/notes/arc/user/${person} in ${context.importSource?.ports.checkoutRoot ?? context.checkoutRoot}`, error); }
   }
 }
 
 async function appendPerson(context: RefBackendContext, report: MigrateReport, records: ImportRecord[], person: Slug,
-  copies: ImportPersonalFile[], live: ReadonlySet<string>): Promise<void> {
+  disk: Awaited<ReturnType<typeof readImportPersonalDisk>>, live: ReadonlySet<string>, informational: MigrateReport["notices"]): Promise<void> {
   const source = context.importSource;
   if (!source) throw new Error("No import source bound");
   const exec: typeof source.ports.exec = (command, args, options) => source.ports.exec(command, args,
     { ...options, cwd: source.ports.checkoutRoot, objectAccess: "local-only" });
   const tip = await readImportNotesTip(exec, person);
   const merged = mergeCrossWuFromNotes(await readImportRecentNotes(context, tip));
-  const workspaces = await readImportWorkspaces(context, live, tip);
+  const workspaces = await readImportWorkspaces(context, live, tip, informational);
   const snapshot = projectManifest({ version: 2, files: { ...merged.files, ...workspaces.files } }).files;
+  const linked = await followImportPersonalLinks(source.ports.fs, disk.links.filter(link => link.person === person),
+    snapshot, informational, disk.visited);
+  report.notices.push(...linked.checkouts.map(importCheckoutNotice));
+  const copies = [...disk.files.filter(file => file.person === person), ...linked.files];
+  const blocked = new Set([...disk.checkouts.filter(checkout => checkout.person === person), ...linked.checkouts].map(checkout => checkout.path));
   const byPath = new Map<string, ImportPersonalFile[]>();
   for (const file of copies) byPath.set(file.path, [...(byPath.get(file.path) ?? []), file]);
   for (const path of [...new Set([...Object.keys(snapshot), ...byPath.keys()])].sort()) {
     if (importPersonalExcluded(path)) continue;
+    if ((linked.skipped.has(path) || importPathInCheckout(path, blocked)) && !byPath.has(path)) continue;
     comparePersonalFile(person, path, snapshot[path], byPath.get(path) ?? [], report, records, workspaces.savedPaths);
   }
 }

@@ -126,7 +126,14 @@ describe("the projection lock", () => {
       "unreadable"],
   ] as const)("reports %s it last saw when its own wait times out", async (_case, readHolder, holder) => {
     const held = await hold();
-    const overrides = readHolder === undefined ? {} : { readFile: readHolder };
+    // The clock stands still until the waiter has read the holder once, then passes the deadline, so the wait times
+    // out on that one sighting however long the machine takes to reach it.
+    let seen = false;
+    const read: (path: string) => Promise<string> = readHolder ?? (async (path) => await readFile(path, "utf8"));
+    const overrides = {
+      readFile: async (path: string): Promise<string> => { try { return await read(path); } finally { seen = true; } },
+      now: () => (seen ? 1_000 : 0),
+    };
     expect(await withProjectionLock(location, async () => "ran", { maxWaitMs: 50 }, overrides))
       .toEqual({ status: "held", holder });
     held.release();

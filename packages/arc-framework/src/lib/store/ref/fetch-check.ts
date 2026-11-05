@@ -1,7 +1,8 @@
 /** Interpret failed tracking updates by graph evidence rather than localized Git messages. */
 
+import { findRefGitLock, refGitLockRefusal } from "./git-lock.js";
 import type { FetchOutcome, FetchRefOutcome } from "../../git/fetch.js";
-import { updateRefTransaction } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import type { PullNotice } from "../sync.js";
 import type { RefBackendContext } from "./context.js";
 import type { RefDesignation, RefRemoteDesignation } from "./designation.js";
@@ -9,7 +10,6 @@ import { readSyncRefs } from "./sync-graph.js";
 import { fetchedRefIsAncestor, unavailableFetchGraphNotice } from "./fetch-graph.js";
 import { refFetchRewriteRemedy } from "./fetch-remedy.js";
 import { checkSeenRefFetch, type RefFetchBasis } from "./fetch-seen.js";
-import { rethrowRefFetchKeeperLock } from "./fetch-keeper-lock.js";
 
 /** A failed fast-forward update is a local tracking failure; other rejected updates are rewrites. */
 export async function checkRefFetchUpdates(context: RefBackendContext, remote: RefRemoteDesignation,
@@ -23,8 +23,8 @@ export async function checkRefFetchUpdates(context: RefBackendContext, remote: R
     const prefix = `refs/arc-remotes/${remote.name}/`;
     if (!row.ref.startsWith(prefix)) continue;
     if (row.ref === `${prefix}project/moved`) {
-      await updateRefTransaction(context, [{ ref: row.ref, next: row.next, expected: /^0+$/u.test(row.old) ? null : row.old }],
-        { cwd: context.checkoutRoot }).catch((error: unknown) => rethrowRefFetchKeeperLock(context, [row.ref], error));
+      await updateStoreRefTransaction(context, [{ ref: row.ref, next: row.next, expected: /^0+$/u.test(row.old) ? null : row.old }],
+        { cwd: context.checkoutRoot });
       continue;
     }
     notices.push(await rejectedFetchNotice(context, remote, designation, row, basis));
@@ -40,9 +40,14 @@ async function rejectedFetchNotice(context: RefBackendContext, remote: RefRemote
     basis.blocked.add(row.ref);
     return unavailableFetchGraphNotice(ref);
   }
-  if (forward) return { kind: "tracking-update-failed", ref,
-    condition: `Git could not update ${row.ref} even though its fetched history does not diverge.`,
-    remedy: { text: "Pull state again. If the update keeps failing, stop the holder or remove its stale Git ref lock, then retry." } };
+  if (forward) {
+    const lock = await findRefGitLock(context, [row.ref], /^0+$/u.test(row.next));
+    const diagnostic = lock ? refGitLockRefusal(lock) : {
+      condition: `Git could not update ${row.ref} even though its fetched history does not diverge.`,
+      remedy: { text: "Pull state again. If the update keeps failing, stop the holder or remove its stale Git ref lock, then retry." },
+    };
+    return { kind: "tracking-update-failed", ref, condition: diagnostic.condition, remedy: diagnostic.remedy };
+  }
   return { kind: "history-diverged", ref, local: row.old, remote: row.next,
     condition: `The fetched tip of ${ref} does not descend from the last head seen; its local and tracking tips were kept.`,
     remedy: await refFetchRewriteRemedy(context, remote, designation, ref, row.next) };
@@ -52,12 +57,21 @@ async function markUncommittedUpdates(context: RefBackendContext, remote: string
   fetched: Extract<FetchOutcome, { status: "refs" }>, basis: RefFetchBasis): Promise<void> {
   const prefix = `refs/arc-remotes/${remote}/`, current = await readSyncRefs(context, prefix);
   for (const row of fetched.refs) {
-    if (!row.ref.startsWith(prefix) || row.flag === "!" || row.flag === "=") continue;
-    const actual = current.get(row.ref);
-    if (/^0+$/u.test(row.next)) { if (actual) row.flag = "!"; continue; }
-    if (await trackingContainsFetchedTip(context, basis, row, actual)) continue;
-    row.flag = "!";
+    if (!row.ref.startsWith(prefix) || row.flag === "=") continue;
+    await markRefFetchUpdate(context, basis, row, current.get(row.ref));
   }
+}
+
+async function markRefFetchUpdate(context: RefBackendContext, basis: RefFetchBasis,
+  row: FetchRefOutcome, actual: string | undefined): Promise<void> {
+  const previous = /^0+$/u.test(row.old) ? undefined : row.old;
+  if (row.flag === "!" && actual === previous) return;
+  if (/^0+$/u.test(row.next)) { row.flag = actual ? "!" : "-"; return; }
+  if (await trackingContainsFetchedTip(context, basis, row, actual)) {
+    if (row.flag === "!") row.flag = " ";
+    return;
+  }
+  row.flag = "!";
 }
 
 async function trackingContainsFetchedTip(context: RefBackendContext, basis: RefFetchBasis,

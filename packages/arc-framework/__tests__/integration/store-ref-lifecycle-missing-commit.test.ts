@@ -54,6 +54,12 @@ describe.each(["default", "separate"] as const)("missing lifecycle objects in %s
       const result = success(await store[operation]());
       expect(result.pulls.flatMap(outcome => outcome.notices)).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt",
         ref: damage === "held-history" ? priorHistory.replace("refs/arc/history/", "refs/arc/") : live }));
+      if (damage === "item-parent" || damage === "held-history") {
+        for (const notice of result.pulls.flatMap(outcome => outcome.notices)) if (notice.kind === "namespace-corrupt") {
+          expect(notice.remedy.text).toMatch(/restore|fetch/iu);
+          expect(notice.remedy.text).not.toMatch(/forward/iu);
+        }
+      }
       if (operation === "push" && damage !== "held-history") expect(PushResultSchema.parse(result).publishes)
         .toContainEqual(expect.objectContaining({ status: "failed", failure: expect.objectContaining({ code: "refused" }) }));
       expect(success(await store.read({ reference: companion })).content).toBe("Own pending companion.\n");

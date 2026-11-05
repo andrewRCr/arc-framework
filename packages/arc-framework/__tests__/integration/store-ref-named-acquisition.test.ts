@@ -50,7 +50,10 @@ it.each(["default", "separate"] as const)("refuses a missing cached sibling dire
   if (!oid) throw new Error("The native sibling subtree was not created");
   const path = join(gitDir, "objects", oid.slice(0, 2), oid.slice(2)), bytes = await readFile(path);
   await rm(path);
-  expect(await f.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt" } });
+  expect(await f.store.read({ reference })).toMatchObject({ status: "refused", refusal: {
+    code: "state-unresolvable", class: "recoverable", historyRefs: [],
+    remedy: { text: expect.stringMatching(/restore|fetch/iu) },
+  } });
   await writeFile(path, bytes);
   expect(success(await f.store.read({ reference }))).toEqual(expected);
 }, 30_000);

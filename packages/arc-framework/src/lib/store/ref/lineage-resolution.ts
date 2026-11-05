@@ -4,10 +4,10 @@ import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity, type Re
 import type { StoreResult } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, readRefTips, readRefTrees } from "./batch-read.js";
-import { parseRefMetadata, unparsedMetadata } from "./metadata.js";
+import { readRefMetadata } from "./metadata.js";
 import { readLiveRefOwners, type LiveRefOwnerEvidence } from "./live-owners.js";
 import { expandStoredPath, holdsNoRecord } from "../stored-path.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** Read the registry's UID-to-slug map from the caller's captured namespace; a saved namespace names historical repair. */
 export async function readLineageOwners(context: RefBackendContext, tips: ReadonlyMap<string, string>, saved = false): Promise<StoreResult<OwnerIdentity[]>> {
@@ -15,15 +15,18 @@ export async function readLineageOwners(context: RefBackendContext, tips: Readon
   const tip = tips.get(ref);
   if (!tip) return { status: "ok", result: [] };
   const entries = (await readRefTrees(context, new Map([[ref, tip]]))).get(ref);
-  if (!entries) return { status: "refused", refusal: corruptRef(ref, true, saved) };
+  if (!entries) return { status: "refused", refusal: refObjectFault(ref, "missing", {
+    condition: `The tip or a tree of ${ref} is unavailable locally.`,
+  }).refusal };
   const home = expandStoredPath(RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } }),
     { registry: context.registry });
   if (holdsNoRecord(home, entries.map(({ path }) => path))) return { status: "ok", result: [] };
-  const query = `${tip}:metadata-registry.json`;
-  const objects = await readBatchObjects(context, [query]);
-  const metadata = parseRefMetadata(objects.get(query), ref);
-  if (!metadata) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: ref, ...unparsedMetadata(ref, saved) } };
-  return { status: "ok", result: Object.entries(metadata.lineage ?? {}).map(([uid, name]) => OwnerIdentitySchema.parse({ type: "work-item", uid, name })) };
+  const entry = entries.find(({ path }) => path === home.metadataPath);
+  const objects = await readBatchObjects(context, entry ? [entry.oid] : []);
+  const read = readRefMetadata(ref, entry, objects);
+  if (read.kind !== "parsed") return { status: "refused", refusal: refObjectFault(ref,
+    read.kind === "absent" ? "no-metadata" : read.kind, { saved }).refusal };
+  return { status: "ok", result: Object.entries(read.metadata.lineage ?? {}).map(([uid, name]) => OwnerIdentitySchema.parse({ type: "work-item", uid, name })) };
 }
 
 /** Select live current names, then actual live primary former names, before registry current names. */

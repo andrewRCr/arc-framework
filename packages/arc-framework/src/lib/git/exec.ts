@@ -25,6 +25,8 @@ export interface GitExecOptions {
    * with a `GitProcessError` whose kind is `canceled`.
    */
   signal?: AbortSignal;
+  /** Let deadline wrappers refuse admission without canceling a call already admitted. */
+  uninterruptible?: true;
   /**
    * Working directory for the process, allowing callers to pin the invocation
    * against a resolved repo root regardless of `process.cwd()`.
@@ -101,7 +103,7 @@ export async function resolveCheckoutGitDir(exec: GitExec, cwd: string): Promise
 export type GitExecInput = (
   args: string[],
   input: string,
-  options?: Pick<GitExecOptions, "cwd" | "objectAccess" | "signal" | "diagnosticLocale">,
+  options?: Pick<GitExecOptions, "cwd" | "objectAccess" | "signal" | "diagnosticLocale" | "uninterruptible">,
 ) => Promise<string>;
 
 /** Result from a byte-preserving Git invocation. */

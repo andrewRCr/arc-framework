@@ -13,19 +13,19 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                       | Priority | Owner  | Depends on                                                                                | Cohort             |
-| ---------- | ------------------------------- | -------- | ------ | ----------------------------------------------------------------------------------------- | ------------------ |
-| `Active`   | storage-ref-hardening           | P1       | andrew | —                                                                                         | state-storage      |
-| `Planning` | cutover-flip                    | P1       | andrew | storage-ref-hardening, projection-write-back, cohort-identity-verbs, projection-worktrees | storage-cutover    |
-| `Planning` | projection-write-back           | P1       | andrew | storage-ref-hardening                                                                     | storage-projection |
-| `Active`   | cohort-identity-verbs           | P1       | andrew | —                                                                                         | storage-seam       |
-| `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover                                                                           | —                  |
-| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                                                                                         | —                  |
-| `Planning` | decomposition-doctrine          | P1       | andrew | —                                                                                         | —                  |
-| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                                                                                         | —                  |
-| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                                                                                         | —                  |
-| `Planning` | stub-mint-to-launch             | P1       | andrew | —                                                                                         | —                  |
-| `Planning` | cli-output-contract             | P2       | andrew | —                                                                                         | —                  |
+| State      | Work unit                       | Priority | Owner  | Depends on                                                         | Cohort             |
+| ---------- | ------------------------------- | -------- | ------ | ------------------------------------------------------------------ | ------------------ |
+| `Planning` | cutover-flip                    | P1       | andrew | projection-write-back, cohort-identity-verbs, projection-worktrees | storage-cutover    |
+| `Active`   | projection-write-back           | P1       | andrew | —                                                                  | storage-projection |
+| `Active`   | cohort-identity-verbs           | P1       | andrew | —                                                                  | storage-seam       |
+| `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover                                                    | —                  |
+| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                                                                  | —                  |
+| `Planning` | decomposition-doctrine          | P1       | andrew | —                                                                  | —                  |
+| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                                                                  | —                  |
+| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                                                                  | —                  |
+| `Planning` | stub-mint-to-launch             | P1       | andrew | —                                                                  | —                  |
+| `Planning` | adr-accept-timing               | P2       | andrew | —                                                                  | —                  |
+| `Planning` | cli-output-contract             | P2       | andrew | —                                                                  | —                  |
 
 ## Ready
 
@@ -84,7 +84,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | docs-site-refresh                     | P3       | andrew | —          | release-readiness          |
 | release-lifecycle                     | P3       | andrew | —          | release-readiness          |
 | adopter-content-aware-ci              | P3       | andrew | —          | —                          |
-| adr-accept-timing                     | P3       | andrew | —          | —                          |
 | arc-reinforce                         | P3       | andrew | —          | —                          |
 | chunk-scope-binding                   | P3       | andrew | —          | —                          |
 | cohort-cut-coherence                  | P3       | andrew | —          | —                          |

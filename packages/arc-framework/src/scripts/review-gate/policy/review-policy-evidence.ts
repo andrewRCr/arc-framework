@@ -1,6 +1,6 @@
 /** Evidence composition for terminal review-policy attempts. */
 
-import { isCleanFixCheckCompleteSuccessor } from "./review-additional-pass.js";
+import { isConvergedFixCheckCompleteSuccessor } from "./review-additional-pass.js";
 import type { ReviewNextPassContext } from "./review-next-pass-schema.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 
@@ -125,6 +125,19 @@ export class ReviewProducerScopeMismatchError extends ReviewTerminalAttemptInput
     this.observedScope = input.observedScope;
     this.selectedScope = input.selectedScope;
     this.target = input.target;
+  }
+}
+
+/** A terminal producer admitted under a different standard-review routing than the request carries. */
+export class ReviewProducerPolicyMismatchError extends ReviewTerminalAttemptInputError {
+  constructor(
+    readonly producerReview: ReviewPolicyCommandRequest["standardReview"],
+    readonly requestReview: ReviewPolicyCommandRequest["standardReview"],
+    correctedRequest: ReviewPolicyCommandRequest,
+  ) {
+    super("review producer policy or rubric does not match the policy request",
+      `Set standardReview to the producer's requirement: ${JSON.stringify(producerReview)}`, correctedRequest);
+    this.name = "ReviewProducerPolicyMismatchError";
   }
 }
 
@@ -269,8 +282,7 @@ function validateTerminalResult(
     });
   }
   if (!resultMatchesPolicy(result, request)) {
-    throw new ReviewTerminalAttemptInputError("review producer policy or rubric does not match the policy request",
-      `Set standardReview to the producer's requirement: ${JSON.stringify(correctedRequest.standardReview)}`, correctedRequest);
+    throw new ReviewProducerPolicyMismatchError(correctedRequest.standardReview, request.standardReview, correctedRequest);
   }
 }
 
@@ -588,7 +600,7 @@ export async function bindReviewPolicyContinuationEvidence(
   );
   const choice = continuationChoice({
     terminal, additionalPass, terminalOutcome: terminalAttempt?.outcome,
-    completeFixCheckSuccessor: isCleanFixCheckCompleteSuccessor(boundTerminal),
+    completeFixCheckSuccessor: isConvergedFixCheckCompleteSuccessor(boundTerminal),
     currentResponsePerformed, coverageSelected: response.coverageSelected === true,
     nextPassContext: dependencies.nextPassContext, retrigger: request.standardReview.retrigger,
   });

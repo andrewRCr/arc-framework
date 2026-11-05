@@ -4,10 +4,12 @@ import { SpineRemedySchema, spineRemedy } from "../integration/spine-refusal.js"
 import type { ReviewResolveEnvelope } from "./policy/review-policy-driver.js";
 import { singletonNeedsLocalPrepare } from "./singleton-local-prepare-action.js";
 import { reviewStatusRouteArgv, type ReviewStatusRoute } from "./status-route.js";
+import { hostedSettlementRemedy, pendingHostedSettlementDetail } from "./hosted-settlement-stop.js";
+import type { PendingHostedSettlement } from "./hosted-response-completion.js";
 
 export const ReviewDriverRefusalReasonSchema = z.enum([
   "material-fix-local-review-required", "material-fix-local-source-unconfigured", "hosted-incremental-unsupported", "singleton-local-coverage-required",
-  "delta-check-local-review-required", "delta-check-local-source-unconfigured",
+  "delta-check-local-review-required", "delta-check-local-source-unconfigured", "hosted-settlement-required",
 ]);
 export const ReviewDriverRefusalSchema = z.strictObject({
   state: z.literal("blocked"), reason: ReviewDriverRefusalReasonSchema,
@@ -74,4 +76,10 @@ export function projectSingletonLocalCoverageRefusal(input: {
     remedy: spineRemedy(detail,
       "Re-run status without --coverage, then select local prepare's offered choice through coverageAdmission",
       reviewStatusRouteArgv(input.route)) });
+}
+
+/** Stop the next look until the hosted response it follows is settled on the host. */
+export function projectHostedSettlementRefusal(pending: PendingHostedSettlement): z.infer<typeof ReviewDriverRefusalSchema> {
+  return ReviewDriverRefusalSchema.parse({ state: "blocked", reason: "hosted-settlement-required",
+    detail: pendingHostedSettlementDetail(pending), remedy: hostedSettlementRemedy(pending, "re-running status") });
 }

@@ -3,9 +3,11 @@ import { pullResultNotices, type PullResult } from "./operational-sync.js";
 import type { PullInput, PullNotice, PullOutcome } from "./sync.js";
 import type { Remedy } from "./refusal.js";
 import type { Store } from "./contract.js";
+import { pullSelectedStore } from "./operational-sync-bindings.js";
 
 /** Proceed with the rendered notices to surface, or stop for the state remote's stated reason, surfacing them first. */
-export type PullConsumption = { kind: "proceed"; notices: string[] } | { kind: "stop"; reason: string; notices: string[] };
+export type PullConsumption = ({ kind: "proceed"; notices: string[] } | { kind: "stop"; reason: string; notices: string[] })
+  & { /** Exact notice a consumer suppresses when it presents the question itself. */ designationNotice?: string };
 
 /**
  * Decide a synchronized pull for a consumer that reads the state it merged. A failed read source never stops one,
@@ -13,15 +15,19 @@ export type PullConsumption = { kind: "proceed"; notices: string[] } | { kind: "
  * still carries the notices of merges it applied before it stopped, and the next pull will not raise them again.
  */
 export function consumePull(result: PullResult): PullConsumption {
+  const designation = pullDesignation(result);
+  const designationNotice = designation && renderExplained([`Remote ${designation.remote} needs a store designation.`], designation.remedy);
+  const question = designationNotice === undefined ? {} : { designationNotice };
   const surfaced = [...pullResultNotices(result).map(renderPullNotice),
-    ...(result.advisories ?? []).map(advisory => renderExplained([advisory.condition], advisory.remedy))];
-  if (result.status !== "unreachable" && result.status !== "incomplete") return { kind: "proceed", notices: surfaced };
+    ...(result.advisories ?? []).map(advisory => renderExplained([advisory.condition], advisory.remedy)),
+    ...designationNotice === undefined ? [] : [designationNotice]];
+  if (result.status !== "unreachable" && result.status !== "incomplete") return { ...question, kind: "proceed", notices: surfaced };
   const partial = result.partial;
   const failures = partial?.pulls.filter(pull => pull.status === "failed") ?? [];
   const stopping = partial === undefined || failures.some(pull => pull.role !== "read")
     || partial.states.some(state => !["no-remote", "move-unfinished", "designation-needed", "no-identity"].includes(state.status));
-  if (stopping) return { kind: "stop", reason: `${result.condition} ${result.remedy.text}`, notices: [...readFailures(failures), ...surfaced] };
-  return { kind: "proceed", notices: [...readFailures(failures), ...surfaced] };
+  if (stopping) return { ...question, kind: "stop", reason: `${result.condition} ${result.remedy.text}`, notices: [...readFailures(failures), ...surfaced] };
+  return { ...question, kind: "proceed", notices: [...readFailures(failures), ...surfaced] };
 }
 
 /** A remote whose state role awaits an explicit choice, and the command that makes it. */
@@ -43,14 +49,15 @@ export function pullOutcomeNotices(pulls: readonly PullOutcome[]): string[] {
 
 /**
  * Pull a refusal's history refs for one retry of the refused operation, writing every notice the pull raised. Only a
- * failed state or candidate outcome keeps the original refusal: a failed read source leaves that history in place.
+ * failed state or candidate outcome, or an unanswered designation, keeps the original refusal; a failed read source
+ * leaves that history in place.
  */
 export async function pullHistoryForRetry(store: Pick<Store, "pull">, history: NonNullable<PullInput["history"]>,
   write?: (line: string) => void): Promise<boolean> {
-  const pulled = await store.pull({ history });
-  if (pulled.status === "refused") return false;
-  writePullNotices(pullOutcomeNotices(pulled.result.pulls), write);
-  return !pulled.result.pulls.some(outcome => outcome.status === "failed" && outcome.role !== "read");
+  const pulled = await pullSelectedStore(store, history);
+  const consumed = consumePull(pulled);
+  writePullNotices(consumed.notices, write);
+  return consumed.kind === "proceed" && consumed.designationNotice === undefined;
 }
 
 /** Write rendered notices where an invocation reports diagnostics when its result carries no warning field. */

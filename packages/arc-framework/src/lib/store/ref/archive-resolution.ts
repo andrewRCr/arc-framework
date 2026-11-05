@@ -7,7 +7,8 @@ import { HistoryRefSchema, type StoreResult, type StoreRefusal } from "../refusa
 import { archivedFolders, archiveOwnerTrees, isArchiveRef, type ArchivedFolder } from "./archive-read.js";
 import { readBatchObjects, readRefTrees } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault, refDiagnosticRefusal } from "./object-fault.js";
+import { missingHistoryRefs } from "./missing-history.js";
 import { readHistoryBatchIndex } from "./history-batches.js";
 import type { ResolvedBatch } from "./write-resolution.js";
 
@@ -26,10 +27,11 @@ export async function resolveArchivedReferences(context: RefBackendContext, refe
     .filter(({ owner }) => requested.some((reference) => sameOwner(owner, reference.owner)));
   // A quarter whose tree cannot be read may hold a requested owner's folder, or a later one, so no folder set is established.
   const unreadable = [...selected.keys()].find((ref) => !quarters.has(ref));
-  if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true) };
+  if (unreadable) return { status: "refused", refusal: refObjectFault(unreadable, "missing", {
+    condition: `The tip or a tree of ${unreadable} is unavailable locally.`,
+  }).refusal };
   const diagnostic = decoded.flatMap(({ diagnostics }) => diagnostics)[0];
-  if (diagnostic) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
-    namespace: diagnostic.key.split(":")[0] ?? diagnostic.key, condition: diagnostic.condition, remedy: diagnostic.remedy } };
+  if (diagnostic) return { status: "refused", refusal: refDiagnosticRefusal(diagnostic.key.split(":")[0] ?? diagnostic.key, diagnostic) };
   for (const reference of requested) {
     const own = folders.filter(({ owner }) => sameOwner(owner, reference.owner));
     if (!own.length) continue;
@@ -37,7 +39,7 @@ export async function resolveArchivedReferences(context: RefBackendContext, refe
     if (!history) throw new Error("An archived owner has no history coordinate");
     const tip = tips.get(history);
     if (!tip) return { status: "refused", refusal: missingArchivedHistory(reference, history) };
-    const found = await archivedHistoryBatches(context, reference, history, tip, evidence);
+    const found = await archivedHistoryBatches(context, reference, history, tip, tips, evidence);
     if (found.status === "refused") return found;
     const batches = found.result;
     if (own.some(({ metadata }) => !metadata.batch || !batches.has(metadata.batch))) {
@@ -48,9 +50,12 @@ export async function resolveArchivedReferences(context: RefBackendContext, refe
 }
 
 async function archivedHistoryBatches(context: RefBackendContext, reference: RecordReference, history: string,
-  tip: string, evidence?: StoreCreationReceiptReader): Promise<StoreResult<Set<string>>> {
-  const index = await readHistoryBatchIndex(context, history, tip, reference, evidence);
-  if (!index) return { status: "refused", refusal: corruptRef(history, true) };
+  tip: string, current: ReadonlyMap<string, string>, evidence?: StoreCreationReceiptReader): Promise<StoreResult<Set<string>>> {
+  const index = await readHistoryBatchIndex(context, history, tip, reference, evidence, current);
+  if (!index) return { status: "refused", refusal: refObjectFault(history, "missing", {
+    reference, historyRefs: await missingHistoryRefs(context, [history], current),
+    condition: `The tip or a tree of ${history} is unavailable locally.`,
+  }).refusal };
   return index.status === "refused" ? index : { status: "ok", result: new Set(index.result.keys()) };
 }
 
@@ -60,11 +65,11 @@ export function archivedLockRefs(batch: ResolvedBatch): string[] {
 }
 
 /** Re-resolve when the locked history or quarter capture differs from the validated basis. */
-export function archiveBasisChanged(batch: ResolvedBatch, tips: ReadonlyMap<string, string>): boolean {
-  if (!batch.archived?.length) return false;
+export function changedArchiveBasisRefs(batch: ResolvedBatch, tips: ReadonlyMap<string, string>): string[] {
+  if (!batch.archived?.length) return [];
   const histories = batch.archived.map(({ liveRef }) => liveRef.replace("refs/arc/", "refs/arc/history/"));
   const quarters = [...new Set([...batch.tips.keys(), ...tips.keys()])].filter(isArchiveRef);
-  return [...histories, ...quarters].some((ref) => tips.get(ref) !== batch.tips.get(ref));
+  return [...histories, ...quarters].filter((ref) => tips.get(ref) !== batch.tips.get(ref));
 }
 
 function missingArchivedHistory(reference: RecordReference, history: string): StoreRefusal {

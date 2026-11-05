@@ -164,6 +164,8 @@ export const PRODUCTION_SCHEMA_IDS = [
   "standard-review-contract",
   "standard-review-obligation-projection",
   "standard-review-rubric-digest-preimage",
+  "store-repair-review-roots-request",
+  "store-repair-review-roots-result",
   "task-list-cursor",
   "task-list-cursor-file-result",
   "user-reference-reconcile",

@@ -125,7 +125,8 @@ async function compareDiagnostic(source: ReadOnlyStore, target: Store, row: Sour
     const primary = await target.read({ reference: found.result.reference });
     if (primary.status === "ok") {
       const home = expandStoredPath({ ...reference, owner: found.result.reference.owner }, { placement: primary.result.placement });
-      if (listed.diagnostics.some(({ key, kind }) => key === home.path && kind === row.diagnostic.kind)) {
+      const diagnosticKey = primary.result.placement?.kind === "completed" ? `${home.ref}:${home.path}` : home.path;
+      if (listed.diagnostics.some(({ key, kind }) => key === diagnosticKey && kind === row.diagnostic.kind)) {
         const retained = await target.read({ reference: { ...reference, owner: found.result.reference.owner } });
         if (retained.status === "ok") return comparePair(raw.result, retained.result, comparators);
       }

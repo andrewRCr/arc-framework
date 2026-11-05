@@ -30,6 +30,7 @@ import { publishNativeReviewApproval } from "../../../../src/scripts/review-gate
 import { publishNativeConditionalPass } from "../../../../src/scripts/review-gate/runtime/native-conditional-pass.js";
 import { publishNativeReviewPerformance } from "../../../../src/scripts/review-gate/runtime/native-review-performance.js";
 import { createFixAuthorization, consumeFixAuthorization } from "../../../../src/scripts/review-gate/core/fix-authorization.js";
+import { createReviewResponsePort } from "../../../../src/lib/store/kinds/review/evidence-root-selection/responses.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 const head = "a".repeat(40), branch = "chore/repair";
@@ -74,6 +75,7 @@ it("relays an unconsumed conditional approval for an Errand's complete hosted pa
     repositoryId: projectId, baseRef: "main", diffBaseSha: base, diffBaseTree: "c".repeat(40), headSha: priorHead, headTree: "d".repeat(40) });
   const outcomes = createReviewOutcomePort(h.store, h.primary.reference.owner);
   const evidence = createReviewEvidencePort(h.store, h.primary.reference.owner);
+  const responses = createReviewResponsePort(h.store, h.primary.reference.owner);
   const decisions = createReviewDecisionPort(h.store, h.primary.reference.owner);
   const makeOutcome = (logicalPass: number) => {
     const value = localOutcome({ target, logicalPass, lineage: { kind: "head-bound", vehicleKind: "errand",
@@ -90,7 +92,7 @@ it("relays an unconsumed conditional approval for an Errand's complete hosted pa
   const { performance: original, ...approved } = value;
   const binding = { kind: "errand" as const, errand: { key: h.record.slug, claimId: h.record.claimId, branch: h.record.branch } };
   const record = composeReviewDispositionRecord(outcome, [{ ...approved, binding }], h.primary.reference.owner);
-  const ports = { outcomes, evidence, decisions, readProjectId: h.projectId };
+  const ports = { outcomes, evidence, decisions, readProjectId: h.projectId, responses };
   await publishNativeReviewApproval({ ...ports, record, now: () => "2026-10-20T12:01:00Z" });
   const captured = await publishNativeConditionalPass({ ...ports, capture: { lane: "standard", repositoryId: projectId,
     headSha: priorHead, lineage: outcome.lineage, producerId: outcome.attemptId,

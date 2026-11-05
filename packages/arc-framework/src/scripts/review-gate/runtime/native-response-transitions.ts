@@ -6,24 +6,26 @@ import { laneProgressOperationId, readLaneProgressOwner, type recordLaneResponse
 import type { bindHostedAttemptDisposition } from "../lane-progress-hosted-settlement.js";
 import { LaneProgressStateSchema } from "../core/operation-state-schema.js";
 import { StoredReviewResultReader } from "../hosts/local/stored-result-reader.js";
-import { publishNativeReviewPerformance } from "./native-review-performance.js";
+import { publishNativeReviewPerformanceInView } from "./native-review-performance.js";
+import { composeReviewDispositionRecord } from "../../../lib/store/kinds/review/evidence/composed-record.js";
 
 /** Persist the complete performed response rather than a terminal execution snapshot. */
 export async function recordNativeResponsePerformance(facts: NativeReviewFactPorts, store: ReviewOperationStateStore,
   input: Parameters<typeof recordLaneResponsePerformance>[1]): ReturnType<typeof recordLaneResponsePerformance> {
-  const result = await new StoredReviewResultReader(facts).readResult(input.attemptId);
+  const authority = await new StoredReviewResultReader(facts).readAuthority(input.attemptId);
+  const { result } = authority;
   if (result.repositoryId !== input.repositoryId || result.target.headSha !== input.headSha
     || (result.kind === "frontline" ? "frontline" : "standard") !== input.lane
     || !laneSubjectOwnerMatches(result.admission.lineage, input.lineage)) {
     throw new Error("Restore the performed response's exact producer and lane subject before retrying.");
   }
-  const record = await facts.evidence.readDispositionRecord(input.attemptId);
-  if (record === null) throw new Error("Approve this response before recording its performance, then retry.");
-  await publishNativeReviewPerformance({ ...facts, record,
+  if (authority.evidence.length === 0) throw new Error("Approve this response before recording its performance, then retry.");
+  const record = composeReviewDispositionRecord(authority.outcome.value, authority.evidence.map(record => record.value), authority.outcome.reference.owner);
+  await publishNativeReviewPerformanceInView({ ...facts, record,
     confirmResponseHeadContinuation: input.confirmResponseHeadContinuation,
     performance: { schemaVersion: 1, producerId: input.attemptId, dispositionSetId: input.dispositionSetId,
       originatingHeadSha: input.headSha, producedHeadSha: input.producedHeadSha, performedAt: input.now,
-      ...(input.candidateResponseId === undefined ? {} : { candidateResponseId: input.candidateResponseId }) } });
+      ...(input.candidateResponseId === undefined ? {} : { candidateResponseId: input.candidateResponseId }) } }, authority);
   const progress = await readLaneProgressOwner(store, input);
   if (progress === null) throw new Error("Restore the performed response's producer outcome before retrying.");
   return progress;
@@ -56,7 +58,9 @@ async function nativeSettlementProgress(store: ReviewOperationStateStore, input:
 /** Confirm the approval's captured host actions without writing terminal lane state. */
 export async function bindNativeHostedDisposition(facts: NativeReviewFactPorts, store: ReviewOperationStateStore,
   input: Parameters<typeof bindHostedAttemptDisposition>[1]): ReturnType<typeof bindHostedAttemptDisposition> {
-  const record = await facts.evidence.read(input.dispositionSetId);
+  const response = await facts.responses.read(input.attemptId, "authority");
+  const record = response.status === "found"
+    ? response.evidence.find(record => record.value.dispositionSet.dispositionSetId === input.dispositionSetId) : undefined;
   const sort = (entries: readonly { findingId: string }[]) => [...entries].sort((a, b) => a.findingId.localeCompare(b.findingId));
   if (record?.value.dispositionSet.producerId !== input.attemptId || record.value.successorDispositionSetId !== null
     || canonicalize(sort(record.value.settlement?.findingActions ?? [])) !== canonicalize(sort(input.findingDispositions))) {

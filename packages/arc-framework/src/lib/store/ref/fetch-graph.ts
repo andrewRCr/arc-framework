@@ -2,7 +2,7 @@
 import type { PullNotice } from "../sync.js";
 import type { RefBackendContext } from "./context.js";
 import { isUnavailableGraphFailure } from "./history-graph.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
 import { syncRefIsAncestor } from "./sync-graph.js";
 
 /** A completed ancestry observation, or null when its missing graph was independently confirmed. */
@@ -25,6 +25,6 @@ export async function compareFetchedRefTips(context: RefBackendContext, held: st
 
 /** Withhold this logical state coordinate while preserving its trusted local comparison basis. */
 export function unavailableFetchGraphNotice(ref: string): PullNotice {
-  const refusal = corruptRef(ref, true);
+  const refusal = refObjectFault(ref, "missing").refusal;
   return { kind: "namespace-corrupt", ref, condition: refusal.condition, remedy: refusal.remedy };
 }
