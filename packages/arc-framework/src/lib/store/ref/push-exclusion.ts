@@ -18,10 +18,12 @@ export interface RefPushExclusion {
 /** Reject unusable captured trees without changing their tips or holding back healthy families. */
 export async function excludeBrokenPushRefs(context: RefBackendContext, listing: RefPushListing,
   notices: readonly PullNotice[] = []): Promise<RefPushExclusion> {
-  const seeds = notices.filter((notice) => notice.kind === "namespace-corrupt" || notice.kind === "end-pending");
+  const seeds = notices.filter((notice) => notice.kind === "namespace-corrupt" || notice.kind === "end-pending" || notice.kind === "tracking-update-failed");
   const excluded = new Set(listing.pending), families = new Set<FamilyId>();
   for (const { ref } of seeds) holdLifecycleRef(excluded, ref);
-  const refusals: { condition: string; remedy: { text: string } }[] = [...seeds];
+  const refusals: { condition: string; remedy: { text: string } }[] = [
+    ...seeds, ...pendingEndRefusals(listing.pending, seeds, notices),
+  ];
   for (const { ref, next } of listing.changes) {
     if (!next) continue;
     const refusal = await checkSyncRefTip(context, ref, next);
@@ -44,4 +46,24 @@ export async function excludeBrokenPushRefs(context: RefBackendContext, listing:
     failures: families.size ? [{ families: [...families], failure: { code: "refused", class: "terminal",
       message: `The push excluded ${[...excluded].join(", ")}.`, condition: refusals.map(({ condition }) => condition).join("\n"),
       remedy: { text: refusals.map(({ remedy }) => remedy.text).join("\n") } } }] : [] };
+}
+
+/** Supply one reason for each pending seed that an existing ref-keyed seed does not already explain. */
+function pendingEndRefusals(pending: ReadonlySet<string>, seeds: readonly { ref: string }[],
+  notices: readonly PullNotice[]): { condition: string; remedy: { text: string } }[] {
+  return [...pending].flatMap(ref => {
+    const live = ref.replace("refs/arc/history/", "refs/arc/"), history = live.replace("refs/arc/", "refs/arc/history/");
+    return seeds.some(notice => notice.ref === live || notice.ref === history) ? [] : [pendingEndRefusal(ref, notices)];
+  });
+}
+
+/** Preserve a kept ref notice or item-keyed double end before the pending-history fallback. */
+function pendingEndRefusal(ref: string, notices: readonly PullNotice[]): { condition: string; remedy: { text: string } } {
+  const live = ref.replace("refs/arc/history/", "refs/arc/"), history = live.replace("refs/arc/", "refs/arc/history/");
+  const family = live.startsWith("refs/arc/cohort/") ? "cohort" : "work-item", uid = live.split("/").at(-1);
+  const related = notices.find(notice => "ref" in notice && (notice.ref === live || notice.ref === history));
+  const ended = notices.find(notice => notice.kind === "ended-twice" && notice.item.type === family
+    && "uid" in notice.item && notice.item.uid === uid);
+  return related ?? ended ?? { condition: "The end record is present but the state remote has no retained history for this item.",
+    remedy: { text: `Have a clone holding ${history} push it back to the state remote, then pull again.` } };
 }

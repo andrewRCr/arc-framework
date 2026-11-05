@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import { ISOLATED_UNIT_MOCK_FILES } from "./__tests__/helpers/isolated-unit-mock-files.js";
-import { selectIntegrationTempRoot } from "./__tests__/helpers/integration-temp-root.js";
+import { integrationRunRootPath, selectIntegrationTempRoot } from "./__tests__/helpers/integration-temp-root.js";
 import { resolveVitestMaxWorkers } from "./__tests__/helpers/vitest-worker-policy.js";
 
 // Absolute package root from this config file — not process.cwd(). `root: "."`
@@ -30,8 +30,12 @@ if (process.platform === "win32") {
 }
 
 // Integration fixtures are write-heavy and short-lived. Use Linux's memory-backed root
-// only when it can execute the shims created by integration tests.
+// only when it can execute the shims created by integration tests. Each run takes its
+// own directory there, which the integration global setup creates and removes, so what
+// children write to their temp directory leaves memory with the run: tsx's and Node's
+// compile caches would otherwise accumulate there across every checkout's runs.
 const integrationTempRoot = selectIntegrationTempRoot("/dev/shm");
+const integrationRunRoot = integrationTempRoot === undefined ? undefined : integrationRunRootPath(integrationTempRoot);
 
 // Test repositories must not inherit developer-machine Git configuration. A
 // long-lived workstation can carry `arc.identity` globally even when a fixture
@@ -64,7 +68,7 @@ const timingTest = "__tests__/integration/store-ref-timing.test.ts";
 const burstTest = "__tests__/integration/store-ref-bursts.test.ts";
 const integrationTest = {
   root: packageRoot,
-  ...(integrationTempRoot === undefined ? {} : { env: { TMPDIR: integrationTempRoot } }),
+  ...(integrationRunRoot === undefined ? {} : { env: { TMPDIR: integrationRunRoot } }),
   globalSetup: ["__tests__/integration/global-setup.ts"],
   testTimeout: 30_000,
   ...emptySuiteRuntimeOptions,

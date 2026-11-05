@@ -6,14 +6,19 @@ import type { StoreRefusal } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import type { PullNotice } from "../sync.js";
 
+/** A refused fetch retains notices gathered before its failure. */
+export class RefFetchRefusalError extends Error {
+  constructor(readonly failure: Extract<StoreRefusal, { code: "refused" }>, readonly notices: readonly PullNotice[]) {
+    super(failure.condition);
+  }
+}
+
 /** An exhausted full refetch is a remote-scoped refusal, preserving local state for repair. */
-export class RefFetchIncompleteError extends Error {
-  readonly failure: Extract<StoreRefusal, { code: "refused" }>;
-  constructor(missing: readonly string[], readonly notices: readonly PullNotice[]) {
+export class RefFetchIncompleteError extends RefFetchRefusalError {
+  constructor(missing: readonly string[], notices: readonly PullNotice[]) {
     const condition = `The state fetch still lacks objects after a full refetch: ${missing.join(", ")}.`;
-    super(condition);
-    this.failure = { code: "refused", class: "terminal", message: condition, condition,
-      remedy: { text: "Restore the missing objects on the state remote, then retry the pull; local writes were preserved." } };
+    super({ code: "refused", class: "terminal", message: condition, condition,
+      remedy: { text: "Restore the missing objects on the state remote, then retry the pull; local writes were preserved." } }, notices);
   }
 }
 

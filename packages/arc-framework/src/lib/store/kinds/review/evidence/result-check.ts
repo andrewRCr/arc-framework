@@ -29,7 +29,8 @@ export async function checkReviewEvidenceResult(input: WriteCheckInput, value: R
   return [...checkProducerPerformance(value, decoded.data), ...checkHostedEvidence(value, decoded.data)];
 }
 
-function checkProducerPerformance(value: ReviewEvidence, outcome: ReviewOutcome): readonly BrokenRule[] {
+/** Validate performance against its immutable producer without another store read. */
+export function checkProducerPerformance(value: ReviewEvidence, outcome: ReviewOutcome): readonly BrokenRule[] {
   if (value.performance !== undefined && value.performance.originatingHeadSha !== outcome.target.headSha) {
     return [brokenRule("review.evidence.performance-target", "The performed response differs from its producer's original reviewed head.",
       "Retain the exact original head from the outcome in the performed response.")];

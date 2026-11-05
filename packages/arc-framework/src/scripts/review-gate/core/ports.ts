@@ -54,11 +54,27 @@ export interface ReviewEvidencePort extends ReviewFactPort<ReviewEvidence> {
 /** Immutable decisions keyed by their canonical content. */
 export type ReviewDecisionPort = ReviewFactPort<ReviewDecision>;
 
+/** Selected approval facts from the same snapshot as their immutable producer. */
+export type ReviewResponseAuthority = { status: "found"; outcome: StoredReviewFact<ReviewOutcome>;
+  authority: "loaded"; evidence: readonly StoredReviewFact<ReviewEvidence>[] };
+/** An absent producer is distinct from a producer with no approved response. */
+export type ReviewResponseMissing = { status: "missing-producer" };
+/** Immutable-only projections explicitly do not request approval authority. */
+export type ReviewResponseRead = ReviewResponseMissing | ReviewResponseAuthority
+  | { status: "found"; outcome: StoredReviewFact<ReviewOutcome>; authority: "not-requested" };
+/** Owner-bound response authority with snapshot tokens retained inside its adapter. */
+export interface ReviewResponsePort {
+  read(producerId: string, purpose: "authority"): Promise<ReviewResponseMissing | ReviewResponseAuthority>;
+  read(producerId: string, purpose: "producer-result"): Promise<ReviewResponseRead>;
+  list(): Promise<{ outcomes: readonly StoredReviewFact<ReviewOutcome>[]; evidence: readonly StoredReviewFact<ReviewEvidence>[] }>;
+}
+
 /** Portable review facts selected together by one native invocation. */
 export interface NativeReviewFactPorts {
   outcomes: ReviewOutcomePort;
   evidence: ReviewEvidencePort;
   decisions: ReviewDecisionPort;
+  responses: ReviewResponsePort;
   readProjectId(): Promise<string>;
 }
 

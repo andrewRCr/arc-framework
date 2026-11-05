@@ -32,7 +32,7 @@ describe("fetch process failure", () => {
   ])("classifies rowless failure: %s", (stderr, cause) => {
     const error = makeGitProcessError({ command: "git", args: ["fetch", "--porcelain"], exitCode: 1,
       stdout: "", stderr });
-    expect(parseFetchPorcelain(error)).toEqual({ status: "unreachable", cause, stdout: "", stderr });
+    expect(parseFetchPorcelain(error)).toEqual({ status: "unreachable", cause, completedFailure: true, stdout: "", stderr });
   });
 });
 

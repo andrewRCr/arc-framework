@@ -3,8 +3,8 @@ import type { z } from "zod";
 import { describeRecordConflicts, recordConflictRefusal } from "../../conflict-diagnostics.js";
 import type { Store } from "../../contract.js";
 import type { Remedy, StoreRefusal, StoreResult } from "../../refusal.js";
-import type { ListingOutcome } from "../../read.js";
-import { RecordVersionSchema, type RecordReference, type RecordVersion } from "../../identity.js";
+import type { ListingOutcome, ListingDiagnostic } from "../../read.js";
+import { RecordVersionSchema, type RecordReference, type RecordVersion, type StateVersion } from "../../identity.js";
 import type { ReviewFactListing, ReviewFactPut, StoredReviewFact } from "../../../../scripts/review-gate/core/ports.js";
 import { decodeStoredReviewRecord, readReviewRecord, unwrapReviewRecordResult } from "./access-shared.js";
 import { ReviewFactVersionConflictError } from "./errors.js";
@@ -36,8 +36,9 @@ export function reviewFactListingError(listing: Exclude<ReviewFactListing<unknow
 
 interface ReviewFactAccess<T> {
   prepare: (value: T, expected: RecordVersion | null) => ReviewFactPut;
-  read: (key: string) => Promise<StoredReviewFact<T> | null>;
+  read: (key: string, asOf?: StateVersion) => Promise<StoredReviewFact<T> | null>;
   list: () => Promise<ReviewFactListing<T>>;
+  snapshot: (asOf?: StateVersion) => Promise<{ listing: ReviewFactListing<T>; asOf?: StateVersion; diagnostics: readonly ListingDiagnostic[] }>;
   write: (value: T, expected: RecordVersion | null) => Promise<StoredReviewFact<T>>;
 }
 
@@ -48,11 +49,36 @@ export function createReviewFactAccess<T>(store: Store, reference: (key: string)
     const parsed = schema.parse(value);
     return { action: "put", reference: reference(key(parsed)), expected, content: JSON.stringify(parsed) };
   };
-  return {
-    prepare,
-    async list(): Promise<ReviewFactListing<T>> {
+  const snapshot = async (asOf?: StateVersion) => {
       const scope = reference("listing");
-      const result = await store.list({ family: "review", kind: scope.kind, owner: scope.owner });
+      const result = await store.list({ family: "review", kind: scope.kind, owner: scope.owner,
+        ...(asOf === undefined ? {} : { asOf }) });
+      return { listing: decodeReviewFactListing(store, result, schema),
+        diagnostics: result.status === "ok" && result.result.status === "complete" ? result.result.diagnostics : [],
+        ...(result.status === "ok" && result.result.status !== "unreadable" && result.result.asOf !== undefined
+          ? { asOf: result.result.asOf } : {}) };
+  };
+  return {
+    prepare, snapshot,
+    async list(): Promise<ReviewFactListing<T>> { return (await snapshot()).listing; },
+    async read(recordKey: string, asOf?: StateVersion): Promise<StoredReviewFact<T> | null> {
+      const record = await readReviewRecord(store, reference(recordKey), asOf);
+      return record === null ? null : { reference: record.reference, version: record.version,
+        value: decodeStoredReviewRecord(store, record, content => schema.parse(JSON.parse(content))) };
+    },
+    async write(value: T, expected: RecordVersion | null): Promise<StoredReviewFact<T>> {
+      const put = prepare(value, expected);
+      const written = await store.write({ ...put, provenance: { verb: "review", lifecycleAction: "edit" } });
+      if (written.status === "refused" && written.refusal.code === "version-conflict") throw new ReviewFactVersionConflictError(written.refusal, store.capabilities.stateOffBranch);
+      const result = unwrapReviewRecordResult(store, written);
+      return { reference: result.reference, version: RecordVersionSchema.parse(result.version),
+        value: schema.parse(JSON.parse(put.content)) };
+    },
+  };
+}
+
+/** Decode one already captured listing without refreshing or changing its scope. */
+export function decodeReviewFactListing<T>(store: Store, result: StoreResult<ListingOutcome>, schema: z.ZodType<T>): ReviewFactListing<T> {
       const refusal = reviewListingRefusal(result);
       // Natively every non-complete listing carries its refusal; the repository arm reports its reason alone.
       const refused = refusal !== null && store.capabilities.stateOffBranch ? { refusal } : {};
@@ -69,21 +95,7 @@ export function createReviewFactAccess<T>(store: Store, reference: (key: string)
       if (conflicts.length > 0) return { status: "incomplete",
         reason: `Review fact listing has unresolved conflicts.${describeRecordConflicts(conflicts)}`, ...refused };
       return { status: "complete", records: listing.records.map((record) => ({
-        reference: record.reference, version: record.version, value: schema.parse(JSON.parse(record.content)),
+        reference: record.reference, version: record.version,
+        value: decodeStoredReviewRecord(store, record, content => schema.parse(JSON.parse(content))),
       })) };
-    },
-    async read(recordKey: string): Promise<StoredReviewFact<T> | null> {
-      const record = await readReviewRecord(store, reference(recordKey));
-      return record === null ? null : { reference: record.reference, version: record.version,
-        value: decodeStoredReviewRecord(store, record, content => schema.parse(JSON.parse(content))) };
-    },
-    async write(value: T, expected: RecordVersion | null): Promise<StoredReviewFact<T>> {
-      const put = prepare(value, expected);
-      const written = await store.write({ ...put, provenance: { verb: "review", lifecycleAction: "edit" } });
-      if (written.status === "refused" && written.refusal.code === "version-conflict") throw new ReviewFactVersionConflictError(written.refusal, store.capabilities.stateOffBranch);
-      const result = unwrapReviewRecordResult(store, written);
-      return { reference: result.reference, version: RecordVersionSchema.parse(result.version),
-        value: schema.parse(JSON.parse(put.content)) };
-    },
-  };
 }

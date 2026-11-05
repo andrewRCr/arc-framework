@@ -57,6 +57,7 @@ describe("authored schema metadata", () => {
       "review-resolve-request",
       "review-respond-request",
       "review-terminus-accept-request",
+      "store-repair-review-roots-request",
     ]);
     expect(registry.ids().filter((id) => {
       const meta = registry.meta(id);

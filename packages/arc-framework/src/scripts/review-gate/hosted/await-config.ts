@@ -1,7 +1,7 @@
 /** Project timing composition for bounded hosted-review awaits. */
 
 import type { ConfigSettings } from "../../../lib/config/schema.js";
-import { AwaitTimingError, configuredTiming, resolveAwaitTiming } from "../await-timing.js";
+import { AwaitTimingError, configuredTiming, resolveAwaitTiming, type AwaitTimingDiagnostic } from "../await-timing.js";
 import {
   HostedAwaitEnvelopeSchema,
   HostedAwaitExecutionEnvelopeSchema,
@@ -15,10 +15,11 @@ type HostedAwaitConfigKey =
   | "review.hosted_await_attention_after_minutes";
 type HostedAwaitConfigSettings = Pick<ConfigSettings, HostedAwaitConfigKey>;
 
-/** One effective bounded call plus its unattended-wait attention threshold. */
+/** One effective bounded call plus its unattended-wait attention threshold and any limit notices. */
 export interface HostedAwaitTiming {
   readonly request: HostedAwaitExecutionEnvelope;
   readonly attentionAfterMs: number;
+  readonly diagnostics?: readonly AwaitTimingDiagnostic[];
 }
 
 const toMs = (seconds: number | undefined): number | undefined => seconds === undefined ? undefined : seconds * 1_000;
@@ -35,7 +36,7 @@ export function resolveHostedAwaitTiming(
   settings: HostedAwaitConfigSettings,
 ): HostedAwaitTiming {
   const request = HostedAwaitEnvelopeSchema.parse(input);
-  const { timeoutMs, pollIntervalMs } = resolveAwaitTiming({
+  const { timeoutMs, pollIntervalMs, diagnostics } = resolveAwaitTiming({
     wait: "hosted await",
     keys: {
       timeoutSeconds: "review.hosted_await_timeout_seconds",
@@ -65,5 +66,6 @@ export function resolveHostedAwaitTiming(
       Number.MAX_SAFE_INTEGER,
       configuredTiming(settings, "review.hosted_await_attention_after_minutes", "hosted await") * 60 * 1_000,
     ),
+    ...(diagnostics.length === 0 ? {} : { diagnostics }),
   };
 }

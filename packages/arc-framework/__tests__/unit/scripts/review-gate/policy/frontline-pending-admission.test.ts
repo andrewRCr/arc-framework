@@ -55,7 +55,7 @@ it("recognizes an ended native admission in a fresh checkout without changing it
   onTestFinished(checkout.cleanup);
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
   const operations = new NativeReviewInFlightStateStore({ publisher, workItem: h.f.primary.reference.owner,
-    outcomes: h.f.input.outcomes, evidence: h.f.input.evidence, decisions: h.f.input.decisions, projectId: h.f.input.readProjectId });
+    outcomes: h.f.input.outcomes, evidence: h.f.input.evidence, decisions: h.f.input.decisions, projectId: h.f.input.readProjectId, responses: h.f.input.responses });
   const owner = await operations.readOperation(pending.operationId);
   if (owner.state?.kind !== "lane-progress") throw new Error("Expected completed lane owner");
   expect(owner.version).toBe(0);

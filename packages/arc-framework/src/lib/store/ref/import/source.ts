@@ -28,7 +28,8 @@ export interface ImportCandidateSource { reference: RecordReference; current: st
 /** Current files and independently acquired Candidate histories share the same imported owner identities. */
 export interface ImportSource { records: ImportRecord[]; candidates: ImportCandidateSource[] }
 /** All source content is acquired before a destination object or ref is published. */
-export async function readImportSource(context: RefBackendContext, report: MigrateReport, codeHead: string, transients: ImportTransientState): Promise<ImportSource> {
+export async function readImportSource(context: RefBackendContext, report: MigrateReport, codeHead: string, transients: ImportTransientState,
+  informational: MigrateReport["notices"]): Promise<ImportSource> {
   const source = context.importSource;
   if (!source) throw new Error("The store composition point did not bind the import source");
   const result: ImportRecord[] = [];
@@ -55,7 +56,7 @@ export async function readImportSource(context: RefBackendContext, report: Migra
   await appendListing(context, report, result, owners, "cohort/document", undefined, head);
   await appendListing(context, report, result, owners, "project-inbox/inbox", undefined, head);
   await appendImportLineage(context, report, result, owners, head);
-  await appendImportPersonal(context, report, result);
+  await appendImportPersonal(context, report, result, informational);
   await appendImportTransients(context, report, result, transients);
   moveImportPendingEntries(context.registry, result, report);
   const refs = new Set(result.flatMap(({ reference, placement }) => placement?.kind === "completed"

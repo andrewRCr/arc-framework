@@ -9,6 +9,7 @@ import { ReferenceBackend } from "../../helpers/store/reference-backend.js";
 import { TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../src/lib/store/identity.js";
 import { createStoreSyncPort } from "../../../src/lib/store/operational-sync.js";
+import { PullResultSchema } from "../../../src/lib/store/sync.js";
 import { authorizeOrdinaryErrandResume } from "../../../src/lib/errand/open-runtime.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import { linkOrdinaryErrandAtRuntime } from "../../../src/lib/errand/link-runtime.js";
@@ -235,4 +236,17 @@ it("writes the notices a stopping pull already applied before withholding Errand
   expect(await readStoreErrand({ store: h.store, identity: "alice", writeNotice: line => written.push(line) }, "fix-it"))
     .toMatchObject({ kind: "refused" });
   expect(written).toEqual(["Alpha's end remains pending. Pull again to settle it."]);
+});
+
+it.each([false, true])("shows the designation question once while retaining the runtime policy: readFailure=%s", async readFailure => {
+  const h = createLifecycleHarness(), written: string[] = [];
+  h.store.pull = async () => ({ status: "ok", result: PullResultSchema.parse({ states: [{ status: "designation-needed", remote: "backup", choices: ["push", "read", "off"],
+    remedy: { text: "Choose the backup role.", argv: ["arc", "store", "remote", "backup", "push"] } }],
+    pulls: readFailure ? [{ status: "failed", remote: "upstream", role: "read", families: ["work-item"], notices: [],
+      failure: { code: "unreachable", class: "recoverable", cause: "network", condition: "Upstream is offline.",
+        remedy: { text: "Reconnect the read source." } } }] : [] }) });
+  expect(await readStoreErrand({ store: h.store, identity: "alice", writeNotice: line => written.push(line) }, "missing"))
+    .toEqual({ kind: "ready", record: null });
+  expect(written).toEqual([...readFailure ? ["Read source upstream was not pulled: Upstream is offline. Reconnect the read source."] : [],
+    "Remote backup needs a store designation. Choose the backup role. arc store remote backup push"]);
 });

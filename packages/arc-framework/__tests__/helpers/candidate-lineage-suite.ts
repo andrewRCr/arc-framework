@@ -105,6 +105,7 @@ import { createIntegrationMergeDependencies } from "../../src/scripts/integratio
 import { composeCanonicalSettlementPlan } from "../../src/scripts/integration/settlement-plan.js";
 import type { MergeMethodResolveResult } from "../../src/scripts/review-gate/merge-method.js";
 import { deliveryThreeMemberStackPlanForWorkUnitFixture } from "../fixtures/delivery-plan.js";
+import { fakeCodeRabbitCompletionLines } from "../helpers/fake-coderabbit.js";
 import { runHandlerAt, type HandlerRunResult } from "../helpers/handler.js";
 import {
   cleanupTempDir,
@@ -621,8 +622,7 @@ async function installFrontlineFindingProvider(root: string) {
     "  exit 0",
     "fi",
     `printf '%s\\n' '${JSON.stringify(findingEvent)}'`,
-    "printf '%s\\n' '{\"type\":\"complete\",\"status\":\"review_completed\",\"findings\":1,"
-      + "\"reviewedFiles\":[\"reviewed.txt\"]}'",
+    ...fakeCodeRabbitCompletionLines(1),
     "",
   ].join("\n"), "utf8");
   await chmod(executable, 0o755);

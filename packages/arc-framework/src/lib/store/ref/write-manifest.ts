@@ -11,20 +11,31 @@ import type { RefBackendContext } from "./context.js";
 import { projectIdentityQueries, projectOwnerFromObjects } from "./project-identity.js";
 import { commitRefTree, commitRefTreeOid } from "./write-commits.js";
 import { refWriteTargets, type ResolvedBatch } from "./write-resolution.js";
+import { readRetirementLineagePaths } from "./write-retirement.js";
 import { writeRefBlob } from "./tree-write.js";
 
 const REGISTRY = "refs/arc/project/registry";
 const historyRef = (ref: string): boolean => ref.startsWith("refs/arc/history/");
 
 /** Acquire the registry lock for an operation that may need an otherwise unchanged manifest anchor. */
-export function registryAnchorLockRefs(context: RefBackendContext, batch: ResolvedBatch): string[] {
+export async function registryAnchorLockRefs(context: RefBackendContext, batch: ResolvedBatch): Promise<StoreResult<string[]>> {
   const targets = refWriteTargets(context, batch);
-  if (targets.some(({ home }) => home.ref === REGISTRY)) return [];
-  const mayEnd = batch.writes.some(({ mutation, home }) => mutation.action === "remove"
+  if (targets.some(({ home }) => home.ref === REGISTRY)) return { status: "ok", result: [] };
+  if (batchMayEndPrimary(batch) || targets.some(({ home }) => historyRef(home.ref))) return { status: "ok", result: [REGISTRY] };
+  const work = targets.filter(({ home }) => home.ref.startsWith("refs/arc/work/") && batch.tips.has(home.ref));
+  if (!work.length) return { status: "ok", result: [] };
+  const lineage = await readRetirementLineagePaths(context, batch.tips);
+  if (lineage.status === "refused") return lineage;
+  const mayRetire = work.some(({ reference }) => lineage.result.has(expandStoredPath(
+    RecordReferenceSchema.parse({ owner: reference.owner, kind: "lineage/transition" }), { registry: context.registry }).path));
+  return { status: "ok", result: mayRetire ? [REGISTRY] : [] };
+}
+
+function batchMayEndPrimary(batch: ResolvedBatch): boolean {
+  return batch.writes.some(({ mutation, home }) => mutation.action === "remove"
     ? home.ref.startsWith("refs/arc/work/") && batch.tips.has(home.ref)
     : mutation.placement?.kind === "completed"
       && ["work-item/meta", "work-item/record", "cohort/document"].includes(mutation.reference.kind));
-  return mayEnd || targets.some(({ home }) => historyRef(home.ref)) ? [REGISTRY] : [];
 }
 
 interface ManifestAnchorBasis {

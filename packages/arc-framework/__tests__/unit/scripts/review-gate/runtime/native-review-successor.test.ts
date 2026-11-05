@@ -72,13 +72,33 @@ it("refuses a second successor to the same predecessor and continues by replayin
   expect(await publishNativeReviewSuccessor(input)).toEqual(first);
 });
 
+it("refuses superseded native approval replays and continues with the current tail", async () => {
+  const { outcome, primary, prior, next, input } = await nativeSuccessor("local");
+  const first = await publishNativeReviewSuccessor(input);
+  const { dispositionSetId: ignored, ...identity } = next.dispositionSet;
+  void ignored;
+  const dispositionSet = createDispositionSet({ ...identity, proposedBy: "later-proposer" });
+  const latest = ReviewEvidenceSchema.parse({ ...first.value, dispositionSet,
+    approval: approveDispositionSet({ dispositionSet, approvedBy: "andrew", approvedAt: "2026-10-20T15:00:00Z" }),
+    predecessorDispositionSetId: first.value.dispositionSet.dispositionSetId });
+  const record = composeReviewDispositionRecord(outcome, [{ ...prior.value,
+    successorDispositionSetId: first.value.dispositionSet.dispositionSetId },
+  { ...first.value, successorDispositionSetId: dispositionSet.dispositionSetId }, latest], primary.reference.owner);
+  const stored = await publishNativeReviewSuccessor({ ...input, record });
+  await expect(publishNativeReviewSuccessor(input)).rejects.toThrow("current approved response");
+  await expect(publishNativeReviewApproval({ ...input,
+    record: composeReviewDispositionRecord(outcome, [prior.value], primary.reference.owner) }))
+    .rejects.toThrow("current approved response");
+  expect(await publishNativeReviewSuccessor({ ...input, record })).toEqual(stored);
+});
+
 it("refuses succession after performance and preserves replay of the performed response", async () => {
   const { outcome, primary, prior, input } = await nativeSuccessor("frontline");
   const performanceInput = { outcomes: input.outcomes, evidence: input.evidence, readProjectId: input.readProjectId,
     record: composeReviewDispositionRecord(outcome, [prior.value], primary.reference.owner),
     performance: { schemaVersion: 1 as const, producerId: outcome.attemptId,
       dispositionSetId: prior.value.dispositionSet.dispositionSetId, originatingHeadSha: outcome.target.headSha,
-      producedHeadSha: outcome.target.headSha, performedAt: "2026-10-20T13:00:00Z" } };
+      producedHeadSha: outcome.target.headSha, performedAt: "2026-10-20T13:00:00Z" }, responses: input.responses };
   const performed = await publishNativeReviewPerformance(performanceInput);
   await expect(publishNativeReviewSuccessor(input)).rejects.toThrow("replay that response");
   expect(await input.evidence.read(input.record.currentDispositionSetId)).toBeNull();

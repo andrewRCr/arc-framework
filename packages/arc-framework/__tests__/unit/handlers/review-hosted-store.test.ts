@@ -6,7 +6,7 @@ import { createReviewEvidencePort } from "../../../src/lib/store/kinds/review/ev
 import { scriptRawGitExec } from "../../helpers/git-exec-fake.js";
 import { withReviewReport } from "../../fixtures/review-report-input.js";
 import { HostedAwaitCommandResultSchema } from "../../../src/scripts/review-gate/hosted/await.js";
-import { appendFile } from "node:fs/promises";
+import { appendFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { beforeEach, expect, it, onTestFinished, vi } from "vitest";
 import { handleReviewHostedRequest, handleReviewHostedAwait, handleReviewRespond, handleReviewHostedSettle, handleReviewResolve, handleReviewPrePublication } from "../../../src/handlers/review.js";
@@ -38,6 +38,7 @@ import { bindNativeReviewOperationReference, parseNativeReviewOperationReference
 
 import { ArchiveQuarterSchema, SlugSchema } from "../../../src/lib/kernel/index.js";
 import { nativeListingRefusal } from "../../fixtures/native-refusal.js";
+import { resolveWorktreeMarkerPath } from "../../../src/lib/git/worktree-marker.js";
 
 // The locus probe runs as itself unless a case makes one call meet a store refusal from another checkout's records.
 const mocks = vi.hoisted(() => ({
@@ -227,6 +228,21 @@ it("continues a hosted request using the exact native await input emitted by pre
   h.complete();
   expect(await h.awaitResult(emitted)).toMatchObject({ state: "clean", nextAction: "complete", operationRef: requested.operationRef });
   expect(await h.pending()).not.toMatchObject({ error: { code: "review-in-progress" } });
+});
+
+it("waits up to the hosted limits for an over-limit await and names them outside the sealed result", async () => {
+  const h = await fixture(true);
+  const requested = HostedRequestResultSchema.parse(await h.run());
+  if (requested.state !== "requested") throw new Error(JSON.stringify(requested));
+  h.complete();
+  const limited = await h.awaitResult({ ...requested.action, timeoutSeconds: 2_700, initialPollIntervalSeconds: 90 });
+  expect(limited, JSON.stringify(limited)).toMatchObject({ state: "clean", nextAction: "complete", diagnostics: [
+    { code: "await-timing-limited", message: expect.stringContaining("timeoutSeconds is above the 30-minute limit") },
+    { code: "await-timing-limited", message: expect.stringContaining("initialPollIntervalSeconds is above the 60-second limit") },
+  ] });
+  const replayed = await h.awaitResult(requested.action);
+  expect(replayed).toMatchObject({ state: "clean", hostedResultId: (limited as { hostedResultId: string }).hostedResultId });
+  expect(replayed).not.toHaveProperty("diagnostics");
 });
 
 it.each([false, true])("checks the fresh hosted owner before grants or dispatch (work unit: %s)", async workUnit => {
@@ -422,6 +438,16 @@ it("retains a bound internal hosted owner without an input locator and publishes
   h.complete();
   expect(await h.awaitResult({ schemaVersion: 1, handle: requested.handle }, { workItem: h.primary.reference.owner }))
     .toMatchObject({ state: "clean", operationRef: requested.operationRef });
+});
+
+it("names the ways to give a hosted request a vehicle and requests once the checkout has one", async () => {
+  const h = await fixture();
+  await unlink(resolveWorktreeMarkerPath(h.cwd));
+  expect(await h.run()).toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("delivery member") },
+    remedy: { text: expect.stringContaining("arc errand open"), argv: ["arc", "review", "hosted", "request", "-"], stdin: h.request } });
+  expect(h.dispatchedRequests()).toBe(0);
+  await h.occupy(branch, { kind: "errand", slug: h.record.slug, claimId: h.record.claimId });
+  expect(await h.run()).toMatchObject({ state: "requested" });
 });
 
 it("preserves hosted project-identity recovery before reference selection", async () => {

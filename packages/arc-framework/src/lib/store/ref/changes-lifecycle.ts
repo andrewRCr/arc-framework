@@ -15,6 +15,8 @@ import { includesLifecycleOwner } from "./changes-scope.js";
 import { latestArchivedFolders, type ArchivedFolder } from "./archive-read.js";
 import type { ReadPlacement } from "../placement.js";
 import { missingChangeState, type RefChangeWindow, type RefChangeInterval, type ChangeWindowReader } from "./changes-graph.js";
+import { isUnavailableGraphFailure } from "./history-graph.js";
+import { missingHistoryRefs } from "./missing-history.js";
 
 /** Select one continuous history window per owner, excluding states before a reopen. */
 export async function lifecycleChangeWindows(context: RefBackendContext, interval: RefChangeInterval, readWindow: ChangeWindowReader, evidence = new StoreCreationReceiptReader()): Promise<StoreResult<RefChangeWindow[]>> {
@@ -117,7 +119,7 @@ async function originEndBefore(context: RefBackendContext, input: ChangesInput, 
   const missing = (): StoreResult<never> => ({ status: "refused", refusal: missingChangeState({ ref: history, version: input.from }) });
   if (!beforeRegistry) return missing();
   const reference = RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } });
-  const registry = await indexHistoryBatches(context, "refs/arc/project/registry", beforeRegistry, reference, evidence, missingChangeState({ ref: "refs/arc/project/registry", version: input.from }));
+  const registry = await indexHistoryBatches(context, "refs/arc/project/registry", beforeRegistry, reference, evidence, missingChangeState({ ref: "refs/arc/project/registry", version: input.from }, []));
   if (registry.status === "refused") return registry;
   const retired = await readItemEndBatches(context, source, historyOwner(history), "retirement");
   const candidates = [...index].filter(([batch]) => retired.has(batch) && registry.result.has(batch)).map(([, commit]) => commit);
@@ -176,14 +178,27 @@ async function retirementCommit(context: RefBackendContext, evidence: EndEvidenc
   const ends = [...index].filter(([batch]) => retired.has(batch)).map(([, commit]) => commit).reverse();
   if (!ends.length) return { status: "ok", result: undefined };
   if (lower && (await readBatchObjects(context, [lower])).get(lower)?.type !== "commit") {
-    return { status: "refused", refusal: missingChangeState({ ref: history, version }) };
+    return { status: "refused", refusal: missingChangeState({ ref: history, version }, await missingHistoryRefs(context, [history], current)) };
   }
-  const unreached: string[] = [];
-  for (const end of ends) if (!lower || !await syncRefIsAncestor(context, end, lower)) unreached.push(end);
+  const selected = await unreachedRetirementEnds(context, ends, evidence);
+  if (selected.status === "refused") return selected;
+  const unreached = selected.result;
   // With every end already reached, even a lone one, the history this clone holds lacks the end the newer holds.
   if (unreached.length < 2) return { status: "ok", result: unreached[0] };
   if (buildRefManifest(current, await readObjectFormat(context)).version === version) return { status: "ok", result: unreached.at(-1) };
   return { status: "refused", refusal: unorderedEnds(history, version) };
+}
+
+async function unreachedRetirementEnds(context: RefBackendContext, ends: readonly string[], evidence: EndEvidence): Promise<StoreResult<string[]>> {
+  const { lower, history, version, current } = evidence;
+  try {
+    const unreached: string[] = [];
+    for (const end of ends) if (!lower || !await syncRefIsAncestor(context, end, lower)) unreached.push(end);
+    return { status: "ok", result: unreached };
+  } catch (error) {
+    if (!await isUnavailableGraphFailure(context, error)) throw error;
+    return { status: "refused", refusal: missingChangeState({ ref: history, version }, await missingHistoryRefs(context, [history], current)) };
+  }
 }
 
 function unorderedEnds(history: string, version: StateVersion): StoreRefusal {
@@ -199,13 +214,14 @@ function historyOwner(history: string): OwnerIdentity {
 }
 
 async function lifecycleBatchIndex(context: RefBackendContext, history: string, tip: string, input: ChangesInput, evidence: StoreCreationReceiptReader): Promise<StoreResult<Map<string, string>>> {
+  const unavailable = async (): Promise<StoreRefusal> => missingChangeState({ ref: history, version: input.to }, await missingHistoryRefs(context, [history]));
   const object = (await readBatchObjects(context, [tip])).get(tip);
-  if (object?.type !== "commit") return { status: "refused", refusal: missingChangeState({ ref: history, version: input.to }) };
+  if (object?.type !== "commit") return { status: "refused", refusal: await unavailable() };
   const headReceipt = captureCommitReceipts(new Map([[tip, object]]), history, evidence);
   if (headReceipt.status === "refused") return headReceipt;
   const owner = historyOwner(history);
   const reference = RecordReferenceSchema.parse({ kind: owner.type === "cohort" ? "cohort/document" : "work-item/meta", owner });
-  return indexHistoryBatches(context, history, tip, reference, evidence, missingChangeState({ ref: history, version: input.to }));
+  return indexHistoryBatches(context, history, tip, reference, evidence, unavailable);
 }
 
 function hasLifecycleBatches(live: string, ends: ChangeEnds, index: ReadonlyMap<string, string>, batches: ReadonlySet<string>): boolean {

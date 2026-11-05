@@ -13,14 +13,14 @@ import type { RefBackendContext } from "./context.js";
 import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
 import type { PreparedRefMutation } from "./write-merge.js";
 import { preparedCohortParents, cohortClosePlacement, type PreparedMemberPlacement } from "./cohort-coordinates.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
 import { commitRefTree, type RefWriteGroup } from "./write-commits.js";
 import { archivedFolderRoot, archiveOutputControlRefusal, ownerPrimaryReference } from "./archive-refresh.js";
 import { projectRefTreeEntry } from "./entry-path.js";
 import { quarterCommitReference } from "./quarter-provenance.js";
 import { archiveSourceMetadataRefusal } from "./archive-metadata-admission.js";
 import { archiveCopyNamespaceRefusal, archiveDestinationRefusal } from "./archive-destination-admission.js";
-import { parseRefMetadata } from "./metadata.js";
+import { readRefMetadata } from "./metadata.js";
 
 /** One item's assigned destination, resolved from the locked quarter tree. */
 export interface RefArchivePlan {
@@ -133,7 +133,9 @@ async function readArchiveQuarters(context: RefBackendContext, selected: readonl
   const captured = new Map([...tips].filter(([ref]) => quarters.has(ref)));
   const trees = captured.size ? await readRefTrees(context, captured) : new Map<string, RefTreeEntry[]>();
   for (const ref of captured.keys()) {
-    if (!trees.has(ref)) return { status: "refused", refusal: corruptRef(ref, true) };
+    if (!trees.has(ref)) return { status: "refused", refusal: refObjectFault(ref, "missing", {
+      condition: `The tip or a tree of ${ref} is unavailable locally.`,
+    }).refusal };
   }
   const entries = sharedQuarters ?? new Map<string, Map<string, RefTreeEntry>>();
   for (const ref of quarters) if (!entries.has(ref)) entries.set(ref, new Map((trees.get(ref) ?? []).map((entry) => [entry.path, entry])));
@@ -146,10 +148,14 @@ async function copyArchiveEntries(context: RefBackendContext, plan: RefArchivePl
   const copied = [...group.entries.values()].filter(entry => entry.path !== live.manifestPath.slice(0, -1) && !entry.path.startsWith(live.manifestPath));
   const own = group.entries.get(live.metadataPath);
   const objects = await readBatchObjects(context, own ? [own.oid] : []);
-  const metadata = parseRefMetadata(own ? objects.get(own.oid) : undefined);
-  const refusal = archiveSourceMetadataRefusal(context, plan.reference, plan.source, group.entries.values())
-    ?? archiveOutputControlRefusal(ownerPrimaryReference(plan.reference.owner, group.metadata), plan.home.ref, folder,
-      { placement: plan.placement, endBatch: group.metadata.endBatch }, metadata, own ? { path: folder + own.path } : undefined)
+  const source = archiveSourceMetadataRefusal(context, plan.reference, plan.source, group.entries.values());
+  if (source) return { status: "refused", refusal: source };
+  const read = readRefMetadata(plan.home.ref, own, objects);
+  if (read.kind !== "parsed") return { status: "refused", refusal: refObjectFault(plan.home.ref, read.kind === "absent" ? "no-metadata" : read.kind, {
+    reference: plan.reference, key: `${plan.home.ref}:${folder}${live.metadataPath}`,
+  }).refusal };
+  const refusal = archiveOutputControlRefusal(ownerPrimaryReference(plan.reference.owner, group.metadata), plan.home.ref, folder,
+      { placement: plan.placement, endBatch: group.metadata.endBatch }, read.metadata, own ? { path: folder + own.path } : undefined)
     ?? archiveCopyNamespaceRefusal(plan.reference, plan.home.ref, folder, copied, plan.entries.values(), undefined, plan.home.metadataPath);
   if (refusal) return { status: "refused", refusal };
   for (const entry of copied) {

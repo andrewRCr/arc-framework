@@ -14,6 +14,8 @@ import { findRefNamespaceCollision } from "./path-admission.js";
 import { RefSyncLabelError } from "./sync-label.js";
 import { syncRefMergeBase } from "./sync-graph.js";
 import { isUnavailableGraphFailure } from "./history-graph.js";
+import { isArchiveRef } from "./archive-read.js";
+import { refreshWithdrawCompletedCopies, withdrawCopyMetadata } from "./sync-withdraw-copies.js";
 
 /** Captured immutable coordinates used to validate and invert one competing end. */
 export interface WithdrawalBasis {
@@ -24,6 +26,7 @@ export interface WithdrawalBasis {
   reference: RecordReference;
   batches: ReadonlySet<string>;
   journal: readonly WithdrawJournalDescription[];
+  copyBatches: ReadonlyMap<string, ReadonlySet<string>>;
 }
 
 /** Materialize original, current, and published trees before preparing the atomic inverse. */
@@ -34,10 +37,11 @@ export async function prepareWithdrawEnd(context: RefBackendContext, basis: With
     ...await readEarlierWithdrawLineage(context, basis.held, basis.incoming, basis.end)];
   if (!journal.length) throw new Error("An unpublished end has no original batch contributions");
   const refs = new Set(journal.map(({ ref }) => ref));
-  const trees = await readWithdrawalTrees(context, basis.state, refs);
+  const currentRefs = new Set([...refs, ...basis.copyBatches.size ? [...basis.state.keys()].filter(isArchiveRef) : []]);
+  const trees = await readWithdrawalTrees(context, basis.state, currentRefs);
   const published = await readWithdrawalTrees(context, basis.incoming, refs);
   await readWithdrawalAncestors(context, journal, basis);
-  await requireWithdrawalBlobs(context, journal, trees, published);
+  await requireWithdrawalBlobs(context, journal, trees, published, withdrawCopyMetadata(context, basis, trees));
   const retained = await laterSiblingEnds(context, basis, journal);
   const targets = await withdrawRefTargets(context, journal, basis.incoming, basis.batches);
   for (const ref of retained.keys()) targets.delete(ref);
@@ -45,10 +49,12 @@ export async function prepareWithdrawEnd(context: RefBackendContext, basis: With
   for (const step of journal) {
     const current = prepared.get(step.ref) ?? new Map((trees.get(step.ref) ?? []).map((entry) => [entry.path, entry]));
     const remote = new Map((published.get(step.ref) ?? []).map((entry) => [entry.path, entry]));
-    prepared.set(step.ref, retained.has(step.ref) ? current : await inverseWithdrawStep(context, step, current, basis.batches, remote));
+    prepared.set(step.ref, retained.has(step.ref) ? current : await inverseWithdrawStep(context, step, current, basis.batches, remote,
+      [basis.state, basis.held, basis.incoming]));
   }
   const registry = prepared.get("refs/arc/project/registry");
   if (registry) await preserveSiblingLineage(context, [...retained.values()], trees.get("refs/arc/project/registry") ?? [], registry);
+  await refreshWithdrawCompletedCopies(context, basis, trees, prepared, journal);
   for (const [ref, entries] of prepared) {
     const collision = findRefNamespaceCollision(ref, entries.keys());
     if (collision) throw new RefSyncLabelError(ref, { code: "namespace-corrupt", class: "terminal", namespace: ref,
@@ -68,11 +74,11 @@ async function readWithdrawalAncestors(context: RefBackendContext, journal: read
     try { ancestor = await syncRefMergeBase(context, step.beforeTip, step.publishedTip); }
     catch (error) {
       if (!await isUnavailableGraphFailure(context, error)) throw error;
-      throw new UnavailableWithdrawJournal(step.ref, "The original and published withdrawal ancestor cannot be read.");
+      throw new UnavailableWithdrawJournal(step.ref, "The original and published withdrawal ancestor cannot be read.", "missing");
     }
     if (!ancestor) continue;
     const trees = await readRefTrees(context, new Map([[step.ref, ancestor]])), entries = trees.get(step.ref);
-    if (!entries) throw new UnavailableWithdrawJournal(step.ref, "The original and published withdrawal ancestor tree is unavailable.");
+    if (!entries) throw new UnavailableWithdrawJournal(step.ref, "The original and published withdrawal ancestor tree is unavailable.", "missing");
     step.ancestor = new Map(entries.map(entry => [entry.path, entry]));
   }
 }
@@ -82,18 +88,18 @@ async function readWithdrawalTrees(context: RefBackendContext, source: ReadonlyM
   const selected = new Map([...source].filter(([ref]) => refs.has(ref)));
   const trees = await readRefTrees(context, selected);
   for (const ref of selected.keys()) if (!trees.has(ref)) {
-    throw new UnavailableWithdrawJournal(ref, `A tree required to withdraw the unpublished end is unavailable for ${ref}.`);
+    throw new UnavailableWithdrawJournal(ref, `A tree required to withdraw the unpublished end is unavailable for ${ref}.`, "missing");
   }
   return trees;
 }
 
 async function requireWithdrawalBlobs(context: RefBackendContext, journal: readonly WithdrawJournalStep[],
-  trees: ReadonlyMap<string, readonly RefTreeEntry[]>, published: ReadonlyMap<string, readonly RefTreeEntry[]>): Promise<void> {
+  trees: ReadonlyMap<string, readonly RefTreeEntry[]>, published: ReadonlyMap<string, readonly RefTreeEntry[]>, copyMetadata: readonly RefTreeEntry[]): Promise<void> {
   const entries = journal.flatMap((step) => [...step.before.values(), ...step.after.values(), ...step.ancestor.values(),
     ...trees.get(step.ref) ?? [], ...published.get(step.ref) ?? []].map((entry) => ({ ref: step.ref, entry })));
   const blobs = entries.filter(({ entry }) => entry.mode !== "040000" && entry.mode !== "160000");
-  const objects = await readBatchObjects(context, [...new Set(blobs.map(({ entry }) => entry.oid))]);
+  const objects = await readBatchObjects(context, [...new Set([...blobs.map(({ entry }) => entry.oid), ...copyMetadata.map(({ oid }) => oid)])]);
   for (const { ref, entry } of blobs) if (objects.get(entry.oid)?.type !== "blob") {
-    throw new UnavailableWithdrawJournal(ref, `The blob at ${entry.path} required to withdraw the unpublished end is unavailable for ${ref}.`);
+    throw new UnavailableWithdrawJournal(ref, `The blob at ${entry.path} required to withdraw the unpublished end is unavailable for ${ref}.`, "missing");
   }
 }

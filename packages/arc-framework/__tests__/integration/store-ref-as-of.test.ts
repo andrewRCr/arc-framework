@@ -67,6 +67,29 @@ describe("reads from saved ref manifests", () => {
     }
   });
 
+  it.each((["default", "separate"] as const).flatMap(layout => (["work-item/meta", "cohort/document"] as const).map(kind => ({ layout, kind }))))(
+    "preserves the archive producer's missing-tree route for saved $kind in $layout", async ({ layout, kind }) => {
+    const f = await createRefFixture({}, layout), quarter = ArchiveQuarterSchema.parse("2026-q4");
+    const record = await seed(f, f.reference(kind));
+    success(await f.store.write({ ...update(f, record, record.content), placement: { kind: "completed", quarter } }));
+    const closed = success(await f.store.read({ reference: record.reference })), asOf = await f.settle();
+    const archive = `refs/arc/archive/${quarter}`, scope = f.gitDir ? [`--git-dir=${f.gitDir}`] : [];
+    const tree = (await f.ports.exec("git", [...scope, "rev-parse", `${archive}^{tree}`])).stdout.trim();
+    const bytes = (await f.ports.rawExec([...scope, "cat-file", "tree", tree])).stdout;
+    await removeLooseObject(f.root, tree, f.gitDir);
+    for (const result of [await f.store.read({ reference: record.reference, asOf }), await f.store.list({ family: kind === "cohort/document" ? "cohort" : "work-item", asOf })]) {
+      expect(result).toMatchObject({ status: "refused", refusal: {
+        code: "state-unresolvable", class: "recoverable", stateVersion: asOf, historyRefs: [],
+        condition: expect.stringContaining(archive), remedy: { text: expect.stringMatching(/restore|fetch/iu) },
+      } });
+    }
+    const restored = await f.ports.rawExec([...scope, "hash-object", "-t", "tree", "-w", "--stdin"], { input: bytes });
+    expect(Buffer.from(restored.stdout).toString().trim()).toBe(tree);
+    expect(success(await f.store.read({ reference: record.reference, asOf }))).toEqual(closed);
+    expect(success(await f.store.list({ family: kind === "cohort/document" ? "cohort" : "work-item", asOf })))
+      .toMatchObject({ status: "complete", records: [closed], missed: false });
+  });
+
   it.each(["work-item/meta", "cohort/document"] as const)("names missing ended %s history and admits restored objects", async (kind) => {
     const f = await createRefFixture();
     const record = await seed(f, f.reference(kind));
@@ -81,7 +104,7 @@ describe("reads from saved ref manifests", () => {
     const history = live.replace("refs/arc/", "refs/arc/history/");
     for (const result of [await f.store.read({ reference: record.reference, asOf }), await f.store.list({ family, asOf })]) {
       expect(result).toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", stateVersion: asOf,
-        historyRefs: [history], remedy: { text: expect.stringMatching(/pull.*retry/iu) } } });
+        historyRefs: [history], remedy: { text: expect.stringMatching(/(?:restore|fetch).*retry/iu) } } });
     }
     await f.ports.rawExec(["hash-object", "-t", "commit", "-w", "--stdin"], { input: bytes });
     expect(success(await f.store.read({ reference: record.reference, asOf }))).toEqual(record);
