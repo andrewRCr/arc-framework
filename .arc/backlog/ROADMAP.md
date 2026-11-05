@@ -13,19 +13,20 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                       | Priority | Owner  | Depends on                                                         | Cohort             |
-| ---------- | ------------------------------- | -------- | ------ | ------------------------------------------------------------------ | ------------------ |
-| `Planning` | cutover-flip                    | P1       | andrew | projection-write-back, cohort-identity-verbs, projection-worktrees | storage-cutover    |
-| `Active`   | projection-write-back           | P1       | andrew | —                                                                  | storage-projection |
-| `Active`   | cohort-identity-verbs           | P1       | andrew | —                                                                  | storage-seam       |
-| `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover                                                    | —                  |
-| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                                                                  | —                  |
-| `Planning` | decomposition-doctrine          | P1       | andrew | —                                                                  | —                  |
-| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                                                                  | —                  |
-| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                                                                  | —                  |
-| `Planning` | stub-mint-to-launch             | P1       | andrew | —                                                                  | —                  |
-| `Planning` | adr-accept-timing               | P2       | andrew | —                                                                  | —                  |
-| `Planning` | cli-output-contract             | P2       | andrew | —                                                                  | —                  |
+| State         | Work unit                       | Priority | Owner  | Depends on                                                         | Cohort             |
+| ------------- | ------------------------------- | -------- | ------ | ------------------------------------------------------------------ | ------------------ |
+| `Planning`    | cutover-flip                    | P1       | andrew | projection-write-back, cohort-identity-verbs, projection-worktrees | storage-cutover    |
+| `Active`      | projection-write-back           | P1       | andrew | —                                                                  | storage-projection |
+| `Active`      | cohort-identity-verbs           | P1       | andrew | —                                                                  | storage-seam       |
+| `Planning`    | adopter-install-authority       | P1       | andrew | storage-cutover                                                    | —                  |
+| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —                                                                  | —                  |
+| `Planning`    | decomposition-doctrine          | P1       | andrew | —                                                                  | —                  |
+| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —                                                                  | —                  |
+| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —                                                                  | —                  |
+| `Planning`    | stub-mint-to-launch             | P1       | andrew | —                                                                  | —                  |
+| `Integrating` | adr-accept-timing               | P2       | andrew | —                                                                  | —                  |
+| `Planning`    | cli-output-contract             | P2       | andrew | —                                                                  | —                  |
+| `Planning`    | test-typecheck-heap             | P3       | andrew | —                                                                  | —                  |
 
 ## Ready
 
@@ -116,6 +117,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | cutover-notes-removal           | P1       | andrew | cutover-flip                  | storage-cutover            |
 | cutover-tracked-state-removal   | P1       | andrew | cutover-flip                  | storage-cutover            |
 | projection-worktrees            | P1       | andrew | projection-write-back         | storage-projection         |
+| compact-schema-declarations     | P1       | andrew | test-typecheck-heap           | —                          |
 | delivery-correction-convergence | P1       | andrew | cutover-flip                  | —                          |
 | delivery-observe-attest         | P1       | andrew | cutover-flip                  | —                          |
 | work-item-relations             | P1       | andrew | cutover-flip                  | —                          |
@@ -127,6 +129,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | goal-aware-direction            | P2       | andrew | cutover-flip                  | —                          |
 | history-policy                  | P2       | andrew | cutover-flip                  | —                          |
 | operational-state-docs          | P2       | andrew | cutover-flip                  | —                          |
+| reader-surface-norms            | P2       | andrew | adr-accept-timing             | —                          |
 | documentation-surface-routing   | P3       | andrew | handoff-optimization          | agent-context-optimization |
 | instruction-optimization        | P3       | andrew | composable-workflows          | agent-context-optimization |
 | workflow-template-loads         | P3       | andrew | composable-workflows          | principle-anchored-core    |
