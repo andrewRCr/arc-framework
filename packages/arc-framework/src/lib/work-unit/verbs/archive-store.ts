@@ -21,7 +21,7 @@ import type { TransitionOutcome } from "../lifecycle-executor.js";
 import { executeTransition } from "../lifecycle-executor.js";
 import { revalidateLifecycleRecords } from "../prepared-lifecycle-write.js";
 import { observeOpenCohorts, observeCohortHoldings, describeCohortHoldings,
-  type OpenCohort, type CohortHoldingCandidate, type CohortHolding } from "../../store/kinds/cohort/check-support.js";
+  type CohortEvidence, type CohortHoldingCandidate, type CohortHolding } from "../../store/kinds/cohort/check-support.js";
 import { consumePull, pullOutcomeNotices, renderExplained } from "../../store/pull-consumption.js";
 import type { ArchiveContext, ArchiveParams, ArchiveResult } from "./archive.js";
 
@@ -203,7 +203,7 @@ async function prepareArchiveCohorts(store: Store, cohort: string | null, prospe
 
 interface ArchiveCohortSnapshot {
   prospective: readonly CohortHoldingCandidate[]; quarter: Extract<WritePlacement, { kind: "completed" }>["quarter"];
-  protectOpen: boolean; open: readonly OpenCohort[];
+  protectOpen: boolean; open: readonly CohortEvidence[];
 }
 
 async function prepareObservedCohorts(store: Store, cohortPaths: readonly string[], snapshot: ArchiveCohortSnapshot): Promise<

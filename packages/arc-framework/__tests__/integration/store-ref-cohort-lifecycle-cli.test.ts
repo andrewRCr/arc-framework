@@ -1,6 +1,6 @@
 /** Registered cohort lifecycle commands preview and retire exact owners on both backends. */
 import { describe, expect, it } from "vitest";
-import { createKindRegistry, RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { createKindRegistry, RecordReferenceSchema, type StoreRecord } from "../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import { createReferenceFixture } from "../helpers/store/reference-fixture.js";
@@ -13,6 +13,7 @@ import { writeMetaCohort } from "../../src/lib/store/kinds/meta/writers.js";
 import { writeCohortParent } from "../../src/lib/store/kinds/cohort/index.js";
 import { plantRefPrimary } from "../helpers/store/ref-primary-plant.js";
 import { mergeLineText } from "../../src/lib/store/concurrency/index.js";
+import { refSyncFixture } from "../helpers/store/ref-sync.js";
 
 const production = createKindRegistry(PRODUCTION_REGISTRATIONS);
 const overrides = { "work-item/meta": production["work-item/meta"], "cohort/document": production["cohort/document"] };
@@ -31,6 +32,56 @@ async function fixture(backend: "reference" | "ref") {
   } };
   return { ...f, ref, invoke: (args: readonly string[]) => repairCli(cli, args, options) };
 }
+
+it("removes the renamed cohort while the remaining current-name owner keeps its member", async () => {
+  const f = await fixture("ref");
+  if (f.ref === undefined) throw new Error("Expected real refs");
+  const uid = "00000000-0000-4000-8000-000000000001", otherUid = "00000000-0000-4000-8000-000000000002";
+  const first = await plantRefPrimary(f.ref, { kind: "cohort/document", name: "shared", uid, content: content("shared") });
+  const second = await plantRefPrimary(f.ref, { kind: "cohort/document", name: "shared", uid: otherUid, content: content("shared") });
+  const member = await plantRefPrimary(f.ref, { kind: "work-item/meta", name: "held", uid: "00000000-0000-4000-8000-000000000003",
+    content: makeMetaFixture("held", { cohort: "shared" }) });
+  const held = success(await f.store.read({ reference: member })), moving = success(await f.store.read({ reference: second }));
+  const renamed = RecordReferenceSchema.parse({ ...second, owner: { ...second.owner, name: "separate" } });
+  success(await f.store.write({ ...update(f, moving, content("separate")), reference: renamed }));
+  expect(await f.invoke(["cohort", "remove", otherUid, "--yes", "--json"]))
+    .toMatchObject({ result: { status: "removed", reference: renamed } });
+  expect(await f.store.read({ reference: renamed })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  expect(await f.invoke(["cohort", "remove", uid, "--yes", "--json"]))
+    .toMatchObject({ exitCode: 1, result: { status: "refused", refusal: { condition: expect.stringContaining("held") } } });
+  expect(success(await f.store.read({ reference: first })).reference).toEqual(first);
+  expect(success(await f.store.read({ reference: member }))).toEqual(held);
+}, 60_000);
+
+it("pulls missing completed-cohort history before its confirmed CLI removal", async () => {
+  const h = await refSyncFixture(), cli = await repairCliFixture();
+  const { createRefStore } = await import("../../src/lib/store/create.js");
+  const { createDefaultRefStorePorts } = await import("../../src/lib/store/default-ports.js");
+  const a = createRefStore({ ...createDefaultRefStorePorts({ checkoutRoot: h.a.root, backingRepository: async () => null }),
+    actor: h.a.ports.actor, clock: h.a.ports.clock, random: h.a.ports.random });
+  const b = createRefStore({ ...createDefaultRefStorePorts({ checkoutRoot: h.b.root, backingRepository: async () => null }),
+    actor: h.b.ports.actor, clock: h.b.ports.clock, random: h.b.ports.random });
+  const made = success(await a.write({ action: "put", expected: null, content: content("unused"),
+    reference: RecordReferenceSchema.parse({ kind: "cohort/document", owner: { type: "cohort", name: "unused" } }),
+    provenance: { verb: "create", lifecycleAction: "create" } }));
+  const live = success(await a.read({ reference: made.reference }));
+  success(await a.write({ action: "put", reference: live.reference, expected: live.version, content: live.content,
+    placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") }, provenance: { verb: "cohort-close", lifecycleAction: "close" } }));
+  success(await a.push()); success(await b.pull());
+  const ended = success(await b.read({ reference: live.reference }));
+  expect(await b.batch({ writes: [{ action: "remove", reference: ended.reference, expected: ended.version }],
+    provenance: { verb: "cohort-remove", lifecycleAction: "remove" } }))
+    .toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", historyRefs: [expect.stringContaining("refs/arc/history/cohort/")] } });
+  const result = await repairCli(cli, ["cohort", "remove", "unused", "--yes", "--json"], { storeFactory: async () => {
+    const { createRefStore } = await import("../../src/lib/store/create.js");
+    const { createDefaultRefStorePorts } = await import("../../src/lib/store/default-ports.js");
+    const fresh = createDefaultRefStorePorts({ checkoutRoot: h.b.root, backingRepository: async () => null });
+    return createRefStore({ ...fresh, actor: h.b.ports.actor, clock: h.b.ports.clock, random: h.b.ports.random });
+  } });
+  expect(result, JSON.stringify(result)).toMatchObject({ result: { status: "removed", reference: live.reference, placement: null } });
+  expect(await b.read({ reference: live.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  expect(success(await a.read({ reference: live.reference })).placement?.kind).toBe("completed");
+}, 60_000);
 
 describe.each(["reference", "ref"] as const)("cohort close over %s", backend => {
   it("previews without writing and closes an empty cohort only with explicit confirmation", async () => {
@@ -162,3 +213,48 @@ it("counts ambiguous own-name holdings before confirming a UID-selected close", 
   expect(success(await f.store.read({ reference: first })).placement?.kind).toBe("completed");
   expect(success(await f.store.read({ reference: second })).placement?.kind).not.toBe("completed");
 }, 60_000);
+
+describe.each(["reference", "ref"] as const)("cohort remove over %s", backend => {
+  it("previews without mutation and removes an unheld cohort only with explicit confirmation", async () => {
+    const f = await fixture(backend), ref = f.reference("cohort/document", "unused");
+    const group = await seed(f, ref, content(ref.owner.name)), before = success(await f.store.version());
+    const plan = await f.invoke(["cohort", "remove", ref.owner.name, "--json"]);
+    expect(plan).toMatchObject({ exitCode: 1, result: { status: "refused", plan: { operation: "remove", reference: group.reference } } });
+    expect(success(await f.store.version())).toBe(before);
+    expect(success(await f.store.read({ reference: group.reference }))).toEqual(group);
+    const text = await f.invoke(["cohort", "remove", ref.owner.name]);
+    expect(text).toMatchObject({ exitCode: 1, stdout: expect.stringContaining("Remove plan:") });
+    expect(success(await f.store.version())).toBe(before);
+    const owner = group.reference.owner;
+    if (owner.type === "person" || owner.uid === undefined) throw new Error("Expected cohort UID");
+    expect(await f.invoke(["cohort", "remove", owner.uid, "--yes", "--json"]))
+      .toMatchObject({ result: { status: "removed", reference: group.reference, placement: null } });
+    expect(await f.store.read({ reference: group.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    if (f.ref !== undefined) expect((await f.ref.ports.exec("git", ["ls-remote", "origin", "refs/arc/*"], { cwd: f.ref.root })).stdout).toBe("");
+  }, 60_000);
+
+  it.each(["member", "subcohort"] as const)("retains a cohort held by a completed %s and names close", async role => {
+    const f = await fixture(backend), ref = f.reference("cohort/document", "retained");
+    const group = await seed(f, ref, content(ref.owner.name)), quarter = ArchiveQuarterSchema.parse("2026-q4");
+    let held: StoreRecord;
+    if (role === "member") {
+      const member = f.reference("work-item/meta", "archived");
+      held = await seed(f, member, makeMetaFixture(member.owner.name, { state: "Shipped", cohort: ref.owner.name }), { kind: "completed", quarter });
+    } else {
+      const childRef = f.reference("cohort/document", "closed-child");
+      const child = await seed(f, childRef, content(childRef.owner.name, ref.owner.name));
+      success(await f.store.write({ ...update(f, child, child.content), placement: { kind: "completed", quarter } }));
+      held = success(await f.store.read({ reference: child.reference }));
+    }
+    const before = success(await f.store.version());
+    expect(await f.invoke(["cohort", "remove", ref.owner.name, "--yes", "--json"]))
+      .toMatchObject({ exitCode: 1, result: { status: "refused", refusal: { condition: expect.stringContaining(held.reference.owner.name),
+        remedy: { text: expect.stringContaining("arc cohort close") } } } });
+    expect(success(await f.store.version())).toBe(before);
+    expect(success(await f.store.read({ reference: group.reference }))).toEqual(group);
+    expect(await f.invoke(["cohort", "close", ref.owner.name, "--yes", "--json"])).toMatchObject({ result: { status: "closed" } });
+    expect(await f.invoke(["cohort", "remove", ref.owner.name, "--yes", "--json"]))
+      .toMatchObject({ exitCode: 1, result: { status: "refused", refusal: { condition: expect.stringContaining(held.reference.owner.name) } } });
+    expect(success(await f.store.read({ reference: held.reference }))).toEqual(held);
+  }, 60_000);
+});

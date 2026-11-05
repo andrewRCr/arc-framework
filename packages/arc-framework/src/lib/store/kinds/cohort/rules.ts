@@ -2,7 +2,7 @@
 import { OwnerIdentitySchema, recordReferences } from "../../identity.js";
 import type { Remedy } from "../../refusal.js";
 import { brokenRule, observeRecord, observeNamedRecord, type RuleObservation } from "../rule-support.js";
-import { changedCohortFields, observeOpenCohorts, observeOpenMembers, observeOpenHoldings, describeCohortHoldings, type OpenCohort, type OpenMember } from "./check-support.js";
+import { changedCohortFields, observeOpenCohorts, observeOpenMembers, observeOpenHoldings, describeCohortHoldings, type CohortEvidence, type CohortMemberEvidence } from "./check-support.js";
 import { parseCohortDocument } from "./parser.js";
 import type { BrokenRule, StoreView, WriteCheckInput } from "../../write-check.js";
 /** Require an authored Purpose on creation or a proved Purpose change.
@@ -83,7 +83,7 @@ async function parentProblem(view: StoreView, name: string): Promise<{ condition
     ? { condition: "The named parent is already nested below another cohort." } : undefined;
 }
 
-function memberAgrees(member: OpenMember, name: string, parent: string | null, cohorts: readonly OpenCohort[]): boolean {
+function memberAgrees(member: CohortMemberEvidence, name: string, parent: string | null, cohorts: readonly CohortEvidence[]): boolean {
   const parts = member.cohort?.split("/") ?? [];
   if (!parts.includes(name)) return true;
   if (parent !== null) return member.cohort === `${parent}/${name}`;

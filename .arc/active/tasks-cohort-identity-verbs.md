@@ -308,20 +308,14 @@ nothing without `--yes`; and a member a pull lands naming a removed cohort refus
   and text report the assigned placement, while failed result reads retain the persisted close. The in-repo arm keeps
   its unsupported result.
 
-### `[ ]` **3.5 Remove a cohort — § 8.2, § 8.5**
+### `[x]` **3.5 Remove a cohort — § 8.2, § 8.5**
 
 - _Goal:_ `arc cohort remove <cohort>` removes a cohort no record has ever held, so no record names a removed one.
 
-    - The off-branch arm in `handlers/cohort.ts`: it refuses, naming `arc cohort close`, while any record holds the
-      cohort — a member open or completed, a subcohort open or closed — found by resolution; `cohort.open-members`
-      backstops the open half. It removes the document through a `remove` mutation, as decomposition's discard does,
-      under the provenance verb `cohort-remove`, with no push; its conflicts, `--yes`, and `--json` behave as close's.
-
-    - Build `test-first` (one behavior at a time):
-        - over both backends, a cohort nothing ever named is removed with `--yes`
-        - a cohort an archived member names refuses naming `arc cohort close`
-        - over the ref backend, with cohorts A and B on one slug and a record naming it, after B's rename
-          `arc cohort remove <B uid>` lands, and A's remove still refuses while the record names the slug
+- _Outcome:_ `runCohortRemove` selects the cohort once, checks conflicts and every resolved holder, and removes the
+  unheld document in one confirmed `cohort-remove` batch without publication. Close and remove share plan and result
+  rendering; completed members and closed subcohorts retain the document. A named-history retry re-reads the selected
+  UID and repeats the complete holding check with a fresh version, preserving a live cohort that reuses its slug.
 
 ### `[ ]` **3.6 Report a cohort left with nothing open from abandon, close, and remove — § 8.3, § 7.2**
 
