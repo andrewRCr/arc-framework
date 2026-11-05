@@ -372,7 +372,7 @@ it.each([false, true])("retains the uppercase UID after a failed push and resume
   const resumed = await f.invoke(["rename", "target", "target", ...flags]);
   expect(resumed.exitCode ?? 0, resumed.stdout + resumed.stderr).toBe(0);
   if (json) expect(resumed.result).toMatchObject({ status: "renamed", recordBatch: "existing",
-    report: { keptBranches: [{ branch: "chore/earlier", reason: "other-link" }] } });
+    report: { keptBranches: [{ branch: "chore/earlier", reason: "other-link" }, { branch: "feat/source", reason: "continuation" }] } });
   expect(success(await f.store.read({ reference }))).toEqual(renamed);
   expect(await readFile(markerPath, "utf8")).toBe(marker);
   expect((await f.cli.exec("git", ["branch", "--show-current"])).stdout.trim()).toBe("feat/target");

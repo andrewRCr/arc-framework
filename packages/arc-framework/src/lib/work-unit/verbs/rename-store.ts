@@ -156,6 +156,7 @@ async function branchRename(ctx: StoreRenameContext, subject: StoreRenameSubject
 }
 async function branchRemotePolicy(store: Store, subject: StoreRenameSubject, prior: BranchLink,
   ownership: StoreResult<LookupResult> | undefined, oldBranch: string): Promise<BranchRename["remotePolicy"]> {
+  if (subject.resuming) return { keepOld: true, kept: { branch: oldBranch, reason: "continuation" } };
   const own = ownership?.status === "ok" && sameOwner(ownership.result.reference.owner, subject.primary.reference.owner);
   if (prior.linkedAs === "adopted") return { keepOld: true, kept: { branch: oldBranch, reason: "adopted",
     ...(own ? { manualDelete: { text: "Owner decision: delete it only if no longer needed.",
@@ -165,7 +166,8 @@ async function branchRemotePolicy(store: Store, subject: StoreRenameSubject, pri
   return { keepOld: true, kept: { branch: oldBranch, reason: branchOwnershipReason(ownership) } };
 }
 async function mayDeleteCreatedRemote(store: Store, ownership: StoreResult<LookupResult> | undefined, own: boolean): Promise<boolean> {
-  if (ownership === undefined || own) return true;
+  if (ownership === undefined) return false;
+  if (own) return true;
   if (ownership.status === "refused") return ownership.refusal.code === "not-found";
   const holder = await store.read({ reference: ownership.result.reference });
   return holder.status === "ok" && holder.result.placement?.kind === "completed";
@@ -226,11 +228,17 @@ async function finishRename(ctx: StoreRenameContext, branch: BranchRename | unde
   request: { operand: string; targetSlug: string }): Promise<{ status: "complete"; remote: RenameRemoteBranchResult } | Omit<Extract<RunRenameResult, { status: "partial" }>, "report">> {
   try {
     const remote = branch === undefined ? { status: "unpublished" as const } : !branch.local ? retainedRemote(branch)
-      : await reconcileRenameRemoteBranch(ctx, { ...branch, remote: "origin", keepOld: branch.remotePolicy.keepOld });
+      : await reconcileRenameRemoteBranch(ctx, { ...branch, remote: "origin", keepOld: branch.remotePolicy.keepOld,
+        preservationRemedy: storePreservationRemedy(branch) });
     if (remote.status === "stale") throw new Error(`Old remote head moved from ${remote.expectedOid} to ${remote.actualOid ?? "[absent]"}.`);
     return { status: "complete", remote };
   } catch (error) { return { status: "partial", reason: error instanceof Error ? error.message : String(error),
     remedy: { text: "Finish the remaining remote branch rename.", argv: ["arc", "rename", request.operand, request.targetSlug] } }; }
+}
+function storePreservationRemedy(branch: BranchRename): string {
+  return `If these commits belong to this work unit, run git fetch origin +refs/heads/${branch.oldBranch}:refs/remotes/origin/${branch.oldBranch}, `
+    + `merge refs/remotes/origin/${branch.oldBranch} into ${branch.newBranch}, then delete ${branch.oldBranch} after preserving them. `
+    + "If the branch belongs to another holder, leave it in place. Retry the rename to finish while keeping the old remote branch.";
 }
 function retainedRemote(branch: BranchRename): RenameRemoteBranchResult {
   return branch.oldRemoteOid === null ? { status: "unpublished" }

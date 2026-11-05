@@ -103,6 +103,8 @@ export interface RenameRemoteBranchParams extends RenameLocalBranchParams {
   oldRemoteOid: string | null;
   /** Adopted old refs remain the person's after the new name is pushed. */
   keepOld?: boolean;
+  /** Caller-specific recovery when the old head is not preserved by the new one. */
+  preservationRemedy?: string;
 }
 
 /**
@@ -145,8 +147,8 @@ async function requirePublishedPreservation(exec: GitExec, params: RenameRemoteB
       { objectAccess: "local-only" }).then(() => true, () => false);
   }
   if (!preserved) throw new Error(`Cannot remove ${params.oldBranch}: its observed head ${params.oldRemoteOid} is not proven preserved by published ${params.newBranch}. `
-    + `Run git fetch ${params.remote} +refs/heads/${params.oldBranch}:refs/remotes/${params.remote}/${params.oldBranch}, `
-    + `merge refs/remotes/${params.remote}/${params.oldBranch} into ${params.newBranch}, then retry the rename.`);
+    + (params.preservationRemedy ?? `Run git fetch ${params.remote} +refs/heads/${params.oldBranch}:refs/remotes/${params.remote}/${params.oldBranch}, `
+    + `merge refs/remotes/${params.remote}/${params.oldBranch} into ${params.newBranch}, then retry the rename.`));
 }
 
 /** Parameters for the branch that carries a backlog-stub rename. */

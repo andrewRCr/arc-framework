@@ -299,7 +299,8 @@ it("a failed remote leg leaves the record renamed and its typed rerun finishes o
   expect(await runStoreRename(h.ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "partial", report, remedy: { argv: ["arc", "rename", "source", "target"] } });
   const renamed = lifecycleSuccess(await h.store.read({ reference: h.primary.reference })); expect(renamed.reference.owner.name).toBe("target");
   const operations = h.git.calls.filter((call) => call.args[0] === "branch").length;
-  expect(await runStoreRename(h.ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed", recordBatch: "existing", report });
+  expect(await runStoreRename(h.ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed", recordBatch: "existing",
+    report: { ...report, keptBranches: [...report.keptBranches, { branch: "feat/source", reason: "continuation" }] } });
   expect(lifecycleSuccess(await h.store.read({ reference: h.primary.reference })).version).toBe(renamed.version);
   expect(h.git.calls.filter((call) => call.args[0] === "branch")).toHaveLength(operations);
 });

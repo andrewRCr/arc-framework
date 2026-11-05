@@ -503,22 +503,14 @@ its history refs, discharging the edges naming it.
   branch lookup governs each first-run decision, preserving shared or unobservable remote ownership and reporting the
   remaining branch and its applicable action.
 
-### `[ ]` **4.10 Keep the old remote branch on every continuation — § 2.5**
+### `[x]` **4.10 Keep the old remote branch on every continuation — § 2.5**
 
 - _Goal:_ A rerun after a failed push or a refused delete completes the rename without deleting the old remote branch,
   and the preservation refusal tells the person how to settle the branch whichever holder's it is.
 
-    - A continuation pushes what remains and reports the old branch kept, never deleting it, so
-      `requirePublishedPreservation` is reachable only on a first run. On the store arm its remedy names both readings —
-      merge the commits and delete the old branch if they are this work unit's, leave it if the branch is another's —
-      through an optional remedy parameter on `reconcileRenameRemoteBranch` that `finishRename` passes; the in-repo arm
-      (`commands/rename.ts`) passes none and keeps today's text.
-
-    - Build `test-first` (one behavior at a time):
-        - a continuation after a failed push keeps the old remote branch, with a clash and without one;
-          `rename-store-command.test.ts`'s case expecting the continuation to delete it changes
-        - the preservation refusal names both readings, and a continuation then completes with the branch kept
-        - before the flip, the preservation refusal reads as today
+- _Outcome:_ Continuations publish the remaining new ref and report the old remote kept, without repeating record or
+  checkout changes. Store preservation refusals distinguish this work unit's commits from another holder's branch;
+  their retry keeps either safely, while tracked renames retain the existing default remedy.
 
 ### `[ ]` **4.11 Move a branch the first run left through the catch-up run — § 2.5, § 3.3**
 

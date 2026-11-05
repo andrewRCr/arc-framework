@@ -1,6 +1,6 @@
 /** Branch rename follows UID checkout authority and repository-qualified link ownership. */
 import { expect, it } from "vitest";
-import { writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createKindRegistry } from "../../src/lib/store/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
@@ -47,6 +47,59 @@ async function publish(f: Awaited<ReturnType<typeof fixture>>) {
   await f.cli.exec("git", ["push", "origin", "main", "feat/shared"]);
   return (await f.cli.exec("git", ["rev-parse", "feat/shared"])).stdout.trim();
 }
+
+it("explains both readings of unpreserved commits and completes its retry with the old remote kept", async () => {
+  const f = await fixture(false);
+  await f.cli.exec("git", ["switch", "-c", "feat/shared"]);
+  await f.marker(f.cli.cwd, f.uid);
+  const initial = await publish(f);
+  await writeFile(join(f.cli.cwd, ".git/info/exclude"), ".arc-checkouts/\n", { flag: "a" });
+  const peer = join(f.cli.cwd, ".arc-checkouts", "advanced");
+  await f.cli.exec("git", ["worktree", "add", "--detach", peer, "main"]);
+  await f.cli.exec("git", ["commit", "--allow-empty", "-m", "Advance the old remote"], { cwd: peer });
+  await f.cli.exec("git", ["push", "origin", "HEAD:refs/heads/feat/shared"], { cwd: peer });
+  const advanced = (await f.cli.exec("git", ["rev-parse", "HEAD"], { cwd: peer })).stdout.trim();
+  const partial = await f.invoke(["rename", f.uid, "renamed", "--json"]);
+  expect(partial.exitCode).toBe(1);
+  expect(partial.result).toMatchObject({ status: "partial", remedy: { argv: ["arc", "rename", f.uid, "renamed"] } });
+  for (const text of ["If these commits belong to this work unit", "If the branch belongs to another holder, leave it in place"])
+    expect(partial.stdout).toContain(text);
+  const landed = success(await f.store.read({ reference: f.source })), history = success(await f.store.history({ reference: f.source }));
+  const marker = await readWorktreeMarker(f.cli.cwd);
+  const resumed = await f.invoke(["rename", f.uid, "renamed", "--json"]);
+  expect(resumed.exitCode ?? 0, resumed.stdout + resumed.stderr).toBe(0);
+  expect(resumed.result).toMatchObject({ status: "renamed", recordBatch: "existing", remote: { status: "retained", oldOid: advanced },
+    report: { keptBranches: [{ branch: "feat/shared", reason: "continuation" }] } });
+  expect((await f.cli.exec("git", ["ls-remote", "origin", "refs/heads/feat/shared"])).stdout).toContain(advanced);
+  expect((await f.cli.exec("git", ["ls-remote", "origin", "refs/heads/feat/renamed"])).stdout).toContain(initial);
+  expect(success(await f.store.read({ reference: f.source }))).toEqual(landed);
+  expect(success(await f.store.history({ reference: f.source }))).toEqual(history);
+  expect(await readWorktreeMarker(f.cli.cwd)).toEqual(marker);
+}, 60_000);
+
+it.each([false, true])("keeps the old remote after a failed-push continuation, clash=%s", async clash => {
+  const f = await fixture(clash);
+  await f.cli.exec("git", ["switch", "-c", "feat/shared"]);
+  await f.marker(f.cli.cwd, f.uid);
+  const oid = await publish(f), hook = join(f.cli.cwd, ".git", "code-origin.git", "hooks", "pre-receive");
+  await writeFile(hook, "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+  const failed = await f.invoke(["rename", f.uid, "renamed", "--json"]);
+  expect(failed.exitCode).toBe(1);
+  expect(failed.result).toMatchObject({ status: "partial", remedy: { argv: ["arc", "rename", f.uid, "renamed"] } });
+  const landed = success(await f.store.read({ reference: f.source })), history = success(await f.store.history({ reference: f.source }));
+  const marker = await readWorktreeMarker(f.cli.cwd), head = (await f.cli.exec("git", ["rev-parse", "HEAD"])).stdout;
+  await rm(hook);
+  const resumed = await f.invoke(["rename", f.uid, "renamed", "--json"]);
+  expect(resumed.exitCode ?? 0, resumed.stdout + resumed.stderr).toBe(0);
+  expect(resumed.result).toMatchObject({ status: "renamed", recordBatch: "existing", remote: { status: "retained", oldBranch: "feat/shared" },
+    report: { keptBranches: [{ branch: "feat/shared", reason: "continuation" }] } });
+  expect(resumed.stdout).not.toContain("--delete"); expect(resumed.stdout).not.toContain("manualDelete");
+  for (const branch of ["shared", "renamed"]) expect((await f.cli.exec("git", ["ls-remote", "origin", `refs/heads/feat/${branch}`])).stdout).toContain(oid);
+  expect(success(await f.store.read({ reference: f.source }))).toEqual(landed);
+  expect(success(await f.store.history({ reference: f.source }))).toEqual(history);
+  expect(await readWorktreeMarker(f.cli.cwd)).toEqual(marker);
+  expect((await f.cli.exec("git", ["rev-parse", "HEAD"])).stdout).toBe(head);
+}, 60_000);
 
 it.each(["created", "adopted"] as const)("retains a published %s branch when its ownership lookup is unavailable", async linkedAs => {
   const f = await fixture(false, linkedAs);
