@@ -96,8 +96,11 @@ function keptBranchLines(branch: RenameKeptBranch): string[] {
   const reasons = { adopted: "adopted branch", "another-holder": "another holder links it", continuation: "rename continuation",
     "other-link": "recorded link outside this rename's branch operation" };
   const lines = [`Branch:    kept ${branch.branch}; ${reasons[branch.reason]}`];
-  if (branch.reason === "adopted") lines.push(`Remote:    retained personal branch ${branch.branch}`,
-    "Owner decision: delete it only if no longer needed.", `Command:   git push origin --delete ${quoteShellArgument(branch.branch)}`);
+  if (branch.reason === "adopted") lines.push(`Remote:    retained personal branch ${branch.branch}`);
+  if (branch.manualDelete !== undefined) {
+    lines.push(branch.manualDelete.text);
+    if (branch.manualDelete.argv !== undefined) lines.push(`Command: ${commandLine(branch.manualDelete.argv)}`);
+  }
   if (branch.catchUp !== undefined) {
     lines.push(`Catch-up: ${branch.catchUp.text}`);
     if (branch.catchUp.argv !== undefined) lines.push(`Command: ${commandLine(branch.catchUp.argv)}`);

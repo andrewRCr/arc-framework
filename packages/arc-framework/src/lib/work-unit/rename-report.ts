@@ -21,6 +21,8 @@ export interface RenameKeptBranch {
   branch: string;
   reason: "adopted" | "another-holder" | "continuation" | "other-link";
   catchUp?: Remedy;
+  /** Conditional owner action supplied only when the branch lookup selects this subject. */
+  manualDelete?: Remedy;
 }
 
 /** Array order and edit order are repair order; the same record may appear again. */

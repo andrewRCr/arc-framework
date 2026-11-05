@@ -36,7 +36,7 @@ export interface StoreRenameContext {
 }
 interface BranchRename {
   prior: BranchLink; next: BranchLink; oldBranch: string; newBranch: string; oldRemoteOid: string | null;
-  local: boolean; ownership?: StoreResult<LookupResult>; kept?: RenameKeptBranch;
+  local: boolean; kept?: RenameKeptBranch; remotePolicy: { keepOld: boolean; kept?: RenameKeptBranch };
 }
 /** Rename one logical owner while respecting record and checkout authority.
  * @param ctx - Operational store and physical adapters.
@@ -114,7 +114,7 @@ function retainedBranchReport(primary: StoreRecord, branch: BranchRename | undef
     || link.repository !== branch.prior.repository || (link.ref !== branch.prior.ref && link.ref !== branch.next.ref))
     .map((link) => ({ branch: link.ref, reason: "other-link" }));
   if (branch?.kept !== undefined) keptBranches.push(branch.kept);
-  if (branch?.local && branch.prior.linkedAs === "adopted" && branch.oldRemoteOid !== null) keptBranches.push({ branch: branch.oldBranch, reason: "adopted" });
+  if (branch?.local && branch.oldRemoteOid !== null && branch.remotePolicy.kept !== undefined) keptBranches.push(branch.remotePolicy.kept);
   return { ...emptyRenameReport(), keptBranches };
 }
 interface RenameRuntime { cwd: string; checkout?: StoreRenameCheckoutReceipt; report?: RenameReport }
@@ -151,7 +151,24 @@ async function branchRename(ctx: StoreRenameContext, subject: StoreRenameSubject
   const kept = local ? undefined : keptLocalBranch(subject, selected.link, ownership, target);
   const remote = await ctx.exec("git", ["remote"], { cwd: ctx.cwd });
   const oldRemoteOid = remote.stdout.split(/\s+/u).includes("origin") ? await readRemoteBranchOid(ctx.exec, "origin", oldBranch) : null;
-  return { prior, next, oldBranch, newBranch, oldRemoteOid, local, ownership, kept };
+  const remotePolicy = await branchRemotePolicy(ctx.store, subject, prior, ownership, oldBranch);
+  return { prior, next, oldBranch, newBranch, oldRemoteOid, local, remotePolicy, kept };
+}
+async function branchRemotePolicy(store: Store, subject: StoreRenameSubject, prior: BranchLink,
+  ownership: StoreResult<LookupResult> | undefined, oldBranch: string): Promise<BranchRename["remotePolicy"]> {
+  const own = ownership?.status === "ok" && sameOwner(ownership.result.reference.owner, subject.primary.reference.owner);
+  if (prior.linkedAs === "adopted") return { keepOld: true, kept: { branch: oldBranch, reason: "adopted",
+    ...(own ? { manualDelete: { text: "Owner decision: delete it only if no longer needed.",
+      argv: ["git", "push", "origin", "--delete", oldBranch] } } : {}),
+  } };
+  if (await mayDeleteCreatedRemote(store, ownership, own)) return { keepOld: false };
+  return { keepOld: true, kept: { branch: oldBranch, reason: branchOwnershipReason(ownership) } };
+}
+async function mayDeleteCreatedRemote(store: Store, ownership: StoreResult<LookupResult> | undefined, own: boolean): Promise<boolean> {
+  if (ownership === undefined || own) return true;
+  if (ownership.status === "refused") return ownership.refusal.code === "not-found";
+  const holder = await store.read({ reference: ownership.result.reference });
+  return holder.status === "ok" && holder.result.placement?.kind === "completed";
 }
 async function holderHasBranch(ctx: StoreRenameContext, holder: string | null, branch: string): Promise<boolean> {
   if (holder === null) return false;
@@ -161,11 +178,14 @@ async function holderHasBranch(ctx: StoreRenameContext, holder: string | null, b
 function keptLocalBranch(subject: StoreRenameSubject, link: BranchLink, ownership: StoreResult<LookupResult> | undefined, target: string): RenameKeptBranch {
   const owner = subject.primary.reference.owner;
   if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("A branch catch-up requires the selected work-unit UID.");
-  const another = ownership?.status === "ok" || ownership?.status === "refused" && ownership.refusal.code === "ambiguous-match";
-  return { branch: link.ref, reason: another ? "another-holder" : "other-link", catchUp: {
+  return { branch: link.ref, reason: branchOwnershipReason(ownership), catchUp: {
     text: "Run the rename again on the machine holding this work unit's checkout to move its branch.",
     argv: ["arc", "rename", owner.uid, target],
   } };
+}
+function branchOwnershipReason(ownership: StoreResult<LookupResult> | undefined): RenameKeptBranch["reason"] {
+  return ownership?.status === "ok" || ownership?.status === "refused" && ownership.refusal.code === "ambiguous-match"
+    ? "another-holder" : "other-link";
 }
 function renameSteps(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string, holder: string | null,
   branch: BranchRename | undefined, remember: (receipt: StoreRenameCheckoutReceipt) => void, reset: () => void): LifecycleGitStep[] {
@@ -205,10 +225,14 @@ function localBranchStep(ctx: StoreRenameContext, branch: BranchRename, retryCom
 async function finishRename(ctx: StoreRenameContext, branch: BranchRename | undefined,
   request: { operand: string; targetSlug: string }): Promise<{ status: "complete"; remote: RenameRemoteBranchResult } | Omit<Extract<RunRenameResult, { status: "partial" }>, "report">> {
   try {
-    const remote = branch === undefined || !branch.local ? { status: "unpublished" as const } : await reconcileRenameRemoteBranch(ctx, {
-      ...branch, remote: "origin", keepOld: branch.prior.linkedAs === "adopted" });
+    const remote = branch === undefined ? { status: "unpublished" as const } : !branch.local ? retainedRemote(branch)
+      : await reconcileRenameRemoteBranch(ctx, { ...branch, remote: "origin", keepOld: branch.remotePolicy.keepOld });
     if (remote.status === "stale") throw new Error(`Old remote head moved from ${remote.expectedOid} to ${remote.actualOid ?? "[absent]"}.`);
     return { status: "complete", remote };
   } catch (error) { return { status: "partial", reason: error instanceof Error ? error.message : String(error),
     remedy: { text: "Finish the remaining remote branch rename.", argv: ["arc", "rename", request.operand, request.targetSlug] } }; }
+}
+function retainedRemote(branch: BranchRename): RenameRemoteBranchResult {
+  return branch.oldRemoteOid === null ? { status: "unpublished" }
+    : { status: "retained", oldBranch: branch.oldBranch, newBranch: branch.newBranch, oldOid: branch.oldRemoteOid };
 }

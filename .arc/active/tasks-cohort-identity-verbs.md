@@ -482,7 +482,7 @@ its history refs, discharging the edges naming it.
   JSON before branch or record changes. Multiple-marker diagnostics remain intact; release permits rename and exact
   re-materialization of each holder, while bound checkouts follow only the selected UID.
 
-### `[ ]` **4.9 Decide the first run's branch steps from the branch's link lookup — § 2.5**
+### `[x]` **4.9 Decide the first run's branch steps from the branch's link lookup — § 2.5**
 
 - _Goal:_ Where two holders link one branch, a first run moves only its own subject's branch and checkout, never
   deletes a remote branch another live holder links, and reports each branch it keeps with its reason.
@@ -493,21 +493,15 @@ its history refs, discharging the edges naming it.
           Shared branches stay unchanged elsewhere with a UID-specific catch-up command; sole holders retain the missing
           local-branch refusal and can retry after restoration.
 
-    - `[ ]` **4.9.b The remote branches**
+    - `[x]` **4.9.b The remote branches**
 
-        - The new name is pushed where the link moved and the old branch was published (`reconcileRenameRemoteBranch`).
-          The old remote branch is deleted after `requirePublishedPreservation` only where the link was created and the
-          lookup returns the subject, a completed holder, or nothing; otherwise it is kept, as `keepOld` keeps an adopted
-          branch's, and reported with its reason. The report's delete command, which `retained` prints today, appears
-          only for a branch that is the subject's own, and no branch step no longer reports a published branch
-          `unpublished`.
+        - Published moved links push their new name; created old refs require permitted ownership and publication
+          preservation before deletion. Kept published refs report retention, and conditional manual-delete remedies
+          require the lookup to select the subject, independently of adoption.
 
-    - Build `test-first` (one behavior at a time):
-        - over the ref backend, with both work units linking one branch, renaming one from its own checkout's machine
-          moves that checkout and never the other's, and keeps the old remote branch, printing no delete command
-        - run where no checkout of the subject holds the branch, it lands with the branch and link unchanged, reporting
-          the branch kept with the catch-up command
-        - a rename with no clash renames, pushes, and deletes on its first run as today
+- _Outcome:_ Checkout authority can permit a local move without granting remote deletion authority. The same captured
+  branch lookup governs each first-run decision, preserving shared or unobservable remote ownership and reporting the
+  remaining branch and its applicable action.
 
 ### `[ ]` **4.10 Keep the old remote branch on every continuation — § 2.5**
 
