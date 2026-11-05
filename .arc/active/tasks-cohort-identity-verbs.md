@@ -213,27 +213,24 @@ that ordering returns to the Owner. The resolver built here serves Phases 3–5.
   UID-selected close passes its validated claim; slug and in-repo recovery retain their existing slug-only match.
   A real-ref UID retry clears its own persisted HEAD receipt while preserving the other live Errand’s exact receipt.
 
-### `[ ]` **2.5 Pass the repair through promote's refusal, and recover by the promoted meta's receipt — § 9.3**
+### `[x]` **2.5 Pass the repair through promote's refusal, and recover by the promoted meta's receipt — § 9.3**
 
 - _Goal:_ Under a two-Errand clash `arc errand promote <slug>` names `arc errand close <uid>`, and a promotion under
   `--name` that stops after its role write resumes when rerun by its new name.
 
-    - `[ ]` **2.5.a The refusal**
+    - `[x]` **2.5.a The refusal**
 
-        - `readPrimary` (`lib/errand/promote-store.ts`) passes the store's refusal through, joining its condition and
-          remedy text into the reason `promote.ts` renders, rather than the condition alone; the remedy's argv does not
-          survive that string.
+        - `readPrimary` retains each lookup or read refusal’s condition and remedy text in the reason promotion renders.
+          The two-Errand clash therefore names its close-by-UID repair.
 
-    - `[ ]` **2.5.b The recovery**
+    - `[x]` **2.5.b The recovery**
 
-        - `recover` and `sourceFromHistory` match the Errand's history by the promoted meta's `promotionReceipt` rather
-          than by the operand, so a rerun by the new name finds the promotion where today it refuses by either name.
+        - Promotion history matches the meta’s exact `promotionReceipt`, retaining owner, target, branch-link, provenance,
+          and recorded-cut checks independently of the retry operand.
 
-    - Build `test-first` (one behavior at a time):
-        - promote under a two-Errand clash refuses naming `arc errand close <uid>`, and lands on the remaining Errand
-          once one closes
-        - a promotion under `--name` leaving a former-slug tie, interrupted after its role write, resumes when rerun by
-          its new name with the flags its recovery matches (`--name` and the branch type)
+- _Outcome:_ Closing the named UID repairs a two-Errand clash and lets promotion take the remaining slug. After a role
+  write leaves a former-name tie, a retry by the promoted name settles the original Errand claim without changing the
+  role-written meta or its recorded cut.
 
 ### `[ ]` **2.6 A clashed Errand's exit end to end** — validate exit criterion at segment scope
 

@@ -317,3 +317,16 @@ it("refuses a live promotion target before changing either owner", async () => {
   expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference }))).toEqual(f.primary);
   expect(lifecycleSuccess(await f.store.read({ reference: held.reference }))).toEqual(held);
 });
+
+it("recovers the original Errand receipt when retried by the promoted work-unit name", async () => {
+  const f = await fixture("derivation", true);
+  expect(await f.run()).toMatchObject({ outcome: "error" });
+  const options = { ...f.options, slug: f.options.name };
+  const result = await promoteOrdinaryErrand({ ...options, protection: "full", dependencies: {
+    ...createStorePromotionSteps(options), settleInbox: async frame => frame, settleOccupancy: async frame => frame,
+  } });
+  expect(result).toMatchObject({ outcome: "idempotent", subject: { slug: "errand-source", claimId },
+    branch: "feat/example", settlement: { state: "settled" } });
+  const meta = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
+  expect(meta.content).toContain(`errand-v1/errand-source/${claimId}`);
+});

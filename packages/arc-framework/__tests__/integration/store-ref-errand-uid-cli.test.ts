@@ -1,6 +1,6 @@
 /** UID-selected Errand exits retain their exact owner over real refs and registered commands. */
-import { mkdir, writeFile, readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import { join, resolve, dirname } from "node:path";
 import { expect, it, vi } from "vitest";
 import type { Store } from "../../src/lib/store/contract.js";
 import { createRefStore } from "../../src/lib/store/create.js";
@@ -55,8 +55,8 @@ async function invoke(f: Fixture, cwd: string, args: readonly string[]) {
     return { stdout, stderr, exitCode: process.exitCode, result: stdout.trim().startsWith("{") ? JSON.parse(stdout) as unknown : null };
   } finally { binding.store = null; out.mockRestore(); err.mockRestore(); process.chdir(previous); process.exitCode = exit; }
 }
-async function errand(f: Fixture, uid: string, prefix = "chore", checkout = true) {
-  const claimId = (uid === uidA ? "a" : "b").repeat(32), slug = "shared", branch = `${prefix}/${slug}`;
+async function errand(f: Fixture, uid: string, prefix = "chore", checkout = true, slug = "shared") {
+  const claimId = (uid === uidA ? "a" : "b").repeat(32), branch = `${prefix}/${slug}`;
   const record = TransientIdentityRecordV3Schema.parse({ version: 3, kind: "errand", purpose: "errand", slug, claimId,
     intent: "Retain the exact owner", owner: "test-user", branch, createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-16T00:00:00Z",
     origin: "description", originEntry: null, state: "open", savedHead: null, changeRequest: null });
@@ -189,4 +189,43 @@ it("a finalized UID retry clears its own HEAD receipt and preserves the other sa
     expect(await readFile(otherPath, "utf8")).toBe(receipt);
     expect(success(await f.store.read({ reference: other.reference })).placement?.kind).toBe("active");
   } finally { await ownLock.release(); await otherLock.release(); }
+}, 60_000);
+
+const promoteArgs = (slug: string, name: string) => ["errand", "promote", slug, "--name", name, "--type", "feat", "--floor", "derivation", "--class", "Light", "--json"];
+it("promote preserves the clash repair and takes the remaining Errand after UID close", async () => {
+  const f = await fixture(), selected = await errand(f, uidA, "fix"), other = await errand(f, uidB);
+  const refused = await invoke(f, other.holder, promoteArgs("shared", "grown"));
+  expect(refused, JSON.stringify(refused)).toMatchObject({ exitCode: 1, result: { outcome: "refused",
+    recommendedPromptText: expect.stringContaining(`arc errand close ${uidA}`) } });
+  expect(await invoke(f, selected.holder, ["errand", "close", uidA, "--json"])).toMatchObject({ result: { outcome: "applied" } });
+  const promoted = await invoke(f, other.holder, promoteArgs("shared", "grown"));
+  expect(promoted, JSON.stringify(promoted)).toMatchObject({ result: { outcome: "applied", branch: "feat/grown" } });
+  const target = success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("grown") })).reference;
+  expect(target).toMatchObject({ kind: "work-item/meta", owner: { uid: uidB, name: "grown" } });
+}, 60_000);
+
+it("recovers a promotion by its new name after the role write leaves a former-name tie", async () => {
+  const f = await fixture(), selected = await errand(f, uidA, "fix"), other = await errand(f, uidB, "chore", true, "other");
+  const registry = f.ports.registry;
+  if (registry === undefined) throw new Error("Expected registry");
+  const home = expandStoredPath(other.reference, { registry }), entries = await capturedEntries(f, home.ref);
+  const path = `metadata-${uidB}.json`;
+  const metadata = JSON.parse((await f.exec("git", ["show", `${home.ref}:${path}`])).stdout) as { formerSlugs: string[] };
+  metadata.formerSlugs = ["shared"];
+  await plantRef(f.root, home.ref, entries.map(entry => entry.path === path ? { path, content: JSON.stringify(metadata) } : entry));
+  const lock = join(f.root, ".git/refs/heads/feat/grown.lock");
+  await mkdir(dirname(lock), { recursive: true }); await writeFile(lock, "External branch lock\n");
+  const first = await invoke(f, selected.holder, promoteArgs("shared", "grown"));
+  expect(first, JSON.stringify(first)).toMatchObject({ exitCode: 1, result: { outcome: "error", error: { message: expect.stringContaining("grown.lock") } } });
+  const target = success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("grown") })).reference;
+  const meta = success(await f.store.read({ reference: target }));
+  expect(meta.content).toContain(`errand-v1/shared/${selected.claimId}`);
+  expect(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("shared") }))
+    .toMatchObject({ status: "refused", refusal: { code: "ambiguous-match", tie: { liveness: "live", name: "former" } } });
+  await rm(lock);
+  const next = await invoke(f, selected.holder, promoteArgs("grown", "grown"));
+  expect(next, JSON.stringify(next)).toMatchObject({ result: { outcome: "applied", branch: "feat/grown",
+    subject: { slug: "shared", claimId: selected.claimId } } });
+  expect(success(await f.store.read({ reference: target }))).toEqual(meta);
+  expect((await f.exec("git", ["branch", "--show-current"], { cwd: selected.holder })).stdout.trim()).toBe("feat/grown");
 }, 60_000);
