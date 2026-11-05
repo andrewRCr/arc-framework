@@ -2,7 +2,7 @@
 import type { RefBackendContext } from "./context.js";
 import type { PullNotice } from "../sync.js";
 import { primeLifecycleLogs } from "./sync-lifecycle-evidence.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** Hold both coordinates of an item without inferring whether it is live or ended. */
 export function holdLifecycleRef(held: Set<string>, ref: string): void {
@@ -28,9 +28,10 @@ export async function primeLifecycleHolds(context: RefBackendContext, snapshots:
   const notices: PullNotice[] = [];
   for (const live of lives) {
     holdLifecycleRef(held, live);
-    notices.push({ kind: "namespace-corrupt", ref: live,
+    const { condition, remedy } = refObjectFault(live, "missing", {
       condition: `An object required to establish lifecycle history for ${live} is unavailable locally.`,
-      remedy: corruptRef(live, true).remedy });
+    });
+    notices.push({ kind: "namespace-corrupt", ref: live, condition, remedy });
   }
   return notices;
 }

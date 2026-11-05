@@ -8,6 +8,7 @@ import { readBatchObjects, readRefTrees } from "./batch-read.js";
 import { checkRefTip, corruptRef } from "./namespace-health.js";
 import { refPrototype } from "./read.js";
 import { viewRefFamily } from "./view-state.js";
+import { refDiagnosticRefusal, refObjectFault } from "./object-fault.js";
 
 /** Group metadata must decode even when a fast-forward needs no record merge. */
 export async function checkSyncRefTip(context: RefBackendContext, ref: string, tip: string): Promise<StoreRefusal | undefined> {
@@ -20,10 +21,9 @@ export async function checkSyncRefTip(context: RefBackendContext, ref: string, t
 
 async function checkArchiveTip(context: RefBackendContext, ref: string, tip: string): Promise<StoreRefusal | undefined> {
   const entries = (await readRefTrees(context, new Map([[ref, tip]]))).get(ref);
-  if (!entries) return corruptRef(ref, true);
+  if (!entries) return refObjectFault(ref, "missing", { condition: `The tip or a tree of ${ref} is unavailable locally.` }).refusal;
   const objects = await readBatchObjects(context, entries.filter(({ path }) => /\/metadata-[^/]+\.json$/u.test(path)).map(({ oid }) => oid));
   const diagnostic = (["work-item", "cohort"] as const)
     .flatMap((family) => archivedFolders(family, ref, entries, objects).diagnostics)[0];
-  return diagnostic ? { code: "namespace-corrupt", class: "terminal", namespace: ref,
-    condition: diagnostic.condition, remedy: diagnostic.remedy } : undefined;
+  return diagnostic ? refDiagnosticRefusal(ref, diagnostic) : undefined;
 }

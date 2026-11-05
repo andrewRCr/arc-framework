@@ -9,12 +9,12 @@ import { OwnerIdentitySchema } from "../identity.js";
 import type { SyncRecordMergedTree, SyncTreeMergeScope } from "./sync-tree.js";
 import { readSyncRefs } from "./sync-graph.js";
 import { ownerPrimaryReference, refreshArchivedFolder } from "./archive-refresh.js";
-import { parseRefMetadata, type RefMetadata } from "./metadata.js";
+import { readRefMetadata, type RefMetadata } from "./metadata.js";
 import { expandStoredPath, holdsNoRecord } from "../stored-path.js";
 import { writeRefBlob } from "./tree-write.js";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import type { StoreResult } from "../refusal.js";
-import { corruptRef } from "./namespace-health.js";
+import { refDiagnosticRefusal, refObjectFault } from "./object-fault.js";
 import { checkSyncRefTip } from "./sync-tip.js";
 import { readLifecycleFolders } from "./sync-lifecycle.js";
 import { planCompletedRoleReplacements, type CompletedRoleReplacement } from "./write-completed-role.js";
@@ -31,14 +31,10 @@ export async function prepareSyncHistoryFastForward(context: RefBackendContext, 
   }
   const path = `metadata-${folder.owner.uid}.json`;
   const entries = (await readRefTrees(context, new Map([[ref, tip]]))).get(ref);
-  if (!entries) return { status: "refused", refusal: corruptRef(ref, true) };
-  const home = expandStoredPath(ownerPrimaryReference(folder.owner, folder.metadata), { registry: context.registry });
-  const recordFree = holdsNoRecord(home, entries.map(({ path }) => path));
-  const entry = entries.find((entry) => entry.path === path);
-  const objects = await readBatchObjects(context, entry ? [entry.oid] : []);
-  const sourceMetadata = parseRefMetadata(entry ? objects.get(entry.oid) : undefined, ref);
-  const metadata = sourceMetadata ? structuredClone(sourceMetadata) : recordFree ? emptyHistoryMetadata(folder) : null;
-  if (!metadata) return { status: "refused", refusal: corruptRef(ref) };
+  if (!entries) return { status: "refused", refusal: refObjectFault(ref, "missing").refusal };
+  const loaded = await fastForwardMetadata(context, ref, entries, folder);
+  if (loaded.status === "refused") return loaded;
+  const { sourceMetadata, metadata, recordFree } = loaded.result;
   const reference = ownerPrimaryReference(folder.owner, metadata);
   const sourceRefs = scope.sourceRefs ?? { local: ref, incoming: ref };
   const liveEnd = cohortEndLiveSource(scope.cohortEndRoute, sourceRefs, ref, scope.currentSide ?? "incoming", scope.reopening);
@@ -56,6 +52,20 @@ export async function prepareSyncHistoryFastForward(context: RefBackendContext, 
   metadata.batch = batchId;
   tree.entries.set(path, { path, mode: "100644", oid: await writeRefBlob(context, canonicalize(metadata)) });
   return { status: "ok", result: tree };
+}
+
+async function fastForwardMetadata(context: RefBackendContext, ref: string, entries: readonly RefTreeEntry[],
+  folder: ArchivedFolder): Promise<StoreResult<{ metadata: RefMetadata; sourceMetadata: RefMetadata | null; recordFree: boolean }>> {
+  const home = expandStoredPath(ownerPrimaryReference(folder.owner, folder.metadata), { registry: context.registry });
+  const recordFree = holdsNoRecord(home, entries.map(({ path }) => path));
+  const entry = entries.find(entry => entry.path === home.metadataPath);
+  const objects = await readBatchObjects(context, entry ? [entry.oid] : []);
+  const read = readRefMetadata(ref, entry, objects);
+  if (read.kind === "missing") return { status: "refused", refusal: refObjectFault(ref, "missing").refusal };
+  const sourceMetadata = read.kind === "parsed" ? read.metadata : null;
+  const metadata = sourceMetadata ? structuredClone(sourceMetadata) : recordFree ? emptyHistoryMetadata(folder) : null;
+  return metadata ? { status: "ok", result: { metadata, sourceMetadata, recordFree } }
+    : { status: "refused", refusal: refObjectFault(ref, read.kind === "absent" ? "no-metadata" : "unparseable").refusal };
 }
 
 /** Captured matching folders can name a new record-free group without reviving their old records or formats. */
@@ -78,12 +88,13 @@ export async function readSyncHistoryQuarters(context: RefBackendContext, ref: s
   const trees = await readRefTrees(context, quarters);
   // A quarter whose tree or one of this item's folders cannot be read may hold a folder the merge must rebuild.
   const unreadable = [...quarters.keys()].find((quarter) => !trees.has(quarter));
-  if (unreadable) return { status: "refused", refusal: corruptRef(unreadable, true) };
+  if (unreadable) return { status: "refused", refusal: refObjectFault(unreadable, "missing", {
+    condition: `The tip or a tree of ${unreadable} is unavailable locally.`,
+  }).refusal };
   const objects = await readBatchObjects(context, [...new Set([...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid)))]);
   const family = ref.includes("/cohort/") ? "cohort" : "work-item", live = ref.replace("refs/arc/history/", "refs/arc/");
   const broken = firstOwnedArchiveDiagnostic(trees, [OwnerIdentitySchema.parse({ type: family, name: "unresolved", uid: live.split("/").at(-1) })], objects);
-  if (broken) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: broken.ref,
-    condition: broken.diagnostic.condition, remedy: broken.diagnostic.remedy } };
+  if (broken) return { status: "refused", refusal: refDiagnosticRefusal(broken.ref, broken.diagnostic) };
   const own = [...trees].map(([quarter, entries]) => ({ ref: quarter, entries,
     folders: archivedFolders(family, quarter, entries, objects).folders.filter((folder) => folder.liveRef === live) })).filter(({ folders }) => folders.length);
   const first = own[0]?.folders[0];

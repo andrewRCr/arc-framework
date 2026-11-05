@@ -27,10 +27,18 @@ it.each((["default", "separate"] as const).flatMap(layout => [false, true].map(d
   } });
   try {
     const result = success(await store.pull());
-    if (damaged) expect(result.pulls.flatMap(row => row.notices)).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref }));
+    if (damaged) expect(result.pulls.flatMap(row => row.notices)).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref,
+      condition: `Objects required to read ${ref} are unavailable locally.`,
+      remedy: { text: expect.stringContaining(`Restore or fetch the missing objects for ${ref}`) } }));
     expect(success(await store.read({ reference: independent })).content).toBe("Independent\n");
     expect(success(await store.read({ reference })).content).toBe(damaged ? "First\n" : "Second\n");
   } finally { if (bytes) await writeFile(object, bytes); }
+  if (damaged) {
+    const scope = h.b.gitDir ? [`--git-dir=${h.b.gitDir}`] : [];
+    const restored = await h.b.ports.rawExec([...scope, "cat-file", "commit", tip]);
+    const hashed = await h.b.ports.rawExec([...scope, "hash-object", "-t", "commit", "--stdin"], { input: restored.stdout });
+    expect(new TextDecoder().decode(hashed.stdout).trim()).toBe(tip);
+  }
   success(await store.pull());
   expect(success(await store.read({ reference })).content).toBe("Second\n");
   expect(success(await store.read({ reference: independent })).content).toBe("Independent\n");

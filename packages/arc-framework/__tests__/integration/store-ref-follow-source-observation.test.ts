@@ -51,14 +51,17 @@ it.each(cases)("turns the $source source off with $fault push transport and $jou
   } else expect(await pending()).toBe("");
 }, 60_000);
 
-it.each(["code", "backing"] as const)("propagates a local %s observation failure and retries after repair", async source => {
+it.each(["code", "backing"] as const)("types a completed %s transport observation failure and retries after repair", async source => {
   const h = await followFixture(undefined, source), follower = h.follower, name = source === "code" ? "origin" : "backing";
   const failure = makeGitProcessError({ command: "git", args: ["remote", "get-url", name], exitCode: 128, stderr: "Local source observation failed" });
   const ports = { ...follower.ports, exec: async (...args: Parameters<typeof follower.ports.exec>) => {
     if (args[1].includes("remote") && args[1].includes("get-url") && !args[1].includes("--push")) throw failure;
     return follower.ports.exec(...args);
   } };
-  await expect(invokeStoreRemote([name, "off", "--json"], { cwd: follower.root, ports })).rejects.toBe(failure);
+  expect((await invokeStoreRemote([name, "off", "--json"], { cwd: follower.root, ports })).result).toMatchObject({
+    status: "refused", refusal: { code: "move-unfinished", class: "recoverable",
+      condition: expect.stringContaining("Local source observation failed"), remedy: { argv: ["arc", "store", "migrate"] } },
+  });
   expect((await follower.git(["config", `remote.${name}.arc-state`])).stdout.trim()).toBe("push");
   expect((await invokeStoreRemote([name, "off", "--json"], { cwd: follower.root, ports: follower.ports })).result.status).toBe("ok");
 }, 60_000);

@@ -1,31 +1,16 @@
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { refSyncFixture } from "../helpers/store/ref-sync.js";
+import { completedSyncFixture as completedFixture } from "../helpers/store/completed-sync.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { plantRef, type PlantTreeEntry } from "../helpers/store/ref-plant.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
-import { createRefStore, HistoryRefSchema, RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { createRefStore, RecordReferenceSchema } from "../../src/lib/store/index.js";
 
 const quarter = ArchiveQuarterSchema.parse("2026-q4"), provenance = { verb: "save", lifecycleAction: "save" };
 
-async function completedFixture(layout: "default" | "separate") {
-  const h = await refSyncFixture(layout);
-  const made = success(await h.a.store.write({ action: "put", expected: null, content: makeMetaFixture("completed-sync"),
-    reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "completed-sync" } }),
-    placement: { kind: "active" }, provenance: { verb: "start", lifecycleAction: "activate" } }));
-  success(await h.a.store.push()); success(await h.b.store.pull());
-  const before = success(await h.a.store.read({ reference: made.reference }));
-  success(await h.a.store.write({ action: "put", reference: before.reference, expected: before.version,
-    content: before.content, placement: { kind: "completed", quarter }, provenance: { verb: "archive", lifecycleAction: "archive" } }));
-  success(await h.a.store.push()); success(await h.b.store.pull());
-  if (!("uid" in made.reference.owner)) throw new Error("The item needs a UID");
-  const history = HistoryRefSchema.parse(`refs/arc/history/work/${made.reference.owner.uid}`), archive = `refs/arc/archive/${quarter}`;
-  const metadataPath = `metadata-${made.reference.owner.uid}.json`, folder = "01_completed-sync/";
-  return { ...h, reference: made.reference, history, archive, metadataPath, folder };
-}
 
 describe("completed-item reconciliation in the default layout", () => {
   const layout = "default";

@@ -41,7 +41,7 @@ describe("ref key admission before I/O", () => {
   it("reports malformed control keys, multi-segment IDs, and excluded personal paths before consulting a port", async () => {
     const references = [document("STATUS.USER.md"), document(".internal/notes.md"), document("work/.internal/notes.md"), document("scratch/bad\n.md")];
     for (const value of ["a/b", "a\0b", "a\nb", "a\u007fb", "a\u0085b"]) {
-      for (const kind of ["review/evidence", "review/adversarial-pass"] as const) {
+      for (const kind of ["review/evidence", "review/evidence-root-selection", "review/adversarial-pass"] as const) {
         references.push(RecordReferenceSchema.parse({ owner: { type: "work-item", name: "alpha" }, kind,
           key: kind === "review/adversarial-pass" ? { activity: value, number: 1 } : value }));
       }

@@ -16,6 +16,7 @@ import { scriptGitExec } from "../../../../helpers/git-exec-fake.js";
 import { resolveNativeExtraPassJudgment, resolveNativeInvocationExtraPassJudgment } from "../../../../../src/scripts/review-gate/runtime/native-extra-pass.js";
 import { LaneSubjectLineageSchema } from "../../../../../src/scripts/review-gate/core/lane-admission.js";
 import { createReviewTarget } from "../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
+import { createReviewResponsePort } from "../../../../../src/lib/store/kinds/review/evidence-root-selection/responses.js";
 
 async function fixture() {
   const h = createReviewHarness(), repositoryId = "123e4567-e89b-42d3-a456-426614174099", candidate = candidateFixture();
@@ -25,6 +26,7 @@ async function fixture() {
   return { ...h, owner: primary.reference.owner, input: { facts: {
     outcomes: createReviewOutcomePort(h.store, primary.reference.owner),
     evidence: createReviewEvidencePort(h.store, primary.reference.owner),
+    responses: createReviewResponsePort(h.store, primary.reference.owner),
     decisions: createReviewDecisionPort(h.store, primary.reference.owner), readProjectId: h.projectId },
     repositoryId, policyTarget: { repository: "Owner/Repo", pullRequest: 41, headSha: "a".repeat(40) }, subject: { lineage: { kind: "candidate" as const, candidateId: candidate.attestation.candidateId },
       headSha: "a".repeat(40), subjectDigest: candidate.subject.subjectDigest }, lane: "standard" as const,

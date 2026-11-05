@@ -5,7 +5,7 @@ import type { RefBackendContext } from "./context.js";
 import type { RefWriteGroup } from "./write-commits.js";
 import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { isManifestRef } from "./manifest.js";
-import { canonicalPrimaryKind, parseRefMetadata, type RefMetadata } from "./metadata.js";
+import { canonicalPrimaryKind, parseRefMetadata, readRefMetadata, type RefMetadata, type RefMetadataRead } from "./metadata.js";
 import { FAMILY_IDS, type FamilyId } from "../catalog.js";
 import { expandStoredPath, type StoredRecordHome } from "../stored-path.js";
 import { matchesFamilyRef } from "./codec.js";
@@ -88,12 +88,13 @@ export function viewRefFamily(ref: string): FamilyId | undefined {
   return FAMILY_IDS.find((family) => matchesFamilyRef(ref, family));
 }
 
-/** Decode captured metadata or use the caller's prepared copy. */
-export function viewRefMetadata(context: RefBackendContext, state: RefViewState, ref: string, family: FamilyId): RefMetadata | null {
+/** Retain captured metadata facts or use the caller's validated prepared copy. */
+export function viewRefMetadata(context: RefBackendContext, state: RefViewState, ref: string, family: FamilyId): RefMetadataRead {
   const group = state.refs.get(ref);
-  if (!group) return null;
-  if (group.metadata) return group.metadata;
+  if (!group) return { kind: "absent" };
+  if (group.metadata) return { kind: "parsed", metadata: group.metadata };
+  if (!group.entries) return { kind: "missing" };
   const home = expandStoredPath(refPrototype(context, ref, family), { registry: context.registry });
-  const entry = group.entries?.find(({ path }) => path === home.metadataPath);
-  return parseRefMetadata(entry ? state.objects.get(entry.oid) : null, ref);
+  const entry = group.entries.find(({ path }) => path === home.metadataPath);
+  return readRefMetadata(ref, entry, state.objects);
 }

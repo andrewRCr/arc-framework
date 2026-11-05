@@ -52,7 +52,9 @@ describe.each(["default", "separate"] as const)("record-free endpoints in %s", l
     const f = await createRefFixture({}, layout), reference = f.reference("personal/document"), home = expandStoredPath(reference);
     const planted = await plantRef(f.root, home.ref, entries(home, "manifest-child"), { gitDir: f.gitDir });
     await removeLooseObject(f.root, planted.tree, f.gitDir);
-    expect(await f.store.history({ reference })).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt", condition: expect.stringContaining("unavailable locally") } });
+    expect(await f.store.history({ reference })).toMatchObject({ status: "refused", refusal: { code: "state-unresolvable", class: "recoverable",
+      condition: expect.stringContaining("unavailable locally"), historyRefs: [],
+    } });
     await plantRef(f.root, home.ref, entries(home, "manifest-child"), { gitDir: f.gitDir });
     expect(await f.store.history({ reference })).toEqual({ status: "ok", result: [] });
   });

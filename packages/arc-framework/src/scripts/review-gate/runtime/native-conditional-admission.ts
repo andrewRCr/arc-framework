@@ -26,8 +26,10 @@ async function readBoundConditionalPass(facts: NativeReviewFactPorts, input: Con
   const withdrawal = await facts.decisions.read(reviewDecisionKey({ ...decision.value,
     choice: { kind: "withdrawal", decisionKey: input.authorizationId }, decidedAt: null }));
   if (withdrawal !== null) throw new Error("This conditional pass was withdrawn; obtain a new approved pass before retrying.");
-  const approval = await facts.evidence.read(precondition.dispositionSetId);
-  if (approval === null) throw new Error("Restore the approved response before retrying its conditional admission.");
+  const response = await facts.responses.read(precondition.producerId, "authority");
+  const approval = response.status === "found"
+    ? response.evidence.find(record => record.value.dispositionSet.dispositionSetId === precondition.dispositionSetId) : undefined;
+  if (approval === undefined) throw new Error("Restore the approved response in the selected branch before retrying its conditional admission.");
   if (approval.value.successorDispositionSetId !== null
     || !await input.confirmDispositionSetCurrent(precondition.producerId, precondition.dispositionSetId)) {
     throw new Error("This conditional pass was superseded; use the current approved response before retrying.");

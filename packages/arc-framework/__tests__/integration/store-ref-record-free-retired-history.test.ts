@@ -21,6 +21,40 @@ async function retiredFixture(layout: "default" | "separate") {
 }
 
 describe.each(["default", "separate"] as const)("record-free retired history in %s", layout => {
+  it("resolves an older slug after a newer record-free revision loses its metadata", async () => {
+    const { f, current, metadata, home } = await retiredFixture(layout);
+    const args = f.gitDir ? [`--git-dir=${f.gitDir}`] : [];
+    const parent = (await f.ports.exec("git", [...args, "rev-parse", home.ref])).stdout.trim();
+    const original = (await f.ports.rawExec([...args, "cat-file", "blob", metadata])).stdout;
+    const bytes = Buffer.concat([original, Buffer.from("\n")]);
+    const added = await plantRef(f.root, home.ref, [{ path: home.metadataPath, content: bytes }], { parents: [parent], gitDir: f.gitDir });
+    const oid = added.blobs.get(home.metadataPath);
+    if (!oid) throw new Error("Expected distinct record-free metadata");
+    await removeLooseObject(f.root, oid, f.gitDir);
+    const result = success(await f.store.history({ reference: current.reference }));
+    expect(result.map(({ content }) => content)).toContain(current.content);
+    const restored = await f.ports.rawExec([...args, "hash-object", "-w", "--stdin"], { input: bytes });
+    expect(Buffer.from(restored.stdout).toString().trim()).toBe(oid);
+    expect(success(await f.store.history({ reference: current.reference }))).toEqual(result);
+  });
+
+  it.each(["record-free", "record-bearing"] as const)("restores lost metadata before resolving a %s retired history home", async shape => {
+    const { f, current, metadata, home } = await retiredFixture(layout);
+    const args = f.gitDir ? [`--git-dir=${f.gitDir}`] : [];
+    const bytes = (await f.ports.rawExec([...args, "cat-file", "blob", metadata])).stdout;
+    await plantRef(f.root, home.ref, [{ path: home.metadataPath, oid: metadata, mode: "100644" },
+      ...shape === "record-bearing" ? [{ path: home.path, content: current.content }] : []], { gitDir: f.gitDir });
+    await removeLooseObject(f.root, metadata, f.gitDir);
+    expect(await f.store.history({ reference: current.reference })).toMatchObject({ status: "refused", refusal: {
+      code: "state-unresolvable", class: "recoverable", historyRefs: [home.ref],
+      remedy: { text: expect.stringMatching(/restore|fetch|pull/iu) },
+    } });
+    const restored = await f.ports.rawExec([...args, "hash-object", "-w", "--stdin"], { input: bytes });
+    expect(Buffer.from(restored.stdout).toString().trim()).toBe(metadata);
+    expect(success(await f.store.history({ reference: current.reference })).map(({ content }) => content))
+      .toEqual(shape === "record-bearing" ? [current.content] : []);
+  });
+
   it.each(["root", "chain"] as const)("reads malformed-metadata-only %s history as absent and continues with readable records", async shape => {
     const { f, current, lineage, metadata, home } = await retiredFixture(layout);
     const empty = await plantRef(f.root, home.ref, [{ path: home.metadataPath, content: "Malformed auxiliary metadata\n" }], { gitDir: f.gitDir });
@@ -38,7 +72,9 @@ describe.each(["default", "separate"] as const)("record-free retired history in 
     const damaged = await plantRef(f.root, home.ref, [{ path: home.path, content: current.content }], { gitDir: f.gitDir });
     const empty = await plantRef(f.root, home.ref, [{ path: home.metadataPath, content: "Auxiliary\n" }], { gitDir: f.gitDir });
     await plantRef(f.root, home.ref, [], { parents: shape === "ancestor" ? [damaged.tip] : [empty.tip, damaged.tip], gitDir: f.gitDir });
-    expect(await f.store.history({ reference: current.reference })).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt" } });
+    expect(await f.store.history({ reference: current.reference })).toMatchObject({ status: "refused", refusal: {
+      code: "namespace-corrupt", remedy: { text: expect.stringMatching(/repair.*forward/iu) },
+    } });
     // A forward empty state cannot rewrite the broken ancestor; readable replacement history can supply a usable interval.
     await plantRef(f.root, home.ref, [], { gitDir: f.gitDir });
     expect(await f.store.history({ reference: current.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });

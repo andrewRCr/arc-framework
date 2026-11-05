@@ -5,7 +5,8 @@ import { CommitShaSchema } from "../links.js";
 import { z } from "zod";
 import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import { readGitDirectories } from "../../git/directories.js";
-import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
+import type { RefChange } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import { MigrateReportSchema, type MigrateReport, type StoreCommandResult } from "../commands.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects } from "./batch-read.js";
@@ -103,14 +104,14 @@ export async function saveMoveRecord<T extends MoveRecord>(code: RefBackendConte
   const kept = report ? [{ path: "report.json", mode: "100644" as const, oid: await writeRefBlob(code, canonicalize(MigrateReportSchema.parse(report))) }] : [];
   const tree = await writeRefTree(code, [{ path: "move.json", mode: "100644", oid }, ...kept]);
   const tip = (await code.exec("git", ["commit-tree", tree, "-m", "Record local store move"], { cwd: code.checkoutRoot })).stdout.trim();
-  const result = await updateRefTransaction(code, [{ ref: MOVE_REF, next: tip, expected }, ...await dropSwitchMark(code)], { cwd: code.checkoutRoot });
+  const result = await updateStoreRefTransaction(code, [{ ref: MOVE_REF, next: tip, expected }, ...await dropSwitchMark(code)], { cwd: code.checkoutRoot });
   if (result.status !== "committed") throw new Error("The recorded migration changed before its replacement");
   return { record, tip };
 }
 
 /** Remove only the exact record whose source cleanup has completed. */
 export async function removeMoveRecord(code: RefBackendContext, recorded: RecordedMove): Promise<void> {
-  const result = await updateRefTransaction(code, [{ ref: MOVE_REF, delete: true, expected: recorded.tip }, ...await dropSwitchMark(code)], { cwd: code.checkoutRoot });
+  const result = await updateStoreRefTransaction(code, [{ ref: MOVE_REF, delete: true, expected: recorded.tip }, ...await dropSwitchMark(code)], { cwd: code.checkoutRoot });
   if (result.status !== "committed") throw new Error("The recorded migration changed before its removal");
   await code.migrateStep?.("record.removed");
 }
@@ -119,7 +120,7 @@ export async function removeMoveRecord(code: RefBackendContext, recorded: Record
 export async function markSwitchBegun(code: RefBackendContext, recorded: { tip: string }): Promise<void> {
   const held = (await readSyncRefs(code, SWITCH_REF)).get(SWITCH_REF) ?? null;
   if (held === recorded.tip) return;
-  const result = await updateRefTransaction(code, [{ ref: SWITCH_REF, next: recorded.tip, expected: held }], { cwd: code.checkoutRoot });
+  const result = await updateStoreRefTransaction(code, [{ ref: SWITCH_REF, next: recorded.tip, expected: held }], { cwd: code.checkoutRoot });
   if (result.status !== "committed") throw new Error("The recorded switch's mark changed before its write");
 }
 

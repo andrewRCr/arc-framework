@@ -30,7 +30,7 @@ function importQueue(registry: RefBackendContext["registry"], records: ImportRec
   const titles = new Set(listing.entries.map(entry => entry.title));
   const split = splitEntryList(inbox.content, grammar);
   const clean = split.parts.map(part => part.kind === "entry" && titles.has(entryTitle(part))
-    ? { ...part, bytes: part.bytes.replace(/\r?\n- _Disposition:_ `execute-bound`\r?\n/u, "") } : part);
+    ? { ...part, bytes: part.bytes.replace(/\r?\n- _Disposition:_ `execute-bound`(?:\r?\n|$)/u, "") } : part);
   const prepared = prepareRefPut(inbox.reference, null, clean.map(part => part.bytes + (part.kind === "entry" ? part.separator : "")).join(""), registry);
   if (prepared.status === "refused") { reportImportPutFailure(registry, report, inbox, prepared.refusal); return; }
   inbox.content = prepared.result;

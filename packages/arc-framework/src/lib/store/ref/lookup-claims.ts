@@ -8,6 +8,7 @@ import type { RefLookupTree } from "./lookup.js";
 import { lookupPrimary } from "./lookup-primary.js";
 import { decodeReference } from "./codec.js";
 import { readRefContent } from "./content-read.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** Match claims against the exact parsed token; partial Errands have no record. */
 export function claimLookupCandidates(context: Pick<RefBackendContext, "registry">, claim: CheckoutClaim,
@@ -64,9 +65,10 @@ export function claimPayloadRefusal(context: Pick<RefBackendContext, "registry">
     const path = expandStoredPath(reference, { registry: context.registry }).path;
     const entry = tree.entries.find(entry => entry.path === path);
     if (!entry || tree.objects?.get(entry.oid)?.type === "blob") continue;
-    return { code: "state-unresolvable", class: "recoverable", reference, historyRefs: [],
+    return refObjectFault(ref, "missing", { reference,
       condition: `The captured claim payload ${entry.oid} is unavailable locally.`,
-      remedy: { text: "Restore or fetch the missing claim payload, then repeat the lookup; its absence has not been established." } };
+      remedy: { text: "Restore or fetch the missing claim payload, then repeat the lookup; its absence has not been established." },
+    }).refusal;
   }
   return undefined;
 }

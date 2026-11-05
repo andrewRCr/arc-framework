@@ -40,7 +40,8 @@ describe.each(["default", "separate"] as const)("saved record repair routes in %
     expect.soft(refused).toMatchObject({ status: "refused", refusal: { code: "record-malformed", remedy: { text: expect.stringMatching(remedy) } } });
     const listing = success(await f.store.list({ family: kind === "review/evidence" ? "review" : "work-item", asOf: saved }));
     expect.soft(listing).toMatchObject({ status: "complete", diagnostics: expect.arrayContaining([
-      expect.objectContaining({ key: home.path, remedy: { text: expect.stringMatching(remedy) } }),
+      expect.objectContaining({ key: archived ? `${home.ref}:${home.path}` : home.path,
+        remedy: { text: expect.stringMatching(remedy) } }),
     ]) });
     await plantRef(f.root, home.ref, entries, { parents: [broken.tip], gitDir: f.gitDir });
     expect(success(await f.store.read({ reference })).content).toBe(record.content);

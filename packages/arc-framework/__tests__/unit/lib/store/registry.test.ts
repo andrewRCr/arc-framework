@@ -135,6 +135,7 @@ describe("role-based storage registry", () => {
       "review/candidate": "review/candidate-<uid>.json",
       "review/integration-boundary": "review/integration-boundary-<uid>.json",
       "review/evidence": "review/evidence-<key>-<uid>.json",
+      "review/evidence-root-selection": "review/root-selection-<key>-<uid>.json",
       "review/outcome": "review/outcome-<key>-<uid>.json",
       "review/decision": "review/decision-<key>-<uid>.json",
       "review/adversarial-pass": "review/adversarial-pass-<key>-<uid>.json",
@@ -197,7 +198,7 @@ describe("role-based storage registry", () => {
     for (const source of sources) expect(readFileSync(source, "utf8")).not.toMatch(/(?:USER-INBOX|WORKING-MEMORY|SESSION-NOTES|ATOMIC-INBOX|ROADMAP|STATUS\.USER)\.(?:md|json)/u);
   });
   it("records every interim family substrate explicitly", () => {
-    const unhomed: KindId[] = ["work-item/description", "work-item/inbound", "work-item/cut-map", "personal/errand-queue", "review/evidence", "review/outcome", "review/decision", "review/adversarial-pass", "project-registry/identity", "project-registry/counter", "project-machinery/prose", "constitution/prose"];
+    const unhomed: KindId[] = ["work-item/description", "work-item/inbound", "work-item/cut-map", "personal/errand-queue", "review/evidence", "review/evidence-root-selection", "review/outcome", "review/decision", "review/adversarial-pass", "project-registry/identity", "project-registry/counter", "project-machinery/prose", "constitution/prose"];
     for (const id of unhomed) expect(KIND_REGISTRY[id].inRepo.substrate).toBe("none");
     expect(KIND_REGISTRY["work-item/record"].inRepo.substrate).toBe("transient-identity");
     expect(KIND_REGISTRY["claims/groom"].inRepo.substrate).toBe("transient-identity");

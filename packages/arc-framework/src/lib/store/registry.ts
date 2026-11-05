@@ -103,6 +103,7 @@ export const KIND_MECHANISMS = {
   "review/candidate": atRef("review/candidate-<uid>.json", machine({ substrate: "tracked", address: { kind: "candidate-record" } })),
   "review/integration-boundary": atRef("review/integration-boundary-<uid>.json", machine({ substrate: "tracked", address: { kind: "integration-boundary-record" } })),
   "review/evidence": atRef("review/evidence-<key>-<uid>.json", machine(unhomed)),
+  "review/evidence-root-selection": atRef("review/root-selection-<key>-<uid>.json", machine(unhomed)),
   "review/outcome": atRef("review/outcome-<key>-<uid>.json", { ...machine(unhomed), writerRule: "create-only" }),
   "review/decision": atRef("review/decision-<key>-<uid>.json", { ...machine(unhomed), writerRule: "create-only" }),
   "review/adversarial-pass": atRef("review/adversarial-pass-<key>-<uid>.json", { ...machine(unhomed), writerRule: "create-only" }),

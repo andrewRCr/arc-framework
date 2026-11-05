@@ -133,7 +133,7 @@ export interface AdvisoryLockOptions {
   processInstance?: string;
   /** Observe live-holder contention without changing acquisition behavior. */
   onWait?: (contention: AdvisoryLockContention) => void;
-  /** Total bounded wait in ms; defaults to {@link DEFAULT_MAX_WAIT_MS}. */
+  /** Total bounded wait in ms; zero makes one immediate attempt. Defaults to {@link DEFAULT_MAX_WAIT_MS}. */
   maxWaitMs?: number;
   /** Staleness TTL for the break-lock itself; defaults to {@link DEFAULT_BREAK_LOCK_TTL_MS}. */
   breakLockTtlMs?: number;
@@ -220,7 +220,7 @@ export async function acquireAdvisoryLock(
     // Ordinary bounded backoff earns one last create even if its timer wakes late. Settling, reads and reclamation
     // cannot earn that late attempt; a failed final create never starts more recovery.
     const observedAt = observeAcquisitionAttempt(lockPath, maxWaitMs, acquisitionBudget, afterBackoff);
-    const finalAttempt = observedAt >= deadline;
+    const finalAttempt = maxWaitMs === 0 || observedAt >= deadline;
     afterBackoff = false;
 
     try {
@@ -293,18 +293,18 @@ export async function acquireAdvisoryLock(
   }
 }
 
-/** An exhausted caller deadline cannot authorize even an uncontended acquisition. */
+/** A negative remaining budget cannot authorize even an uncontended acquisition. */
 function requireWaitBudget(lockPath: string, maxWaitMs: number): number {
-  if (maxWaitMs <= 0) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
+  if (maxWaitMs < 0) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
   return maxWaitMs;
 }
 
-/** A normal backoff may wake late; holder reads and reclamation cannot authorize a late acquisition. */
+/** Zero admits one immediate create; positive waits allow a late wake only after ordinary bounded backoff. */
 function observeAcquisitionAttempt(
   lockPath: string, maxWaitMs: number, budget: LockReadBudget, afterBackoff: boolean,
 ): number {
   const observedAt = budget.now();
-  if (observedAt > budget.deadline && !afterBackoff) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
+  if (maxWaitMs !== 0 && observedAt > budget.deadline && !afterBackoff) throw new AdvisoryLockTimeoutError(lockPath, maxWaitMs);
   return observedAt;
 }
 

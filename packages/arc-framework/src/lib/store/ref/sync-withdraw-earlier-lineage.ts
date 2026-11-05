@@ -6,7 +6,8 @@ import type { RefBackendContext } from "./context.js";
 import type { WithdrawEnd } from "./sync-withdraw-commit.js";
 import { lifecycleBatches } from "./sync-lifecycle.js";
 import { readWithdrawJournal, UnavailableWithdrawJournal, type WithdrawJournalStep } from "./sync-withdraw-journal.js";
-import { isCompletedGitFailure, normalizeGitRejection } from "../../git/process-error.js";
+import { normalizeGitRejection } from "../../git/process-error.js";
+import { isUnavailableGraphFailure } from "./history-graph.js";
 
 /** Include only the earlier lineage, preserving every other write from its original batch. */
 export async function readEarlierWithdrawLineage(context: RefBackendContext, held: ReadonlyMap<string, string>,
@@ -26,9 +27,9 @@ export async function readEarlierWithdrawLineage(context: RefBackendContext, hel
 async function readLineageMessage(context: RefBackendContext, tip: string, uid: string): Promise<string> {
   try {
     return (await context.exec("git", ["log", "--first-parent", "-1", "--format=%B", tip,
-      "--", `:(literal)lineage/${uid}.json`], { cwd: context.checkoutRoot, objectAccess: "local-only" })).stdout;
+      "--", `:(literal)lineage/${uid}.json`], { cwd: context.checkoutRoot, objectAccess: "local-only", diagnosticLocale: "stable" })).stdout;
   } catch (error) {
-    if (!isCompletedGitFailure(error)) throw error;
-    throw new UnavailableWithdrawJournal("refs/arc/project/registry", `The original lineage cannot be read: ${normalizeGitRejection(error, { command: "git", args: ["log"] }).message}`);
+    if (!await isUnavailableGraphFailure(context, error)) throw error;
+    throw new UnavailableWithdrawJournal("refs/arc/project/registry", `The original lineage cannot be read: ${normalizeGitRejection(error, { command: "git", args: ["log"] }).message}`, "missing");
   }
 }

@@ -1,6 +1,7 @@
 /** Sync-state behavior, terminal independence, and separately published carried code. */
 
 import { execFile } from "node:child_process";
+import { writeSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,9 +34,21 @@ async function publishRegistry(h: Awaited<ReturnType<typeof refSyncFixture>>): P
 
 async function runFirstPull(root: string, terminal: boolean) {
   const argv = [process.execPath, "--import", "tsx", firstPull, root];
-  const { stdout, stderr } = terminal
-    ? await execFileAsync("script", ["-q", "-e", "-c", argv.map(quoteShellArgument).join(" "), "/dev/null"], { timeout: CALL_LIMIT })
-    : await execFileAsync(process.execPath, argv.slice(1), { timeout: CALL_LIMIT });
+  const began = performance.now();
+  const pending = terminal
+    ? execFileAsync("script", ["-q", "-e", "-c", argv.map(quoteShellArgument).join(" "), "/dev/null"], { timeout: CALL_LIMIT })
+    : execFileAsync(process.execPath, argv.slice(1), { timeout: CALL_LIMIT });
+  const { stdout, stderr } = await pending.catch((error: unknown) => {
+    const details = typeof error === "object" && error !== null
+      ? Object.fromEntries(Object.getOwnPropertyNames(error).map((key): [string, unknown] => [key, (error as Record<string, unknown>)[key]]))
+      : { thrown: String(error) };
+    try {
+      writeSync(2, "FIRST_PULL_PROCESS_FAILURE " + JSON.stringify({ terminal, elapsedMs: performance.now() - began,
+        timeoutMs: CALL_LIMIT, nodeVersion: process.version, platform: process.platform, pid: pending.child.pid,
+        exitCode: pending.child.exitCode, signalCode: pending.child.signalCode, killed: pending.child.killed, error: details }) + "\n");
+    } catch { /* Preserve the child failure if the diagnostic stream cannot be written. */ }
+    throw error;
+  });
   expect(stderr).toBe("");
   const payload = stdout.replace(/\r/gu, "").split("\n").find((line) => line.startsWith("{"));
   return processResult.parse(JSON.parse(payload ?? "null"));

@@ -2,7 +2,7 @@
 import { LineageRecordSchema } from "../kinds/lineage/index.js";
 import type { PullNotice } from "../sync.js";
 import type { OwnerIdentity } from "../identity.js";
-import { readBatchObjects } from "./batch-read.js";
+import { readBatchObjects, readRefTrees } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
 import { readLineageOwners } from "./lineage-resolution.js";
 import { lifecycleRefHeld } from "./sync-lifecycle-holds.js";
@@ -10,7 +10,7 @@ import { readLifecycleLog } from "./sync-lifecycle-evidence.js";
 import { readItemEndCandidates, type ItemEndCandidate } from "./sync-lifecycle-log.js";
 import type { RefEndPublished } from "./sync-lifecycle.js";
 import type { ArchivedFolder } from "./archive-read.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
 import { terminalEndRemedy } from "./terminal-end-remedy.js";
 
 /** Read complete terminal candidates, then require existing captured publication witnesses for their maximal ends. */
@@ -26,9 +26,14 @@ export async function observeTerminalEndedTwice(context: RefBackendContext, stat
     && !lifecycleRefHeld(blocked, `refs/arc/work/${owner.uid}`) && !folders.some(folder => folder.liveRef === `refs/arc/work/${owner.uid}`));
   const paths = owners.map(owner => `${tip}:lineage/${"uid" in owner ? owner.uid : ""}.json`);
   const records = await readBatchObjects(context, paths), notices: PullNotice[] = [];
+  const entries = paths.some(path => records.get(path) == null)
+    ? (await readRefTrees(context, new Map([[registry, tip]]))).get(registry) : undefined;
   for (const [index, owner] of owners.entries()) {
     const path = paths[index], object = path ? records.get(path) : undefined;
-    if (object?.type !== "blob") { notices.push(unavailableNotice(registry)); continue; }
+    if (object?.type !== "blob") {
+      if (object || !entries || entries.some(entry => `${tip}:${entry.path}` === path)) notices.push(unavailableNotice(registry));
+      continue;
+    }
     let value: unknown;
     try { value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(object.bytes)); }
     catch { continue; }
@@ -67,6 +72,6 @@ async function maximalEnds(context: RefBackendContext, tip: string, ends: readon
 }
 
 function unavailableNotice(ref: string): PullNotice {
-  const refusal = corruptRef(ref, true);
+  const refusal = refObjectFault(ref, "missing").refusal;
   return { kind: "namespace-corrupt", ref, condition: refusal.condition, remedy: refusal.remedy };
 }

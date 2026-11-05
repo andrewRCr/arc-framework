@@ -4,6 +4,7 @@ import { readBatchObjects, type BatchObject } from "../batch-read.js";
 import { notePathToCommit, NOTES_COMPACTION_SNAPSHOT_MESSAGE } from "../../../user-sync/notes-ref.js";
 import { parseImportNoteFiles } from "./personal-note-manifest.js";
 import { importPersonalExcluded } from "./personal-disk.js";
+import type { MigrateReport } from "../../commands.js";
 
 interface NoteVersion { annotated: string; blob: string }
 interface NoteChange { compacted: boolean; versions: NoteVersion[] }
@@ -11,7 +12,8 @@ interface NoteChange { compacted: boolean; versions: NoteVersion[] }
 export interface ImportWorkspaceSnapshot { files: Record<string, string>; savedPaths: Set<string> }
 
 /** Read the ref's own complete history, batching note objects and compaction ordering evidence. */
-export async function readImportWorkspaces(context: RefBackendContext, live: ReadonlySet<string>, tip: string | null): Promise<ImportWorkspaceSnapshot> {
+export async function readImportWorkspaces(context: RefBackendContext, live: ReadonlySet<string>, tip: string | null,
+  informational: MigrateReport["notices"]): Promise<ImportWorkspaceSnapshot> {
   const source = context.importSource;
   if (!source) throw new Error("No import source bound");
   if (!live.size) return { files: {}, savedPaths: new Set() };
@@ -23,9 +25,15 @@ export async function readImportWorkspaces(context: RefBackendContext, live: Rea
   const physical = { ...context, rawExec: source.ports.rawExec, checkoutRoot: source.ports.checkoutRoot, readSource: undefined, blobStage: undefined };
   const commits = [...new Set(changes.filter(change => change.compacted).flatMap(change => change.versions.map(version => version.annotated)))];
   const dates = await readBatchObjects(physical, commits);
+  const chronology = new Map(commits.map(annotated => {
+    const time = committedAt(dates.get(annotated));
+    if (time === null) informational.push({ condition: `A retained note's annotated commit ${annotated} has no readable committer date; it sorts after commits with readable dates.` });
+    return [annotated, time ?? Number.NEGATIVE_INFINITY] as const;
+  }));
   const remaining = new Set(live), result: ImportWorkspaceSnapshot = { files: {}, savedPaths: new Set() };
   const versions = changes.flatMap(change => change.compacted
-    ? [...change.versions].sort((left, right) => committedAt(dates.get(right.annotated)) - committedAt(dates.get(left.annotated)) || left.annotated.localeCompare(right.annotated))
+    ? [...change.versions].sort((left, right) => (chronology.get(right.annotated) ?? Number.NEGATIVE_INFINITY)
+      - (chronology.get(left.annotated) ?? Number.NEGATIVE_INFINITY) || left.annotated.localeCompare(right.annotated))
     : change.versions);
   for (let offset = 0; offset < versions.length; offset += 64) {
     const batch = versions.slice(offset, offset + 64);
@@ -54,12 +62,11 @@ function noteChanges(output: string): NoteChange[] {
   });
 }
 
-function committedAt(object: BatchObject | null | undefined): number {
-  if (object?.type !== "commit") throw new Error("Cannot order a compacted note whose annotated commit is unreadable");
+function committedAt(object: BatchObject | null | undefined): number | null {
+  if (object?.type !== "commit") return null;
   const header = Buffer.from(object.bytes).toString("utf8").split("\n\n", 1)[0] ?? "";
   const time = /^committer .* (\d+) [+-]\d{4}$/mu.exec(header)?.[1];
-  if (!time) throw new Error("Cannot order a compacted note without a committer date");
-  return Number(time);
+  return time ? Number(time) : null;
 }
 
 function manifestFiles(object: BatchObject | null | undefined): Record<string, string> {

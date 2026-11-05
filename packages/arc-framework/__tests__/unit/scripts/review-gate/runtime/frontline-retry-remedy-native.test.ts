@@ -20,7 +20,7 @@ it.each([false, true])("recovers a consumed decision for a stale retry with a fr
   const publisher = checkout === null ? h.publisher : new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
   const operations = checkout === null ? h.operations : new NativeReviewInFlightStateStore({ publisher,
     workItem: h.f.primary.reference.owner, outcomes: h.f.input.outcomes, evidence: h.f.input.evidence,
-    decisions: h.f.input.decisions, projectId: h.f.input.readProjectId });
+    decisions: h.f.input.decisions, projectId: h.f.input.readProjectId, responses: h.f.input.responses });
   const owner = await operations.readOperation(laneProgressOperationId({ lane: "frontline", repositoryId: h.target.repositoryId,
     headSha: h.target.headSha, lineage: h.admission.lineage }));
   if (owner.state?.kind !== "lane-progress" || operations.nativeFacts === undefined) throw new Error("Expected native retry context");

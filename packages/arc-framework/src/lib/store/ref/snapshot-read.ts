@@ -3,7 +3,7 @@ import { restartOnVanishedStore } from "./repository.js";
 import { checkRefKey } from "./path-admission.js";
 import type { StateVersion, RecordReference } from "../identity.js";
 import type { ReadInput, ListInput, StoreRecord, ListingOutcome } from "../read.js";
-import { HistoryRefSchema, type StoreResult } from "../refusal.js";
+import type { StoreResult } from "../refusal.js";
 import type { StoreView } from "../write-check.js";
 import type { RefBackendContext } from "./context.js";
 import { readRefManifest } from "./manifest-read.js";
@@ -12,8 +12,11 @@ import { capturedRefView } from "./write-views.js";
 import { matchesFamilyRef, rootFamily } from "./codec.js";
 import { refListingRefusal } from "./read.js";
 import { isArchiveRef } from "./archive-read.js";
+import { missingHistoryRefs } from "./missing-history.js";
+import { refObjectFault } from "./object-fault.js";
+import { listingRefMatches } from "./listing-scope.js";
 
-/** Resolve a saved record without consulting today's state ref tips. */
+/** Resolve saved bytes from their manifest, consulting today's tips only to route an object-loss remedy. */
 export async function readSnapshotRecord(context: RefBackendContext, input: ReadInput): Promise<StoreResult<StoreRecord>> {
   if (!input.asOf) throw new Error("A snapshot read requires a state version");
   const invalid = checkRefKey(input.reference, context.registry, false);
@@ -49,39 +52,39 @@ async function snapshotView(context: RefBackendContext, version: StateVersion, i
   const known = owner && (owner.type === "person" || owner.type === "project" || owner.uid !== undefined);
   const state = reference && known ? await captureRefPointViewState(context, tips, reference) : await captureRefViewState(context, tips);
   const unavailable = [...state.refs].filter(([, group]) => group.entries === undefined).map(([ref]) => ref);
-  if (unavailable.length && !reference) return unavailableSnapshot(version, unavailable);
+  if (unavailable.length && !reference) return unavailableSnapshot(context, version, unavailable);
   const view = capturedRefView(context, () => Promise.resolve({ ...state, saved: true }));
-  return { status: "ok", result: unavailable.length ? { ...view, read: async request => {
-    const result = await view.read(request);
-    return result.status === "refused" && result.refusal.code === "namespace-corrupt" && unavailable.includes(result.refusal.namespace)
-      ? unavailableSnapshot(version, [result.refusal.namespace]) : result;
-  } } : view };
+  return { status: "ok", result: { ...view, read: request => readSavedView(view, version, request) } };
 }
 
-function unavailableSnapshot(version: StateVersion, unavailable: readonly string[]): StoreResult<never> {
-  return { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", stateVersion: version,
-    historyRefs: unavailable.filter((ref) => /^refs\/arc\/(?:work|cohort)\//u.test(ref)).map((ref) => HistoryRefSchema.parse(ref.replace("refs/arc/", "refs/arc/history/"))),
+async function readSavedView(view: StoreView, version: StateVersion, request: ReadInput): Promise<StoreResult<StoreRecord>> {
+  const result = await view.read(request);
+  if (result.status !== "refused") return result;
+  if (result.refusal.code !== "state-unresolvable") return result;
+  return { status: "refused", refusal: { ...result.refusal, stateVersion: result.refusal.stateVersion ?? version } };
+}
+
+async function unavailableSnapshot(context: RefBackendContext, version: StateVersion, unavailable: readonly string[]): Promise<StoreResult<never>> {
+  const historyRefs = await missingHistoryRefs(context, unavailable);
+  const { refusal } = refObjectFault(unavailable.join(", "), "missing", {
+    historyRefs,
     condition: `Saved state tips or their root trees are unavailable: ${unavailable.join(", ")}`,
-    remedy: { text: "Pull the named history refs or restore the missing state objects, then retry this saved-state read." } } };
+    remedy: { text: historyRefs.length ? "Pull the named history refs or restore the missing state objects, then retry this saved-state read."
+      : "Restore or fetch the missing state objects in the store repository, then retry this saved-state read." },
+  });
+  return { status: "refused", refusal: { ...refusal, stateVersion: version } };
 }
 
 function selectSnapshotTips(manifest: ReadonlyMap<string, string>, input: ListInput, identity: string | null): Map<string, string> {
   const root = rootFamily(input.family);
-  const liveOwner = manifestHasLiveOwner(manifest, input);
   return new Map([...manifest].filter(([ref]) => {
     if (ref.startsWith("refs/arc/user/")) {
       if (ref.split("/")[3] !== identity || input.owner && input.owner.name !== identity) return false;
     }
     if (input.family === "lineage" && input.owner?.type === "work-item" && !input.owner.uid && matchesFamilyRef(ref, "work-item")) return true;
     if (ref === "refs/arc/project/registry" && ["project-inbox", "project-registry"].includes(root)) return true;
-    if (["work-item", "cohort"].includes(root) && isArchiveRef(ref)) return !liveOwner;
+    if (["work-item", "cohort"].includes(root) && isArchiveRef(ref)) return listingRefMatches(ref, input, manifest);
     if (!matchesFamilyRef(ref, input.family)) return false;
-    return !input.owner || !("uid" in input.owner) || !input.owner.uid || !["work-item", "cohort"].includes(root) || ref.endsWith(`/${input.owner.uid}`);
+    return listingRefMatches(ref, input, manifest);
   }));
-}
-
-function manifestHasLiveOwner(manifest: ReadonlyMap<string, string>, input: ListInput): boolean {
-  const owner = input.owner;
-  if (!owner || !("uid" in owner) || !owner.uid || !["work-item", "cohort"].includes(owner.type)) return false;
-  return manifest.has(`refs/arc/${owner.type === "work-item" ? "work" : "cohort"}/${owner.uid}`);
 }

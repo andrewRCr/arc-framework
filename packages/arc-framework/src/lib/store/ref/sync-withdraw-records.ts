@@ -8,11 +8,11 @@ import type { RefBackendContext } from "./context.js";
 import { decodeReference, refOwner } from "./codec.js";
 import { refFormatKey } from "./format-key.js";
 import { fixedStoredPathKind } from "./path-decode.js";
-import { parseRefMetadata, type RefMetadata } from "./metadata.js";
-import { corruptRef } from "./namespace-health.js";
+import { parseRefMetadata, readRefMetadata, type RefMetadata } from "./metadata.js";
 import { refPrototype } from "./read.js";
 import { RefSyncLabelError } from "./sync-label.js";
 import { viewRefFamily } from "./view-state.js";
+import { refObjectFault } from "./object-fault.js";
 
 export interface WithdrawRecordDefinition { reference: RecordReference; metadataPath: string }
 export interface WithdrawRecordFormat { path: string; selected?: RefTreeEntry; metadataPath: string; key: string; version?: number }
@@ -51,26 +51,43 @@ function capturedReference(context: RefBackendContext, live: string, family: Fam
   return reference && "owner" in reference ? reference : undefined;
 }
 
+/** Read required metadata without losing object absence, decoding, or the snapshot's repair side. */
+export function withdrawSnapshotMetadata(ref: string, entry: RefTreeEntry | undefined,
+  objects: ReadonlyMap<string, BatchObject | null>, saved: boolean): RefMetadata {
+  const read = readRefMetadata(ref, entry, objects);
+  if (read.kind === "parsed") return read.metadata;
+  throw new RefSyncLabelError(ref, refObjectFault(ref, read.kind === "absent" ? "no-metadata" : read.kind, { saved }).refusal);
+}
+
+/** Current and restored original entries keep their source side; newly composed metadata must already parse. */
+export function withdrawComposedMetadata(ref: string, entry: RefTreeEntry,
+  objects: ReadonlyMap<string, BatchObject | null>, before: RefTreeEntry | undefined, current: RefTreeEntry | undefined): RefMetadata {
+  if (entry.oid === current?.oid) return withdrawSnapshotMetadata(ref, entry, objects, false);
+  if (entry.oid === before?.oid) return withdrawSnapshotMetadata(ref, entry, objects, true);
+  const metadata = parseRefMetadata(objects.get(entry.oid));
+  if (metadata) return metadata;
+  throw new Error("Metadata composed from validated withdrawal inputs cannot be decoded");
+}
+
 /** Required metadata is strict; only an absent coordinate means the initial format version. */
 export function withdrawRecordMetadata(ref: string, definition: WithdrawRecordDefinition, entries: ReadonlyMap<string, RefTreeEntry>,
-  objects: ReadonlyMap<string, BatchObject | null>): { metadata: RefMetadata; formatVersion: number } {
-  const stored = entries.get(definition.metadataPath), metadata = parseRefMetadata(stored ? objects.get(stored.oid) : undefined, ref);
-  if (!metadata) throw new RefSyncLabelError(ref, corruptRef(ref, false, true));
+  objects: ReadonlyMap<string, BatchObject | null>, saved: boolean): { metadata: RefMetadata; formatVersion: number } {
+  const metadata = withdrawSnapshotMetadata(ref, entries.get(definition.metadataPath), objects, saved);
   return { metadata, formatVersion: metadata.formats[refFormatKey(definition.reference)] ?? 1 };
 }
 
 /** Presence, blob, mode, and the record's own format determine generic selection. */
 export function sameWithdrawRecord(ref: string, path: string, definition: WithdrawRecordDefinition | undefined,
-  left: ReadonlyMap<string, RefTreeEntry>, right: ReadonlyMap<string, RefTreeEntry>, objects: ReadonlyMap<string, BatchObject | null>): boolean {
+  left: ReadonlyMap<string, RefTreeEntry>, right: ReadonlyMap<string, RefTreeEntry>, objects: ReadonlyMap<string, BatchObject | null>, saved: readonly [boolean, boolean]): boolean {
   const a = left.get(path), b = right.get(path);
-  const aFormat = a && definition ? withdrawRecordMetadata(ref, definition, left, objects).formatVersion : undefined;
-  const bFormat = b && definition ? withdrawRecordMetadata(ref, definition, right, objects).formatVersion : undefined;
+  const aFormat = a && definition ? withdrawRecordMetadata(ref, definition, left, objects, saved[0]).formatVersion : undefined;
+  const bFormat = b && definition ? withdrawRecordMetadata(ref, definition, right, objects, saved[1]).formatVersion : undefined;
   return a?.oid === b?.oid && a?.mode === b?.mode && aFormat === bFormat;
 }
 
 /** Replay the selected coordinate after the independent structural metadata inverse. */
 export function selectedWithdrawFormat(ref: string, path: string, definition: WithdrawRecordDefinition,
-  selected: ReadonlyMap<string, RefTreeEntry>, objects: ReadonlyMap<string, BatchObject | null>): WithdrawRecordFormat {
+  selected: ReadonlyMap<string, RefTreeEntry>, objects: ReadonlyMap<string, BatchObject | null>, saved: boolean): WithdrawRecordFormat {
   return { path, selected: selected.get(path), metadataPath: definition.metadataPath, key: refFormatKey(definition.reference),
-    version: selected.has(path) ? withdrawRecordMetadata(ref, definition, selected, objects).formatVersion : undefined };
+    version: selected.has(path) ? withdrawRecordMetadata(ref, definition, selected, objects, saved).formatVersion : undefined };
 }

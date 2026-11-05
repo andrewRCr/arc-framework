@@ -12,8 +12,9 @@ import { prepareRemoteReCopy, remoteCopyChanges, atomicMigrationPush, migrationP
   copyPushLanded, remoteCopyReport, retainRemoteCopiedState } from "./migrate-remote-copy.js";
 import { beginCopyJournal, confirmCopyJournal, copyJournalKey, recoverCopyReport, releaseCopyJournal } from "./migrate-copy-journal.js";
 import { MigrationRefusal } from "./migrate-refusal.js";
+import { migrationTransportRefusal } from "./migrate-remote-target.js";
 import { appendCopiedFollowRefs, appendFollowReadRefs } from "./follow-report.js";
-import { updateRefTransaction } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import { captureComparisonWitness, withComparisonWitness, type ComparisonWitness } from "./comparison-witness.js";
 
 /** A delete never starts until both remotes and the complete re-copy have been observed in this round. */
@@ -48,7 +49,8 @@ export async function deleteFollowSource(code: RefBackendContext, recorded: Reco
 
 function followCleanupFailure(error: unknown): unknown {
   if (!(error instanceof MigrationRefusal)) return error;
-  if (error.refusal.code === "store" && (error.refusal.refusal.code === "namespace-corrupt" || error.refusal.refusal.code === "command-line-capacity")) return error;
+  if (error.refusal.code === "store" && (error.refusal.refusal.code === "namespace-corrupt"
+    || error.refusal.refusal.code === "state-unresolvable" || error.refusal.refusal.code === "command-line-capacity")) return error;
   return new MigrationRefusal({ code: "move-unfinished", class: "recoverable", condition: `The recorded follow could not finish cleanup: ${error.message}`,
     remedy: { text: "Repair the reported remote, then retry arc store migrate with no target. Where the old remote is gone for good, end the follow without its deletes with arc store migrate --leave-source.",
       argv: ["arc", "store", "migrate"] } });
@@ -75,7 +77,8 @@ async function recopyFollowRound(code: RefBackendContext, recorded: RecordedFoll
 }
 
 async function captureDestinationWitness(code: RefBackendContext, recorded: RecordedFollow): Promise<ComparisonWitness | null> {
-  return captureComparisonWitness(code, recorded.record.destination, `refs/arc-remotes/${recorded.record.destination.name}/project/moved`);
+  return captureComparisonWitness(code, recorded.record.destination, `refs/arc-remotes/${recorded.record.destination.name}/project/moved`)
+    .catch(migrationTransportRefusal);
 }
 
 async function retainLaterFollow(code: RefBackendContext, recorded: RecordedFollow, destination: ReadonlyMap<string, string>,
@@ -89,7 +92,7 @@ async function retainLaterFollow(code: RefBackendContext, recorded: RecordedFoll
     const current = (await readSyncRefs(physical, witness.ref)).get(witness.ref) ?? null;
     if (current === tip || current !== witness.expected) return;
     await fetchLayoutObjects(physical, code.repository?.commonDir ?? code.checkoutRoot, new Map([[FORWARDING_REF, tip]]));
-    await updateRefTransaction(physical, [{ ref: witness.ref, next: tip, expected: witness.expected }], { cwd: physical.checkoutRoot });
+    await updateStoreRefTransaction(physical, [{ ref: witness.ref, next: tip, expected: witness.expected }], { cwd: physical.checkoutRoot });
   });
   await appendCopiedFollowRefs(code, recorded, report);
   appendFollowReadRefs(report, recorded.record.destination, destination);

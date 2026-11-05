@@ -15,6 +15,8 @@ export interface WriteCheckInput {
   prior?: { content: string; fields?: unknown };
   next?: { content: string; fields: unknown };
   writer: { kind: "verb"; verb: string; lifecycleAction?: string } | { kind: "hand-edit" };
+  /** Set only by the backend's advisory sync observer; omission retains local admission rules. */
+  purpose?: "sync-observation";
   before: StoreView & Pick<Store, "history">;
   after: StoreView;
   observations: readonly RecordObservation[];

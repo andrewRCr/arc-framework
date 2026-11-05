@@ -52,6 +52,43 @@ const structurallyUnavailable = (saved = false) => ({ status: "refused", refusal
     : /repair.*source forward.*valid conflict structure.*retry/iu) } } });
 
 describe.each(["default", "separate"] as const)("complete sibling conflict evidence in %s", layout => {
+  it.each([false, true].flatMap(ended => (["missing", "structural"] as const).map(damage => ({ ended, damage }))))(
+    "routes saved $damage conflict evidence with ended=$ended without changing structural policy", async ({ ended, damage }) => {
+    const f = await createRefFixture({}, layout), original = await seed(f, f.reference("work-item/meta"));
+    const conflict = await addConflict(f, original), record = success(await f.store.read({ reference: original.reference }));
+    const home = expandStoredPath(record.reference), conflictHome = expandStoredPath(conflict);
+    const entries = await capturedEntries(f, home.ref);
+    const oid = (await f.ports.exec("git", [...scope(f), "rev-parse", `${home.ref}:${conflictHome.path}`])).stdout.trim();
+    const bytes = (await f.ports.rawExec([...scope(f), "cat-file", "blob", oid])).stdout;
+    if (damage === "structural") {
+      const parent = (await f.ports.exec("git", [...scope(f), "rev-parse", home.ref])).stdout.trim();
+      await plantRef(f.root, home.ref, [...entries.filter(entry => entry.path !== conflictHome.path),
+        { path: `${conflictHome.path}/nested`, content: "A present structural slot.\n" }], { parents: [parent], gitDir: f.gitDir });
+    }
+    const asOf = await f.settle();
+    if (damage === "structural") {
+      const parent = (await f.ports.exec("git", [...scope(f), "rev-parse", home.ref])).stdout.trim();
+      await plantRef(f.root, home.ref, entries, { parents: [parent], gitDir: f.gitDir });
+    }
+    if (ended) await complete(f, record);
+    if (damage === "missing") await removeLooseObject(f.root, oid, f.gitDir);
+    const refused = await f.store.read({ reference: record.reference, asOf });
+    expect(refused).toMatchObject({ status: "refused", refusal: {
+      code: "state-unresolvable", stateVersion: asOf,
+      historyRefs: damage === "missing" && ended ? [home.ref.replace("refs/arc/", "refs/arc/history/")] : [],
+    } });
+    if (damage === "structural") {
+      expect(refused).toMatchObject(structurallyUnavailable(true));
+      expect(success(await f.store.read({ reference: record.reference })).conflicts).toEqual([conflict]);
+      expect(await f.store.read({ reference: record.reference, asOf })).toMatchObject(structurallyUnavailable(true));
+    } else {
+      expect(refused).toMatchObject({ refusal: { remedy: { text: expect.stringMatching(/restore|fetch/iu) } } });
+      const restored = await f.ports.rawExec([...scope(f), "hash-object", "-w", "--stdin"], { input: bytes });
+      expect(Buffer.from(restored.stdout).toString().trim()).toBe(oid);
+      expect(success(await f.store.read({ reference: record.reference, asOf }))).toEqual(record);
+    }
+  });
+
   it("distinguishes an invalid UTF-8 slot name from invalid descendants under a valid conflict slot", async () => {
     const f = await createRefFixture({}, layout), evidence = await subject(f, "personal/document");
     const conflict = await addConflict(f, evidence), home = expandStoredPath(evidence.reference);

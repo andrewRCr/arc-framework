@@ -11,7 +11,7 @@ import type { RefBackendContext } from "./context.js";
 import type { ResolvedBatch, ResolvedMutation } from "./write-resolution.js";
 import type { ArchivedFolder } from "./archive-read.js";
 import { commitRefTree, type RefWriteGroup } from "./write-commits.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
 import { quarterCommitReference } from "./quarter-provenance.js";
 
 /** One history ref becoming live, sharing mutable quarter trees with the other reopens and their captured entries. */
@@ -77,7 +77,9 @@ Promise<StoreResult<Map<string, Map<string, RefTreeEntry>>>> {
   const quarters = new Map<string, Map<string, RefTreeEntry>>();
   for (const ref of refs) {
     const tree = trees.get(ref);
-    if (!tree) return { status: "refused", refusal: corruptRef(ref, true) };
+    if (!tree) return { status: "refused", refusal: refObjectFault(ref, "missing", {
+      condition: `The tip or a tree of ${ref} is unavailable locally.`,
+    }).refusal };
     quarters.set(ref, new Map(tree.map((entry) => [entry.path, entry])));
   }
   return { status: "ok", result: quarters };

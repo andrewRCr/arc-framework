@@ -6,6 +6,7 @@ import { createHostedHandleFixture } from "./hosted-review.js";
 import { reviewEvidenceFixture } from "./review-evidence.js";
 import { createReviewOutcomePort } from "../../src/lib/store/kinds/review/outcome/access.js";
 import { createReviewEvidencePort } from "../../src/lib/store/kinds/review/evidence/access.js";
+import { createReviewResponsePort } from "../../src/lib/store/kinds/review/evidence-root-selection/responses.js";
 import { ReviewOutcomeSchema } from "../../src/lib/store/kinds/review/outcome/schema.js";
 import { composeReviewDispositionRecord } from "../../src/lib/store/kinds/review/evidence/composed-record.js";
 
@@ -26,6 +27,6 @@ export async function createNativeReviewApprovalFixture(kind: "local" | "frontli
   await outcomes.create(outcome);
   const approved = reviewEvidenceFixture(outcome, disposition);
   const record = composeReviewDispositionRecord(outcome, [approved], primary.reference.owner);
-  return { h, primary, outcome, approved, input: { record, outcomes, evidence, readProjectId: h.projectId,
+  return { h, primary, outcome, approved, input: { record, outcomes, evidence, responses: createReviewResponsePort(h.store, primary.reference.owner), readProjectId: h.projectId,
     now: () => "2026-10-20T12:01:00Z" } };
 }
