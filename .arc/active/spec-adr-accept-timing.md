@@ -443,8 +443,9 @@ two bullets, and Binding completeness, the other common reader check, are specif
 names `spec-review`'s Reader independence item and quotes the three sentences, since they have no anchor of their own.
 The quotes are a copy that names `spec-review` as its source, and a change to those sentences carries to the strategy.
 It states the rule's scope: an ADR's Context, Decision, and Consequences meet it, and its Status section carries
-tracking. It then says what goes and what stays: "Process narration doing the explaining goes, such as 'surfaced
-during Task 5.2' or 'ships with work unit X'. A project's own domain vocabulary stays."
+tracking; a new ADR meets it across its body, and an edit to an existing ADR over what the edit changes (§ 6.2). It
+then says what goes and what stays: "Process narration doing the explaining goes, such as 'surfaced during Task 5.2'
+or 'ships with work unit X'. A project's own domain vocabulary stays."
 
 #### 6.2 Footprint
 
