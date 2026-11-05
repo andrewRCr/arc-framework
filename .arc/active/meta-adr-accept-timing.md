@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** `spec-adr-accept-timing.md` finalized; independent review converged and the draft retired.
-- **Next Task:** Begin Task 1.1 — Accept ADR-023
+- **Last Completed:** `tasks-adr-accept-timing.md` generated; independent review converged and the work unit activated.
+- **Next Task:** Task 1.1 — Accept ADR-023 — D7 (line ~23)
 - **Blockers:** [none]
 
-- **Next Action:** Load process-task-loop and begin Task 1.1
+- **Next Action:** Start Task 1.1 — confirm ADR-023's named realizations at source, then flip its Status
 
 - **PR URL:** [none]
 - **Completed:** [none]
