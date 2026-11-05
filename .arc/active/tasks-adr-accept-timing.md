@@ -167,18 +167,13 @@ while it reads Proposed, naming the file and its `Accepted (<today>)` remedy, an
 - _Outcome:_ Made the ADR strategy entry an explicit load directive in both copies, pointing to draft readiness for the
   planning-close test.
 
-### `[ ]` **4.5 Bring this repository's rules into line — D6, D1**
+### `[x]` **4.5 Bring this repository's rules into line — D6, D1**
 
 - _Goal:_ This repository's rules stop licensing planning references in ADR bodies and describe an ADR as immutable
   from the merge of the change that accepts it.
 
-    - `.arc/system/rules/DEV-RULES.PROJECT.md` § Audience Boundaries: one sentence after the internal list's closing
-      line ("These reference internal WU names, in-flight scope, transitional state, and project-internal concerns
-      freely.") saying ADR bodies meet `strategy-adr-methodology.md`'s reader-independence rule, leaving planning
-      references to their Status sections; this copy only, since the package copy carries no such section
-    - `.arc/reference/strategies/project/strategy-package-project-sync.md` § Documentation Architecture: the ADR
-      column's Mutability cell reads "Immutable once the accepting change merges (supersession)"; realign the table
-      with `npm run format:tables -- .arc/reference/strategies/project/strategy-package-project-sync.md`
+- _Outcome:_ Bound ADR bodies to reader independence while retaining Status tracking, and aligned the sync strategy with
+  locking at the accepting merge.
 
 ### `[ ]` **4.6 Write ADR-040 — D8**
 
