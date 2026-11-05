@@ -36,6 +36,7 @@ const expectedImplementationModules = [
   "./handlers/config.js",
   "./handlers/active.js",
   "./handlers/status.js",
+  "./handlers/save.js",
   "./handlers/locus.js",
   "./handlers/locus-release.js",
   "./handlers/inbox.js",
