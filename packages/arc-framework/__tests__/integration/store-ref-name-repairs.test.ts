@@ -54,7 +54,7 @@ it.each(["frame", "archive", "rename"] as const)("%s names the cohort rename whe
   const primary = success(await store.read({ reference }));
   const repair = `arc rename ${uidA} <new-slug>`;
   if (reader === "rename") {
-    expect(await prepareStoreRename(store, { primary, resuming: false, originName: "member", advisories: [] }, "renamed"))
+    expect(await prepareStoreRename(store, { primary, operand: "member", resuming: false, originName: "member", advisories: [] }, "renamed"))
       .toMatchObject({ status: "refused", refusal: { remedy: { text: expect.stringContaining(repair) } } });
   } else if (reader === "archive") {
     const executor: ExecuteTransitionContext = { cwd: f.root, store, indexFs: { readdir: forbidden, readFile: forbidden },

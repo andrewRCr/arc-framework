@@ -30,7 +30,7 @@ function selfHome(map: CutMap, slug: string) {
 
 it.each(["additive", "revision"] as const)("refuses a canonical or former origin home during %s and admits a surviving destination", async mode => {
   const h = await createDecomposeOriginFixture();
-  const renamed = await runStoreRename({ ...h.ctx.executor, baseBranch: "main" }, { sourceSlug: "origin", targetSlug: "renamed" });
+  const renamed = await runStoreRename({ ...h.ctx.executor, baseBranch: "main" }, { operand: "origin", targetSlug: "renamed" });
   if (renamed.status !== "renamed") throw new Error(JSON.stringify(renamed));
   const map = completeCutMapFixture(success(await prepareDecomposePreflight(h.ctx, "renamed")).machine);
   if (mode === "revision") success(await runStoreDecomposeAdditive(h.ctx, "renamed", "execute", { cutMap: map, cutMapPath: "cut.json" }));

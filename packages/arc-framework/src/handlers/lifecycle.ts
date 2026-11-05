@@ -423,7 +423,8 @@ export const RepointDesignCommandInputSchema = z.object({
 export const RenameCommandInputSchema = z.object({
   slug: z.union([SlugSchema, z.uuid()]),
   newSlug: SlugSchema,
-}).strict().superRefine((value, refinement) => {
+}).strict();
+const InRepoRenameCommandInputSchema = RenameCommandInputSchema.superRefine((value, refinement) => {
   if (value.slug === value.newSlug) {
     refinement.addIssue({ code: "custom", path: ["newSlug"], message: "The new slug must differ from the current one." });
   }
@@ -686,7 +687,10 @@ export async function handleRename(
     refuse("remote rename expansion requires stdin-capable Git I/O");
     return;
   }
-  if (!usesOffBranchState(executor.store) && parseLifecycleCommand(SlugSchema, renameSource, ["rename"]) === null) return;
+  if (!usesOffBranchState(executor.store)) {
+    if (parseLifecycleCommand(InRepoRenameCommandInputSchema, input, ["rename"]) === null) return;
+    if (parseLifecycleCommand(SlugSchema, renameSource, ["rename"]) === null) return;
+  }
   const io = base.io;
   const result = await runRenameCommand({
     store: executor.store,

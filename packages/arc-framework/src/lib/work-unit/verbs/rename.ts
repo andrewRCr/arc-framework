@@ -14,6 +14,7 @@ import { usesOffBranchState } from "../../store/lifecycle-write.js";
 import type { LifecycleRollbackRecovery } from "../store-transition-types.js";
 import type { Remedy, StoreRefusal } from "../../store/refusal.js";
 import type { Store } from "../../store/contract.js";
+import type { RecordReference } from "../../store/identity.js";
 
 
 import type { RenameRemoteBranchResult } from "../rename-identity.js";
@@ -54,7 +55,7 @@ export interface RenamePlan {
 }
 
 /** Result of the tracked commit plus applicable identity legs. */
-export type RunRenameResult =
+export type RunRenameResult = (
   | {
       status: "renamed";
       shape: RenameSubjectShape;
@@ -68,7 +69,8 @@ export type RunRenameResult =
       checkout?: RenameWorktreeTransactionOutcome;
     }
   | { status: "rejected"; reason: string; refusal?: StoreRefusal; remedy?: Remedy; recovery?: LifecycleRollbackRecovery }
-  | { status: "partial"; reason: string; remedy?: Remedy };
+  | { status: "partial"; reason: string; remedy?: Remedy })
+  & { /** Exact operational subject; tracked results have no store reference. */ reference?: RecordReference };
 
 /** Checkout identity report plus any physical move the transaction performed. */
 export interface RenameCheckoutReport {
@@ -110,7 +112,7 @@ export async function runRename(
 ): Promise<RunRenameResult> {
   if (usesOffBranchState(ctx.store)) {
     if (!("exec" in ctx)) return { status: "rejected", reason: "Store rename requires its bound checkout and Git adapters." };
-    return runStoreRename(ctx, params);
+    return runStoreRename(ctx, { operand: params.sourceSlug, targetSlug: params.targetSlug });
   }
   if ("exec" in ctx) return { status: "rejected", reason: "Store rename is unsupported before the storage flip." };
   let plan: RenamePlan;

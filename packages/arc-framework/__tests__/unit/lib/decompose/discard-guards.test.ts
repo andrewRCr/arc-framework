@@ -122,7 +122,7 @@ it("requires a removed member's own cut to be discarded first", async () => {
 it.each(["depends-on", "waits-on", "renamed-waits-on"] as const)("protects a surviving %s edge and admits owner repair", async kind => {
   const h = await createDecomposeTerminalFixture();
   if (kind === "renamed-waits-on") expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-    { sourceSlug: "member-a", targetSlug: "delta" })).toMatchObject({ status: "renamed" });
+    { operand: "member-a", targetSlug: "delta" })).toMatchObject({ status: "renamed" });
   const outsider = kind === "depends-on" ? await h.seedStub("outsider")
     : await h.seedMeta("outsider", { state: "Active", currentWorkflow: "process-task-loop" });
   const pause = { store: h.store, cwd: "/repo", baseBranch: "main", now: () => new Date("2026-10-19T00:00:00Z"),

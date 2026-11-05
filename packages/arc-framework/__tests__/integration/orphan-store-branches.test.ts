@@ -133,7 +133,7 @@ it.each(["snapshot", "run"] as const)("%s admits the branch retained by the prod
   const h = await fixture();
   await h.branch("kept-arbitrary-name");
   await h.seedMeta("former-widget", { state: "Shipped" }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") }, { branches: [{ repository, ref: "kept-arbitrary-name", linkedAs: "created", excluded: [] }] });
-  expect(await runStoreRename({ store: h.store, cwd: h.cwd, exec: h.exec, baseBranch: "main", projectId: async () => repository }, { sourceSlug: "former-widget", targetSlug: "renamed-widget" })).toMatchObject({ status: "renamed" });
+  expect(await runStoreRename({ store: h.store, cwd: h.cwd, exec: h.exec, baseBranch: "main", projectId: async () => repository }, { operand: "former-widget", targetSlug: "renamed-widget" })).toMatchObject({ status: "renamed" });
   const result = await h.sweep(path, ["kept-arbitrary-name"]);
   expect(result.orphans).toEqual([{ branch: "kept-arbitrary-name", merged: true, shippedWorkUnit: "renamed-widget", teardown: { text: "arc teardown renamed-widget", argv: ["arc", "teardown", "renamed-widget"] }, actions: [{ text: "arc teardown renamed-widget", argv: ["arc", "teardown", "renamed-widget"] }] }]);
 });

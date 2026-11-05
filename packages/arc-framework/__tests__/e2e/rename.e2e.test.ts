@@ -234,6 +234,16 @@ describe("arc rename", () => {
     for (const path of cleanupPaths.splice(0).reverse()) await removeGitBackedDir(path);
   });
 
+  it("retains the same-name input refusal before the storage flip", async () => {
+    const fixture = await createFixture();
+    cleanupPaths.push(fixture.remote, fixture.repo);
+    const head = await git(fixture.repo, ["rev-parse", "HEAD"]);
+    const result = await runArcNoTty(["rename", "old-name", "old-name"], fixture.repo);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout + result.stderr).toContain("The new slug must differ from the current one.");
+    expect(await git(fixture.repo, ["rev-parse", "HEAD"])).toBe(head);
+  });
+
   it("renames a backlog stub through a rejecting commit hook and rests on main", async () => {
     const fixture = await createFixture();
     cleanupPaths.push(fixture.remote, fixture.repo);

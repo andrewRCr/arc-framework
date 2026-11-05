@@ -6,7 +6,7 @@ import { ParsedMetaRecordSchema, MetaPauseSchema } from "../active/meta-schema.j
 import { recordReferences, OwnerIdentitySchema, RecordReferenceSchema, sameReference, sameOwner } from "./identity.js";
 import { readLifecycleView } from "./lifecycle-view.js";
 import { requireCompleteInventory } from "./lifecycle-storage.js";
-import { readWorkUnit, recordPut, mergeLifecycleLinks, workUnitMetaPath } from "./lifecycle-write.js";
+import { recordPut, mergeLifecycleLinks, workUnitMetaPath } from "./lifecycle-write.js";
 import { lifecycleRecordPath } from "./lifecycle-record-path.js";
 import { acquireLifecycleRecords, revalidateLifecycleRecords, type PreparedLifecycleWrite } from "../work-unit/prepared-lifecycle-write.js";
 import { readPairedReferenceOwners } from "../work-unit/paired-reference-owners.js";
@@ -19,20 +19,18 @@ import type { StoreResult } from "./refusal.js";
 import type { BranchLink } from "./links.js";
 import { memberCohortReadRefusal } from "./cohort-membership-refusal.js";
 /** Selected subject and reporting evidence retained independently of physical checkout steps. */
-export interface StoreRenameSubject { primary: StoreRecord; resuming: boolean; originName: string; advisories: string[] }
+export interface StoreRenameSubject { primary: StoreRecord; operand: string; resuming: boolean; originName: string; advisories: string[] }
 /** Complete acquisition and expected-version writes prepared before physical renames. */
 export interface PreparedStoreRename extends PreparedLifecycleWrite { subject: StoreRenameSubject }
 /** Read a complete inventory, collision-check the target, and recover a prior rename's original name.
  * @param store - Operational state contract.
- * @param request - Source handle and proposed current name.
+ * @param request - Selected primary, original operand, and proposed current name.
  * @returns Selected primary and coordination advisories, or exact store refusal.
  */
-export async function readStoreRenameSubject(store: Store, request: { sourceSlug: string; targetSlug: string }): Promise<StoreResult<StoreRenameSubject>> {
-  const source = SlugSchema.parse(request.sourceSlug), target = SlugSchema.parse(request.targetSlug);
+export async function readStoreRenameSubject(store: Store, request: { primary: StoreRecord; operand: string; targetSlug: string }): Promise<StoreResult<StoreRenameSubject>> {
+  const target = SlugSchema.parse(request.targetSlug), primary = request.primary;
   const view = await readLifecycleView(store); if (view.status === "refused") return view;
   requireCompleteInventory(store, view.result.listing);
-  const read = await readWorkUnit(store, source); if (read.status === "refused") return read;
-  const primary = read.result;
   const collision = await store.lookup({ kind: "slug", slug: target });
   if (collision.status === "ok" && !sameReference(collision.result.reference, primary.reference)) return malformed(primary, `The name ${target} belongs to another work item.`);
   if (collision.status === "refused" && collision.refusal.code !== "not-found") return collision;
@@ -40,11 +38,12 @@ export async function readStoreRenameSubject(store: Store, request: { sourceSlug
   const resuming = primary.reference.owner.name === target;
   const publication = await checkRenamePublication(store, primary, resuming, fields.candidateId);
   if (publication !== undefined) return publication;
-  const origin = resuming ? await renameOrigin(store, primary, source) : { status: "ok" as const, result: primary.reference.owner.name };
+  const origin = resuming ? await renameOrigin(store, primary, primary.reference.owner.name) : { status: "ok" as const, result: primary.reference.owner.name };
   if (origin.status === "refused") return origin;
+  if (resuming && origin.result === target) return malformed(primary, "Rename needs distinct source and target names.");
   const advisories = view.result.entries.filter((entry) => entry.fields.state === "Integrating" && entry.fields.dependsOn.includes(origin.result))
     .map((entry) => `Work unit \`${entry.reference.owner.name}\` is Integrating with a live \`Depends On\` edge to \`${origin.result}\`. Coordinate before transforming the origin; this transform will not mutate that dependent.`);
-  return { status: "ok", result: { primary, resuming, originName: origin.result, advisories } };
+  return { status: "ok", result: { primary, operand: request.operand, resuming, originName: origin.result, advisories } };
 }
 async function checkRenamePublication(store: Store, primary: StoreRecord, resuming: boolean,
   legacyCandidateId: string | null): Promise<StoreResult<never> | undefined> {

@@ -33,7 +33,7 @@ it("refuses a now-Active retirement and admits the origin after deactivation", a
 
 it("refuses a renamed origin with the revision action and admits its restored name", async () => {
   const h = await createDecomposeTerminalFixture();
-  const rename = (sourceSlug: string, targetSlug: string) => runStoreRename({ store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main" }, { sourceSlug, targetSlug });
+  const rename = (sourceSlug: string, targetSlug: string) => runStoreRename({ store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main" }, { operand: sourceSlug, targetSlug });
   expect(await rename("origin", "current-source")).toMatchObject({ status: "renamed" });
   const acquired = await acquireDecomposeTerminal(h.ctx, "origin");
   if (acquired.status === "refused") throw new Error(JSON.stringify(acquired));

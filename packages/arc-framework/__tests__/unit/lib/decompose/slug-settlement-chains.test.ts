@@ -92,7 +92,7 @@ it("discharges an Integrating replacement and matches a renamed dependent by gen
   const { runStoreRename } = await import("../../../../src/lib/work-unit/verbs/rename-store.js");
   const { scriptGitExec } = await import("../../../helpers/git-exec-fake.js");
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main" },
-    { sourceSlug: "consumer", targetSlug: "renamed-consumer" })).toMatchObject({ status: "renamed" });
+    { operand: "consumer", targetSlug: "renamed-consumer" })).toMatchObject({ status: "renamed" });
   expect(await h.planSettlement()).toMatchObject({ status: "ok", result: { settlements: [{ primary: {
     reference: { owner: { name: "renamed-consumer", uid: identity(h.dependent).uid } },
   }, disposition: { kind: "drop" } }] } });
@@ -106,7 +106,7 @@ it("matches a legacy dependent name through its unique current alias", async () 
   const { runStoreRename } = await import("../../../../src/lib/work-unit/verbs/rename-store.js");
   const { scriptGitExec } = await import("../../../helpers/git-exec-fake.js");
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main" },
-    { sourceSlug: "consumer", targetSlug: "renamed-consumer" })).toMatchObject({ status: "renamed" });
+    { operand: "consumer", targetSlug: "renamed-consumer" })).toMatchObject({ status: "renamed" });
   expect(await h.planSettlement()).toMatchObject({ status: "ok", result: { settlements: [{ disposition: {
     kind: "replace", replacementTargets: ["leaf"],
   } }] } });

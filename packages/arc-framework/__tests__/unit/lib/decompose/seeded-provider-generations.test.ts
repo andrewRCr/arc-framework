@@ -16,7 +16,7 @@ async function fixture() {
   const member = lifecycleSuccess(await readWorkUnit(h.store, "member-b"));
   const origin = lifecycleSuccess(await readWorkUnit(h.store, "origin"));
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-    { sourceSlug: "provider", targetSlug: "retired-provider" })).toMatchObject({ status: "renamed" });
+    { operand: "provider", targetSlug: "retired-provider" })).toMatchObject({ status: "renamed" });
   for (const primary of [member, origin]) {
     const current = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
     await h.handEdit(current, writeMetaDependsOn(current.content, []));

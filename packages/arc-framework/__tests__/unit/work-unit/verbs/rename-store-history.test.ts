@@ -31,7 +31,7 @@ async function renameAfterHistoryPull(pulls: PullOutcome[], states: SyncState[] 
     const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
   } });
   const result = await runStoreRename({ store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main", writeNotice: line => written.push(line) },
-    { sourceSlug: "alpha", targetSlug: "beta" });
+    { operand: "alpha", targetSlug: "beta" });
   return { result, written };
 }
 
@@ -60,10 +60,10 @@ it("returns Missing unchanged when there is no history to pull and renames after
     const value = Reflect.get(target, key, target); return typeof value === "function" ? value.bind(target) : value;
   } });
   const context = { store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main" };
-  expect(await runStoreRename(context, { sourceSlug: "alpha", targetSlug: "beta" }))
+  expect(await runStoreRename(context, { operand: "alpha", targetSlug: "beta" }))
     .toEqual({ status: "rejected", reason: refusal.condition, refusal });
   damaged = false;
-  expect(await runStoreRename(context, { sourceSlug: "alpha", targetSlug: "beta" })).toMatchObject({ status: "renamed" });
+  expect(await runStoreRename(context, { operand: "alpha", targetSlug: "beta" })).toMatchObject({ status: "renamed" });
 });
 
 it.each([false, true])("shows the designation question and retains the rename refusal: readFailure=%s", async readFailure => {

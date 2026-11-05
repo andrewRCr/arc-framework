@@ -275,7 +275,7 @@ it("retains a refused dependent identity lookup's repair route and recovers afte
     exec: async () => { throw new Error("No Git needed"); }, locusPorts: {
       findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }),
       writeAnchoredMarker: async () => ({ kind: "unadmitted" }),
-    } }, { sourceSlug: "dependent", targetSlug: "current-dependent" })).toMatchObject({ status: "renamed" });
+    } }, { operand: "dependent", targetSlug: "current-dependent" })).toMatchObject({ status: "renamed" });
   const store = Object.create(h.store) as Store;
   let repaired = false;
   store.lookup = async input => !repaired && input.kind === "slug" && input.slug === "dependent"

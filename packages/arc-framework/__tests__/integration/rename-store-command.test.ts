@@ -239,7 +239,7 @@ it("retains compensation before the adapter's final marker observation and prese
       concurrent = Buffer.from(`${JSON.stringify({ ...marker, spawningIdentity: "another-user" })}\n`);
       writeFileSync(path, concurrent);
     }),
-  }, { sourceSlug: "source", targetSlug: "target" });
+  }, { operand: "source", targetSlug: "target" });
   expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("marker changed"),
     recovery: { kind: "rollback", failures: [{ step: "checkout-rename", reason: expect.stringContaining("marker changed") }],
       retryAfterRepair: [["arc", "rename", "source", "target"]] } });

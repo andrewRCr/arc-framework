@@ -362,40 +362,27 @@ subject's checkout and keeps the old remote branch, and the catch-up run moves a
 second holder away reports the former-slug tie; and a rename onto an archived work unit's slug lands, on a clone lacking
 its history refs, discharging the edges naming it.
 
-### `[ ]` **4.1 Select the rename's subject inside the rename, and repeat the operand in retries — § 1.3, § 2.1**
+### `[x]` **4.1 Select the rename's subject inside the rename, and repeat the operand in retries — § 1.3, § 2.1**
 
 - _Goal:_ `arc rename <slug|uid> <new-slug>` starts from the record Task 2.2's resolver selects, never reads its subject
   by name again, and repeats the operand the person gave in every retry and continuation it prints.
 
-- _Note:_ `VerbBase.workItem` (`handlers/lifecycle-shared.ts`), the work item an invocation selects, is read only by the
-  delivery and review verbs (`handlers/lifecycle-delivery-review.ts`); the rename selects inside `runStoreRename`, so it
-  neither sets nor reads it.
+    - `[x]` **4.1.a The entry contract**
 
-- _Note:_ The Integrating advisories match the origin name as text, so under a clash they may name the other holder's
-  dependents; they stay advisory, as § 2.1 keeps them.
-
-    - `[ ]` **4.1.a The entry contract**
-
-        - `runStoreRename`'s params become `{ operand, targetSlug }`; `rename()` (`lib/work-unit/verbs/rename-store.ts`)
-          resolves and dispatches the operand inside `runStoreRename`'s retry, which Task 4.6 turns into the history
-          rounds, so the cohort arm inherits them, in place of `SlugSchema.parse` of the source. An Errand refuses naming
-          `arc errand close <uid>`; a cohort dispatches to the cohort arm, which refuses `unsupported` until Task 5.1.
-        - `readStoreRenameSubject` takes the selected primary in place of its `readWorkUnit` read; the inventory read,
-          the Candidate check, and the Integrating advisories over `readLifecycleView` stand, and `renameOrigin` already
-          reads by reference. The result carries the subject's kind, name, and UID.
+        - Rename resolves its operand inside each retry, dispatches an Errand to its exit remedy and a cohort to the
+          temporary unsupported arm, and passes the selected primary to `readStoreRenameSubject`. Results retain the
+          exact subject reference; ordinary same-name requests refuse unless history identifies a prior rename.
         - _Retired in:_ Phase 5
 
-    - `[ ]` **4.1.b The retry and the continuation**
+    - `[x]` **4.1.b The retry and the continuation**
 
-        - `renameSteps`' `retryCommand` and `finishRename`'s remedy argv take the operand in place of the subject's
-          original name and the requested source slug.
+        - Rollback recovery and partial-push continuations retain the exact supplied operand. Backend-dependent
+          admission lets a current-name continuation reach the store while preserving the in-repo same-name refusal.
 
-    - Build `test-first` (one behavior at a time):
-        - over the ref backend, with two live work units holding one slug, the rename by UID selects the named one, an
-          upper-case UID included, and by slug refuses with `clashRepair`'s remedy
-        - a UID selecting an Errand refuses naming `arc errand close <uid>`
-        - a retry after a failed push prints the UID operand given; a rerun by slug resolves the subject's current name
-        - an archived work unit's rename lands as today
+- _Outcome:_ A real rejected push retains the uppercase UID in its remedy; retries by the current name retain that
+  invocation's operand and complete without changing the record, marker, or HEAD. Fresh same-name requests refuse;
+  archived renames retain their placement. Physical steps use the historical origin independently of the operand.
+  Integrating advisories retain their text-based origin-name matching.
 
 ### `[ ]` **4.2 Give the rename's result one report, and `--json` — § 4, § 2.5, § 2.7**
 

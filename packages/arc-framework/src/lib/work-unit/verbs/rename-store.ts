@@ -14,6 +14,9 @@ import type { LifecycleGitStep } from "../store-transition-types.js";
 import type { Store } from "../../store/contract.js";
 import type { GitExec } from "../../git/exec.js";
 import type { LocusPorts } from "../locus-ports.js";
+import { resolveSubjectOperand } from "../../store/subject-operand.js";
+import { RecordReferenceSchema } from "../../store/identity.js";
+import type { StoreRecord } from "../../store/read.js";
 import type { RunRenameResult, RenameCheckoutReport, RenameSubjectShape } from "./rename.js";
 /** A checkout rename retains its exact inverse until the record batch lands. */
 export interface StoreRenameCheckoutReceipt { report: RenameCheckoutReport; rollback: () => Promise<void>; repositoryCwd?: string; shape?: "spawned" | "in-place" }
@@ -30,10 +33,10 @@ export interface StoreRenameContext {
 interface BranchRename { prior: BranchLink; next: BranchLink; oldBranch: string; newBranch: string; oldRemoteOid: string | null }
 /** Rename one logical owner while respecting record and checkout authority.
  * @param ctx - Operational store and physical adapters.
- * @param params - Requested old and new work-unit slugs.
+ * @param params - Subject operand and proposed current name.
  * @returns A complete rename, original refusal, or exact physical continuation.
  */
-export async function runStoreRename(ctx: StoreRenameContext, params: { sourceSlug: string; targetSlug: string }): Promise<RunRenameResult> {
+export async function runStoreRename(ctx: StoreRenameContext, params: { operand: string; targetSlug: string }): Promise<RunRenameResult> {
   try {
     const result = await rename(ctx, params);
     if (result.status !== "rejected" || result.recovery !== undefined || result.refusal?.code !== "state-unresolvable"
@@ -42,13 +45,34 @@ export async function runStoreRename(ctx: StoreRenameContext, params: { sourceSl
   }
   catch (error) { return { status: "rejected", reason: error instanceof Error ? error.message : String(error) }; }
 }
-async function rename(ctx: StoreRenameContext, params: { sourceSlug: string; targetSlug: string }): Promise<RunRenameResult> {
+async function rename(ctx: StoreRenameContext, params: { operand: string; targetSlug: string }): Promise<RunRenameResult> {
   if (!usesOffBranchState(ctx.store)) return { status: "rejected", reason: "Store rename is unsupported before the storage flip." };
-  const source = SlugSchema.parse(params.sourceSlug), target = SlugSchema.parse(params.targetSlug);
-  if (source === target) return { status: "rejected", reason: "Rename needs distinct source and target names." };
-  const selected = await readStoreRenameSubject(ctx.store, { sourceSlug: source, targetSlug: target });
+  const target = SlugSchema.parse(params.targetSlug), selection = await selectRenamePrimary(ctx.store, params.operand);
+  if (selection.status === "rejected") return selection;
+  if (selection.primary.reference.kind === "cohort/document") return renameCohort(selection.primary);
+  const selected = await readStoreRenameSubject(ctx.store, { primary: selection.primary, operand: params.operand, targetSlug: target });
   if (selected.status === "refused") return { status: "rejected", reason: selected.refusal.condition, refusal: selected.refusal };
-  const subject = selected.result;
+  return renameSelectedWorkUnit(ctx, params, selected.result, target);
+}
+
+async function selectRenamePrimary(store: Store, operand: string): Promise<
+  { status: "selected"; primary: StoreRecord } | Extract<RunRenameResult, { status: "rejected" }>> {
+  const selected = await resolveSubjectOperand(store, { operand, primaryKinds: ["work-item/meta", "work-item/record", "cohort/document"],
+    typeRule: "rename", resolveSlug: true });
+  if (selected.status === "selected") return selected;
+  if (selected.status === "refused") return { status: "rejected", reason: selected.refusal.condition, refusal: selected.refusal };
+  return selected.status === "unselected" ? { status: "rejected", reason: selected.condition, remedy: selected.remedy }
+    : { status: "rejected", reason: "The operand did not select a rename subject." };
+}
+
+function renameCohort(primary: StoreRecord): Extract<RunRenameResult, { status: "rejected" }> {
+  const reason = `Cohort rename for ${primary.reference.owner.name} is not available yet.`;
+  return { status: "rejected", reason, reference: primary.reference, refusal: { code: "unsupported", class: "terminal", case: "rename",
+    condition: reason, remedy: { text: "Keep this cohort's current name, or name a work unit." } } };
+}
+
+async function renameSelectedWorkUnit(ctx: StoreRenameContext, params: { operand: string; targetSlug: string },
+  subject: StoreRenameSubject, target: string): Promise<RunRenameResult> {
   await ctx.onPreparedAdvisories?.(subject.advisories);
   const passive = subject.primary.placement?.kind !== "active";
   const holder = passive ? null : await findWorkUnitHoldingCheckout(ctx, subject.primary);
@@ -58,10 +82,11 @@ async function rename(ctx: StoreRenameContext, params: { sourceSlug: string; tar
   const persisted = await persistRename({ ...ctx, exec }, subject, target, holder, branch, state);
   if (persisted !== undefined) return persisted;
   const post = await finishRename({ ...ctx, exec, cwd: state.cwd }, branch, params);
-  if (post.status === "partial") return post;
+  const reference = RecordReferenceSchema.parse({ ...subject.primary.reference, owner: { ...subject.primary.reference.owner, name: target } });
+  if (post.status === "partial") return { ...post, reference };
   const shape: RenameSubjectShape = subject.primary.placement?.kind === "backlog" ? "stub"
     : subject.primary.placement?.kind === "completed" ? "archived" : state.checkout?.shape ?? (holder === null ? "in-place" : "spawned");
-  return { status: "renamed", shape, recordBatch: subject.resuming ? "existing" : "applied", pendingIntegration: false,
+  return { status: "renamed", reference, shape, recordBatch: subject.resuming ? "existing" : "applied", pendingIntegration: false,
     advisories: subject.advisories, remote: post.remote,
     keptBranches: (subject.primary.links?.branches ?? []).filter((link) => branch === undefined || link.repository !== branch.prior.repository
       || (link.ref !== branch.prior.ref && link.ref !== branch.next.ref)).map((link) => link.ref),
@@ -100,7 +125,7 @@ async function branchRename(ctx: StoreRenameContext, subject: StoreRenameSubject
 }
 function renameSteps(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string, holder: string | null,
   branch: BranchRename | undefined, remember: (receipt: StoreRenameCheckoutReceipt) => void, reset: () => void): LifecycleGitStep[] {
-  const retryCommand = ["arc", "rename", subject.originName, target];
+  const retryCommand = ["arc", "rename", subject.operand, target];
   const steps: LifecycleGitStep[] = [];
   if (branch !== undefined) steps.push(localBranchStep(ctx, branch, retryCommand));
   if (holder !== null) {
@@ -134,12 +159,12 @@ function localBranchStep(ctx: StoreRenameContext, branch: BranchRename, retryCom
     } };
 }
 async function finishRename(ctx: StoreRenameContext, branch: BranchRename | undefined,
-  request: { sourceSlug: string; targetSlug: string }): Promise<{ status: "complete"; remote: RenameRemoteBranchResult } | Extract<RunRenameResult, { status: "partial" }>> {
+  request: { operand: string; targetSlug: string }): Promise<{ status: "complete"; remote: RenameRemoteBranchResult } | Extract<RunRenameResult, { status: "partial" }>> {
   try {
     const remote = branch === undefined ? { status: "unpublished" as const } : await reconcileRenameRemoteBranch(ctx, {
       ...branch, remote: "origin", keepOld: branch.prior.linkedAs === "adopted" });
     if (remote.status === "stale") throw new Error(`Old remote head moved from ${remote.expectedOid} to ${remote.actualOid ?? "[absent]"}.`);
     return { status: "complete", remote };
   } catch (error) { return { status: "partial", reason: error instanceof Error ? error.message : String(error),
-    remedy: { text: "Finish the remaining remote branch rename.", argv: ["arc", "rename", request.sourceSlug, request.targetSlug] } }; }
+    remedy: { text: "Finish the remaining remote branch rename.", argv: ["arc", "rename", request.operand, request.targetSlug] } }; }
 }
