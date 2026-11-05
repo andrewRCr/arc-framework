@@ -23,6 +23,11 @@ export async function selectWriteBackBase(
   context: BaseSelectionContext, request: TakeInRequest, content: string, stamp: string | null,
 ): Promise<StoreResult<WriteBackBaseDecision>> {
   const memo = context.memo ?? createHistoryMemo(context.store);
+  if (request.resolution?.kind === "hold") {
+    const current = await context.store.read({ reference: request.entry.reference });
+    return current.status === "refused" ? current : { status: "ok", result: { kind: "selected",
+      base: { kind: "stored", version: current.result.version }, stamp: stamp ?? request.entry.base.blob } };
+  }
   if (!request.path.endsWith(".md")) return selectStamplessBase({ ...context, memo }, request, content);
   if (context.recoveringBase) return recoverSelectedBase({ ...context, memo }, request, content, stamp);
   const persisted = await selectPersistedBase({ location: context.location, entry: request.entry, stamp });

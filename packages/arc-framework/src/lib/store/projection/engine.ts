@@ -6,7 +6,7 @@ import type { RefusedMark } from "./index-schema.js";
 import { createProjectionEnginePorts, type ProjectionEnginePorts } from "./engine-ports.js";
 import { locateProjection, type ProjectionLocation } from "./location.js";
 import { withProjectionLock, type ProjectionLockResult } from "./lock.js";
-import { beginProjectionCommand, projectionProcessState, type ProjectionSkip } from "./process-state.js";
+import { beginProjectionCommand, projectionProcessState, type ProjectionSkip, type ProjectionCommandBinding } from "./process-state.js";
 import { startUnderLease } from "./engine-start.js";
 import { finishProjectionRoot } from "./engine-end.js";
 
@@ -15,6 +15,7 @@ export interface ProjectionCommandInput {
   readonly store: Store;
   readonly checkout: string;
   readonly mode?: "write-back" | "save";
+  readonly resolve?: string;
   readonly ports?: () => ProjectionEnginePorts;
   readonly location?: ProjectionLocation;
 }
@@ -29,8 +30,16 @@ export type ProjectionStart =
 /** Take in pending edits before the command runs, preserving its ordinary execution when projection is unavailable. */
 export async function startProjection(input: ProjectionCommandInput): Promise<ProjectionStart> {
   const state = beginProjectionCommand();
+  state.command = { store: input.store, checkout: input.checkout };
   state.start = await initializeProjection(input);
   return state.start;
+}
+
+/** Return the command's original selection without reopening a backend or resolving its checkout. */
+export function projectionCommandBinding(): ProjectionCommandBinding {
+  const binding = projectionProcessState().command;
+  if (binding === null) throw new Error("The projection command has not been initialized.");
+  return binding;
 }
 
 async function initializeProjection(input: ProjectionCommandInput): Promise<ProjectionStart> {

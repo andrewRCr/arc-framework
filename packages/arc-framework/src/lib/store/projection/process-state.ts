@@ -9,12 +9,19 @@ import type { RefusedMark } from "./index-schema.js";
 import type { TakeInPort, TakeInRequest } from "./take-in-port.js";
 import type { WriteBackDiagnostic, WriteBackResolution } from "./write-back.js";
 import type { ProjectionStart } from "./engine.js";
+import type { ProjectionResolution } from "./save-resolution.js";
 
 /** A start that disables this command's projection while preserving the command's ordinary execution. */
 export interface ProjectionSkip { readonly reason: "no-identity" | "held" | "lost" | "gone" | "switch"; readonly mark: RefusedMark }
 
 /** Bound edit policy; an absent policy grants the edit. */
 export type ProjectionRights = (request: TakeInRequest) => Promise<RefusedMark | null>;
+
+/** The selected backend and checkout, retained even when initialization is disabled or refused. */
+export interface ProjectionCommandBinding {
+  readonly store: Store;
+  readonly checkout: string;
+}
 
 /** Per-worktree bindings and copy bookkeeping owned by this command. */
 export interface ProjectionRootState {
@@ -44,7 +51,9 @@ export interface ProjectionRootState {
 
 /** Mutable state with a deliberate command boundary; no binding outlives the next start. */
 export interface ProjectionProcessState {
+  command: ProjectionCommandBinding | null;
   start: ProjectionStart | null;
+  resolution: ProjectionResolution | null;
   skip: ProjectionSkip | null;
   lockHeld: boolean;
   history: HistoryMemo | null;
@@ -56,7 +65,7 @@ export interface ProjectionProcessState {
 }
 
 function freshState(capabilities = new Map<string, boolean>()): ProjectionProcessState {
-  return { start: null, skip: null, lockHeld: false, history: null, roots: new Map(), capabilities, fanOutRounds: new Set(),
+  return { command: null, start: null, resolution: null, skip: null, lockHeld: false, history: null, roots: new Map(), capabilities, fanOutRounds: new Set(),
     diagnostics: [], resolutions: [] };
 }
 const key = Symbol.for("arc.projection.command-state");

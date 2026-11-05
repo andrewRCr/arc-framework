@@ -173,6 +173,14 @@ lease or index write. Its JSON view omits filesystem stats, and its summary reta
 Composite status runs this reader as an independent probe; an unreadable projection leaves the other sections
 available. Disabled backends resolve no projection dependency.
 
+`save.ts` reports the save start's refusal or its final store version using the backend retained by command entry. The
+retained selection includes the checkout even when initialization is disabled or refused; the handler takes its Store
+explicitly. An explicit resolution binds its exact subject and conflict through the index before the sweep, rechecks
+them afterward, and sends only at that subject's path. Standing or malformed markers keep their repair route;
+whole-record removal, placement and verb-owned alternatives keep their owning verbs. `bases-disagree` holds use their
+recorded token and the current stored base after controls are removed. Accepted resolutions remain accepted when later
+rendering or read-back fails.
+
 `check-edit.ts` runs the kind's production check over merged content, with current parsed fields or raw prior content
 when parsing fails. It stamps only the entry merge's check copy and reports every broken rule with its remedy.
 `after-view.ts` overlays that caller-parsed pending record on reads and family listings, retaining its prior envelope

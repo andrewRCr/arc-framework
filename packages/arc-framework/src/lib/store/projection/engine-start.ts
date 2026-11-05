@@ -15,6 +15,9 @@ import type { ProjectionLocation } from "./location.js";
 import type { ProjectionLockSession } from "./lock.js";
 import type { ReadBackContext } from "./read-back.js";
 import { reportProjectionCopy } from "./report.js";
+import { selectProjectionResolution, recheckProjectionResolution } from "./save-resolution.js";
+import { sameReference } from "../identity.js";
+import type { ProjectionIndex } from "./index-schema.js";
 
 /** Start independent reads together, drain them all, then sweep and take in files under the lease. */
 export async function startUnderLease(input: ProjectionCommandInput, ports: ProjectionEnginePorts,
@@ -41,9 +44,13 @@ export async function startUnderLease(input: ProjectionCommandInput, ports: Proj
     await session.step();
     if (saved.status === "refused") return { kind: "refused", mark: { reason: saved.refusal.condition, remedy: saved.refusal.remedy } };
     const disk = await readProjectionIndex(location, false);
-    if (disk.kind === "no-projection") return { kind: "no-projection" };
+    if (disk.kind === "no-projection") {
+      await bindResolution(input, null);
+      return { kind: "no-projection" };
+    }
     if (disk.kind === "unusable") return { kind: "refused", mark: { reason: `Projection index is ${disk.cause}.`,
       remedy: { text: "Restore a readable projection index, then retry; existing projected files have been preserved." } } };
+    await bindResolution(input, disk.index);
     root = await bindRoot(input, ports, location, config, session, unsent);
     state.roots.set(input.checkout, root);
     const swept = await sweepAsideFolder({ location, checkout: input.checkout, index: disk.index, format: config.objectFormat,
@@ -58,7 +65,10 @@ export async function startUnderLease(input: ProjectionCommandInput, ports: Proj
       mark: { reason: left.reason, remedy: left.remedy ?? { text: "Keep the aside copy until its edit is recovered or explicitly removed." } } });
     for (const copy of swept.swept) reportProjectionCopy(copy.path, copy.copy, copy.outcome);
     const recovered = swept.swept.map(each => each.path).filter(path => input.mode === "save" || !path.startsWith(".arc/completed/"));
-    if (swept.index !== null) await writeBackProjectionFiles(root, swept.index, [...new Set([...files, ...recovered])].sort());
+    if (swept.index !== null) {
+      await recheckProjectionResolution(root, swept.index, state.resolution);
+      await writeBackProjectionFiles(root, swept.index, [...new Set([...files, ...recovered])].sort());
+    }
     await root.refresh?.();
     await session.step();
     root.ready = true;
@@ -66,6 +76,12 @@ export async function startUnderLease(input: ProjectionCommandInput, ports: Proj
   } finally {
     if (root !== undefined) root.checkpoint = null;
     state.lockHeld = false;
+  }
+}
+
+async function bindResolution(input: ProjectionCommandInput, index: ProjectionIndex | null): Promise<void> {
+  if (input.mode === "save" && input.resolve !== undefined) {
+    projectionProcessState().resolution = await selectProjectionResolution(input.store, index, input.resolve);
   }
 }
 
@@ -83,7 +99,17 @@ async function bindRoot(input: ProjectionCommandInput, ports: ProjectionEnginePo
   };
   const context: ReadBackContext = { store: input.store, location, format: config.objectFormat, actor, writer, memo: state.history, versionRecoveries: [],
     verb: input.mode ?? "write-back", checkpoint, hooks: ports.hooks, takeIn: request => root.takeIn(request), onWrite: () => { root.changed = true; },
-    report: diagnostic => { state.diagnostics.push(diagnostic); }, reportResolution: resolution => { state.resolutions.push(resolution); },
+    report: diagnostic => {
+      state.diagnostics.push(diagnostic);
+      const intent = state.resolution;
+      if (intent?.target?.path === diagnostic.path && diagnostic.copy === null && !intent.accepted
+        && !diagnostic.mark.reason.startsWith("unshown-conflict:")) intent.refusal = diagnostic.mark;
+    }, reportResolution: resolution => {
+      state.resolutions.push(resolution);
+      const intent = state.resolution;
+      if (intent?.target?.resolution.kind === "stored" && sameReference(intent.target.resolution.reference, resolution.reference)) intent.accepted = true;
+    },
+    reportExplicitResolution: () => { if (state.resolution !== null) state.resolution.accepted = true; },
     recordBatch: batch => { root.copies.push(...batch.copies); root.removals.push(...batch.removals); } };
   const send = createWriteBackPort(context);
   const root: ProjectionRootState = { checkout: input.checkout, store: input.store, location, ports, context, identity: config.identity.identity,

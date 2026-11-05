@@ -215,81 +215,18 @@ among them, has one.
           pending, withheld and ownerless files, unseen conflicts, and retained aside copies with original paths.
           Probe failures leave healthy sections available; disabled backends resolve no projection dependencies.
 
-### `[ ]` **1.10 `arc save` and its `--resolve` — § 2.4, § 6.5**
+### `[x]` **1.10 `arc save` and its `--resolve` — § 2.4, § 6.5**
 
 - _Goal:_ `arc save` writes back every pending edit in every projected root, `completed/` included, under `save`, and
   returns the state version; `--resolve <conflict>` resolves a conflict shown without markers, and a held file other
   than Markdown by the token its index entry names, refusing every case it cannot; and before the flip it refuses
   `unsupported` naming `arc user save`.
 
-- _Note:_ The hold remedy from 1.5 and notice line from 1.7.b name `arc save --resolve`; registration here closes the
-  emitted-command case of `command-surface-documentation.test.ts` (`registers emitted corrective commands`), which the
-  commit gate does not run (`ARC_CONTRACT_SUITES`, `lib/local-vitest-runner.ts`).
-
-    - A new command in `cli.ts`, in `HELP_GROUPS[""]` (`lib/cli-help-content.ts`), `COMMAND_SUMMARIES`
-      (`lib/cli-help-summaries.ts`), and the command-input declarations, with a handler that takes the command's store.
-      Its start is the engine's start in its `save` form, which this task builds and the root hook runs (1.9.b): each
-      file its own write, and a refusal naming a missing history ref pulled and retried once (2.3). The start records
-      its outcome in the engine's process state and refuses nothing itself; the handler refuses on it as its own result,
-      `--json` included — a lock the start found held naming the holder and a retry, one lost while it ran or gone with
-      the worktree's Git directory naming the loss or the missing directory and a retry (`withProjectionLock`), and no
-      identity (`readProjectionConfiguration`) naming the remedy that sets `arc.identity`. Its refusal of
-      `--skip-projection` comes with the switch (2.9).
-    - `--resolve` parses 1.7.b's token with `parseConflictToken` (`lib/status/conflict-token.ts`), which returns the
-      family, owner type, owner name, and key, no owner UID, and finds its conflict in the index's mappings, whose
-      references carry the owner's UID (1.7.c), never building a store reference from the token alone. Before any
-      listing, a token ending the remedy argv of an entry's `bases-disagree` refused mark (1.5) finds a hold: it sends
-      that file's text against the store's current version under `save`, naming no conflict in `resolves`, and its
-      read-back clears the mark; while the drawing's markers stand it refuses naming them, as for any conflict this
-      checkout shows with markers. On a token the index does not map, it lists the store's conflicts with no owner in
-      the listing's input (`ListInputSchema`, `lib/store/read.ts`), since each backend resolves an owner named without a
-      UID to a single holder, the live one first (`listReference`, `__tests__/helpers/store/read.ts`;
-      `spec-storage-ref-backend.md` § 8), and matches the token's family, owner type, owner name, and ID itself, only to
-      choose the refusal below, refusing as ambiguous, naming each, where several owners match; it never resolves from
-      that listing. It attaches the conflict to its subject file's write, sent even when the file is unedited, which
-      keeps the store's side. It refuses, each with its remedy: an unknown conflict; one already closed, named as
-      resolved; a subject with no projected file in this checkout, naming where it projects or its owner; a conflict
-      this checkout shows with markers, naming them; a whole-record conflict whose other side is a removal, a verb-owned
-      field, or a changed placement, naming the verb that redoes the change; a withheld subject file, naming the remedy
-      `projection-worktrees`' materialization gives; and a subject file the replace guard holds whole for a resolution
-      in progress or a malformed set (1.4.b), naming the repair that releases it — finishing the resolution or repairing
-      the set — after which the conflict shows as 1.7 draws it. The withheld subject's refusal is tested with
-      `projection-worktrees`' refresh, and the refusal for a subject with no projected file here at 2.6, once what each
-      reads exists.
-    - Registering `save` with `--resolve` extends decomposition's source-conflict remedy, the one constant every source
-      and decision site that refuses an open conflict shares (`DECOMPOSE_SOURCE_CONFLICT_REMEDY`,
-      `lib/decompose/source-conflicts.ts`), in the same change: resolve the markers in the file that shows them, which
-      write-back persists, or otherwise run `arc save --resolve <token>` from a checkout projecting the subject, then
-      the mode again (`spec-seam-decomposition.md` § 18). Its integration test, `decompose-conflict-remedy.test.ts`,
-      requires the remedy to name `arc save --resolve <token>` exactly when the command inventory registers a top-level
-      `save` with `--resolve` (`loadRepositoryCommandInputSnapshot`), so it fails from the registration until the remedy
-      changes. The terminal lineage's conflict refusal keeps its own remedy (`readDecomposeLandedRetirement`,
-      `lib/decompose/landed.ts`), as does a stored cut map's (`acquireDecomposeTerminal`,
-      `lib/decompose/acquire-terminal.ts`). Registering it also clears the emitted-command case of
-      `command-surface-documentation.test.ts`, red since 1.5's hold remedy named `arc save`.
-    - Build `test-first` (one behavior at a time):
-        - Integration tier, through the start in its `save` form and the handler, over the reference backend
-        - `arc save` persists an edit in `completed/` that no other command's start scans, and prints the state version
-        - `arc save` takes in an aside copy an exited writer left
-        - `arc save --resolve <conflict>` with the subject file unedited keeps the store's side and closes the conflict
-        - each other `--resolve` refusal names its remedy, and the same conflict resolves once the cause is repaired
-        - `--resolve` on a conflict whose subject file holds a malformed set refuses naming the repair, and the conflict
-          draws into the file once the set is repaired
-        - a token is found through the index's mapping, its owner's UID included
-        - `arc save --resolve <token>` on a held file other than Markdown, its drawn markers gone, sends the file's text
-          against the store's current version and clears the hold
-        - `--resolve` on a hold whose drawn markers stand refuses naming them
-        - a token the index does not map, whose owner name two owners with that conflict ID share, refuses as ambiguous,
-          naming each
-        - a lock held past its bound refuses naming the holder, and the retry lands
-        - a lease lost while it runs refuses with a retry, and the retry lands
-        - a worktree whose Git directory is gone refuses naming it, and the retry lands once it is restored
-        - with no identity it refuses naming the remedy, and the same `arc save` lands once `arc.identity` is set
-        - a refusal under `--json` is the handler's whole JSON result on stdout
-        - E2E tier, through the CLI over the in-repo implementation: `arc save` and `arc save --resolve` refuse
-          `unsupported` naming `arc user save`, and the help inventory lists `save`
-        - decomposition's conflict-remedy test passes with `save` registered, its remedy naming
-          `arc save --resolve <token>`
+- _Outcome:_ The registered save action consumes its start's Store and final version, with whole JSON refusals.
+  Resolution intent binds exact indexed subjects before the sweep, rechecks afterward, and sends unchanged files
+  when needed. Acceptance is recorded at the store write and survives later read-back failure; current-base holds
+  preserve their recorded tokens until accepted. Marker, whole-record and lookup refusals carry their repair routes,
+  and decomposition's source-conflict remedy names the registered resolution command.
 
 ### `[ ]` **1.11 A hand edit persists through write-back** — validate exit criterion at segment scope
 

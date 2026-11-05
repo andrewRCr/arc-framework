@@ -8,6 +8,7 @@
 import { rejectUnsupportedReviewJson, rejectUnsupportedReviewOutputJson } from "./lib/command-input/review-json-option.js";
 import { formatCommandPath } from "./lib/command-input/command-path.js";
 import { registerProjectionHooks } from "./lib/store/projection/command-hooks.js";
+import { projectionCommandBinding } from "./lib/store/projection/engine.js";
 
 import { fileURLToPath } from "node:url";
 
@@ -1813,6 +1814,20 @@ recoverCmd
     { machineReadable: (opts) => opts.json === true },
     async (context, opts: RecoverAuditOptions) => {
       await (await import("./handlers/recover.js")).handleRecoverAudit(opts, context);
+    },
+  ));
+
+// --- Save ---
+
+program
+  .command("save")
+  .description("Save pending edits in every projected root")
+  .option("--resolve <conflict>", "Resolve an indexed conflict shown without markers")
+  .option("--json", "Emit the complete save result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (_context, opts: { resolve?: string; json?: boolean }) => {
+      await (await import("./handlers/save.js")).handleSave(opts, projectionCommandBinding().store);
     },
   ));
 

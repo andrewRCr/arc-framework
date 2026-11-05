@@ -9,7 +9,7 @@ import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import type { ProjectionLocation } from "./location.js";
 import { gateRead, type ReadGateVerdict } from "./read-gate.js";
 import { parseStampedFile } from "./stamp.js";
-import type { TakeInPort, TakeInRead, TakeInRequest, TakeInResult } from "./take-in-port.js";
+import type { TakeInPort, TakeInRead, TakeInRequest, TakeInResult, TakeInResolution } from "./take-in-port.js";
 import type { WriteInput } from "../write.js";
 import type { WritePlacement } from "../placement.js";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
@@ -27,10 +27,11 @@ import type { RecoveredBase } from "./base-recovery.js";
 import { checkWriteBackEdit } from "./check-edit.js";
 import { prepareMarkerContent } from "./marker-preparation.js";
 import type { MarkerParseResult } from "./marker-parse.js";
-import type { RecordReference } from "../identity.js";
+import { sameReference, type RecordReference } from "../identity.js";
 import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
 import { mergeCheckoutBase, prepareAmbiguousDrawing, type CheckoutDrawing, type CheckoutMerge } from "./checkout-merge.js";
 import { decideWriteBackRefusal } from "./write-refusal.js";
+import { explicitResolutionMarkerRefusal } from "./save-markers.js";
 
 const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
@@ -47,6 +48,7 @@ export interface WriteBackContext {
   readonly verb?: typeof HAND_EDIT_VERBS[number];
   readonly report?: (diagnostic: WriteBackDiagnostic) => void;
   readonly reportResolution?: (resolution: WriteBackResolution) => void;
+  readonly reportExplicitResolution?: () => void;
   readonly versionRecoveries?: RecordReference[];
   readonly recoveringBase?: boolean;
 }
@@ -88,6 +90,9 @@ export async function prepareWriteBack(context: WriteBackContext, request: TakeI
     result: { answer: "refused", mark: markers.result.mark,
       openConflicts: markers.result.open, entry: { ...request.entry, pending: true, refused: markers.result.mark,
         unshown: currentUnshown(request.entry, markers.result.open) } } };
+  const markerRefusal = explicitResolutionMarkerRefusal(request, file.content, markers.result);
+  if (markerRefusal !== null) return { kind: "held", result: { answer: "refused", mark: markerRefusal,
+    entry: { ...request.entry, pending: true, refused: markerRefusal } } };
   const restored = await restoreIds(context, request, markers.result.content, base);
   if (restored.status === "refused") return refusedPreparation(request.entry, restored.refusal);
   const { content: takenIn, random } = restored.result;
@@ -99,13 +104,20 @@ export async function prepareWriteBack(context: WriteBackContext, request: TakeI
   if (invalid !== null) return invalid;
   const placement = await currentWritePlacement(context.store, request);
   if (placement.status === "refused") return refusedPreparation(request.entry, placement.refusal);
+  const resolves = resolvingReferences(markers.result.resolves, request.resolution);
   return { kind: "ready", read: file.read, stamp, takenIn, ...(random === undefined ? {} : { random }),
     ...(markers.result.retained === undefined ? {} : { retained: markers.result.retained }), write: {
     action: "put", reference: request.entry.reference, content, expected: version,
-    ...(markers.result.resolves.length === 0 ? {} : { resolves: [...markers.result.resolves] }),
+    ...(resolves.length === 0 ? {} : { resolves }),
     ...(placement.result === undefined ? {} : { placement: placement.result }),
     provenance: { verb: context.verb ?? HAND_EDIT_VERBS[0], lifecycleAction: "edit" },
   } };
+}
+
+function resolvingReferences(implicit: readonly RecordReference[], explicit: TakeInResolution | undefined): RecordReference[] {
+  const resolves = [...implicit];
+  if (explicit?.kind === "stored" && !resolves.some(reference => sameReference(reference, explicit.reference))) resolves.push(explicit.reference);
+  return resolves;
 }
 
 type HeldWriteBack = Extract<PreparedWriteBack, { readonly kind: "held" }>;
@@ -203,6 +215,7 @@ function readGateDiagnostic(gate: ReadGateVerdict): { diagnostic?: RefusedMark }
 async function stamplessVerdict(
   context: WriteBackContext, request: TakeInRequest, text: string, stat: FileStat,
 ): Promise<HeldWriteBack | null> {
+  if (request.resolution !== undefined) return null;
   if (request.entry.markers !== null || request.entry.refused?.reason === "bases-disagree") return null;
   const read = await readStamplessFile({ entry: request.entry, text, mtimeNs: stat.mtimeNs,
     format: context.format, memo: context.memo ?? createHistoryMemo(context.store) });
@@ -316,6 +329,7 @@ async function sendAttempt(context: WriteBackContext, request: TakeInRequest): P
     return { kind: "store-refused", refusal: sent.refusal, entry };
   }
   if (sent.result.version === undefined) throw new Error("A landed content put returned no version");
+  if (request.resolution !== undefined) context.reportExplicitResolution?.();
   for (const reference of prepared.write.resolves ?? []) {
     context.reportResolution?.({ path: request.path, copy: request.copy, reference });
   }

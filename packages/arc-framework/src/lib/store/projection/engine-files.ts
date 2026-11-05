@@ -8,14 +8,17 @@ import { commitProjectionIndex } from "./index-file.js";
 import { sendWriteBack } from "./write-back.js";
 import { writeBackFile } from "./read-back.js";
 import { unshownConflicts } from "./held-conflicts.js";
-import type { TakeInRequest } from "./take-in-port.js";
+import type { TakeInRequest, TakeInResult } from "./take-in-port.js";
 
 /** Check indexed files found by the walk, always re-reading stats after the sweep's possible moves. */
 export async function writeBackProjectionFiles(root: ProjectionRootState, initial: ProjectionIndex, files: readonly string[]): Promise<ProjectionIndex> {
   let index = initial;
   const reference = await readReference(root.checkout);
   const pending: string[] = [];
-  for (const path of files) {
+  const target = projectionProcessState().resolution;
+  const selected = target?.refusal === null ? target.target?.path : undefined;
+  const paths = selected === undefined || target?.accepted ? files : [...new Set([...files, selected])].sort();
+  for (const path of paths) {
     const checked = await checkFileAtPath(root, index, path, reference);
     index = checked.index;
     if (checked.edited) { root.unsent.add(path); pending.push(path); }
@@ -24,7 +27,8 @@ export async function writeBackProjectionFiles(root: ProjectionRootState, initia
     const entry = index.entries[path];
     if (entry?.kind !== "record") continue;
     const request: TakeInRequest = { checkout: root.checkout, path, copy: null, entry,
-      base: path.endsWith(".md") ? { kind: "stamp", stamp: null } : { kind: "blob", blob: entry.base.blob } };
+      base: path.endsWith(".md") ? { kind: "stamp", stamp: null } : { kind: "blob", blob: entry.base.blob },
+      ...(selected !== path || target?.accepted ? {} : { resolution: target?.target?.resolution }) };
     index = await sendFile(root, index, request);
   }
   return index;
@@ -44,7 +48,9 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
   const changed = await checkChange({ path: join(root.checkout, path), recorded: entry.stat,
     written: entry.written, reference, format: root.context.format });
   if (changed.status === "absent") return { index, edited: false };
-  if (changed.status !== "changed" && !entry.pending) return { index: withEntry(index, path, { ...entry, stat: changed.stat }), edited: false };
+  const intent = projectionProcessState().resolution;
+  const resolving = intent?.target?.path === path && !intent.accepted && intent.refusal === null;
+  if (changed.status !== "changed" && !entry.pending && !resolving) return { index: withEntry(index, path, { ...entry, stat: changed.stat }), edited: false };
   return { index, edited: true };
 }
 
@@ -59,6 +65,7 @@ async function sendFile(root: ProjectionRootState, index: ProjectionIndex, reque
   if (root.writable(path)) {
     const written = await writeBackFile(root.context, index, request);
     updated = written.index;
+    recordResolutionRefusal(request, written.result);
     if (written.result.answer === "taken-in") root.unsent.delete(path);
   } else {
     const sent = await sendWriteBack(root.context, request);
@@ -69,6 +76,12 @@ async function sendFile(root: ProjectionRootState, index: ProjectionIndex, reque
   }
   return commitProjectionIndex({ location: root.location, checkout: root.checkout, index: updated,
     checkpoint: root.context.checkpoint });
+}
+
+function recordResolutionRefusal(request: TakeInRequest, result: TakeInResult): void {
+  if (request.resolution === undefined || !("mark" in result)) return;
+  const intent = projectionProcessState().resolution;
+  if (intent !== null && !intent.accepted && intent.refusal === null) intent.refusal = result.mark;
 }
 
 function withEntry(index: ProjectionIndex, path: string, entry: RecordEntry): ProjectionIndex {

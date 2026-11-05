@@ -19,7 +19,8 @@ export function registerProjectionHooks(program: Command, options: ProjectionHoo
   let report: (() => void) | undefined;
   program.hook("preAction", async (_root, action) => {
     const bound = await (options.input ?? nativeProjectionInput)();
-    input = { ...bound, mode: action.parent === program && action.name() === "save" ? "save" : "write-back" };
+    const saving = action.parent === program && action.name() === "save";
+    input = { ...bound, mode: saving ? "save" : "write-back", resolve: saving ? action.opts<{ resolve?: string }>().resolve : undefined };
     await startProjection(input);
     report = createProjectionReporter(input.store, options.writeError);
     report();

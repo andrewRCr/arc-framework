@@ -8,6 +8,10 @@ import type { FileRendering, FileStat, RecordEntry, RefusedMark } from "./index-
 
 import type { RecordReference } from "../identity.js";
 
+/** An explicit save authorization, bound through the live index rather than a human token alone. */
+export type TakeInResolution = { readonly kind: "stored"; readonly reference: RecordReference }
+  | { readonly kind: "hold"; readonly token: string };
+
 /** The base an edit is taken in against: a Markdown file's stamp, null where it carries none, or a stampless base. */
 export type TakeInBase =
   | { readonly kind: "stamp"; readonly stamp: string | null }
@@ -27,6 +31,8 @@ export interface TakeInRequest {
   readonly base: TakeInBase;
   /** A guard already observed changed bytes against its read baseline, even if this save matches the index again. */
   readonly observedEdit?: boolean;
+  /** Present only for the selected subject at its own path, never a displaced copy. */
+  readonly resolution?: TakeInResolution;
 }
 
 /** What the take-in answered, with the entry as it left it. */
