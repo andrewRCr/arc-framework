@@ -22,7 +22,7 @@ export async function drawCheckoutClash(context: ReadBackContext, index: Project
   const refused = mark ?? (sent.result.entry.refused?.reason === "bases-disagree" ? sent.result.entry.refused : null);
   const renderer = createRecordRenderer(context);
   const staged = await stageRecordFile({ checkout: request.checkout, path: request.path, record: drawing.record,
-    replacing: sent.result.entry.base.blob, writer: context.writer, format: context.format,
+    replacing: sent.result.entry.base.blob, writer: context.writer, format: context.format, checkpoint: context.checkpoint,
     content: drawing.content, markerLength: drawing.length, readOnly: sent.result.entry.protected,
     renderer, rendering: { keepPending: true, refused } });
   if (staged.status === "refused") {
@@ -31,10 +31,10 @@ export async function drawCheckoutClash(context: ReadBackContext, index: Project
       reason: `The checkout clash could not be drawn: ${staged.refusal.condition}`, remedy: staged.refusal.remedy } });
     return { result: { answer: "pending", entry }, index: { ...index, entries: { ...index.entries, [request.path]: entry } } };
   }
-  const takeIn = createWriteBackPort(context);
+  const takeIn = context.takeIn ?? createWriteBackPort(context);
   const guarded = await guardReplacement({ checkout: request.checkout, path: request.path, entry: sent.result.entry,
     staged: staged.result, renderer, baseline: sent.read, reference: await readReference(request.checkout), format: context.format,
-    store: context.store, writer: context.writer, takeIn });
+    store: context.store, writer: context.writer, checkpoint: context.checkpoint, takeIn });
   if (guarded.kind === "unreplaced") {
     if (guarded.cause === "refresh-refused") context.report?.({ path: request.path, copy: null, mark: {
       reason: `The edit landed, but restaging failed: ${guarded.refusal.condition}`, remedy: guarded.refusal.remedy } });
@@ -43,7 +43,8 @@ export async function drawCheckoutClash(context: ReadBackContext, index: Project
   }
   const swapped = await swapBatch({ location: context.location, checkout: request.checkout, index,
     files: [{ path: request.path, replace: guarded }], readBack: true, writer: context.writer,
-    format: context.format, takeIn, hooks: context.hooks });
+    format: context.format, takeIn, hooks: context.hooks, checkpoint: context.checkpoint });
+  context.recordBatch?.(swapped);
   const entry = swapped.index.entries[request.path];
   if (entry?.kind !== "record") throw new Error(`Drawing lost the projected entry for ${request.path}`);
   if (mark !== undefined && entry.refused?.remedy.argv?.at(-1) === mark.remedy.argv?.at(-1)) {

@@ -66,7 +66,7 @@ async function swapped(path = PATH, contents: readonly [string, string] = ["# Co
   if (stagedResult.status !== "ok") throw new Error("staging refused");
   const staged = stagedResult.result;
   await link(join(seeded.checkout, staged.location), file);
-  const copy: AsideCopyRecord = { name, moving: laid.written, linked: staged.written, writeBackSent: false, landed: null };
+  const copy: AsideCopyRecord = { name, moving: laid.written, linked: staged.written, writeBackSent: false, landed: null, rendering: { markers: null, notices: [] } };
   const entry: RecordEntry = { ...laid, base: staged.base, written: staged.written, stat: await readStat(file), copies: [copy] };
   const settle = (takeIn: TakeInPort, overrides: Partial<AsideCopySettling> = {}) => settleAsideCopy({
     checkout: seeded.checkout, path, entry, copy, format: "sha1", takeIn, writer: WRITER, ...overrides,

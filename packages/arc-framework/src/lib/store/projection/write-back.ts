@@ -35,6 +35,8 @@ const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
 /** The store and checkout state used by a caller that already owns the projection lock. */
 export interface WriteBackContext {
+  readonly checkpoint?: () => Promise<void>;
+  readonly onWrite?: () => void;
   readonly store: Store;
   readonly location: ProjectionLocation;
   readonly format: ObjectFormat;
@@ -81,7 +83,8 @@ export async function prepareWriteBack(context: WriteBackContext, request: TakeI
   if (markers.result.kind === "held") return { kind: "held",
     diagnostics: [markers.result.mark, ...heldConflictMarks(markers.result.unshown ?? [], markers.result.mark)],
     result: { answer: "refused", mark: markers.result.mark,
-      entry: { ...request.entry, pending: true, refused: markers.result.mark, unshown: [...(markers.result.unshown ?? request.entry.unshown)] } } };
+      openConflicts: markers.result.open, entry: { ...request.entry, pending: true, refused: markers.result.mark,
+        unshown: currentUnshown(request.entry, markers.result.open) } } };
   const restored = await restoreIds(context, request, markers.result.content, base);
   if (restored.status === "refused") return refusedPreparation(request.entry, restored.refusal);
   const { content: takenIn, random } = restored.result;
@@ -121,11 +124,12 @@ async function checkContent(context: WriteBackContext, request: TakeInRequest, b
 }
 
 async function prepareMarkers(context: WriteBackContext, request: TakeInRequest, content: string, base: RecoveredBase): Promise<StoreResult<MarkerParseResult>> {
-  const grammar = kinds[request.entry.reference.kind].entry;
-  if (grammar === undefined || request.entry.markers === null) return prepareMarkerContent(context.store, request.entry, content, context.memo);
+  const entry = request.rendering === undefined ? request.entry : { ...request.entry, ...request.rendering };
+  const grammar = kinds[entry.reference.kind].entry;
+  if (grammar === undefined || entry.markers === null) return prepareMarkerContent(context.store, entry, content, context.memo);
   const selected = await readBaseContent(context, request.entry, base);
   if (selected.status === "refused") return selected;
-  return prepareMarkerContent(context.store, request.entry, content, context.memo,
+  return prepareMarkerContent(context.store, entry, content, context.memo,
     { grammar, base: selected.result, aside: request.copy !== null });
 }
 
@@ -241,7 +245,15 @@ async function currentWritePlacement(store: Store, request: TakeInRequest): Prom
 /** Bind write-back to a caller's store; locking and publication remain with that caller. */
 export function createWriteBackPort(context: WriteBackContext): TakeInPort {
   const bound = { ...context, memo: context.memo ?? createHistoryMemo(context.store) };
-  return async (request) => (await sendWriteBack(bound, request)).result;
+  return async (request) => {
+    const { result } = await sendWriteBack(bound, request);
+    if (request.rendering === undefined) return result;
+    // The copy's parse context never replaces the live path's mapping. Reconcile its latest conflict knowledge separately.
+    const current = await bound.store.read({ reference: request.entry.reference });
+    if (current.status === "refused") return result;
+    return { ...result, openConflicts: current.result.conflicts,
+      entry: { ...result.entry, unshown: unshownConflicts(result.entry, current.result.conflicts) } };
+  };
 }
 
 /** A send's outcome, retaining the read-back only for the file walk that owns replacement. */
@@ -265,7 +277,7 @@ export async function sendWriteBack(context: WriteBackContext, request: TakeInRe
     return { kind: "held", result: prepared.result };
   }
   const entry = await markOtherCopies(context, request);
-  const sent = await context.store.write(prepared.write);
+  const sent = await sendLeasedWrite(context, prepared.write);
   if (sent.status === "refused") {
     const mark = markStoreRefusal(sent.refusal);
     context.report?.({ path: request.path, copy: request.copy, mark });
@@ -281,7 +293,7 @@ export async function sendWriteBack(context: WriteBackContext, request: TakeInRe
     context.report?.({ path: request.path, copy: request.copy, mark });
     return { kind: "read-back-refused", result: { answer: "pending", entry: { ...entry, pending: true } } };
   }
-  const recorded = await recordWriteBack({ location: context.location, entry, stamp: prepared.stamp,
+  const recorded = await recordWriteBack({ location: context.location, checkpoint: context.checkpoint, entry, stamp: prepared.stamp,
     takenIn: prepared.takenIn, outcome: { kind: "landed", version: sent.result.version }, readBack: read.result,
     grammar: kinds[entry.reference.kind].entry, format: context.format,
     memo: context.memo ?? createHistoryMemo(context.store) });
@@ -307,6 +319,18 @@ async function markOtherCopies(context: WriteBackContext, request: TakeInRequest
   if (entry?.kind !== "record") return request.entry;
   await writeProjectionIndex(context.location, { ...disk.index, entries: {
     ...disk.index.entries, [request.path]: recordWriteBackSent(entry, request.copy),
-  } });
+  } }, context.checkpoint);
   return recordWriteBackSent(request.entry, request.copy);
+}
+
+async function sendLeasedWrite(context: WriteBackContext, write: WriteInput): ReturnType<Store["write"]> {
+  await context.checkpoint?.();
+  const sent = await context.store.write(write);
+  if (sent.status === "ok") context.onWrite?.();
+  await context.checkpoint?.();
+  return sent;
+}
+
+function currentUnshown(entry: RecordEntry, open: readonly RecordReference[] | undefined): RecordEntry["unshown"] {
+  return open === undefined ? entry.unshown : unshownConflicts(entry, open);
 }

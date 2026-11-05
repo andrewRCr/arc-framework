@@ -10,8 +10,8 @@ import { commitProjectionIndex } from "../../../../src/lib/store/projection/inde
 import type { KindId } from "../../../../src/lib/store/catalog.js";
 
 /** Create accepted conflicting writes and render their unique current-side spans into the projection. */
-export async function createMarkerFixture(input: { kind?: KindId; base?: string; current?: string; incoming?: string } = {}) {
-  const source = await createWriteBackFixture({ kind: input.kind, content: input.base ?? "base\n" });
+export async function createMarkerFixture(input: { kind?: KindId; path?: string; base?: string; current?: string; incoming?: string } = {}) {
+  const source = await createWriteBackFixture({ kind: input.kind, path: input.path, content: input.base ?? "base\n" });
   const reference = source.entry.reference;
   const put = (content: string) => source.store.write({ action: "put", reference, content,
     expected: source.entry.base.version, provenance: { verb: "edit", lifecycleAction: "edit" } });

@@ -42,8 +42,8 @@ function fullIndex(): ProjectionIndex {
         persisted: { stamp: blob("d"), takenIn: { kind: "copy", version: RecordVersionSchema.parse("v3"), name: "taken-in-1", blob: blob("e") } },
         inProgress: { replaces: { blob: blob("f"), version: RecordVersionSchema.parse("v2") }, copy: "copy-1" },
         copies: [
-          { name: "copy-1", moving: blob("1"), linked: blob("2"), writeBackSent: true, landed: blob("3") },
-          { name: "copy-2", moving: blob("4"), linked: null, writeBackSent: false, landed: null },
+          { name: "copy-1", moving: blob("1"), linked: blob("2"), writeBackSent: true, landed: blob("3"), rendering: { markers: { length: 7, sets: [{ shows: "stored", conflict }] }, notices: [] } },
+          { name: "copy-2", moving: blob("4"), linked: null, writeBackSent: false, landed: null, rendering: { markers: null, notices: [] } },
         ],
       },
       ".arc/active/current/tasks-alpha.md": {

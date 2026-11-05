@@ -3,6 +3,19 @@
 The projection is the gitignored working copy of the store at the familiar `.arc/` paths. This folder holds its
 engine and the files it writes.
 
+`engine.ts` starts and ends a command over its supplied store. A backend whose state stays in the checkout returns
+before resolving engine dependencies. With state off branch, start takes the projection lease before launching the
+configuration, state-version read, and shared-root walk together; personal discovery waits for the identity. It sweeps
+before scanning edits, rereads recovered paths, and sends an ignore-refused root's edits without replacing its files.
+Normal discovery covers active, backlog, and personal roots; save mode includes completed files. Walks use `lstat`,
+skip machine-local folders, and return newly discovered files unsent.
+
+`process-state.ts` gives stores created at different call sites the same command's skip verdict, lock state, history
+memo, per-root capability and bindings, and copy bookkeeping. Each command starts with fresh bindings and history.
+Rights default to granting an edit; adoption, refresh, fan-out, and materialization bindings live with each root.
+`engine-end.ts` takes each ready root's lease again and reads its current index before the second check. After another
+index read under that lease, it removes retained take-in copies no entry names. An unusable index preserves its files.
+
 `paths.ts` names the checkout's machine-local folder, `.arc/system/.local/`, and the aside folder inside it.
 
 `excludes.ts` builds the clone-local Git exclude list from the projected roots `lib/layout/projected-roots.ts` names:
@@ -65,7 +78,9 @@ folder that exists, so a worktree whose Git directory was removed reads as gone 
 ends only the guarded operation, at its next step, with the report the caller names. The operation awaits each
 `session.step()`, which confirms ownership through the renewable lease before proceeding, even when a queued heartbeat
 has not run. Failed confirmation stops the operation with a retry report. A wait that times out names the holder it
-last saw. It is not reentrant.
+last saw. It is not reentrant. The engine forwards its ownership checkpoint through store sends, staging, moves,
+index publication, and cleanup, including retry attempts. A lost lease prevents subsequent mutations; the command's
+unsent set stays outside the leased operation for reporting, without publishing unlocked pending marks.
 
 `blob-id.ts` computes Git blob ids with `node:crypto`, `blob <length>\0` plus the bytes, in the repository's object
 format, never by running Git per file. A file's stored blob id is taken over LF line endings with, for Markdown alone,
@@ -236,9 +251,16 @@ has not moved on, and is deleted once its edit lands whole, kept where the take-
 whose path has moved on is kept, reported with its path and never sent. A record whose copy is gone is dropped. A copy
 whose edit is refused, unparseable, or clashed is never deleted while that stands. Where its path has not moved on it
 goes back there — linked back to an absent path, or swapped back onto one holding what its swap linked, the replacement
-moved aside and recorded as a copy holding what its swap moved — and the file is pending, marked refused or held by the
-markers the take-in left. Where the path has moved on, or a save recreates it mid-move, the copy stays aside, reported
-with its path.
+moved aside and recorded as a copy holding what its swap moved — and the file is pending with its own marker and notice
+mapping restored. A checkout clash remains undrawn until the file's own write-back. Where the path has moved on, or a
+save recreates it mid-move, the copy stays aside, reported with its path.
+
+Each aside record retains the marker length, origins, and notice references of the bytes it displaced. Its take-in
+uses that snapshot while the live entry continues describing the current path. `returned-copies.ts` publishes a
+returned file's restored mapping with its alias still recorded, then unlinks the alias and publishes finalization.
+Interrupted links are recovered by proving the copy and path share both device and inode before restoring the mapping.
+A path on another inode keeps its own mapping and leaves the copy available. Current open-conflict knowledge advances
+independently of the displaced file's rendering snapshot.
 
 `aside-moves.ts` makes a swap's two moves, the rename into the aside folder and the link onto the path, inside the
 bounded retry, since a reader holding the file without sharing delete access refuses them for a moment on Windows. A
@@ -246,23 +268,23 @@ link refused because something is at the path reads as a save that recreated it.
 second check take the operations and retry sleep a test injects, and the swap, the second check, and the sweep take the
 read gate it injects for every copy they check.
 
-`swap.ts` replaces a batch of files between two index writes. The first, with the reference after it, records each
-file's new base, the staged file's stat — which the path shares once it is linked — pending, the record of the aside
-copy its move makes, and, for a file other than Markdown, an in-progress record naming the version it replaces and that
-copy. Then each file is renamed aside and its staged file hard-linked onto the path, both inside the bounded retry
-(`aside-moves.ts`), and its copy checked once, an edit taken in and one refused or clashed put back as `aside-copies.ts`
-states, nothing deleted; an absent file is rebuilt by the link alone, which makes no copy. A link refused because a save
-recreated the path yields to it, the replaced version still recorded; a move still refused past the bound leaves the
-file in place, its entry restored; and a link failing otherwise links the copy back, unless it is a symbolic link, which
-leaves the path absent. The second write clears the pending mark of each file whose path still holds the staged file's
-identity, and a rebuild's in-progress record, but keeps a mark a file carried into a read-back's batch. A stop between
-the writes leaves a file pending that write-back reads no edit in. A file the guard staged nothing for is removed: moved
-aside and its copy checked like any other, nothing linked, its entry kept its record's, recorded absent and pending.
-The entry is dropped once the file is gone and no aside copy of its path remains, at the second write or the second
-check, so a copy that goes back to the path is still taken in against that record; where the projection now lays
-another record at the path, the entry stays, pending, as a deleted file's. The batch returns the copies it made that its
-index still records, and the paths it removed from, for the second check. Hooks after the re-check, the move, and the
-first check, and before a rebuild's link, place a save in each interval for tests.
+`swap.ts` publishes planned replacements before moving files and settled entries afterward. The first write, with the
+reference after it, records each file's new base, the staged file's stat — which the path shares once it is linked —
+pending, the record of the aside copy its move makes, and, for a file other than Markdown, an in-progress record naming
+the version it replaces and that copy. Then each file is renamed aside and its staged file hard-linked onto the path,
+both inside the bounded retry (`aside-moves.ts`), and its copy checked once, an edit taken in and one refused or clashed
+put back as `aside-copies.ts` states, nothing deleted; an absent file is rebuilt by the link alone, which makes no copy.
+A link refused because a save recreated the path yields to it, the replaced version still recorded; a move still refused
+past the bound leaves the file in place, its entry restored; and a link failing otherwise links the copy back, unless it
+is a symbolic link, which leaves the path absent. The second write clears the pending mark of each file whose path still
+holds the staged file's identity, and a rebuild's in-progress record, but keeps a mark a file carried into a read-back's
+batch. A stop between the writes leaves a file pending that write-back reads no edit in. A file the guard staged nothing
+for is removed: moved aside and its copy checked like any other, nothing linked, its entry kept its record's, recorded
+absent and pending. The entry is dropped once the file is gone and no aside copy of its path remains, at the second
+write or the second check, so a copy that goes back to the path is still taken in against that record; where the
+projection now lays another record at the path, the entry stays, pending, as a deleted file's. The batch returns the
+copies it made that its index still records, and the paths it removed from, for the second check. Hooks after the
+re-check, the move, and the first check, and before a rebuild's link, place a save in each interval for tests.
 
 `second-check.ts` checks each aside copy a command's batches made once more at the command's end, under the projection
 lock again, since a save through a handle opened before the move can write after the first check. Each copy the index

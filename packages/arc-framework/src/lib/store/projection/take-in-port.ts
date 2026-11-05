@@ -4,7 +4,9 @@
  * The caller owns the lock, index publication, and swaps. The port swaps and draws nothing; its sole index write
  * persists the other aside copies' write-back-sent marks before sending, without changing stats or the racy reference.
  */
-import type { FileStat, RecordEntry, RefusedMark } from "./index-schema.js";
+import type { FileRendering, FileStat, RecordEntry, RefusedMark } from "./index-schema.js";
+
+import type { RecordReference } from "../identity.js";
 
 /** The base an edit is taken in against: a Markdown file's stamp, null where it carries none, or a stampless base. */
 export type TakeInBase =
@@ -20,20 +22,22 @@ export interface TakeInRequest {
   /** The aside copy holding the edit, by its repository-relative location, or null for the file at its path. */
   readonly copy: string | null;
   readonly entry: RecordEntry;
+  /** Rendering provenance of displaced bytes, independent of the current path's mapping. */
+  readonly rendering?: FileRendering;
   readonly base: TakeInBase;
   /** A guard already observed changed bytes against its read baseline, even if this save matches the index again. */
   readonly observedEdit?: boolean;
 }
 
 /** What the take-in answered, with the entry as it left it. */
-export type TakeInResult =
+export type TakeInResult = (
   | { readonly answer: "no-edit" | "deferred" | "pending" | "clashed"; readonly entry: RecordEntry }
   /**
    * The edit landed whole; `read` is the stat and blob id it read, which a later check of the file compares against.
    * For an aside copy, the entry records beside the copy the blob id it held, as `landed`.
    */
   | { readonly answer: "taken-in"; readonly entry: RecordEntry; readonly read: TakeInRead }
-  | { readonly answer: "refused" | "unparseable"; readonly entry: RecordEntry; readonly mark: RefusedMark };
+  | { readonly answer: "refused" | "unparseable"; readonly entry: RecordEntry; readonly mark: RefusedMark }) & { readonly openConflicts?: readonly RecordReference[] };
 
 /** An answer that leaves the edit where it is: in the file, or in its aside copy. */
 export type TakeInHeld = Exclude<TakeInResult["answer"], "no-edit" | "taken-in">;

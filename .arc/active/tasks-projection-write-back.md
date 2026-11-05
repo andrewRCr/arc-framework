@@ -222,99 +222,14 @@ among them, has one.
 - _Note:_ `seedProjection` takes no protected, notice-line, or marker options and sets up no ignore rules; tests needing
   them extend it, the ignore rules as `sweep.test.ts` sets them up.
 
-    - `[ ]` **1.9.a The engine's start and end**
+    - `[x]` **1.9.a The engine's start and end**
 
-        - The entry points take the command's store — in production one `createStore` builds over the checkout, in tests
-          the reference backend or `createRefStore` — record that store's `capabilities.stateOffBranch` for the checkout
-          root in the process state, which the work-item path reads (2.4.c), and bind the take-in (`TakeInPort`,
-          `lib/store/projection/take-in-port.ts`) to write-back, under the rights of the worktree whose file holds the
-          edit. Until `projection-worktrees` decides which checkouts hold a projection, a checkout holds one exactly
-          when it holds an index (`readProjectionIndex`, `lib/store/projection/index-file.ts`).
-        - One module in `lib/store/projection/` holds the engine's process-wide state, since `createStore` builds a new
-          store at each call site: the skip verdict — set by the configuration read's no-identity verdict
-          (`readProjectionConfiguration`, `lib/store/projection/configuration.ts`), by a start the lock answers `held`,
-          `lost`, or `gone` (`withProjectionLock`, `lib/store/projection/lock.ts`), and by the switch (2.9) — whether
-          this process holds a projection lock, the fan-out's rounds (`projection-worktrees`), the `history` memo
-          (`createHistoryMemo`, `lib/store/projection/base-recovery.ts`), each checkout root's claim and effective
-          `layout.active` (2.4.c), and the ports the root hook (1.9.b) binds at every command: the take-in bound to
-          write-back, the rights function (2.1), adoption's mint (2.8.b), and materialization (`projection-worktrees`).
-          The fan-out `projection-worktrees` builds reads it; a process whose root hook never ran — a script, or a test
-          that binds nothing — fans out nothing, and each sibling refreshes at its next command.
-        - The start takes the worktree's projection lock, which makes no Git call, then starts the configuration read
-          (`readProjectionConfiguration`), `version()`, and the stat walk together, the personal root's walk waiting
-          for the identity. With no identity or an invalid `arc.identity` it releases the lock and runs the command as
-          under `--skip-projection` (2.9), reporting the remedy that sets `arc.identity`. Otherwise it sweeps the aside
-          folder (`sweepAsideFolder`, `lib/store/projection/sweep.ts`) and honors the ignore verdict the sweep returns
-          (`SweepResult.ignores`) through the sweep's own root test, exported for it (`writableUnder`): a root the
-          guard refuses takes no write for the command, so write-back sends its edits but neither replaces nor draws
-          into a file there (1.1.b), and the refusal is reported. It then writes back pending edits — re-reading the
-          stats of each path the sweep linked back or replaced, since the walk began before it — and runs the refresh,
-          then releases the lock; its write-backs fan out once after release.
-        - The lock's outcomes (`withProjectionLock`): `held`, past its bound, runs the command as under
-          `--skip-projection`, its edits pending, reporting the holder; `lost`, a lease lost while the start runs, ends
-          the operation by throwing at its next step, so the start tracks its unsent edits outside the operation, runs
-          the command the same way, and reports the loss, those edits pending; and `gone`, the worktree's Git directory
-          missing, runs the command the same way, reporting the missing Git directory.
-        - Write-back checks every projected root but `completed/` — the checkout's own work item, the personal surfaces,
-          its in-flight views, and `backlog/` — and finds new files by walking those roots' folders without following
-          links (`lstat`), skipping the folders `MACHINE_LOCAL_PATHS` lists; `completed/` is checked by `arc save`
-          (1.10), the removal check, and the persist and release steps (`projection-worktrees`), and wherever a refresh
-          touches a file (2.3). Until adoption (2.8), a new file the walk finds is left in place, unsent.
-        - Refresh, fan-out, and materialization are slots `projection-worktrees` fills, inert until then; its refresh,
-          fan-out, and materialization tasks retire them.
-        - The rights port and adoption's mint stay unbound until 2.1 and 2.8.b bind them: an unbound rights port grants
-          the edit, and an unbound mint adopts nothing.
+        - Command start binds process state, launches reads under its lease, and sweeps before writing back indexed
+          roots; ignore-refused roots send edits without replacing files. End re-locks and reads fresh indexes before
+          settling copies and removing unreferenced retained content. Mutation checkpoints stop writes after lease loss.
+          Aside copies retain their own marker origins; returns publish restored mappings before alias cleanup and
+          recover interrupted links by filesystem identity.
         - _Retired in:_ Phase 2
-        - The end takes each worktree's lock again for the second check (`runSecondCheck`,
-          `lib/store/projection/second-check.ts`), fed the copies the start's sweep returned and every swap batch made
-          (`SweepResult.copies`, `SwapBatchResult`) and each batch's removals, an empty copy kept for the next sweep;
-          each copy's settlement (`settleAsideCopy`, over `deleteAsideCopy` and `finalizeAsideCopy`,
-          `lib/store/projection/stampless.ts`) clears the in-progress record naming that copy once the file holds what
-          the batch linked, and the copy's own record; each swap batch's second index write has already cleared the
-          pending marks it settled. Then, under the same lock and after reading that worktree's index on disk, it lists
-          the kept copies under `taken-in/` against that index and hands each that no entry's persisted write-back names
-          to `removeTakenInCopies` (`lib/store/projection/taken-in.ts`), which removes the copies it is given, whether a
-          landing released it, through the take-in port or write-back's own read-back, or a stop left it before an index
-          named it; a kept copy carries no writer, and the projection lock spans process scopes, so none is in flight. A
-          lease lost there skips that worktree, its copies left to the next sweep.
-        - Every entry point returns at once while `capabilities.stateOffBranch` is false.
-        - Build `test-first` (one behavior at a time):
-            - Integration tier, over a seeded projection (`seedProjection`,
-              `__tests__/helpers/store/projection/seeded-projection.ts`) and the reference backend
-            - a pending edit is written back at the next command's start
-            - an edit in each projected root but `completed/` is found at the start, and one in `completed/` is not
-            - the walk returns a new file in a backlog folder, and nothing under an identity's `.internal/`
-            - with no identity, the start runs the command with the projection off and reports the remedy, and the next
-              command with `arc.identity` set writes the edit back
-            - with the executor injected, the configuration read and `version()` are both issued, after the lock is
-              taken, before either returns
-            - a start that cannot take its lock, with the wait injected, runs the command, leaves the edit pending, and
-              reports the holder, and the next command, the lock free, writes the edit back
-            - a start whose lease is lost mid-write-back runs the command as under the switch, reporting the loss, its
-              unsent edits pending, and the next command writes them back
-            - a start whose worktree's Git directory is gone runs the command as under the switch, reporting it, and
-              the next command with the directory restored writes the edit back
-            - a root the ignore guard refuses has its edit sent and its file left unwritten, pending, the refusal
-              reported, and the next command with the ignore line repaired replaces it
-            - a save at the path of a file other than Markdown, after a write-back that landed as a fast-forward and
-              before a read-back is laid there, its root refused by the ignore guard, is sent, and the person's own
-              removal away from the landed change stays removed
-            - an end whose lease is lost skips that worktree, and the next command's sweep takes its copies over
-            - a kept copy a landing released, through the take-in port and through write-back's own read-back, and one a
-              stop left before its index write, are removed at the command's end, and a copy an entry names is kept
-            - a drawing's copy a failed command left is deleted by the next command's sweep as no edit, the markers kept
-              whether or not the person has edited them, and no text the person removed comes back
-            - a stampless file whose rebuild yielded to a recreated save is written back against the replaced version,
-              keeping the store's change
-            - a store built at another call site in the process reads the ports the hook bound
-            - the end clears the in-progress record of a file replaced in place
-            - a stale buffer's save landing in an aside copy clashes at the second check and goes back to its path,
-              pending and undrawn; the next command's start draws its clash as markers, and that command's second check
-              deletes the drawing's own aside copy as no edit, the markers staying
-            - a resolution in progress landing in an aside copy goes back to its path at the second check with its bytes
-              unchanged, reported as refused
-            - a copy the sweep links back after the stat walk began is read at its new stats
-            - over the in-repo implementation, the start and end touch no file and make no Git call
 
     - `[ ]` **1.9.b The root hooks and the report**
 

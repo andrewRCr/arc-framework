@@ -90,21 +90,25 @@ export async function readTakenInCopy(location: ProjectionLocation, name: string
  * @param location - The located checkout.
  * @param names - The copies' names.
  */
-export async function removeTakenInCopies(location: ProjectionLocation, names: readonly string[]): Promise<void> {
-  await Promise.all(names.map((name) => rm(join(location.stateDir, TAKEN_IN_FOLDER, name), { force: true })));
+export async function removeTakenInCopies(location: ProjectionLocation, names: readonly string[], checkpoint?: () => Promise<void>): Promise<void> {
+  for (const name of names) {
+    await checkpoint?.();
+    await rm(join(location.stateDir, TAKEN_IN_FOLDER, name), { force: true });
+  }
 }
 
 /** Keep a copy inside the state folder, which exists under the projection lock, never creating that folder. */
-async function keepCopy(location: ProjectionLocation, content: string, format: ObjectFormat): Promise<{ name: string; blob: string }> {
+async function keepCopy(location: ProjectionLocation, content: string, format: ObjectFormat, checkpoint?: () => Promise<void>): Promise<{ name: string; blob: string }> {
   const blob = gitBlobId(content, format);
   const name = `${blob}.${randomBytes(8).toString("hex")}`;
   const folder = join(location.stateDir, TAKEN_IN_FOLDER);
   try {
+    await checkpoint?.();
     await mkdir(folder);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
   }
-  await atomicWriteFile(join(folder, name), content, { createParents: false });
+  await atomicWriteFile(join(folder, name), content, { createParents: false, checkpoint });
   return { name, blob };
 }
 
@@ -144,6 +148,7 @@ export type WriteBackOutcome =
 
 /** What write-back's read-back hands the recording. */
 export interface WriteBackRecording {
+  readonly checkpoint?: () => Promise<void>;
   readonly location: ProjectionLocation;
   readonly entry: RecordEntry;
   /** The Markdown stamp read, or the base blob id the take-in carried for a file without a stamp. */
@@ -175,7 +180,7 @@ export async function recordWriteBack(input: WriteBackRecording): Promise<{ entr
   const released = kept?.kind === "copy" ? [kept.name] : [];
   const record = readBack.version === outcome.version && sameApartFromStampedIds(readBack.content, takenIn, grammar)
     ? { kind: "landed" as const, version: outcome.version }
-    : { kind: "copy" as const, version: outcome.version, ...await keepCopy(input.location, takenIn, input.format) };
+    : { kind: "copy" as const, version: outcome.version, ...await keepCopy(input.location, takenIn, input.format, input.checkpoint) };
   return { entry: { ...input.entry, persisted: { stamp: input.stamp, takenIn: record } }, released };
 }
 

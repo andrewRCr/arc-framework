@@ -33,7 +33,7 @@ export async function prepareMarkerContent(store: Store, entry: RecordEntry, con
     conflicts.push({ reference: set.conflict, data: parsed.data });
   }
   return { status: "ok", result: { ...parseMarkerContent({ content, markers: entry.markers, conflicts, open: current.result.conflicts, entries }),
-    unshown: unshownConflicts(entry, current.result.conflicts) } };
+    unshown: unshownConflicts(entry, current.result.conflicts), open: current.result.conflicts } };
 }
 
 async function readConflictContent(store: Store, reference: RecordReference, closed: boolean, memo: HistoryMemo): Promise<StoreResult<string>> {

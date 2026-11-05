@@ -54,10 +54,14 @@ const PersistedSchema = z.strictObject({
 /** A replacement in progress of a file other than Markdown: the version it replaces and the copy its batch makes. */
 const InProgressSchema = z.strictObject({ replaces: StoredVersionSchema, copy: z.string().min(1).nullable() });
 
+/** The marker origins and notice references belonging to one rendered file's bytes. */
+const FileRenderingSchema = z.strictObject({ markers: MarkersSchema.nullable(), notices: z.array(RecordReferenceSchema) });
+
 /** One aside copy a swap made of the file, while it stays in the aside folder. */
 const AsideCopyRecordSchema = z.strictObject({
   name: z.string().min(1),
   moving: BlobIdSchema,
+  rendering: FileRenderingSchema,
   linked: BlobIdSchema.nullable(),
   writeBackSent: z.boolean(),
   landed: BlobIdSchema.nullable(),
@@ -146,6 +150,8 @@ export type FileStat = z.output<typeof FileStatSchema>;
 export type IgnoreFileRecord = z.output<typeof IgnoreFileRecordSchema>;
 /** A decoded entry for a file the projection laid from a record. */
 export type RecordEntry = z.output<typeof RecordEntrySchema>;
+/** The marker and notice mapping a displaced file retains independently of its replacement. */
+export type FileRendering = z.output<typeof FileRenderingSchema>;
 /** A decoded aside copy's record. */
 export type AsideCopyRecord = z.output<typeof AsideCopyRecordSchema>;
 /** A decoded refusal mark. */

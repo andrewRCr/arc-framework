@@ -15,7 +15,7 @@ export interface MarkerEntryPolicy { readonly base: string; readonly grammar: En
 /** Content ready for ordinary write preparation, optionally with a refusal that retains the original file. */
 export type MarkerParseResult = (
   | { readonly kind: "ready"; readonly content: string; readonly resolves: readonly RecordReference[]; readonly retained?: RefusedMark }
-  | { readonly kind: "held"; readonly mark: RefusedMark }) & { readonly unshown?: readonly RecordReference[] };
+  | { readonly kind: "held"; readonly mark: RefusedMark }) & { readonly unshown?: readonly RecordReference[]; readonly open?: readonly RecordReference[] };
 interface MarkerInput {
   content: string; markers: NonNullable<RecordEntry["markers"]>; conflicts: readonly MarkerConflict[];
   open: readonly RecordReference[]; entries?: MarkerEntryPolicy;

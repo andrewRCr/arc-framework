@@ -120,8 +120,8 @@ describe("sending a projected edit", () => {
     const otherName = nameAsideFile({ path: request.path, base: request.entry.base.blob, writer, role: "aside" });
     const takenName = nameAsideFile({ path: request.path, base: request.entry.base.blob, writer, role: "aside" });
     const entry = { ...request.entry, copies: [
-      { name: otherName, moving: request.entry.written, linked: null, writeBackSent: false, landed: null },
-      { name: takenName, moving: request.entry.written, linked: null, writeBackSent: false, landed: null },
+      { name: otherName, moving: request.entry.written, linked: null, writeBackSent: false, landed: null, rendering: { markers: null, notices: [] } },
+      { name: takenName, moving: request.entry.written, linked: null, writeBackSent: false, landed: null, rendering: { markers: null, notices: [] } },
     ] };
     const index = indexFor(request.path, entry);
     await writeProjectionIndex(location, index);
@@ -159,7 +159,7 @@ describe("sending a projected edit", () => {
     const { fixture, request } = await proseFile();
     const entry = { ...request.entry, copies: [
       { name: nameAsideFile({ path: request.path, base: request.entry.base.blob, writer, role: "aside" }),
-        moving: request.entry.written, linked: null, writeBackSent: false, landed: null },
+        moving: request.entry.written, linked: null, writeBackSent: false, landed: null, rendering: { markers: null, notices: [] } },
     ] };
     const observedPath = join(checkout, "observed.txt");
     const tick = new Date("2026-11-01T12:00:00.000Z");

@@ -7,7 +7,7 @@ import type { AsideWriterInput } from "./aside.js";
 import { settleAsideCopy, type CopySettlement } from "./aside-copies.js";
 import type { SwapMoves } from "./aside-moves.js";
 import type { ObjectFormat } from "./blob-id.js";
-import { commitProjectionIndex } from "./index-file.js";
+import { commitReturnedCopies } from "./returned-copies.js";
 import type { ProjectionIndex } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
 import type { ReadGateDependencies } from "./read-gate.js";
@@ -52,12 +52,15 @@ export async function runSecondCheck(input: SecondCheckInput): Promise<SecondChe
     if (entry?.kind !== "record" || record === undefined) continue;
     const settlement = await settleAsideCopy({
       checkout, path, entry, copy: record, format, takeIn, writer, keepEmpty: true,
-      fs: input.fs, retrySleep: input.retrySleep, gate: input.gate,
+      fs: input.fs, retrySleep: input.retrySleep, gate: input.gate, checkpoint: input.checkpoint,
     });
     index = { ...index, entries: { ...index.entries, [path]: settlement.entry } };
     settled.push({ path, copy, settlement });
   }
   // A removal completes once its file and the last aside copy of its path are gone.
   index = await dropRemovedEntries(index, checkout, input.removals ?? []);
-  return { index: await commitProjectionIndex({ location: input.location, checkout, index }), settled };
+  return { index: await commitReturnedCopies({ location: input.location, checkout, index, checkpoint: input.checkpoint,
+    returned: settled.filter(each => each.settlement.kind === "returned" || each.settlement.kind === "linked-back")
+      .map(({ path, copy }) => ({ path, copy })),
+  }), settled };
 }

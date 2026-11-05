@@ -2,7 +2,7 @@
  * The rules every reader of an aside copy applies: what it holds, whether its path has moved on since its swap, and the
  * one step that checks a copy and deletes, keeps, or drops it.
  */
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { Remedy } from "../refusal.js";
 import { nameAsideFile, parseAsideFile, type AsideWriterInput } from "./aside.js";
@@ -11,6 +11,8 @@ import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import { readStat } from "./change-detection.js";
 import type { AsideCopyRecord, RecordEntry } from "./index-schema.js";
 import { gateRead, SYSTEM_READ_GATE, type ReadGateDependencies, type ReadGateVerdict } from "./read-gate.js";
+import { sameProjectionFile } from "./returned-copies.js";
+import { unshownConflicts } from "./held-conflicts.js";
 import { parseStampedFile } from "./stamp.js";
 import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
 import type { TakeInBase, TakeInHeld, TakeInPort, TakeInResult } from "./take-in-port.js";
@@ -120,7 +122,7 @@ export async function checkAsideCopy(input: AsideCopySettling): Promise<CopyChec
   // An older save from the same buffer and another editor's newer one cannot be told apart, so it is never sent.
   if (hasPathMovedOn(copy, await readPathHolding(join(checkout, path), input.format))) return { kind: "moved-on", entry };
   const base = copyBase(copy, bytes, markdown);
-  const result = await input.takeIn({ checkout, path, copy: copy.name, entry, base });
+  const result = await input.takeIn({ checkout, path, copy: copy.name, entry, base, rendering: copy.rendering });
   if (result.answer === "no-edit") return { kind: "no-edit", entry: result.entry };
   return { kind: "sent", answer: result.answer, entry: result.entry, result, blob };
 }
@@ -133,6 +135,8 @@ function observedEmpty(verdict: ReadGateVerdict): boolean {
 
 /** What settling a copy did, with the entry as it now stands. */
 export type CopySettlement =
+  /** The path and copy are aliases after an interrupted return; publish its restored mapping before unlinking. */
+  | { readonly kind: "linked-back"; readonly entry: RecordEntry }
   /** A directory or other nonregular object is retained, reported with its path and a repair route. */
   | { readonly kind: "not-a-file"; readonly entry: RecordEntry; readonly path: string; readonly copy: string; readonly remedy: Remedy }
   /** It held no edit, or its edit landed whole: deleted, its record cleared. */
@@ -163,6 +167,9 @@ export type HeldEdit = "refused" | "unparseable" | "clashed";
  * @returns What became of it.
  */
 export async function settleAsideCopy(input: AsideCopySettling): Promise<CopySettlement> {
+  if (await sameProjectionFile(join(input.checkout, input.copy.name), join(input.checkout, input.path))) {
+    return { kind: "linked-back", entry: { ...restoreCopyRendering(input.entry, input.copy), pending: true } };
+  }
   const checked = await checkAsideCopy(input);
   switch (checked.kind) {
     case "not-a-file": return { ...checked, path: input.path, copy: input.copy.name };
@@ -185,6 +192,7 @@ export async function settleAsideCopy(input: AsideCopySettling): Promise<CopySet
 /**
  * Put a copy whose edit stands refused or clashed back at its path while the path has not moved on: linked back to an
  * absent path, or swapped back onto one holding what its swap linked, the replacement moved aside in turn.
+ * Its alias and record stay until the caller publishes the restored mapping through `commitReturnedCopies`.
  * @param input - The copy and the file it was made of.
  * @param sent - The port's answer.
  * @returns What became of the copy.
@@ -200,20 +208,20 @@ export async function putBack(
   if (hasPathMovedOn(copy, holding)) return aside;
   const refused = "mark" in sent.result ? sent.result.mark : sent.entry.refused;
   const marked: RecordEntry = {
-    ...sent.entry, pending: true, refused, copies: sent.entry.copies.filter((record) => record.name !== copy.name),
+    ...restoreCopyRendering(sent.entry, copy, sent.result.openConflicts), pending: true, refused, copies: sent.entry.copies,
   };
   if (holding.kind !== "file") {
     if (!await moves.linkOnto(at.copy, at.path)) return aside;
-    await rm(at.copy, { force: true });
     return { kind: "returned", entry: marked, held: sent.answer, how: "linked-back", replacement: null };
   }
   const replacement = nameAsideFile({ path, base: sent.entry.base.blob, writer: input.writer, role: "aside" });
+  await input.checkpoint?.();
   await mkdir(dirname(join(checkout, replacement)), { recursive: true });
   await moves.rename(at.path, join(checkout, replacement));
-  const record: AsideCopyRecord = { name: replacement, moving: holding.blob, linked: sent.blob, writeBackSent: false, landed: null };
+  const record: AsideCopyRecord = { name: replacement, moving: holding.blob, linked: sent.blob, writeBackSent: false, landed: null,
+    rendering: { markers: sent.entry.markers, notices: sent.entry.notices } };
   // A save that recreated the path in between wins it; the copy stays aside, and the replacement beside it.
   if (!await moves.linkOnto(at.copy, at.path)) return { ...aside, entry: { ...sent.entry, copies: [...sent.entry.copies, record] } };
-  await rm(at.copy, { force: true });
   return {
     kind: "returned", entry: { ...marked, copies: [...marked.copies, record] }, held: sent.answer, how: "swapped-back",
     replacement,
@@ -234,5 +242,11 @@ async function deleted(input: AsideCopySettling, entry: RecordEntry): Promise<Co
     const stat = await readStat(join(checkout, input.copy.name));
     if (stat?.type === "file" && stat.size === 0n) return { kind: "kept", entry, answer: "empty" };
   }
-  return { kind: "deleted", entry: await deleteAsideCopy({ checkout, path, entry, copy: input.copy.name }) };
+  return { kind: "deleted", entry: await deleteAsideCopy({ checkout, path, entry, copy: input.copy.name, checkpoint: input.checkpoint }) };
+}
+
+/** Restore the mapping only when a copy's own bytes return to its path; current conflict evidence keeps advancing. */
+export function restoreCopyRendering(entry: RecordEntry, copy: AsideCopyRecord, open?: readonly import("../identity.js").RecordReference[]): RecordEntry {
+  const restored = { ...entry, ...copy.rendering };
+  return open === undefined ? restored : { ...restored, unshown: unshownConflicts(restored, open) };
 }

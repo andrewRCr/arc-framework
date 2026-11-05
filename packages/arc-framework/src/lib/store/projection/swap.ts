@@ -10,6 +10,7 @@ import { retriedMoves, type RetriedMoves, type SwapMoves } from "./aside-moves.j
 import type { ObjectFormat } from "./blob-id.js";
 import { readStat } from "./change-detection.js";
 import { commitProjectionIndex } from "./index-file.js";
+import { commitReturnedCopies, type ReturnedCopy } from "./returned-copies.js";
 import type { AsideCopyRecord, FileStat, ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
 import type { ReadGateDependencies } from "./read-gate.js";
@@ -84,20 +85,22 @@ export async function swapBatch(input: SwapBatchInput): Promise<SwapBatchResult>
   const plans = await Promise.all(input.files.map(async (file) => plan(input, file)));
   const installing = new Set(plans.filter((each) => each.staged !== null).map((each) => each.path));
   let index = await commitProjectionIndex({
-    location: input.location, checkout: input.checkout, installing,
+    location: input.location, checkout: input.checkout, installing, checkpoint: input.checkpoint,
     index: plans.reduce((built, each) => withEntry(built, each.path, each.entry), input.index),
   });
   const copies: { path: string; copy: string }[] = [];
+  const returned: ReturnedCopy[] = [];
   for (const each of plans) {
     const swapped = await swapOne(input, each);
     index = withEntry(index, each.path, swapped.entry);
+    returned.push(...(swapped.returned ?? []).map(copy => ({ path: each.path, copy })));
     copies.push(...madeCopies(each.original, swapped.entry).map((copy) => ({ path: each.path, copy })));
   }
   for (const each of plans) index = withEntry(index, each.path, await settled(input, each, entryAt(index, each.path)));
   const removals = input.files.filter((file) => file.replace.staged === null && file.relaid !== true).map((file) => file.path);
   index = await dropRemovedEntries(index, input.checkout, removals);
-  index = await commitProjectionIndex({ location: input.location, checkout: input.checkout, index });
-  return { index, copies, removals };
+  index = await commitReturnedCopies({ location: input.location, checkout: input.checkout, index, checkpoint: input.checkpoint, returned });
+  return { index, copies: remainingCopies(index, copies), removals };
 }
 
 /**
@@ -143,6 +146,7 @@ async function plan(input: SwapBatchInput, file: SwapFile): Promise<PlannedSwap>
   const copy: AsideCopyRecord | null = present ? {
     name: nameAsideFile({ path: file.path, base: original.base.blob, writer: input.writer, role: "aside" }),
     moving, linked: staged?.written ?? null, writeBackSent: false, landed: null,
+    rendering: { markers: original.markers, notices: original.notices },
   } : null;
   const copies = copy === null ? original.copies : [...original.copies, copy];
   // The removed file's entry stays its record's, recorded absent and pending, until the file and its copies are gone.
@@ -167,6 +171,7 @@ function renderedEntry(original: RecordEntry, staged: StagedFile): RecordEntry {
 /** One file's swap as it ended. */
 interface SwapDone {
   readonly entry: RecordEntry;
+  readonly returned?: readonly string[];
 }
 
 /** The aside copies a batch made of a file and still keeps: the records its entry holds that it did not before. */
@@ -184,20 +189,22 @@ async function swapOne(input: SwapBatchInput, swap: PlannedSwap): Promise<SwapDo
   await hooks?.afterRecheck?.(swap.path);
   if (swap.copy === null) return staged === null ? { entry: swap.entry } : rebuild(input, swap, { staged, path });
   const aside = join(checkout, swap.copy.name);
+  await input.checkpoint?.();
   await mkdir(dirname(aside), { recursive: true });
   try {
     await moves.rename(path, aside);
   } catch {
+    await input.checkpoint?.();
     // Still refused past the bound: the file stays as it was, its entry restored and pending.
     if (staged !== null) await rm(staged, { force: true });
     return { entry: { ...swap.original, pending: true } };
   }
   await hooks?.afterMove?.(swap.path);
-  const linked = staged === null ? { entry: swap.entry } : await linkStagedIn(moves, swap, { staged, aside, path });
+  const linked = staged === null ? { entry: swap.entry } : await linkStagedIn(input, moves, swap, { staged, aside, path });
   if (linked.done) return linked;
   const settling = {
     checkout, path: swap.path, entry: linked.entry, copy: swap.copy, format: input.format, takeIn: input.takeIn,
-    writer: input.writer, fs: input.fs, retrySleep: input.retrySleep, gate: input.gate,
+    writer: input.writer, fs: input.fs, retrySleep: input.retrySleep, gate: input.gate, checkpoint: input.checkpoint,
   };
   const checked = await checkAsideCopy(settling);
   // An edit refused or clashed at the first check goes back to its path, where the person can see it.
@@ -206,13 +213,14 @@ async function swapOne(input: SwapBatchInput, swap: PlannedSwap): Promise<SwapDo
     ? await putBack(settling, { ...checked, answer })
     : checked;
   await hooks?.afterFirstCheck?.(swap.path);
-  return { entry: held.entry };
+  return { entry: held.entry, returned: held.kind === "returned" ? [swap.copy.name] : [] };
 }
 
 /** Rebuild an absent file by the link alone, yielding to a save that recreated it first. */
 async function rebuild(input: SwapBatchInput, swap: PlannedSwap, at: { readonly staged: string; readonly path: string }): Promise<SwapDone> {
   await input.hooks?.beforeRebuildLink?.(swap.path);
   const linked = await retriedMoves(input).linkOnto(at.staged, at.path);
+  await input.checkpoint?.();
   await rm(at.staged, { force: true });
   return { entry: linked ? swap.entry : yielded(swap) };
 }
@@ -222,15 +230,17 @@ async function rebuild(input: SwapBatchInput, swap: PlannedSwap, at: { readonly 
  * the version it was saved against, pending; a link failing otherwise puts the old file back, done.
  */
 async function linkStagedIn(
-  moves: RetriedMoves, swap: PlannedSwap, at: { readonly staged: string; readonly aside: string; readonly path: string },
+  input: SwapBatchInput, moves: RetriedMoves, swap: PlannedSwap, at: { readonly staged: string; readonly aside: string; readonly path: string },
 ): Promise<SwapDone & { readonly done?: true }> {
   let linked: boolean;
   try {
     linked = await moves.linkOnto(at.staged, at.path);
   } catch {
+    await input.checkpoint?.();
     await rm(at.staged, { force: true });
     return { ...await linkBack(moves, swap, at), done: true };
   }
+  await input.checkpoint?.();
   await rm(at.staged, { force: true });
   return { entry: linked ? swap.entry : yielded(swap) };
 }
@@ -244,8 +254,7 @@ async function linkBack(
 ): Promise<SwapDone> {
   const restored: RecordEntry = { ...swap.original, pending: true, copies: swap.entry.copies };
   if ((await readStat(at.aside))?.type !== "file" || !await moves.linkOnto(at.aside, at.path)) return { entry: restored };
-  await rm(at.aside, { force: true });
-  return { entry: { ...restored, copies: swap.original.copies } };
+  return { entry: restored, returned: swap.copy === null ? [] : [swap.copy.name] };
 }
 
 /** The entry of a file whose replacement yielded to a save: the replaced version still recorded, pending. */
@@ -256,4 +265,11 @@ function yielded(swap: PlannedSwap): RecordEntry {
 
 function withEntry(index: ProjectionIndex, path: string, entry: RecordEntry): ProjectionIndex {
   return { ...index, entries: { ...index.entries, [path]: entry } };
+}
+
+function remainingCopies(index: ProjectionIndex, copies: readonly ReturnedCopy[]): ReturnedCopy[] {
+  return copies.filter(({ path, copy }) => {
+    const entry = index.entries[path];
+    return entry?.kind === "record" && entry.copies.some(record => record.name === copy);
+  });
 }

@@ -121,7 +121,7 @@ describe("stampless base agreement", () => {
     await mkdir(dirname(join(fixture.checkout, name)), { recursive: true });
     await writeFile(join(fixture.checkout, name), content);
     const entry = { ...refreshed, copies: [{ name, moving: gitBlobId("older buffer\n", "sha1"), linked: refreshed.written,
-      writeBackSent: false, landed: null }] };
+      writeBackSent: false, landed: null, rendering: { markers: null, notices: [] } }] };
     const counted = createCountingStore(fixture.store);
     const context = { ...fixture.context, store: counted.store, memo: createHistoryMemo(counted.store) };
     const request = { ...fixture.request, entry, copy: name, base: { kind: "blob" as const, blob } };

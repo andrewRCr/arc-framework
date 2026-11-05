@@ -75,6 +75,7 @@ function read(found: StamplessRead): StoreResult<StamplessRead> {
 
 /** One aside copy to delete, and the file it was made of. */
 export interface AsideCopyDeletion {
+  readonly checkpoint?: () => Promise<void>;
   readonly checkout: string;
   /** The file's repository-relative path. */
   readonly path: string;
@@ -92,6 +93,7 @@ export interface AsideCopyDeletion {
  */
 export async function deleteAsideCopy(input: AsideCopyDeletion): Promise<RecordEntry> {
   // A copy that is a symbolic link is removed as itself, never followed.
+  await input.checkpoint?.();
   await rm(join(input.checkout, input.copy), { force: true });
   return finalizeAsideCopy(input);
 }

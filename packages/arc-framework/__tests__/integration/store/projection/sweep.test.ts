@@ -510,7 +510,7 @@ it("finishes an installed stampless replacement after copy unlink and detects a 
   await writeFile(left.file, "plain: text\n");
   const memo = { read: async () => { throw new Error("unexpected history read"); }, drop: () => {} };
   expect(await readStamplessFile({ entry, text: await readFile(left.file, "utf8"), mtimeNs: 0n, format: "sha1", memo }))
-    .toEqual({ status: "ok", result: { kind: "edit", base: entry.base } });
+    .toEqual({ status: "ok", result: { kind: "edit", base: entry.base, replaces: null } });
 });
 
 it.each(["afterRecheck", "afterMove"] as const)("keeps stampless progress when the original inode remains after %s", async (stop) => {

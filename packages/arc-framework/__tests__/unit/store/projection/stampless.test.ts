@@ -124,7 +124,7 @@ describe("files other than Markdown", () => {
         await writeFile(join(checkout, target), "content\n");
       }
       const linked = await lstat(join(checkout, path), { bigint: true });
-      const record = (name: string) => ({ name, moving: gitBlobId("older\n", "sha1"), linked: gitBlobId("newer\n", "sha1"), writeBackSent: false, landed: null });
+      const record = (name: string) => ({ name, moving: gitBlobId("older\n", "sha1"), linked: gitBlobId("newer\n", "sha1"), writeBackSent: false, landed: null, rendering: { markers: null, notices: [] } });
       const entry: RecordEntry = {
         ...entryAt("newer\n", v("v2"), { replaces: { blob: gitBlobId("older\n", "sha1"), version: v("v1") }, copy: named }),
         stat: { type: "file", size: linked.size, mtimeNs: linked.mtimeNs, ino: linked.ino },

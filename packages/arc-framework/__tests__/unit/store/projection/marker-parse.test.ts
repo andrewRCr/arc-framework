@@ -83,7 +83,7 @@ describe("marker parse-back", () => {
     const name = nameAsideFile({ path: fixture.path, base: fixture.entry.base.blob, writer: fixture.context.writer, role: "aside" });
     await createStagedFile(fixture.checkout, name, original);
     await rm(join(fixture.checkout, fixture.path));
-    const copy = { name, moving: fixture.entry.written, linked: null, writeBackSent: false, landed: null };
+    const copy = { name, moving: fixture.entry.written, linked: null, writeBackSent: false, landed: null, rendering: { markers: fixture.entry.markers, notices: fixture.entry.notices } };
     const entry = { ...fixture.entry, copies: [copy] };
     const settled = await settleAsideCopy({ ...fixture.context, checkout: fixture.checkout, path: fixture.path, entry, copy,
       takeIn: createWriteBackPort(fixture.context) });

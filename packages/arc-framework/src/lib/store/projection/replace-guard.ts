@@ -22,6 +22,7 @@ export const GUARD_PASSES = 3;
 
 /** What a guarded replacement checks and stages. */
 export interface ReplaceGuardInput {
+  readonly checkpoint?: () => Promise<void>;
   readonly checkout: string;
   /** The file's repository-relative path. */
   readonly path: string;
@@ -127,9 +128,10 @@ async function restage(input: ReplaceGuardInput, entry: RecordEntry, staged: Sta
   if (read.status !== "ok") return { ...read, entry };
   const restaged = await stageRecordFile({
     checkout: input.checkout, path: input.path, record: read.result, replacing: entry.base.blob, writer: input.writer,
-    format: input.format, readOnly: entry.protected, renderer: input.renderer,
+    format: input.format, readOnly: entry.protected, renderer: input.renderer, checkpoint: input.checkpoint,
   });
   if (restaged.status === "refused") return { ...restaged, entry: { ...entry, unshown: unshownConflicts(entry, read.result.conflicts) } };
+  await input.checkpoint?.();
   await rm(join(input.checkout, staged.location), { force: true });
   return restaged;
 }
