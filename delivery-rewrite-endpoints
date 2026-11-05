@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "delivery-rewrite-endpoints",
+  "claimId": "6fd6622e916fecad574d1e0157e9ea53",
+  "createdAt": "2026-11-05T19:50:39.005Z",
+  "updatedAt": "2026-11-05T19:50:39.005Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Normalize native delivery rewrite contribution endpoints before proving equivalence",
+  "branch": "chore/delivery-rewrite-endpoints",
+  "origin": "inbox",
+  "originEntry": "Normalize delivery rewrite contribution endpoints before proving them",
+  "originEntrySourceDigest": "sha256:e32ae7f3daef55d0517545a63bed1c7e77bd0129c29ca2ce1f838405281f006b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
