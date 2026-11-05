@@ -299,31 +299,14 @@ nothing without `--yes`; and a member a pull lands naming a removed cohort refus
   from the final persisted closeout plan with no writes, including publication recovery and nested reruns. Registered
   CLI tests can construct dependencies after the module reset, keeping real Git error identities coherent.
 
-### `[ ]` **3.4 Close a cohort — § 8.1, § 8.5**
+### `[x]` **3.4 Close a cohort — § 8.1, § 8.5**
 
 - _Goal:_ `arc cohort close <cohort>` places a cohort completed once no open record holds it, writing only with `--yes`.
 
-    - The off-branch arm in `handlers/cohort.ts` (Task 1.9.a), replacing the dormant refusal where `usesOffBranchState`
-      holds; its subject through Task 2.2's resolver.
-    - It refuses a completed cohort, a document with unresolved conflicts (naming them), and a cohort an open member or
-      open subcohort holds by resolution, naming each holder with what settles it — for one on a former slug the
-      re-pointing edit, then its archive, its abandon, or clearing its `Cohort`; `cohort.open-members` backstops it.
-    - Without `--yes` it prints what it will close and exits non-zero, as abandon does (`handlers/abandon-store.ts`),
-      `--json` emitting the plan under a refused status; with it, one batch places the document completed in the current
-      quarter, the ref backend assigning the next sequence where no member archives in the batch, under the provenance
-      verb `cohort-close`, with no push.
-    - `--json` emits the cohort's reference, its placement after the batch as re-read, as archive's is, and, once
-      Task 3.6 adds it, any parent reported.
-
-    - Build `test-first` (one behavior at a time):
-        - over both backends, a cohort with no open holder closes with `--yes`, and prints its plan and writes nothing
-          without it
-        - a cohort an open member holds refuses naming it; one an open stub holds by a former slug refuses naming the
-          edit and the moves that settle it, and closes once the stub is archived
-        - a parent whose subcohort's `Parent` and open member a pull left on its former slug refuses naming § 4's three
-          edits in order, and each edit lands as its own write
-        - a completed cohort refuses; one selected by UID closes the same way
-        - over the ref backend, under a clash of the cohort's own slug, close refuses while a candidate naming it holds
+- _Outcome:_ Added off-branch close with shared slug/UID selection, conflict and completed-state refusal, resolved open
+  holder diagnostics, and ordered field repairs. Confirmation gates one version-bound batch without publication; JSON
+  and text report the assigned placement, while failed result reads retain the persisted close. The in-repo arm keeps
+  its unsupported result.
 
 ### `[ ]` **3.5 Remove a cohort — § 8.2, § 8.5**
 
