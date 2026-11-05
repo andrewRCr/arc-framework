@@ -733,6 +733,33 @@ describe("acquireAdvisoryLock", () => {
     expect(handle.pid).toBe(2);
     expect((await readHolder(lockPath)).pid).toBe(2);
   });
+
+  it("reports no holder it never read when the deadline passes during a create", async () => {
+    // The second create runs out the budget, so the read after it is never made; the waiter has still seen only the
+    // live holder, and the wait ends on that.
+    const fs = buildMemoryLockFs({ [lockPath]: holder(1, 0, "holder") });
+    let clock = 0;
+    let creates = 0;
+    const onWait = vi.fn();
+    await expect(acquireAdvisoryLock(lockPath, {
+      pid: 2,
+      now: () => clock,
+      isProcessAlive: () => true,
+      readFile: fs.readFile,
+      removeFile: fs.removeFile,
+      exclusiveCreate: async (path, content) => {
+        creates += 1;
+        if (creates === 2) clock = 1_000;
+        await fs.exclusiveCreate(path, content);
+      },
+      sleep: async (ms) => { clock += ms; },
+      onWait,
+      maxWaitMs: 100,
+    })).rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
+    expect(creates).toBe(2);
+    expect(onWait.mock.calls.map(([contention]) => contention.holder))
+      .toEqual([{ pid: 1, acquiredAt: 0, token: "holder" }]);
+  });
 });
 
 describe("renewAdvisoryLock", () => {

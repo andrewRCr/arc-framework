@@ -9,7 +9,7 @@ import { renderInFlightWarning } from "../../lib/git/in-flight-derivation.js";
 import type { GitExec } from "../../lib/git/index.js";
 import { readGitBlobEntry } from "../../lib/io-context.js";
 import type { Remedy } from "../../lib/store/refusal.js";
-import { isNativeTypedRefusal } from "../../lib/store/native-refusal.js";
+import { nativeRefusalReport } from "../../lib/store/native-refusal.js";
 import type { LifecycleIndexOutcome } from "../../lib/store/lifecycle-index.js";
 import type { Store } from "../../lib/store/contract.js";
 import type { StoreSyncPort } from "../../lib/store/operational-sync.js";
@@ -279,10 +279,9 @@ async function readStoreStatusBoundary(input: { store: Store; cwd: string; recor
   try { return { boundary: await readSubmissionBoundary(input.cwd, owner.name, { store: input.store, owner }) }; }
   catch (error) {
     if (error instanceof StoreRefusalError) return { refusal: error.refusal };
-    if (isNativeTypedRefusal(error)) return { refusal: "refusal" in error ? error.refusal : "failure" in error
-      ? { code: "project-identity-unavailable", condition: error.failure.reason, remedy: error.failure.remedy }
-      : { code: error.code, condition: error.condition, remedy: error.remedy } };
-    throw error;
+    const report = nativeRefusalReport(error);
+    if (report === null) throw error;
+    return { refusal: { code: report.code, condition: report.condition, remedy: report.remedy } };
   }
 }
 

@@ -47,7 +47,8 @@ import { isGitTransitionOriginOccupied } from "./git-transition-record-enumerati
 import type { ProtectionMode } from "../git/write-context.js";
 import { createExecaRawGitExec } from "../git/process-executor.js";
 import { createGitV3DecomposePreflight } from "./git-decompose-v3-preflight.js";
-import { readLiveRemoteBranchTip } from "../git/remote-ref-reader.js";
+import { readLiveRemoteBranchTip, type LiveRemoteBranchTipResult } from "../git/remote-ref-reader.js";
+import { MATERIALIZING_FETCH_TIMEOUT_MS } from "../git/worktree-sync.js";
 import {
   V3DecomposeRefusalEvidenceSchema,
   v3DecomposeRemedy,
@@ -671,7 +672,7 @@ async function sourcePublicationRefusal(
   if (source.ref === resultBase.ref) return null;
   const branch = source.logicalBranch;
   const expectedRef = `refs/heads/${branch}`;
-  const live = source.ref === expectedRef
+  const live: LiveRemoteBranchTipResult = source.ref === expectedRef
     ? await readLiveRemoteBranchTip({
         exec: async (command, args, options) => await dependencies.exec(command, args, {
           ...options,
@@ -679,16 +680,29 @@ async function sourcePublicationRefusal(
         }),
         remote: "origin",
         branch,
+        timeoutMs: MATERIALIZING_FETCH_TIMEOUT_MS,
       })
     : { reachable: true, tip: null };
   if (live.reachable && live.tip === source.head) return null;
+  // An unanswered read says nothing about publication, so it asks for a retry rather than a push.
+  if (!live.reachable) {
+    return {
+      stage: "repository-plan",
+      reason: "source-remote-unreachable",
+      locus: branch,
+      message: live.failureReason === "timeout"
+        ? `Reading origin's ${expectedRef} timed out after ${MATERIALIZING_FETCH_TIMEOUT_MS / 1000} s.`
+        : `Reading origin's ${expectedRef} failed.`,
+      recovery: { kind: "none" },
+    };
+  }
   return {
     stage: "repository-plan",
     reason: "source-unpublished",
     locus: branch,
     evidence: {
       expected: source.head,
-      actual: live.reachable && live.tip !== null ? live.tip : { kind: "absent" },
+      actual: live.tip ?? { kind: "absent" },
     },
     recovery: { kind: "none" },
   };

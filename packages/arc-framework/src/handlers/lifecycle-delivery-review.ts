@@ -71,8 +71,7 @@ import { attestArgv, attestNewRootArgv, spineRemedy } from "../scripts/integrati
 import { SlugSchema, validateManagedPath } from "../lib/kernel/index.js";
 import { type InteractionContext } from "../lib/command-input/interaction-context.js";
 import { ProjectIdentityError } from "../lib/store/project-identity.js";
-import { ReviewOwnerSelectionError } from "../lib/store/kinds/review/errors.js";
-import { isNativeTypedRefusal, rethrowNativeRefusal } from "../lib/store/native-refusal.js";
+import { isNativeTypedRefusal, nativeRefusalReport, rethrowNativeRefusal } from "../lib/store/native-refusal.js";
 import { resolveNamedReviewWorkUnitInvocation } from "../scripts/review-gate/runtime/review-work-unit.js";
 import type { CommandInputRegistration } from "../lib/command-input/registry.js";
 import type { PublishOptions } from "./lifecycle.js";
@@ -92,19 +91,17 @@ class DeliveryCandidateRenewalRefusal extends Error {}
 
 class CandidateReviewRecoveryRefusal extends Error {}
 
-function refuseProjectIdentityFailure(error: unknown, json: boolean, notice = ""): boolean {
+/** Report a project-identity refusal with its recovery guidance, leaving other failures to the caller. */
+export function refuseProjectIdentityFailure(error: unknown, json: boolean, notice = ""): boolean {
   if (!(error instanceof ProjectIdentityError)) return false;
   refuseWithRemedy(error.failure.reason + notice, error.failure.remedy, json);
   return true;
 }
 
 function refuseAttestationStateFailure(error: unknown, json: boolean, notice = ""): boolean {
-  if (error instanceof ReviewOwnerSelectionError) {
-    refuseWithRemedy(error.condition + notice, error.remedy, json);
-    return true;
-  }
-  if (!(error instanceof StoreRefusalError) || !error.offBranch) return refuseProjectIdentityFailure(error, json, notice);
-  refuseWithRemedy(error.refusal.condition + notice, error.refusal.remedy, json, error.refusal);
+  const report = nativeRefusalReport(error);
+  if (report === null) return false;
+  refuseWithRemedy(report.condition + notice, report.remedy, json, report.refusal);
   return true;
 }
 

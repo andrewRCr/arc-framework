@@ -5,6 +5,7 @@ import { canonicalize } from "../../../lib/kernel/index.js";
 import { reviewDecisionKey } from "../../../lib/store/kinds/review/decision/key.js";
 import { createApprovedFixReviewDecision } from "../../../lib/store/kinds/review/decision/approved-fix.js";
 import { StoredReviewResultReader } from "../hosts/local/stored-result-reader.js";
+import { conditionalPassFollowsProducer } from "../core/operation-state-schema.js";
 import type { captureConditionalNextPassAuthorization } from "../lane-progress-conditional.js";
 
 /** Producer-bound capture request and one invocation's selected native ports. */
@@ -25,7 +26,7 @@ export async function publishNativeConditionalPass(input: NativeConditionalPassC
   if (capture.repositoryId !== result.repositoryId || capture.headSha !== result.target.headSha
     || capture.lane !== (result.kind === "frontline" ? "frontline" : "standard")
     || canonicalize(capture.lineage) !== canonicalize(result.admission.lineage)
-    || capture.exhaustedPassCount !== result.admission.logicalPass || capture.nextPass !== capture.exhaustedPassCount + 1) {
+    || !conditionalPassFollowsProducer(capture, result.admission.logicalPass)) {
     throw new Error("Conditional pass capture does not match its terminal producer; restore its original admission and retry.");
   }
   const decision = ReviewDecisionSchema.parse(createApprovedFixReviewDecision({ ...capture,

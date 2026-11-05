@@ -7,7 +7,8 @@ import { resolveReviewInvocation, type ReviewInvocationInput, type ReviewInvocat
 import { createReviewCompositionContext } from "./runtime/composition-context.js";
 import { currentErrandDiffBase } from "./runtime/errand-review-target.js";
 import { errandPolicyGrants, readErrandStatusPassGrants, type NativeAutomaticGrants } from "./runtime/native-errand-grants.js";
-import { projectReviewDriverRefusal } from "./status-driver-refusal.js";
+import { projectHostedSettlementRefusal, projectReviewDriverRefusal } from "./status-driver-refusal.js";
+import { pendingHostedSettlement } from "./hosted-response-completion.js";
 import { readTransientIdentitySnapshot } from "../../lib/errand/identity-snapshot.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import { resolveChangeRequestLifecycleConfiguration } from "../../lib/errand/change-request-lifecycle.js";
@@ -550,6 +551,8 @@ async function readUnreviewedErrandHead(input: {
   }
   const historical = selectErrandCorrectionPredecessor(owner.attempts, target.headSha);
   if (historical === null) return blocked("The Errand's completed review producer is unavailable.");
+  const pendingSettlement = pendingHostedSettlement(historical);
+  if (pendingSettlement !== null) return projectHostedSettlementRefusal(pendingSettlement);
   const settings = (await readConfigSettings(input.cwd)).settings;
   const configured = await resolveConfiguredLanePolicy({
     lane: "standard", settings,

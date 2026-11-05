@@ -1601,7 +1601,8 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
     expect(prePublication.exitCode).toBe(1);
     expect(JSON.parse(prePublication.stdout)).toMatchObject({
       error: { code: "candidate-unexplained-delta" },
-      remedy: { argv: ["arc", "attest", "example", "--new-root"] },
+      applicability: { state: "decision-required", resolutionSelector: { candidateId: superseded } },
+      remedy: { argv: ["arc", "candidate", "applicability", "resolve", "example", "-"] },
     });
 
     // The default re-attestation refuses while checkpoint exposes the bounded applicability decision.
@@ -1651,6 +1652,46 @@ function registerReviewFixCandidateLineage(it: typeof vitestIt): void {
       reason: "candidate-unexplained-delta",
     });
   });
+
+  it("continues pre-publication from the applicability selector its refusal carries", async () => {
+    const root = await fixture();
+    await git(root, ["remote", "add", "origin", "https://github.com/owner/repo.git"]);
+    expect((await runArc(["attest", "example", "--json"], root)).exitCode).toBe(0);
+    await git(root, ["commit", "-m", "verification"]);
+    await writeFile(join(root, "reviewed.txt"), "unexplained implementation\n", "utf8");
+    await git(root, ["add", "reviewed.txt"]);
+    await git(root, ["commit", "-m", "unexplained implementation"]);
+
+    const refused = await runArc(["review", "pre-publication", "example"], root);
+    expect(refused.exitCode).toBe(1);
+    const refusal = JSON.parse(refused.stdout) as {
+      applicability: { resolutionSelector: Record<string, unknown> };
+      remedy: { argv: string[] };
+    };
+    expect(refusal).toMatchObject({
+      error: { code: "candidate-unexplained-delta" },
+      applicability: { state: "decision-required", paths: ["reviewed.txt"] },
+      remedy: { argv: ["arc", "candidate", "applicability", "resolve", "example", "-"] },
+    });
+
+    const selected = await runArcWithStdin(refusal.remedy.argv.slice(1), root, `${JSON.stringify({
+      ...refusal.applicability.resolutionSelector,
+      selectedBy: "test-user",
+      choice: "covered",
+    })}\n`);
+    expect(selected.exitCode, selected.stderr || selected.stdout).toBe(0);
+    expect(JSON.parse(selected.stdout)).toMatchObject({
+      state: "resolved", nextAction: "commit-selection", choice: "covered",
+    });
+    await git(root, ["commit", "-m", "record Candidate applicability"]);
+
+    const resumed = await runArc(["review", "pre-publication", "example"], root);
+    expect(resumed.exitCode, resumed.stderr || resumed.stdout).toBe(0);
+    expect(JSON.parse(resumed.stdout)).toMatchObject({
+      locus: "candidate-review-pending",
+      target: { kind: "change-set", headSha: await git(root, ["rev-parse", "HEAD^{commit}"]) },
+    });
+  }, SUBPROCESS_HEAVY_TIMEOUT);
 
   it("refuses an exact re-root continuation after its staged subject changes", async () => {
     const root = await fixture();

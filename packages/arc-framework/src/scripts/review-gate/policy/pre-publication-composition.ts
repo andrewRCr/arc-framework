@@ -44,7 +44,14 @@ import {
 } from "../../../lib/work-unit/candidate-attestation.js";
 import type { CandidateEffectiveTargetProjection } from
   "../../../lib/work-unit/candidate-effective-target.js";
-import { readCandidateRecord } from "../../../lib/store/kinds/review/candidate/access.js";
+import { readCandidateRecord, readCandidateRecordVersioned } from "../../../lib/store/kinds/review/candidate/access.js";
+import type { CandidateApplicabilityDecisionResult } from "../../../lib/work-unit/candidate-applicability.js";
+import {
+  CandidateApplicabilityDecisionSelectionSchema,
+  composeCandidateApplicabilityResolutionSelector,
+  type CandidateApplicabilityResolutionSelector,
+} from "../../../lib/work-unit/candidate-applicability-resolution.js";
+import { collectGitCandidateSubject } from "../../../lib/work-unit/git-candidate-subject.js";
 import { readRepositoryCandidateSupersessionChain } from "../../../lib/store/kinds/review/candidate/history.js";
 import { readAncestry } from "../../../lib/work-unit/git-decomposition-object-readers.js";
 import { projectGitCandidateEffectiveTarget } from "../../../lib/work-unit/git-candidate-effective-target.js";
@@ -211,10 +218,53 @@ export async function resolvePrePublicationDiffBase(input: {
   return base.mergeBase;
 }
 
+/** The resolution selector composed for a bounded applicability decision, or why none could be. */
+export type PrePublicationResolutionSelectorRead =
+  | { readonly status: "composed"; readonly selector: CandidateApplicabilityResolutionSelector }
+  | { readonly status: "unavailable"; readonly reason: string };
+
+/**
+ * Compose the resolution selector for the bounded decision pre-publication read.
+ *
+ * @param input - The checkout and Git boundary, the versioned record, and the decision projected from it.
+ * @returns The selector, or the reason the current target's subject no longer binds to the decision.
+ */
+export async function readPrePublicationResolutionSelector(input: {
+  cwd: string;
+  name: string;
+  baseBranch: string;
+  exec: GitExec;
+  record: CandidateManagedRecordV1;
+  recordVersion: string;
+  decision: CandidateApplicabilityDecisionResult;
+}): Promise<PrePublicationResolutionSelectorRead> {
+  const collected = await collectGitCandidateSubject({
+    cwd: input.cwd,
+    name: input.name,
+    baseBranch: input.baseBranch,
+    baseRevision: input.decision.currentBase,
+    exec: input.exec,
+    revision: input.decision.currentTarget.revision,
+  });
+  if (collected.status !== "collected") return { status: "unavailable", reason: collected.detail };
+  const composed = composeCandidateApplicabilityResolutionSelector({
+    record: input.record,
+    recordVersion: input.recordVersion,
+    decision: input.decision,
+    currentTarget: collected.target,
+  });
+  return composed.status === "composed"
+    ? composed
+    : { status: "unavailable", reason: "the decision changed while its selector was composed" };
+}
+
 /**
  * Project the Candidate read used by prepublication, including an authorized pending fix re-entry.
  *
- * @param input - Managed Candidate, effective target, and pending fix authority.
+ * A Candidate it cannot recognize blocks with the continuation that clears it: the exact selector for a bounded
+ * decision, the bound re-root for a subject outside the lineage, and a re-entry for every other condition.
+ *
+ * @param input - Managed Candidate, effective target, pending fix authority, and any decision's selector.
  * @returns A current Candidate projection or a fail-closed blocked read.
  */
 export function projectPrePublicationCandidateRead(input: {
@@ -222,6 +272,7 @@ export function projectPrePublicationCandidateRead(input: {
   effective: CandidateEffectiveTargetProjection;
   pending: PendingCandidateReviewFixAuthority;
   supersessionAncestors?: readonly CandidateSupersessionAncestor[];
+  resolutionSelector?: PrePublicationResolutionSelectorRead;
 }): CandidateRead {
   const baseline = reduceCandidateDurableBaseline(input.record);
   if (input.effective.state === "current") {
@@ -277,14 +328,53 @@ export function projectPrePublicationCandidateRead(input: {
     return {
       status: "blocked",
       reason: `Candidate review-fix authority is unavailable (${input.pending.reason}).`,
+      continuation: { kind: "re-enter" },
     };
   }
-  const reason = input.effective.state === "changed" || input.effective.state === "staged-change"
-    ? "Run full work-unit verification to establish a new Candidate lineage root."
-    : input.effective.state === "decision-required"
-      ? `${input.effective.selectionOfferText}\n${input.effective.recommendedActionText}`
-      : `Candidate applicability could not recognize the current target (${input.effective.nextAction}).`;
-  return { status: "blocked", reason };
+  return blockedCandidateRead(input.effective, input.resolutionSelector);
+}
+
+function blockedCandidateRead(
+  effective: Exclude<CandidateEffectiveTargetProjection, { state: "current" }>,
+  selector: PrePublicationResolutionSelectorRead | undefined,
+): Extract<CandidateRead, { status: "blocked" }> {
+  if (effective.state === "changed" || effective.state === "staged-change") {
+    return {
+      status: "blocked",
+      reason: "Run full work-unit verification to establish a new Candidate lineage root.",
+      continuation: {
+        kind: "establish-new-root",
+        candidateId: effective.candidateId,
+        subjectDigest: effective.currentTarget.subject.subjectDigest,
+      },
+    };
+  }
+  if (effective.state !== "decision-required") {
+    return {
+      status: "blocked",
+      reason: `Candidate applicability could not recognize the current target (${effective.nextAction}).`,
+      continuation: { kind: "re-enter" },
+    };
+  }
+  if (selector?.status !== "composed") {
+    return {
+      status: "blocked",
+      reason: "Candidate applicability requires an explicit selection, but its resolution selector is unavailable "
+        + `(${selector?.reason ?? "not composed"}).`,
+      continuation: { kind: "re-enter" },
+    };
+  }
+  return {
+    status: "blocked",
+    reason: `${effective.selectionOfferText}\n${effective.recommendedActionText}`,
+    continuation: {
+      kind: "resolve-applicability",
+      applicability: CandidateApplicabilityDecisionSelectionSchema.parse({
+        ...effective,
+        resolutionSelector: selector.selector,
+      }),
+    },
+  };
 }
 
 async function readAssuranceMeta(input: ReviewInvocationInput, workUnit: string): Promise<
@@ -618,8 +708,10 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
       const name = SlugSchema.parse(workUnit);
       Object.assign(input, await resolveNamedReviewWorkUnitInvocation(input, name));
       if (reviewRecordStore.capabilities.stateOffBranch && input.workItem === undefined) return { status: "missing" };
-      const record = await readCandidateRecord(input.cwd, name, { store: reviewRecordStore, owner: input.workItem });
-      if (record === null) return { status: "missing" };
+      const versioned = await readCandidateRecordVersioned(
+        input.cwd, name, { store: reviewRecordStore, owner: input.workItem });
+      const { record, version } = versioned;
+      if (record === null || version === null) return { status: "missing" };
       let supersessionAncestors: readonly CandidateSupersessionAncestor[];
       try {
         supersessionAncestors = await readRepositoryCandidateSupersessionChain({
@@ -627,7 +719,11 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
         });
       } catch (error) {
         rethrowNativeRefusal(error);
-        return { status: "blocked", reason: `Candidate supersession cannot be validated (${describe(error)}).` };
+        return {
+          status: "blocked",
+          reason: `Candidate supersession cannot be validated (${describe(error)}).`,
+          continuation: { kind: "re-enter" },
+        };
       }
       const effective = await projectGitCandidateEffectiveTarget({
         cwd: input.cwd,
@@ -650,10 +746,24 @@ export function createPrePublicationCompositionDependencies(options: ReviewInvoc
           return {
             status: "blocked",
             reason: `Candidate review-fix authority could not be read (${describe(error)}).`,
+            continuation: { kind: "re-enter" },
           };
         }
       }
-      return projectPrePublicationCandidateRead({ record, effective, pending, supersessionAncestors });
+      const resolutionSelector = effective.state === "decision-required"
+        ? await readPrePublicationResolutionSelector({
+            cwd: input.cwd,
+            name,
+            baseBranch: (await settings())["branch.base"],
+            exec: input.exec,
+            record,
+            recordVersion: version,
+            decision: effective,
+          })
+        : undefined;
+      return projectPrePublicationCandidateRead({
+        record, effective, pending, supersessionAncestors, ...(resolutionSelector === undefined ? {} : { resolutionSelector }),
+      });
     },
 
     readAssurance: async (workUnit): Promise<AssuranceRead> => {

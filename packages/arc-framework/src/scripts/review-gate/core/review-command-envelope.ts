@@ -34,6 +34,8 @@ import {
 import { FrontlineSemanticRecordSchema } from "../policy/frontline-semantic.js";
 import { ReviewPassSchema } from "./review-pass.js";
 import { PrePublicationScopeMismatchSchema } from "./pre-publication-scope-mismatch.js";
+import { CandidateApplicabilityDecisionSelectionSchema } from
+  "../../../lib/work-unit/candidate-applicability-resolution.js";
 import { ReviewCommandErrorCodeSchema, ReviewPrePublicationRefusalCodeSchema } from
   "./review-command-error-codes.js";
 import type { ReviewPrePublicationRefusalCode } from "./review-command-error-codes.js";
@@ -68,7 +70,14 @@ export {
 } from "./review-command-error-codes.js";
 export type { ReviewCommandErrorCode, ReviewPrePublicationRefusalCode } from "./review-command-error-codes.js";
 
-export { prePublicationRemedy, prePublicationTargetRemedy } from "./pre-publication-remedy.js";
+export {
+  prePublicationCandidateRefusal,
+  prePublicationRemedy,
+  prePublicationRoutingMismatchRemedy,
+  prePublicationTargetRemedy,
+  type PrePublicationCandidateContinuation,
+  type PrePublicationRoutingMismatch,
+} from "./pre-publication-remedy.js";
 
 const TargetPairPayloadSchema = z.strictObject({
   attemptedTarget: ReviewTargetSchema,
@@ -604,6 +613,9 @@ const DispositionPayloadSchema = z.strictObject({
   operationId: IdentifierSchema,
   dispositionRecordRef: DurableReferenceSchema,
   dispositionReportText: z.string().trim().min(1),
+  /**
+   * The request the response evaluated, at the reviewed head; after a fix advances the head, re-enter at the new head.
+   */
   policyRequest: ReviewPolicyCommandRequestSchema.optional(),
   policy: ReviewResolveEnvelopeSchema.optional(),
   conditionalPassAuthorizationId: CanonicalDigestSchema.optional(),
@@ -947,14 +959,20 @@ export const ReviewCommandErrorEnvelopeSchema = z.union([
   // The pre-publication verb is the review spine's middle verb, so its refusals carry the same
   // corrective guidance the checkpoint and merge verbs do.
   ...ReviewPrePublicationRefusalCodeSchema.options
-    .filter((code) => code !== "scope-judgment-required" && code !== "store-refused")
+    .filter((code) => code !== "scope-judgment-required" && code !== "store-refused"
+      && code !== "candidate-unexplained-delta")
     .map((code) => remedialErrorVariant("review-pre-publication", code)),
   remedialErrorVariant("review-pre-publication", "scope-judgment-required")
     .extend({ scopeMismatch: PrePublicationScopeMismatchSchema }),
-  // Corrective continuations for uncommitted fixes, moved heads, unavailable producers, and stale admissions.
-  ...(["review-respond", "review-resolve", "review-local-prepare",
-    "review-hosted-request", "review-frontline-run"] as const)
-    .map((mode) => remedialErrorVariant(mode, "invalid-input")),
+  // A bounded decision carries its exact resolution selector; other unrecognized Candidates carry none.
+  remedialErrorVariant("review-pre-publication", "candidate-unexplained-delta")
+    .extend({ applicability: CandidateApplicabilityDecisionSelectionSchema.optional() }),
+  // A native work-item selection refusal carries its repair on every command; respond, resolve, local prepare, hosted
+  // request, and frontline run also carry corrective continuations for uncommitted fixes, moved heads, unavailable
+  // producers, and stale admissions.
+  ...ReviewCommandModeSchema.options
+    .filter((mode) => mode !== "review-pre-publication")
+    .flatMap((mode) => (["invalid-input", "corrupt-state"] as const).map((code) => remedialErrorVariant(mode, code))),
 ]);
 
 function errorVariant<Mode extends ReviewCommandMode, Code extends ReviewPrePublicationRefusalCode>(

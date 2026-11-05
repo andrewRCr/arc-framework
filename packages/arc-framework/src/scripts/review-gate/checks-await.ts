@@ -8,6 +8,8 @@ import {
   type FailedCheckLogsResult,
 } from "./failed-check-logs.js";
 import { SpineRemedySchema } from "../integration/spine-refusal.js";
+import { AWAIT_POLL_INTERVAL_LIMIT_MS, AWAIT_TIMEOUT_LIMIT_MS } from "./await-timing.js";
+import { ReviewCommandDiagnosticSchema } from "./core/review-command-diagnostic.js";
 
 export const RequiredChecksObservationInputSchema = z.strictObject({
   repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
@@ -17,8 +19,8 @@ export const RequiredChecksObservationInputSchema = z.strictObject({
 export type RequiredChecksObservationInput = z.infer<typeof RequiredChecksObservationInputSchema>;
 
 export const ChecksAwaitInputSchema = RequiredChecksObservationInputSchema.extend({
-  timeoutMs: z.number().int().positive().max(30 * 60 * 1_000),
-  pollIntervalMs: z.number().int().positive().max(60 * 1_000),
+  timeoutMs: z.number().int().positive().max(AWAIT_TIMEOUT_LIMIT_MS),
+  pollIntervalMs: z.number().int().positive().max(AWAIT_POLL_INTERVAL_LIMIT_MS),
 }).refine((value) => value.pollIntervalMs <= value.timeoutMs, {
   message: "pollIntervalMs must not exceed timeoutMs",
 });
@@ -68,6 +70,8 @@ const ChecksResultBaseShape = {
   repository: z.string().trim().min(1),
   pullRequest: z.number().int().positive(),
   headSha: GitObjectIdSchema,
+  /** This call's notices, such as a timing flag applied at its limit. */
+  diagnostics: z.array(ReviewCommandDiagnosticSchema).min(1).optional(),
 };
 
 const ChecksObservationBaseShape = {
@@ -316,6 +320,8 @@ export async function awaitRequiredChecks(
     timeoutMs: input.timeoutMs,
     pollIntervalMs: input.pollIntervalMs,
     clock: dependencies.clock,
+    // The deadline callback owns the final observation and its multi-read budget.
+    observeAtDeadline: false,
     deadline: async (elapsedMs) => {
       const observation = await observeRequiredChecks(input, {
         port: dependencies.port,

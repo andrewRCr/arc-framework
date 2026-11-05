@@ -70,6 +70,7 @@ import { createRepositoryReviewResultReader } from
   "../hosts/local/review-result-reader-composition.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { LocalReviewAuthorityError } from "../hosts/local/review-authority.js";
+import { ReviewVehicleUnresolvedError } from "../../../lib/store/kinds/review/errors.js";
 import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
 import {
   composeDeliveryMemberTarget,
@@ -620,9 +621,7 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
           proposerIdentity: authority.runtimeIdentity,
         };
       } catch (error) {
-        if (!(error instanceof LocalReviewAuthorityError)
-          || error.reason !== "vehicle-unresolved"
-          || admittedAuthorIdentity === undefined) throw error;
+        if (!(error instanceof ReviewVehicleUnresolvedError) || admittedAuthorIdentity === undefined) throw error;
         const live = await readLocalReviewLiveContext(input);
         if (live.context.activeIdentity !== admittedAuthorIdentity) {
           throw new LocalReviewAuthorityError("active-identity-owner-mismatch");

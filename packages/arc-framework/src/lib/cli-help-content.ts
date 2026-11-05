@@ -175,7 +175,10 @@ export const COMMAND_HELP: Readonly<Record<string, HelpPage>> = {
   "review changeset resolve": { summary: COMMAND_SUMMARIES["review changeset resolve"], notes: requestNotes },
   "review planning-grooming resolve": { summary: COMMAND_SUMMARIES["review planning-grooming resolve"], notes: requestNotes },
   "review frontline run": { summary: COMMAND_SUMMARIES["review frontline run"], notes: requestNotes },
-  "review hosted await": { summary: COMMAND_SUMMARIES["review hosted await"], notes: requestNotes },
+  "review hosted await": { summary: COMMAND_SUMMARIES["review hosted await"], notes: [...requestNotes, ["Timing:",
+    "timeoutSeconds defaults to review.hosted_await_timeout_seconds and initialPollIntervalSeconds to "
+    + "review.hosted_await_initial_poll_interval_seconds. A request above the 1800-second timeout or 60-second "
+    + "interval limit waits at the limit, and the result's diagnostics name what the call used."]] },
   "review reduce": { summary: COMMAND_SUMMARIES["review reduce"], notes: requestNotes },
   "review respond": { summary: COMMAND_SUMMARIES["review respond"], notes: requestNotes },
   "review hosted request": {
