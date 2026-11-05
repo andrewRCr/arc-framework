@@ -2,18 +2,21 @@
 
 ## Status
 
-Proposed.
+Accepted (2026-11-04).
 
 The cohort decomposition model is decided here — one grouping kind (the cohort) with coordination by degree, a
 one-level nesting cap, the three decomposition arms with at-cap provenance, a method/workflow split over a
 cut-map interface, and no coordinator role. Its realization ships with Decomposition Machinery: the
 `AGENT-BRIEF.ARC` vocabulary entry, the `cohort-*` movable-artifact enumeration in DEV-RULES.ARC, the grouping
-taxonomy + WU-sizing standard in `strategy-work-organization`, the `assess-cohort-fit` decide method, the
+taxonomy + WU-sizing standard in `strategy-work-organization`, the `assess-boundary-fit` decide method, the
 `cohort-{name}.md` record + `template-cohort.md`, the cohort-consistency invariant + its structural guard, and
 the `decompose-work-unit` workflow. Promote to Accepted when that work unit integrates. Two forward seams are
 non-blocking constraints, not gates: the merge/rebase delivery discipline for a decomposed stack and the
 shared-cohort-doc concurrency net (Concurrent Work Conventions), and the durable cross-file step-reference
 convention (`composable-workflows`).
+
+The promotion condition is met: the cohort vocabulary, taxonomy, boundary assessment, record template, consistency
+guard, and decomposition workflow have shipped.
 
 ## Context
 
@@ -90,7 +93,7 @@ WU's field, never a roster. One `cohort-{name}.md` shape serves every level — 
 path depth and by how much its doc says.
 
 **Decomposition — a decide method over an execute workflow.** Whether a concern is one WU or a cohort, and where
-the cuts fall, is the `assess-cohort-fit` **decide** method's judgment (orthogonality not size; two guard rails
+the cuts fall, is the `assess-boundary-fit` **decide** method's judgment (orthogonality not size; two guard rails
 against over- and under-splitting; gated on design maturity). It produces a **cut-map** — members, dependency
 edges, deliverable boundaries, slugs — or "stays one WU." The `decompose-work-unit` **workflow** consumes that
 cut-map to transform a live WU into a cohort. The cut-map is the single DRY interface between them: the method
@@ -120,7 +123,7 @@ so the invariant is never defined-but-unenforced.
 § Vocabulary introduces the term and its two constitutive rules; DEV-RULES.ARC adds only `cohort-*` to the
 movable-artifact enumeration (the constitutive rules are enforced by the cohort-consistency invariant, not
 restated as always-loaded prose). The grouping taxonomy, the path-valued semantics, and the WU-sizing standard
-elaborate in `strategy-work-organization`; the triage and the transformation are the `assess-cohort-fit` method
+elaborate in `strategy-work-organization`; the triage and the transformation are the `assess-boundary-fit` method
 and `decompose-work-unit` workflow; the `cohort-{name}.md` record is schema-owned per [ADR-022][adr-022]; and the
 architectural reasoning — this Context and Decision — is this ADR's, its sole home.
 
