@@ -166,6 +166,11 @@ that ordering returns to the Owner. The resolver built here serves Phases 3–5.
   it, with the history refs `resolveArchivedReferences` and `checkRefWrites` name on a missing object, which § 2.6's
   rounds pull.
 
+- _Context:_ Base `57e5224c86` carries the shipped hardening. `listCapturedRecords` scopes live records and diagnostics
+  to the requested owner; `liveListingOutcome` normalizes empty live results to `absent`. Saved filtered-empty listings
+  can remain `complete` with no records. Preserve both forms as complete empty evidence, and keep unreadable or
+  diagnostic-bearing listings incomplete.
+
     - `readWorkItemByUid` (`lib/store/work-item-uid.ts`) takes the primary kinds it lists as a parameter, today's
       `work-item/meta` and `work-item/record` by default for teardown (`runTeardownForOperand`) and the inbox list
       (`lib/inbox/lists.ts`), lists each in its own kind's family, and matches the UID on any owner that carries one
@@ -218,6 +223,10 @@ that ordering returns to the Owner. The resolver built here serves Phases 3–5.
 
 - _Note:_ The handler resolves before `readBasis`'s pull, so a UID only a remote holds refuses `not-found` naming the
   pull; and the hardening also edits `errand/store-runtime.ts`'s pull site, so expect a merge there.
+
+- _Context:_ The base merge retains `readBasis`'s `consumePull` and notice writer. The handler's store-opening seam is
+  now `openErrandTerminalStore`; insert off-branch subject selection after it returns, before the protection branch,
+  retaining its in-repo slug admission and the runtime's existing pull order.
 
     - `[ ]` **2.3.a Resolving before the protection branch**
 
@@ -667,6 +676,11 @@ its history refs, discharging the edges naming it.
 
 - _Goal:_ A rename batch that writes completed records lands on a clone lacking their history refs, pulling each round
   only the refs the backend names.
+
+- _Context:_ The shipped `pullHistoryForRetry` writes designation guidance and returns false, preserving the caller's
+  held refusal. Other consumers present questions through their own channels (`pullJoinStore` prompts and handoff's
+  `requireHistoryPull` raises). `missingHistoryRefs` names only owners without live refs; archive-quarter loss or a live
+  owner's missing object can carry no history refs. A named history ref is a repair route, not a guarantee of restoration.
 
     - In place of `runStoreRename`'s one retry, pull the refs each `state-unresolvable` names through
       `pullHistoryForRetry` and retry until the batch lands, a round's refusal names no refs or only refs already pulled,
