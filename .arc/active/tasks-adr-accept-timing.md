@@ -58,90 +58,29 @@ _Purpose:_ The rules both checks apply, written as pure functions over the base 
 paths, and the run date, so unit tests drive every case without a repository. Grouped by behavior path: reading a
 record, which both checks share, then the status check and the number check.
 
-### `[ ]` **2.1 Parse Status sections and resolve base versions — D3**
+### `[x]` **2.1 Parse Status sections and resolve base versions — D3**
 
 - _Goal:_ Every ADR path yields its number and Status section as the spec defines them, and every tree path resolves
   to its base version, a rename's base, or none.
 
-    - Create `packages/arc-framework/src/scripts/check-adr-records.ts`, exporting the pure functions; the rules take
-      ADR sets of path, number, and Status section, never a repository
-    - Each side's ADR listing carries path and object id, as `git ls-tree` reports them, with the number derived from
-      the path; the object id is what lets 2.2 tell an unchanged ADR from an edited one without reading either
-    - Status section: the text under the first level-2 heading reading exactly `Status`, up to the next level-1 or
-      level-2 heading, ignoring headings inside fenced code blocks; its first non-blank line is the status line; it
-      is missing when no such heading exists or it holds no non-blank line
-    - A status line reads Proposed when its first word, with leading `*` / `_` and trailing punctuation removed, is
-      `proposed` in any case
-    - Number: the digit run after `adr-` in the file name, compared as an integer; a name without one has no number
-    - Base version, in order: the same path at the base; else the one base path carrying the number that is absent
-      from the tree, when the tree path is the only tree path absent from the base with that number (a rename);
-      else none, a new ADR
-    - Unit tests in `packages/arc-framework/__tests__/unit/scripts/check-adr-records.test.ts`
-    - Build `test-first` (one behavior at a time):
-        - Status lines with emphasis markers, mixed case, or trailing punctuation read Proposed
-        - `Accepted (2026-10-10), where …`, `Accepted · Amended 2026-03-05 …`, `Superseded by ADR-029.` and
-          `Deprecated - …` do not read Proposed
-        - In a multi-paragraph section only the first non-blank line is the status line
-        - A `## Status` heading inside a fenced code block is not the section
-        - A missing heading and an empty section both read as missing
-        - The same path at the base is the base version
-        - A rename resolves: one base path removed, one tree path added, same number
-        - A same-number base path still present in the tree supplies no base version
-        - Two added tree paths claiming one removed base path leave both without a base version
-        - A name without a number is never a rename's base version
+- _Outcome:_ Added pure Status-section parsing, numeric identity, and unambiguous base-version lookup. The lookup distinguishes
+  a rename from same-number collisions and competing additions.
 
-### `[ ]` **2.2 Apply the status rules and write their remedies — D3**
+### `[x]` **2.2 Apply the status rules and write their remedies — D3**
 
 - _Goal:_ The status rules fail exactly the ADRs that would merge reading Proposed, return to Proposed, or lose their
   Status section, each with its remedy, and the check refuses rather than judging when no base resolved.
 
-    - Examined set, a pure function of the arguments and both listings: each argument path matching
-      `.arc/reference/adr/adr-*.md` that has no base version, or whose base version differs from it in path or object
-      id; other arguments are ignored; Status sections are read only for examined paths and their base versions
-    - Rules 1–5 as the spec's § 3.5 states them; a renumbered ADR has no base version and reads as new
-    - Failure forms as § 3.6 gives them: `<today>` is the run date input as `YYYY-MM-DD`, `<base>` the abbreviated
-      base, and a restore remedy quotes the base version's Status section indented; every failure is reported before
-      the check fails
-    - No base: the refusal text of § 3.7, verbatim
-    - Build `test-first` (one behavior at a time):
-        - A new ADR reading Proposed fails with the `Accepted (<today>)` remedy; reading Accepted, it passes
-        - A new ADR with no Status section fails with the add-section remedy
-        - An ADR whose base version reads Accepted fails when it reads Proposed, quoting the base Status section
-        - An ADR that removes its Status section while its base version has one fails with the restore remedy
-        - An ADR whose base version reads Accepted, or Superseded, passes when edited and still not Proposed
-        - Restoring the base version's Status section passes
-        - An ADR whose base version reads Proposed passes edited, renamed, or still Proposed, and fails only when it
-          removes its Status section
-        - A base version with no Status section constrains nothing
-        - A rename's restore remedy names its base path; an unrenamed one names the same path
-        - A same-number collision path is examined as a new ADR
-        - A renumbered ADR reading Proposed fails as a new ADR reading Proposed
-        - An unchanged ADR and a path outside the input glob are not examined
-        - Several failures are all reported, and the check fails once
-        - With no base, the check refuses with the § 3.7 text
+- _Outcome:_ Added changed-input selection, all status rules, exact base-section restore remedies, and the no-base refusal.
+  Base-Proposed edits and renames remain editable; new collisions and renumbers cannot borrow another record.
 
-### `[ ]` **2.3 Detect number collisions and name the renumber — D4**
+### `[x]` **2.3 Detect number collisions and name the renumber — D4**
 
 - _Goal:_ Any number two ADR paths share at the tree fails the check, naming every path that carries it and, with a
   base, which paths to renumber and to what.
 
-    - Collisions across every ADR path at the tree; a path is added when it is absent from the base's ADR list
-    - Remedy per the spec's § 4.3: when the change adds some, renumber every added path except one if no colliding
-      path is on the base, or every added path if one is; when it adds none, state the first-parent rule for a
-      separate change without naming the path
-    - Target number: the next free one, one greater than the highest at the tree or the base, written with three
-      digits; further renumbers in the run take consecutive numbers; each remedy says to update the records that cite
-      the renumbered ADR by number, a Tier 1 correction
-    - No base: name every path, state the rule for the reader, and ask for the base branch to be made resolvable
-    - Build `test-first` (one behavior at a time):
-        - Two paths, the change adds one: the failure names the added path with its target number
-        - Two paths, the change adds both: either may be renumbered, with the target number
-        - Two paths, the change adds neither: the rule is stated with the target number
-        - Three paths, one on the base: both added paths are renumbered
-        - Several collisions take consecutive target numbers
-        - No base: both paths are named, the rule is stated, and a resolvable base is requested
-        - A name without a number joins no collision
-        - No shared number passes
+- _Outcome:_ Added whole-tree number collisions with consecutive renumber targets above both revisions, precise added-path
+  remedies, the first-parent rule for inherited collisions, and no-base guidance.
 
 ## **Phase 3:** Wire the checks into the merge gate
 
