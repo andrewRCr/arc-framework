@@ -44,14 +44,13 @@ renamed references, so no flipped body is rewritten for reader independence.
 - _Outcome:_ Confirmed the doctrine, advisory method, enforcement backstops, single-owner model, and awaiting-review seam;
   accepted ADR-025 while retaining its existing ADR-035 history-policy qualification.
 
-### `[ ]` **1.4 Accept ADR-033 — D7**
+### `[x]` **1.4 Accept ADR-033 — D7**
 
 - _Goal:_ ADR-033 reads Accepted after the locus-record retirement and derived checkout roles are confirmed shipped,
   and its Status section records what shipped.
 
-    - Confirm at source: locus records retired, and checkout roles derived from the marker, tracked lifecycle,
-      transient identity, and Git topology
-    - Flip the Status and append the realization sentence
+- _Outcome:_ Confirmed the retired record/lease modules and authority-only role derivation; accepted ADR-033 with the
+  realized marker, lifecycle, identity, and topology sources recorded in Status.
 
 ## **Phase 2:** Build the ADR record rules
 
