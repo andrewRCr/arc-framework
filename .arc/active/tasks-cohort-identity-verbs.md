@@ -568,29 +568,15 @@ old name refuses naming the current one.
           Concurrent parent changes refuse atomically. Cohort results retain source, target, reference, and report in text
           and JSON; a history-proven rerun changes no records or history.
 
-### `[ ]` **5.2 Rewrite every record holding the cohort alone, and report the ambiguous ones — § 5.1, § 4**
+### `[x]` **5.2 Rewrite every record holding the cohort alone, and report the ambiguous ones — § 5.1, § 4**
 
 - _Goal:_ Every member and subcohort that holds the cohort alone names its new slug after the batch, whatever its state,
   and none of another cohort's records sharing the slug is touched.
 
-    - `observeCohortHoldings` over every record: each member's `Cohort`, open or completed, started members included, and,
-      for a parent, its subcohorts' members' and every subcohort's `Parent`, open or closed; holdings resolve among
-      cohorts through Task 4.5.a's resolver, never through the cross-family slug lookup.
-    - A `sole` holding is rewritten — each `Cohort` through `writeMetaCohort` (`kinds/meta/bullet-writers.ts`) to the
-      current path its segments resolve to, the new slug in the renamed cohort's segment, and each `Parent` through
-      `writeCohortParent`. An `ambiguous` holding is not rewritten; Task 4.2's report lists it with
-      `cohortHoldingEdits` onto the new slug, a subcohort's as § 4's three edits in order and its completed members'
-      after the second.
-
-    - Build `test-first` (one behavior at a time):
-        - over both backends, renaming a subcohort `s` of `p` to `t` turns its members' `p/s` into `p/t`, and renaming `p`
-          to `q` turns them into `q/s`, a member left on either former slug included
-        - over both backends, renaming the cohort of a work-unit and cohort pair sharing a slug rewrites its members as
-          with no clash
-        - renaming a cohort whose started member's prose names it rewrites the `Cohort` and leaves the prose
-        - over the ref backend, renaming one of two cohorts sharing a slug rewrites none of the other's members and
-          reports a subcohort naming the slug, with an open and a completed member, with the edits in order, which then
-          land
+- _Outcome:_ Cohort-family resolution composes current and former member paths and open or closed Parent fields into
+  one batch, preserving completed placement and started prose. Every unchanged read is observed. Ambiguous holdings
+  carry ordered edits that land; closed ambiguous subtrees retain their Parent and member paths, including members
+  on unique former aliases, with exact identity rows and an explanatory advisory.
 
 ### `[ ]` **5.3 Rewrite references to the document's filename where the old slug names the cohort alone — § 5.1, § 4**
 
@@ -639,6 +625,8 @@ old name refuses naming the current one.
           and a closed subcohort with a completed member lands in one batch
         - over the ref backend, the same batch lands on a clone lacking the completed records' history refs
         - renaming a parent whose closed subcohort holds an open stub a pull landed after its close lands, re-pointing it
+        - a closed subcohort's Parent names a unique former alias while a pulled member names a clashed current slug;
+          the reported member edit lands after the batch rewrites that Parent
 
 ### `[ ]` **5.6 A cohort renamed end to end** — validate exit criterion at segment scope
 
