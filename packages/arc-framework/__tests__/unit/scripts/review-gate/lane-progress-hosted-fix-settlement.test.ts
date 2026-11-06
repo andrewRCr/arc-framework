@@ -145,6 +145,57 @@ async function seedAcknowledgedRequest(
 }
 
 describe("hosted await lane recording", () => {
+  it.each(["initial", "successor"] as const)("refuses an unsupported %s reply binding and accepts its corrected retry", async (phase) => {
+    const store = createStore();
+    await seedAcknowledgedRequest(store, handle);
+    const progress = await recordHostedAwaitAttempt(store, {
+      repositoryId: "repo-1",
+      ...hostedContext,
+      result: {
+        schemaVersion: 1, mode: "review-hosted-await", handle, state: "findings", nextAction: "triage",
+        reviewUrl: "https://example.invalid/review",
+        findings: [{
+          findingId: "body-1", origin: "review-body", reviewId: "review-1", fingerprint: "body-fingerprint",
+          settlement: "not-applicable", severity: "minor", locus: "pull-request review body",
+          url: "https://example.invalid/review-1", body: "Body finding", sourceOrdinal: 1,
+        }],
+      },
+      now: "2026-08-15T12:00:00Z",
+    });
+    const attemptId = hostedLaneAttemptId(handle);
+    const predecessorDispositionSetId = digest(`sha256:${"f".repeat(64)}`);
+    const input = { operationId: progress.operationId, attemptId,
+      dispositionSetId: predecessorDispositionSetId, now: "2026-08-15T12:01:00Z" };
+    if (phase === "successor") {
+      await bindHostedAttemptDisposition(store, { ...input, findingDispositions: [{
+        findingId: "body-1", disposition: "defer", channelAction: "record-only",
+      }] });
+    }
+    const before = await store.readOperation(progress.operationId);
+    const bind = (channelAction: "record-only" | "reply-and-resolve") => {
+      const findingDispositions = [{ findingId: "body-1", disposition: "defer" as const, channelAction }];
+      return phase === "initial"
+        ? bindHostedAttemptDisposition(store, { ...input, findingDispositions })
+        : supersedeHostedAttemptDisposition(store, { ...input, predecessorDispositionSetId,
+            successorDispositionSetId: digest(`sha256:${"2".repeat(64)}`), findingDispositions });
+    };
+    await expect(bind("reply-and-resolve")).rejects.toMatchObject({
+      code: "invalid-input", findingId: "body-1", reason: "unsupported-channel-action",
+      message: expect.stringContaining("record-only"),
+    });
+    expect(await store.readOperation(progress.operationId)).toEqual(before);
+    await bind("record-only");
+    const repaired = await store.readOperation(progress.operationId);
+    expect(repaired.state).toMatchObject({ attempts: [{ outcome: "settled-findings", hosted: {
+      settledFindingIds: ["body-1"],
+      dispositionSetId: phase === "initial" ? predecessorDispositionSetId : digest(`sha256:${"2".repeat(64)}`),
+      settlementEvidence: expect.arrayContaining([expect.objectContaining({
+        findingId: "body-1", disposition: "defer", channelAction: "record-only",
+        dispositionSetId: phase === "initial" ? predecessorDispositionSetId : digest(`sha256:${"2".repeat(64)}`),
+      })]),
+    } }] });
+  });
+
   it("completes an approved hosted response after its same-set pass authority is withdrawn", async () => {
     const store = createStore();
     await seedAcknowledgedRequest(store, handle);
