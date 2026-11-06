@@ -52,9 +52,10 @@ async function prepareMembershipWrites(store: Store, primary: StoreRecord, targe
   document: { content: string; records: StoreRecord[] }): Promise<StoreResult<CohortRenameWrites>> {
   const view = capturedView(store, document.records), holdings = await observeAllHoldings(view, primary.reference);
   if (holdings.status !== "known") return malformed(primary, holdings.status === "unavailable" ? holdings.condition : "Cohort holdings are unavailable.");
-  const closed = holdings.value.filter(holding => holding.resolution === "ambiguous" && holding.candidate.field === "parent" && holding.candidate.completed);
+  const retainedParents = holdings.value.filter(holding => holding.resolution === "ambiguous" && holding.candidate.field === "parent");
+  const closed = retainedParents.filter(holding => holding.candidate.completed);
   const plan: CohortRenamePlan = { primary, target, records: document.records, contents: new Map([[primary, document.content]]) };
-  const membership = prepareSoleHoldings(plan, holdings.value, closed);
+  const membership = prepareSoleHoldings(plan, holdings.value, retainedParents);
   if (membership.status === "refused") return membership;
   const retained = reportAmbiguousHoldings(plan, holdings.value.filter(holding => holding.resolution === "ambiguous"), closed);
   if (retained.status === "refused") return retained;
@@ -64,8 +65,8 @@ async function prepareMembershipWrites(store: Store, primary: StoreRecord, targe
     writes: cohortRenameMutations(document.records, plan.contents, primary, target) } };
 }
 
-function prepareSoleHoldings(plan: CohortRenamePlan, holdings: readonly CohortHolding[], closed: readonly CohortHolding[]): StoreResult<true> {
-  const kept = closed.flatMap(holding => [holding.candidate, ...holding.members.map(member => member.candidate)]);
+function prepareSoleHoldings(plan: CohortRenamePlan, holdings: readonly CohortHolding[], retainedParents: readonly CohortHolding[]): StoreResult<true> {
+  const kept = retainedParents.flatMap(holding => [holding.candidate, ...holding.members.map(member => member.candidate)]);
   for (const holding of holdings) {
     if (holding.resolution !== "sole" || kept.some(candidate => sameReference(candidate.reference, holding.candidate.reference))) continue;
     const record = plan.records.find(item => sameReference(item.reference, holding.candidate.reference));

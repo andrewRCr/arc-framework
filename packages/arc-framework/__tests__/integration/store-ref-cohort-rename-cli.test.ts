@@ -449,6 +449,64 @@ describe.each(["reference", "ref"] as const)("cohort rename over %s", backend =>
   }, 60_000);
 });
 
+it.each([false, true])("retains a sole former-path member behind an ambiguous Parent, completed=%s", async completed => {
+  const f = await fixture("ref");
+  if (f.native === undefined) throw new Error("Expected native store");
+  const oldRef = f.reference("cohort/document", "old"), childRef = f.reference("cohort/document", "child");
+  const shared = f.reference("cohort/document", "shared").owner.name;
+  const parent = await seed(f, oldRef, document(oldRef.owner.name));
+  const child = await seed(f, childRef, document(childRef.owner.name, oldRef.owner.name));
+  const memberRef = f.reference("work-item/meta", "retained"), path = `${oldRef.owner.name}/${childRef.owner.name}`;
+  const member = await seed(f, memberRef, makeMetaFixture(memberRef.owner.name, {
+    state: completed ? "Shipped" : "Active", currentWorkflow: completed ? null : "process-task-loop", cohort: path,
+  }), completed ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" });
+  success(await f.store.write({ ...recordPut(parent, { content: document(shared) }),
+    reference: RecordReferenceSchema.parse({ ...parent.reference, owner: { ...parent.reference.owner, name: shared } }),
+    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  if (child.reference.owner.type !== "cohort" || child.reference.owner.uid === undefined) throw new Error("Expected child UID");
+  await plantRefPrimary(f.native, { kind: "cohort/document", name: childRef.owner.name, uid: child.reference.owner.uid,
+    content: document(childRef.owner.name, shared) });
+  const other = await plantRefPrimary(f.native, { kind: "cohort/document", name: shared,
+    uid: "00000000-0000-4000-8000-000000000091", content: document(shared) });
+  const keptChild = success(await f.store.read({ reference: child.reference })), keptOther = success(await f.store.read({ reference: other }));
+  expect(success(await f.store.read({ reference: oldRef })).reference.owner).toEqual({ ...parent.reference.owner, name: shared });
+  expect(await f.store.read({ reference: RecordReferenceSchema.parse({ kind: "cohort/document", owner: { type: "cohort", name: shared } }) }))
+    .toMatchObject({ status: "refused", refusal: { code: "ambiguous-match" } });
+  const owner = parent.reference.owner;
+  if (owner.type !== "cohort" || owner.uid === undefined || member.reference.owner.type !== "work-item") throw new Error("Expected exact identities");
+  const result = await f.invoke(["rename", owner.uid, "after", "--json"]);
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  expect(success(await f.store.read({ reference: parent.reference })).reference.owner).toEqual({ ...owner, name: "after" });
+  expect(success(await f.store.read({ reference: child.reference }))).toEqual(keptChild);
+  expect(success(await f.store.read({ reference: member.reference }))).toEqual(member);
+  expect(success(await f.store.read({ reference: other }))).toEqual(keptOther);
+  const memberOwner = { type: "work-unit", name: member.reference.owner.name, uid: member.reference.owner.uid };
+  const childOwner = { type: "cohort", name: child.reference.owner.name, uid: child.reference.owner.uid };
+  const parentEdit = { record: childOwner, edits: [{ kind: "field", field: "parent", from: shared, to: "after" }] };
+  const report = holdingReport.parse(result.result).report;
+  expect(report.references).toEqual(completed ? [parentEdit,
+    { record: memberOwner, edits: [{ kind: "field", field: "cohort", from: path, to: `after/${childRef.owner.name}` }] },
+  ] : [
+    { record: memberOwner, edits: [{ kind: "field", field: "cohort", from: path, to: null }] }, parentEdit,
+    { record: memberOwner, edits: [{ kind: "field", field: "cohort", from: null, to: `after/${childRef.owner.name}` }] },
+  ]);
+  for (const row of report.references) for (const edit of row.edits) {
+    const reference = RecordReferenceSchema.parse({ kind: edit.field === "cohort" ? "work-item/meta" : "cohort/document",
+      owner: { type: row.record.type === "cohort" ? "cohort" : "work-item", name: row.record.name, uid: row.record.uid } });
+    const current = success(await f.store.read({ reference }));
+    expect(current.fields).toMatchObject({ [edit.field]: edit.from });
+    const content = edit.field === "cohort" ? writeMetaCohort(current.content, edit.to)
+      : edit.to === null ? null : writeCohortParent(current.content, edit.to);
+    if (content === null) throw new Error("Expected writable field");
+    success(await f.store.write({ ...recordPut(current, { content }), provenance: { verb: "write-back", lifecycleAction: "edit" } }));
+  }
+  expect(success(await f.store.read({ reference: child.reference })).fields).toMatchObject({ parent: "after" });
+  const repaired = success(await f.store.read({ reference: member.reference }));
+  expect(repaired.fields).toMatchObject({ cohort: `after/${childRef.owner.name}` });
+  expect(repaired.placement).toEqual(member.placement);
+  expect(success(await f.store.read({ reference: other }))).toEqual(keptOther);
+}, 60_000);
+
 it.each([{ closed: false, former: false }, { closed: true, former: false }, { closed: true, former: true }])(
   "reports safe repairs under a two-cohort clash, closed=$closed former=$former", async ({ closed, former }) => {
   const f = await fixture("ref");
