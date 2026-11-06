@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Install TypeScript 7 beside TypeScript 6
+- **Last Completed:** Task 4.6 — Measure the landing figures on m4-mini and draft the handoff
+- **Next Task:** Task 5.1 — Complete verification (line ~243 in `tasks-test-typecheck-heap.md`)
 - **Blockers:** [none]
 
-- **Next Action:** Run process-task-loop from Task 1.1
+- **Next Action:** Begin Task 5.1 in a fresh session — load and follow `verify-work-unit.md`.
 
 - **PR URL:** [none]
 - **Completed:** [none]
