@@ -64,3 +64,11 @@ describe("native executable peak", () => {
     expect(stop()).toEqual({});
   });
 });
+
+it("retains the observed native executable when exit races the status read", () => {
+  const state = samplePeak(12, native, {}, {
+    readlink: () => native,
+    readFile: () => { throw new Error("ENOENT"); },
+  });
+  expect(state).toEqual({ observedExecutable: native });
+});

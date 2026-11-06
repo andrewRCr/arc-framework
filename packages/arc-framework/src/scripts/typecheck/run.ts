@@ -24,7 +24,7 @@ export async function runTypechecks(run: TypecheckRun, launch: typeof launchProc
   for (const program of programs) {
     if (program.name !== undefined) run.writeLine(`${check}: shard ${program.name}`);
     const result = await launch(compilerLaunchPlan({ ...run.compilerOptions, config: program.config }));
-    run.writeLine(formatPeakLine({ check, shard: program.name, softLimitMiB: run.compilerOptions.softLimitMiB, peak: result.peak }));
+    run.writeLine(formatPeakLine({ check, shard: program.name, softLimitMiB: run.compilerOptions.softLimitMiB, peak: result.peak, signal: result.signal }));
     const code = result.code ?? signalExitCode(result.signal ?? undefined) ?? 1;
     if (status === 0) status = code;
   }

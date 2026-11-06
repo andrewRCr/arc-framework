@@ -54,3 +54,18 @@ describe("sequential type checks", () => {
     expect(s.lines).toEqual(["compiler:tsconfig.json", "typecheck: peak: 1200 MiB; soft limit: 6000 MiB"]);
   });
 });
+
+describe("abnormal compiler endings", () => {
+  it("reports the peak and signal for a signal-ended compiler", async () => {
+    const s = scenario(["a"], { a: { code: null, signal: "SIGTERM", peak: { rssMiB: 2400 } } });
+    expect(await runTypechecks(s.run, s.launch)).toBe(143);
+    const report = s.lines.find(line => line.includes("peak:"));
+    expect(report).toContain("2400 MiB");
+    expect(report).toContain("SIGTERM");
+  });
+  it("retains the peak line for a status-2 exit", async () => {
+    const s = scenario(["a"], { a: { code: 2, peak: { rssMiB: 2100 } } });
+    expect(await runTypechecks(s.run, s.launch)).toBe(2);
+    expect(s.lines.find(line => line.includes("peak:"))).toContain("2100 MiB");
+  });
+});

@@ -138,15 +138,15 @@ measured gap.
   `memory.max` and reserving 512 MiB under it, up to 6000 MiB. Missing or unlimited bounds retain the default;
   the backstop follows the bounded value. An unusably small cap names its repair and succeeds after repair.
 
-### `[ ]` **3.2 Keep the peak line for a process that ends abnormally — D3**
+### `[x]` **3.2 Keep the peak line for a process that ends abnormally — D3**
 
 - _Goal:_ A compiler ended by a signal gets a peak line with its RSS that names the signal. An overrun that ends with
   Go's `fatal error: out of memory` and status 2 keeps its peak line, so the output and that line tell it from the
   configuration errors TS 7 also ends with status 2, such as a missing root file; a type error exits 1.
 
-    - Build `test-first` (one behavior at a time):
-        - A signal-ended process's line gives RSS and names the signal
-        - A status-2 exit is reported with its peak line like any other exit
+- _Outcome:_ Signal-ended compiler reports retain RSS and name the signal, while status-2 exits retain their
+  ordinary peak line. The sampler preserves the last executable it observed when process exit races the
+  following status read.
 
 ### `[ ]` **3.3 Mark a shard due for a split — D3**
 

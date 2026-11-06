@@ -5,7 +5,7 @@ export interface PeakIO { readlink: (path: string) => string; readFile: (path: s
 /** Observed native peak, retaining the last executable for an unavailable report. */
 export interface PeakState { rssMiB?: number; observedExecutable?: string }
 /** Labels and observations for a process's memory report. */
-export interface PeakLine { check: string; shard?: string; softLimitMiB?: number; peak: PeakState }
+export interface PeakLine { check: string; shard?: string; softLimitMiB?: number; peak: PeakState; signal?: NodeJS.Signals | null }
 
 const procIO: PeakIO = { readlink: readlinkSync, readFile: path => readFileSync(path, "utf8") };
 
@@ -17,9 +17,10 @@ export function parsePeakMiB(text: string): number | undefined {
 
 /** Take one sample only when its executable identity is stable across the status read. */
 export function samplePeak(pid: number, expected: string, state: PeakState, io: PeakIO): PeakState {
+  let observed = state;
   try {
     const executable = io.readlink(`/proc/${pid}/exe`);
-    const observed = { ...state, observedExecutable: executable };
+    observed = { ...state, observedExecutable: executable };
     if (executable !== expected) return observed;
     const rssMiB = parsePeakMiB(io.readFile(`/proc/${pid}/status`));
     const after = io.readlink(`/proc/${pid}/exe`);
@@ -27,7 +28,7 @@ export function samplePeak(pid: number, expected: string, state: PeakState, io: 
     return { ...observed, rssMiB: Math.max(state.rssMiB ?? 0, rssMiB) };
   } catch {
     // Disappearance at exit and platforms without procfs cannot supply another sample.
-    return state;
+    return observed;
   }
 }
 
@@ -55,6 +56,7 @@ export function formatPeakLine(line: PeakLine): string {
   const { check, shard, softLimitMiB, peak } = line;
   const observed = peak.observedExecutable === undefined ? "" : ` (observed: ${peak.observedExecutable})`;
   const rss = peak.rssMiB === undefined ? `unavailable${observed}` : `${Math.ceil(peak.rssMiB)} MiB`;
+  const signal = line.signal ? `; signal: ${line.signal}` : "";
   const limit = softLimitMiB === undefined ? "" : `; soft limit: ${softLimitMiB} MiB`;
-  return `${check}${shard === undefined ? "" : ` [${shard}]`}: peak: ${rss}${limit}`;
+  return `${check}${shard === undefined ? "" : ` [${shard}]`}: peak: ${rss}${signal}${limit}`;
 }
