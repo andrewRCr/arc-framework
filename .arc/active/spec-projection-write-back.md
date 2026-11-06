@@ -1970,7 +1970,7 @@ this design open.
 ## Amendments
 
 - **A1** — 2026-11-05 — spec-depth: classify companions only with established folder ownership.
-  _Supersedes:_ none. _Trigger:_ 2.4.b must-stop. _Work:_ 2.4.R. _Revalidated:_ pending → 2.4.R.c.
+  _Supersedes:_ none. _Trigger:_ 2.4.b must-stop. _Work:_ 2.4.R. _Revalidated:_ 2.4.R.c.
 - **A2** — 2026-11-06 — spec-depth: make cohort-generation authority explicit for file adoption.
   _Supersedes:_ none. _Trigger:_ 2.8.a must-stop. _Work:_ 2.8.R. _Revalidated:_ 2.8.R.c.
 

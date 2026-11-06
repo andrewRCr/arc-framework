@@ -297,7 +297,7 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   corrections keep their archive placement; refused pulls and retried operations preserve the edit and selected remedy.
   Ordinary commands stay offline and name `arc save`, including rights checks and interrupted stampless replacements.
 
-### `[ ]` **2.4 Register the `active/` locations and the projected file names as layout addresses — § 10.1, § 10.2, § 9**
+### `[x]` **2.4 Register the `active/` locations and the projected file names as layout addresses — § 10.1, § 10.2, § 9**
 
 - _Goal:_ Every path the projection writes resolves through `resolveArcPath` and inverts back through the classifier
   to one record: `active/current/` for the checkout's own work item and its cohort copies, `active/in-flight/<slug>/`
@@ -310,68 +310,11 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
           copies classify to their canonical record. The Errand overlap reader passes the shared checkout claim and
           layout, preserving a hyphenated own companion's identity when another slug shares its suffix.
 
-    - `[ ]` **2.4.b The file names**
+    - `[x]` **2.4.b The file names**
 
-        - A companion (`work-item/companion`) is keyed by a managed path — `keyed("work-item", "path")` in `KIND_SHAPES`
-          (`lib/store/catalog.ts`), the key `personal/document` already takes — with the ref backend's stored path and
-          codec for it, from `storage-ref-backend` (§ 18). That backend refuses a key colliding with its own folders and
-          files in the work item's ref — at the root, any name matching `^metadata-[0-9a-f-]{36}\.json$` or a path under
-          one (`isOwnerMetadataName`, `lib/store/ref/metadata-filename.ts`) — one an earlier decode form would claim,
-          judged after it resolves the owner, against that owner's current slug, or one through a segment Git refuses
-          or over 4,096 bytes, and write-back reports each as a refused edit carrying the backend's remedy (1.3). The
-          in-repo implementation refuses `unsupported` `unhomed-kind` a key naming a registered role, and every key but
-          a name of lowercase letters alone or a paired spec's half, since any other file name it builds fails
-          `companionPath`'s matcher (`artifactMatcher`, `lib/work-unit/mutators/relocate-artifacts.ts`;
-          `lib/store/in-repo/paths.ts`).
-        - Addresses for a work unit's companions as `<name>-<slug>.md`, keyed `<name>`; any other text file in a work
-          item's folder, or in a folder beneath it, as a companion keyed by its path below that folder, forward
-          slashes, projected back at that path; a paired spec's halves as `spec-<slug>-prd.md` and
-          `spec-<slug>-rfc.md`, keyed `spec-prd` and `spec-rfc`; `inbound-<slug>.md`; `errand-<slug>.md` for an Errand's
-          description; a cohort document's copy as `cohort-<cohort>.md`; and `scratch/` documents, each keyed by its
-          path.
-        - For a backlog companion, take an established work-item container from 2.4.R before interpreting its relative
-          path; no candidate prefix supplies an owner by itself. Keep an indexed file's exact reference authoritative.
-        - The inverse, which the classifier's first step reaches (`identifyArcFileAddress`), tries, in order: a work
-          unit's artifact names (`WorkUnitArtifactKindSchema`; `parseArtifactFilename` is private to
-          `lib/layout/identification.ts`, so the inverse lives there); the fixed forms — a paired spec's halves,
-          `inbound-`, `errand-`, and a cohort copy; `<name>-<slug>.md`; then the path key. The schema refuses a
-          companion key equal to `meta`, `tasks`, `draft`, `spec`, `notes`, `errand`, `inbound`, or `cohort`, as the ref
-          backend does; one beginning `cohort-`, which D13 reserves inside `current/`; and a path key an earlier form
-          would match, judged against the slug the folder names, or the checkout claim's for its own location, as the
-          ref backend judges a verbatim key against the resolved owner's current slug. The `<name>-<slug>.md` form
-          claims neither `spec-prd` nor `spec-rfc`, so no key resolves to a path that inverts to another.
-        - These addresses are new address kinds in `ArcLayoutAddressSchema` (`lib/layout/schema.ts`), not new values of
-          `WorkUnitArtifactKindSchema`, whose readers stay as they are; the cohort copy is its own, carrying the
-          checkout's own location's inputs (2.4.a), and `cohort-document` stays as it is. In the same change each new
-          address takes its kind and key in the classifier's exhaustive store-side map (`classifyStoreAddress`,
-          `lib/store/target-classification.ts`), which the compiler holds, and each new kind naming a work item's or a
-          cohort's state, the cohort copy's among them, joins the `work-unit-paths` ratchet's kind set
-          (`WORK_UNIT_ADDRESS_KINDS`, `eslint/architecture-imports.ts`), which it does not. A record projects only where
-          an address exists for its kind, so the Errand queue (`personal/errand-queue`) projects nothing.
-        - Build `test-first` (one behavior at a time):
-            - each new address resolves to its path and the classifier inverts the path back to its kind and key
-            - `research-<slug>.md` inverts to a companion keyed `research`, and `diagram.svg` to one keyed `diagram.svg`
-            - a file in a work item's subfolder inverts to a companion keyed by its relative path
-            - `inbound-<slug>.md`, `errand-<slug>.md`, a cohort copy, and a paired spec's halves each invert to their
-              own kind, never to a companion
-            - under `active/current/`, `notes-x-<slug>.md` for a hyphenated slug inverts to the companion `notes-x` by
-              the claimed slug
-            - given the claimed slug and `flat`, `spec-<slug>-prd.md` at the top of `active/` inverts to that work
-              item's paired-spec half, and `notes-x-<slug>.md` to its companion `notes-x`; given `nested`, neither
-              inverts to a record
-            - a companion key equal to a fixed name, or one an earlier form would claim given as a path, is refused
-            - a companion named `cohort-x` is refused, and a new `spec-prd-<slug>.md` is never read as a paired spec's
-              half
-            - the in-repo implementation refuses a path-keyed companion `unhomed-kind`
-            - after `alpha` is renamed to `beta`, a literal `extra-alpha.md` under `beta` inverts to a path-keyed
-              companion, persists, and projects back at its path; a true alias, reachable only from a folder not yet
-              re-laid after the rename, since a known file writes back under its index reference, comes back as a
-              refused edit carrying the backend's remedy, and the same content under a key outside the reserved path,
-              written to the ref backend's fixture, persists
-            - written to the ref backend's fixture, a root file named `metadata-<uid>.json` is refused with the
-              backend's remedy, and the same content as `scratch/metadata-<uid>.json` persists as an ordinary companion,
-              the refusal's repaired case
-            - the Errand queue has no address and projects nothing
+        - Companion, paired-spec, inbound, Errand-description, cohort-copy, and scratch addresses round-trip through
+          the layout and classifier. Backend alias, metadata-path, and role refusals retain their remedies and authored
+          bytes; safe repaired keys adopt, while exact indexed authority survives renamed or ambiguous surroundings.
 
     - `[x]` **2.4.c Paths callers resolve from the flip**
 
@@ -388,13 +331,10 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
           meta path and identity without interpreting those paths through the Errand's claim; an unhealthy parent
           supplies no inherited identity.
 
-### `[ ]` **2.4.R Establish folder ownership before classifying new backlog files — § 9, § 10.1**
+### `[x]` **2.4.R Establish folder ownership before classifying new backlog files — § 9, § 10.1**
 
 - _Goal:_ Under A1, a new backlog file is classified only within one established work-item container; absent or
   conflicting ownership preserves it unadopted with a repair route, while indexed files keep their exact references.
-
-- _Note:_ Build 2.4.R.a before 2.4.b's backlog companion inverse; compose 2.4.R.b with 2.8.a–b, and close 2.4.R.c
-  after those callers are bound.
 
     - `[x]` **2.4.R.a Classify relative to an explicit container**
 
@@ -408,12 +348,11 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
           companion classification. Pending receipts remain authority without a public-name binding; absent and
           conflicting evidence preserves files with repair guidance, and indexed references remain authoritative.
 
-    - `[ ]` **2.4.R.c Verify the ownership boundary and repaired continuation**
+    - `[x]` **2.4.R.c Verify the ownership boundary and repaired continuation**
 
-        - Through the bound outer callers over the reference backend, distinguish both owners of the counterexample,
-          keep absent/conflicting evidence refused with an actionable remedy, then adopt the same bytes after repair.
-          Prove an indexed file retains its exact reference despite competing surrounding folder interpretations. Close
-          A1's new success criterion without changing the earlier criteria.
+        - Native engine entry distinguishes both owners of the nested counterexample, preserves missing/conflicting
+          ownership and exact indexed authority, and adopts the same bytes after repair. The registered CLI's stub-mint
+          cases bind prospective owners through the actual command Store, completing A1's bounded evidence.
 
 ### `[x]` **2.5 The `layout.active` revert key — § 10.3**
 
