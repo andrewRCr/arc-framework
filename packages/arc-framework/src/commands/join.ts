@@ -10,6 +10,7 @@ import { preparePersonalIdentitySetup, type PersonalIdentitySetupOptions } from 
 import { join } from "node:path";
 import { writeArcIgnoreBlocks, preflightIgnoreFiles } from "../lib/template/index.js";
 import { configureGitIntegration, runPostInitSetup } from "../lib/setup.js";
+import { zedProjectionSettingsMessage } from "../lib/editor-settings.js";
 import {
   generateSkills,
   writeSkillOutputs,
@@ -57,6 +58,7 @@ export interface JoinOptions extends PersonalIdentitySetupOptions {
 /** Result from a successful join run. */
 export interface JoinResult {
   hookSetupMessages?: string[];
+  zedSettingsMessage?: string;
   role: "maintainer" | "contributor";
   tools: string[];
   identity: string | null;
@@ -124,7 +126,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
   await writeArcIgnoreBlocks(cwd, skillGitignoreEntries(skillResult.targetDirs), io.readFile, io.writeFile, io);
 
   // User directory and session templates
-  await runPostInitSetup({
+  const stateOffBranch = await runPostInitSetup({
     arcDir, internalTemplateDir, io, identityResult, preparedIdentity,
   });
 
@@ -137,6 +139,7 @@ export async function runJoin(options: JoinOptions): Promise<JoinResult> {
 
   return {
     ...(hookSetupMessages.length > 0 ? { hookSetupMessages } : {}),
+    ...(stateOffBranch ? { zedSettingsMessage: zedProjectionSettingsMessage() } : {}),
     role: prompts.role,
     tools: prompts.tools,
     identity: identityResult,
@@ -262,6 +265,7 @@ export function buildPostJoinMessage(result: JoinResult): string {
 
   lines.push(`Joined as ${result.role}.`);
   for (const message of result.hookSetupMessages ?? []) lines.push("", message);
+  if (result.zedSettingsMessage !== undefined) lines.push("", result.zedSettingsMessage);
 
   if (result.tools.length > 0) {
     lines.push("");

@@ -555,43 +555,16 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   inherit the option; save names the switch before backend support, while plain in-repo save retains its personal-save
   remedy. Explicit persist and removal paths gain no bypass, and the shared skip remains available to refresh and fan-out.
 
-### `[ ]` **2.10 Editor settings — § 11.4**
+### `[x]` **2.10 Editor settings — § 11.4**
 
 - _Goal:_ `arc editor <vscode|zed>` merges only ARC's keys into the checkout's editor settings, keeping comments and
   other keys, `--remove` takes them out, and `arc init` and `arc join` print the one user-level Zed setting — each
   refusing or printing nothing before the flip.
 
-    - A new command in `cli.ts`, in `HELP_GROUPS` (`lib/cli-help-content.ts`), `COMMAND_SUMMARIES`
-      (`lib/cli-help-summaries.ts`), and the command-input declarations, with a handler that takes the command's store,
-      editing through `jsonc-parser`'s `modify` and `applyEdits`. The CLI's bundle holds no `jsonc-parser` today: the
-      Markdown lint configuration that imports it (`lib/markdown/configuration.ts`) serves the repository's scripts, and
-      only the root `package.json` declares it, so the package's own `devDependencies` gain it and the build bundles it.
-    - VS Code: `files.readonlyFromPermissions: true` in `.vscode/settings.json`. Zed: `file_scan_inclusions` in
-      `.zed/settings.json`, `"..."` first, then a glob for each projected root built from the pattern that ignores it
-      (`projectedRootPatterns`, `lib/layout/projected-roots.ts`), so no identity is named: `.arc/active/**`,
-      `.arc/backlog/**`, `.arc/completed/**`, and `.arc/user/*/**`. A missing file is created holding ARC's keys alone;
-      an existing list gains only the globs it lacks. `--remove` takes out ARC's globs, and the key where only `"..."`
-      remains, and the VS Code key where its value is ARC's; on a missing file it changes nothing. A file that does not
-      parse is refused naming the parse error, left untouched.
-    - `arc init` and `arc join` print the same `file_scan_inclusions` list for Zed's user settings, keeping no record,
-      since ARC writes nothing per machine and each verb runs once per person per clone. `runPostInitSetup`
-      (`lib/setup.ts`), which both call and which prints nothing, returns the capability it reads from the prepared
-      personal setup — `preparePersonalIdentitySetup` (`lib/personal-identity-setup.ts`) opens the store bound to the
-      identity being set up and returns null unless state is off-branch, so a non-null prepared setup is the capability
-      — and `arc init`'s and `arc join`'s results carry the line, which their output prints. Before the flip
-      `arc editor` refuses `unsupported` and neither verb prints it.
-    - Build `test-first` (one behavior at a time):
-        - Unit tier, over the settings editor
-        - a settings file with comments and other keys gains only ARC's key, comments kept
-        - `--remove` takes ARC's keys out and leaves the rest byte-identical
-        - Zed's list keeps `"..."` first and gains only the globs it lacks, the personal root's naming no identity
-        - a missing file is created with ARC's keys, and an unparseable one is refused untouched and gains ARC's keys
-          once it parses
-        - Integration tier, through the handler over the reference backend: `arc editor zed` writes the checkout's file
-        - with the store reporting off-branch state, the line `arc init` and `arc join` print holds the list
-          `arc editor zed` writes
-        - E2E tier, through the CLI over the in-repo implementation: `arc editor` refuses `unsupported`, and neither
-          `arc init` nor `arc join` prints the Zed setting
+- _Outcome:_ Added opt-in VS Code and Zed settings through the command's selected Store and checkout root, including
+  invocation from a subdirectory. JSONC edits retain comments and unrelated values, reject malformed settings with a
+  repair and retry, and remove only ARC's values. Zed inclusions derive from the shared root patterns; init and join
+  carry the same user-setting guidance from prepared personal setup, while the in-repo backend remains dark.
 
 ### `[ ]` **2.11 The selection of editable Markdown files — § 11.7**
 

@@ -98,6 +98,7 @@ import { statusCommandInputPolicyDeclarations, statusCommandInputRegistration } 
 import { agendaCommandInputPolicyDeclarations, agendaCommandInputRegistration } from "./commands/agenda/input.js";
 import { syncCommandInputPolicyDeclarations } from "./handlers/sync.js";
 import { saveCommandInputRegistration, saveCommandInputPolicyDeclarations } from "./handlers/save.js";
+import { editorCommandInputRegistration, editorCommandInputPolicyDeclarations } from "./handlers/editor.js";
 import { userCommandInputPolicyDeclarations, userCommandInputRegistrations } from "./handlers/user.js";
 import {
   userInboxListCommandInputPolicyDeclarations,
@@ -140,6 +141,7 @@ export const commandInputRegistrations = [
   recoverCommandInputRegistration,
   statusCommandInputRegistration,
   saveCommandInputRegistration,
+  editorCommandInputRegistration,
   agendaCommandInputRegistration,
   logStandaloneInputRegistration,
   ...userCommandInputRegistrations,
@@ -196,6 +198,7 @@ export const commandInputPolicyDeclarations = [
   ...agendaCommandInputPolicyDeclarations,
   ...syncCommandInputPolicyDeclarations,
   ...saveCommandInputPolicyDeclarations,
+  ...editorCommandInputPolicyDeclarations,
   ...userCommandInputPolicyDeclarations,
   ...userInboxListCommandInputPolicyDeclarations,
   ...userSyncCommandInputPolicyDeclarations,

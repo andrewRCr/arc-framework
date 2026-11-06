@@ -13,6 +13,7 @@ import {
   renderTokens, renderConditionals, renderConfigOverrides,
 } from "../lib/template/index.js";
 import { CROSS_WU_INSTANCE_FILES, configureGitIntegration, runPostInitSetup } from "../lib/setup.js";
+import { zedProjectionSettingsMessage } from "../lib/editor-settings.js";
 import type { InitPromptResult } from "../prompts/init-prompts.js";
 import type { Manifest, Recipe, CoreIO } from "../lib/types.js";
 import {
@@ -119,6 +120,7 @@ export interface InitOptions extends PersonalIdentitySetupOptions {
 /** Result from a successful init run. */
 export interface InitResult {
   hookSetupMessages?: string[];
+  zedSettingsMessage?: string;
   filesWritten: string[];
   tools: string[];
   team_mode: boolean;
@@ -314,12 +316,13 @@ export async function runInit(
     await io.exec("git", ["config", "--local", "arc.role", "maintainer"]);
 
     // Identity and user directory setup
-    await runPostInitSetup({
+    const stateOffBranch = await runPostInitSetup({
       arcDir, internalTemplateDir, io, identityResult, preparedIdentity,
     });
 
     return {
       ...(hookSetupMessages.length > 0 ? { hookSetupMessages } : {}),
+      ...(stateOffBranch ? { zedSettingsMessage: zedProjectionSettingsMessage() } : {}),
       filesWritten,
       tools: prompts.tools,
       team_mode: prompts.team_mode,
@@ -355,6 +358,7 @@ export function buildPostInitMessage(result: InitResult): string {
   const fileCount = result.filesWritten.length;
   lines.push(`ARC installed in .arc/ (${fileCount} ${fileCount === 1 ? "file" : "files"})`);
   for (const message of result.hookSetupMessages ?? []) lines.push("", message);
+  if (result.zedSettingsMessage !== undefined) lines.push("", result.zedSettingsMessage);
 
   if (result.tools.length > 0) {
     lines.push("");
