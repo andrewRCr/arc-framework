@@ -18,85 +18,42 @@ _Design decisions:_ The script's logic lives in modules under `packages/arc-fram
 thin entry at `src/scripts/run-typecheck.ts`. The npm scripts stay as they are until Phase 2 has every shard and the
 coverage test, so no commit before then narrows what the commit gate checks.
 
-### `[ ]` **1.1 Install TypeScript 7 beside TypeScript 6 — D5**
+### `[x]` **1.1 Install TypeScript 7 beside TypeScript 6 — D5**
 
 - _Goal:_ `typescript-7` resolves to TS 7.0.x with its platform package installed, while `typescript` stays 6.0.x
   for every tool and compiler-API user.
 
-- _Note:_ The change's pull request says that in-flight branches run `npm ci` after their next base merge.
+- _Outcome:_ Installed the TS 7.0.2 alias and integrity-pinned optional platform packages beside TS 6.0.3. A clean
+  `npm ci` preserves bare `tsc` as TS 6; the TS 7 launcher and support files resolve, and `npm run setup` passes
+  with install scripts disabled. The pull request must tell in-flight branches to run `npm ci` after merging base.
 
-    - Add `"typescript-7": "npm:typescript@^7.0.2"` to `packages/arc-framework/package.json`'s `devDependencies`,
-      beside `"typescript": "^6.0.3"`, through a workspace install from the repository root, so `package-lock.json`
-      gains the alias and its `@typescript/typescript-<platform>-<arch>` optional packages with integrity hashes
-    - `ignore-scripts=true` in `.npmrc` holds; `npm run setup` still passes `check:install`
-    - Confirm `require("typescript").version` is still 6.0.x from the package root, and that `typescript-7`'s
-      launcher is `bin/tsc` with `lib/tsc.js` and `lib/getExePath.js` beside it
-    - After `npm ci`, confirm `node_modules/.bin/tsc` still links `typescript`'s own `bin/tsc`. Until 2.4 switches
-      them, `typecheck` and `typecheck:test` run the bare `tsc`. If the link were TS 7, every gate in between would
-      run it with four checkers and no `GOMEMLIMIT`, which ran out of memory under a 6 GiB cap. A TS 7 link stops the
-      task
-
-### `[ ]` **1.2 Add the shard base and the `integration-store` shard — D1**
+### `[x]` **1.2 Add the shard base and the `integration-store` shard — D1**
 
 - _Goal:_ One shard config parses to `tsconfig.test.json`'s options without the declaration pass, with the store
   integration tests as its only roots.
 
-    - `tsconfig.shards.json`: extends `./tsconfig.test.json`; `compilerOptions` sets only `declaration: false` and
-      `declarationMap: false`
-    - `tsconfig.shard-integration-store.json`: extends `./tsconfig.shards.json`; `include`
-      `__tests__/integration/store-ref-*` and `__tests__/integration/store`; `exclude` `node_modules` and `dist`;
-      `tsBuildInfoFile` `node_modules/.cache/tsc/shard-integration-store.tsbuildinfo`
-    - `integration-store` comes first because it is the smallest shard and its `include` stands alone, with no
-      `exclude` that another shard's patterns feed
+- _Outcome:_ Added the shared base and store shard with its own incremental cache. TS 6 parses 434 store-only
+  roots under the reference options with declaration and declaration-map checking disabled.
 
-### `[ ]` **1.3 Resolve the TypeScript 7 compiler or refuse with its remedy — D3**
+### `[x]` **1.3 Resolve the TypeScript 7 compiler or refuse with its remedy — D3**
 
 - _Goal:_ The script finds TS 7's launcher and native binary from its own module and never uses
   `node_modules/.bin/tsc`. When either package does not resolve, it runs no compiler and exits 1 naming the missing
   package and `npm ci`.
 
-    - New module `src/scripts/typecheck/compiler.ts`
-    - Resolve `typescript-7/package.json`, which the package's `exports` exposes (`bin/tsc` it does not), and take
-      the launcher from its `bin.tsc` entry
-    - Resolve `@typescript/typescript-${process.platform}-${process.arch}/package.json` from `typescript-7`'s own
-      location, as the launcher's `getExePath` does; the native binary is its `lib/tsc` (`tsc.exe` on Windows). The
-      identity rule (1.5) compares against this path
-    - The refusal names the package and the remedy, in the shape of `captureBuildContext`'s own (`run npm ci`)
-    - Unit tests in `__tests__/unit/scripts/typecheck/compiler.test.ts`, with resolution injected
-    - Build `test-first` (one behavior at a time):
-        - Both packages resolve: the launcher and native binary paths come from the two package manifests
-        - On Windows the native binary carries `.exe`
-        - `typescript-7` missing: the refusal names `typescript-7` and `npm ci`
-        - The platform package missing: the refusal names `@typescript/typescript-<platform>-<arch>` and `npm ci`
+- _Outcome:_ The injected resolver binds the launcher to the alias manifest and the native executable to its
+  platform package, including Windows. Missing installation evidence names the package and `npm ci`.
 
-### `[ ]` **1.4 Launch a compiler under its soft limit and backstop — D3**
+### `[x]` **1.4 Launch a compiler under its soft limit and backstop — D3**
 
 - _Goal:_ Each TS 7 process runs `--noEmit -p <config> --checkers 1` plus any forwarded arguments. The script's soft
   limit replaces any inherited `GOMEMLIMIT`. On Linux the process runs under an address-space limit of the soft limit
   plus the margin, never above an inherited limit. One process id passes through the shell, the launcher and the
   native binary.
 
-    - New module `src/scripts/typecheck/memory-bound.ts` for the soft limit, margin and backstop; process launch in
-      `src/scripts/typecheck/processes.ts`
-    - Soft limit here is the fixed 6000 MiB; the cgroup term joins in 3.1
-    - Margin constant `1817` MiB, from the desktop's largest `VmPeak` − `VmHWM` gap (1,305 MiB) plus 512 MiB, never
-      below 1,331 MiB; 3.4 sets the final value from m4-mini's sample
-    - Inherited limits: soft and hard "Max address space" from `/proc/self/limits`, `unlimited` meaning none. The
-      backstop is the soft limit plus margin, and none is set when either inherited limit is already lower, so the
-      compiler runs under the inherited one
-    - Linux launch: `/bin/sh -c` with a fixed script that sets `ulimit -v` in KiB and then `exec`s the running Node
-      on the launcher, the paths and arguments passed as positional parameters, never interpolated into the script
-    - Elsewhere: spawn the running Node on the launcher directly, with `GOMEMLIMIT` and `--checkers 1`, and no
-      backstop
-    - Unit tests in `__tests__/unit/scripts/typecheck/memory-bound.test.ts` and `processes.test.ts`
-    - Build `test-first` (one behavior at a time):
-        - The compiler arguments are `--noEmit -p <config> --checkers 1`, then the forwarded arguments in order
-        - The child environment's `GOMEMLIMIT` is the soft limit as `<n>MiB`, replacing an inherited value
-        - With unlimited inherited limits, the backstop is the soft limit plus the margin, in KiB for `ulimit -v`
-        - An inherited soft limit below that sets no backstop; so does an inherited hard limit below it
-        - `/proc/self/limits` parsing reads both columns of the address-space row, with `unlimited` as none
-        - On Linux the launch is `/bin/sh -c` with the fixed script and positional arguments; elsewhere it is the
-          launcher directly, with no backstop
+- _Outcome:_ Added literal compiler launch plans with one checker, forwarded arguments and an owned 6000 MiB
+  soft target. Linux applies the provisional 1,817 MiB backstop margin through positional shell arguments and
+  preserves either inherited address-space ceiling when lower.
 
 ### `[ ]` **1.5 Read the native compiler's peak and print its line — D3**
 
