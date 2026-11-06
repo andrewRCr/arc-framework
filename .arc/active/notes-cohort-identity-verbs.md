@@ -9,6 +9,8 @@
     - [Superseded branch-link rule](#superseded-branch-link-rule)
 - [Same-name refusal order](#same-name-refusal-order)
     - [Superseded input-refusal rule](#superseded-input-refusal-rule)
+- [Captured branch-link facts](#captured-branch-link-facts)
+    - [Superseded shape-only remedy rule](#superseded-shape-only-remedy-rule)
 
 ## Catch-up publication recovery
 
@@ -99,5 +101,32 @@ The new native CLI case pins a missing project's precedence without changing rep
 >   not a slug also meets a refusal the verb reaches before its store opens — identity, the project root, configuration
 >   such as `branch.protection` and `branch.base`, the stdin Git boundary, or the store's own open — that refusal now
 >   shows first.
+
+## Captured branch-link facts
+
+Amendment A4 gives `branchLinkRepair` the placement, ordered links, and former slugs already available to
+`refCandidates` and the reference backend's `lookupReference`. `selectWorkBranchLink` distinguishes the selected work
+branch from a retained promotion link. Shape alone could not: `replace` retains the Errand branch before appending the
+new work branch, and `renameMutation` replaces only the selected link.
+
+`renameOrigin` also requires a previous meta name, which an alias inherited from an Errand does not prove. The remedy
+therefore states the prior-work-unit-rename and UID-bound-checkout conditions for catch-up. No new history read,
+stored field, public refusal field, or branch-mutation authority is introduced. Criterion 20 remains immutable for
+supersession by the appended replacement at verification.
+
+### Superseded shape-only remedy rule
+
+> The branch-link lookup's `ambiguous-match`, whose `tie` carries `liveness` alone, takes a remedy from
+> `branchLinkRepair(candidates, tie, branch)` in `lib/store/clash-repair.ts`, not `clashRepair`, whose moves would not move
+> a link; `branch` is the branch the lookup names, since neither the tie nor a holder's reference carries the link. A
+> completed tie — only Errands link the branch, and every one is closed (`refCandidates`) — takes the completed text
+> `clashRepair` gives: no lifecycle repair, naming each holder's UID. A live tie's remedy names each holder's move or limitation,
+> with moves run on the machine holding its checkout (A2). For a work unit linking `<prefix>/<current-slug>`, it names
+> `arc rename <uid> <new-slug>`. For any other two-segment branch, it names the catch-up `arc rename <uid> <slug>`
+> only if the branch's last segment is a former slug of that holder (§ 2.5), and explicitly says that rename cannot move
+> the link otherwise. `branchLinkRepair` receives references without aliases, so it states that condition rather than
+> claiming to establish it. For other branch shapes it names the holder and branch and states that no rename-based
+> repair is available; it does not advertise a catch-up. For an Errand it names `arc errand close <uid>`, which ends the
+> holder of its created `chore/<slug>` branch. Its argv remains `arc status --json`.
 
 ---

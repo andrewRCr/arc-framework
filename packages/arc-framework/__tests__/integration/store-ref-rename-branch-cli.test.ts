@@ -66,6 +66,41 @@ async function remoteHolderFixture(published = true) {
   return { ...f, peer, oid };
 }
 
+it("distinguishes a retained promotion link from the selected work branch and catches it up after rename", async () => {
+  const f = await fixture();
+  if (f.other === undefined) throw new Error("Expected namesake");
+  const retained = { ...f.link, ref: "chore/shared" };
+  await f.cli.exec("git", ["branch", retained.ref]);
+  await f.cli.exec("git", ["switch", "-c", f.link.ref]);
+  await f.marker(f.cli.cwd, f.uid);
+  for (const reference of [f.source, f.other]) {
+    const record = success(await f.store.read({ reference }));
+    success(await f.store.write({ ...recordPut(record, { links: { branches: reference === f.source ? [retained, f.link] : [retained] } }),
+      provenance: { verb: "fixture", lifecycleAction: "link" } }));
+  }
+  const other = success(await f.store.read({ reference: f.other }));
+  const before = await resolveStoreBranch(f.store, retained.ref, async () => f.repository);
+  expect(before).toMatchObject({ status: "unavailable" });
+  if (before.status !== "unavailable") throw new Error("Expected branch-link tie");
+  expect(before.reason).toContain(f.uid);
+  expect(before.reason).not.toContain(`arc rename ${f.uid} <new-slug>`);
+  const renamed = await f.invoke(["rename", f.uid, "renamed", "--json"]);
+  expect(renamed.exitCode ?? 0, renamed.stdout + renamed.stderr).toBe(0);
+  const work = { ...f.link, ref: "feat/renamed" };
+  expect(success(await f.store.read({ reference: f.source })).links?.branches).toEqual([retained, work]);
+  const after = await resolveStoreBranch(f.store, retained.ref, async () => f.repository);
+  expect(after).toMatchObject({ status: "unavailable", reason: expect.stringContaining(`arc rename ${f.uid} renamed`) });
+  if (after.status !== "unavailable") throw new Error("Expected retained branch-link tie");
+  const repair = new RegExp("`arc (rename " + f.uid + " renamed)`", "u").exec(after.reason)?.[1];
+  if (repair === undefined) throw new Error("Expected conditional catch-up instruction");
+  await f.cli.exec("git", ["switch", retained.ref]);
+  const caughtUp = await f.invoke([...repair.split(" "), "--json"]);
+  expect(caughtUp.exitCode ?? 0, caughtUp.stdout + caughtUp.stderr).toBe(0);
+  expect(success(await f.store.read({ reference: f.source })).links?.branches).toEqual([work, { ...retained, ref: "chore/renamed" }]);
+  expect(success(await f.store.read({ reference: f.other }))).toEqual(other);
+  expect(await resolveStoreBranch(f.store, retained.ref, async () => f.repository)).toMatchObject({ status: "ready", record: { reference: other.reference } });
+}, 60_000);
+
 it.each(["detached", "unrelated"] as const)("does not authorize catch-up from a %s subject checkout", async mode => {
   const f = await remoteHolderFixture();
   await f.cli.exec("git", mode === "detached" ? ["switch", "--detach"] : ["switch", "-c", "personal/unrelated"], { cwd: f.peer });

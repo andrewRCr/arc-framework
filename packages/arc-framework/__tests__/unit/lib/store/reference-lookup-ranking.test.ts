@@ -5,7 +5,7 @@ import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store
 import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { recordPut, batchLifecycleWrites } from "../../../../src/lib/store/lifecycle-write.js";
-import { branchLinkRepair, clashRepair } from "../../../../src/lib/store/clash-repair.js";
+import { clashRepair } from "../../../../src/lib/store/clash-repair.js";
 import { recordKey } from "../../../helpers/store/model.js";
 import type { StoreRecord } from "../../../../src/lib/store/read.js";
 import { seed, success, testProvenance } from "../../../helpers/store/suite-tools.js";
@@ -129,10 +129,13 @@ it("resolves a reused branch to its live holder and retains live ambiguity", asy
   const current = await h.seedMeta("shared", {}, { kind: "active" }, branchLinks);
   expect(lifecycleSuccess(await h.store.lookup(branchLookup)).reference).toEqual(current.reference);
   const other = await h.seedMeta("other", {}, { kind: "active" }, branchLinks);
-  expect(await h.store.lookup(branchLookup)).toMatchObject({ status: "refused", refusal: {
+  const tied = await h.store.lookup(branchLookup);
+  expect(tied).toMatchObject({ status: "refused", refusal: {
     code: "ambiguous-match", tie: { liveness: "live" }, candidates: expect.arrayContaining([current.reference, other.reference]),
-    remedy: branchLinkRepair([current.reference, other.reference], { liveness: "live" }, branchLookup.ref),
+    remedy: { text: expect.stringContaining("arc rename"), argv: ["arc", "status", "--json"] },
   } });
+  if (tied.status !== "refused") throw new Error("Expected live branch tie");
+  expect(tied.refusal.remedy.text).toContain("No direct rename repair for `other`");
 });
 
 it("selects the latest completed branch holder but leaves Errand-only ties ambiguous", async () => {

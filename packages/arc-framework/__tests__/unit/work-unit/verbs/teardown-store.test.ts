@@ -131,7 +131,7 @@ it("names both bound and unbound retirement holders before changing refs without
   expect([...h.refs]).toEqual(refs);
 });
 
-it("keeps a retiring branch and reports each live holder's link repair", async () => {
+it("keeps a retiring branch and reports no direct rename for holders without its former slug", async () => {
   const h = await fixture();
   const first = await h.seedMeta("one", {}, { kind: "active" }, { branches: [link()] });
   const second = await h.seedMeta("two", {}, { kind: "active" }, { branches: [link()] });
@@ -140,5 +140,5 @@ it("keeps a retiring branch and reports each live holder's link repair", async (
   expect(h.refs.has("refs/heads/feat/demo")).toBe(true);
   if (result.status !== "torn-down") throw new Error("Expected retained branch");
   for (const record of [first, second]) expect(result.notices.join(" ")).toContain(
-    `arc rename ${record.reference.owner.type === "work-item" ? record.reference.owner.uid : ""} ${record.reference.owner.name}`);
+    `No direct rename repair for \`${record.reference.owner.name}\` (UID ${record.reference.owner.type === "work-item" ? record.reference.owner.uid : ""})`);
 });

@@ -1,6 +1,6 @@
 /** Metadata-based lookup of names, code links, and claims over captured state trees. */
 
-import { branchLinkRepair, clashRepair } from "../clash-repair.js";
+import { branchLinkRepair, clashRepair, type BranchLinkRepairCandidate } from "../clash-repair.js";
 import type { LookupInput, LookupResult } from "../lookup.js";
 import { restartOnVanishedStore } from "./repository.js";
 import type { StoreResult, StoreRefusal, Remedy } from "../refusal.js";
@@ -20,6 +20,7 @@ export interface RefLookupTree { entries: readonly RefTreeEntry[]; metadata: Ref
 
 interface LookupSelection {
   candidates: LookupResult[];
+  branchHolders?: BranchLinkRepairCandidate[];
   tie?: Extract<StoreRefusal, { code: "ambiguous-match" }>["tie"];
 }
 
@@ -51,10 +52,10 @@ export function lookupCapturedRefTrees(context: Pick<RefBackendContext, "registr
   return result ? { status: "ok", result } : missingLookup(input);
 }
 
-function ambiguityRemedy(input: LookupInput, { candidates, tie }: LookupSelection): Remedy {
+function ambiguityRemedy(input: LookupInput, { candidates, tie, branchHolders }: LookupSelection): Remedy {
   const references = candidates.map(({ reference }) => reference);
   if (input.kind === "slug" && tie) return clashRepair(references, tie);
-  if (input.kind === "ref" && tie) return branchLinkRepair(references, tie, input.ref);
+  if (input.kind === "ref" && tie && branchHolders) return branchLinkRepair(branchHolders, tie, input);
   return { text: "Name the intended owner by UID, then repeat the lookup." };
 }
 
@@ -84,10 +85,13 @@ function refCandidates(context: Pick<RefBackendContext, "registry">, trees: Read
     && tree.metadata.primary?.links?.branches?.some(branch => branch.repository === input.repository && branch.ref === input.ref));
   const live = linked.filter(([, tree]) => !tree.liveRef);
   const tier = live.length > 0 ? live : completedLookupWinner(context, linked);
-  return { candidates: tier.flatMap(([ref, tree]) => {
-    const reference = lookupPrimary(context, ref, tree);
-    return reference ? [{ reference }] : [];
-  }), ...(tier.length > 0 ? { tie: { liveness: live.length > 0 ? "live" : "completed" } } : {}) };
+  const branchHolders = tier.flatMap(([ref, tree]) => {
+    const reference = lookupPrimary(context, ref, tree), primary = tree.metadata.primary;
+    return reference && primary ? [{ reference, placement: primary.placement, aliases: tree.metadata.formerSlugs ?? [],
+      ...(primary.links === undefined ? {} : { links: primary.links }) }] : [];
+  });
+  return { candidates: branchHolders.map(({ reference }) => ({ reference })), branchHolders,
+    ...(tier.length > 0 ? { tie: { liveness: live.length > 0 ? "live" as const : "completed" as const } } : {}) };
 }
 
 function commitCandidates(context: Pick<RefBackendContext, "registry">, trees: ReadonlyMap<string, RefLookupTree>,

@@ -1,41 +1,74 @@
 /** Ranked lookup ties prescribe repairs by holder kind and ranking tier. */
 import { expect, it } from "vitest";
-import { branchLinkRepair, clashRepair } from "../../../../src/lib/store/clash-repair.js";
+import { branchLinkRepair, clashRepair, type BranchLinkRepairCandidate } from "../../../../src/lib/store/clash-repair.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
+import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 const uidA = "11111111-1111-4111-8111-111111111111", uidB = "22222222-2222-4222-8222-222222222222";
 const uidC = "33333333-3333-4333-8333-333333333333";
-it("names each work unit's branch-link move on its holding machine", () => {
-  const repair = branchLinkRepair([holder("work-item/meta", "shared", uidA), holder("work-item/meta", "shared", uidB)], { liveness: "live" }, "refs/heads/custom/shared");
+it("names each selected work branch's rename with its checkout prerequisite", () => {
+  const candidates = [branchHolder("work-item/meta", "shared", uidA, ["refs/heads/custom/shared"]), branchHolder("work-item/meta", "shared", uidB, ["refs/heads/custom/shared"])];
+  const repair = branchLinkRepair(candidates, { liveness: "live" }, branchInput("refs/heads/custom/shared"));
   expect(repair.text).toContain(`arc rename ${uidA} <new-slug>`);
   expect(repair.text).toContain(`arc rename ${uidB} <new-slug>`);
-  expect(repair.text).toContain("machine");
+  expect(repair.text).toContain("`custom/shared` checked out in that holder's UID-bound checkout");
   expect(repair.argv).toEqual(["arc", "status", "--json"]);
 });
 it("names both moves in a work-unit and Errand branch tie", () => {
-  const repair = branchLinkRepair([holder("work-item/meta", "shared", uidA), holder("work-item/record", "shared", uidB)], { liveness: "live" }, "feat/shared");
+  const repair = branchLinkRepair([branchHolder("work-item/meta", "shared", uidA), branchHolder("work-item/record", "shared", uidB)], { liveness: "live" }, branchInput("feat/shared"));
   expect(repair.text).toContain(`arc rename ${uidA} <new-slug>`);
   expect(repair.text).toContain(`arc errand close ${uidB}`);
-  expect(repair.argv).toEqual(["arc", "status", "--json"]);
 });
-it("qualifies catch-up by the linked branch's former-slug eligibility", () => {
-  const branch = "refs/heads/feat/shared";
-  const repair = branchLinkRepair([holder("work-item/meta", "renamed", uidA), holder("work-item/meta", "shared", uidB)], { liveness: "live" }, branch);
+it("qualifies a captured former branch by prior work-unit rename and checkout", () => {
+  const candidate = branchHolder("work-item/meta", "renamed", uidA, ["feat/shared", "feat/renamed"], ["shared"]);
+  const repair = branchLinkRepair([candidate], { liveness: "live" }, branchInput("refs/heads/feat/shared"));
   expect(repair.text).toContain(`arc rename ${uidA} renamed`);
-  expect(repair.text).toContain("only if `shared` is a former slug of `renamed`");
-  expect(repair.text).toContain("otherwise rename cannot move this branch link");
+  expect(repair.text).toContain("only after a prior work-unit rename");
+  expect(repair.text).toContain("`feat/shared` checked out in that holder's UID-bound checkout");
 });
-it.each(["shared", "team/feat/renamed"])("states that rename cannot repair a non-work branch %s", branch => {
-  const repair = branchLinkRepair([holder("work-item/meta", "renamed", uidA)], { liveness: "live" }, branch);
-  expect(repair.text).toContain(`No rename-based repair is available for \`renamed\` (UID ${uidA})`);
+it("withholds ordinary rename for a retained current-name link", () => {
+  const candidate = branchHolder("work-item/meta", "shared", uidA, ["chore/shared", "feat/shared"]);
+  const repair = branchLinkRepair([candidate], { liveness: "live" }, branchInput("chore/shared"));
+  expect(repair.text).toContain("No direct rename repair");
+  expect(repair.text).toContain("ordinary rename selects `feat/shared` instead");
+  expect(repair.text).not.toContain("arc rename");
+});
+it("withholds catch-up for a suffix absent from the holder's aliases", () => {
+  const candidate = branchHolder("work-item/meta", "renamed", uidA, ["feat/shared", "feat/renamed"]);
+  const repair = branchLinkRepair([candidate], { liveness: "live" }, branchInput("feat/shared"));
+  expect(repair.text).toContain("No direct rename repair");
+  expect(repair.text).not.toContain("arc rename");
+});
+it.each(["shared", "team/feat/renamed"])("states that rename cannot directly repair a non-work branch %s", branch => {
+  const repair = branchLinkRepair([branchHolder("work-item/meta", "renamed", uidA, [branch])], { liveness: "live" }, branchInput(branch));
+  expect(repair.text).toContain(`No direct rename repair for \`renamed\` (UID ${uidA})`);
   expect(repair.text).toContain(`\`${branch}\``);
   expect(repair.text).not.toContain("arc rename");
   expect(repair.argv).toEqual(["arc", "status", "--json"]);
 });
-it("gives completed branch holders the completed repair", () => {
-  const candidates = [holder("work-item/record", "shared", uidA), holder("work-item/record", "shared", uidB)];
-  expect(branchLinkRepair(candidates, { liveness: "completed" }, "chore/shared"))
-    .toEqual(clashRepair(candidates, { liveness: "completed" }));
+it("withholds branch movement for a passive holder", () => {
+  const candidate: BranchLinkRepairCandidate = { ...branchHolder("work-item/meta", "shared", uidA), placement: { kind: "backlog", commitment: "planned" } };
+  const repair = branchLinkRepair([candidate], { liveness: "live" }, branchInput("feat/shared"));
+  expect(repair.text).toContain("No direct rename repair");
+  expect(repair.text).not.toContain("arc rename");
 });
+it("withholds movement when canonical links are ambiguous", () => {
+  const candidate = branchHolder("work-item/meta", "shared", uidA, ["feat/shared", "refs/heads/feat/shared"]);
+  const repair = branchLinkRepair([candidate], { liveness: "live" }, branchInput("feat/shared"));
+  expect(repair.text).toContain("No direct rename repair");
+  expect(repair.text).not.toContain("arc rename");
+});
+it("gives completed branch holders the completed repair", () => {
+  const candidates = [uidA, uidB].map(uid => ({ ...branchHolder("work-item/record", "shared", uid),
+    placement: { kind: "completed" as const, quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
+  expect(branchLinkRepair(candidates, { liveness: "completed" }, branchInput("chore/shared")))
+    .toEqual(clashRepair(candidates.map(({ reference }) => reference), { liveness: "completed" }));
+});
+function branchInput(ref: string) { return { kind: "ref" as const, repository: "project", ref }; }
+function branchHolder(kind: "work-item/meta" | "work-item/record", name: string, uid: string,
+  branches = [`feat/${name}`], aliases: string[] = []): BranchLinkRepairCandidate {
+  return { reference: holder(kind, name, uid), placement: { kind: "active" }, aliases,
+    links: { branches: branches.map(ref => ({ repository: "project", ref, linkedAs: "created", excluded: [] })) } };
+}
 function holder(kind: "work-item/meta" | "work-item/record" | "cohort/document", name: string, uid: string) {
   return recordReferences[kind](OwnerIdentitySchema.parse({ type: kind === "cohort/document" ? "cohort" : "work-item", name, uid }));
 }

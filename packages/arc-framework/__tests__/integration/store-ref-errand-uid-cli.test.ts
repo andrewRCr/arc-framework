@@ -19,6 +19,8 @@ import { plantRefPrimary } from "../helpers/store/ref-primary-plant.js";
 import { capturedEntries } from "../helpers/store/ref-fixture-plant.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { makeMetaFixture } from "../helpers/meta-fixture.js";
+import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { makeGitExec } from "../helpers/integration.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
 import { runDerivedLocusStateProbe } from "../../src/handlers/derived-locus-state-probe.js";
@@ -193,6 +195,28 @@ it("a finalized UID retry clears its own HEAD receipt and preserves the other sa
 }, 60_000);
 
 const promoteArgs = (slug: string, name: string) => ["errand", "promote", slug, "--name", name, "--type", "feat", "--floor", "derivation", "--class", "Light", "--json"];
+it("qualifies a promotion-only alias by the missing prior work-unit rename", async () => {
+  const f = await fixture(), selected = await errand(f, uidA);
+  expect(await invoke(f, selected.holder, promoteArgs("shared", "grown"))).toMatchObject({ result: { outcome: "applied" } });
+  const reference = success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("grown") })).reference;
+  const promoted = success(await f.store.read({ reference }));
+  expect(promoted.aliases).toContain("shared");
+  const retained = promoted.links?.branches?.find(link => link.ref === "chore/shared");
+  if (retained === undefined) throw new Error("Expected retained promotion link");
+  const holder = await plantRefPrimary(f, { kind: "work-item/meta", uid: uidB, name: "other", content: makeMetaFixture("other") });
+  const other = success(await f.store.read({ reference: holder }));
+  success(await f.store.write({ ...recordPut(other, { links: { branches: [retained] } }), provenance: { verb: "fixture", lifecycleAction: "link" } }));
+  const tie = await f.store.lookup({ kind: "ref", repository: f.repository, ref: retained.ref });
+  expect(tie).toMatchObject({ status: "refused", refusal: { remedy: { text: expect.stringContaining("only after a prior work-unit rename") } } });
+  await f.exec("git", ["switch", retained.ref], { cwd: selected.holder });
+  const before = success(await f.store.version());
+  const refused = await invoke(f, selected.holder, ["rename", uidA, "grown", "--json"]);
+  expect(refused).toMatchObject({ exitCode: 1, result: { status: "rejected", reason: expect.stringContaining("distinct source and target") } });
+  expect(success(await f.store.version())).toBe(before);
+  expect(success(await f.store.read({ reference }))).toEqual(promoted);
+  expect((await f.exec("git", ["branch", "--show-current"], { cwd: selected.holder })).stdout.trim()).toBe(retained.ref);
+}, 60_000);
+
 it("promote preserves the clash repair and takes the remaining Errand after UID close", async () => {
   const f = await fixture(), selected = await errand(f, uidA, "fix"), other = await errand(f, uidB);
   const refused = await invoke(f, other.holder, promoteArgs("shared", "grown"));

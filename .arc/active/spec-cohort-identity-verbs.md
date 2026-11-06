@@ -367,24 +367,35 @@ place of rebuilding `clashRepair` from any `tie`, so each lookup arm's repair re
 #### 3.3 A branch-link tie
 
 The branch-link lookup's `ambiguous-match`, whose `tie` carries `liveness` alone, takes a remedy from
-`branchLinkRepair(candidates, tie, branch)` in `lib/store/clash-repair.ts`, not `clashRepair`, whose moves would not move
-a link; `branch` is the branch the lookup names, since neither the tie nor a holder's reference carries the link. A
-completed tie — only Errands link the branch, and every one is closed (`refCandidates`) — takes the completed text
-`clashRepair` gives: no lifecycle repair, naming each holder's UID. A live tie's remedy names each holder's move or limitation,
-with moves run on the machine holding its checkout (A2). For a work unit linking `<prefix>/<current-slug>`, it names
-`arc rename <uid> <new-slug>`. For any other two-segment branch, it names the catch-up `arc rename <uid> <slug>`
-only if the branch's last segment is a former slug of that holder (§ 2.5), and explicitly says that rename cannot move
-the link otherwise. `branchLinkRepair` receives references without aliases, so it states that condition rather than
-claiming to establish it. For other branch shapes it names the holder and branch and states that no rename-based
-repair is available; it does not advertise a catch-up. For an Errand it names `arc errand close <uid>`, which ends the
-holder of its created `chore/<slug>` branch. Its argv remains `arc status --json`. Only the branch lookup's readers meet
-the tie: teardown's gate, which leaves the branch and reports it, and two session-start checks, each warning with the refusal's
-remedy — the orphan-branch sweep (`readOrphanStoreCandidates`, `lib/session-init/orphan-store-candidates.ts`, through
-`resolveStoreBranch`) and the missing-worktree check (`readStoreMissingFolderActions`,
-`lib/session-init/missing-worktree-store.ts`). Session start resolves a live checkout's work unit by its claim, never
-through its branch, so the first rename run's report of the branch kept is what names the catch-up. The tie lasts until
-one holder completes, the lookup then ranking the live one first, or one holder's link moves: the other holder renamed
-on the machine holding its own checkout, or the subject's catch-up run.
+`branchLinkRepair(candidates, tie, input)` in `lib/store/clash-repair.ts`, not `clashRepair`, whose moves would not move
+a link. Each candidate carries its reference, placement, ordered branch links, and former slugs; `input` carries the
+lookup's repository and branch. `refCandidates` passes these facts from its captured metadata, and the reference
+backend's `lookupReference` from its ranked records, without another Store read or a public refusal-shape change (A4).
+A completed tie takes `clashRepair`'s completed text: no lifecycle repair, naming each holder's UID. For a live tie,
+`branchLinkRepair` names `arc errand close <uid>` for an Errand. For a work unit it uses these rules:
+
+- Only a holder with active placement and a linked two-segment branch can receive rename advice. A passive holder,
+  other branch shape, or ambiguous canonical-link selection instead names the holder and branch with no direct rename repair.
+- For `<prefix>/<current-slug>`, `selectWorkBranchLink` must select that exact branch in the lookup's repository,
+  as `selectBranchCoordinates` selects an ordinary rename's branch. Then the remedy names
+  `arc rename <uid> <new-slug>`, conditional on that branch being checked out in the holder's UID-bound checkout.
+  A retained nonselected link receives no direct rename repair; the text names the branch ordinary rename selects.
+- For another two-segment branch, its suffix must be a captured former slug. The remedy then names
+  `arc rename <uid> <slug>` only after a prior work-unit rename and with this exact linked branch checked out in the
+  holder's UID-bound checkout. Aliases alone do not prove that prerequisite: promotion retains an Errand's name,
+  while `renameOrigin` recovers only a previous `work-item/meta` name. The helper states these uncaptured history and
+  checkout prerequisites rather than claiming to establish them. A suffix absent from the aliases receives no direct
+  rename repair.
+
+These are limits on a direct repair of the reported link, not a claim that no later sequence can repair it. An ordinary
+rename can turn a retained current-name link into a former-name catch-up candidate (§ 2.5). Its argv remains `arc status
+--json`. Only the branch lookup's readers meet the tie: teardown's gate, which leaves the branch and reports it, and two
+session-start checks, each warning with the refusal's remedy — the orphan-branch sweep (`readOrphanStoreCandidates`,
+`lib/session-init/orphan-store-candidates.ts`, through `resolveStoreBranch`) and the missing-worktree check
+(`readStoreMissingFolderActions`, `lib/session-init/missing-worktree-store.ts`). Session start resolves a live
+checkout's work unit by its claim, never through its branch, so the first rename run's report of the branch kept is what
+names the catch-up. The tie lasts until one holder completes, the lookup then ranking the live one first, or one
+holder's link moves: the other holder renamed on the machine holding its own checkout, or the subject's catch-up run.
 
 #### 3.4 Remedies that stay
 
@@ -1009,6 +1020,15 @@ Over the ref backend and, where it can form the state, the reference backend, fr
     the missing project before its distinct-name input refusal, while an admitted in-repo command still rejects equal
     names. Same-name store continuation and catch-up requests remain available.
 
+18. **Captured branch-link eligibility (A4).** A holder with active placement receives ordinary rename advice only for
+    its selected current work link, and catch-up advice only for a linked former-slug branch with prior-work-unit-rename
+    and UID-bound-checkout conditions stated. Passive holders, ambiguous links, unsupported shapes, unknown suffixes,
+    and retained current-name links report no direct rename repair. With retained promotion links, an ordinary rename
+    moves only the selected link and leaves the retained tie; a subsequent eligible catch-up moves only that retained
+    link and resolves it. A promotion-only alias does not satisfy the prior-work-unit-rename prerequisite.
+
+**Superseded (A4):** Success criterion 16's unconditional branch-shape prescription is replaced by criterion 18.
+
 ## Open Questions
 
 None.
@@ -1023,5 +1043,8 @@ None.
 
 - **A3** — 2026-11-05 — design: same-name checks follow backend selection. _Supersedes:_ § 10, input-refusal bullet.
   _Trigger:_ F2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A4** — 2026-11-05 — design: branch remedies use captured facts. _Supersedes:_ § 3.3 ¶1; criterion 16.
+  _Trigger:_ F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

@@ -28,6 +28,8 @@ former slug naming the current one and admit a completed meta's rewrite onto a c
 
     - _Amended in:_ review-fix (A2).
 
+    - _Amended in:_ review-fix (A4).
+
 ### `[x]` **1.2 Give each lookup arm's ambiguity its repair in both backends — § 3.1, § 3.3**
 
 - _Goal:_ Every reader that meets a clash through the lookup prints a repair that names a command which ends it: the slug
@@ -716,3 +718,10 @@ Over the ref backend and, where it can form the state, the reference backend, fr
 - `[ ]` Before the flip, `arc rename example example` outside an ARC project reports the missing project before its
   distinct-name input refusal, while the same request in an admitted in-repo command retains that input refusal;
   same-name store continuation and catch-up requests remain available.
+
+- `[ ]` A branch-link tie gives a work unit with active placement ordinary rename advice only for its selected current link,
+  and catch-up advice only for a linked former-slug branch, naming the prior-work-unit-rename and UID-bound-checkout
+  prerequisites. Passive holders, ambiguous links, unsupported shapes, unknown suffixes, and retained current-name
+  links report no direct rename repair. With retained promotion links, ordinary rename moves only the selected link
+  and leaves the tie; an eligible later catch-up moves only the retained link and resolves it. A promotion-only alias
+  does not establish a prior work-unit rename.

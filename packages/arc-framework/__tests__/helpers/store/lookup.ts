@@ -123,7 +123,8 @@ export function lookupReference(context: ReferenceContext, input: LookupInput): 
     return refused({ code: "ambiguous-match", class: "recoverable", candidates: references,
       ...(tie === undefined ? {} : { tie }), condition: "The lookup matches more than one record generation.",
       remedy: input.kind === "slug" && tie ? clashRepair(references, tie)
-        : input.kind === "ref" && tie ? branchLinkRepair(references, tie, input.ref)
+        : input.kind === "ref" && tie ? branchLinkRepair((ranked ?? []).map(record => ({ reference: record.reference, aliases: record.formerSlugs,
+          ...(record.placement === undefined ? {} : { placement: record.placement }), ...(record.links === undefined ? {} : { links: record.links }) })), tie, input)
         : { text: "Name the intended owner by UID, then repeat the lookup." },
     });
   }
