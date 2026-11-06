@@ -11,13 +11,14 @@
 - **Design:** `spec-cohort-identity-verbs.md`
 - **Task List:** `tasks-cohort-identity-verbs.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:760ac9623e9f6c01b70e9d751f9e686b5dfcaa22676d6befd5c3072e83acc241`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 5.6 — A cohort renamed end to end; Phases 1–5 complete
-- **Next Task:** Task 6.1 — Complete verification (`tasks-cohort-identity-verbs.md`, line ~620)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 6.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** In a fresh session, start Task 6.1 by loading and following `verify-work-unit.md`.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

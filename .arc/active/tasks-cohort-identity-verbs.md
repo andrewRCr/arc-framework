@@ -623,7 +623,15 @@ old name refuses naming the current one.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Full merge gate passed all 20 selected checks, including six store shards. Focused regressions,
+  related unit feedback, and both type checks passed. Hosted CI run `42226728050` passed without diagnostic inputs at
+  `d16d659fc92ef768dd1eff9620eb64204b3165b6`: build, lint, unit, integration, store, E2E, and Linux portability.
+- _Success criteria:_ 22 criteria: 21 met, one superseded by A4; criterion 16 carries the approved A3 deviation.
+  Complete criteria Pass 4 used three scoped reviewers and a fresh seam-and-aggregate reviewer, with no findings;
+  the latest independent fix check also returned no findings. Store behavior is exercised through command fixtures;
+  production activation remains with the storage flip.
 
 ---
 
@@ -631,45 +639,45 @@ old name refuses naming the current one.
 
 Over the ref backend and, where it can form the state, the reference backend, from the flip:
 
-- `[ ]` With two live holders of one slug — two work units, a work unit and a cohort, a work unit and an Errand, two
+- `[x]` With two live holders of one slug — two work units, a work unit and a cohort, a work unit and an Errand, two
   Errands, two cohorts — the slug lookup's refusal, the lifecycle verbs' and `arc rename`'s refusals, and
   `meta.depends-on`'s refusal of an edge naming the slug carry `clashRepair`'s remedy for those types; for two cohorts so
   do `meta.cohort`'s and `cohort.parent`'s refusals and session entry's, archive's, and a member's rename's.
 
-- `[ ]` Status's `slug-clash` warning for two work units names `arc rename <uid> <new-slug>` for each, as does Start
+- `[x]` Status's `slug-clash` warning for two work units names `arc rename <uid> <new-slug>` for each, as does Start
   readiness withholding a target named by the former slug of one, and a live former-slug tie's remedy names the
   intended holder by its current name.
 
-- `[ ]` `arc rename <uid> <new-slug>` renames the named work unit or cohort under the clash, after which the slug resolves
+- `[x]` `arc rename <uid> <new-slug>` renames the named work unit or cohort under the clash, after which the slug resolves
   to the other holder.
 
-- `[ ]` `arc errand close <uid>` and `arc errand abandon <uid>` each end the named Errand of two, after which the slug
+- `[x]` `arc errand close <uid>` and `arc errand abandon <uid>` each end the named Errand of two, after which the slug
   resolves to the other; a retry either prints repeats the UID; `arc errand promote <slug>` under the clash refuses naming
   `arc errand close <uid>` and lands on the remaining Errand once one closes.
 
-- `[ ]` A UID operand selecting an Errand on `arc rename`, a work unit on `arc errand close`, or nothing refuses as § 1.2
+- `[x]` A UID operand selecting an Errand on `arc rename`, a work unit on `arc errand close`, or nothing refuses as § 1.2
   states; an upper-case UID selects the same owner; a slug resolving to a cohort renames it; a closed cohort refuses.
 
-- `[ ]` Renaming a work unit onto an archived work unit's slug lands, discharging a stub's edge and the subject's own edge
+- `[x]` Renaming a work unit onto an archived work unit's slug lands, discharging a stub's edge and the subject's own edge
   naming it, and refuses while an in-flight dependent's edge names it; onto a live holder's current or former slug it
   refuses naming that holder; a resumed rename and a rename back to a former slug land.
 
-- `[ ]` Renaming one of two work units sharing a slug rewrites no other record naming the slug, reports each with its
+- `[x]` Renaming one of two work units sharing a slug rewrites no other record naming the slug, reports each with its
   edit, and leaves the slug resolving to the other; renaming one of two cohorts reports a subcohort naming the slug, with
   an open and a completed member, with the edits in order, rewrites none of the other's members, and the edits land;
   renaming the cohort of a work-unit and cohort pair rewrites its members as with no clash; renaming a duplicate stub of
   a doubled cut reports its member heading and leaves it unchanged.
 
-- `[ ]` With both work units linking one branch, renaming an active one moves only its own checkout and keeps the old
+- `[x]` With both work units linking one branch, renaming an active one moves only its own checkout and keeps the old
   remote branch, as its continuation after a failed push does; run where no checkout of it holds the branch, it lands
   with the branch and link unchanged and reports the catch-up command, which then moves them; before that catch-up, the
   other holder's rename run where its own checkout is not leaves the branch both links name and keeps the old remote
   branch; a rename with no clash renames, pushes, and deletes as today.
 
-- `[ ]` Renaming the second holder of a repaired clash away reports the former-slug tie, and a promotion under `--name`
+- `[x]` Renaming the second holder of a repaired clash away reports the former-slug tie, and a promotion under `--name`
   leaving the tie resumes when rerun by its new name.
 
-- `[ ]` Renaming a parent cohort with a started member, a completed member, an open subcohort, and a closed subcohort with
+- `[x]` Renaming a parent cohort with a started member, a completed member, an open subcohort, and a closed subcohort with
   a completed member lands in one batch, on a clone lacking those records' history refs too, after which each names the
   new slug, as do the document's heading, the subcohorts' `Parent`, and the filename references; renaming a subcohort
   rewrites its members' paths, one left on its parent's former slug included, to the current path, and its own `Parent`
@@ -677,51 +685,57 @@ Over the ref backend and, where it can form the state, the reference backend, fr
   lands, re-pointing that stub; renaming an archived work unit whose cohort archive closed lands on a clone lacking both
   their history refs.
 
-- `[ ]` After a cohort rename, an edit putting a member's `Cohort` or a subcohort's `Parent` back on the old name refuses,
+- `[x]` After a cohort rename, an edit putting a member's `Cohort` or a subcohort's `Parent` back on the old name refuses,
   naming the current one, and a completed member's rewrite to a completed cohort's current slug lands.
 
-- `[ ]` `arc cohort close` refuses a cohort an open stub names by a former slug, naming the edit; archive of its last
+- `[x]` `arc cohort close` refuses a cohort an open stub names by a former slug, naming the edit; archive of its last
   current-path member then lands, leaves it open, and reports the stub; a clash between two other cohorts blocks neither
   close nor archive's in-batch close; a parent whose subcohort's `Parent` and open member a pull left on its former slug
   refuses close naming § 4's three edits in order, which land.
 
-- `[ ]` `arc cohort close` closes a cohort an abandon left with no open member, as that abandon's result named, and
+- `[x]` `arc cohort close` closes a cohort an abandon left with no open member, as that abandon's result named, and
   refuses a completed one; `arc cohort remove` removes a cohort nothing ever named and refuses one an archived member
   names, naming `arc cohort close`; without `--yes` each writes nothing; a member a pull lands naming a removed cohort
   refuses archive and rename naming the edit to its `Cohort`, and both land after it.
 
-- `[ ]` Closing one of two clashed Errands by UID clears only its own finalized head locks, and on a machine holding no
+- `[x]` Closing one of two clashed Errands by UID clears only its own finalized head locks, and on a machine holding no
   checkout of it refuses naming the machine holding its checkout; abandoning one returns only its own held inbox
   entries; a UID under partial protection refuses `not-found`.
 
-- `[ ]` Under a clash, renaming a work unit whose checkout carries an unbound marker refuses before the batch naming the
+- `[x]` Under a clash, renaming a work unit whose checkout carries an unbound marker refuses before the batch naming the
   holders by UID and the release exit; after release and the rename, `arc materialize <new-slug>` and
   `arc materialize <slug>` bring back each holder's checkout.
 
-- `[ ]` Before the flip every command behaves as today, but for § 10's refusal order, or refuses `unsupported` naming
+- `[x]` Before the flip every command behaves as today, but for § 10's refusal order, or refuses `unsupported` naming
   what serves.
 
-- `[ ]` A rejected push after an older-alias catch-up returns the exact repository-scoped Git push for the actual new
+- `[x]` A rejected push after an older-alias catch-up returns the exact repository-scoped Git push for the actual new
   branch, preserving the selected reference and retained-branch report. Executing that argv publishes the new branch,
   keeps the actual old remote, and changes no stored records, history, markers, or checkout paths; ordinary rename
   continuations retain their original operand and automatic publication recovery.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
-- `[ ]` A branch-link tie names a work unit's UID rename for a two-segment branch named after its current slug, and a
+- `[~]` A branch-link tie names a work unit's UID rename for a two-segment branch named after its current slug, and a
   catch-up only if the suffix is a former slug, explicitly stating the limitation otherwise; other branch shapes state
   that no rename-based repair is available. Executing a supported catch-up moves only the selected holder's link and
   resolves the tie.
 
-- `[ ]` Before the flip, `arc rename example example` outside an ARC project reports the missing project before its
+- `[x]` Before the flip, `arc rename example example` outside an ARC project reports the missing project before its
   distinct-name input refusal, while the same request in an admitted in-repo command retains that input refusal;
   same-name store continuation and catch-up requests remain available.
 
-- `[ ]` A branch-link tie gives a work unit with active placement ordinary rename advice only for its selected current link,
+- `[x]` A branch-link tie gives a work unit with active placement ordinary rename advice only for its selected current link,
   and catch-up advice only for a linked former-slug branch, naming the prior-work-unit-rename and UID-bound-checkout
   prerequisites. Passive holders, ambiguous links, unsupported shapes, unknown suffixes, and retained current-name
   links report no direct rename repair. With retained promotion links, ordinary rename moves only the selected link
   and leaves the tie; an eligible later catch-up moves only the retained link and resolves it. A promotion-only alias
   does not establish a prior work-unit rename.
+
+**Deviation (criterion 16, A3):** Ordinary same-name rename input checks follow backend selection; outside an ARC project,
+the missing-project refusal takes precedence. Admitted in-repo commands retain distinct-name rejection.
+
+**Superseded (criterion 20, A4):** Criterion 22 replaces the unconditional branch-shape prescription with captured
+holder and selected-link eligibility, including the stated prior-rename and UID-bound-checkout conditions.
