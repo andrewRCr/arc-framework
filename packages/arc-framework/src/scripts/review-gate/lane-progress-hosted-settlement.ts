@@ -143,6 +143,31 @@ function isHostedDispositionReplay(
   return false;
 }
 
+/** Refuse a host reply action that the sealed finding cannot support, before recording its binding. */
+export class HostedDispositionBindingError extends Error {
+  readonly code = "invalid-input" as const;
+  readonly reason = "unsupported-channel-action" as const;
+
+  constructor(readonly findingId: string) {
+    super(`hosted finding ${findingId} does not support reply-and-resolve; use record-only for this finding and retry`);
+    this.name = "HostedDispositionBindingError";
+  }
+}
+
+function assertHostedFindingActions(
+  hosted: NonNullable<LaneAttempt["hosted"]>,
+  actions: readonly { findingId: string; channelAction: "record-only" | "reply-and-resolve" }[],
+): void {
+  const settlementByFindingId = new Map(hosted.sealedResult?.findings.map(finding =>
+    [finding.findingId, finding.settlement]));
+  for (const action of actions) {
+    if (action.channelAction === "reply-and-resolve"
+      && settlementByFindingId.get(action.findingId) !== "reply-and-resolve") {
+      throw new HostedDispositionBindingError(action.findingId);
+    }
+  }
+}
+
 /** Bind approval to one hosted findings attempt and settle findings with no host-side action. */
 export async function bindHostedAttemptDisposition(
   store: ReviewOperationStateStore,
@@ -174,6 +199,7 @@ export async function bindHostedAttemptDisposition(
   if (!findingIdsMatch(recordedFindingIds, dispositionFindingIds)) {
     throw new Error("approved disposition details do not cover the hosted finding set");
   }
+  assertHostedFindingActions(attempt.hosted, input.findingDispositions);
   const dispositionByFindingId = new Map(input.findingDispositions.map((finding) => [finding.findingId, finding]));
   const noHostSettlementFindingIds = input.findingDispositions
     .filter(({ channelAction }) => channelAction === "record-only")
@@ -451,6 +477,7 @@ function requireHostedSuccessorAttempt(
     || canonicalize(successorFindingIds) !== canonicalize(recordedFindingIds)) {
     throw new Error("successor dispositions do not cover the hosted finding set");
   }
+  assertHostedFindingActions(hosted, input.findingDispositions);
   return { index, attempt, hosted, recordedFindingIds };
 }
 
