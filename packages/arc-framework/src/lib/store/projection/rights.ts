@@ -45,12 +45,13 @@ async function workUnitRights(input: ProjectionEditRightsInput, primary: StoreRe
   const observed = metaFields(primary);
   if (observed.status === "refused") return observed;
   const fields = observed.result;
-  if (primary.placement?.kind === "backlog" && fields.state === "Planning") {
+  if (input.reference.kind !== "work-item/inbound" && primary.placement?.kind === "backlog" && fields.state === "Planning") {
     return { status: "ok", result: { kind: "editable" } };
   }
   const owner = SlugSchema.safeParse(fields.owner);
   if (!owner.success) return malformedRights(primary.reference, "Metadata owner is missing or malformed.");
   if (owner.data !== input.identity) return protectedRights(input, "identity", owner.data);
+  if (input.reference.kind === "work-item/inbound") return { status: "ok", result: { kind: "editable" } };
   if (primary.placement?.kind === "completed") return { status: "ok", result: { kind: "editable" } };
   if (primary.placement?.kind === "active") {
     if (input.reference.kind === "work-item/meta" || input.reference.kind === "work-item/task-list") {

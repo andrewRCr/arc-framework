@@ -6,13 +6,14 @@ import { success } from "../helpers/store/suite-tools.js";
 import { createAdoptionFixture } from "../helpers/store/projection/adoption-fixture.js";
 import { recordReferences } from "../../src/lib/store/index.js";
 import { startProjection } from "../../src/lib/store/projection/engine.js";
-import { beginProjectionCommand } from "../../src/lib/store/projection/process-state.js";
+import { beginProjectionCommand, projectionProcessState } from "../../src/lib/store/projection/process-state.js";
 import { readProjectionIndex } from "../../src/lib/store/projection/index-file.js";
 import { parseStampedFile } from "../../src/lib/store/projection/stamp.js";
 import { capturedEntries } from "../helpers/store/ref-fixture-plant.js";
 import { plantRef } from "../helpers/store/ref-plant.js";
 import { expandStoredPath } from "../../src/lib/store/stored-path.js";
 import type { WriteResult } from "../../src/lib/store/write.js";
+import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
 import { entry } from "../helpers/inbox-harness.js";
 import { gitBlobId } from "../../src/lib/store/projection/blob-id.js";
 
@@ -128,4 +129,33 @@ it("adopts a new inbound list with stored entry identities and lays the same sto
   const disk = await readProjectionIndex(projected.location, true);
   if (disk.kind !== "index") throw new Error("Missing inbound adoption index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
+});
+
+it("keeps another person's Planning inbound list unadopted and accepts the same bytes under its owner", async () => {
+  const { f, primary, folder, projected } = await createAdoptionFixture({ owner: "bob" });
+  const path = `${folder}/inbound-alpha.md`, absolute = join(f.root, path);
+  const content = `## Inbound\n\n${entry("12345678", "New concern", "Preserved authored prose").replace(/^- _Id:_.*\n/mu, "")}\n`;
+  await writeFile(absolute, content);
+  const reference = recordReferences["work-item/inbound"](primary.reference.owner);
+  const before = success(await f.store.version());
+  await startProjection({ store: f.store, checkout: f.root });
+  expect(success(await f.store.version())).toBe(before);
+  expect(await readFile(absolute, "utf8")).toBe(content);
+  const held = await readProjectionIndex(projected.location, true);
+  if (held.kind !== "index") throw new Error("Missing refused index");
+  expect(held.index.entries[path]).toMatchObject({ kind: "ownerless", refused: {
+    reason: expect.stringContaining("bob"), remedy: { text: expect.stringContaining("bob") },
+  } });
+  expect(projectionProcessState().diagnostics).toEqual(expect.arrayContaining([
+    expect.objectContaining({ path, mark: expect.objectContaining({ reason: expect.stringContaining("bob") }) }),
+  ]));
+  await createExecaGitExec()("git", ["config", "arc.identity", "bob"], { cwd: f.root });
+  f.identity("bob");
+  await startProjection({ store: f.store, checkout: f.root });
+  const record = success(await f.store.read({ reference }));
+  expect(record.content).toContain("Preserved authored prose");
+  expect(parseStampedFile(await readFile(absolute, "utf8")).content).toBe(record.content);
+  const repaired = await readProjectionIndex(projected.location, true);
+  if (repaired.kind !== "index") throw new Error("Missing repaired index");
+  expect(repaired.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
 });

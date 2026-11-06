@@ -492,7 +492,8 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
 
 - _Note:_ Verification repairs declare source-CLI entrypoints in store-suite reach, retain decomposition basename locators
   beside full stored companion paths, disambiguate the selection diagnostic, and align integration fixtures with the nested
-  active layout.
+  active layout. Further repairs retain unsent guarded read-backs with actionable reporting, including accepted
+  adoptions, and enforce person ownership for Planning backlog inbound lists while preserving ordinary stub grooming.
 
 ---
 

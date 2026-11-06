@@ -133,3 +133,18 @@ it.each(["test-user", "another-person"])("keeps inbound edits with the work item
     .toMatchObject({ status: "ok", result: identity === "test-user" ? { kind: "editable" }
       : { kind: "protected", reason: "identity", owner: "test-user", reference } });
 });
+
+it("reserves a Planning backlog inbound list to its owner while leaving stub prose open to grooming", async () => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("stub-inbound", { state: "Planning", owner: "bob", currentWorkflow: "planning" },
+    { kind: "backlog", commitment: "planned" });
+  for (const kind of ["work-item/inbound", "work-item/meta", "work-item/notes"] as const) {
+    const reference = recordReferences[kind](primary.reference.owner);
+    const input = { store: h.store, reference, checkout: "another-checkout" };
+    expect(await readProjectionEditRights({ ...input, identity: SlugSchema.parse("alice") }))
+      .toMatchObject({ status: "ok", result: kind === "work-item/inbound"
+        ? { kind: "protected", reason: "identity", owner: "bob", reference } : { kind: "editable" } });
+    expect(await readProjectionEditRights({ ...input, identity: SlugSchema.parse("bob") }))
+      .toMatchObject({ status: "ok", result: { kind: "editable" } });
+  }
+});

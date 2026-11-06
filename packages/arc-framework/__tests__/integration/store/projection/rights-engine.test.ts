@@ -19,6 +19,7 @@ import { seed, success } from "../../../helpers/store/suite-tools.js";
 import { seedProjection } from "../../../helpers/store/projection/seeded-projection.js";
 import { configureEngineCheckout, initializeEngineCheckout } from "../../../helpers/store/projection/engine-fixture.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
+import { entry as inboxEntry } from "../../../helpers/inbox-harness.js";
 import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness.js";
 import { TASK_RULE_CONTENT } from "../../../helpers/store/task-rule-input.js";
 import { writeWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
@@ -216,4 +217,31 @@ it.each(["command-start", "take-in"] as const)("preserves a standing hold token 
   await startProjection({ store: h.store, checkout: h.checkout, mode: "save", resolve: token });
   expect(projectionProcessState().resolution).toMatchObject({ accepted: true });
   expect(success(await h.store.read({ reference: h.entry.reference })).content).toBe(h.incoming);
+});
+
+it("preserves a Planning backlog inbound edit refused by ownership and lands the same bytes after identity repair", async () => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("stub", { state: "Planning", owner: "alice", currentWorkflow: "planning" },
+    { kind: "backlog", commitment: "planned" });
+  const reference = recordReferences["work-item/inbound"](primary.reference.owner);
+  const original = `## Inbound\n\n${inboxEntry()}\n`;
+  const record = await h.seed(reference, original);
+  const view = await project({ store: h.store, record, identity: "bob", path: ".arc/backlog/planned/stub/inbound-stub.md" });
+  const content = original.replace("Prose", "Preserved inbound edit");
+  const bytes = await view.edit(content);
+  await startProjection({ store: h.store, checkout: view.checkout });
+  expect(success(await h.store.read({ reference })).content).toBe(original);
+  expect(await view.file()).toBe(bytes);
+  expect((await view.disk()).entries[view.path]).toMatchObject({ pending: true, refused: {
+    reason: expect.stringContaining("alice"), remedy: { text: expect.stringContaining("alice") },
+  } });
+  expect(projectionProcessState().roots.get(view.checkout)?.unsent.has(view.path)).toBe(true);
+  expect(projectionProcessState().diagnostics).toEqual(expect.arrayContaining([
+    expect.objectContaining({ path: view.path, mark: expect.objectContaining({ reason: expect.stringContaining("alice") }) }),
+  ]));
+  await view.exec("git", ["config", "arc.identity", "alice"], { cwd: view.checkout });
+  await startProjection({ store: h.store, checkout: view.checkout });
+  expect(success(await h.store.read({ reference })).content).toBe(content);
+  expect((await view.disk()).entries[view.path]).toMatchObject({ refused: null });
+  expect(projectionProcessState().roots.get(view.checkout)?.unsent.has(view.path)).toBe(false);
 });
