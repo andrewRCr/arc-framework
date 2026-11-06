@@ -25,7 +25,7 @@ cutover-flip                       the rehearsal, the window, the flip change, t
 ```
 
 Each member's `Depends On` edges are the source of truth: `cutover-flip` depends on `cohort-identity-verbs`,
-`projection-worktrees`, `projection-write-back`, and `storage-ref-hardening`, and each follow-on on `cutover-flip`.
+`projection-worktrees`, and `projection-write-back`, and each follow-on on `cutover-flip`.
 These orderings are not edges:
 
 - **Gate B placement** (Owner, 2026-11-03):
@@ -85,7 +85,7 @@ _Exposes:_ the flipped repository: the rehearsal, the quiesce and its check, the
 change, every workflow rewritten onto the store, and Git notes retired.
 
 _Consumes:_ every other `state-storage` member, landed, the last of them `cohort-identity-verbs`,
-`projection-worktrees`, `projection-write-back`, and `storage-ref-hardening`.
+`projection-worktrees`, and `projection-write-back`.
 
 ### `cutover-tracked-state-removal`
 
