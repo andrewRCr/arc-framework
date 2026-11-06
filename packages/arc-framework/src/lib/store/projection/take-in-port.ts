@@ -31,6 +31,8 @@ export interface TakeInRequest {
   readonly base: TakeInBase;
   /** A guard already observed changed bytes against its read baseline, even if this save matches the index again. */
   readonly observedEdit?: boolean;
+  /** An unindexed file's first hand edit, before any stamped rendering has been installed. */
+  readonly adopting?: true;
   /** Present only for the selected subject at its own path, never a displaced copy. */
   readonly resolution?: TakeInResolution;
 }

@@ -164,6 +164,13 @@ export interface WriteBackRecording {
   readonly memo: HistoryMemo;
 }
 
+/** Keep the accepted input until read-back can restore its stored entry IDs and complete the take-in mapping. */
+export async function recordPendingWriteBack(input: Pick<WriteBackRecording, "location" | "entry" | "stamp" | "takenIn" | "format" | "checkpoint">
+  & { readonly version: RecordVersion }): Promise<RecordEntry> {
+  return { ...input.entry, persisted: { stamp: input.stamp, takenIn: { kind: "copy", version: input.version,
+    ...await keepCopy(input.location, input.takenIn, input.format, input.checkpoint) } } };
+}
+
 /**
  * Record what a write-back took in, where it persisted.
  * @param input - What the read-back hands over.

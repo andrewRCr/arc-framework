@@ -16,6 +16,7 @@ import { markStoreRefusal } from "./refusal-mark.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { recordAdoptionAcceptance } from "./adoption-read-back.js";
 import { resolveLocatedAdoption } from "./adoption-target.js";
+import { attachExistingProjectionFile } from "./adoption-existing.js";
 
 /** Take in one unindexed path, retaining bytes and a repairable ownerless entry when admission refuses. */
 export async function adoptProjectionFile(root: ProjectionRootState, index: ProjectionIndex, path: string): Promise<ProjectionIndex> {
@@ -37,6 +38,14 @@ export async function adoptProjectionFile(root: ProjectionRootState, index: Proj
     identity: root.identity, exec: root.ports.exec, verb: root.context.verb }, reference);
   if (denied !== null) return refuse(root, index, path, gate.stat, denied);
   const bytes = await readFile(join(root.checkout, path));
+  const existing = await root.store.read({ reference });
+  if (existing.status === "ok") return attachExistingProjectionFile(root, index, path, existing.result,
+    { stat: gate.stat, blob: gitBlobId(bytes, root.context.format) });
+  if (existing.refusal.code !== "not-found") return refuse(root, index, path, gate.stat, markStoreRefusal(existing.refusal, root.context.verb));
+  if (reference.kind === "work-item/meta") return refuse(root, index, path, gate.stat, {
+    reason: "New work-unit metadata must be created through arc stub.",
+    remedy: { text: "Create the stub in its backlog folder with arc stub, then retry adoption." },
+  });
   const text = bytes.toString("utf8");
   const supplied = path.endsWith(".md") ? parseStampedFile(text).content : text.replaceAll("\r\n", "\n");
   const checked = await prepareAdoptedContent(root.context, reference, supplied);
@@ -59,7 +68,10 @@ export async function adoptProjectionFile(root: ProjectionRootState, index: Proj
 async function resolveAdoptionReference(root: ProjectionRootState, index: ProjectionIndex, path: string): Promise<
   { kind: "reference"; reference: RecordReference } | { kind: "refused"; mark: RefusedMark }
 > {
-  if (!path.startsWith(".arc/backlog/")) return resolveLocatedAdoption(root, index, path);
+  const located = identifyArcFileAddress(path);
+  if (!path.startsWith(".arc/backlog/") || located?.kind === "cohort-document" || located?.kind === "inbox") {
+    return resolveLocatedAdoption(root, index, path);
+  }
   const ownership = await resolveBacklogOwnership({ checkout: root.checkout, identity: root.identity, path, store: root.store, index });
   if (ownership.kind === "refused") return ownership;
   if (ownership.kind === "prospective") {
@@ -72,7 +84,7 @@ async function resolveAdoptionReference(root: ProjectionRootState, index: Projec
   }
   const address = identifyArcFileAddress(path, { workItem: ownership.container });
   const target = address === null ? null : classifyStoreAddress(address);
-  if (target === null || target.kind === "work-item/meta" || target.kind === "cohort/document") return { kind: "refused", mark: {
+  if (target === null || target.kind === "cohort/document") return { kind: "refused", mark: {
     reason: "This file has no adoptable record address.",
     remedy: { text: "Place prose in an established work-item folder; create metadata through arc stub." },
   } };

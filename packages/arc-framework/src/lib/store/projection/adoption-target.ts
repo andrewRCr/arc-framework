@@ -7,6 +7,8 @@ import type { ProjectionRootState } from "./process-state.js";
 import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
 import { resolveEstablishedContainer } from "./container-ownership.js";
 import { readAdoptionClaim } from "./adoption-claim.js";
+import { resolveCohortAdoption } from "./cohort-adoption.js";
+import { resolveProjectInboxAdoption } from "./project-adoption.js";
 
 /** A classified file still needs generation authority before it can be created. */
 export type AdoptionReference = { kind: "reference"; reference: RecordReference } | { kind: "refused"; mark: RefusedMark };
@@ -14,9 +16,11 @@ export type AdoptionReference = { kind: "reference"; reference: RecordReference 
 /** Resolve this checkout's own folder through its marker claim, preserving refusal diagnostics. */
 export async function resolveLocatedAdoption(root: ProjectionRootState, index: ProjectionIndex, path: string): Promise<AdoptionReference> {
   const address = identifyArcFileAddress(path, { active: { claim: root.claim, layoutActive: root.layoutActive } });
+  if (address?.kind === "cohort-copy" || address?.kind === "cohort-document") return resolveCohortAdoption(root, path, address);
   const target = address === null ? null : classifyStoreAddress(address);
+  if (target?.kind === "project-inbox/inbox") return resolveProjectInboxAdoption(root);
   if (target?.identity !== undefined) return bindReference(target, OwnerIdentitySchema.parse({ type: "person", name: target.identity }));
-  if (target?.workItem === undefined || target.kind === "work-item/meta") return misplaced(path);
+  if (target?.workItem === undefined) return misplaced(path);
   if (address === null || !("placement" in address)) return misplaced(path);
   const own = address.placement.kind === "active" && address.placement.scope.kind === "project"
     && address.placement.scope.location?.kind === "own";

@@ -1,6 +1,7 @@
 /** Project identity comes from the selected store's unique project owner, independently of code remotes. */
 import type { Store } from "./contract.js";
 import type { Remedy, StoreRefusal } from "./refusal.js";
+import type { OwnerIdentity } from "./identity.js";
 
 /** Actionable failure to resolve the selected project's stable identity. */
 export interface ProjectIdentityUnavailable {
@@ -37,6 +38,11 @@ export async function resolveProjectIdentity(reader?: () => Promise<string>): Pr
 }
 
 async function readProjectIdentity(store: Store): Promise<string> {
+  return (await readProjectIdentityBinding(store)).id;
+}
+
+/** Read the unique selected project's owner and stable ID from one complete identity observation. */
+export async function readProjectIdentityBinding(store: Store): Promise<{ id: string; owner: OwnerIdentity }> {
   const listing = await store.list({ family: "project-registry", kind: "project-registry/identity" });
   if (listing.status === "refused") throw new ProjectIdentityError({ status: "unavailable", reason: listing.refusal.condition,
     remedy: listing.refusal.remedy, refusal: listing.refusal });
@@ -52,7 +58,7 @@ async function readProjectIdentity(store: Store): Promise<string> {
     || record.reference.owner.uid === undefined || record.conflicts.length > 0) {
     throw new ProjectIdentityError(unavailable("Project identity record has no unambiguous project UID."));
   }
-  return record.reference.owner.uid;
+  return { id: record.reference.owner.uid, owner: record.reference.owner };
 }
 function unavailable(reason: string): ProjectIdentityUnavailable {
   return { status: "unavailable", reason, remedy: { text: "Restore the project's unique, valid identity record from its authoritative state source, then retry." } };

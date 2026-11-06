@@ -6,6 +6,14 @@ import type { TakeInRead } from "./take-in-port.js";
 import { gitBlobId } from "./blob-id.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { installWriteBack } from "./read-back.js";
+import { readTakenInCopy, recordWriteBack } from "./taken-in.js";
+import { createHistoryMemo } from "./base-recovery.js";
+import { createKindRegistry } from "../registry.js";
+import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
+import type { StoreRecord } from "../read.js";
+import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
+
+const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
 /** Record the returned creation basis with prepared content before attempting read-back. */
 export async function recordAdoptionAcceptance(root: ProjectionRootState, index: ProjectionIndex, path: string,
@@ -24,13 +32,18 @@ export async function recordAdoptionAcceptance(root: ProjectionRootState, index:
 export async function resumeAdoptionReadBack(root: ProjectionRootState, index: ProjectionIndex, path: string,
   entry: RecordEntry): Promise<ProjectionIndex> {
   const adoption = entry.adoption;
-  if (adoption === undefined) throw new Error("Read-back requires an accepted adoption");
+  if (adoption?.kind !== "read-back") throw new Error("Read-back requires an accepted adoption");
   root.unsent.add(path);
   const read = await root.store.read({ reference: entry.reference });
   if (read.status === "refused") return holdReadBack(root, index, path, entry, {
     reason: `The edit landed, but read-back failed: ${read.refusal.condition}`, remedy: read.refusal.remedy,
   });
   root.unsent.delete(path);
+  index = await completeAdoptionRecording(root, index, path, entry, read.result);
+  const recorded = index.entries[path];
+  if (recorded?.kind !== "record") throw new Error("Accepted adoption lost its record entry");
+  if (recorded.adoption === undefined) return index;
+  entry = recorded;
   if (!root.writable(path)) return index;
   const request = { checkout: root.checkout, path, copy: null, entry: { ...entry, refused: null, pending: false },
     base: { kind: "blob" as const, blob: entry.base.blob } };
@@ -38,6 +51,29 @@ export async function resumeAdoptionReadBack(root: ProjectionRootState, index: P
     result: { answer: "taken-in", entry: request.entry, read: adoption.read } });
   return commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: completeReadBack(installed.index, path), checkpoint: root.context.checkpoint });
+}
+
+async function completeAdoptionRecording(root: ProjectionRootState, index: ProjectionIndex, path: string,
+  entry: RecordEntry, record: StoreRecord): Promise<ProjectionIndex> {
+  const adoption = entry.adoption;
+  if (adoption?.kind !== "read-back" || !adoption.recording) return index;
+  const persisted = entry.persisted;
+  if (persisted?.takenIn.kind !== "copy") throw new Error("Unfinished adoption recording needs its accepted input copy");
+  const takenIn = await readTakenInCopy(root.location, persisted.takenIn.name);
+  const recorded = await recordWriteBack({ location: root.location, checkpoint: root.context.checkpoint, entry,
+    stamp: persisted.stamp, takenIn, outcome: { kind: "landed", version: persisted.takenIn.version }, readBack: record,
+    grammar: kinds[entry.reference.kind].entry, format: root.context.format,
+    memo: root.context.memo ?? createHistoryMemo(root.store) });
+  const retained = adoption.retained;
+  const updated: RecordEntry = { ...recorded.entry, refused: retained ?? null,
+    adoption: retained === undefined ? { kind: "read-back", read: adoption.read } : undefined,
+    unshown: unshownConflicts(entry, record.conflicts) };
+  if (retained !== undefined) {
+    root.unsent.add(path);
+    for (const mark of [retained, ...heldConflictMarks(updated.unshown, retained)]) root.context.report?.({ path, copy: null, mark });
+  }
+  return commitProjectionIndex({ location: root.location, checkout: root.checkout,
+    index: { ...index, entries: { ...index.entries, [path]: updated } }, checkpoint: root.context.checkpoint });
 }
 
 function completeReadBack(index: ProjectionIndex, path: string): ProjectionIndex {

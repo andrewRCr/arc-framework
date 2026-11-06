@@ -67,7 +67,7 @@ const AsideCopyRecordSchema = z.strictObject({
   landed: BlobIdSchema.nullable(),
 });
 
-/** A file the projection laid from a record; `stat` is null where the file is recorded absent. */
+/** A file bound to a record, including adoption before its first rendering; null `stat` records absence. */
 const RecordEntrySchema = z.strictObject({
   kind: z.literal("record"),
   reference: RecordReferenceSchema,
@@ -85,7 +85,11 @@ const RecordEntrySchema = z.strictObject({
   persisted: PersistedSchema.nullable(),
   inProgress: InProgressSchema.nullable(),
   copies: z.array(AsideCopyRecordSchema),
-  adoption: z.strictObject({ kind: z.literal("read-back"), read: z.strictObject({ stat: FileStatSchema, blob: BlobIdSchema }) }).optional(),
+  adoption: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("write-back") }),
+    z.strictObject({ kind: z.literal("read-back"), read: z.strictObject({ stat: FileStatSchema, blob: BlobIdSchema }),
+      recording: z.literal(true).optional(), retained: RefusedMarkSchema.optional() }),
+  ]).optional(),
 });
 
 /** A file adoption refused, which no record owns. */

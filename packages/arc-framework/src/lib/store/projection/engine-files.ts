@@ -20,11 +20,7 @@ export async function writeBackProjectionFiles(root: ProjectionRootState, initia
   const pending: string[] = [];
   const target = projectionProcessState().resolution;
   const selected = target?.refusal === null ? target.target?.path : undefined;
-  const ownerless = Object.keys(initial.entries).filter(path => {
-    const entry = initial.entries[path];
-    return entry?.kind === "ownerless" || entry?.kind === "record" && entry.adoption !== undefined;
-  });
-  const walked = [...new Set([...files, ...ownerless])].sort();
+  const walked = [...new Set([...files, ...adoptionRetries(initial)])].sort();
   const paths = selected === undefined || target?.accepted ? walked : [...new Set([...walked, selected])].sort();
   for (const path of paths) {
     const checked = await checkFileAtPath(root, index, path, reference);
@@ -34,20 +30,35 @@ export async function writeBackProjectionFiles(root: ProjectionRootState, initia
   for (const path of pending) {
     const entry = index.entries[path];
     if (entry?.kind !== "record") continue;
-    const request: TakeInRequest = { checkout: root.checkout, path, copy: null, entry,
-      base: path.endsWith(".md") ? { kind: "stamp", stamp: null } : { kind: "blob", blob: entry.base.blob },
+    const request: TakeInRequest = { ...pendingFileRequest(root, path, entry),
       ...(selected !== path || target?.accepted ? {} : { resolution: target?.target?.resolution }) };
     index = await sendFile(root, index, request);
   }
   return index;
 }
 
+function adoptionRetries(index: ProjectionIndex): string[] {
+  return Object.keys(index.entries).filter(path => {
+    const entry = index.entries[path];
+    return entry?.kind === "ownerless" || entry?.kind === "record" && entry.adoption !== undefined;
+  });
+}
+
+function pendingFileRequest(root: ProjectionRootState, path: string, entry: RecordEntry): TakeInRequest {
+  const adopting = entry.adoption?.kind === "write-back";
+  return { checkout: root.checkout, path, copy: null, entry: adopting ? { ...entry, pending: false } : entry,
+    base: path.endsWith(".md") ? { kind: "stamp", stamp: null } : { kind: "blob", blob: entry.base.blob },
+    ...(adopting ? { adopting: true as const, observedEdit: true } : {}) };
+}
+
 async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex, path: string, reference: bigint | null): Promise<{ index: ProjectionIndex; edited: boolean }> {
   const entry = index.entries[path];
   if (entry?.kind !== "record") {
-    return { index: await adoptProjectionFile(root, index, path), edited: false };
+    const adopted = await adoptProjectionFile(root, index, path), bound = adopted.entries[path];
+    return { index: adopted, edited: bound?.kind === "record" && bound.adoption?.kind === "write-back" };
   }
-  if (entry.adoption !== undefined) return { index: await resumeAdoptionReadBack(root, index, path, entry), edited: false };
+  if (entry.adoption?.kind === "read-back") return { index: await resumeAdoptionReadBack(root, index, path, entry), edited: false };
+  if (entry.adoption?.kind === "write-back") return { index, edited: true };
   if (entry.withheld) {
     report(path, "withheld", "Copy out anything wanted and delete the withheld file before retrying.");
     return { index, edited: false };
@@ -76,7 +87,13 @@ async function sendFile(root: ProjectionRootState, index: ProjectionIndex, reque
     const written = await writeBackFile(root.context, index, request);
     updated = written.index;
     recordResolutionRefusal(request, written.result);
-    if (written.result.answer === "taken-in") root.unsent.delete(path);
+    if (written.result.answer === "taken-in") {
+      root.unsent.delete(path);
+      const landed = updated.entries[path];
+      if (landed?.kind === "record" && landed.adoption !== undefined && !landed.pending) {
+        updated = withEntry(updated, path, { ...landed, adoption: undefined });
+      }
+    }
   } else {
     const sent = await sendWriteBack(root.context, request);
     const held = sent.kind === "landed" ? { ...sent.result.entry,
