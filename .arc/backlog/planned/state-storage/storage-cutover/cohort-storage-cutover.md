@@ -81,8 +81,8 @@ Every member has shipped, and every row of `cohort-state-storage.md`'s storage-c
 
 ### `cutover-flip`
 
-_Exposes:_ the flipped repository: the rehearsal, the quiesce and its check, the import and its second run, the flip
-change, every workflow rewritten onto the store, and Git notes retired.
+_Exposes:_ the flipped repository: the rehearsal, the quiesce and its check, the import, the flip change, every
+workflow rewritten onto the store, Git notes retired, and two amendments to ADR-035, items 2 and 8.
 
 _Consumes:_ every other `state-storage` member, landed, the last of them `cohort-identity-verbs`,
 `projection-worktrees`, and `projection-write-back`.
