@@ -3,7 +3,7 @@
   "slug": "integration-applicability-input-keys",
   "claimId": "d8966b89a306f105caa1c182f65c2607",
   "createdAt": "2026-11-06T00:33:37.628Z",
-  "updatedAt": "2026-11-06T00:33:37.628Z",
+  "updatedAt": "2026-11-06T01:34:44.410Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Name the existing selectedBy, choice, and targetedEvidenceRef resolver keys in the integration applicability route and pin them in its content test.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Name the resolver input keys in the integration workflow's applicability route",
   "originEntrySourceDigest": "sha256:3da0dc8ecf03291c6e17d6b9cd12ca6a4a5942537026e5f7f2b45ccc22aea58e",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/integration-applicability-input-keys",
+    "headSha": "4784048860439f9abfe1cedea8ff59292c4094fa"
+  }
 }
