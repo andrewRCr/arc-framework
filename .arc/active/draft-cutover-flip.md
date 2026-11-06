@@ -50,13 +50,13 @@
       holds); the guard lands as an Errand ahead of the window, and the check is a script in this unit's change (Owner,
       2026-11-05);
     - the rehearsal: two stages on full copies, stopping at the host boundary, with the first Errand and the first work
-      unit landed after the window as canaries (Owner, 2026-11-05; § The rehearsal).
+      unit landed after the window as canaries (Owner, 2026-11-05; § The rehearsal);
+    - the flip untracks the Candidate and transition records under `.arc/system/.internal/`, data only, and takes #3
+      from `cutover-tracked-state-removal` (Owner, 2026-11-05; § Direction).
 - **Open:**
-    - whether the flip untracks the Candidate and transition records under `.arc/system/.internal/`, which decides
-      #3's member;
     - a review stop rule, agreed before the second review pass.
 - **Next:**
-    - Whether the flip untracks the `.internal/` records (#3), then the Owner's planning pass over the inbound entries.
+    - The Owner's planning pass over the inbound entries.
 
 ### The cut
 
@@ -99,11 +99,12 @@ This map places items in sections only. Each is integrated or rejected at the Ow
 - **Rehearsal:** #2, #5, #8, #15, #22, #25, #28, #30, #31, #34, and the rehearsal cases `seam-delivery-review`'s
   review left (the PM brief, § What the rehearsal needs first).
 - **The window** (quiesce, import, flip, notes retirement): #7, #19, #23's quiesce and import clauses, #30, #34.
-- **The flip change** (code that must change at the flip): #9, #11, #18, #26, #27's notice, #32.
+- **The flip change** (code that must change at the flip): #3, #9, #11, #18, #26, #27's notice, #32.
 - **The flip's workflow rewrite:** #2, #6, #12, #13, #16, #21, #23, #25, #27, #37, H1, H4, H5.
-- **Held by the follow-on members:** #1, #3, #4, #10, #17, #20, #24, #25, #33, #35, H2, and H3, with the shares of
-  #1, #10, #25, and #26 that `cohort-storage-cutover.md` names. H4 left `cutover-documentation` for the flip's
-  rewrite (Owner, 2026-11-05); its inbound entry stays in that member's draft until the move reaches it.
+- **Held by the follow-on members:** #1, #4, #10, #17, #20, #24, #25, #33, #35, H2, and H3, with the shares of
+  #1, #10, #25, and #26 that `cohort-storage-cutover.md` names. Two items move to this member (Owner, 2026-11-05),
+  each inbound entry staying in its member's draft until the move reaches it: H4 from `cutover-documentation`, for
+  the flip's rewrite, and #3 from `cutover-tracked-state-removal`, for the flip change.
 - **This draft's own text:** #29 (the Purpose line) and #36 (the citation repoint).
 
 ---
@@ -143,9 +144,14 @@ This map places items in sections only. Each is integrated or rejected at the Ow
     - #26, the ROADMAP template's install entries and `verify-integrity.sh`'s presence test;
     - #27's Markdown notice.
 - **Untrack the tracked state the import consumed,** with the readers that would then fail. This extends #18 beyond
-  the projected roots. If the flip change also untracks the Candidate and transition records under
-  `.arc/system/.internal/`, #3's `live-transition-records.test.ts` goes here, since left in place it fails on the
-  missing folder. Whether the flip untracks those folders is still open.
+  the projected roots, to the Candidate and transition records under `.arc/system/.internal/` (`candidates/` and
+  `transitions/`; Owner, 2026-11-05). Nothing breaks if they stay, since both kinds are never projected
+  (`review/candidate` and `lineage/transition` in `KIND_MECHANISMS`, `lib/store/registry.ts`), but they would mislead:
+  stale copies of authority-bearing records in every checkout while the store moves on. And a missed in-repo reader
+  then fails on the missing folder, which Stage 2 surfaces, rather than reading plausible stale state and passing.
+  Only the data goes; the in-repo code that reads and writes it stays for `cutover-tracked-state-removal`. Item #3's
+  `live-transition-records.test.ts` and its ARC contract tier selection (`lib/local-vitest-runner.ts` and its unit
+  test) go here, since the test fails on the missing folder.
 - **The workflow rewrite:**
     - #6, #12, #13, #16, #21, #23's five steps, #25's end state, #27's ceremony requests kept before each save, #37
       (the module deletion and the spine's remaining prose), H1, and H5;
@@ -163,7 +169,7 @@ This map places items in sections only. Each is integrated or rejected at the Ow
 **Follows, in the follow-on members** (`cohort-storage-cutover.md`):
 
 - **`cutover-tracked-state-removal`:** #1's branch-tree readers, lifecycle classification, lifecycle hook checks,
-  and CI planning classifier (the per-check sort below); #3, unless the flip untracks the `.internal/` records; #4;
+  and CI planning classifier (the per-check sort below); #4;
   #10's import transform, after the window's second import run; #20; #24; #26's in-repo arms and `DERIVED_VIEWS`;
   #35; H2; and the residue refs, once the held delivery work unit's artifacts are imported.
 - **`cutover-notes-removal`:** #1's notes-sync machinery, #10's sync-state ref, #17, and the notes configuration
@@ -188,8 +194,7 @@ at the flip.
 - **Rehearsal:** Stage 1 whole, with its copy driver (§ The rehearsal); for Stage 2, #22's matrix, #31's
   partial-protection start, and the harness for `seam-delivery-review`'s cases.
 - **Quiesce:** #19's lock, and the check that the quiesce holds.
-- **Flip change:** #11 and #26's install entries, with #3's test removal if the flip untracks the `.internal/`
-  records.
+- **Flip change:** #11, #26's install entries, and #3's test removal.
 - **Workflow rewrite:** every step from a landed member: #6, #12, #13, #16, #21, #23, #25, #37, and H4.
 
 What waits:
@@ -263,8 +268,9 @@ window's mechanics need neither, so they run first.
     - case 1 below;
     - the import's time and peak memory, under `memcap_gated -m 6G` with its in-process ceiling below that cap.
 
-  It runs again once the pre-meta backfill lands. The first run's accounting case reports the twenty folders, which
-  shows the case catches the omission it exists for, and the second confirms the backfill.
+  It runs twice. The first runs on a copy without the pre-meta backfill, reverted there if it has landed, so its
+  accounting case reports the twenty folders and shows the case catches the omission it exists for. The second runs
+  with the backfill and confirms it.
 - **Stage 2, the dress rehearsal,** at the flip branch's head once the flip change builds. On a fresh copy it runs the
   whole window in order: Stage 1's steps, then the flip change merged and rebuilt, each worktree's first
   materialization, #15's and #30's checkout carries, and the per-branch untracks and workspace removals (§ Tracked
@@ -327,9 +333,10 @@ A throwaway hosted repository would rehearse its own CI and reviewer setup more 
 fixes carries a test at the host seam. Instead, the first Errand and the first work unit to land after the window are
 canaries. Each lands with the Owner present, and nothing else lands until it has. A small Errand goes first, through
 hosted review, settlement, and the Errand merge, which lands through `arc errand merge` rather than the integration
-checkpoint. `cutover-documentation`, mostly prose, is the preferred first work unit, through the pull request, hosted
-review, the integration checkpoint, and landing. Native delivery's hosted admission has no landing to run it until
-delivery resumes, so its first real run falls to `delivery-rebuild-continuity`.
+checkpoint. The work-unit canary is whichever work unit is ready first, `cutover-documentation`, mostly prose, preferred
+when it is; it goes through the pull request, hosted review, the integration checkpoint, and landing. Native delivery's
+hosted admission has no landing to run it until delivery resumes, so its first real run falls to
+`delivery-rebuild-continuity`.
 
 Because each canary lands through the step it tests, a native checkpoint or landing step that refuses there also
 refuses the landing of its own fix. The exit is an Owner-directed merge of that fix in the host's interface, with every
@@ -433,6 +440,10 @@ its checkout's first materialization, and the persist step refuses over it (`spe
 - each checkout's pre-flip workspace folder under `.arc/user/<id>/<slug>/` maps to no record
   (`spec-projection-write-back.md` § 9), so it goes once the import has folded its session notes into the meta and
   moved the rest into `scratch/`.
+
+A third follows from untracking the `.internal/` records (§ Direction): a branch whose Candidate record differs from
+`main`'s would meet the flip's deletion as a modify/delete conflict at its next merge of `main`, so each such branch
+deletes its own copy after the import, beside its `.arc/active/` untrack.
 
 ### The import's part, released
 
