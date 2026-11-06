@@ -52,6 +52,23 @@ async function fixture(backend: "reference" | "ref", nested: boolean) {
 }
 
 describe.each(["reference", "ref"] as const)("missing cohort CLI repair over %s", backend => {
+  it("refuses joining a child whose parent was removed and retries after restoring the parent", async () => {
+    const h = await fixture(backend, true);
+    const made = success(await h.store.write({ action: "put", expected: null, provenance, placement: { kind: "active" },
+      reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "joining" } }),
+      content: makeMetaFixture("joining") }));
+    const member = success(await h.store.read({ reference: made.reference })), before = success(await h.store.version());
+    const content = writeMetaCohort(member.content, h.path);
+    const edit = { ...recordPut(member, { content }), provenance: { verb: "edit", lifecycleAction: "edit" } };
+    expect(await h.store.write(edit)).toMatchObject({ status: "refused", refusal: { code: "record-malformed", rule: "meta.cohort",
+      condition: expect.stringContaining("parent cohort document is absent") } });
+    expect(success(await h.store.version())).toBe(before);
+    expect(success(await h.store.read({ reference: member.reference }))).toEqual(member);
+    await seedCohort(h.store, "removed");
+    success(await h.store.write(edit));
+    expect(success(await h.store.read({ reference: member.reference }))).toMatchObject({ content, fields: { cohort: h.path } });
+  }, 60_000);
+
   it("rename names the member's Cohort edit and succeeds after it", async () => {
     const h = await fixture(backend, false), before = success(await h.store.version());
     const refused = await h.invoke(["rename", "arrived", "renamed"]), text = refused.stdout + refused.stderr;

@@ -108,8 +108,8 @@ async function cohortPathParentProblem(view: StoreView, parts: readonly string[]
   if (name === undefined) return parent === null ? undefined : mismatch;
   const record = await observeNamedRecord(view, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name })));
   if (record.status === "ambiguous") return { condition: record.condition, remedy: record.remedy };
-  if (record.status === "unavailable") return { condition: record.condition };
-  if (record.status === "known" && record.value.reference.owner.name !== name) {
+  if (record.status !== "known") return { condition: record.status === "unavailable" ? record.condition : "parent cohort document is absent" };
+  if (record.value.reference.owner.name !== name) {
     return { condition: `cohort '${name}' is now named '${record.value.reference.owner.name}'` };
   }
   return parent === name ? undefined : mismatch;

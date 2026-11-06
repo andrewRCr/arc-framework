@@ -114,6 +114,14 @@ describe("metadata cohort references", () => {
     input.after = ruleView([cohortDocument("parent/child")]);
     expect(await checkMetaCohort(input)).toMatchObject([{ rule: "meta.cohort" }]);
   });
+  it("refuses a missing parent segment and admits the path once the parent is restored", async () => {
+    const input = metaRuleInput(cohort("parent/child")), child = cohortDocument("parent/child");
+    input.after = ruleView([child]);
+    expect(await checkMetaCohort(input)).toMatchObject([{ rule: "meta.cohort",
+      condition: expect.stringContaining("parent cohort document is absent") }]);
+    input.after = ruleView([cohortDocument("parent", other), child]);
+    expect(await checkMetaCohort(input)).toEqual([]);
+  });
   it("refuses a closed cohort", async () => {
     const input = metaRuleInput(cohort("parent"));
     input.after = ruleView([StoreRecordSchema.parse({ ...cohortDocument("parent"),
@@ -140,7 +148,7 @@ describe("metadata cohort references", () => {
   });
   it.each(["parent", "parent/child"])("admits the open full path %s without completed placement", async (path) => {
     const input = metaRuleInput(cohort(path));
-    input.after = ruleView([cohortDocument(path)]);
+    input.after = ruleView(path.includes("/") ? [cohortDocument("parent", other), cohortDocument(path)] : [cohortDocument(path)]);
     expect(await checkMetaCohort(input)).toEqual([]);
   });
   it("admits a good named cohort despite an unrelated malformed document", async () => {
