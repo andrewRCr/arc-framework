@@ -198,10 +198,13 @@ through `run-typecheck.ts` and pass. Every process prints its peak line: each TS
   probe retained unused-suppression status 2, then forwarded pruning removed that entry and exited 0. Both
   runs reported RSS and V8 heap observations; evidence is in `notes-test-typecheck-heap.md`.
 
-### `[ ]` **4.3 Pin CI's lint heaps and release the test type check's — D6**
+### `[x]` **4.3 Pin CI's lint heaps and release the test type check's — D6**
 
 - _Goal:_ In `ci.yml`'s `lint-typecheck` job, `typescript` and `typescript-files` set
   `NODE_OPTIONS: --max-old-space-size=4096`, `typecheck-tests` sets no `NODE_OPTIONS`, and `typecheck` sets nothing.
+
+- _Outcome:_ CI pins both lint steps to 4096 MiB and removes the obsolete V8 heap pin from the native test
+  compiler step. The source compiler step remains unpinned.
 
 ### `[ ]` **4.4 Record TypeScript 7 for the type checks in the technical overview — D9**
 
