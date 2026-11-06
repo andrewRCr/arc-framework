@@ -587,39 +587,17 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
           preserves holder, identity, lease, and Git-directory remedies; unusable indexes refuse until repaired.
           The in-repo backend returns an empty selection, with the skip switch taking precedence.
 
-### `[ ]` **2.12 Connect the Markdown checks' reader — § 11.7**
+### `[x]` **2.12 Connect the Markdown checks' reader — § 11.7**
 
 - _Goal:_ The `selection` checks, `lint:md:fix`, and `lint:md:fix:file` read what `arc selection` prints for the same
   checkout and `--changed` flag, through the one reader `projected-markdown-checks` added, and report a failure to read
   it as `couldn't run` rather than as an empty selection.
 
-    - Replace the body of `readProjectedSelection(root, { changed })` (`lib/checks/projected-selection.ts`), as
-      `spec-projected-markdown-checks.md` § 4.6 states: where the engine's process state holds a completed start for
-      `root` (1.9.a), it reads the selection from the index as 2.11.b does; inside a command whose start found the store
-      answering the capability false, it returns an empty list and runs no subprocess; inside one whose start did not
-      complete — under the skip switch, with no identity, or after a start that could not take its lock, lost its lease,
-      or found the Git directory gone — it returns `unavailable` with the reason `arc selection` would refuse with;
-      otherwise, from a script, which runs no `arc` start, it reads the capability of the store a command builds
-      (`createStore`, `lib/store/create.ts`), constructing no backend: answering false, the in-repo implementation's, it
-      returns an empty list and runs no subprocess, as `arc selection` prints there; answering true, it runs
-      `arc selection --json`, with `--changed` where asked, through `npx arc`, the one script reading it being this
-      repository's `lint:md:fix` (`src/scripts/fix-markdown.ts`). Every failure, the command's refusal and a stale
-      build's among them, maps to `unavailable` with its reason.
-    - `__tests__/unit/handlers/check/run.test.ts` pins the empty body; its assertion becomes the connected reader's,
-      while the subprocess CLI tests that run over the in-repo implementation, the Markdown fix's end-to-end test among
-      them (`__tests__/e2e/markdown-fix.e2e.test.ts`), keep their empty selection, the reader running no subprocess
-      there.
-    - Build `test-first` (one behavior at a time):
-        - Unit tier, over the reader with an injected command runner
-        - inside a command whose start ran, the reader returns the index's selection and runs no subprocess
-        - inside a command over the in-repo implementation, the reader returns an empty list and runs no subprocess
-        - from a script over the in-repo implementation, it returns an empty list and runs no subprocess
-        - from a script over a store answering the capability true, it returns the command's `{ paths }`, and a refusal
-          maps to `unavailable` with its reason
-        - under the skip switch, and after a start whose lock wait timed out, it returns `unavailable` with the reason
-          `arc selection` would refuse with
-        - Integration tier, over the reference backend: a `selection` check over a conflicted file leaves it out, and
-          over a changed file with `--changed` includes it
+- _Outcome:_ The reader shares index selection and refusal evidence with the matching command start. Scripts inspect
+  the lazy Store capability before invoking literal `npx arc selection --json`, forwarding `--changed` and validating
+  its path list, with an explicit noninteractive subprocess policy. Failed starts, malformed output, stale builds, and
+  launch errors remain unavailable. Native declared checks cover take-in, conflict exclusion, holder repair, and checkout
+  isolation; the Markdown fixer keeps its existing behavior.
 
 ## **Phase 3:** Verification
 
