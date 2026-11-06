@@ -22,6 +22,7 @@
  * @module
  */
 
+import type { StoreRefusal } from "../../store/refusal.js";
 import { join } from "node:path";
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
 import { OwnerIdentitySchema, recordReferences } from "../../store/identity.js";
@@ -60,7 +61,7 @@ export interface StubContext {
 
 /** The outcome of a `stub` attempt — a rejection reason, or the scaffolded meta path. */
 export type StubResult =
-  | { status: "rejected"; reason: string }
+  | { status: "rejected"; reason: string; refusal?: StoreRefusal }
   | { status: "scaffolded"; outcome: TransitionOutcome; metaPath: string };
 
 /**
@@ -146,5 +147,6 @@ async function runStoreStub(ctx: StubContext, params: StubParams, commitment: St
     } });
     if (outcome.status === "ok") return { status: "scaffolded", outcome, metaPath };
     const refusal = outcome.status === "rejected" ? outcome.refusal : undefined;
-    return { status: "rejected", reason: `${outcome.message}${refusal === undefined ? "" : ` ${refusal.remedy.text}`}` };
+    return { status: "rejected", reason: `${outcome.message}${refusal === undefined ? "" : ` ${refusal.remedy.text}`}`,
+      ...(refusal === undefined ? {} : { refusal }) };
 }

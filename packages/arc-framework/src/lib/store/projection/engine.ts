@@ -1,4 +1,5 @@
 /** Command-scoped entry points for writing back and settling projected files. */
+import type { ProjectionStubMintPort } from "./stub-mint-port.js";
 import { join } from "node:path";
 import type { Store } from "../contract.js";
 import { retryEndedItemHistory } from "../history-retry.js";
@@ -21,6 +22,7 @@ export interface ProjectionCommandInput {
   readonly skipProjection?: boolean;
   readonly ports?: () => ProjectionEnginePorts;
   readonly location?: ProjectionLocation;
+  readonly mint?: ProjectionStubMintPort;
 }
 
 /** What command initialization established about its projection. */

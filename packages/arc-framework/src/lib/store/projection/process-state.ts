@@ -4,6 +4,7 @@ import type { ActiveLayoutContext } from "../../layout/index.js";
 import { onCheckoutChange } from "../../git/checkout-change.js";
 import type { Store } from "../contract.js";
 import type { HistoryMemo } from "./base-recovery.js";
+import type { ProjectionStubMintPort } from "./stub-mint-port.js";
 import type { ProjectionLocation } from "./location.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import type { ReadBackContext } from "./read-back.js";
@@ -49,7 +50,7 @@ export interface ProjectionRootState {
   ready: boolean;
   writable: (path: string) => boolean;
   rights?: ProjectionRights;
-  mint?: (path: string) => Promise<void>;
+  mint?: ProjectionStubMintPort;
   refresh?: () => Promise<void>;
   fanOut?: () => Promise<void>;
   materialize?: () => Promise<void>;

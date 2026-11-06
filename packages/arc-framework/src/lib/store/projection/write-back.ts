@@ -33,6 +33,7 @@ import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
 import { mergeCheckoutBase, prepareAmbiguousDrawing, type CheckoutDrawing, type CheckoutMerge } from "./checkout-merge.js";
 import { decideWriteBackRefusal } from "./write-refusal.js";
 import { explicitResolutionMarkerRefusal } from "./save-markers.js";
+import { normalizeStubEdit } from "./stub-normalization.js";
 import { observeProjectionEdit } from "./edit-observation.js";
 
 const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
@@ -80,7 +81,7 @@ export type PreparedWriteBack =
 /** Read and parse an edit without writing a file, publishing an index, or acquiring a lock. */
 export async function prepareWriteBack(context: WriteBackContext, request: TakeInRequest): Promise<PreparedWriteBack> {
   request = observeProjectionEdit(request);
-  const file = await readEdit(context, request);
+  const file = await readNormalizedEdit(context, request);
   if (file.kind === "held") return file;
   request = observeProjectionEdit(request, file.read.blob);
   const selected = await selectWriteBackBase(context, request, file.content, file.stamp);
@@ -214,6 +215,14 @@ async function readEdit(context: WriteBackContext, request: TakeInRequest): Prom
   const parsed = request.path.endsWith(".md") ? parseStampedFile(text) : null;
   const stamp = parsed === null ? null : parsed.stamp;
   return { kind: "read", content: parsed?.content ?? text.replaceAll("\r\n", "\n"), stamp, read: { stat: gate.stat, blob } };
+}
+
+async function readNormalizedEdit(context: WriteBackContext, request: TakeInRequest): Promise<ReadEdit> {
+  const observed = await readEdit(context, request);
+  if (observed.kind === "held") return observed;
+  const normalized = await normalizeStubEdit(context, request.entry, observed.content);
+  return normalized.status === "refused" ? refusedPreparation(request.entry, normalized.refusal)
+    : { ...observed, content: normalized.result };
 }
 
 function observedHeldRead(request: TakeInRequest, held: HeldWriteBack, blob: string): HeldWriteBack {

@@ -2560,7 +2560,7 @@ program.hook("postAction", async () => {
   process.exitCode = 1;
 });
 
-registerProjectionHooks(program);
+registerProjectionHooks(program, { mint: async input => (await import("./handlers/projection-stub.js")).mintProjectionStub(input) });
 
 // --- Entry ---
 

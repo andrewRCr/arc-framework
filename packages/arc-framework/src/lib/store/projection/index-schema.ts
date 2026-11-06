@@ -86,15 +86,23 @@ const RecordEntrySchema = z.strictObject({
   inProgress: InProgressSchema.nullable(),
   copies: z.array(AsideCopyRecordSchema),
   adoption: z.discriminatedUnion("kind", [
-    z.strictObject({ kind: z.literal("write-back") }),
+    z.strictObject({ kind: z.literal("write-back"), stub: z.literal(true).optional() }),
     z.strictObject({ kind: z.literal("read-back"), read: z.strictObject({ stat: FileStatSchema, blob: BlobIdSchema }),
       recording: z.literal(true).optional(), retained: RefusedMarkSchema.optional() }),
   ]).optional(),
 });
 
-/** A file adoption refused, which no record owns. */
+/** The exact accepted creation retained until its metadata basis can be read. */
+const MintedStubReceiptSchema = z.strictObject({ reference: RecordReferenceSchema.refine(reference =>
+  reference.kind === "work-item/meta" && reference.owner.type === "work-item" && reference.owner.uid !== undefined,
+"A minted stub receipt requires an exact metadata generation"), version: RecordVersionSchema });
+/** Exact stub authority, without inventing a content blob before its basis is readable. */
+export type MintedStubReceipt = z.infer<typeof MintedStubReceiptSchema>;
+
+/** A file not yet bound to a usable record basis, optionally retaining an accepted stub receipt. */
 const OwnerlessEntrySchema = z.strictObject({
   kind: z.literal("ownerless"),
+  minted: MintedStubReceiptSchema.optional(),
   stat: FileStatSchema.nullable(),
   refused: RefusedMarkSchema,
 });

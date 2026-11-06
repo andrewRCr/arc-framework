@@ -16,6 +16,7 @@ import { markStoreRefusal } from "./refusal-mark.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { recordAdoptionAcceptance } from "./adoption-read-back.js";
 import { resolveLocatedAdoption } from "./adoption-target.js";
+import { mintProjectionMetadata, resumeProjectionStub } from "./stub-mint.js";
 import { attachExistingProjectionFile } from "./adoption-existing.js";
 
 /** Take in one unindexed path, retaining bytes and a repairable ownerless entry when admission refuses. */
@@ -25,14 +26,16 @@ export async function adoptProjectionFile(root: ProjectionRootState, index: Proj
   const gate = await gateRead({ path: join(root.checkout, path), markdown: false });
   if (gate.kind === "absent") {
     root.unsent.delete(path);
-    return forgetOwnerless(root, index, path);
+    return reconcileAbsentAdoption(root, index, path);
   }
   if (gate.kind === "no-edit") return index;
   root.discovered.push(path);
   if (gate.kind === "pending") return refuse(root, index, path, null, { reason: `pending: ${gate.reason}`,
     remedy: { text: "Let the editor finish saving, then retry adoption." } });
   const target = await resolveAdoptionReference(root, index, path);
+  index = target.index;
   if (target.kind === "refused") return refuse(root, index, path, gate.stat, target.mark);
+  if (target.kind === "bound") return index;
   const reference = target.reference;
   const denied = await readProjectionProtection({ store: root.store, checkout: root.checkout,
     identity: root.identity, exec: root.ports.exec, verb: root.context.verb }, reference);
@@ -66,34 +69,48 @@ export async function adoptProjectionFile(root: ProjectionRootState, index: Proj
 }
 
 async function resolveAdoptionReference(root: ProjectionRootState, index: ProjectionIndex, path: string): Promise<
-  { kind: "reference"; reference: RecordReference } | { kind: "refused"; mark: RefusedMark }
+  ({ kind: "reference"; reference: RecordReference } | { kind: "refused"; mark: RefusedMark } | { kind: "bound" }) & { index: ProjectionIndex }
 > {
+  const held = index.entries[path];
+  if (held?.kind === "ownerless" && held.minted !== undefined) {
+    const resumed = await resumeProjectionStub(root, index, path, held.minted);
+    return resumed.kind === "refused" ? { ...resumed, index: resumed.index ?? index } : { kind: "bound", index: resumed.index };
+  }
   const located = identifyArcFileAddress(path);
   if (!path.startsWith(".arc/backlog/") || located?.kind === "cohort-document" || located?.kind === "inbox") {
-    return resolveLocatedAdoption(root, index, path);
+    return { ...await resolveLocatedAdoption(root, index, path), index };
   }
-  const ownership = await resolveBacklogOwnership({ checkout: root.checkout, identity: root.identity, path, store: root.store, index });
-  if (ownership.kind === "refused") return ownership;
+  let ownership = await resolveBacklogOwnership({ checkout: root.checkout, identity: root.identity, path, store: root.store, index });
+  if (ownership.kind === "refused") return { ...ownership, index };
   if (ownership.kind === "prospective") {
-    const params = ownership.params;
-    return { kind: "refused", mark: { reason: "This prospective stub has not yet been created.", remedy: {
-      text: `Run arc stub ${params.name} --commitment ${params.commitment} --priority ${params.priority}`
-        + (params.cls === undefined ? "" : ` --class ${params.cls}`)
-        + (params.cohort === undefined ? "" : ` --cohort ${params.cohort}`) + ", then retry.",
-    } } };
+    const minted = await mintProjectionMetadata(root, index, ownership);
+    if (minted.kind === "refused") return { ...minted, index: minted.index ?? index };
+    ownership = minted.ownership;
+    index = minted.index;
   }
   const address = identifyArcFileAddress(path, { workItem: ownership.container });
   const target = address === null ? null : classifyStoreAddress(address);
-  if (target === null || target.kind === "cohort/document") return { kind: "refused", mark: {
+  if (target === null || target.kind === "cohort/document") return { kind: "refused", index, mark: {
     reason: "This file has no adoptable record address.",
     remedy: { text: "Place prose in an established work-item folder; create metadata through arc stub." },
   } };
-  return { kind: "reference", reference: RecordReferenceSchema.parse({ kind: target.kind, owner: ownership.record.reference.owner,
+  if (index.entries[path]?.kind === "record") return { kind: "bound", index };
+  return { kind: "reference", index, reference: RecordReferenceSchema.parse({ kind: target.kind, owner: ownership.record.reference.owner,
     ...(target.key === undefined ? {} : { key: target.key }) }) };
 }
 
-async function forgetOwnerless(root: ProjectionRootState, index: ProjectionIndex, path: string): Promise<ProjectionIndex> {
-  if (index.entries[path]?.kind !== "ownerless") return index;
+async function reconcileAbsentAdoption(root: ProjectionRootState, index: ProjectionIndex, path: string): Promise<ProjectionIndex> {
+  const entry = index.entries[path];
+  if (entry?.kind !== "ownerless") return index;
+  if (entry.minted !== undefined) {
+    root.unsent.add(path);
+    const mark = { reason: "The stub was created, but its authored metadata file is missing.",
+      remedy: { text: "Restore the authored metadata file, then retry adoption." } };
+    root.context.report?.({ path, copy: null, mark });
+    if (entry.stat === null && entry.refused.reason === mark.reason) return index;
+    return commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
+      index: { ...index, entries: { ...index.entries, [path]: { ...entry, stat: null, refused: mark } } } });
+  }
   const entries = Object.fromEntries(Object.entries(index.entries).filter(([key]) => key !== path));
   return commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
     index: { ...index, entries } });
@@ -101,6 +118,8 @@ async function forgetOwnerless(root: ProjectionRootState, index: ProjectionIndex
 
 async function refuse(root: ProjectionRootState, index: ProjectionIndex, path: string, stat: FileStat | null, mark: RefusedMark): Promise<ProjectionIndex> {
   root.context.report?.({ path, copy: null, mark });
+  const previous = index.entries[path];
   return commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
-    index: { ...index, entries: { ...index.entries, [path]: { kind: "ownerless", stat, refused: mark } } } });
+    index: { ...index, entries: { ...index.entries, [path]: { ...(previous?.kind === "ownerless" ? previous : {}),
+      kind: "ownerless", stat, refused: mark } } } });
 }

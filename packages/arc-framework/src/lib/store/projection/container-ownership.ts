@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { gateRead } from "./read-gate.js";
 import { parseStampedFile } from "./stamp.js";
-import { inspectProspectiveStub, type ProspectiveStub } from "./stub-adoption.js";
+import { inspectProspectiveStub, stubCreationRemedy, type ProspectiveStub } from "./stub-adoption.js";
 import { ArcLayoutAddressSchema, resolveArcPath, identifyArcFileAddress, type ArcLayoutAddress } from "../../layout/index.js";
 import { COHORT_SEGMENT_CAP } from "../../active/cohort-path.js";
 import { readLifecycleMetaFields } from "../lifecycle-write.js";
@@ -90,7 +90,7 @@ function selectContainer<T extends OwnedContainer>(path: string, owners: readonl
   } };
   if (invalid[0] !== undefined) return { kind: "refused", mark: invalid[0] };
   return { kind: "refused", mark: { reason: `No work-item container is established for ${path}.`,
-    remedy: { text: `Establish one work-item folder, then retry adoption. ${containers.map(stubRemedy).filter(Boolean).join(" Or ")}` } } };
+    remedy: { text: `Establish one work-item folder, then retry adoption. ${containers.map(stubCreationRemedy).filter(Boolean).join(" Or ")}` } } };
 }
 
 function addStoredOwner(owners: StoredOwner[], incoming: StoredOwner): void {
@@ -108,10 +108,11 @@ function describeOwner(owner: OwnedContainer): string {
 async function readIndexedOwners(input: BacklogOwnershipInput, container: WorkItemContainer): Promise<IndexedProbe> {
   const owners: StoredOwner[] = [];
   for (const [path, entry] of Object.entries(input.index.entries)) {
-    if (entry.kind !== "record" || entry.reference.kind !== "work-item/meta") continue;
+    const reference = entry.kind === "record" ? entry.reference : entry.minted?.reference;
+    if (reference?.kind !== "work-item/meta") continue;
     const address = identifyArcFileAddress(path, { workItem: container });
     if (address?.kind !== "work-unit-artifact" || address.artifact !== "meta") continue;
-    const read = await input.store.read({ reference: entry.reference });
+    const read = await input.store.read({ reference });
     if (read.status === "refused") return { kind: "refused", mark: markStoreRefusal(read.refusal) };
     if (read.result.reference.kind !== "work-item/meta") return { kind: "refused", mark: {
       reason: `Indexed metadata ${path} now names ${read.result.reference.kind}; its work-unit folder cannot be established.`,
@@ -160,14 +161,6 @@ async function readProspectiveOwner(input: BacklogOwnershipInput, container: Wor
     return { kind: "refused", mark: { reason: `Cannot read prospective metadata ${metaPath}: ${error instanceof Error ? error.message : String(error)}`,
       remedy: { text: "Restore readable metadata at the named path, then retry adoption." } } };
   }
-}
-
-function stubRemedy(container: WorkItemContainer): string {
-  const placement = container.placement;
-  if (placement.kind !== "backlog" || placement.commitment === "provisional" && placement.cohort.length > 0) return "";
-  return `Run arc stub ${container.slug} --commitment ${placement.commitment} --priority <priority>`
-    + (placement.commitment === "planned" ? " --class <class>" : "")
-    + (placement.cohort.length === 0 ? "" : ` --cohort ${placement.cohort.join("/")}`) + ".";
 }
 
 function candidateContainers(path: string): WorkItemContainer[] {

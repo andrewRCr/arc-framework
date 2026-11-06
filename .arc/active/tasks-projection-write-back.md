@@ -402,22 +402,11 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
           `resolveArcPath`, and interprets its relative filename by that container's slug. The nested counterexample
           resolves to either owner only when supplied that owner's container; absent or unrelated context guesses none.
 
-    - `[ ]` **2.4.R.b Establish and bind container evidence for unindexed paths**
+    - `[x]` **2.4.R.b Establish and bind container evidence for unindexed paths**
 
-        - _Progress:_ The shared resolver collects indexed primary, stored placement/cohort, and validated prospective
-          metadata evidence without a store-wide scan. The Errand overlap reader now consumes it and retains exact
-          indexed references, reporting absent ownership and unusable indexes with repair guidance. New work-item
-          records and existing-record copies bind the same evidence; prospective-stub minting remains in progress.
-        - Use indexed primary-folder evidence, a stored primary's placement and cohort, or a prospective stub's meta
-          validated through 2.8.b's rules. Retain physical container coordinates separately from the resolved record
-          authority, so rename aliases and exact indexed references keep their existing treatment. Collect candidates
-          before selection; zero or several qualifying containers leave the file unadopted, with the folder/stub remedy
-          or a diagnostic naming the conflicting containers and how to repair them. Preserve refused store lookups and
-          their remedies. Bind this result before adoption and any companion path classification in the overlap caller;
-          resolve only touched unindexed paths, and bypass reclassification for an already indexed file.
-        - Build `test-first` (one behavior at a time): absent and conflicting evidence preserve bytes and store state;
-          a sole established container supplies the correct owner/key; a validated prospective stub remains subject to
-          its minting and ownership checks; and the same unknown file adopts after ownership evidence is repaired.
+        - Shared ownership resolution binds indexed/stored primaries or a validated stub's exact creation before
+          companion classification. Pending receipts remain authority without a public-name binding; absent and
+          conflicting evidence preserves files with repair guidance, and indexed references remain authoritative.
 
     - `[ ]` **2.4.R.c Verify the ownership boundary and repaired continuation**
 
@@ -487,55 +476,11 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
             - over the ref backend's fixture, a new file at `review/notes.md` in a work item's folder is a refused edit
               carrying the backend's remedy, and adopts once moved outside the reserved path, as the remedy directs
 
-    - `[ ]` **2.8.b A new stub**
+    - `[x]` **2.8.b A new stub**
 
-        - _Progress:_ `stub-parameters.ts` now owns the command schema and the pure `validateStubParameters` verdict;
-          `runStub` consumes its validated inputs before accessing its executor. Direct callers now share the command's
-          canonical Class spelling and schema refusals, including invalid priority, without changing store state.
-        - A new folder under `backlog/` holding a meta that parses and names no `Owner` but the adopting identity mints
-          through `arc stub`'s path (`runStub`, `lib/work-unit/verbs/stub.ts`), with the meta rendered by
-          `renderMetaFile` (`lib/store/kinds/meta/projection.ts`): the commitment tier and any cohort from the path;
-          priority, origin, design, and `Class` from the meta as `arc stub`'s own parameters, `Class` validated as
-          `--class` is but for `[TBD]`, which `arc stub` writes where no `--class` is passed and which enters as an
-          omitted `--class`, so a provisional folder adopts and a planned one is refused as
-          `arc stub --commitment planned` with no `--class` is; owned by the adopting identity. The rest of the file is
-          then a hand edit of the minted record: write-back first sets the file's verb-owned fields — State, Class,
-          Current Workflow, Owner, and the pause section, the set `checkMetaVerbOwnedField` guards
-          (`lib/store/kinds/meta/authority-rules.ts`) — to the minted record's, then sends it against the minted
-          version, checked like any other.
-        - The engine mints through a port, bound by the root hook over the engine's store with the executor `handleStub`
-          (`handlers/lifecycle.ts`) builds, since `runStub` takes its executor from the handler layer. A refusal from
-          `runStub` leaves the folder ownerless and is reported with the verb's remedy; the minted stub fans out once
-          the lock is released (`projection-worktrees`).
-        - `arc stub`'s checks of its parameters are split today: the command's input schema parses the commitment,
-          priority, cohort path, and `Class` (`StubCommandInputSchema`, `handlers/lifecycle.ts`), and `runStub` checks
-          the name and refuses a missing commitment or priority, an explicit `Class` that does not resolve or a
-          `planned` commitment with none (`resolveStubClass`), and a cohort without `planned` or with an unsafe or
-          malformed path. Both move behind one pure function, the schema's parse then `runStub`'s refusals, which
-          `runStub` and the removal check (`projection-worktrees`) call, so the check reads adoption's verdict without
-          minting; a refusal only the executor returns reaches the persist step, which refuses with the verb's remedy.
-        - A meta naming another identity as `Owner` is not adopted; its remedy has the person name themselves, adopt it,
-          then run `arc handover <slug> --to <identity>`. A folder with no meta that parses leaves its files ownerless,
-          flagged in `arc status` and refused over by the removal check (`projection-worktrees`), with the remedy
-          `arc stub <name> --commitment <tier> --priority <priority>`, the tier filled in, and `--cohort <cohort>` where
-          the folder's path carries a cohort, so the stub lands where its files are.
-        - Build `test-first` (one behavior at a time):
-            - a new folder with a meta naming no owner mints a stub owned by the adopter, its tier from the path
-            - a folder under `backlog/provisional/` whose meta's `Class` is `[TBD]`, as `arc stub` writes it, mints a
-              provisional stub
-            - the adopted meta's own prose and soft fields persist after minting, and the verb-owned field check passes
-            - a meta naming another owner is left unadopted with the handover remedy, and adopts once the person names
-              themselves its owner
-            - a meta whose `Class` `--class` would refuse leaves the folder ownerless with the verb's remedy, and adopts
-              once the `Class` is corrected
-            - the verdict read without minting refuses that meta too, and writes nothing
-            - a folder under `backlog/planned/` whose meta's `Class` is `[TBD]` leaves the folder ownerless with the
-              verb's remedy, the verdict read without minting refuses it too, and it adopts once the `Class` is resolved
-            - a folder with no parseable meta reports ownerless files with the `arc stub` remedy, and adopts once the
-              stub exists
-            - under a cohort folder, the ownerless remedy names `--cohort` with the folder's cohort, and the stub it
-              mints adopts the files
-            - the verdict refuses a meta whose priority `StubCommandInputSchema` rejects, as `arc stub` would
+        - Shared pure validation precedes ordinary executor minting through the command's Store. Published receipts
+          bind metadata before companions and survive read/write refusals, missing files, and links. Initial lifecycle
+          normalization uses the creation version; guarded read-back preserves prose and executor remedies stay intact.
 
     - `[x]` **2.8.c Never adopted**
 

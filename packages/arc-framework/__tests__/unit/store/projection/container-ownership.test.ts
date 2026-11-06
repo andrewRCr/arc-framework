@@ -1,4 +1,5 @@
 /** A stored primary establishes only the physical container its placement and cohort identify. */
+import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { expect, it } from "vitest";
 import { resolveBacklogOwnership } from "../../../../src/lib/store/projection/container-ownership.js";
 import { identifyArcFileAddress, resolveArcPath } from "../../../../src/lib/layout/index.js";
@@ -38,5 +39,24 @@ it("uses the sole inner member container instead of treating its cohort as a wor
   expect(address === null ? null : classifyStoreAddress(address)).toMatchObject({
     kind: "work-item/companion", workItem: "beta", key: "note.txt",
   });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+});
+
+it("uses an accepted pending primary receipt when public-name lookup has no binding", async () => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("alpha", { state: "Planning", priority: "P1", currentWorkflow: "draft-design" },
+    { kind: "backlog", commitment: "planned" });
+  const absent = await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("missing") });
+  if (absent.status !== "refused") throw new Error("The missing-name fixture unexpectedly resolves");
+  const before = lifecycleSuccess(await h.store.version());
+  const result = await resolveBacklogOwnership({ checkout: "/unused", identity: "test-user", path: ".arc/backlog/planned/alpha/note.txt",
+    store: { read: input => h.store.read(input), lookup: () => Promise.resolve(absent) }, index: { entries: {
+      ".arc/backlog/planned/alpha/meta-alpha.md": { kind: "ownerless", stat: null,
+        refused: { reason: "The accepted stub's basis is not yet bound.", remedy: { text: "Retry its exact receipt read." } },
+        minted: { reference: primary.reference, version: primary.version } },
+    } } });
+  expect(result).toMatchObject({ kind: "owned", record: { reference: primary.reference } });
+  if (result.kind !== "owned") throw new Error("Expected the accepted metadata generation's container");
+  expect(resolveArcPath(result.container)).toBe(".arc/backlog/planned/alpha");
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
 });

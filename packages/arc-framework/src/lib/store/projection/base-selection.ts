@@ -1,4 +1,5 @@
 /** Resolve the base carried by a projected save before its entry identities or content are interpreted. */
+import { requiresStubNormalization } from "./stub-normalization.js";
 import type { StoreResult } from "../refusal.js";
 import { createHistoryMemo, recoverBase, type HistoryMemo, type RecoveredBase } from "./base-recovery.js";
 import { gitBlobId } from "./blob-id.js";
@@ -23,11 +24,9 @@ export async function selectWriteBackBase(
   context: BaseSelectionContext, request: TakeInRequest, content: string, stamp: string | null,
 ): Promise<StoreResult<WriteBackBaseDecision>> {
   const memo = context.memo ?? createHistoryMemo(context.store);
-  if (request.resolution?.kind === "hold") {
-    const current = await context.store.read({ reference: request.entry.reference });
-    return current.status === "refused" ? current : { status: "ok", result: { kind: "selected",
-      base: { kind: "stored", version: current.result.version }, stamp: stamp ?? request.entry.base.blob } };
-  }
+  if (request.resolution?.kind === "hold") return selectHeldBase(context, request.entry, stamp);
+  if (requiresStubNormalization(request.entry)) return { status: "ok", result: { kind: "selected",
+    base: { kind: "stored", version: request.entry.base.version }, stamp: request.entry.base.blob } };
   if (!request.path.endsWith(".md")) return selectStamplessBase({ ...context, memo }, request, content);
   if (context.recoveringBase) return recoverSelectedBase({ ...context, memo }, request, content, stamp);
   const persisted = await selectPersistedBase({ location: context.location, entry: request.entry, stamp });
@@ -45,6 +44,12 @@ export async function selectWriteBackBase(
     } };
   }
   return recoverSelectedBase({ ...context, memo }, request, content, stamp);
+}
+
+async function selectHeldBase(context: BaseSelectionContext, entry: RecordEntry, stamp: string | null): Promise<StoreResult<SelectedWriteBackBase>> {
+  const current = await context.store.read({ reference: entry.reference });
+  return current.status === "refused" ? current : { status: "ok", result: { kind: "selected",
+    base: { kind: "stored", version: current.result.version }, stamp: stamp ?? entry.base.blob } };
 }
 
 async function recoverSelectedBase(

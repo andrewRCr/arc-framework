@@ -128,7 +128,7 @@ async function bindRoot(input: ProjectionCommandInput, ports: ProjectionEnginePo
   const root: ProjectionRootState = { checkout: input.checkout, store: input.store, location, ports, context, identity: config.identity.identity,
     claim: layout.claim, layoutActive: layout.layoutActive, view: interpretProjectionView(config.view).view,
     blockedByLink: createProjectionLinkBoundary(links),
-    checkpoint: session.step, copies: [], removals: [], unsent, discovered: [], changed: false,
+    mint: input.mint, checkpoint: session.step, copies: [], removals: [], unsent, discovered: [], changed: false,
     ready: false, writable: () => false, rights: bindProjectionRights(input.store, config.identity.identity, ports.exec, input.mode ?? "write-back"), takeIn: async request => {
       request = observeProjectionEdit(request);
       const denied = await root.rights?.(request);
