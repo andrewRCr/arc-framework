@@ -69,8 +69,8 @@ describe.each(["reference", "ref"] as const)("missing cohort CLI repair over %s"
     expect(success(await h.store.read({ reference: member.reference }))).toMatchObject({ content, fields: { cohort: h.path } });
   }, 60_000);
 
-  it("rename names the member's Cohort edit and succeeds after it", async () => {
-    const h = await fixture(backend, false), before = success(await h.store.version());
+  it.each([false, true])("rename names the member's Cohort edit and succeeds after it, nested=%s", async nested => {
+    const h = await fixture(backend, nested), before = success(await h.store.version());
     const refused = await h.invoke(["rename", "arrived", "renamed"]), text = refused.stdout + refused.stderr;
     expect(refused.exitCode).toBe(1);
     expect(text).toContain("arrived"); expect(text).toContain(h.path);

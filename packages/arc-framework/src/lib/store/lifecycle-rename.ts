@@ -116,7 +116,7 @@ export async function prepareStoreRename(store: Store, subject: StoreRenameSubje
     records: unseen.map(write => write.reference), condition: "The set of backlog records changed during rename preparation.",
     remedy: { text: "Acquire the complete rename groups again, then retry.", argv: ["arc", "rename", subject.operand, targetSlug] } } };
   const own = await settleOwnRenameEdge(store, subject, targetSlug); if (own.status === "refused") return own;
-  const observations = mergeRenameObservations([...settlement.observations, ...own.result.observations], subject, targetSlug);
+  const observations = mergeRenameObservations([...groups.result.observations, ...settlement.observations, ...own.result.observations], subject, targetSlug);
   if (observations.status === "refused") return observations;
   const artifactRenames = ownedArtifactRenames(records, subject.primary, targetSlug);
   const ambiguity = authority.shared
@@ -177,7 +177,9 @@ function ownedArtifactRenames(records: readonly StoreRecord[], primary: StoreRec
   }
   return names;
 }
-async function acquireRenameGroups(store: Store, primary: StoreRecord): Promise<StoreResult<{ records: StoreRecord[]; entries: readonly LifecycleEntry[] }>> {
+async function acquireRenameGroups(store: Store, primary: StoreRecord): Promise<StoreResult<{
+  records: StoreRecord[]; entries: readonly LifecycleEntry[]; observations: RecordObservation[];
+}>> {
   const own = await acquireLifecycleRecords(store, primary.reference); if (own.status === "refused") return own;
   const records = [...own.result];
   const view = await readLifecycleView(store); if (view.status === "refused") return view;
@@ -187,13 +189,19 @@ async function acquireRenameGroups(store: Store, primary: StoreRecord): Promise<
     const group = await acquireLifecycleRecords(store, entry.reference); if (group.status === "refused") return group;
     records.push(...group.result);
   }
-  const cohort = ParsedMetaRecordSchema.parse(primary.fields).cohort?.split("/").at(-1);
-  if (cohort !== undefined) {
+  const cohorts = await acquireRenameCohorts(store, primary); if (cohorts.status === "refused") return cohorts;
+  const leaf = cohorts.result.at(-1);
+  if (leaf !== undefined) records.push(leaf);
+  return { status: "ok", result: { records, entries: view.result.entries, observations: observeRecords(cohorts.result.slice(0, -1)) } };
+}
+async function acquireRenameCohorts(store: Store, primary: StoreRecord): Promise<StoreResult<StoreRecord[]>> {
+  const records: StoreRecord[] = [];
+  for (const cohort of ParsedMetaRecordSchema.parse(primary.fields).cohort?.split("/") ?? []) {
     const doc = await store.read({ reference: recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: cohort })) });
     if (doc.status === "refused") return { status: "refused", refusal: memberCohortReadRefusal(primary, doc.refusal) };
     records.push(doc.result);
   }
-  return { status: "ok", result: { records, entries: view.result.entries } };
+  return { status: "ok", result: records };
 }
 function renameSweepRecords(records: readonly StoreRecord[]): StoreRecord[] {
   return records.filter(record => record.reference.kind !== "work-item/cut-map");

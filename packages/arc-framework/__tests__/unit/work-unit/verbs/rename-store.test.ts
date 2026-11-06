@@ -3,6 +3,9 @@ import { boundHolderLookup } from "../../../helpers/store/bound-checkout.js";
 import { createClashDouble } from "../../../helpers/store/clash-double.js";
 import { expect, it } from "vitest";
 import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store.js";
+import { prepareStoreRename, readStoreRenameSubject } from "../../../../src/lib/store/lifecycle-rename.js";
+import { applyPreparedLifecycleWrite } from "../../../../src/lib/work-unit/prepared-lifecycle-write.js";
+import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { recordReferences, OwnerIdentitySchema, sameReference } from "../../../../src/lib/store/identity.js";
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
@@ -37,6 +40,37 @@ it("rewrites the cohort member and exact artifact references in the same batch a
   const primaryProvenance = primaryHistory[0]?.provenance;
   if (primaryProvenance === undefined || !("batchId" in primaryProvenance)) throw new Error("Missing batch provenance");
   expect(cohortHistory[0]?.provenance).toMatchObject({ batchId: primaryProvenance.batchId });
+});
+async function nestedCohortFixture() {
+  const h = createLifecycleHarness();
+  const parent = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "parent" })),
+    "# Cohort: `parent`\n\n**Purpose:** Parent work.\n\n## Members\n\n### `source`\n");
+  const child = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "child" })),
+    "# Cohort: `child`\n\n**Parent:** `parent`\n\n**Purpose:** Child work.\n\n## Members\n\n### `source`\n");
+  const primary = await h.seedMeta("source", { cohort: "parent/child" });
+  return { ...h, parent, child, primary };
+}
+it("rewrites only the leaf membership document in a nested cohort", async () => {
+  const h = await nestedCohortFixture();
+  expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main", locusPorts },
+    { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  expect(lifecycleSuccess(await h.store.read({ reference: h.parent.reference }))).toEqual(h.parent);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.child.reference })).content).toContain("### `target`");
+  expect(lifecycleSuccess(await h.store.read({ reference: h.primary.reference })).reference.owner.name).toBe("target");
+});
+it("refuses a changed parent observation before applying a nested member rename", async () => {
+  const h = await nestedCohortFixture();
+  const subject = lifecycleSuccess(await readStoreRenameSubject(h.store, { primary: h.primary, operand: "source", targetSlug: "target" }));
+  const prepared = lifecycleSuccess(await prepareStoreRename(h.store, subject, "target"));
+  lifecycleSuccess(await h.store.write({ ...recordPut(h.parent, { content: h.parent.content + "\nParent edit.\n" }),
+    provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  const parent = lifecycleSuccess(await h.store.read({ reference: h.parent.reference })), before = lifecycleSuccess(await h.store.version());
+  expect(await applyPreparedLifecycleWrite(h.store, prepared, { verb: "rename", lifecycleAction: "rename" }))
+    .toMatchObject({ status: "refused", refusal: { code: "version-conflict", records: [h.parent.reference] } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.primary.reference }))).toEqual(h.primary);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.child.reference }))).toEqual(h.child);
+  expect(lifecycleSuccess(await h.store.read({ reference: h.parent.reference }))).toEqual(parent);
 });
 it("refuses an occupied target or incomplete inventory before invoking any physical adapter", async () => {
   const h = createLifecycleHarness(); const primary = await h.seedMeta("source"), holder = await h.seedMeta("target");
