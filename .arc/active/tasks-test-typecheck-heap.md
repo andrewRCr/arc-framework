@@ -215,17 +215,16 @@ through `run-typecheck.ts` and pass. Every process prints its peak line: each TS
 - _Outcome:_ The overview records both native type checks and retained TypeScript 6 tooling. The new source and
   test directories have READMEs describing their modules, memory observations and unit-test boundaries.
 
-### `[ ]` **4.5 Write the ADR for sharding and TypeScript 7 — D9**
+### `[x]` **4.5 Write the ADR for sharding and TypeScript 7 — D9**
 
 - _Goal:_ A new ADR, working title "Shard the test type check and run type checks on TypeScript 7", records the spec's
   sharding, declaration-pass, check-shape and forward-path decisions. It also records the script-owned memory bound,
   TS 7 beside TS 6, typed linting as one process, and the verdict-authority residual with their alternatives. It reads
   `Accepted (YYYY-MM-DD)` in this change, so `lint:adr:status` and `lint:adr:numbers` pass at the merge gate.
 
-- **Additional Context:** `strategy-adr-methodology.md`
-
-    - Number: the next free one against the base at the time of writing
-    - Covers the spec's "Covered by the new ADR" set; the `none` dispositions stay out
+- _Outcome:_ ADR-041 records sharding, retained declaration checks and tooling, the forward declaration path,
+  native compiler bounds, single-process typed linting and the accepted diagnostic residual. It is Accepted
+  and uses the next free number on the refreshed base.
 
 ### `[ ]` **4.6 Measure the landing figures on m4-mini and draft the handoff — D3**
 
