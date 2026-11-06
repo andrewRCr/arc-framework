@@ -69,3 +69,9 @@ describe("abnormal compiler endings", () => {
     expect(s.lines.find(line => line.includes("peak:"))).toContain("2100 MiB");
   });
 });
+
+it.each([0, 2])("keeps compiler status %s when a peak carries the split cue", async code => {
+  const s = scenario(["a"], { a: { code, peak: { rssMiB: 2800 } } });
+  expect(await runTypechecks(s.run, s.launch)).toBe(code);
+  expect(s.lines.find(line => line.includes("peak:"))).toContain("due for a split");
+});

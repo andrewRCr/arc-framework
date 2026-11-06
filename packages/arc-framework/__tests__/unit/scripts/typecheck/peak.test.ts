@@ -1,5 +1,8 @@
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { formatPeakLine, parsePeakMiB, samplePeak, watchPeak, type PeakIO } from "../../../../src/scripts/typecheck/peak.js";
+import { formatPeakLine, parsePeakMiB, reportPeakLine, samplePeak, watchPeak, type PeakIO } from "../../../../src/scripts/typecheck/peak.js";
 
 const native = "/deps/native/tsc";
 function proc(executable: string, kib: number): PeakIO {
@@ -71,4 +74,43 @@ it("retains the observed native executable when exit races the status read", () 
     readFile: () => { throw new Error("ENOENT"); },
   });
   expect(state).toEqual({ observedExecutable: native });
+});
+
+describe("shard split cues", () => {
+  it.each([[2764, false], [2765, true], [2764.1, true]] as const)("uses the printed whole-MiB peak at %s", (rssMiB, marked) => {
+    expect(formatPeakLine({ check: "typecheck:test", shard: "unit-a", peak: { rssMiB }, softLimitMiB: 6000 }).includes("due for a split"))
+      .toBe(marked);
+  });
+  it("never marks the source program", () => {
+    expect(formatPeakLine({ check: "typecheck", peak: { rssMiB: 9000 }, softLimitMiB: 6000 })).not.toContain("due for a split");
+  });
+  it("appends a marked line to the configured step summary", () => {
+    const root = mkdtempSync(join(tmpdir(), "typecheck-summary-"));
+    const file = join(root, "summary");
+    writeFileSync(file, "Existing summary\n");
+    try {
+      const text = reportPeakLine({ check: "typecheck:test", shard: "unit-a", peak: { rssMiB: 2765 } }, { GITHUB_STEP_SUMMARY: file });
+      expect(text).toContain("due for a split");
+      expect(readFileSync(file, "utf8")).toBe(`Existing summary\n${text}\n`);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+  it("does not append an unmarked line", () => {
+    const root = mkdtempSync(join(tmpdir(), "typecheck-summary-"));
+    const file = join(root, "summary");
+    try {
+      reportPeakLine({ check: "typecheck:test", shard: "unit-a", peak: { rssMiB: 2764 } }, { GITHUB_STEP_SUMMARY: file });
+      expect(existsSync(file)).toBe(false);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+  it("reports a marked line without a configured summary", () => {
+    const root = mkdtempSync(join(tmpdir(), "typecheck-summary-"));
+    try {
+      expect(reportPeakLine({ check: "typecheck:test", shard: "unit-a", peak: { rssMiB: 2765 } }, {})).toContain("due for a split");
+      expect(readdirSync(root)).toEqual([]);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+  it("keeps reporting when the advisory summary cannot be written", () => {
+    expect(reportPeakLine({ check: "typecheck:test", shard: "unit-a", peak: { rssMiB: 2765 } }, { GITHUB_STEP_SUMMARY: "/summary" },
+      () => { throw new Error("EIO"); })).toContain("due for a split");
+  });
 });

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { signalExitCode } from "../../lib/checks/signal-exit-code.js";
 import { resolveCompiler } from "./compiler.js";
 import { compilerSoftLimit } from "./memory-bound.js";
-import { formatPeakLine } from "./peak.js";
+import { reportPeakLine } from "./peak.js";
 import { compilerLaunchPlan, launchProcess, type CompilerLaunchOptions } from "./processes.js";
 import { discoverShards, type ShardConfig } from "./shards.js";
 
@@ -24,7 +24,7 @@ export async function runTypechecks(run: TypecheckRun, launch: typeof launchProc
   for (const program of programs) {
     if (program.name !== undefined) run.writeLine(`${check}: shard ${program.name}`);
     const result = await launch(compilerLaunchPlan({ ...run.compilerOptions, config: program.config }));
-    run.writeLine(formatPeakLine({ check, shard: program.name, softLimitMiB: run.compilerOptions.softLimitMiB, peak: result.peak, signal: result.signal }));
+    run.writeLine(reportPeakLine({ check, shard: program.name, softLimitMiB: run.compilerOptions.softLimitMiB, peak: result.peak, signal: result.signal }, run.compilerOptions.env));
     const code = result.code ?? signalExitCode(result.signal ?? undefined) ?? 1;
     if (status === 0) status = code;
   }

@@ -1,5 +1,5 @@
 /** Observe kernel RSS only while a child is the intended native executable. */
-import { readFileSync, readlinkSync } from "node:fs";
+import { appendFileSync, readFileSync, readlinkSync } from "node:fs";
 
 export interface PeakIO { readlink: (path: string) => string; readFile: (path: string) => string }
 /** Observed native peak, retaining the last executable for an unavailable report. */
@@ -58,5 +58,22 @@ export function formatPeakLine(line: PeakLine): string {
   const rss = peak.rssMiB === undefined ? `unavailable${observed}` : `${Math.ceil(peak.rssMiB)} MiB`;
   const signal = line.signal ? `; signal: ${line.signal}` : "";
   const limit = softLimitMiB === undefined ? "" : `; soft limit: ${softLimitMiB} MiB`;
-  return `${check}${shard === undefined ? "" : ` [${shard}]`}: peak: ${rss}${signal}${limit}`;
+  const cue = splitDue(line) ? "; due for a split" : "";
+  return `${check}${shard === undefined ? "" : ` [${shard}]`}: peak: ${rss}${signal}${limit}${cue}`;
+}
+
+/** Report a peak and append an advisory shard split cue to a configured CI summary. */
+export function reportPeakLine(line: PeakLine, env: NodeJS.ProcessEnv, append: (file: string, text: string) => void = appendFileSync): string {
+  const text = formatPeakLine(line);
+  const summary = env.GITHUB_STEP_SUMMARY;
+  if (summary && splitDue(line)) {
+    try { append(summary, `${text}\n`); } catch {
+      // The cue remains on stdout; advisory summary I/O never changes the check's status.
+    }
+  }
+  return text;
+}
+
+function splitDue(line: PeakLine): boolean {
+  return line.shard !== undefined && line.peak.rssMiB !== undefined && Math.ceil(line.peak.rssMiB) >= 2765;
 }

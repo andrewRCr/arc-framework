@@ -148,19 +148,15 @@ measured gap.
   ordinary peak line. The sampler preserves the last executable it observed when process exit races the
   following status read.
 
-### `[ ]` **3.3 Mark a shard due for a split — D3**
+### `[x]` **3.3 Mark a shard due for a split — D3**
 
 - _Goal:_ A shard whose peak is at or above 2,765 MiB carries a marker saying it is due for a split. When
   `GITHUB_STEP_SUMMARY` is set, the marked line is also appended to the step summary. The marker never changes the exit
   status, and `typecheck`'s line never carries it.
 
-    - The threshold compares the same whole-MiB figure the line prints
-    - Build `test-first` (one behavior at a time):
-        - 2,764 MiB carries no marker; 2,765 MiB does
-        - `src`'s line never carries it, whatever its peak
-        - With `GITHUB_STEP_SUMMARY` set, a marked line is appended to that file; unset, nothing is written
-        - An unmarked line is never appended
-        - The exit status is unchanged by a marker
+- _Outcome:_ Peaks at or above the printed 2,765 MiB threshold mark test shards due for a split. Marked lines
+  append to `GITHUB_STEP_SUMMARY` without replacing its content; source and unmarked lines never append.
+  Summary I/O is advisory and preserves the compiler status, including zero and non-zero exits.
 
 ### `[ ]` **3.4 Set the backstop margin from m4-mini's gap and probe the backstop — D3**
 
