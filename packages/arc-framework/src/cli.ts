@@ -1830,6 +1830,21 @@ program
     await (await import("./handlers/editor.js")).handleEditor({ editor, ...opts }, binding.store, binding.checkout);
   }));
 
+// --- Selection ---
+
+program
+  .command("selection")
+  .description("List editable projected Markdown files")
+  .option("--changed", "List only files changed since the last arc save")
+  .option("--json", "Emit the selected paths as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (_context, opts: { changed?: boolean; json?: boolean }) => {
+      const binding = projectionCommandBinding();
+      await (await import("./handlers/selection.js")).handleSelection(opts, binding.store, binding.checkout);
+    },
+  ));
+
 // --- Save ---
 
 program

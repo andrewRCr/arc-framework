@@ -566,7 +566,7 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   repair and retry, and remove only ARC's values. Zed inclusions derive from the shared root patterns; init and join
   carry the same user-setting guidance from prepared personal setup, while the in-repo backend remains dark.
 
-### `[ ]` **2.11 The selection of editable Markdown files — § 11.7**
+### `[x]` **2.11 The selection of editable Markdown files — § 11.7**
 
 - _Goal:_ `arc selection` prints the projected Markdown files this checkout may edit, taken after its start has taken
   pending edits in, and `--changed` the part this checkout changed since its last `arc save`, refusing wherever that
@@ -580,34 +580,12 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
           them, and preserves unsent or uncertain work. Stored-conflict display alone does not retain a mark; clearing
           lock failures report the holder and retry, while stampless recovery preserves its unedited classification.
 
-    - `[ ]` **2.11.b The command**
+    - `[x]` **2.11.b The command**
 
-        - A new command in `cli.ts`, `arc selection [--changed] [--json]`, in `HELP_GROUPS` (`lib/cli-help-content.ts`),
-          `COMMAND_SUMMARIES` (`lib/cli-help-summaries.ts`), and the command-input declarations, whose name is the check
-          mode's, `selection` (`spec-projected-markdown-checks.md` § 4.1). After the command's start (1.9.a), it reads
-          the index: the projected Markdown files this checkout may edit (2.1), leaving out `completed/`, protected
-          files (2.2), files holding conflict markers, and the personal root's `.internal/` and `scratch/`; under
-          `--changed`, only those carrying the changed mark. It prints one repository-relative path per line, or
-          `{ paths }` under `--json`.
-        - Its answer is only as current as the start's take-in, so, as `arc save` does (1.10), it refuses where the
-          start cannot take its lock, naming the holder and a retry, loses its lease, or finds the worktree's Git
-          directory gone, each with a retry (`withProjectionLock`); refuses with no identity
-          (`readProjectionConfiguration`), naming the remedy that sets `arc.identity`; and refuses `--skip-projection`
-          (2.9). Over the in-repo implementation, whose start takes no lock and reads no identity, it prints an empty
-          list, or `{ "paths": [] }`, refusing only `--skip-projection`.
-        - Build `test-first` (one behavior at a time):
-            - Integration tier, through the handler over the reference backend
-            - the selection lists the checkout's own and owned in-flight Markdown files and leaves out `completed/`, a
-              protected file, a conflicted file, and the personal `.internal/` and `scratch/`
-            - a new file is listed once the start adopts it
-            - `--changed` lists only marked files, and `--json` prints the same paths as `{ paths }`
-            - a lock held past its bound refuses naming the holder, and the retry prints the selection
-            - a lease lost while it runs refuses with a retry, and the retry prints the selection
-            - a worktree whose Git directory is gone refuses naming it, and the retry prints the selection once it is
-              restored
-            - with no identity it refuses naming the remedy, and prints the selection once `arc.identity` is set
-            - E2E tier, through the CLI over the in-repo implementation: `arc selection` and `arc selection --changed`
-              print an empty list, `--skip-projection` refuses, and the help inventory lists `selection`
+        - Registered `arc selection` and its help/input contracts. It reads the matching command's completed index,
+          filters editable Markdown and changed marks, and prints paths or `{ paths }`. Shared start refusal mapping
+          preserves holder, identity, lease, and Git-directory remedies; unusable indexes refuse until repaired.
+          The in-repo backend returns an empty selection, with the skip switch taking precedence.
 
 ### `[ ]` **2.12 Connect the Markdown checks' reader — § 11.7**
 

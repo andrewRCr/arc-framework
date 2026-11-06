@@ -3,6 +3,7 @@ import type { Store } from "../contract.js";
 import type { StateVersion } from "../identity.js";
 import type { Remedy, StoreRefusal } from "../refusal.js";
 import { projectionProcessState } from "./process-state.js";
+import { projectionStartRefusal } from "./start-refusal.js";
 import { saveProjectionChanges } from "./save-changed.js";
 
 /** A save-specific stop, independent of the backend's closed refusal vocabulary. */
@@ -24,14 +25,8 @@ export async function projectionSaveResult(store: Store): Promise<ProjectionSave
   if (!store.capabilities.stateOffBranch) return { status: "refused", refusal: { code: "unsupported",
     condition: "Projection save is unavailable with the current storage backend.",
     remedy: { text: "Use arc user save to save personal state.", argv: ["arc", "user", "save"] } } };
-  const start = projectionProcessState().start;
-  if (start === null) return { status: "refused", refusal: { code: "projection-not-started",
-    condition: "The projection start has not run for this command.", remedy: { text: "Retry arc save through its command entry." } } };
-  if (start.kind === "skipped" || start.kind === "refused") {
-    const mark = start.kind === "skipped" ? start.skip.mark : start.mark;
-    return { status: "refused", refusal: { code: start.kind === "skipped" ? "projection-skipped" : "projection-refused",
-      condition: mark.reason, remedy: mark.remedy } };
-  }
+  const startRefusal = projectionStartRefusal("arc save");
+  if (startRefusal !== null) return { status: "refused", refusal: startRefusal };
   const intent = projectionProcessState().resolution;
   if (intent !== null && !intent.accepted) return { status: "refused", refusal: { code: "resolution-refused",
     condition: intent.refusal?.reason ?? `The requested resolution ${intent.token} remains pending.`,
