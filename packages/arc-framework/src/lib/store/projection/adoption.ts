@@ -44,7 +44,9 @@ export async function adoptProjectionFile(root: ProjectionRootState, index: Proj
   const existing = await root.store.read({ reference });
   if (existing.status === "ok") return attachExistingProjectionFile(root, index, path, existing.result,
     { stat: gate.stat, blob: gitBlobId(bytes, root.context.format) });
-  if (existing.refusal.code !== "not-found") return refuse(root, index, path, gate.stat, markStoreRefusal(existing.refusal, root.context.verb));
+  if (existing.refusal.code !== "not-found" || reference.kind === "cohort/document") {
+    return refuse(root, index, path, gate.stat, markStoreRefusal(existing.refusal, root.context.verb));
+  }
   if (reference.kind === "work-item/meta") return refuse(root, index, path, gate.stat, {
     reason: "New work-unit metadata must be created through arc stub.",
     remedy: { text: "Create the stub in its backlog folder with arc stub, then retry adoption." },

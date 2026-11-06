@@ -444,38 +444,17 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   intact. Its protected metadata names the holding checkout, then materialization after release; a forced edit stays
   unsent outside the owner and persists in the repaired holder without clearing the pause.
 
-### `[ ]` **2.8 Adopt files the store does not know — § 9**
+### `[x]` **2.8 Adopt files the store does not know — § 9**
 
 - _Goal:_ A new file is adopted by the folder it appears in, through the one layout classifier, or refused naming where
   it belongs; a new `backlog/` folder with a parseable meta becomes a stub owned by the adopting identity; and editor
   and system side files and derived views are never adopted.
 
-    - `[ ]` **2.8.a Classify by folder**
+    - `[x]` **2.8.a Classify by folder**
 
-        - _Progress:_ New work-item and personal records adopt through folder/claim authority, rights, and hand-edit
-          checks. Accepted creations retain their exact basis and retry read-back without resending; empty Markdown
-          files and prepared entry identities are covered. Existing files use their stored generation and ordinary
-          base recovery; current cohort copies bind membership, archived cohorts bind archive coordinates, and the
-          project inbox binds the selected registry identity. Repaired read-back completes the persisted take-in
-          mapping before installation, preserving later stale saves. Complete cohort admission under 2.8.R before
-          closing this subtask.
-        - Establish one work-item container for an unindexed backlog path through 2.4.R before classification; preserve
-          a missing or conflicting ownership result with its remedy, and keep an indexed file's exact reference.
-        - The classifier (`identifyArcFileAddress` then `classifyStoreAddress`, over 2.4's addresses) maps a path to a
-          kind and key: `active/current/` and a stub's folder adopt into that work item; `active/in-flight/<slug>/`
-          takes the owner's prose only (2.1); `completed/` adopts into its archived work unit (2.3); a path it maps to
-          no record — the top of `active/` or `backlog/`, the identity root outside `scratch/`, a commitment or quarter
-          folder — refuses at persist, naming `current/`, `scratch/`, or a work item's folder. Under
-          `layout.active: flat` the top of `active/` is the checkout's own work item's folder, and adopts into it.
-        - Build `test-first` (one behavior at a time):
-            - a new file in `active/current/` adopts into the checkout's work item
-            - a new file at the top of `active/` refuses naming `current/` and adopts once moved there, and under `flat`
-              adopts into the checkout's work item
-            - a new file in a stub's folder, found by the start's walk, adopts into that stub
-            - another person's new prose in `active/in-flight/<slug>/` is refused, and the same prose made by its owner
-              adopts
-            - over the ref backend's fixture, a new file at `review/notes.md` in a work item's folder is a refused edit
-              carrying the backend's remedy, and adopts once moved outside the reserved path, as the remedy directs
+        - New and existing files bind established folder, claim, identity, or archive authority before ordinary
+          hand-edit checks. Accepted creations retain their exact basis through read-back repair without resending;
+          cohort admission retains existing generations, and misplaced or refused files adopt after their repair.
 
     - `[x]` **2.8.b A new stub**
 
@@ -490,29 +469,28 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
           physical blockers clear while exact records, accepted read-back continuations, and saved copies survive;
           regular-file or directory repair resumes ordinary recovery without resending accepted writes.
 
-### `[ ]` **2.8.R Require existing cohort authority for file adoption — § 9**
+### `[x]` **2.8.R Require existing cohort authority for file adoption — § 9**
 
 - _Goal:_ Under A2, a dropped cohort document creates no cohort; adoption preserves the file until existing live or
   exact archived authority is established, then takes in the same edit without changing ordinary fixed-record creation.
 
-    - `[ ]` **2.8.R.a Admit live cohort files only into established generations**
+    - `[x]` **2.8.R.a Admit live cohort files only into established generations**
 
-        - Keep `resolveCohortAdoption` closed to cohort creation, with an actionable existing-cohort refusal on missing
-          authority. Preserve the observed bytes and store state, then adopt the same bytes once the live cohort at the
-          matching Parent exists.
-        - Build `test-first` (one behavior at a time): a dropped canonical cohort document remains unadopted without a
-          stored cohort; restoring that cohort permits the unchanged document to adopt into its exact generation.
+        - Missing live authority names the existing-cohort rule and its repair; authority lost before attachment
+          forwards the actual Store refusal rather than attempting creation. Both native cases preserve authored bytes
+          and take in the same edit once authority is restored.
 
-    - `[ ]` **2.8.R.b Retain copy, archive, and fixed-record authority**
+    - `[x]` **2.8.R.b Retain copy, archive, and fixed-record authority**
 
-        - Check the bound outer callers over the ref backend: current cohort copies require membership; an archived
-          cohort file binds its exact archive coordinates despite a live namesake; fixed personal records and the
-          uniquely identified project inbox still adopt under their ordinary identity and edit-rights checks.
+        - Native adoption retains current-copy membership and exact archived coordinates despite a live namesake.
+          A missing fixed personal record creates with its authored content and settled binding; project-inbox identity
+          repair resumes the same file in the established project namespace.
 
-    - `[ ]` **2.8.R.c Verify cohort admission and repaired continuation**
+    - `[x]` **2.8.R.c Verify cohort admission and repaired continuation**
 
-        - Close A2's appended success criterion with the native refusal-and-repair case and the copy, archive, and
-          fixed-record scenarios. Preserve the earlier criteria and record the bounded evidence on this subtask.
+        - The native cohort-policy and existing/location adoption suites cover A2's missing and disappearing authority,
+          successful repair, exact archived generation, current-copy membership, and personal/project creation. Earlier
+          criteria retain their terminal-verification status.
 
 ### `[x]` **2.9 The skip switch — § 2.3**
 

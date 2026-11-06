@@ -39,10 +39,11 @@ async function resolveCohortCopyAdoption(root: ProjectionRootState,
 async function readLiveCohort(root: ProjectionRootState, name: string, expectedParent: string | null): Promise<AdoptionReference> {
   const reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name }));
   const read = await root.store.read({ reference });
-  if (read.status === "refused") return { kind: "refused", mark: markStoreRefusal(read.refusal, root.context.verb) };
+  if (read.status === "refused") return read.refusal.code === "not-found" ? missingLiveCohort(name, expectedParent)
+    : { kind: "refused", mark: markStoreRefusal(read.refusal, root.context.verb) };
   const parent = parseCohortDocument(read.result.content);
   if (read.result.placement !== undefined || !parent.success || parent.data.parent !== expectedParent) {
-    return missingCohort(name);
+    return missingLiveCohort(name, expectedParent);
   }
   return { kind: "reference", reference: read.result.reference };
 }
@@ -76,4 +77,9 @@ function missingArchive(path: string): Extract<AdoptionReference, { kind: "refus
 function missingCohort(name: string): Extract<AdoptionReference, { kind: "refused" }> {
   return { kind: "refused", mark: { reason: `No live cohort ${name} is established by this checkout's work-unit membership and the cohort's Parent.`,
     remedy: { text: "Apply the edit in the cohort's canonical file, or repair the work unit's Cohort field and the cohort's live record and Parent, then retry." } } };
+}
+
+function missingLiveCohort(name: string, parent: string | null): Extract<AdoptionReference, { kind: "refused" }> {
+  return { kind: "refused", mark: { reason: `File adoption requires an existing live cohort ${name} with Parent ${parent ?? "[none]"}.`,
+    remedy: { text: "Restore the cohort's live record and matching Parent, or move the file to an existing cohort's canonical path, then retry. A dropped document does not create a cohort." } } };
 }
