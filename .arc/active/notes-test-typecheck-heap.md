@@ -154,6 +154,21 @@ Pinned run `785c4f522ef2496fa68006ad9848ed94`, snapshot `4db2f405b3dc3ddf952cb52
 Raw logs, the WSL observer and source hashes live in this worktree's personal `test-typecheck-heap/evidence/`.
 These first-shard figures qualify the launch and observation path; the landing figures are measured afresh cold.
 
+### Compiler-verdict qualification
+
+On 2026-11-06, pinned run `34a43a7302744f0687c2cee5583095b3` checked HEAD `2a5941fc88` plus the typecheck npm-script
+switch, snapshot `cc5fb96c6816ae6ba80ea441e41f9e09a595a16f`. TypeScript 6.0.3's own launcher passed over both
+reference configs at a 6144 MiB heap with `--incremental false`. A disposable copy of that source passed both TS 7
+commands; then an exported string-to-number assignment planted in one root per shard, in
+`__tests__/fixtures/checks/runner-proxy.mjs`, and in `examples/check-runner/local.mjs` each failed with TS2322 naming
+its file. Every failed test check still ran all five shards. The copy was removed; the checkout was never planted.
+
+The clean copy reported 2,041 MiB for source and 1,841 / 1,193 / 1,567 / 1,969 / 2,145 MiB for integration,
+integration-store, rest, unit-a and unit-b. Subsequent planted-error runs reused incremental state, so their lower
+figures are not landing evidence. The final line was `arc-offload: exit 0 on m4-mini (m4-mini-runner)`, with no
+fallback. The driver and raw output are in this worktree's personal `test-typecheck-heap/evidence/` as
+`parity-probe.mjs` and `parity-qualification.log`.
+
 ## TypeScript 7 observations
 
 - With no `GOMEMLIMIT`, TS 7 ran out of memory under a 6 GiB address-space cap at about 4.7 GiB in use, with four

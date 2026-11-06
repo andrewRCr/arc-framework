@@ -112,22 +112,16 @@ verdicts as TS 6 and a clean run on m4-mini, can be tested across the whole part
   status while continuing after failures. Source mode checks `tsconfig.json` once. Both the loop and ARC
   runner now use the extracted leaf `signalExitCode`, including shell-compatible signal statuses.
 
-### `[ ]` **2.4 Switch both type checks to the script and check TS 7's verdicts — D4, D8**
+### `[x]` **2.4 Switch both type checks to the script and check TS 7's verdicts — D4, D8**
 
 - _Goal:_ `npm run typecheck` and `npm run typecheck:test` run through the script on TS 7 and report zero errors where
   TS 6's `tsc --noEmit` reports zero over `tsconfig.json` and `tsconfig.test.json`. A planted error in a root of each
   shard and in each `checkJs` root fails its check, naming the file. If TS 7 misses a verdict, or fails on m4-mini,
   work stops for the spec's TypeScript 6 amendment.
 
-    - `packages/arc-framework/package.json`: `typecheck` and `typecheck:test` as the spec's script table gives them;
-      `typecheck:all` unchanged
-    - TS 6's verdicts from `typescript`'s own `bin/tsc` over both configs at the same tree, at a 6144 MiB V8 heap on a
-      host with room for it, as `notes-test-typecheck-heap.md` § Measuring on m4-mini gives the TS 6 baseline
-    - Planted errors in a disposable copy, one per shard root; `__tests__/fixtures/checks/runner-proxy.mjs` for
-      `typecheck:test` and `examples/check-runner/local.mjs` for `typecheck`
-    - The commit's gate places `typecheck:test` on m4-mini by its route. From the check's saved log, confirm its
-      `running sibling on m4-mini` line and that the check passed with five peak lines; the same notes section says
-      where a passing check's log is
+- _Outcome:_ Switched both typecheck npm scripts to the native runner, leaving `typecheck:all` unchanged.
+  Pinned qualification confirms zero-error TS 6 and TS 7 baselines, plus file-named TS2322 failures in a root
+  of every shard and both named `checkJs` roots. The notes retain the source coordinates and raw-log location.
 
 ## **Phase 3:** Bounds that follow the runner and peaks that flag a split
 
