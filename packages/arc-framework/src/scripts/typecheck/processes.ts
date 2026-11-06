@@ -1,5 +1,6 @@
 /** Construct literal process invocations for bounded native compiler runs. */
 import { spawn } from "node:child_process";
+import { watchPeak, type PeakState } from "./peak.js";
 import { addressSpaceBackstop, parseAddressSpaceLimits } from "./memory-bound.js";
 import type { CompilerPaths } from "./compiler.js";
 
@@ -43,13 +44,14 @@ export function compilerLaunchPlan(options: CompilerLaunchOptions): LaunchPlan {
 }
 
 /** The native child's own terminal status. */
-export interface ProcessResult { code: number | null; signal: NodeJS.Signals | null }
+export interface ProcessResult { code: number | null; signal: NodeJS.Signals | null; peak: PeakState }
 
 /** Start a literal invocation and retain its own exit or signal status. */
 export function launchProcess(plan: LaunchPlan): Promise<ProcessResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(plan.command, plan.args, { cwd: plan.cwd, env: plan.env, stdio: "inherit" });
-    child.once("error", reject);
-    child.once("close", (code, signal) => { resolve({ code, signal }); });
+    const stopPeak = child.pid === undefined ? (): PeakState => ({}) : watchPeak(child.pid, plan.expectedExecutable, process.platform);
+    child.once("error", error => { stopPeak(); reject(error); });
+    child.once("close", (code, signal) => { resolve({ code, signal, peak: stopPeak() }); });
   });
 }

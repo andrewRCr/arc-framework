@@ -55,25 +55,16 @@ coverage test, so no commit before then narrows what the commit gate checks.
   soft target. Linux applies the provisional 1,817 MiB backstop margin through positional shell arguments and
   preserves either inherited address-space ceiling when lower.
 
-### `[ ]` **1.5 Read the native compiler's peak and print its line — D3**
+### `[x]` **1.5 Read the native compiler's peak and print its line — D3**
 
 - _Goal:_ After a compiler exits, one line gives the check, the shard where there is one, the peak RSS in MiB from
   `VmHWM` counted only while `/proc/<pid>/exe` is the native `tsc`, and the soft limit it ran under. A process that
   never became the native binary reads `peak: unavailable`, naming the program seen, and so does any platform
   without `/proc`.
 
-    - New module `src/scripts/typecheck/peak.ts`: `/proc/<pid>/status` parsing, the identity rule, polling at a
-      fixed short interval until exit, and line formatting
-    - The kernel restarts `VmHWM` at each exec (about 40 MiB in the launcher, then the native binary's own), so
-      samples taken before the process becomes the native binary never count
-    - `/proc/<pid>/exe` reads as a resolved path, so compare it with the real path of the binary 1.3 resolved
-    - Unit tests in `__tests__/unit/scripts/typecheck/peak.test.ts`, with `/proc` reads injected
-    - Build `test-first` (one behavior at a time):
-        - `VmHWM` parses from a status text to MiB
-        - Samples count only while the exe is the expected program; the peak is the largest counted sample
-        - A process that never becomes the expected program reads `peak: unavailable` and names the exe seen
-        - No `/proc`: `peak: unavailable`
-        - The line carries the check, the shard when present, the MiB figure and the soft limit
+- _Outcome:_ Added 20 ms procfs sampling tied to the expected executable, retaining the largest native `VmHWM`
+  and rejecting samples across an executable change. The peak formatter reports whole MiB, the check/shard and
+  soft limit, or unavailable with the observed executable; child finalization stops the reader.
 
 ### `[ ]` **1.6 Run the first shard through the script on WSL and m4-mini — D3**
 
