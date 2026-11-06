@@ -16,6 +16,7 @@ import {
 export type LocalTargetInvalidReason =
   | "ambiguous-merge-base"
   | "dirty-worktree"
+  | "diff-base-mismatch"
   | "invalid-base"
   | "no-merge-base"
   | "non-commit-head"
@@ -185,6 +186,26 @@ export async function deriveLocalReviewTargetFromCoordinates(input: {
     baseRef,
     ...derived,
   });
+}
+
+/** Require a change-set target's supplied base to match what the local base branch reproduces. */
+export async function assertLocalReviewTargetBase(input: GitBoundary & { target: ReviewTarget }): Promise<void> {
+  const { target } = input;
+  if (target.kind !== "change-set") return;
+  const base = await resolveObject(input, `refs/heads/${target.baseRef}`, "unresolved-base");
+  if (base.type !== "commit") throw new LocalTargetDerivationError("unresolved-base");
+  const sole = await resolveSoleMergeBase({
+    exec: (command, args) => input.exec(command, args, { cwd: input.cwd }),
+    leftRevision: base.oid,
+    rightRevision: target.headSha,
+  });
+  if (sole.status === "ambiguous") throw new LocalTargetDerivationError("ambiguous-merge-base");
+  if (sole.status !== "resolved") throw new LocalTargetDerivationError("no-merge-base");
+  if (sole.mergeBase !== target.diffBaseSha) {
+    throw new LocalTargetDerivationError("diff-base-mismatch",
+      `The supplied diff base '${target.diffBaseSha}' differs from merge base '${sole.mergeBase}' `
+      + `reproduced by the local base branch '${target.baseRef}'.`);
+  }
 }
 
 /**
