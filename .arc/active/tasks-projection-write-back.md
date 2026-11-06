@@ -490,8 +490,9 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
 
 ### `[ ]` **3.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Note:_ Verification repairs declare source-CLI entrypoint identities in store-suite reach and preserve decomposition's
-  basename locators while companion records and reports retain their stored relative paths.
+- _Note:_ Verification repairs declare source-CLI entrypoints in store-suite reach, retain decomposition basename locators
+  beside full stored companion paths, disambiguate the selection diagnostic, and align integration fixtures with the nested
+  active layout.
 
 ---
 
