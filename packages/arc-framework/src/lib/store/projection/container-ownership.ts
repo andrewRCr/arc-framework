@@ -11,6 +11,7 @@ import { workItemLayoutPlacement } from "../lifecycle-storage.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import type { Store } from "../contract.js";
 import { sameOwner } from "../identity.js";
+import { WorkUnitReadPlacementSchema } from "../placement.js";
 import type { StoreRecord } from "../read.js";
 import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
 
@@ -51,21 +52,36 @@ export async function resolveBacklogOwnership(input: BacklogOwnershipInput): Pro
 }
 
 async function readCandidateOwners(input: BacklogOwnershipInput, container: WorkItemContainer): Promise<CandidateProbe> {
-  const indexed = await readIndexedOwners(input, container);
-  if (indexed.kind === "refused") return indexed;
-  const owners: OwnedContainer[] = [];
-  for (const owner of indexed.owners) addStoredOwner(owners, owner);
-  const stored = await readStoredOwner(input, container);
-  if (stored.kind === "refused") return stored;
-  if (stored.kind === "owned") addStoredOwner(owners, stored);
-  if (owners.length > 0) return { kind: "owners", owners };
+  const existing = await readEstablishedOwners(input, container);
+  if (existing.kind === "refused" || existing.owners.length > 0) return existing;
   const proposed = await readProspectiveOwner(input, container);
   if (proposed.kind === "prospective") return { kind: "owners", owners: [proposed] };
   return proposed.kind === "absent" ? { kind: "owners", owners: [] } : proposed;
 }
 
-function selectContainer(path: string, owners: readonly OwnedContainer[], invalid: readonly RefusedMark[],
-  containers: readonly WorkItemContainer[]): BacklogOwnership {
+/** Establish an existing work item's physical container without treating it as a proposed stub. */
+export async function resolveEstablishedContainer(input: BacklogOwnershipInput, container: WorkItemContainer): Promise<StoredProbe> {
+  const existing = await readEstablishedOwners(input, container);
+  if (existing.kind === "refused") return existing;
+  if (existing.owners.length === 0) return { kind: "absent" };
+  return selectContainer(input.path, existing.owners, [], [container]);
+}
+
+async function readEstablishedOwners(input: BacklogOwnershipInput, container: WorkItemContainer): Promise<
+  { kind: "owners"; owners: StoredOwner[] } | Extract<BacklogOwnership, { kind: "refused" }>
+> {
+  const indexed = await readIndexedOwners(input, container);
+  if (indexed.kind === "refused") return indexed;
+  const owners: StoredOwner[] = [];
+  for (const owner of indexed.owners) addStoredOwner(owners, owner);
+  const stored = await readStoredOwner(input, container);
+  if (stored.kind === "refused") return stored;
+  if (stored.kind === "owned") addStoredOwner(owners, stored);
+  return { kind: "owners", owners };
+}
+
+function selectContainer<T extends OwnedContainer>(path: string, owners: readonly T[], invalid: readonly RefusedMark[],
+  containers: readonly WorkItemContainer[]): T | Extract<BacklogOwnership, { kind: "refused" }> {
   const only = owners[0];
   if (owners.length === 1 && only !== undefined) return only;
   if (owners.length > 1) return { kind: "refused", mark: {
@@ -77,8 +93,8 @@ function selectContainer(path: string, owners: readonly OwnedContainer[], invali
     remedy: { text: `Establish one work-item folder, then retry adoption. ${containers.map(stubRemedy).filter(Boolean).join(" Or ")}` } } };
 }
 
-function addStoredOwner(owners: OwnedContainer[], incoming: StoredOwner): void {
-  if (!owners.some(owner => owner.kind === "owned" && resolveArcPath(owner.container) === resolveArcPath(incoming.container)
+function addStoredOwner(owners: StoredOwner[], incoming: StoredOwner): void {
+  if (!owners.some(owner => resolveArcPath(owner.container) === resolveArcPath(incoming.container)
     && sameOwner(owner.record.reference.owner, incoming.record.reference.owner))) owners.push(incoming);
 }
 
@@ -114,11 +130,13 @@ async function readStoredOwner(input: BacklogOwnershipInput, container: WorkItem
   const read = await input.store.read({ reference: found.result.reference });
   if (read.status === "refused") return { kind: "refused", mark: markStoreRefusal(read.refusal) };
   const record = read.result;
-  if (record.reference.kind !== "work-item/meta" || record.placement?.kind !== "backlog") return { kind: "absent" };
+  if (record.reference.kind !== "work-item/meta" || record.placement === undefined
+    || record.placement.kind !== container.placement.kind) return { kind: "absent" };
   const fields = readLifecycleMetaFields(record);
   if (fields.status === "refused") return { kind: "refused", mark: markStoreRefusal(fields.refusal) };
   try {
-    const placement = await workItemLayoutPlacement(input.checkout, record.reference.owner.name, record.placement, fields.result.cohort);
+    const placement = await workItemLayoutPlacement(input.checkout, record.reference.owner.name,
+      WorkUnitReadPlacementSchema.parse(record.placement), fields.result.cohort);
     const canonical: WorkItemContainer = { kind: "work-unit-container", slug: record.reference.owner.name, placement };
     return resolveArcPath(canonical) === resolveArcPath(container) ? { kind: "owned", container, record } : { kind: "absent" };
   } catch (error) {

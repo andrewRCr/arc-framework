@@ -12,6 +12,8 @@ import type { RecoveredBase } from "./base-recovery.js";
 import { readBaseContent } from "./base-content.js";
 import { createWriteBackAfterView } from "./after-view.js";
 import type { StoreRecord } from "../read.js";
+import type { RecordReference } from "../identity.js";
+import { restoreWriteBackIds } from "./write-back-ids.js";
 
 const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 const LABEL = { actor: "checkout", time: new Date(0).toISOString() };
@@ -23,25 +25,41 @@ interface CheckEditInput {
 /** Parse the merged check copy and return every semantic violation with its remedy. */
 export async function checkWriteBackEdit(input: CheckEditInput): Promise<StoreResult<readonly RefusedMark[]>> {
   const { context, request } = input;
-  const definition = kinds[request.entry.reference.kind];
   const read = await context.store.read({ reference: request.entry.reference });
   if (read.status === "refused" && read.refusal.code !== "not-found") return read;
   const prior = read.status === "ok" ? read.result : undefined;
   const merged = await mergeCheckCopy(input, prior);
   if (merged.status === "refused") return merged;
-  const content = merged.result;
+  return { status: "ok", result: await checkParsedHandEdit(context, request.entry.reference, merged.result, prior) };
+}
+
+/** Prepare entry identities and judge the complete content of a new non-primary record. */
+export async function prepareAdoptedContent(context: WriteBackContext, reference: RecordReference, supplied: string): Promise<{
+  content: string; refusals: readonly RefusedMark[];
+}> {
+  const grammar = kinds[reference.kind].entry;
+  let content = supplied;
+  if (grammar !== undefined) {
+    const restored = restoreWriteBackIds({ reference, base: "", content, grammar });
+    content = stampEntryIds(restored.content, grammar, restored.random);
+  }
+  return { content, refusals: await checkParsedHandEdit(context, reference, content, undefined) };
+}
+
+async function checkParsedHandEdit(context: WriteBackContext, reference: RecordReference, content: string,
+  prior: StoreRecord | undefined): Promise<readonly RefusedMark[]> {
+  const definition = kinds[reference.kind];
   const parsed = definition.parser?.(content);
-  if (parsed?.success === false) return { status: "ok", result: [{ reason: parsed.error,
-    remedy: { text: "Repair the merged record so its parser accepts it, then save again." } }] };
+  if (parsed?.success === false) return [{ reason: parsed.error,
+    remedy: { text: "Repair the merged record so its parser accepts it, then save again." } }];
   const next = { content, fields: parsed?.data };
   const priorParsed = prior === undefined ? undefined : definition.parser?.(prior.content);
-  const rules = await definition.check?.({ reference: request.entry.reference,
+  const rules = await definition.check?.({ reference,
     ...(prior === undefined ? {} : { prior: { content: prior.content, ...(priorParsed?.success === true ? { fields: priorParsed.data } : {}) } }),
     next, writer: { kind: "hand-edit" }, before: context.store,
-    after: createWriteBackAfterView({ before: context.store, reference: request.entry.reference, next, prior }),
-    observations: [],
+    after: createWriteBackAfterView({ before: context.store, reference, next, prior }), observations: [],
   }) ?? [];
-  return { status: "ok", result: rules.map(rule => ({ reason: `${rule.rule}: ${rule.condition}`, remedy: rule.remedy })) };
+  return rules.map(rule => ({ reason: `${rule.rule}: ${rule.condition}`, remedy: rule.remedy }));
 }
 
 async function mergeCheckCopy(input: CheckEditInput, prior: StoreRecord | undefined): Promise<StoreResult<string>> {

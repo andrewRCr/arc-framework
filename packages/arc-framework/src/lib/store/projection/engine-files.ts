@@ -10,6 +10,8 @@ import { writeBackFile } from "./read-back.js";
 import { unshownConflicts } from "./held-conflicts.js";
 import type { TakeInRequest, TakeInResult } from "./take-in-port.js";
 import { refuseProjectionEdit } from "./rights-binding.js";
+import { adoptProjectionFile } from "./adoption.js";
+import { resumeAdoptionReadBack } from "./adoption-read-back.js";
 
 /** Check indexed files found by the walk, always re-reading stats after the sweep's possible moves. */
 export async function writeBackProjectionFiles(root: ProjectionRootState, initial: ProjectionIndex, files: readonly string[]): Promise<ProjectionIndex> {
@@ -18,7 +20,12 @@ export async function writeBackProjectionFiles(root: ProjectionRootState, initia
   const pending: string[] = [];
   const target = projectionProcessState().resolution;
   const selected = target?.refusal === null ? target.target?.path : undefined;
-  const paths = selected === undefined || target?.accepted ? files : [...new Set([...files, selected])].sort();
+  const ownerless = Object.keys(initial.entries).filter(path => {
+    const entry = initial.entries[path];
+    return entry?.kind === "ownerless" || entry?.kind === "record" && entry.adoption !== undefined;
+  });
+  const walked = [...new Set([...files, ...ownerless])].sort();
+  const paths = selected === undefined || target?.accepted ? walked : [...new Set([...walked, selected])].sort();
   for (const path of paths) {
     const checked = await checkFileAtPath(root, index, path, reference);
     index = checked.index;
@@ -38,9 +45,9 @@ export async function writeBackProjectionFiles(root: ProjectionRootState, initia
 async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex, path: string, reference: bigint | null): Promise<{ index: ProjectionIndex; edited: boolean }> {
   const entry = index.entries[path];
   if (entry?.kind !== "record") {
-    if (entry === undefined) root.discovered.push(path);
-    return { index, edited: false };
+    return { index: await adoptProjectionFile(root, index, path), edited: false };
   }
+  if (entry.adoption !== undefined) return { index: await resumeAdoptionReadBack(root, index, path, entry), edited: false };
   if (entry.withheld) {
     report(path, "withheld", "Copy out anything wanted and delete the withheld file before retrying.");
     return { index, edited: false };

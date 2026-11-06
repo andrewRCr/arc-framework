@@ -85,6 +85,7 @@ const RecordEntrySchema = z.strictObject({
   persisted: PersistedSchema.nullable(),
   inProgress: InProgressSchema.nullable(),
   copies: z.array(AsideCopyRecordSchema),
+  adoption: z.strictObject({ kind: z.literal("read-back"), read: z.strictObject({ stat: FileStatSchema, blob: BlobIdSchema }) }).optional(),
 });
 
 /** A file adoption refused, which no record owns. */

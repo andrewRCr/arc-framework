@@ -406,8 +406,8 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
 
         - _Progress:_ The shared resolver collects indexed primary, stored placement/cohort, and validated prospective
           metadata evidence without a store-wide scan. The Errand overlap reader now consumes it and retains exact
-          indexed references, reporting absent ownership and unusable indexes with repair guidance. Adoption and
-          prospective-stub minting remain in progress.
+          indexed references, reporting absent ownership and unusable indexes with repair guidance. New work-item
+          records bind the same evidence; existing-record copies and prospective-stub minting remain in progress.
         - Use indexed primary-folder evidence, a stored primary's placement and cohort, or a prospective stub's meta
           validated through 2.8.b's rules. Retain physical container coordinates separately from the resolved record
           authority, so rename aliases and exact indexed references keep their existing treatment. Collect candidates
@@ -486,6 +486,10 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
 
     - `[ ]` **2.8.a Classify by folder**
 
+        - _Progress:_ New work-item and personal records adopt through folder/claim authority, rights, and hand-edit
+          checks. Accepted creations retain their exact basis and retry read-back without resending; empty Markdown
+          files and prepared entry identities are covered. Existing-record copies and other shared record bindings
+          remain in progress.
         - Establish one work-item container for an unindexed backlog path through 2.4.R before classification; preserve
           a missing or conflicting ownership result with its remedy, and keep an indexed file's exact reference.
         - The classifier (`identifyArcFileAddress` then `classifyStoreAddress`, over 2.4's addresses) maps a path to a

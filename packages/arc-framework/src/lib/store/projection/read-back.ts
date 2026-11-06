@@ -2,7 +2,7 @@
 import type { AsideWriterInput } from "./aside.js";
 import type { ProjectionIndex } from "./index-schema.js";
 import type { TakeInRequest, TakeInResult } from "./take-in-port.js";
-import { createWriteBackPort, sendWriteBack, type WriteBackContext } from "./write-back.js";
+import { createWriteBackPort, sendWriteBack, type WriteBackContext, type WriteBackSend } from "./write-back.js";
 import { readReference } from "./change-detection.js";
 import { guardReplacement } from "./replace-guard.js";
 import { stageRecordFile } from "./staging.js";
@@ -26,9 +26,16 @@ export async function writeBackFile(context: ReadBackContext, index: ProjectionI
   result: TakeInResult; index: ProjectionIndex;
 }> {
   const sent = await sendWriteBack(context, request);
-  let updated = { ...index, entries: { ...index.entries, [request.path]: sent.result.entry } };
+  const updated = { ...index, entries: { ...index.entries, [request.path]: sent.result.entry } };
   if (sent.kind === "clashed") return drawCheckoutClash(context, updated, request, sent);
   if (sent.kind !== "landed") return { result: sent.result, index: updated };
+  return installWriteBack(context, updated, request, sent);
+}
+
+/** Install an accepted write, including a newly adopted record, through the ordinary guarded replacement. */
+export async function installWriteBack(context: ReadBackContext, index: ProjectionIndex, request: TakeInRequest,
+  sent: Extract<WriteBackSend, { kind: "landed" }>): Promise<{ result: TakeInResult; index: ProjectionIndex }> {
+  let updated = index;
   const renderer = createRecordRenderer(context);
   const staged = await stageRecordFile({ checkout: request.checkout, path: request.path, record: sent.record,
     replacing: sent.result.entry.base.blob, writer: context.writer, format: context.format, checkpoint: context.checkpoint, readOnly: sent.result.entry.protected, renderer });

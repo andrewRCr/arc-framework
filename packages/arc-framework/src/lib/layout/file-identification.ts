@@ -14,7 +14,7 @@ export interface FileAddressContext {
 export function identifyArcFileAddress(path: string, context: FileAddressContext = {}): ArcLayoutAddress | null {
   if (context.workItem !== undefined) return identifyWorkUnitFileAddress(path, context.workItem);
   const active = context.active;
-  const container = activeContainer(path, active);
+  const container = activeContainer(path, active) ?? completedContainer(path);
   if (container !== null) return identifyWorkUnitFileAddress(path, container);
   const artifact = identifyWorkUnitArtifactPath(path, active);
   if (artifact !== null) return { kind: "work-unit-artifact", ...artifact };
@@ -26,6 +26,15 @@ export function identifyArcFileAddress(path: string, context: FileAddressContext
     if (parsed.success && resolveArcPath(parsed.data) === path) return parsed.data;
   }
   return null;
+}
+
+function completedContainer(path: string): Extract<ArcLayoutAddress, { kind: "work-unit-container" }> | null {
+  const match = /^\.arc\/completed\/([^/]+)\/([0-9]+)_([^/]+)\//u.exec(path);
+  if (match === null) return null;
+  const parsed = ArcLayoutAddressSchema.safeParse({ kind: "work-unit-container", slug: match[3],
+    placement: { kind: "completed", quarter: match[1], sequence: match[2] } });
+  return parsed.success && parsed.data.kind === "work-unit-container"
+    && path.startsWith(`${resolveArcPath(parsed.data)}/`) ? parsed.data : null;
 }
 
 function activeContainer(path: string, active?: ActiveLayoutContext): Extract<ArcLayoutAddress, { kind: "work-unit-container" }> | null {
