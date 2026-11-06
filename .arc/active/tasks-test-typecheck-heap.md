@@ -189,13 +189,14 @@ through `run-typecheck.ts` and pass. Every process prints its peak line: each TS
   and an owned heap-report file. Its peak line includes V8 observations, or unavailable heap after a signal or
   missing report, while retaining ESLint's status or 128 plus the signal number.
 
-### `[ ]` **4.2 Switch `lint:ts` to the script — D4, D7**
+### `[x]` **4.2 Switch `lint:ts` to the script — D4, D7**
 
 - _Goal:_ `npm run lint:ts` runs eslint over `src/`, `__tests__/` and `examples/` through the script and prints its peak
   line with heap. `npm run lint:ts -- --prune-suppressions` reaches eslint, and an unused suppression exits 2.
 
-    - `packages/arc-framework/package.json`: `lint:ts` as the spec's script table gives it; `lint:ts:file` unchanged
-    - Probe: one unused entry added to `eslint-suppressions.json` in a disposable copy exits 2
+- _Outcome:_ `lint:ts` runs the existing paths through lint mode; `lint:ts:file` is unchanged. A disposable-copy
+  probe retained unused-suppression status 2, then forwarded pruning removed that entry and exited 0. Both
+  runs reported RSS and V8 heap observations; evidence is in `notes-test-typecheck-heap.md`.
 
 ### `[ ]` **4.3 Pin CI's lint heaps and release the test type check's — D6**
 

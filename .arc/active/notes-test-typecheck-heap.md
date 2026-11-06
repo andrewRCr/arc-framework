@@ -197,6 +197,18 @@ The driver, full compiler output and concise qualification are `inherited-limit-
 and `inherited-2g-node24-small-semi.log` in the personal evidence directory. Failed diagnostic runs are retained
 beside them. The earlier admission refusal under `required` launched no process; no mode override was applied.
 
+### Typed lint qualification
+
+On 2026-11-06, pinned run `4854d21feb5042e289a6deec2e991d3d` used HEAD `4607c3bf13` plus the npm script switch,
+snapshot `30639d16d51b825b865f6fc25e77a79138799310`. A disposable copy received one unused `max-lines` suppression
+for the heap preload. The unchanged root `npm run -s lint:ts` exited 2 with ESLint's unused-suppression diagnostic;
+`npm run -s lint:ts -- --prune-suppressions` then removed that entry and exited 0. The live baseline was untouched.
+
+At `NODE_OPTIONS=--max-old-space-size=4192`, the two peak lines reported RSS 3,676 and 3,724 MiB, heap in use 2,355
+and 2,996 MiB, and actual V8 heap limit 4,288 MiB. These are qualification figures, not the final cold landing set.
+The run ended with `arc-offload: exit 0 on m4-mini (m4-mini-runner)` without fallback. Its driver and complete output
+are `lint-suppression-probe.mjs` and `lint-suppression-qualification.log` in the personal evidence directory.
+
 ## TypeScript 7 observations
 
 - With no `GOMEMLIMIT`, TS 7 ran out of memory under a 6 GiB address-space cap at about 4.7 GiB in use, with four
