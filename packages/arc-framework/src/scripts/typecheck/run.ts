@@ -1,25 +1,46 @@
 /** Run bounded native TypeScript checks from the package root. */
 import { readFileSync } from "node:fs";
+import { signalExitCode } from "../../lib/checks/signal-exit-code.js";
 import { resolveCompiler } from "./compiler.js";
 import { SOFT_LIMIT_MIB } from "./memory-bound.js";
 import { formatPeakLine } from "./peak.js";
-import { compilerLaunchPlan, launchProcess } from "./processes.js";
-import { discoverShards } from "./shards.js";
+import { compilerLaunchPlan, launchProcess, type CompilerLaunchOptions } from "./processes.js";
+import { discoverShards, type ShardConfig } from "./shards.js";
 
-/** Run the first test shard through the native compiler and report its peak. */
+/** Native compiler inputs and output sink for one source or test check. */
+export interface TypecheckRun {
+  mode: "src" | "test";
+  compilerOptions: Omit<CompilerLaunchOptions, "config">;
+  shards: readonly ShardConfig[];
+  writeLine: (line: string) => void;
+}
+
+/** Run every selected program in order and retain the first failure. */
+export async function runTypechecks(run: TypecheckRun, launch: typeof launchProcess = launchProcess): Promise<number> {
+  const programs = run.mode === "src" ? [{ config: "tsconfig.json", name: undefined }] : run.shards;
+  if (programs.length === 0) throw new Error("No tsconfig.shard-*.json configs found; restore the shard configs and retry.");
+  const check = run.mode === "src" ? "typecheck" : "typecheck:test";
+  let status = 0;
+  for (const program of programs) {
+    if (program.name !== undefined) run.writeLine(`${check}: shard ${program.name}`);
+    const result = await launch(compilerLaunchPlan({ ...run.compilerOptions, config: program.config }));
+    run.writeLine(formatPeakLine({ check, shard: program.name, softLimitMiB: run.compilerOptions.softLimitMiB, peak: result.peak }));
+    const code = result.code ?? signalExitCode(result.signal ?? undefined) ?? 1;
+    if (status === 0) status = code;
+  }
+  return status;
+}
+
+/** Resolve installed compiler inputs and run the requested native type check. */
 export async function runTypecheckCommand(packageRoot: string, args: string[]): Promise<number> {
   const [mode, ...forwarded] = args;
-  if (mode !== "test") throw new Error(`Unknown typecheck mode: ${mode ?? "(missing)"}`);
-  const shard = discoverShards(packageRoot)[0];
-  if (!shard) throw new Error("No tsconfig.shard-*.json configs found in the package root.");
-  const compiler = resolveCompiler(process.platform, process.arch);
-  const plan = compilerLaunchPlan({
-    compiler, packageRoot, config: shard.config, forwarded, softLimitMiB: SOFT_LIMIT_MIB,
-    platform: process.platform, nodeExecutable: process.execPath, env: process.env,
-    inheritedLimits: process.platform === "linux" ? readFileSync("/proc/self/limits", "utf8") : "",
+  if (mode !== "src" && mode !== "test") throw new Error(`Unknown typecheck mode: ${mode ?? "(missing)"}`);
+  return runTypechecks({
+    mode, shards: mode === "test" ? discoverShards(packageRoot) : [], writeLine: line => { console.log(line); },
+    compilerOptions: {
+      compiler: resolveCompiler(process.platform, process.arch), packageRoot, forwarded, softLimitMiB: SOFT_LIMIT_MIB,
+      platform: process.platform, nodeExecutable: process.execPath, env: process.env,
+      inheritedLimits: process.platform === "linux" ? readFileSync("/proc/self/limits", "utf8") : "",
+    },
   });
-  console.log(`typecheck:test: shard ${shard.name}`);
-  const result = await launchProcess(plan);
-  console.log(formatPeakLine({ check: "typecheck:test", shard: shard.name, softLimitMiB: SOFT_LIMIT_MIB, peak: result.peak }));
-  return result.code ?? 1;
 }

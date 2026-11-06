@@ -102,25 +102,15 @@ verdicts as TS 6 and a clean run on m4-mini, can be tested across the whole part
   Synthetic cases name missing, doubled and extra roots and changed options; only the three shard options and
   parser path are exempt. Discovery now sorts shard names, with a regression for the integration prefix pair.
 
-### `[ ]` **2.3 Run every shard in turn and aggregate their exits — D3**
+### `[x]` **2.3 Run every shard in turn and aggregate their exits — D3**
 
 - _Goal:_ `test` runs each discovered shard in name order with a header line before its output, runs every shard
   after one fails, and exits with the first non-zero status. `src` runs one process over `tsconfig.json`. A process
   ended by a signal counts as 128 plus the signal's number.
 
-    - Move `signalExitCode` out of `src/lib/checks/process.ts` into a leaf module, `src/lib/checks/signal-exit-code.ts`,
-      that both import, so the script reports a signal as ARC's check runner does. Importing `process.ts` itself would
-      load its `execa` and Git-environment graph into the script's process (about 36 MiB and 0.3 s measured)
-    - The run loop in `src/scripts/typecheck/run.ts` takes the launch function as a parameter, `processes.ts`'s in
-      production. Its unit tests in `__tests__/unit/scripts/typecheck/run.test.ts` script exits and signals through a
-      fake launch and start no process, as the unit tier's guard (`installUnitProcessGuard` in
-      `__tests__/helpers/unit-setup.ts`) requires
-    - Build `test-first` (one behavior at a time):
-        - `test` runs the shards in name order, each preceded by a header naming it
-        - A failing shard does not stop the later ones
-        - The exit status is the first non-zero one; all zero exits 0
-        - A signal-ended process counts as 128 plus its number and wins if it is the first non-zero
-        - `src` runs one process over `tsconfig.json`, its peak line naming no shard
+- _Outcome:_ The injected run loop executes every discovered shard in order, preserving the first non-zero
+  status while continuing after failures. Source mode checks `tsconfig.json` once. Both the loop and ARC
+  runner now use the extracted leaf `signalExitCode`, including shell-compatible signal statuses.
 
 ### `[ ]` **2.4 Switch both type checks to the script and check TS 7's verdicts — D4, D8**
 
