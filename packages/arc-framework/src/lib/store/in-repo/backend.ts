@@ -13,6 +13,7 @@ import type { ListInput, ListingOutcome } from "../read.js";
 import { writeTracked, batchTracked } from "./write.js";
 import { WriteInputSchema, BatchInputSchema, type WriteInput, type WriteResult, type BatchInput, type BatchResult } from "../write.js";
 import { malformedStoreInput } from "../malformed-input.js";
+import { storeImported, storeImportedRefusal } from "../store-imported.js";
 import type { InRepoContext } from "./context.js";
 import type { ReadInput, StoreRecord } from "../read.js";
 import type { LookupInput, LookupResult } from "../lookup.js";
@@ -29,16 +30,20 @@ export function createInRepoBackend(ports: StorePorts): Store {
     capabilities: { stateOffBranch: false },
     read: (input) => runOperation(() => dispatchedRead(context, input)),
     list: (input) => runOperation(() => dispatchedList(context, input)),
-    write: (input) => runOperation(() => dispatchedWrite(context, input)),
-    batch: (input) => runOperation(() => dispatchedBatch(context, input)),
+    write: (input) => runOperation(async () => { await refuseIfImported(context); return dispatchedWrite(context, input); }),
+    batch: (input) => runOperation(async () => { await refuseIfImported(context); return dispatchedBatch(context, input); }),
     version: () => runOperation(() => stateVersion(context)),
     history: (input) => runOperation(() => dispatchedHistory(context, input)),
     changes: (input) => runOperation(() => trackedChanges(context, input)),
     lookup: (input) => runOperation(() => dispatchedLookup(context, input)),
-    push: () => runOperation(async () => (await import("./sync.js")).pushInRepo(context)),
-    pull: () => runOperation(async () => (await import("./pull.js")).pullInRepo(context)),
+    push: () => runOperation(async () => { await refuseIfImported(context); return (await import("./sync.js")).pushInRepo(context); }),
+    pull: () => runOperation(async () => { await refuseIfImported(context); return (await import("./pull.js")).pullInRepo(context); }),
     maintain: () => Promise.resolve({ status: "ok", result: { measurements: null } }),
   };
+}
+/** Writes and synchronization refuse once the repository's store has been imported; reads stay open. */
+async function refuseIfImported(context: InRepoContext): Promise<void> {
+  if (await storeImported(context.ports.checkoutRoot, context.ports.exec)) refuse(storeImportedRefusal());
 }
 async function dispatchedWrite(context: InRepoContext, input: WriteInput): Promise<WriteResult> {
   const parsed = WriteInputSchema.safeParse(input);

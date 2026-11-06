@@ -59,6 +59,7 @@ import {
 } from "../../lib/user-sync/notes-ref.js";
 import { removeStaleUserWuSubdir } from "./open.js";
 import { notesRef } from "./shared.js";
+import { refuseWriteIfStoreImported } from "../../lib/store/store-imported.js";
 import {
   BACKUP_FILENAME,
   UserLoadVerificationError,
@@ -116,6 +117,7 @@ export async function runUserSave(
   options: UserSaveOptions,
 ): Promise<UserSaveResult> {
   const { cwd, io, identity } = options;
+  await refuseWriteIfStoreImported(cwd, io.exec);
   const currentWuName = options.currentWuName ?? await resolveCurrentWuName(cwd, io.exec);
 
   // `git notes add` does its own unguarded read-modify-write on the notes tree,
@@ -245,6 +247,7 @@ const nodeRenameUserWorkspaceFs: RenameUserWorkspaceFs = {
 export async function runUserRenameWorkspace(
   options: UserRenameWorkspaceOptions,
 ): Promise<UserRenameWorkspaceResult> {
+  await refuseWriteIfStoreImported(options.cwd, options.io.exec);
   const oldWuName = SlugSchema.parse(options.oldWuName);
   const newWuName = SlugSchema.parse(options.newWuName);
   const resolver = await resolveUserSurfaceResolver({

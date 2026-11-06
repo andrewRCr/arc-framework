@@ -8,6 +8,7 @@ import { seed, success, testProvenance, update, mutationOf } from "./suite-tools
 import type { ConformanceFixture, RecoveryCaseId, RecoveryOperation } from "./fixture-contract.js";
 import { produceRemoteRecovery } from "./in-repo-remote-recovery.js";
 type Repairs = Map<string, () => Promise<void>>;
+const IMPORTED_REGISTRY_REF = "refs/arc/project/registry";
 
 /** Produce an actual refused operation whose retained repair preserves its logical intent.
  * @param fixture - Real tracked checkout.
@@ -58,6 +59,12 @@ export async function produceInRepoRecovery(fixture: ConformanceFixture, exec: G
     await exec("git", ["checkout", "--detach", base]);
     repairs.set(caseId, async () => { await exec("git", ["checkout", "feat/work-item-one"]); });
     return { run: () => fixture.store.write(update(fixture, record)) };
+  }
+  if (caseId === "store-imported") {
+    const head = await fixture.settle();
+    await exec("git", ["update-ref", IMPORTED_REGISTRY_REF, head]);
+    repairs.set(caseId, async () => { await exec("git", ["update-ref", "-d", IMPORTED_REGISTRY_REF]); });
+    return { run: () => fixture.store.write({ action: "put", reference, content: fixture.content(reference), expected: null, provenance: testProvenance }) };
   }
   throw new Error(`No tracked producer: ${caseId}`);
 }
