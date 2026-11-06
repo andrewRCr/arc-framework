@@ -129,19 +129,14 @@ _Purpose:_ Completes the memory bound and the peak line: the soft limit drops un
 keep their peak line, a shard near the target says it is due for a split, and the backstop margin takes m4-mini's
 measured gap.
 
-### `[ ]` **3.1 Keep the soft limit under the job's cgroup bound — D3**
+### `[x]` **3.1 Keep the soft limit under the job's cgroup bound — D3**
 
 - _Goal:_ On Linux the soft limit is 6000 MiB, or the smallest numeric `memory.max` on the path from the script's own
   cgroup to the root less 512 MiB when that is lower. No bound applies for `max`, a missing file or no `0::` entry.
 
-    - In `src/scripts/typecheck/memory-bound.ts`: the path is the `0::` entry of `/proc/self/cgroup`, read under
-      `/sys/fs/cgroup` from that cgroup up to the root; reads are injected
-    - Build `test-first` (one behavior at a time):
-        - A numeric `memory.max` bounds the soft limit
-        - Of nested numeric bounds, the smallest applies
-        - `max`, a missing file and a missing `0::` entry each mean no bound
-        - A 5,120 MiB bound gives 4,608 MiB; an 8,192 MiB bound gives 6000 MiB; no bound gives 6000 MiB
-        - The backstop follows the bounded soft limit
+- _Outcome:_ The script walks its Linux unified cgroup through its ancestors, taking the smallest numeric
+  `memory.max` and reserving 512 MiB under it, up to 6000 MiB. Missing or unlimited bounds retain the default;
+  the backstop follows the bounded value. An unusably small cap names its repair and succeeds after repair.
 
 ### `[ ]` **3.2 Keep the peak line for a process that ends abnormally — D3**
 

@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { signalExitCode } from "../../lib/checks/signal-exit-code.js";
 import { resolveCompiler } from "./compiler.js";
-import { SOFT_LIMIT_MIB } from "./memory-bound.js";
+import { compilerSoftLimit } from "./memory-bound.js";
 import { formatPeakLine } from "./peak.js";
 import { compilerLaunchPlan, launchProcess, type CompilerLaunchOptions } from "./processes.js";
 import { discoverShards, type ShardConfig } from "./shards.js";
@@ -38,7 +38,7 @@ export async function runTypecheckCommand(packageRoot: string, args: string[]): 
   return runTypechecks({
     mode, shards: mode === "test" ? discoverShards(packageRoot) : [], writeLine: line => { console.log(line); },
     compilerOptions: {
-      compiler: resolveCompiler(process.platform, process.arch), packageRoot, forwarded, softLimitMiB: SOFT_LIMIT_MIB,
+      compiler: resolveCompiler(process.platform, process.arch), packageRoot, forwarded, softLimitMiB: compilerSoftLimit(process.platform),
       platform: process.platform, nodeExecutable: process.execPath, env: process.env,
       inheritedLimits: process.platform === "linux" ? readFileSync("/proc/self/limits", "utf8") : "",
     },
