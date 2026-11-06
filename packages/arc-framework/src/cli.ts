@@ -131,6 +131,7 @@ program
   .name("arc")
   .description("CLI for installing, updating, and managing ARC framework files")
   .option("--no-input", "Forbid prompts, presenters, editors, and ambient child-process input")
+  .option("--skip-projection", "Skip automatic projection work for this command, leaving edits pending")
   .version(getFrameworkVersion());
 
 // --- Checks ---

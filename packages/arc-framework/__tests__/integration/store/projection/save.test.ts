@@ -94,6 +94,20 @@ async function save(h: { store: Store; checkout: string }, args: readonly string
   } finally { stdout.mockRestore(); stderr.mockRestore(); process.chdir(cwd); process.exitCode = exit; }
 }
 
+it("refuses the skip switch without sending edits and saves normally once the switch is omitted", async () => {
+  const h = await createEngineFixture(directories);
+  await h.edit("explicit save edit\n");
+  const before = success(await h.store.version());
+  const skipped = await save(h, ["--skip-projection"]);
+  expect(skipped).toMatchObject({ exitCode: 1, result: { status: "refused", refusal: { code: "projection-skipped",
+    condition: expect.stringContaining("--skip-projection"), remedy: { text: expect.stringContaining("without --skip-projection") } } } });
+  expect((await h.stored()).content).toBe(h.record.content);
+  expect(await h.file()).toContain("explicit save edit");
+  expect(success(await h.store.version())).toBe(before);
+  expect((await save(h)).result).toMatchObject({ status: "ok" });
+  expect((await h.stored()).content).toBe("explicit save edit\n");
+});
+
 it("saves a completed-file edit and returns the version after that write", async () => {
   const h = await createEngineFixture(directories, { path: ".arc/completed/2026-q4/document.md" });
   await h.edit("completed edit\n");

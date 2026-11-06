@@ -561,22 +561,16 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
             - files under an identity's `.internal/` are never walked
             - a symbolic link in `active/current/` is never adopted but is reported, and its target is never read
 
-### `[ ]` **2.9 The skip switch — § 2.3**
+### `[x]` **2.9 The skip switch — § 2.3**
 
 - _Goal:_ Every `arc` command accepts `--skip-projection`, running that one command with no write-back, no refresh, no
   end, and no fan-out of its writes, its edits left pending — while the removal check and the persist and release steps
   run under it as without it.
 
-    - A program-level option in `cli.ts`, never a mode. The root `preAction` hook reads it and sets it on the engine's
-      module state, which the hooks (1.9.b), the fan-out (`projection-worktrees`), and `arc sync`'s rebuild
-      (`projection-worktrees`) read, since the store `createStore` builds sees no argv. Under it a command fans out none
-      of its writes, the persist and release steps' included; each sibling's next command refreshes (§ 2.2). `arc save`
-      refuses it, naming the switch, since its start is its whole work; this task adds that refusal to 1.10's handler.
-    - Build `test-first` (one behavior at a time):
-        - Integration tier, through the engine's entry points over the reference backend
-        - a command run under the switch leaves a pending edit unsent, and the next command sends it
-        - `arc save --skip-projection` refuses naming the switch, and `arc save` alone runs
-        - E2E tier, through the CLI over the in-repo implementation: every command accepts `--skip-projection`
+- _Outcome:_ The global option binds a command-scoped skip before projection I/O, suppresses automatic end settlement,
+  and leaves action execution intact. The next ordinary start sends the same pending edit. Root and nested commands
+  inherit the option; save names the switch before backend support, while plain in-repo save retains its personal-save
+  remedy. Explicit persist and removal paths gain no bypass, and the shared skip remains available to refresh and fan-out.
 
 ### `[ ]` **2.10 Editor settings — § 11.4**
 

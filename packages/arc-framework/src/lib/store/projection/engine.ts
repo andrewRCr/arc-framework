@@ -17,6 +17,8 @@ export interface ProjectionCommandInput {
   readonly checkout: string;
   readonly mode?: "write-back" | "save";
   readonly resolve?: string;
+  /** Bypass automatic projection work for this command alone. */
+  readonly skipProjection?: boolean;
   readonly ports?: () => ProjectionEnginePorts;
   readonly location?: ProjectionLocation;
 }
@@ -32,6 +34,13 @@ export type ProjectionStart =
 export async function startProjection(input: ProjectionCommandInput): Promise<ProjectionStart> {
   const state = beginProjectionCommand();
   state.command = { store: input.store, checkout: input.checkout };
+  recordEngineStoreCapability(input.checkout, input.store.capabilities.stateOffBranch);
+  if (input.skipProjection === true) {
+    state.skip = { reason: "switch", mark: { reason: "Projection skipped by --skip-projection.",
+      remedy: { text: "Run the command without --skip-projection to take in its pending edits." } } };
+    state.start = { kind: "skipped", skip: state.skip, pending: [] };
+    return state.start;
+  }
   state.start = await initializeProjection(input);
   return state.start;
 }
@@ -45,7 +54,6 @@ export function projectionCommandBinding(): ProjectionCommandBinding {
 
 async function initializeProjection(input: ProjectionCommandInput): Promise<ProjectionStart> {
   const state = projectionProcessState();
-  recordEngineStoreCapability(input.checkout, input.store.capabilities.stateOffBranch);
   if (!input.store.capabilities.stateOffBranch) return { kind: "disabled" };
   const effective = historyRetryInput(input);
   const ports = input.ports?.() ?? createProjectionEnginePorts(input.checkout);
@@ -85,6 +93,7 @@ function historyRetryInput(input: ProjectionCommandInput): ProjectionCommandInpu
 /** Settle the copies accumulated by this command under freshly acquired locks. */
 export async function endProjection(input: ProjectionCommandInput): Promise<void> {
   const state = projectionProcessState();
+  if (state.skip?.reason === "switch") return;
   recordEngineStoreCapability(input.checkout, input.store.capabilities.stateOffBranch);
   if (!input.store.capabilities.stateOffBranch) return;
   for (const root of state.roots.values()) await finishProjectionRoot(root);
