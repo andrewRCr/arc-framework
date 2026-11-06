@@ -43,7 +43,7 @@ import { LocalPrepareRequestSchema } from "../../../src/scripts/review-gate/runt
 
 interface ContinuationOverride { operationRef?: string; workItem?: OwnerIdentity; store?: Store }
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
-async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand", exempt = true) {
+async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand", planningGrooming = false) {
   const h = createReviewHarness();
   const projectRecord = project ? await h.seedProject(projectId) : null;
   const claimId = "1".repeat(32), branch = vehicle === "errand" ? "chore/repair" : "topic/opaque";
@@ -133,8 +133,8 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
   await checkout.occupy(branch, vehicle === "errand" ? { kind: "errand", slug: "repair", claimId }
     : { kind: "work-unit", name: "example" });
   const request = { schemaVersion: 1, evaluatorIdentity: "fresh-reviewer", routingFacts: {
-    contentKind: exempt ? "documentation" : "code-bearing", reviewRisk: "routine", changeDeterminacy: "atomic",
-    ownership: "self", surfaceAuthority: exempt ? "planning-grooming" : "ordinary",
+    contentKind: planningGrooming ? "documentation" : "code-bearing", reviewRisk: "routine", changeDeterminacy: "atomic",
+    ownership: "self", surfaceAuthority: planningGrooming ? "planning-grooming" : "ordinary",
   } };
   const rawGit = scriptRawGitExec([[base, head], [base, advancedHead], [head, advancedHead]].map(([from, to]) => ({
     match: ["diff", "--numstat", "-z", "-M", "-C", "--find-copies-harder", `${from}..${to}`, "--"],
@@ -214,10 +214,17 @@ async function fixture(project = true, vehicle: "work-unit" | "errand" = "errand
     return result;
   } };
 }
-it.each(["work-unit", "errand"] as const)("selects the actual stored %s before reporting exempt preparation", async vehicle => {
-  const h = await fixture(true, vehicle);
-  const result = await h.run();
-  expect(result, JSON.stringify(result)).toMatchObject({ mode: "review-local-prepare", state: "exempt", nextAction: "none" });
+it.each(["work-unit", "errand"] as const)("refuses unclassified planning authority for a native %s and prepares corrected input", async vehicle => {
+  const h = await fixture(true, vehicle, true);
+  const before = lifecycleSuccess(await h.store.version());
+  const refused = await h.run();
+  expect(refused, JSON.stringify(refused)).toMatchObject({ error: {
+    code: "invalid-input", message: expect.stringContaining("arc review planning-grooming resolve"),
+  } });
+  expect(lifecycleSuccess(await h.store.version())).toEqual(before);
+  const repaired = { ...h.request, routingFacts: { ...h.request.routingFacts, surfaceAuthority: "ordinary" } };
+  expect(await h.run(repaired)).toMatchObject({ mode: "review-local-prepare", state: "ready", nextAction: "launch-review",
+    payload: { operationRef: expect.any(String) } });
 });
 
 it.each(["work-unit", "errand"] as const)("refuses a foreign owner before local %s grants and retries the selected owner", async vehicle => {
@@ -250,7 +257,7 @@ it("checks a cached local subject before a dependency-builder grant write and re
   expect(await createReviewDecisionPort(h.store, selected.workItem).list()).toMatchObject({ status: "complete", records: [{ value: {
     subject: { lineage: { vehicleIdentity: h.claimId } }, choice: { kind: "extra-pass" } } }] });
 });
-it("names the ways to get a review vehicle and completes exempt preparation after marker repair", async () => {
+it("names the ways to get a review vehicle and completes preparation after marker repair", async () => {
   const h = await fixture();
   await unlink(resolveWorktreeMarkerPath(h.cwd));
   const version = lifecycleSuccess(await h.store.version());
@@ -258,16 +265,16 @@ it("names the ways to get a review vehicle and completes exempt preparation afte
     remedy: { text: expect.stringContaining("arc errand open"), argv: ["arc", "review", "local", "prepare", "-"], stdin: h.request } });
   expect(lifecycleSuccess(await h.store.version())).toBe(version);
   await h.occupy("chore/repair", { kind: "errand", slug: "repair", claimId: h.claimId });
-  expect(await h.run()).toMatchObject({ state: "exempt", nextAction: "none" });
+  expect(await h.run()).toMatchObject({ state: "ready", nextAction: "launch-review" });
 });
-it("retains project-identity recovery and completes exempt preparation after repair", async () => {
+it("retains project-identity recovery and completes preparation after repair", async () => {
   const h = await fixture(false);
   const version = lifecycleSuccess(await h.store.version());
   expect(await h.run()).toMatchObject({ error: { code: "project-identity-unavailable" },
     remedy: { argv: ["arc", "review", "local", "prepare", "-"], stdin: h.request } });
   expect(lifecycleSuccess(await h.store.version())).toBe(version);
   await h.seedProject(projectId);
-  expect(await h.run()).toMatchObject({ state: "exempt", nextAction: "none" });
+  expect(await h.run()).toMatchObject({ state: "ready", nextAction: "launch-review" });
 });
 
 it.each(["work-unit", "errand"] as const)("prepares a native %s review without an injected owner", async vehicle => {
@@ -793,5 +800,5 @@ it("retains all supplied commands when native local preparation cannot find its 
   for (const { remedy: item, command } of storeRepairCases) { expect(text).toContain(item.text); expect(text).toContain(command); }
   expect(await h.store.version()).toEqual(before);
   h.store.lookup = lookup; h.store.list = list;
-  expect(await h.run()).toMatchObject({ state: "exempt" });
+  expect(await h.run()).toMatchObject({ state: "ready", nextAction: "launch-review" });
 });
