@@ -4,7 +4,7 @@ import type { Store } from "../store/contract.js";
 import { readStoreSubjectCandidate } from "./subject-meta-candidate.js";
 import type { StoreWorkUnitEvidence } from "./store-work-unit-evidence.js";
 import { WorkUnitReadPlacementSchema } from "../store/placement.js";
-import { workItemArtifactPath } from "../store/lifecycle-storage.js";
+import { workItemArtifactPath, workItemArtifactPathAt, workItemLayoutPlacement } from "../store/lifecycle-storage.js";
 import { cohortDocumentPath } from "../store/lifecycle-record-path.js";
 import { recordReferences, OwnerIdentitySchema, type OwnerIdentity } from "../store/identity.js";
 import { ParsedMetaPauseSchema, type ParsedMetaPause } from "../active/meta-schema.js";
@@ -123,8 +123,10 @@ export async function projectCheckoutSubjectMeta(options: {
   foreignCheckout?: boolean;
   io: SubjectMetaIO;
 }): Promise<SubjectMetaProjection> {
-  const expectedPath = options.workUnit !== undefined
-    ? workItemArtifactPath(options.subjectKey, "meta", WorkUnitReadPlacementSchema.parse(options.workUnit.record.placement), options.workUnit.fields.cohort)
+  const workUnitPlacement = options.workUnit === undefined ? null
+    : await workItemLayoutPlacement(options.cwd, options.subjectKey, WorkUnitReadPlacementSchema.parse(options.workUnit.record.placement), options.workUnit.fields.cohort);
+  const expectedPath = workUnitPlacement !== null
+    ? workItemArtifactPathAt(options.subjectKey, "meta", workUnitPlacement)
     : options.metaRoot.kind === "maintainer"
     ? `.arc/active/meta-${options.subjectKey}.md`
     : options.metaRoot.kind === "contributor"
@@ -269,7 +271,7 @@ export async function projectCheckoutSubjectMeta(options: {
     }
   }
   const storedTasks = options.workUnit !== undefined && options.store !== undefined
-    ? await readStoreTaskCursor(options.store, options.workUnit.record, options.subjectKey, record.cohort, record.taskList)
+    ? await readStoreTaskCursor(options.cwd, options.store, options.workUnit.record, options.subjectKey, record.cohort, record.taskList)
     : null;
   if (storedTasks?.kind === "unresolved") {
     return { kind: "unresolved", code: "subject-unresolved", message: storedTasks.message, metaPath: expectedPath };
@@ -393,8 +395,8 @@ export async function projectCheckoutSubjectMeta(options: {
     cohortDocPath,
     loadSet: resolveLoadSetManifest({
       identity: options.identity,
-      ...(options.workUnit === undefined ? {} : {
-        workUnit: { slug: options.subjectKey, placement: WorkUnitReadPlacementSchema.parse(options.workUnit.record.placement), cohort: record.cohort },
+      ...(workUnitPlacement === null ? {} : {
+        workUnit: { slug: options.subjectKey, placement: workUnitPlacement },
         stateOffBranch: options.store?.capabilities.stateOffBranch === true,
       }),
       workingMemoryPath: options.identityGlobalUserDir === undefined || options.identityGlobalUserDir === null
@@ -497,7 +499,7 @@ async function readStoreCohortDoc(store: Store, cohort: string | null): Promise<
 type StoreTaskCursor = { kind: "read"; path: string | null; cursor: TaskListCursorFileResult | null }
   | { kind: "unresolved"; message: string };
 
-async function readStoreTaskCursor(store: Store, primary: import("../store/read.js").StoreRecord,
+async function readStoreTaskCursor(checkoutRoot: string, store: Store, primary: import("../store/read.js").StoreRecord,
   slug: string, cohort: string | null, declaration: string | null): Promise<StoreTaskCursor> {
   const read = await store.read({ reference: recordReferences["work-item/task-list"](primary.reference.owner) });
   if (read.status === "refused") {
@@ -507,7 +509,7 @@ async function readStoreTaskCursor(store: Store, primary: import("../store/read.
   }
   if (read.result.conflicts.length > 0) return { kind: "unresolved", message:
     `The task list has unresolved conflicts: ${read.result.conflicts.map(reference => JSON.stringify(reference)).join(", ")}. Resolve the named conflict records, then retry session entry.` };
-  const path = workItemArtifactPath(slug, "tasks", WorkUnitReadPlacementSchema.parse(primary.placement), cohort);
+  const path = await workItemArtifactPath(checkoutRoot, slug, "tasks", WorkUnitReadPlacementSchema.parse(primary.placement), cohort);
   return { kind: "read", path, cursor: resolveTaskListCursor(read.result.content) };
 }
 

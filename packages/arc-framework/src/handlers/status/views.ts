@@ -136,7 +136,7 @@ export async function handleProjectStatus(context: SessionStatusContext, opts: S
   const json = Boolean(opts.json);
   const resolved = await resolveAllSettings({ cwd, exec, readFile: io.readFile });
   if (context.store !== undefined && usesOffBranchState(context.store)) {
-    await handleStoreProjectStatus({ store: context.store, sync: context.storeSync }, opts, resolved);
+    await handleStoreProjectStatus(context.cwd, { store: context.store, sync: context.storeSync }, opts, resolved);
     return;
   }
   if (opts.staged) {
@@ -180,7 +180,7 @@ export async function handleProjectStatus(context: SessionStatusContext, opts: S
   return;
 }
 
-async function handleStoreProjectStatus(operational: { store: Store; sync?: StoreSyncPort }, opts: StatusCliOptions, resolved: ResolvedSettingsResult): Promise<void> {
+async function handleStoreProjectStatus(cwd: string, operational: { store: Store; sync?: StoreSyncPort }, opts: StatusCliOptions, resolved: ResolvedSettingsResult): Promise<void> {
   const { store } = operational;
   if (opts.staged) {
     renderStatusViewRefusal({ code: "unsupported",
@@ -189,7 +189,7 @@ async function handleStoreProjectStatus(operational: { store: Store; sync?: Stor
     return;
   }
   const pullWarnings = opts.fetch === true && !opts.local ? await pullStoreStatus(operational) : [];
-  const input = await readStoreProjectViewInput({ store,
+  const input = await readStoreProjectViewInput({ cwd, store,
     reviewAfterDays: positive(resolved.settings["pause.review_after_days"], 14) });
   if (input.status === "refused") { renderStatusViewRefusal(input.refusal, opts, pullWarnings.map(warning => warning.rendered)); return; }
   const result = composeProjectReadinessViewResult({ ...input.result,

@@ -18,7 +18,7 @@ import type { ActivateContext, ActivateParams, ActivateResult, DeactivateContext
 export async function runStoreActivate(ctx: ActivateContext, params: ActivateParams): Promise<ActivateResult> {
   if (ctx.store === undefined || ctx.exec === undefined || ctx.projectId === undefined) return { status: "rejected", reason: "Activation requires the operational store, Git boundary, and repository project ID." };
   const store = ctx.store;
-  const facts = await readLifecyclePrimary(store, params.name);
+  const facts = await readLifecyclePrimary(ctx.cwd, store, params.name);
   if (facts.status === "rejected") return facts;
   const { primary, entry } = facts;
   const record = entry.fields;
@@ -32,7 +32,7 @@ export async function runStoreActivate(ctx: ActivateContext, params: ActivatePar
   const plan = await planActivationBranch({ exec: ctx.exec, execRaw: ctx.execRaw, cwd: ctx.cwd, name: params.name,
     toBranch: params.toBranch, baseBranch: params.baseBranch, repository: repository.id, primary, otherPrimaries: peers.records });
   if (plan.status === "refused") return { status: "rejected", reason: plan.reason };
-  const metaPath = lifecycleArtifactPath(entry, "meta");
+  const metaPath = await lifecycleArtifactPath(ctx.cwd, entry, "meta");
   const prepared = await ctx.currentWuReconcile.prepare({ slug: params.name, metaPath, reference: primary.reference });
   if (prepared.status === "conflict") return { status: "rejected", reason: `Cannot activate ${params.name}: current-WU reconcile refused (${prepared.reason}).` };
   const reconcile = await ctx.currentWuReconcile.apply(prepared.prepared);
@@ -53,7 +53,7 @@ export async function runStoreActivate(ctx: ActivateContext, params: ActivatePar
 /** Keep the branch and its link, reporting task work while returning the work unit to Planning. */
 export async function runStoreDeactivate(ctx: DeactivateContext, params: DeactivateParams): Promise<DeactivateResult> {
   if (ctx.store === undefined) return { status: "rejected", reason: "Deactivation requires the operational store." };
-  const facts = await readLifecyclePrimary(ctx.store, params.name);
+  const facts = await readLifecyclePrimary(ctx.cwd, ctx.store, params.name);
   if (facts.status === "rejected") return facts;
   const { primary, entry } = facts;
   const pause = await checkAdvancingPause(ctx.store, params.name, primary);
@@ -67,7 +67,7 @@ export async function runStoreDeactivate(ctx: DeactivateContext, params: Deactiv
   const report = await deactivationReport(ctx, params, primary);
   const chosen = await deactivationBranch(ctx, primary);
   if (chosen.reason !== undefined) report.push(chosen.reason);
-  return { status: "deactivated", outcome, metaPath: lifecycleArtifactPath(entry, "meta"), branch: chosen.branch, report };
+  return { status: "deactivated", outcome, metaPath: await lifecycleArtifactPath(ctx.cwd, entry, "meta"), branch: chosen.branch, report };
 }
 
 async function deactivationReport(ctx: DeactivateContext, params: DeactivateParams, primary: StoreRecord): Promise<string[]> {
@@ -85,8 +85,8 @@ async function deactivationReport(ctx: DeactivateContext, params: DeactivatePara
 }
 
 type Rejected = Extract<ActivateResult, { status: "rejected" }>;
-async function readLifecyclePrimary(store: Store, name: string): Promise<{ status: "ready"; primary: StoreRecord; entry: LifecycleEntry } | Rejected> {
-  const view = await readLifecycleView(store);
+async function readLifecyclePrimary(checkoutRoot: string, store: Store, name: string): Promise<{ status: "ready"; primary: StoreRecord; entry: LifecycleEntry } | Rejected> {
+  const view = await readLifecycleView(checkoutRoot, store);
   if (view.status === "refused") return { status: "rejected", reason: view.refusal.condition, refusal: view.refusal };
   try { requireCompleteInventory(store, view.result.listing); } catch (error) { return { status: "rejected", reason: String(error) }; }
   const read = await readWorkUnit(store, name);

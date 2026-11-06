@@ -445,6 +445,7 @@ async function attestCandidate(base: VerbBase, input: z.infer<typeof AttestComma
           ? locus.nextAction.interactionText
           : boundaryMatches || priorMeta.state === "Shipped" ? publication.nextAction : locus.nextAction.interactionText;
         if (recordPath === null) return publishStoredAttestation(executor.store, subjectInput.primary, subjectInput.taskListObservation, {
+          cwd: base.cwd,
           publication, boundary: locus, expectedBoundaryVersion: boundarySnapshot.version, boundaryMatches, nextAction });
         const withCandidate = setMetaCandidate(metaContent, publication.candidateId);
         const orientation: Record<string, string> = {};
@@ -805,7 +806,7 @@ export async function permitDeliveryReopen(
   let workItem = base.workItem;
   try {
     if (base.store !== undefined && usesOffBranchState(base.store)) {
-      const read = await readStoreReopenTaskPath(base.store, target, record);
+      const read = await readStoreReopenTaskPath(base.cwd, base.store, target, record);
       if (read === undefined) return false;
       workItem = read.owner;
       taskListPath = read.taskListPath;
@@ -847,7 +848,7 @@ export async function permitDeliveryReopen(
   return true;
 }
 
-async function readStoreReopenTaskPath(store: Store, target: string, record?: StoreRecord): Promise<{
+async function readStoreReopenTaskPath(checkoutRoot: string, store: Store, target: string, record?: StoreRecord): Promise<{
   owner: OwnerIdentity; taskListPath: string | null } | undefined> {
   const primary = record === undefined ? await readWorkUnit(store, target) : { status: "ok" as const, result: record };
   if (primary.status === "refused") { refuse(primary.refusal.condition, primary.refusal); return undefined; }
@@ -855,7 +856,7 @@ async function readStoreReopenTaskPath(store: Store, target: string, record?: St
   const owner = primary.result.reference.owner;
   const task = await store.read({ reference: recordReferences["work-item/task-list"](owner) });
   if (task.status === "refused") { refuse(task.refusal.condition, task.refusal); return undefined; }
-  const projected = lifecycleRecordPath(primary.result, task.result);
+  const projected = await lifecycleRecordPath(checkoutRoot, primary.result, task.result);
   return { owner, taskListPath: projected !== null && meta.taskList === projected.split("/").at(-1) ? projected : null };
 }
 

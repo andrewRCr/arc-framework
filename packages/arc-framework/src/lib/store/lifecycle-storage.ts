@@ -11,6 +11,7 @@ import type { Store } from "./contract.js";
 import { RecordReferenceSchema, type RecordVersion, type StateVersion } from "./identity.js";
 import { listLifecycleIndex, type LifecycleEntry, type LifecycleIndexOutcome } from "./lifecycle-index.js";
 import type { StoreResult } from "./refusal.js";
+import { resolveCheckoutLayoutContext } from "./checkout-layout.js";
 
 /** One lifecycle version and its record-backed filesystem projection. */
 export interface StoreLifecycleSnapshot {
@@ -59,13 +60,31 @@ function repositoryPath(root: string, path: string): string {
   return relative(resolve(root), absolute).split(sep).join("/");
 }
 /** Project an artifact from its logical work-unit identity and read placement. */
-export function workItemArtifactPath(slug: string, artifact: WorkUnitArtifactKind,
-  readPlacement: z.infer<typeof WorkUnitReadPlacementSchema>, cohort: string | null): string {
-  const placement = workItemLayoutPlacement(readPlacement, cohort);
+export async function workItemArtifactPath(checkoutRoot: string, slug: string, artifact: WorkUnitArtifactKind,
+  readPlacement: z.infer<typeof WorkUnitReadPlacementSchema>, cohort: string | null): Promise<string> {
+  return workItemArtifactPathAt(slug, artifact, await workItemLayoutPlacement(checkoutRoot, slug, readPlacement, cohort));
+}
+/** Project already-resolved physical coordinates without observing a checkout. */
+export function workItemArtifactPathAt(slug: string, artifact: WorkUnitArtifactKind, placement: WorkUnitPlacement): string {
   return resolveArcPath({ kind: "work-unit-artifact", artifact, slug: SlugSchema.parse(slug), placement });
 }
-/** Adapt a logical read placement to the layout's physical coordinates. */
-export function workItemLayoutPlacement(readPlacement: z.infer<typeof WorkUnitReadPlacementSchema>, cohort: string | null): WorkUnitPlacement {
+/** Project the in-repo lifecycle tree without consulting checkout configuration or claims. */
+export function flatWorkItemArtifactPath(slug: string, artifact: WorkUnitArtifactKind,
+  readPlacement: z.infer<typeof WorkUnitReadPlacementSchema>, cohort: string | null): string {
+  return workItemArtifactPathAt(slug, artifact, flatWorkItemLayoutPlacement(readPlacement, cohort));
+}
+/** Adapt logical placement through the checkout's selected backend, claim and project layout. */
+export async function workItemLayoutPlacement(checkoutRoot: string, slug: string,
+  readPlacement: z.infer<typeof WorkUnitReadPlacementSchema>, cohort: string | null): Promise<WorkUnitPlacement> {
+  const placement = flatWorkItemLayoutPlacement(readPlacement, cohort);
+  if (placement.kind !== "active") return placement;
+  const context = await resolveCheckoutLayoutContext(checkoutRoot);
+  if (context === undefined) return placement;
+  const location = context.claim === slug ? { kind: "own" as const, claim: context.claim, layoutActive: context.layoutActive }
+    : { kind: "another" as const };
+  return { kind: "active", scope: { kind: "project", location } };
+}
+function flatWorkItemLayoutPlacement(readPlacement: z.infer<typeof WorkUnitReadPlacementSchema>, cohort: string | null): WorkUnitPlacement {
   const selected = WorkUnitReadPlacementSchema.parse(readPlacement);
   return selected.kind === "active"
     ? { kind: "active", scope: { kind: "project" } }
@@ -75,13 +94,15 @@ export function workItemLayoutPlacement(readPlacement: z.infer<typeof WorkUnitRe
 }
 
 /** Project a diagnostic path for a lifecycle record without reading through that path. */
-export function lifecycleArtifactPath(entry: LifecycleEntry, artifact: WorkUnitArtifactKind): string {
-  return workItemArtifactPath(entry.reference.owner.name, artifact,
+export async function lifecycleArtifactPath(checkoutRoot: string, entry: LifecycleEntry, artifact: WorkUnitArtifactKind): Promise<string> {
+  return workItemArtifactPath(checkoutRoot, entry.reference.owner.name, artifact,
     WorkUnitReadPlacementSchema.parse(entry.placement), entry.fields.cohort);
 }
 const artifactKinds = { meta: "work-item/meta", draft: "work-item/draft", spec: "work-item/spec", tasks: "work-item/task-list", notes: "work-item/notes" } as const;
 function snapshotFs(input: { store: Store; checkoutRoot: string }, version: StateVersion, entries: readonly LifecycleEntry[]): ProjectViewFs {
-  const directories = projectedDirectories(entries.map((entry) => lifecycleArtifactPath(entry, "meta")));
+  const pathFor = (entry: LifecycleEntry, artifact: WorkUnitArtifactKind): string => flatWorkItemArtifactPath(
+    entry.reference.owner.name, artifact, WorkUnitReadPlacementSchema.parse(entry.placement), entry.fields.cohort);
+  const directories = projectedDirectories(entries.map((entry) => pathFor(entry, "meta")));
   return {
     readdir: (path) => {
       const directory = directories.get(repositoryPath(input.checkoutRoot, path));
@@ -92,7 +113,7 @@ function snapshotFs(input: { store: Store; checkoutRoot: string }, version: Stat
       const projected = repositoryPath(input.checkoutRoot, path);
       const identified = identifyWorkUnitArtifactPath(projected);
       if (identified === null) throw missing(path);
-      const matches = entries.filter(entry => lifecycleArtifactPath(entry, identified.artifact) === projected);
+      const matches = entries.filter(entry => pathFor(entry, identified.artifact) === projected);
       const entry = matches.length === 1 ? matches[0] : undefined;
       if (entry === undefined) throw missing(path);
       const reference = RecordReferenceSchema.parse({ kind: artifactKinds[identified.artifact], owner: entry.reference.owner });

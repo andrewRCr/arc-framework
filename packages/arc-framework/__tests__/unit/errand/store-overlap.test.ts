@@ -2,15 +2,15 @@
 import { boundWorkUnitSubject } from "../../helpers/store/bound-checkout.js";
 import { workUnitHoldersFixture } from "../../helpers/store/work-unit-holders.js";
 import { claimFrame } from "../../helpers/store/claim-frame.js";
-import { expect, it } from "vitest";
+import { expect, it, onTestFinished } from "vitest";
 import { runStoreErrandOverlap } from "../../../src/lib/errand/store-overlap.js";
 import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
 import { DerivedLocusFrameSchema } from "../../../src/lib/locus/derived-schema.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
-function frame(subject: { kind: "work-unit"; key: string; uid: string } | { kind: "errand"; key: string; claimId: string }) {
-  const row = { kind: subject.kind === "work-unit" ? "work-unit" : "transient", subject, checkout: { path: "/caller", head: "a".repeat(40), branch: "main", detached: false, primary: true, folderPresent: true },
+function frame(subject: { kind: "work-unit"; key: string; uid: string } | { kind: "errand"; key: string; claimId: string }, cwd = "/caller") {
+  const row = { kind: subject.kind === "work-unit" ? "work-unit" : "transient", subject, checkout: { path: cwd, head: "a".repeat(40), branch: "main", detached: false, primary: true, folderPresent: true },
     markerGeneration: "marker", parentCheckoutPath: null, origin: null, identity: null, context: null, lifecycleLocation: "active", diagnostics: [] };
-  return DerivedLocusFrameSchema.parse({ roster: [row], entering: { kind: "selected", row }, primaryAvailability: { kind: "occupied", checkoutPath: "/caller", subject: row.subject },
+  return DerivedLocusFrameSchema.parse({ roster: [row], entering: { kind: "selected", row }, primaryAvailability: { kind: "occupied", checkoutPath: cwd, subject: row.subject },
     identityDiscovery: { kind: "complete", identities: [], diagnostics: [] }, active: null });
 }
 it("reports another active work item's state target without code probes and suppresses entry-list targets", async () => {
@@ -46,4 +46,31 @@ it("keeps live in-flight work when the caller holds its completed namesake", asy
     identity: "test-user", teamMode: false, baseBranch: "main", projectId: async () => "project",
     readFrame: async () => current, targetPaths: [".arc/active/meta-demo.md"] });
   expect(result.result.overlaps).toEqual([{ workItem: "demo", remoteOnly: false, matchedPaths: [".arc/active/meta-demo.md"] }]);
+});
+
+it("classifies the checkout's own companion using its flat layout before checking foreign work", async () => {
+  const layout = "flat";
+  const { mkdtemp, rm, writeFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { tmpdir } = await import("node:os");
+  const { writeWorktreeOwnershipMarker } = await import("../../../src/lib/git/worktree-marker.js");
+  const { createRefStore } = await import("../../../src/lib/store/create.js");
+  const { createDefaultRefStorePorts } = await import("../../../src/lib/store/default-ports.js");
+  const { beginProjectionCommand } = await import("../../../src/lib/store/projection/process-state.js");
+  const cwd = await mkdtemp(join(tmpdir(), "arc-overlap-layout-"));
+  onTestFinished(async () => { await rm(cwd, { recursive: true, force: true }); beginProjectionCommand(); });
+  const h = createLifecycleHarness(), caller = await h.seedMeta("caller");
+  await h.seedMeta("x-caller", { state: "Planning", currentWorkflow: "draft-design" });
+  const subject = boundWorkUnitSubject(caller);
+  await writeWorktreeOwnershipMarker(cwd, { createdByArc: true,
+    createdFor: { kind: "work-unit", name: "caller", uid: subject.uid }, spawningIdentity: "alice" });
+  await writeFile(join(cwd, ".arc", "system", "arc-config.yml"), `layout.active: ${layout}\n`);
+  createRefStore(createDefaultRefStorePorts({ checkoutRoot: cwd, backingRepository: async () => null }));
+  const own = ".arc/active/notes-x-caller.md";
+  const other = ".arc/active/in-flight/x-caller/meta-x-caller.md";
+  const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [{ stdout: "" }] }]);
+  const result = await runStoreErrandOverlap({ store: h.store, exec: fake.exec, cwd, identity: "alice", teamMode: false,
+    baseBranch: "main", projectId: async () => "project", readFrame: async () => frame({ kind: "work-unit", key: "caller", uid: subject.uid }, cwd),
+    targetPaths: [own, other] });
+  expect(result.result).toEqual({ overlaps: [{ workItem: "x-caller", remoteOnly: false, matchedPaths: [other] }] });
 });

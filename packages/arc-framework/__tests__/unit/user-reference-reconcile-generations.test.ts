@@ -32,7 +32,7 @@ async function generations() {
   await rename(await h.seedMeta("safe-former"), "safe-current");
   const inbox = await h.seed(recordReferences["personal/inbox"](OwnerIdentitySchema.parse({ type: "person", name: "test-user" })),
     "# Inbox\n\n## Work Unit\n\n### **Old **bold** concern**\n- _WU_Target:_ `earliest`\n- _Id:_ `12345678`\n\n### **Independent concern**\n- _WU_Target:_ `safe-former`\n- _Id:_ `87654321`\n");
-  const prepare = async () => ok(await createStoreUserReferencePrepareContext({ store: h.store, identity: "test-user" }));
+  const prepare = async () => ok(await createStoreUserReferencePrepareContext({ cwd: "/project", store: h.store, identity: "test-user" }));
   const apply = async () => {
     const prepared = await prepare();
     return runUserReferenceReconcile({ preparedStore: prepared.preparedStore, transitions: prepared.authority.transitions,
@@ -76,13 +76,13 @@ it("refuses a name reused under the apply lock and continues with an advisory af
   }), reference: renamed, provenance: { verb: "archive", lifecycleAction: "archive" } }));
   const inbox = await h.seed(recordReferences["personal/inbox"](OwnerIdentitySchema.parse({ type: "person", name: "test-user" })),
     "# Inbox\n\n## Work Unit\n\n### **Concern**\n- _WU_Target:_ `former`\n- _Id:_ `12345678`\n");
-  const prepared = ok(await createStoreUserReferencePrepareContext({ store: h.store, identity: "test-user" }));
+  const prepared = ok(await createStoreUserReferencePrepareContext({ cwd: "/project", store: h.store, identity: "test-user" }));
   const result = await runUserReferenceReconcile({ preparedStore: prepared.preparedStore, transitions: prepared.authority.transitions,
     apply: true, readSurfaces: async () => prepared.surfaces, acquireLock: async () => { await h.seedMeta("current"); return null; },
     releaseLock: async () => {} });
   expect(result).toMatchObject({ status: "refused", refusal: { code: "version-conflict", remedy: { text: expect.stringContaining("again") } } });
   expect(ok(await h.store.read({ reference: inbox.reference }))).toEqual(inbox);
-  const fresh = ok(await createStoreUserReferencePrepareContext({ store: h.store, identity: "test-user" }));
+  const fresh = ok(await createStoreUserReferencePrepareContext({ cwd: "/project", store: h.store, identity: "test-user" }));
   expect(projectUserReferenceSessionResult(fresh.authority, fresh.surfaces))
     .toMatchObject({ status: "advisory", plan: { edits: [], advisories: [expect.objectContaining({ subject: "former", kind: "conflict" })] } });
 });
@@ -105,7 +105,7 @@ it("revalidates captured records after target lookups and continues after fresh 
     }
     return h.store.lookup(input);
   };
-  const prepare = async () => ok(await createStoreUserReferencePrepareContext({ store, identity: "test-user" }));
+  const prepare = async () => ok(await createStoreUserReferencePrepareContext({ cwd: "/project", store, identity: "test-user" }));
   const apply = async () => {
     const prepared = await prepare();
     return runUserReferenceReconcile({ preparedStore: prepared.preparedStore, transitions: prepared.authority.transitions,
@@ -157,7 +157,7 @@ async function terminalGeneration(kind: "abandon" | "decompose", subject = "earl
   ok(await h.store.write({ ...recordPut(dependent, { content: writeMetaSessionContext(dependent.content, "Keep earliest and ended-former in mind.") }),
     provenance: { verb: "handoff", lifecycleAction: "update" } }));
   const context = ok(await h.store.read({ reference: dependent.reference }));
-  const prepare = async () => ok(await createStoreUserReferencePrepareContext({ store: h.store, identity: "test-user", workUnit: "dependent" }));
+  const prepare = async () => ok(await createStoreUserReferencePrepareContext({ cwd: "/project", store: h.store, identity: "test-user", workUnit: "dependent" }));
   const apply = async () => {
     const prepared = await prepare();
     return runUserReferenceReconcile({ preparedStore: prepared.preparedStore, transitions: prepared.authority.transitions,

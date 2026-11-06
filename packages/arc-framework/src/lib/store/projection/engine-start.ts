@@ -1,4 +1,5 @@
 /** Initialization performed inside the command's own projection lease. */
+import { readCheckoutLayoutContext } from "../checkout-layout.js";
 import { createHistoryMemo } from "./base-recovery.js";
 import { readProjectionConfiguration, type ProjectionConfiguration } from "./configuration.js";
 import { guardedProjectionRoots } from "./ignore-guard.js";
@@ -92,6 +93,7 @@ async function bindRoot(input: ProjectionCommandInput, ports: ProjectionEnginePo
   if (config.identity.status !== "identified") throw new Error("A projection root needs an identity");
   const state = projectionProcessState();
   state.history ??= createHistoryMemo(input.store);
+  const layout = await readCheckoutLayoutContext(input.checkout, { fresh: true });
   const writer = await ports.writer();
   await session.step();
   const actor = await ports.actor(config.identity.identity);
@@ -116,7 +118,7 @@ async function bindRoot(input: ProjectionCommandInput, ports: ProjectionEnginePo
     recordBatch: batch => { root.copies.push(...batch.copies); root.removals.push(...batch.removals); } };
   const send = createWriteBackPort(context);
   const root: ProjectionRootState = { checkout: input.checkout, store: input.store, location, ports, context, identity: config.identity.identity,
-    claim: null, layoutActive: "nested", checkpoint: session.step, copies: [], removals: [], unsent, discovered: [], changed: false,
+    claim: layout.claim, layoutActive: layout.layoutActive, checkpoint: session.step, copies: [], removals: [], unsent, discovered: [], changed: false,
     ready: false, writable: () => false, rights: bindProjectionRights(input.store, config.identity.identity, ports.exec, input.mode ?? "write-back"), takeIn: async request => {
       const denied = await root.rights?.(request);
       if (denied === undefined || denied === null) return send(request);

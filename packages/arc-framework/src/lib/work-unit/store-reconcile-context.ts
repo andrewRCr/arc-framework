@@ -20,8 +20,8 @@ import type { ReachableReferenceTransition } from "./reference-reconcile.js";
 /** Every reported artifact path resolves only through its already-acquired record. */
 export interface StoreReconcilePreparation { primary: StoreRecord; context: CurrentWuReconcilePrepareContext; records: readonly StoreRecord[]; byPath: ReadonlyMap<string, StoreRecord> }
 /** Acquire complete lifecycle, lineage, and artifact evidence before planning edits. */
-export async function createStoreReconcilePrepareContext(store: Store, slug: string, reference?: RecordReference): Promise<StoreResult<StoreReconcilePreparation>> {
-  const view = await readLifecycleView(store);
+export async function createStoreReconcilePrepareContext(checkoutRoot: string, store: Store, slug: string, reference?: RecordReference): Promise<StoreResult<StoreReconcilePreparation>> {
+  const view = await readLifecycleView(checkoutRoot, store);
   if (view.status === "refused") return view;
   requireCompleteInventory(store, view.result.listing);
   const selected = reference === undefined ? await readWorkUnit(store, slug) : { status: "ok" as const, result: { reference } };
@@ -32,7 +32,7 @@ export async function createStoreReconcilePrepareContext(store: Store, slug: str
   if (primary === undefined) throw new Error("The acquired work-unit group lacks its primary");
   const byPath = new Map<string, StoreRecord>();
   for (const record of acquired.result) {
-    const path = lifecycleRecordPath(primary, record);
+    const path = await lifecycleRecordPath(checkoutRoot, primary, record);
     if (path !== null) byPath.set(path, record);
   }
   const lineage = await storeLineageEnumeration(store);

@@ -3,6 +3,8 @@ import type { Store } from "../store/contract.js";
 import type { StoreSyncPort } from "../store/operational-sync.js";
 import type { LocusPorts } from "../work-unit/locus-ports.js";
 import { createLocusPorts } from "../locus/lifecycle-ports.js";
+import { readCheckoutLayoutContext } from "../store/checkout-layout.js";
+import { workItemArtifactPath } from "../store/lifecycle-storage.js";
 import { promoteStoreErrandAtRuntime } from "./promote-store-runtime.js";
 
 import { mkdir, readFile } from "node:fs/promises";
@@ -405,9 +407,15 @@ async function settlePromotedOccupancy(
   if (marker.kind === "refused") return refused("role-conflict", "Promotion marker generation changed.");
   if (marker.kind === "error") return marker;
   const markerApplied = marker.kind === "applied" || marker.kind === "removed";
+  let metaPath = frame.metaPath;
+  if (options.store?.capabilities.stateOffBranch) {
+    await readCheckoutLayoutContext(frame.checkoutPath, { fresh: true });
+    metaPath = await workItemArtifactPath(frame.checkoutPath, options.name, "meta", { kind: "active" }, null);
+  }
   return {
     ...frame,
     kind: frame.kind === "applied" || markerApplied ? "applied" : "idempotent",
+    metaPath,
     parentCheckoutPath: null,
   };
 }

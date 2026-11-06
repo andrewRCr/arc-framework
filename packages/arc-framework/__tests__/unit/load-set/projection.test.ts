@@ -277,13 +277,25 @@ describe("resolveLoadSetManifest", () => {
 });
 
 it.each([
-  { placement: { kind: "active" } as const, path: ".arc/active/meta-demo.md" },
+  { placement: { kind: "active", scope: { kind: "project" } } as const, path: ".arc/active/meta-demo.md" },
   { placement: { kind: "completed", quarter: "2026-q4", sequence: "03" } as const, path: ".arc/completed/2026-q4/03_demo/meta-demo.md" },
 ])("projects the logical meta coordinates instead of the supplied stale path: $path", async ({ placement, path }) => {
-  const { WorkUnitReadPlacementSchema } = await import("../../../src/lib/store/placement.js");
+  const { WorkUnitPlacementSchema } = await import("../../../src/lib/layout/index.js");
   const result = resolveLoadSetManifest({ ...BASE_INPUT, sessionType: "execution", planningStage: null,
     metaPath: ".arc/active/stale-meta.md", stateOffBranch: true,
-    workUnit: { slug: "demo", placement: WorkUnitReadPlacementSchema.parse(placement), cohort: null } });
+    workUnit: { slug: "demo", placement: WorkUnitPlacementSchema.parse(placement) } });
+  expect(result.entries).toContainEqual(fullEntry(path));
+  expect(result.entries.some(entry => entry.path.includes("stale-meta") || entry.path.includes("SESSION-NOTES"))).toBe(false);
+});
+
+it.each([
+  { placement: { kind: "active", scope: { kind: "project", location: { kind: "own", claim: "demo", layoutActive: "nested" } } }, path: ".arc/active/current/meta-demo.md" },
+  { placement: { kind: "active", scope: { kind: "project", location: { kind: "another" } } }, path: ".arc/active/in-flight/demo/meta-demo.md" },
+])("projects caller-resolved physical coordinates without trusting the stale path: $path", async ({ placement, path }) => {
+  const { WorkUnitPlacementSchema } = await import("../../../src/lib/layout/index.js");
+  const result = resolveLoadSetManifest({ ...BASE_INPUT, sessionType: "execution", planningStage: null,
+    metaPath: ".arc/active/stale-meta.md", stateOffBranch: true,
+    workUnit: { slug: "demo", placement: WorkUnitPlacementSchema.parse(placement) } });
   expect(result.entries).toContainEqual(fullEntry(path));
   expect(result.entries.some(entry => entry.path.includes("stale-meta") || entry.path.includes("SESSION-NOTES"))).toBe(false);
 });

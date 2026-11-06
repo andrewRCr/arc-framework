@@ -69,7 +69,7 @@ function context(store: Store) {
   const ctx: ExecuteTransitionContext = { cwd: "/repo", store, indexFs: { readdir: forbidden, readFile: forbidden },
     setPhase: forbidden, relocateArtifacts: forbidden, reconcileBranch: forbidden, reconcileWorkUnitWorktree: forbidden,
     writeSoftFields: forbidden, writeBranchField: forbidden, writeDesignField: forbidden, writeCurrentWorkflowField: forbidden };
-  return { ...ctx, currentWuReconcile: buildStoreCurrentWuReconcile(store) };
+  return { ...ctx, currentWuReconcile: buildStoreCurrentWuReconcile("/project", store) };
 }
 const parameters = nativePublicationParameters;
 describe("store publish", () => {

@@ -14,7 +14,7 @@ import { nativeRefusalText } from "../../lib/store/native-refusal.js";
 
 /** Read current metadata directly, keeping its record version separate from the whole snapshot version. */
 export async function readStoredLifecycleSummary(input: {
-  store: Store; workUnit: string; archiveCadence: "with-integration" | "manual"; storageVersion: string; owner?: OwnerIdentity;
+  cwd: string; store: Store; workUnit: string; archiveCadence: "with-integration" | "manual"; storageVersion: string; owner?: OwnerIdentity;
 }): Promise<{ summary: IntegrationLifecycleSummary; recordVersion: string | null }> {
   const read = await readWorkUnit(input.store, input.workUnit, input.owner);
   if (read.status === "refused") return refusedSummary(input, read.refusal);
@@ -33,7 +33,7 @@ export async function readStoredLifecycleSummary(input: {
   const position = { phase: phase.data,
     location: placement.data.kind === "backlog" ? placement.data.commitment : placement.data.kind };
   const state = deriveState(position);
-  const artifactFacts = lifecycleArtifactFacts(record.content, workUnitMetaPath(record));
+  const artifactFacts = lifecycleArtifactFacts(record.content, await workUnitMetaPath(input.cwd, record));
   const positioned = input.archiveCadence === "manual"
     ? position.phase === "Integrating" && position.location === "active"
     : position.phase === "Shipped" && position.location === "completed";

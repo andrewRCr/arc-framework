@@ -188,7 +188,7 @@ export async function resolveVerbTargetOrReport(
   const target = selectVerbTarget(verb, slugArg, currentWuSlug);
   if (target.kind === "resolved") return canonicalVerbTarget(target.slug, store, json);
 
-  const view = usesOffBranchState(store) && store !== undefined ? await readLifecycleView(store) : undefined;
+  const view = usesOffBranchState(store) && store !== undefined ? await readLifecycleView(cwd, store) : undefined;
   if (view?.status === "refused") {
     refuseWithRemedy(view.refusal.condition, view.refusal.remedy, json, view.refusal);
     return null;
@@ -2016,7 +2016,7 @@ export async function handleFinalizeStage(
     return;
   }
   const result = await runFinalizeStage(
-    { writeClassField, writeSoftFields, store: executor.store },
+    { cwd: executor.cwd, writeClassField, writeSoftFields, store: executor.store },
     { name: slug, firePoint: firePointArg, workClass: input.class },
   );
   if (result.status === "rejected") {

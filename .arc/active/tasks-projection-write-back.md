@@ -303,28 +303,12 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   to one record: `active/current/` for the checkout's own work item and its cohort copies, `active/in-flight/<slug>/`
   for the other work items its view selects, and every file name the projection defines.
 
-    - `[ ]` **2.4.a The two locations**
+    - `[x]` **2.4.a The two locations**
 
-        - The active placement's project scope (`ActivePlacementSchema`, `lib/layout/schema.ts`) gains its two projected
-          locations — the checkout's own, carrying the effective `layout.active` value (2.5) and the slug of the work
-          item the checkout claims, since `lib/layout/` imports no configuration and reads no marker
-          (`layout-dependencies`, `eslint/architecture-imports.ts`), and another work item's — beside today's flat form,
-          which the in-repo implementation keeps resolving. The contributor scope keeps its flat form alone: the store's
-          `active` placement carries no scope, and the path function lays it under the project scope
-          (`lib/store/lifecycle-storage.ts`). Inverting a path at the checkout's own location — under `active/current/`,
-          or at the top of `active/` where `layout.active` is `flat` — takes that slug and the effective `layout.active`
-          as its inputs, since the path holds no slug a hyphenated name could not also claim, and the top of `active/`
-          names a record only under `flat`; the Errand overlap check (`handleErrandCheck`, `handlers/errand.ts`) passes
-          both, read from the checkout's marker and configuration as 2.4.c reads them. `resolveArcPath`
-          (`lib/layout/projection.ts`) projects each. A cohort document's copy at the checkout's own location takes its
-          own address kind (2.4.b), carrying that location's inputs, which the classifier maps to the cohort document's
-          record, a second path of one record; `cohort-document`, whose placement stays `planned` or `completed`, is
-          unchanged, and so are its readers.
-        - Build `test-first` (one behavior at a time):
-            - a work unit's meta resolves under `active/current/` at its own location and under
-              `active/in-flight/<slug>/` at another's
-            - at the own location with `flat`, it resolves to `.arc/active/meta-<slug>.md`
-            - a cohort document's copy resolves into `active/current/` and inverts to the cohort document's record
+        - Active addresses resolve and invert the checkout's own claim under `current/` or its configured flat layout,
+          and another work item under `in-flight/<slug>/`, preserving the legacy and contributor flat forms. Cohort
+          copies classify to their canonical record. The Errand overlap reader passes the shared checkout claim and
+          layout, preserving a hyphenated own companion's identity when another slug shares its suffix.
 
     - `[ ]` **2.4.b The file names**
 
@@ -389,100 +373,20 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
               the refusal's repaired case
             - the Errand queue has no address and projects nothing
 
-    - `[ ]` **2.4.c Paths callers resolve from the flip**
+    - `[x]` **2.4.c Paths callers resolve from the flip**
 
-        - The work-item path is flat today, `workItemArtifactPath(slug, artifact, readPlacement, cohort)`
-          (`lib/store/lifecycle-storage.ts`), which `lifecycleArtifactPath` calls. This task gives it the checkout root
-          first, keeping the name,
-          `workItemArtifactPath(checkoutRoot, slug, artifact, readPlacement, cohort): Promise<string>`, returning a path
-          relative to `checkoutRoot`. Backlog and completed placements resolve as today, reading nothing. Where the
-          root's store answers `capabilities.stateOffBranch` true, the active arm reads the checkout's claim from its
-          marker (`readWorktreeMarker`) and the effective `layout.active` once per root, a forward-compatible key it
-          reads from the project's configuration (`ArcConfigSchema`, `lib/config/schema.ts`), `nested` where absent,
-          which 2.5 types and validates, kept in the engine's process state (1.9.a), since one process resolves paths
-          for sibling checkouts too, and returns the `active/current/` path for the work item the checkout claims — flat
-          in `active/` under `flat` — and the `active/in-flight/<slug>/` path for any other, which holds a file only
-          where the view selects it (2.6); otherwise it returns today's flat path through the synchronous resolver that
-          keeps today's body, reading neither.
-        - The capability is cached per root beside the claim: the engine's start records that of the store it is given
-          for its root (1.9.a); this task gives the composition a hook recording that of each store it composes, in
-          `lazyStore` (`lib/store/create.ts`), so `createStore`, which answers false until the flip, and
-          `createRefStore` both record, while `createReadSourceStore`, a read-only view of another remote, records
-          nothing; and the engine records it for each worktree it refreshes (`projection-worktrees`). The engine's
-          record for a root holds over a composition's, whichever comes later in the command. A root nothing recorded
-          resolves as the in-repo implementation lays it, so a script, which runs no root hook, resolves as a command
-          does once it composes its store.
-        - Every exported writer in `lib/git/worktree-marker.ts` — `writeWorktreeMarker`, `writeWorktreeOwnershipMarker`,
-          `stampWorktreeHusk`, the `create`, `replace`, `restore`, and `removeWorktreeMarkerGeneration` family, and
-          `removePrimaryTransientOccupancy` — notifies a listener the engine's process state registers, which drops that
-          root's entry, so an in-place claim (`LocusPorts.writeAnchoredMarker`, `lib/locus/lifecycle-ports.ts`), a
-          promotion (`convertSpawnedMarker`), a release, and a materialization all reach it. The three marker writes
-          that bypass the module move onto writers it exports: the marker clear after a release in
-          `lib/work-unit/verbs/teardown.ts` and `lib/work-unit/verbs/teardown-store.ts`, each a raw file removal, onto
-          an unconditional removal, since `removeWorktreeMarkerGeneration` compares a generation; and
-          `restoreSpawnClaim`'s raw exclusive `writeFile` (`lib/work-unit/spawned-worktree-claim.ts`) onto an exclusive
-          create from bytes beside `createWorktreeMarkerGeneration`. A worktree move, which changes a checkout's root
-          without writing its marker (`git worktree move` in `lib/work-unit/mutators/reconcile-work-unit-worktree.ts`),
-          notifies the listener with both roots, so the entry moves to the new root and its claim is read fresh. The
-          root hook clears every entry at each command's start, and projection work in a worktree reads that worktree's
-          claim fresh under its projection lock and reseeds the entry (`projection-worktrees`), so no file is laid from
-          a cached claim.
-        - This task updates each caller to pass its checkout root: the compaction seed's emitter (`emitCompactionSeed`,
-          `lib/compaction-seed/emitter.ts`) and recovery's relocation, the current work unit's path (`candidatePath`,
-          `lib/store/current-work-unit.ts`), the session-notes resolver (`resolveSessionNotesPath`,
-          `lib/handoff/session-notes-path.ts`) and its readers, the load-set projection's callers, and session-init's
-          slot paths. The current work unit already resolves from the marker and the store (`resolveCurrentWorkUnit`,
-          `lib/store/current-work-unit.ts`). The held-candidates reader, which builds the active meta path itself
-          through `resolveArcPath` (`readHeldCandidates`, `lib/active/meta-reader.ts`), resolves through the path
-          function instead. `arc view`'s callers, synchronous today (`handlers/view-store.ts`, the lifecycle view, its
-          design reads, and reconciliation), convert with the rest: 14 calls of the work-item path in 12 files and 43 of
-          the lifecycle path functions in 33 files, `archive-store.ts` among them, which the compiler finds. `arc view`
-          resolves a design selector's path through `lifecycleRecordPath` and matches a design name through
-          `workUnitArtifactName` (`lib/store/lifecycle-write.ts`) and `companionStoredName`
-          (`lib/store/companion-name.ts`) in `readLifecycleDesign` (`lib/store/lifecycle-design.ts`), so the file names
-          keep today's slug forms under both `active/` folders. The evidence's cohort document path goes through
-          `cohortDocumentPath` (`lib/store/lifecycle-record-path.ts`), which takes no checkout root, since a cohort
-          document's home is under `backlog/` or `completed/` in every checkout.
-        - `seam-lifecycle`'s meta path, `workUnitMetaPath` (`lib/store/lifecycle-write.ts`), maps every active placement
-          to the flat `.arc/active/meta-<slug>.md`, and `lifecycleRecordPath` (`lib/store/lifecycle-record-path.ts`)
-          places a work unit's other records beside it; `lifecycleArtifactPath` (`lib/store/lifecycle-storage.ts`) maps
-          an active placement to the same flat path for activation and deactivation (`activate-deactivate-store.ts`),
-          graduation's reported `metaPath` (`commands/start-store.ts`), and the lifecycle view (`lifecycle-view.ts`),
-          and reconciliation keys its acquired records by `lifecycleRecordPath` (`store-reconcile-context.ts`), so the
-          two must agree. This task resolves both functions' active arms through the same path function, taking the
-          checkout root, so every path a from-the-flip verb reports or keys — `arc set-stage`'s `Meta:` line and the
-          finalize, archive, reopen, promote, rename, design-repoint, reconcile, publish, and Errand-promotion arms
-          among them — names the file the projection lays there. Each caller passes the root of the checkout the path is
-          for, which the compiler finds: graduation into a spawned worktree passes that worktree's root
-          (`occupation.worktreePath`), and in-place graduation its own (`ctx.cwd`). The snapshot reader beside
-          `lifecycleArtifactPath` (`snapshotFs`), which also calls it, keeps the flat active path through the
-          synchronous flat resolver: it builds the in-memory tree the integration compositions' lifecycle summary walks
-          only over the in-repo implementation, since over an off-branch store the checkpoint and merge compositions
-          read the stored summary instead (`readStoredLifecycleSummary`, `scripts/integration/lifecycle-record.ts`).
-        - Build `test-first` (one behavior at a time):
-            - over the reference backend, the checkout's own meta path is under `active/current/`, and another work
-              unit's under `active/in-flight/<slug>/`
-            - with `layout.active: flat`, the checkout's own meta path is `.arc/active/meta-<slug>.md`
-            - two checkout roots resolved in one process each get their own work item's `active/current/` path
-            - from the flip, `arc set-stage` reports the checkout's own meta under `active/current/`, and
-              `lifecycleRecordPath` places its task list beside it
-            - from the flip, `arc activate` reconciles over the reference backend, and graduation into a spawned
-              worktree reports its meta under that worktree's `active/current/`
-            - from the flip, over the reference backend under `nested`, the checkpoint lifecycle summary finds an
-              integrating active work unit
-            - a claim written in place mid-command resolves the claimed work item's path under `active/current/` at the
-              next resolution, through each marker writer, the two teardown clears and the spawn claim's restore among
-              them
-            - after a worktree move mid-command, the moved checkout's own meta path resolves under its new root's
-              `active/current/`
-            - from the flip, the held-candidates reader reads the checkout's own meta from `active/current/`
-            - a store `createRefStore` composes records its capability for its root
-            - a root nothing recorded resolves as the in-repo implementation lays it, and the same root resolves under
-              `active/current/` once the engine's start runs over an off-branch store for it, while `createStore`'s
-              composition records it false
-            - a cohort document's path is its home under `backlog/` or `completed/`, whatever checkout asks
-            - over the in-repo implementation, the path is today's `.arc/active/meta-<slug>.md`, and no marker or
-              configuration is read
+        - Checkout-rooted async artifact and lifecycle paths share capability, claim, and layout coordinates across
+          command reports, views, reconciliation, session context, compaction, and recovery. Pure manifests consume
+          resolved placement; the in-repo snapshot retains its synchronous flat tree, and cohort homes stay canonical.
+        - Store composition records per-root capability, command-engine overrides retain precedence, and marker
+          writes, teardown clears, rollback restores, worktree moves, and successful checkout occupation invalidate or
+          bind the shared context. Projection entry refreshes it under its lease; delayed reads cannot replace a newer
+          observation. Invalid or unreadable markers and configuration refuse with repair and retry.
+        - Reporting paths validate before committing a transition; staged Errand promotion resolves its final path
+          after marker settlement and retains the existing retry boundary. Graduation reports against the occupied
+          checkout root. An Errand seed inherits its healthy parent's exact
+          meta path and identity without interpreting those paths through the Errand's claim; an unhealthy parent
+          supplies no inherited identity.
 
 ### `[ ]` **2.4.R Establish folder ownership before classifying new backlog files — § 9, § 10.1**
 

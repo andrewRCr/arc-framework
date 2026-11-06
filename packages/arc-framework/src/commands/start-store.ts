@@ -19,7 +19,7 @@ export async function runStoreGraduate(ctx: ExecuteTransitionContext, params: Gr
 }
 async function graduate(ctx: ExecuteTransitionContext, params: GraduateParams): Promise<GraduateResult> {
   if (ctx.store === undefined || ctx.exec === undefined || params.spawningIdentity === undefined) return { status: "rejected", reason: "Store graduation requires the store, Git executor, and starter identity." };
-  const view = await readLifecycleView(ctx.store);
+  const view = await readLifecycleView(ctx.cwd, ctx.store);
   if (view.status === "refused") return { status: "rejected", reason: view.refusal.condition, refusal: view.refusal };
   try { requireCompleteInventory(ctx.store, view.result.listing); } catch (error) { return { status: "rejected", reason: String(error) }; }
   const read = await readWorkUnit(ctx.store, params.name);
@@ -41,6 +41,7 @@ async function graduate(ctx: ExecuteTransitionContext, params: GraduateParams): 
     writeMetaOwner(writeMetaClass(read.result.content, cls.data), SlugSchema.parse(starter)), workflow),
   BEGIN_CURRENT_WORKFLOW_SENTINEL);
   let occupation: StoreGraduationOccupation | undefined;
+  let metaPath: string | undefined;
   const retryCommand = ["arc", "start", name, ...(params.inPlace ? ["--here"] : [])];
   const exec = ctx.exec;
   const outcome = await executeTransition(ctx, { verb: "start", slug: name, inputs: {
@@ -58,13 +59,14 @@ async function graduate(ctx: ExecuteTransitionContext, params: GraduateParams): 
                 locationTemplate: params.locationTemplate, repo: params.repo, spawningIdentity: starter,
                 primaryWorktreePath: params.primaryWorktreePath, postCreateScript: params.postCreateScript, registeredHarnessDirs: params.registeredHarnessDirs }),
         });
+        metaPath = await lifecycleArtifactPath(occupation.worktreePath, { ...entry, placement: { kind: "active" } }, "meta");
       },
       rollback: async () => { await occupation?.rollback(); },
     }] },
   } });
   if (outcome.status !== "ok") return graduationRejection(outcome);
-  if (occupation === undefined) throw new Error("store graduation committed without its checkout occupation");
-  return { status: "graduated", outcome, metaPath: lifecycleArtifactPath({ ...entry, placement: { kind: "active" } }, "meta"),
+  if (occupation === undefined || metaPath === undefined) throw new Error("store graduation committed without its checkout occupation and reporting path");
+  return { status: "graduated", outcome, metaPath,
     branch: null, backfilled: [], notice: null, worktreePath: occupation.worktreePath, previousOwner: entry.fields.owner,
     ...(occupation.postCreateNotice === undefined ? {} : { postCreateNotice: occupation.postCreateNotice }) };
 }

@@ -9,6 +9,9 @@ import { startProjection, endProjection } from "../../../../src/lib/store/projec
 import { success } from "../../../helpers/store/suite-tools.js";
 import { createEngineFixture, overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
+import { writeWorktreeMarker, resolveWorktreeMarkerPath } from "../../../../src/lib/git/worktree-marker.js";
+import { workItemArtifactPath } from "../../../../src/lib/store/lifecycle-storage.js";
+import { randomUUID } from "node:crypto";
 import { createStore } from "../../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../../src/lib/store/default-store-ports.js";
 
@@ -21,6 +24,20 @@ const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
 describe("projection command entry", () => {
+  it("rereads and seeds the checkout claim under the projection lease after a prior path observation", async () => {
+    const h = await createEngineFixture(directories);
+    const marker = (name: string) => ({ spawnedByArc: true, wuName: name,
+      createdFor: { kind: "work-unit" as const, name, uid: randomUUID() }, spawningIdentity: "andrew", createdAt: "2026-11-05T00:00:00Z" });
+    await writeWorktreeMarker(h.checkout, marker("alpha"));
+    const store = overrideEngineStore(h.store, { version: async () => {
+      expect(await workItemArtifactPath(h.checkout, "alpha", "meta", { kind: "active" }, null)).toBe(".arc/active/current/meta-alpha.md");
+      await writeFile(resolveWorktreeMarkerPath(h.checkout), JSON.stringify(marker("beta")));
+      return h.store.version();
+    } });
+    expect(await startProjection({ store, checkout: h.checkout })).toMatchObject({ kind: "ready" });
+    expect(await workItemArtifactPath(h.checkout, "beta", "meta", { kind: "active" }, null)).toBe(".arc/active/current/meta-beta.md");
+  });
+
   it("writes a pending edit back before the command and settles its copies at the end", async () => {
     const h = await createEngineFixture(directories);
     await h.edit("opening\nhand edit\nclosing\n");

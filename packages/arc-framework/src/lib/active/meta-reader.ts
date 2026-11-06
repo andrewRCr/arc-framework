@@ -13,7 +13,6 @@
  * @module
  */
 
-import { resolveArcPath } from "../layout/index.js";
 import { join, relative, sep } from "node:path";
 import { readdir, readFile, stat } from "node:fs/promises";
 
@@ -196,8 +195,9 @@ function candidateFromContent(cwd: string, absPath: string, content: string, war
 }
 
 async function readHeldCandidates(cwd: string, selectedStore?: Store, missingRootWarning?: string): Promise<ReaderResult> {
-  const [{ resolveCurrentWorkUnit }, { createStore }, { createDefaultStorePorts }] = await Promise.all([
+  const [{ resolveCurrentWorkUnit }, { createStore }, { createDefaultStorePorts }, { workItemArtifactPath }] = await Promise.all([
     import("../store/current-work-unit.js"), import("../store/create.js"), import("../store/default-ports.js"),
+    import("../store/lifecycle-storage.js"),
   ]);
   const store = selectedStore ?? createStore(createDefaultStorePorts({ checkoutRoot: cwd }));
   if (missingRootWarning !== undefined && !store.capabilities.stateOffBranch) return {
@@ -209,8 +209,7 @@ async function readHeldCandidates(cwd: string, selectedStore?: Store, missingRoo
   const candidates: MetaFileCandidate[] = [];
   const owners = new Map<string, OwnerIdentity>();
   for (const current of resolved.candidates) {
-    const path = resolveArcPath({ kind: "work-unit-artifact", artifact: "meta", slug: current.reference.owner.name,
-      placement: { kind: "active", scope: { kind: "project" } } });
+    const path = await workItemArtifactPath(cwd, current.reference.owner.name, "meta", { kind: "active" }, null);
     try {
       const read = await store.read({ reference: current.reference });
       if (read.status === "refused") { warnings.push(`Unable to read ${path}: ${read.refusal.condition}`); continue; }

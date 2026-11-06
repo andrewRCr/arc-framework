@@ -54,7 +54,7 @@ import { acquireAdvisoryLock, releaseAdvisoryLockConfirmed, type AdvisoryLockHan
 import { ADVISORY_LEASE_DURATION_MS } from "../../../../src/lib/renewable-lease.js";
 import { startProjection } from "../../../../src/lib/store/projection/engine.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
-import { workItemArtifactPath } from "../../../../src/lib/store/lifecycle-storage.js";
+import { flatWorkItemArtifactPath } from "../../../../src/lib/store/lifecycle-storage.js";
 import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness.js";
 import { lackingEndedHistory } from "../../../helpers/store/ended-history.js";
 import { registerProjectionHooks } from "../../../../src/lib/store/projection/command-hooks.js";
@@ -114,8 +114,8 @@ async function archivedView(artifact: "meta" | "tasks" | "companion" = "meta", i
   const owner = record.reference.owner;
   if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("The backend assigned no archived owner UID");
   const path = artifact === "companion"
-    ? `${dirname(workItemArtifactPath("corrected", "meta", placement, null))}/attachment.txt`
-    : workItemArtifactPath("corrected", artifact, placement, null);
+    ? `${dirname(flatWorkItemArtifactPath("corrected", "meta", placement, null))}/attachment.txt`
+    : flatWorkItemArtifactPath("corrected", artifact, placement, null);
   const selectedIdentity = SlugSchema.parse(identity);
   const view = await seedProjection({ store: h.store, files: [{ reference: record.reference, path }], identity: selectedIdentity,
     renderer: checkout => createRecordRenderer({ store: h.store,

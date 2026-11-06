@@ -22,7 +22,7 @@ it("matches the command's prepared plan at the acquired primary's current name a
   const renamed = RecordReferenceSchema.parse({ ...h.dependent.reference, owner: { ...h.dependent.reference.owner, name: "renamed-dependent" } });
   lifecycleSuccess(await h.store.write({ action: "put", reference: renamed, expected: h.dependent.version,
     content: h.dependent.content.replaceAll("dependent", "renamed-dependent"), placement: { kind: "active" }, provenance: { verb: "rename", lifecycleAction: "transition" } }));
-  const command = await buildStoreCurrentWuReconcile(h.store).prepare(op);
+  const command = await buildStoreCurrentWuReconcile("/project", h.store).prepare(op);
   const result = await runCurrentWuReconcileSessionProbe({ store: h.store }, op);
   expect(result).toMatchObject({ status: "pending", slug: "renamed-dependent", dependency: command.prepared.plan.dependency,
     trackedReferences: command.prepared.plan.trackedReferences,

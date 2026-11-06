@@ -7,7 +7,7 @@ import type { RefusedMark } from "./index-schema.js";
 import { createProjectionEnginePorts, type ProjectionEnginePorts } from "./engine-ports.js";
 import { locateProjection, type ProjectionLocation } from "./location.js";
 import { withProjectionLock, type ProjectionLockResult } from "./lock.js";
-import { beginProjectionCommand, projectionProcessState, type ProjectionSkip, type ProjectionCommandBinding } from "./process-state.js";
+import { beginProjectionCommand, projectionProcessState, recordEngineStoreCapability, type ProjectionSkip, type ProjectionCommandBinding } from "./process-state.js";
 import { startUnderLease } from "./engine-start.js";
 import { finishProjectionRoot } from "./engine-end.js";
 
@@ -45,7 +45,7 @@ export function projectionCommandBinding(): ProjectionCommandBinding {
 
 async function initializeProjection(input: ProjectionCommandInput): Promise<ProjectionStart> {
   const state = projectionProcessState();
-  state.capabilities.set(input.checkout, input.store.capabilities.stateOffBranch);
+  recordEngineStoreCapability(input.checkout, input.store.capabilities.stateOffBranch);
   if (!input.store.capabilities.stateOffBranch) return { kind: "disabled" };
   const effective = historyRetryInput(input);
   const ports = input.ports?.() ?? createProjectionEnginePorts(input.checkout);
@@ -85,7 +85,7 @@ function historyRetryInput(input: ProjectionCommandInput): ProjectionCommandInpu
 /** Settle the copies accumulated by this command under freshly acquired locks. */
 export async function endProjection(input: ProjectionCommandInput): Promise<void> {
   const state = projectionProcessState();
-  state.capabilities.set(input.checkout, input.store.capabilities.stateOffBranch);
+  recordEngineStoreCapability(input.checkout, input.store.capabilities.stateOffBranch);
   if (!input.store.capabilities.stateOffBranch) return;
   for (const root of state.roots.values()) await finishProjectionRoot(root);
 }

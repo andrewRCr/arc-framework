@@ -22,7 +22,7 @@ export interface StoreRestateCandidates {
  * @param input - Selected store, work item, restating person and synchronization port.
  * @returns Null before the first stored handoff, otherwise operational changes.
  */
-export async function deriveStoreRestateCandidates(input: { store: Store; workUnit: RecordReference; identity: string; sync?: StoreSyncPort }): Promise<StoreRestateCandidates | null> {
+export async function deriveStoreRestateCandidates(input: { cwd: string; store: Store; workUnit: RecordReference; identity: string; sync?: StoreSyncPort }): Promise<StoreRestateCandidates | null> {
   const { store, workUnit } = input;
   const sync = input.sync ?? bindStoreSyncPort(store);
   const current = await readStateHistory(() => store.version(), sync);
@@ -48,7 +48,7 @@ export async function deriveStoreRestateCandidates(input: { store: Store; workUn
   }
   return { commit: fields.commitAtHandoff, tasks: [...tasks],
     notes: changes.some((entry) => sameReference(entry.reference, notes))
-      ? [workItemArtifactPath(meta.reference.owner.name, "notes", WorkUnitReadPlacementSchema.parse(meta.placement), fields.cohort)] : [] };
+      ? [await workItemArtifactPath(input.cwd, meta.reference.owner.name, "notes", WorkUnitReadPlacementSchema.parse(meta.placement), fields.cohort)] : [] };
 }
 function closedTasks(content: string): Set<string> {
   const scan = scanTaskListStructure(content);

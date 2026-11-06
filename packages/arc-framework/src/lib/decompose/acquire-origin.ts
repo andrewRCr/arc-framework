@@ -3,12 +3,11 @@ import type { DecomposeContext } from "./context.js";
 import type { DecomposeResult, DecomposeRefusal } from "./refusal.js";
 import type { StoreRecord } from "../store/read.js";
 import type { LifecycleEntry } from "../store/lifecycle-index.js";
-import { posix } from "node:path";
 import { readWorkUnit } from "../store/lifecycle-write.js";
 import { acquireLifecycleRecords } from "../work-unit/prepared-lifecycle-write.js";
-import { readLifecycleView } from "../store/lifecycle-view.js";
+import { listLifecycleIndex } from "../store/lifecycle-index.js";
 import { recordReferences, sameReference } from "../store/identity.js";
-import { lifecycleRecordPath } from "../store/lifecycle-record-path.js";
+import { lifecycleRecordName } from "../store/lifecycle-record-path.js";
 import { decomposeStoreRefusal } from "./refusal.js";
 import { requireCompleteInventory } from "../store/lifecycle-storage.js";
 import { ArcError } from "../kernel/errors.js";
@@ -48,22 +47,23 @@ export async function acquireDecomposeOriginRecords(store: DecomposeReadStore, s
     locus: slug, remedy: { text: "Restore the origin's primary record, then retry." } };
   const artifacts = group.result.flatMap(record => {
     if (record.reference.kind === "work-item/meta") return [];
-    const path = lifecycleRecordPath(primary, record);
-    return path === null ? [] : [{ basename: posix.basename(path), record }];
+    const name = lifecycleRecordName(primary.reference.owner.name, record);
+    return name === null ? [] : [{ basename: name, record }];
   });
   const conflicts = checkDecomposeSourceConflicts({ primary, artifacts });
   if (conflicts !== undefined) return conflicts;
-  const view = await readLifecycleView(store);
+  const view = await listLifecycleIndex(store);
   if (view.status === "refused") return decomposeStoreRefusal(view.refusal);
-  const incomplete = decomposeInventoryRefusal({ capabilities }, view.result.listing);
+  const incomplete = decomposeInventoryRefusal({ capabilities }, view.result);
   if (incomplete !== undefined) return incomplete;
+  const entries = view.result.status === "complete" ? view.result.index.entries() : [];
   const map = await store.read({ reference: recordReferences["work-item/cut-map"](primary.reference.owner) });
   if (map.status === "refused" && map.refusal.code !== "not-found") return decomposeStoreRefusal(map.refusal);
-  const incomingCandidates = view.result.entries.filter(entry => entry.reference.owner.type === "person"
+  const incomingCandidates = entries.filter(entry => entry.reference.owner.type === "person"
     || entry.reference.owner.uid === undefined || !excludedOwnerUids.has(entry.reference.owner.uid));
   const edges = await acquireDecomposeEdgesFromStore(store, { primary, incomingCandidates });
   if (edges.status === "refused") return edges;
-  return { status: "ok", result: { primary, records: group.result, artifacts, lifecycleEntries: view.result.entries,
+  return { status: "ok", result: { primary, records: group.result, artifacts, lifecycleEntries: entries,
     incomingCandidates, edges: edges.result,
     ...(map.status === "ok" ? { storedMap: map.result } : {}) } };
 }

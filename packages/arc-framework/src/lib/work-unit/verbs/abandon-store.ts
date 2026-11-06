@@ -50,7 +50,7 @@ export async function runStoreAbandon(ctx: Pick<AbandonContext, "executor" | "re
 async function abandonmentSubject(ctx: Pick<AbandonContext, "executor" | "removal" | "storeTeardown">, params: AbandonParams) {
   const store = ctx.executor.store;
   if (store === undefined) throw new Error("Store abandonment requires an operational store.");
-  const view = await readLifecycleView(store);
+  const view = await readLifecycleView(ctx.executor.cwd, store);
   if (view.status === "refused") return { status: "rejected" as const, reason: view.refusal.condition, refusal: view.refusal };
   requireCompleteInventory(store, view.result.listing);
   const read = await readWorkUnit(store, params.name);

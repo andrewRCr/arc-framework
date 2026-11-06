@@ -36,7 +36,7 @@ export async function executeStoreTransition(
   params: { verb: Verb; slug: string; inputs: TransitionInputs },
 ): Promise<TransitionOutcome> {
   const { verb, inputs } = params;
-  const view = await readLifecycleView(ctx.store);
+  const view = await readLifecycleView(ctx.cwd, ctx.store);
   if (view.status === "refused") return { status: "rejected", stage: "store", message: view.refusal.condition, refusal: view.refusal };
   try { requireCompleteInventory(ctx.store, view.result.listing); }
   catch (error) { return { status: "rejected", stage: "guard", message: String(error) }; }
@@ -226,7 +226,7 @@ async function selectPrimary(store: Store, slug: string, creation: Extract<Mutat
 
 /** Inspect an interrupted finalization through complete record state; store batches leave no split field writes. */
 export async function resumeStoreTransitionFinalization(ctx: ExecuteTransitionContext & { store: Store }, slug: string): Promise<TransitionOutcome | null> {
-  const view = await readLifecycleView(ctx.store);
+  const view = await readLifecycleView(ctx.cwd, ctx.store);
   if (view.status === "refused") return { status: "rejected", stage: "store", message: view.refusal.condition, refusal: view.refusal };
   try { requireCompleteInventory(ctx.store, view.result.listing); }
   catch (error) { return { status: "rejected", stage: "guard", message: String(error) }; }

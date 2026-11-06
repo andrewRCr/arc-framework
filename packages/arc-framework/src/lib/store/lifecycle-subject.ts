@@ -20,7 +20,7 @@ export interface LifecycleSubjectReadContext { cwd: string; exec: GitExec; ident
 /** Read a subject through the selected backend without interpreting its state as launch permission. */
 export async function resolveLifecycleSubject(context: LifecycleSubjectReadContext, slug: string,
   acquisitionPolicy: "local" | "passive-live" = "local"): Promise<StoreResult<LifecycleSubjectSelection>> {
-  if (context.store !== undefined && usesOffBranchState(context.store)) return readStoreSubject(context.store, slug);
+  if (context.store !== undefined && usesOffBranchState(context.store)) return readStoreSubject(context.cwd, context.store, slug);
   const composed = await resolveCallerComposedLifecycleIndex({ ...context, acquisitionPolicy,
     fs: { readdir: path => readdir(path, { withFileTypes: true }), readFile: path => readFile(path, "utf8") } });
   const indeterminateReason = isComposedLifecycleSlugIndeterminate(composed, slug)
@@ -28,8 +28,8 @@ export async function resolveLifecycleSubject(context: LifecycleSubjectReadConte
   return { status: "ok", result: { backend: "legacy", indeterminateReason, query: resolveSlugQuery(composed.index, slug), composed } };
 }
 
-async function readStoreSubject(store: Store, slug: string): Promise<StoreResult<LifecycleSubjectSelection>> {
-  const view = await readLifecycleView(store);
+async function readStoreSubject(checkoutRoot: string, store: Store, slug: string): Promise<StoreResult<LifecycleSubjectSelection>> {
+  const view = await readLifecycleView(checkoutRoot, store);
   if (view.status === "refused") return view;
   const record = await readWorkUnit(store, slug);
   if (record.status === "refused" && record.refusal.code !== "not-found") return record;

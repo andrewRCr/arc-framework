@@ -37,8 +37,8 @@ function projectedRecord(record: StoreRecord, writes: readonly Mutation[]): Stor
 export type DecomposeSurvivingMember = Pick<LifecycleEntry, "reference" | "fields"> & { proposedCreation?: boolean };
 
 /** Preserve unreadable and incomplete inventory evidence while selecting surviving open work. */
-export async function acquireDecomposeSurvivingMembers(store: Store, writes: readonly Mutation[]): Promise<DecomposeResult<readonly DecomposeSurvivingMember[]>> {
-  const view = await readLifecycleView(decomposeSurvivingStore(store, writes));
+export async function acquireDecomposeSurvivingMembers(checkoutRoot: string, store: Store, writes: readonly Mutation[]): Promise<DecomposeResult<readonly DecomposeSurvivingMember[]>> {
+  const view = await readLifecycleView(checkoutRoot, decomposeSurvivingStore(store, writes));
   if (view.status === "refused") return decomposeStoreRefusal(view.refusal);
   const incomplete = decomposeInventoryRefusal(store, view.result.listing);
   if (incomplete !== undefined) return incomplete;

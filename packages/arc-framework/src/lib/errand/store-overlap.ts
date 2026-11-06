@@ -7,7 +7,8 @@ import { deriveStoreInFlight, type StoreInFlightEntry } from "../git/in-flight-s
 import { detectForeignArtifactOverlap, preferRemoteBaseRef, projectInFlightToOverlapRoster,
   type ForeignArtifactDetectionResult, type ForeignArtifactOverlap } from "../git/foreign-artifact-detection.js";
 import type { InFlightWarning } from "../git/in-flight-derivation.js";
-import { identifyArcFileAddress } from "../layout/index.js";
+import { resolveCheckoutLayoutContext } from "../store/checkout-layout.js";
+import { identifyArcFileAddress, type ActiveLayoutContext } from "../layout/index.js";
 import { classifyStoreAddress, type ClassifiedStoreTarget } from "../store/target-classification.js";
 import { SlugSchema } from "../kernel/index.js";
 import { CheckoutClaimSchema } from "../store/lookup.js";
@@ -23,7 +24,8 @@ export async function runStoreErrandOverlap(options: StoreErrandOverlapOptions):
   const inFlight = await deriveStoreInFlight({ ...options, roster: frame.roster });
   const self = await callerIdentity(options.store, frame);
   const entries = inFlight.entries.filter((entry) => !entryIsCaller(entry, self));
-  const classified = options.targetPaths.map((path) => ({ path, target: classify(path) }));
+  const active = await resolveCheckoutLayoutContext(options.cwd);
+  const classified = options.targetPaths.map((path) => ({ path, target: classify(path, active) }));
   const code = classified.filter((item) => item.target === null).map((item) => item.path);
   const notes: string[] = [], state: ForeignArtifactOverlap[] = [];
   for (const item of classified) {
@@ -37,8 +39,8 @@ export async function runStoreErrandOverlap(options: StoreErrandOverlapOptions):
   return { result: { ...result, overlaps: mergeOverlaps([...result.overlaps, ...state]),
     ...(notes.length === 0 ? {} : { notes: [...(result.notes ?? []), ...notes] }) }, warnings: inFlight.warnings, reachable: true };
 }
-function classify(path: string): ClassifiedStoreTarget | null {
-  const address = identifyArcFileAddress(path);
+function classify(path: string, active?: ActiveLayoutContext): ClassifiedStoreTarget | null {
+  const address = identifyArcFileAddress(path, { active });
   return address === null ? null : classifyStoreAddress(address);
 }
 type CallerIdentity = { kind: "work-unit"; name: string; uid: string } | { kind: "other"; name: string };

@@ -46,7 +46,7 @@ async function rename(ctx: StoreRenameContext, params: { sourceSlug: string; tar
   if (!usesOffBranchState(ctx.store)) return { status: "rejected", reason: "Store rename is unsupported before the storage flip." };
   const source = SlugSchema.parse(params.sourceSlug), target = SlugSchema.parse(params.targetSlug);
   if (source === target) return { status: "rejected", reason: "Rename needs distinct source and target names." };
-  const selected = await readStoreRenameSubject(ctx.store, { sourceSlug: source, targetSlug: target });
+  const selected = await readStoreRenameSubject(ctx.cwd, ctx.store, { sourceSlug: source, targetSlug: target });
   if (selected.status === "refused") return { status: "rejected", reason: selected.refusal.condition, refusal: selected.refusal };
   const subject = selected.result;
   await ctx.onPreparedAdvisories?.(subject.advisories);
@@ -71,7 +71,7 @@ interface RenameRuntime { cwd: string; checkout?: StoreRenameCheckoutReceipt }
 async function persistRename(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string, holder: string | null,
   branch: BranchRename | undefined, state: RenameRuntime): Promise<Extract<RunRenameResult, { status: "rejected" }> | undefined> {
   if (subject.resuming) return undefined;
-  const prepared = await prepareStoreRename(ctx.store, subject, target, branch);
+  const prepared = await prepareStoreRename(ctx.cwd, ctx.store, subject, target, branch);
   if (prepared.status === "refused") return { status: "rejected", reason: prepared.refusal.condition, refusal: prepared.refusal };
   const steps = renameSteps(ctx, subject, target, holder, branch, (receipt) => {
     state.checkout = receipt; state.cwd = receipt.repositoryCwd ?? state.cwd;

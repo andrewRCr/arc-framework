@@ -285,7 +285,7 @@ export async function auditRecoveryState(
   auditRepoRoot(options, stopReasons);
   const locus = auditLocus(options, stopReasons, explainedDrift, committedProgress);
   const locusHint = auditLocusHint(options, stopReasons);
-  const loadSetAudit = auditLoadSet(options, stopReasons, explainedDrift, integrationCorrection);
+  const loadSetAudit = await auditLoadSet(options, stopReasons, explainedDrift, integrationCorrection);
   const dirtyFiles = auditDirtyFiles(options, stopReasons, explainedDrift, committedProgress);
   const taskCursor = auditTaskCursor(options, stopReasons, integrationCorrection);
   const unclosedTaskCommits = taskCursor?.match === true && options.recover.derivedLocusState.ok
@@ -441,12 +441,12 @@ function auditLocus(
   };
 }
 
-function auditLoadSet(
+async function auditLoadSet(
   options: AuditRecoveryStateOptions,
   stopReasons: RecoveryAuditStopReason[],
   explainedDrift: RecoveryAuditExplainedDrift[],
   integrationCorrection: IntegrationCorrectionProjection,
-): LoadSetAuditVerdict | null {
+): Promise<LoadSetAuditVerdict | null> {
   if (!options.recover.loadSet.ok) {
     stopReasons.push({
       kind: "load-set-unresolved",
@@ -460,7 +460,7 @@ function auditLoadSet(
     baseline: options.seed.loadSet,
     fresh: options.recover.loadSet.value,
   });
-  const archivalRelocation = archivedIntegrationRelocation(options, verdict);
+  const archivalRelocation = await archivedIntegrationRelocation(options, verdict);
   const prepublicationProjection = candidatePrepublicationProjection(options, verdict);
   if (verdict.diverged && archivalRelocation === null && prepublicationProjection === null
     && integrationCorrection.status !== "accepted") {
@@ -530,10 +530,10 @@ function candidatePrepublicationProjection(
   return { slug, diff: verdict.diff };
 }
 
-function archivedIntegrationRelocation(
+async function archivedIntegrationRelocation(
   options: AuditRecoveryStateOptions,
   verdict: LoadSetAuditVerdict,
-): { slug: string; pathDrifts: LoadSetAuditVerdict["diff"]["pathDrifts"] } | null {
+): Promise<{ slug: string; pathDrifts: LoadSetAuditVerdict["diff"]["pathDrifts"] } | null> {
   const slug = options.seed.activeWorkUnit;
   if (slug === null || options.seed.sessionType !== "integration" || !verdict.diverged) return null;
   if (!options.recover.recoveryFrame.ok) return null;
@@ -561,7 +561,7 @@ function archivedIntegrationRelocation(
   const drift = diff.pathDrifts[0];
   if (drift === undefined) return null;
   if (!SlugSchema.safeParse(slug).success) return null;
-  const expected = workItemArtifactPath(slug, "meta", { kind: "active" }, null);
+  const expected = await workItemArtifactPath(options.freshRepoRoot, slug, "meta", { kind: "active" }, null);
   const actual = identifyWorkUnitArtifactPath(drift.actual.path);
   if (options.seed.metaPath !== expected
     || drift.expected.path !== expected

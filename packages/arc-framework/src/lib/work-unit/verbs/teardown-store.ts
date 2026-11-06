@@ -1,11 +1,10 @@
 /** End-rule ref-set cleanup over version-bound operational retirement evidence. */
 import { ownerHolderRequest, type HoldingCheckoutResult } from "../locus-ports.js";
-import { rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { assessReapSafety, isLandedInBase, isContainedIn } from "../../git/branch-containment.js";
 import { deleteRemoteBranch } from "../mutators/reconcile-branch.js";
 import { localLifecycleTip, resolveLifecycleBase } from "../../git/lifecycle-ref-refresh.js";
-import { decodeWorktreeMarkerOwnership, readWorktreeMarker, resolveWorktreeMarkerPath } from "../../git/worktree-marker.js";
+import { decodeWorktreeMarkerOwnership, readWorktreeMarker, removeWorktreeMarker, resolveWorktreeMarkerPath } from "../../git/worktree-marker.js";
 import { classifyUnboundMarker } from "../../locus/unbound-marker.js";
 import { sameOwner, type OwnerIdentity } from "../../store/identity.js";
 import type { Store } from "../../store/contract.js";
@@ -101,8 +100,7 @@ async function retireHolder(ctx: Bound, invokingPath: string, selected?: Selecte
     if (!marker.marker.spawnedByArc || resolve(path) === resolve(ctx.primaryPath)) {
       const released = await releaseWorktreeCheckout({ exec: ctx.exec, checkoutPath: path, primaryWorktreePath: ctx.primaryPath, slots: ctx.projectionRemovalSlots });
       if (released.kind !== "released") throw new Error(describeRemovalRefusal(released.check));
-      if (fs.removeFile === undefined) await rm(resolveWorktreeMarkerPath(path), { force: true });
-      else await fs.removeFile(resolveWorktreeMarkerPath(path));
+      await removeWorktreeMarker(path, fs.removeFile?.bind(fs));
       ctx.notices.push(`Released checkout ${path}; its files were retained.`);
       return null;
     }

@@ -652,9 +652,6 @@
   "src/lib/active/meta-reader.ts": {
     "arc/surface-names": {
       "count": 1
-    },
-    "arc/work-unit-paths": {
-      "count": 1
     }
   },
   "src/lib/advisory-lock.ts": {

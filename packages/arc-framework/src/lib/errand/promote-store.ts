@@ -86,6 +86,7 @@ async function replace(input: StorePromotionOptions, source: OrdinaryErrandRecor
   const placement = recordWritePlacement(basis);
   const links = mergeLifecycleLinks(basis.links, { branches: [{ repository: options.repository, ref: branch, linkedAs: "created", excluded: inherited.excluded }] });
   const settlement = await settleCreationSlugEdges(options.store, options.name, reference.owner);
+  const metaPath = await workUnitMetaPath(options.cwd, { ...basis, reference });
   const written = await batchLifecycleWrites(options.store, [{ action: "put", reference, expected: basis.version, content,
     ...(placement === undefined ? {} : { placement }), links }, ...settlement.writes],
   { verb: "errand-promote", lifecycleAction: "promote", codeHead: tip }, settlement.observations);
@@ -96,7 +97,7 @@ async function replace(input: StorePromotionOptions, source: OrdinaryErrandRecor
   if (meta.status === "refused") return refused(meta.refusal.condition);
   const conflict = primaryConflict(meta.result);
   if (conflict !== undefined) return refused(conflict);
-  return receipt(options, meta.result, source, branch, "applied");
+  return receipt(options, meta.result, source, branch, "applied", metaPath);
 }
 function primaryConflict(record: StoreRecord): string | undefined {
   return record.conflicts.length === 0 ? undefined
@@ -129,12 +130,13 @@ async function recover(options: StorePromotionOptions): Promise<PromotionFrameRe
   const branch = `${options.type ?? "feat"}/${options.name}`;
   const linked = meta.links?.branches?.some((link) => link.repository === options.repository && link.ref === branch && link.linkedAs === "created");
   if (!linked) return refused("The promoted work branch's created link is missing.");
+  const metaPath = await workUnitMetaPath(bound.cwd, meta);
   const current = await localBranchTip(bound, branch);
   if (current !== undefined && current !== tip) return refused(
     `Promotion branch conflict: ${branch} is at ${current}, but the role write recorded ${tip}. Preserve the existing branch, repair the target to that recorded cut (or move the unrelated branch aside), then retry this exact promotion.`);
   if (current === undefined) await options.exec("git", ["branch", branch, tip], { cwd: bound.cwd });
   await options.exec("git", ["switch", branch], { cwd: bound.cwd });
-  return receipt(bound, meta, source, branch, "idempotent");
+  return receipt(bound, meta, source, branch, "idempotent", metaPath);
 }
 function sourceOwnerRefusal(identity: string, source: TransientIdentityRecordV3): string | null {
   if (source.kind !== "errand" || source.purpose !== "errand") return null;
@@ -160,9 +162,9 @@ function sourceFromHistory(entries: readonly HistoryEntry[], slug: string,
   return undefined;
 }
 function receipt(options: BoundStorePromotionOptions, meta: StoreRecord, source: OrdinaryErrandRecord, branch: string,
-  kind: "applied" | "idempotent"): PromotionFrameReceipt {
+  kind: "applied" | "idempotent", metaPath: string): PromotionFrameReceipt {
   return { ...options.frame, kind, subject: { slug: source.slug, claimId: source.claimId },
-    generation: `errand-v1/${source.slug}/${source.claimId}`, branch, metaPath: workUnitMetaPath(meta),
+    generation: `errand-v1/${source.slug}/${source.claimId}`, branch, metaPath,
     metaCommitted: true, uid: ownerHolderRequest(meta).uid, originEntry: source.originEntry,
     originEntrySourceDigest: source.origin === "inbox" ? source.originEntrySourceDigest as CanonicalDigest | null : null };
 }

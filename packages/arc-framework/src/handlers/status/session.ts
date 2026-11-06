@@ -114,7 +114,7 @@ export function createHandoffProbes(
         if (active === null) return { commitsSinceHandoff: [], tasksClosedSinceHandoff: [], noteFileChangesSinceHandoff: [], baselineSignal: "baseline-unknown" as const };
         const resolved = await store.lookup({ kind: "slug", slug: SlugSchema.parse(active.subject.key) });
         if (resolved.status === "refused") throw new Error(`${resolved.refusal.condition} ${resolved.refusal.remedy.text}`);
-        return deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: resolved.result.reference, identity, sync: context.storeSync });
+        return deriveRestateCandidates({ cwd, exec, sessionNotes: null, store, workUnit: resolved.result.reference, identity, sync: context.storeSync });
       }
       let sessionNotes: string | null = null;
       if (identity !== null) {
