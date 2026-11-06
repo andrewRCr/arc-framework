@@ -169,6 +169,34 @@ figures are not landing evidence. The final line was `arc-offload: exit 0 on m4-
 fallback. The driver and raw output are in this worktree's personal `test-typecheck-heap/evidence/` as
 `parity-probe.mjs` and `parity-qualification.log`.
 
+### Native address-space margin
+
+On 2026-11-06, pinned run `cb366ba4746d498d8c968e60eb777705` sampled the native unit-b compiler at HEAD
+`2c953db69f`, snapshot `9fe565ffed38f68af96704b5653fa4a86ca49be9`, under a 6000 MiB soft limit and one checker after
+removing incremental state. Across 450 native samples, the largest `VmPeak` minus `VmHWM` was 1,273.1171875 MiB;
+peak RSS was 2,128.71484375 MiB. The run ended with `arc-offload: exit 0 on m4-mini (m4-mini-runner)`, without fallback.
+
+The desktop's 1,305 MiB gap remains larger, so the margin stays at 1,817 MiB: 1,305 plus 512, above the 1,331 MiB
+floor. No constant change is needed. The driver and raw output are `gap-probe.mjs` and `m4-native-gap.log` in this
+worktree's personal `test-typecheck-heap/evidence/`.
+
+After the host returned to `speed`, the WSL probe passed on 2026-11-06 at the same HEAD, with both inherited
+address-space columns at 2,147,483,648 bytes. The unchanged root `npm run -s typecheck:test` attempted all five
+shards, each reported Go's `fatal error: out of memory` and its native peak, and npm exited 2. Peaks in name order
+were integration 810 MiB, integration-store 771 MiB, rest 815 MiB, unit-a 781 MiB and unit-b 784 MiB.
+
+This qualification used Node 24.15.0 throughout `PATH` and explicit caller settings
+`NODE_OPTIONS="--max-old-space-size=128 --max-semi-space-size=1 --disable-wasm-trap-handler"`. The small Node heap and
+young generation keep the controller within its inherited address space; disabling the WebAssembly trap handler
+lets tsx's lexer initialize without a large virtual reservation. No compiler setting, source or cap was changed.
+Default Node 26.3.0 aborted in loader-worker initialization; default Node 24.15.0 failed to allocate WebAssembly
+memory. Disabling the trap handler alone with the small heap let Node 24 start, but the controller later exhausted
+its semi space. The qualifying result is specific to the documented caller settings, not default runtime startup.
+
+The driver, full compiler output and concise qualification are `inherited-limit-probe.py`, `inherited-2g-raw.log`
+and `inherited-2g-node24-small-semi.log` in the personal evidence directory. Failed diagnostic runs are retained
+beside them. The earlier admission refusal under `required` launched no process; no mode override was applied.
+
 ## TypeScript 7 observations
 
 - With no `GOMEMLIMIT`, TS 7 ran out of memory under a 6 GiB address-space cap at about 4.7 GiB in use, with four

@@ -158,19 +158,15 @@ measured gap.
   append to `GITHUB_STEP_SUMMARY` without replacing its content; source and unmarked lines never append.
   Summary I/O is advisory and preserves the compiler status, including zero and non-zero exits.
 
-### `[ ]` **3.4 Set the backstop margin from m4-mini's gap and probe the backstop — D3**
+### `[x]` **3.4 Set the backstop margin from m4-mini's gap and probe the backstop — D3**
 
 - _Goal:_ The margin constant is 512 MiB above the larger of the desktop's gap and m4-mini's, never below 1,331 MiB.
   Under an inherited `ulimit -v` of 2 GiB, `npm run typecheck:test` fails with a non-zero status and a peak line for
   each shard.
 
-- _Note:_ See `notes-test-typecheck-heap.md` § Measuring on m4-mini for how the sample is taken and recorded.
-
-    - Sample `VmPeak` − `VmHWM` of the native binary once on m4-mini, under a 6000 MiB `GOMEMLIMIT` and one checker,
-      through a one-off pinned `arc-offload` command whose placement its `exit … on m4-mini` line proves, as the notes'
-      Placement bullet reads it; record the figure in the notes
-    - Update the constant only when m4-mini's gap is larger than the desktop's 1,305 MiB
-    - Probe: `ulimit -v 2097152` around `npm run typecheck:test` on WSL; every shard fails and prints its peak line
+- _Outcome:_ m4-mini's 1,273.1171875 MiB native gap leaves the margin at 1,817 MiB. Under an inherited 2 GiB
+  soft and hard limit, all five shards report Go out-of-memory failures and retain their peak lines; npm exits 2.
+  The Node 24 caller settings and evidence are recorded in `notes-test-typecheck-heap.md`.
 
 ## **Phase 4:** Typed linting through the script, CI heaps and the records
 
