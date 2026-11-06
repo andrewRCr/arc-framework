@@ -3,7 +3,7 @@
   "slug": "frontline-local-base-admission",
   "claimId": "bf9c6e1a8e808e90593b4e92adc2290b",
   "createdAt": "2026-11-05T23:03:31.836Z",
-  "updatedAt": "2026-11-05T23:03:31.836Z",
+  "updatedAt": "2026-11-06T00:30:27.349Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Refuse frontline resolution when the supplied diff base differs from the local base branch merge base, with an actionable fast-forward remedy.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Refuse a frontline review whose diff base the local base ref does not reproduce before the provider runs",
   "originEntrySourceDigest": "sha256:52568df9f337eb455a4a0226f45454d82ee9d46905666cdfdac4a4e2d49ed94a",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/frontline-local-base-admission",
+    "headSha": "ccf358d3e8dee0c4e3bf13c4d412cdb51dc8bf88"
+  }
 }
