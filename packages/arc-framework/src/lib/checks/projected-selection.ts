@@ -61,7 +61,7 @@ function decodeSelection(result: Awaited<ReturnType<ProjectedSelectionIO["run"]>
   const refusal = SelectionRefusalSchema.safeParse(output);
   if (refusal.success) return unavailableRefusal(refusal.data.refusal);
   if (result.exitCode !== 0) return { status: "unavailable", reason: result.stderr.trim() || result.stdout.trim()
-    || `arc selection exited ${result.exitCode}; repair the command failure, then retry.` };
+    || `arc selection: exited ${result.exitCode}; repair the command failure, then retry.` };
   const selected = SelectionPathsSchema.safeParse(output);
   return selected.success ? { status: "ok", paths: selected.data.paths }
     : { status: "unavailable", reason: "arc selection returned an invalid JSON path list; repair its output, then retry." };
