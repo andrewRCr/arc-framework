@@ -6,7 +6,7 @@ import type { TakeInRead } from "./take-in-port.js";
 import { gitBlobId } from "./blob-id.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { installWriteBack } from "./read-back.js";
-import { readTakenInCopy, recordWriteBack } from "./taken-in.js";
+import { readRetainedBase, RetainedBaseUnavailable, recordWriteBack } from "./taken-in.js";
 import { createHistoryMemo } from "./base-recovery.js";
 import { createKindRegistry } from "../registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
@@ -41,6 +41,7 @@ export async function resumeAdoptionReadBack(root: ProjectionRootState, index: P
   index = await completeAdoptionRecording(root, index, path, entry, read.result);
   const recorded = index.entries[path];
   if (recorded?.kind !== "record") throw new Error("Accepted adoption lost its record entry");
+  if (recorded.adoption?.kind === "read-back" && recorded.adoption.recording) return index;
   if (recorded.adoption === undefined) return index;
   entry = recorded;
   if (!root.writable(path)) return index;
@@ -59,7 +60,13 @@ async function completeAdoptionRecording(root: ProjectionRootState, index: Proje
   if (adoption?.kind !== "read-back" || !adoption.recording) return index;
   const persisted = entry.persisted;
   if (persisted?.takenIn.kind !== "copy") throw new Error("Unfinished adoption recording needs its accepted input copy");
-  const takenIn = await readTakenInCopy(root.location, persisted.takenIn.name);
+  let takenIn: string;
+  try {
+    takenIn = await readRetainedBase(root.location, persisted.takenIn.name);
+  } catch (error) {
+    if (!(error instanceof RetainedBaseUnavailable)) throw error;
+    return holdReadBack(root, index, path, entry, error.mark);
+  }
   const recorded = await recordWriteBack({ location: root.location, checkpoint: root.context.checkpoint, entry,
     stamp: persisted.stamp, takenIn, outcome: { kind: "landed", version: persisted.takenIn.version }, readBack: record,
     grammar: kinds[entry.reference.kind].entry, format: root.context.format,

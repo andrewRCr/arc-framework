@@ -4,11 +4,13 @@ import { createWriteBackFixture } from "../../../helpers/store/projection/write-
 import { prepareWriteBack } from "../../../../src/lib/store/projection/write-back.js";
 import { writeBackFile } from "../../../../src/lib/store/projection/read-back.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
+import { createHistoryRefusingStore } from "../../../helpers/store/projection/history-refusing-store.js";
 import { createCountingStore } from "../../../helpers/store/counting-store.js";
+import { TAKEN_IN_FOLDER } from "../../../../src/lib/store/projection/taken-in.js";
 import { createHistoryMemo } from "../../../../src/lib/store/projection/base-recovery.js";
 
 let fixture: Awaited<ReturnType<typeof createWriteBackFixture>> | undefined;
@@ -66,6 +68,38 @@ describe("selecting a write-back base", () => {
     expect(await prepareWriteBack(context, fixture.request)).toMatchObject({ kind: "ready", write: { expected: fixture.entry.base.version } });
     expect(counted.count({ operation: "history", input: { reference: fixture.entry.reference } })).toBe(0);
   });
+
+  it.each(["matching", "unknown", "missing", "recovery", "no-history"].flatMap(stamp =>
+    ["missing-copy", "directory-copy"].map(fault => ({ stamp, fault }))))(
+    "holds a $stamp Markdown base with $fault and retries after repair", async ({ stamp, fault }) => {
+      fixture = await createWriteBackFixture(stamp === "no-history" ? { kind: "work-item/companion" } : {});
+      const remote = await fixture.store.write({ action: "put", reference: fixture.entry.reference,
+        expected: fixture.entry.base.version, content: "opening\nbase\nclosing\nremote addition\n",
+        provenance: { verb: "edit", lifecycleAction: "edit" } });
+      if (remote.status !== "ok") throw new Error("Remote edit refused");
+      await fixture.edit("opening\nfirst edit\nclosing\n");
+      const landed = await writeBackFile(fixture.context, fixture.index, fixture.request);
+      const kept = landed.result.entry.persisted?.takenIn;
+      if (kept?.kind !== "copy") throw new Error("The merged landing did not retain its input");
+      const payload = join(fixture.location.stateDir, TAKEN_IN_FOLDER, kept.name), backup = `${payload}.saved`;
+      await rename(payload, backup);
+      if (fault === "directory-copy") await mkdir(payload);
+      const content = "opening\nsecond edit\nclosing\n";
+      if (stamp === "missing" || stamp === "no-history") await writeFile(join(fixture.checkout, fixture.path), content);
+      else await fixture.edit(content, stamp === "unknown" ? "f".repeat(40) : fixture.entry.base.blob);
+      const request = { ...fixture.request, entry: landed.result.entry };
+      const store = stamp === "no-history" ? createHistoryRefusingStore(fixture.store, [fixture.entry.reference]).store : fixture.store;
+      const context = { ...fixture.context, store, memo: createHistoryMemo(store), recoveringBase: stamp === "recovery" };
+      expect(await prepareWriteBack(context, request)).toMatchObject({ kind: "held", result: { answer: "pending", entry: { pending: true } },
+        diagnostic: { reason: expect.stringContaining("retained"), remedy: { text: expect.stringContaining("Restore") } } });
+      expect(parseStampedFile(await fixture.file()).content).toBe(content);
+      if (fault === "directory-copy") await rm(payload, { recursive: true });
+      await rename(backup, payload);
+      expect(await prepareWriteBack(context, request)).toMatchObject({ kind: "ready", write: {
+        content: "opening\nsecond edit\nclosing\nremote addition\n",
+      } });
+    },
+  );
 
   it("normalizes stampless content for the store while retaining the raw read's blob", async () => {
     fixture = await createWriteBackFixture({ path: ".arc/personal-document.txt" });

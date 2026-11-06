@@ -6,7 +6,7 @@ import { gitBlobId } from "./blob-id.js";
 import type { RecordEntry, RefusedMark } from "./index-schema.js";
 import { readBaseContent, type BaseSelectionContext } from "./base-content.js";
 import { selectStamplessBase } from "./stampless-base.js";
-import { readTakenInCopy, selectPersistedBase } from "./taken-in.js";
+import { readRetainedBase, RetainedBaseUnavailable, selectPersistedBase } from "./taken-in.js";
 import type { TakeInRequest } from "./take-in-port.js";
 
 /** A resolved base and the stamp recorded for this take-in. */
@@ -21,6 +21,17 @@ export type WriteBackBaseDecision = SelectedWriteBackBase | { readonly kind: "he
 
 /** Select a file's base from its actual stamp, including the content its last persisted write-back took in. */
 export async function selectWriteBackBase(
+  context: BaseSelectionContext, request: TakeInRequest, content: string, stamp: string | null,
+): Promise<StoreResult<WriteBackBaseDecision>> {
+  try {
+    return await selectBase(context, request, content, stamp);
+  } catch (error) {
+    if (!(error instanceof RetainedBaseUnavailable)) throw error;
+    return { status: "ok", result: { kind: "held", mark: error.mark } };
+  }
+}
+
+async function selectBase(
   context: BaseSelectionContext, request: TakeInRequest, content: string, stamp: string | null,
 ): Promise<StoreResult<WriteBackBaseDecision>> {
   const memo = context.memo ?? createHistoryMemo(context.store);
@@ -56,7 +67,7 @@ async function recoverSelectedBase(
   context: BaseSelectionContext & { memo: HistoryMemo }, request: TakeInRequest, content: string, stamp: string | null,
 ): Promise<StoreResult<SelectedWriteBackBase>> {
   const recovered = await recoverBase({ content, entry: request.entry, format: context.format, memo: context.memo,
-    readCopy: name => readTakenInCopy(context.location, name), ignoreIndexedMatch: context.recoveringBase });
+    readCopy: name => readRetainedBase(context.location, name), ignoreIndexedMatch: context.recoveringBase });
   if (recovered.status === "refused") return recovered;
   if (stamp !== null) return { status: "ok", result: { kind: "selected", base: recovered.result, stamp } };
   const blob = recovered.result.kind === "stored" && recovered.result.version === request.entry.base.version

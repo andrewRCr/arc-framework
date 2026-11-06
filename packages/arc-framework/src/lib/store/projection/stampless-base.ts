@@ -8,7 +8,7 @@ import { recoverBase, type HistoryMemo, type RecoveredBase } from "./base-recove
 import { readHistoricalBaseContent, type BaseSelectionContext } from "./base-content.js";
 import type { WriteBackBaseDecision } from "./base-selection.js";
 import { gitBlobId } from "./blob-id.js";
-import { readTakenInCopy } from "./taken-in.js";
+import { readRetainedBase, RetainedBaseUnavailable } from "./taken-in.js";
 import type { TakeInRequest } from "./take-in-port.js";
 import { restoreWriteBackIds } from "./write-back-ids.js";
 import { createMarkerRenderer } from "./marker-render.js";
@@ -101,11 +101,10 @@ async function possibleBases(
 
 async function keptCopy(context: BaseSelectionContext, name: string): Promise<CopyBase | HeldBase> {
   try {
-    return { kind: "copy", content: await readTakenInCopy(context.location, name) };
+    return { kind: "copy", content: await readRetainedBase(context.location, name) };
   } catch (error) {
-    if (!(error instanceof Error) || !("code" in error)) throw error;
-    return { kind: "held", mark: { reason: `The retained write-back base cannot be read: ${error.message}`,
-      remedy: { text: "Restore the retained base copy or recover a projection from readable stored content, then retry." } } };
+    if (!(error instanceof RetainedBaseUnavailable)) throw error;
+    return { kind: "held", mark: error.mark };
   }
 }
 

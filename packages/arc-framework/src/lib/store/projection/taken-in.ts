@@ -14,7 +14,7 @@ import type { RecordVersion } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import { type HistoryMemo } from "./base-recovery.js";
-import type { RecordEntry } from "./index-schema.js";
+import type { RecordEntry, RefusedMark } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
 
 /** The folder under `arc-projection/` that keeps copies of content a persisted write-back took in. */
@@ -85,6 +85,27 @@ export async function readTakenInCopy(location: ProjectionLocation, name: string
   return readFile(join(location.stateDir, TAKEN_IN_FOLDER, name), "utf8");
 }
 
+/** A retained input could not be read; consumers decide whether to hold their file or propagate the failure. */
+export class RetainedBaseUnavailable extends Error {
+  readonly mark: RefusedMark;
+  constructor(cause: Error) {
+    super(`The retained write-back base cannot be read: ${cause.message}`, { cause });
+    this.name = "RetainedBaseUnavailable";
+    this.mark = { reason: this.message,
+      remedy: { text: "Restore the retained base copy or recover a projection from readable stored content, then retry." } };
+  }
+}
+
+/** Read retained input, distinguishing filesystem unavailability from unexpected programming failures. */
+export async function readRetainedBase(location: ProjectionLocation, name: string): Promise<string> {
+  try {
+    return await readTakenInCopy(location, name);
+  } catch (error) {
+    if (!(error instanceof Error) || !("code" in error)) throw error;
+    throw new RetainedBaseUnavailable(error);
+  }
+}
+
 /**
  * Remove kept copies the index no longer names, once the index that stopped naming them is written.
  * @param location - The located checkout.
@@ -138,7 +159,7 @@ export async function selectPersistedBase(input: PersistedBaseInput): Promise<St
   if (input.stamp === null) return { status: "ok", result: null };
   if (input.stamp !== persisted.stamp) return { status: "ok", result: null };
   if (takenIn.kind === "landed") return { status: "ok", result: { kind: "stored", version: takenIn.version } };
-  return { status: "ok", result: { kind: "copy", content: await readTakenInCopy(input.location, takenIn.name) } };
+  return { status: "ok", result: { kind: "copy", content: await readRetainedBase(input.location, takenIn.name) } };
 }
 
 /** How a write-back ended: a landing, which persists, or an outcome that lands nothing. */
