@@ -78,13 +78,12 @@
     - the always-loaded text the flip rewrites includes `DEV-RULES.ARC.md`'s rules that commit state and the rebase
       rule's notes reason (Owner, 2026-11-06; § The workflow rewrite);
     - the ADR dispositions, with two amendments to ADR-035, items 2 and 8, that this unit delivers (Owner, 2026-11-06;
-      § ADR dispositions).
+      § ADR dispositions);
+    - the flip's own landing: import first, then an Owner-directed merge of the head that untracks its records, with
+      no ARC checkpoint (Owner, 2026-11-06; § The order).
 - **Open:**
-    - the order of the flip's own landing against the import (§ The order);
     - a review stop rule, agreed before the second review pass.
-- **Next:**
-    - Settle the landing order (Open), with its ADR disposition.
-    - Then readiness again, the review stop rule, planning review, `arc check increment`, and the capture commit.
+- **Next:** readiness again, the review stop rule, planning review, `arc check increment`, and the capture commit.
 
 ### The cut
 
@@ -241,9 +240,10 @@ window's mechanics need neither, so they run first.
   since it has landed (`68bddbb526`), so its accounting case reports the twenty folders and shows the case catches the
   omission it exists for. The second runs with the backfill and confirms it.
 - **Stage 2, the dress rehearsal,** at the flip branch's head once the flip change builds. On a fresh copy it runs the
-  whole window in order: Stage 1's steps, then the flip change merged and rebuilt, each worktree's first
-  materialization, the checkout carries (#15, #30), and the per-branch untracks and workspace removals (§ The order).
-  Then it runs:
+  whole window in the order § The order sets: Stage 1's steps; the flip's own landing, with the commit untracking its
+  records, a merge into the copy's mirror standing in for the host merge, and its landing and archive written through
+  the store; and each checkout's steps through its first materialization and the checkout carries (#15, #30). Then it
+  runs:
     - the parser check (#5, below), which rests on `projection-write-back`;
     - a work unit driven end to end through the rewritten workflows (#2, below);
     - cases 2 to 7 below, and the other store-backed paths;
@@ -406,7 +406,11 @@ The window runs as ordered steps; the spec sets the exact steps and their abort 
     - every machine's notes brought to the importing machine by `git bundle` or a fetch between machines, since the
       remote notes refs are deleted and the import refuses a notes file that differs from its disk copy (#7);
     - review finished on every machine but the importing one, since the review gate's repository ID is minted per
-      clone and only the importing clone's facts are read (#7).
+      clone and only the importing clone's facts are read (#7);
+    - the flip itself finished up to its merge on today's machinery, at one head: its review settled, its
+      verification done, and CI passing there. Its own `.arc/active/` files and Candidate record stay at its branch tip,
+      where the import reads a live work unit's records (`spec-storage-ref-backend.md` § 10.8), since `main` tracks
+      none of them.
 - **The quiesce** (§ The quiesce, and the check that it holds): every other session handed off and stopped (#2); every
   review attempt in flight on the importing machine finished (#23); ended holders' checkouts and work-unit husks torn
   down (#30); every unlocked marked worktree locked (#19); the check; and a save from every checkout (#34).
@@ -416,20 +420,31 @@ The window runs as ordered steps; the spec sets the exact steps and their abort 
   flip change.
 - **The import's second run,** after the first push: it deletes the transient-identity refs from the remote, each
   leased on the tip the import re-homed, and drops the tips it kept under `refs/arc/tmp/migrate/` (#7).
-- **After the import,** for each checkout and branch:
-    - each remaining checkout's pre-flip marker bound or released, and each checkout claimed in place carried to an
-      anchored marker (§ The rehearsal, the checkout carries; #15, #30);
-    - each in-flight branch untracks its own `.arc/active/` files, and deletes its own copy of a Candidate record that
-      differs from `main`'s (§ Tracked state the import does not claim);
-    - each checkout's pre-flip workspace folder removed once the import has folded its session notes into the meta and
-      moved the rest into `scratch/`.
-- **The flip change merges** to `main`; each checkout merges it, rebuilds, and takes its first materialization.
+- **The flip lands** (below): one commit on its branch untracks its own records, and the Owner merges that exact head
+  in the host's interface. Its landing and archive are then written through the store from its build.
+- **Each checkout,** in turn:
+    - deletes its own copy of a Candidate record that differs from `main`'s, and untracks its own `.arc/active/` files
+      (§ Tracked state the import does not claim);
+    - merges `main` and rebuilds;
+    - removes its pre-flip workspace folder, which the import has folded into the meta's session context and
+      `scratch/`;
+    - takes its first materialization;
+    - has its pre-flip marker bound or released, or, claimed in place, is carried to an anchored marker (§ The
+      rehearsal, the checkout carries; #15, #30).
 - **Notes retire last** (§ Notes retirement).
 
-**The flip's own landing against the import (open).** The flip branch's build selects the ref store, so before the
-import it has no store. After the import, the sealing guard makes every pre-flip build refuse in-repo writes from any
-checkout, the primary included, so every window step between the import and the flip's merge runs from the flip's
-build or plain Git. How the flip's own landing is ordered against the import is not yet settled.
+**The flip's own landing** (Owner, 2026-11-06): import first, then an Owner-directed merge. The flip branch's build
+selects the ref store, so before the import it has no store, and after it the sealing guard refuses every pre-flip
+build's in-repo writes, so neither today's integration checkpoint nor its landing write and archive can run for the
+flip once its records are imported. The store's checkpoint is a canary path no rehearsal reaches (§ The rehearsal), so
+it stays off the flip's own landing. The flip therefore finishes everything before its merge on today's machinery ahead
+of the window. After the import has read its records, one commit untracks them from its branch, so the merged head
+differs from the head reviewed and verified only by deleted state files. The Owner authorizes that exact head, every
+independent check run there first, and merges it in the host's interface; no ARC checkpoint runs. The flip's post-merge
+records are the first lifecycle writes the store takes past the host boundary. Merging after the import keeps the abort
+rule as it stands: until the merge, an abort leaves `main` untouched (§ Abort and recovery). Merging first, through
+today's checkpoint, was the alternative: it would put the merge, which cannot simply be undone, ahead of an import not
+yet shown to hold, and turn an import's abort into a revert of the flip on `main`.
 
 #### The quiesce, and the check that it holds
 
@@ -780,8 +795,8 @@ Document, as the 2026-09-29 amendments refined items 2, 4, 7, and 10:
 
 **`none`, temporary:** one-time window machinery, done or deleted once the window closes. The rehearsal's two stages,
 copy safety, chain comparison, accounting case, and canaries; the quiesce, its check with the Errand-ref tips, and the
-sealing guard; the window's order, and its abort and recovery; no separate import rerun, and A4's selection kept out of
-the window; and the pre-meta backfill.
+sealing guard; the window's order, the flip's own landing by an Owner-directed merge, and its abort and recovery; no
+separate import rerun, and A4's selection kept out of the window; and the pre-meta backfill.
 
 **`none`, not this unit's decision:** the flip applies text a shipped or approved specification settled, whose own
 disposition stands. The task loop, pause and resume, the lifecycle and identity verbs, the delivery and review steps,
