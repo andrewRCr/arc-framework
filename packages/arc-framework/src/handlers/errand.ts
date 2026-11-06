@@ -23,6 +23,8 @@ import { restoreErrandInboxOrigin, type ErrandInboxOrigin } from "../lib/errand/
 
 
 import { openDefaultStore } from "./lifecycle-shared.js";
+import { preCutoverBuildSealed } from "./pre-cutover-seal.js";
+import { StoreImportedError } from "../lib/store/store-imported.js";
 import { readRuntimeErrand } from "../lib/store/errand-runtime-transactions.js";
 import { readFile, readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -205,6 +207,11 @@ async function runErrandHandlerBoundary(
   recommendedPromptText: string,
   run: () => Promise<void>,
 ): Promise<void> {
+  if (await preCutoverBuildSealed(resolveArcRoot(process.cwd()))) {
+    emit(createErrandTerminalResult({ outcome: "refused", operation, subject: null, checkoutPath: null, generation: null,
+      reason: "store-imported", recommendedPromptText: new StoreImportedError().message }), json);
+    return;
+  }
   try {
     await run();
   } catch (error) {
@@ -230,6 +237,11 @@ async function runErrandEntryHandlerBoundary(
   recommendedPromptText: string,
   run: () => Promise<void>,
 ): Promise<void> {
+  if (await preCutoverBuildSealed(resolveArcRoot(process.cwd()))) {
+    emit(createErrandOperationResult({ outcome: "refused", operation, reason: "store-imported",
+      recommendedPromptText: new StoreImportedError().message }), json);
+    return;
+  }
   try {
     await run();
   } catch (error) {
@@ -759,6 +771,10 @@ export async function handleErrandLink(
 
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
+  if (await preCutoverBuildSealed(cwd)) {
+    emitErrandLinkFailure("locus.errand-link.identity", new StoreImportedError().message, opts.json === true, "store-imported");
+    return;
+  }
 
   const { settings } = await readConfigSettings(cwd);
   if (settings["branch.protection"] !== "full") {
@@ -858,7 +874,7 @@ function emitErrandLinkFailure(
   code: ErrandErrorCode,
   message: string,
   json: boolean,
-  reason?: "full-protection-required",
+  reason?: "full-protection-required" | "store-imported",
 ): void {
   emitErrandLinkResult(createErrandOperationResult(reason === undefined ? {
     outcome: "error",
@@ -2024,6 +2040,12 @@ async function runErrandPromoteHandler(
         true,
       );
     }
+    return;
+  }
+  if (await preCutoverBuildSealed(cwd)) {
+    emitErrandPromoteResult(createErrandPromotionResult({ outcome: "refused", operation: "errand-promote", subject: null,
+      checkoutPath: null, generation: null, reason: "store-imported", recommendedPromptText: new StoreImportedError().message }),
+    opts.json === true);
     return;
   }
 

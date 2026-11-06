@@ -16,6 +16,7 @@ import { SlugSchema } from "../../src/lib/kernel/schema/slug.js";
 import { CandidateManagedRecordV1Schema, createCandidateAttestation, serializeCandidateManagedRecord } from "../../src/lib/work-unit/candidate-attestation.js";
 import { importFixture } from "../helpers/store/import-fixture.js";
 import { invokeStoreMigrate } from "../helpers/store/migrate-command.js";
+import { storeImported } from "../../src/lib/store/store-imported.js";
 
 describe("tracked import entry", () => {
   it.each(["default", "separate"] as const)("reports a %s trial without minting the gate identity or landing state", async (layout) => {
@@ -28,6 +29,7 @@ describe("tracked import entry", () => {
     expect(report.notices.some(({ condition }) => /mint.*(?:identity|ID)/u.test(condition))).toBe(true);
     expect(report.refs.some(({ ref }) => ref.startsWith("refs/arc/work/"))).toBe(true);
     expect((await h.git("git", ["for-each-ref", "--format=%(refname)", "refs/arc/"])).stdout).toBe("");
+    expect(await storeImported(h.root)).toBe(false);
     await expect(readdir(join(h.root, ".git/arc/review-gate"))).rejects.toMatchObject({ code: "ENOENT" });
   });
   it.each(["default", "separate"] as const)("lands the selected %s layout under the review gate project ID", async (layout) => {
@@ -41,6 +43,7 @@ describe("tracked import entry", () => {
       kind: "project-registry/identity", owner: { type: "project", name: "project" },
     }) }));
     expect(JSON.parse(identity.content)).toEqual({ projectId: id });
+    expect(await storeImported(h.root)).toBe(true);
     const meta = success(await store.read({ reference: RecordReferenceSchema.parse({
       kind: "work-item/meta", owner: { type: "work-item", name: "alpha" },
     }) }));

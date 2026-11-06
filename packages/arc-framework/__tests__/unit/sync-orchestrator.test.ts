@@ -16,6 +16,7 @@ import { join } from "node:path";
 import { describe, it, expect, vi, beforeAll, beforeEach, type Mock } from "vitest";
 
 import { UserFacingError } from "../../src/lib/errors.js";
+import { storeImportedRefusal } from "../../src/lib/store/store-imported.js";
 import { GitProcessError } from "../../src/lib/git/process-error.js";
 import type {
   WorktreeMaterializingInspectionResult,
@@ -73,6 +74,12 @@ vi.mock("../../src/commands/user.js", async () => {
     recordErrandPartialPushMarker: (...args: unknown[]) => mockRecordErrandPartialPushMarker(...args),
   };
 });
+
+const mockStoreImported = vi.hoisted(() => vi.fn<() => Promise<boolean>>());
+vi.mock("../../src/lib/store/store-imported.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../src/lib/store/store-imported.js")>(),
+  storeImported: () => mockStoreImported(),
+}));
 
 const mockReconcileErrandPush = vi.fn();
 vi.mock("../../src/lib/errand/index.js", () => ({
@@ -1509,6 +1516,27 @@ describe("error-path envelope coverage", () => {
     expect(process.exitCode).toBe(1);
     expect(mockResolveAllSettings).not.toHaveBeenCalled();
     expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
+  });
+
+  it("store-imported + --json → refuses before any leg, carrying the refusal in the envelope", async () => {
+    mockStoreImported.mockResolvedValueOnce(true);
+
+    const cap = makeCapturingSyncOutput();
+    const stdoutWrite = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    let writes: string[];
+    try {
+      await handleSync({ json: true }, cap.output, makeTestContext({ machineReadable: true }));
+      writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
+    } finally {
+      stdoutWrite.mockRestore();
+    }
+
+    expect(writes).toHaveLength(1);
+    expect(JSON.parse(writes[0] ?? "")).toEqual({ cell: "none", reason: "store-imported", refusal: storeImportedRefusal() });
+    expect(cap.stderr.join("")).toContain("store.imported");
+    expect(process.exitCode).toBe(1);
+    expect(mockResolveAllSettings).not.toHaveBeenCalled();
+    expect(mockRunUserSave).not.toHaveBeenCalled();
   });
 
   it("no-arc-project + non-JSON → routes diagnostic via clack log; no envelope on stdout", async () => {

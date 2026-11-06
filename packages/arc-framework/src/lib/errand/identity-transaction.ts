@@ -23,6 +23,7 @@ import {
 } from "./ref-tree.js";
 
 import { reconcileIdentityObjects } from "./identity-object-reconcile.js";
+import { storeImportedHere, StoreImportedError } from "../store/store-imported.js";
 
 /** Caller decision over one freshly reconciled complete identity basis. */
 export type IdentityTransformDecision<T> =
@@ -84,6 +85,7 @@ export async function transactTransientIdentities<T>(
   io: ErrandRecordIO,
   params: IdentityTransactionParams<T>,
 ): Promise<IdentityTransactionOutcome<T>> {
+  if (await storeImportedHere(io.exec)) return { kind: "refused", reason: new StoreImportedError().message };
   const ref = errandsRef(io.identity);
   let lastRetry: RetryResult | null = null;
   for (let attempt = 0; attempt < MAX_RECONCILE_ATTEMPTS; attempt += 1) {

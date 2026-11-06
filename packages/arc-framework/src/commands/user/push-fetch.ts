@@ -1,4 +1,6 @@
 import { runPushabilityStatus } from "../../lib/git/index.js";
+import { refuseWriteIfStoreImported } from "../../lib/store/store-imported.js";
+import { resolveArcRoot } from "../../lib/paths.js";
 import {
   isCasRejectionError,
   isNonFastForwardError,
@@ -66,6 +68,7 @@ const FETCH_UPDATE_CAS_ATTEMPTS = 3;
  */
 export async function runUserPush(options: UserPushOptions): Promise<UserPushResult> {
   const { cwd, io, identity, force, access, worktreeBranch } = options;
+  await refuseWriteIfStoreImported(cwd ?? resolveArcRoot(process.cwd()) ?? process.cwd(), io.exec);
 
   if (access) {
     const pushability = await runPushabilityStatus({
@@ -151,7 +154,8 @@ export async function hasLocalNotes(
  * @param options - Fetch options
  */
 export async function runUserFetch(options: UserFetchOptions): Promise<UserFetchResult> {
-  const { io, identity } = options;
+  const { cwd, io, identity } = options;
+  await refuseWriteIfStoreImported(cwd, io.exec);
   const ref = `refs/notes/${notesRef(identity)}`;
   const tempRef = `${ref}__fetch_${uniqueRefToken()}`;
   const localTip = await readLocalRefHash(io, ref);
@@ -201,7 +205,7 @@ export async function runUserPull(
   options: UserPullOptions,
 ): Promise<UserPullResult> {
   const { cwd, io, identity, currentWuName } = options;
-  const fetch = await runUserFetch({ io, identity });
+  const fetch = await runUserFetch({ cwd, io, identity });
   if (!isFetchSuccess(fetch)) return fetch;
   return runUserLoad({ cwd, io, identity, currentWuName });
 }
