@@ -9,6 +9,7 @@
 - [The base of a file other than Markdown](#the-base-of-a-file-other-than-markdown)
 - [Grounding against `storage-ref-hardening`](#grounding-against-storage-ref-hardening)
 - [A1 — Explicit folder ownership](#a1--explicit-folder-ownership)
+- [A3 — Explicit parser exceptions](#a3--explicit-parser-exceptions)
 
 ## Spike evidence
 
@@ -292,3 +293,20 @@ Missing or competing evidence stays a recoverable, visible refusal; no prefix he
 prospective stub's meta is evidence for its proposed container, not permission to bypass the existing stub checks or
 minting. The correction belongs to the file inverse and its adoption/overlap composition, with a bounded test covering
 both interpretations and successful adoption of the same bytes after ownership repair.
+
+## A3 — Explicit parser exceptions
+
+The superseded rehearsal promise in § 7.6 was: "`storage-cutover`'s rehearsal confirms every hand-editable projected kind
+has its parser and every entry kind its entry shape". Section 18 repeated the same universal parser requirement.
+
+`createKindRegistry(PRODUCTION_REGISTRATIONS)` leaves the parsers for `work-item/notes`, `personal/document`, and
+`personal/session-context` empty while `composeLinkChecks` supplies their checks. No consumer requires decoded Store
+fields for these kinds: notes consumers read content or reference/history, and personal-document consumers use raw
+content and path admission. `runLegacyStoreUserReferenceReconcile` reads session content; `foldImportSession` owns its
+tolerant legacy conversion and repair refusal. `copyDecomposeArtifact` separately requires an H1 when copying notes.
+Those local requirements remain; the exception establishes no universal parser schema for them.
+
+The named exceptions preserve the rehearsal's complete inventory without hiding missing parsers behind an undefined
+prose category. `DESIGN_REGISTRATIONS` still parses companions to expose Purpose. `identifyArcFileAddress` and
+`classifyStoreAddress` expose no errand-queue file, so its missing check is outside that inventory. A3 changes only the
+acceptance record; registered parsers, link checks, backend validation, and write authority retain their behavior.

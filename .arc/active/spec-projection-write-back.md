@@ -674,8 +674,9 @@ residual of under 1% (§ Spike 6).
 
 #### 7.1 Parse, send, and the store's merge
 
-- **Parse.** Write-back reads a hand-edited file through its kind's parser, from the production registration set
-  (`lib/store/kinds/registrations.ts`), and skips and reports a file that fails to parse (D13).
+- **Parse.** Write-back runs the kind's registered parser where present, with the three intentional exceptions § 7.6
+  names (A3). `checkContent` and `checkParsedHandEdit` read the production registration set
+  (`lib/store/kinds/registrations.ts`) and skip and report a file that fails to parse (D13).
 - **Before the send.** Write-back's steps up to the send — the read under the settle rule
   (`spec-projection-substrate.md` § 4), a file other than Markdown read against its index entry there on the text as
   read (its § 3.7), parse-back (§ 6.4), the base's selection over that content (below), each entry parse-back refused
@@ -849,10 +850,17 @@ consumes them. Every kind with a ref family that projects a file carries ARC's l
 it registers (`RECORD_LINK_KINDS` and `composeLinkChecks`, `lib/store/kinds/in-repo-registrations.ts`, over
 `checkRecordLinks`), so a hand edit that breaks a record link comes back as a refused edit like any other rule. An empty
 parser slot needs no rule here: write-back is a contract `write`, which D5 lets land unvalidated, and merge takes a
-kind's entry shape from its mechanism, not its parser. Write-back is dark until the flip, so a missing parser or entry
-shape is the flip's to catch: `storage-cutover`'s rehearsal confirms every hand-editable projected kind has its parser
-and every entry kind its entry shape (§ 18). Write-back adds no rule for an entry kind whose grammar is not yet declared
-(Owner, 2026-10-13): where a backend refuses one as a terminal `unhomed-kind` (`spec-storage-ref-backend.md` § 5.1),
+kind's entry shape from its mechanism, not its parser. Write-back is dark until the flip, so `storage-cutover`'s rehearsal
+inventories every hand-editable projected kind, requiring its registered parser or an explicit intentional exception,
+and every entry kind's declared entry shape (§ 18). The three parser exceptions are `work-item/notes`,
+`personal/document`, and `personal/session-context`: they carry content without parser-derived fields (A3).
+`createKindRegistry` retains their empty parser slots; `checkContent` and `checkParsedHandEdit` run registered parsers
+where present and continue the kind's checks. Their composed `checkRecordLinks`, backend serialization checks, write
+authority, and validation local to particular operations remain in force. These exceptions admit no missing entry
+grammar. `personal/errand-queue` has no recognized projected address in `identifyArcFileAddress` and
+`classifyStoreAddress`, so it is outside the hand-editable projected inventory; its absent check slot is not another
+exception. Write-back adds no rule for an entry kind whose grammar is not yet declared (Owner, 2026-10-13): where a
+backend refuses one as a terminal `unhomed-kind` (`spec-storage-ref-backend.md` § 5.1),
 write-back reports it as a refused edit carrying the backend's remedy.
 
 #### 7.7 A clash found in the checkout stays in its file
@@ -1837,7 +1845,8 @@ entries come first.
   stays unadopted and refuses every removal (§ 9, `spec-projection-worktrees.md` § 12.2), nor the `backlog/` inbox
   template, which installs at the path the projection writes the project inbox to (`lib/layout/projection.ts`), so an
   install there writes over a projected file, while the ROADMAP template's install entries leave in the flip change; the
-  live rehearsal, which confirms every hand-editable projected kind has its parser and every entry kind its entry shape;
+  live rehearsal, which inventories every hand-editable projected kind's parser or named intentional exception and every
+  entry kind's declared entry shape, with the three parser exceptions and retained checks § 7.6 defines (A3);
   the flip's workflow rewrite, which names `arc save` where workflows name `arc user save`
   (`spec-projection-substrate.md` § 12.6); the deletion pass, which removes the user-surface rooting and its migration
   (`spec-projection-worktrees.md` § 12.8); and the documentation pass, which rewrites `strategy-work-organization.md`
@@ -1888,9 +1897,10 @@ _These considerations cover the design the three members build together; § 1.1 
   (`notes-projection-substrate.md`, `notes-projection-write-back.md`, `notes-projection-worktrees.md`). A refresh is
   retryable, so a refused one marks its file pending rather than failing the command. The residuals the design accepts
   are named (§ 17).
-- **Trust boundary.** A hand edit is untrusted input. It reaches the store only through its kind's parser, the write
-  check with a hand edit as the writer, and the backend's own checks at the write, which parse a stale base's merged
-  content and enforce the authority rules however the edit arrives (§ 7). Write-back sets its provenance itself, never
+- **Trust boundary.** A hand edit is untrusted input. `checkContent` and `checkParsedHandEdit` run its kind's registered
+  parser where present, with the three intentional exceptions § 7.6 names (A3), and its write check with a hand edit as
+  the writer. The backend's own checks at the write parse a stale base's merged content where its parser is registered
+  and enforce the authority rules however the edit arrives (§ 7). Write-back sets its provenance itself, never
   from the file (§ 7.4), and the serialization rules refuse binary content, oversized records, `.env` files, and private
   keys (§ 7.5).
 - **Ignore integrity.** The guard keeps every projected path ignored, `.arc/user/*/` in `.gitignore` itself, so no
@@ -1937,6 +1947,11 @@ _These considerations cover the design the three members build together; § 1.1 
    base's record version, under `write-back` or `save`, and the store's merge and write check decide it; a change to a
    verb-owned field is refused and stays in its file; one refused edit blocks no other; each store refusal is handled as
    § 7.8 states; and the `after` view's conformance case passes over each backend that runs checks.
+
+   **Deviation (A3):** Registered parsers run where present. `work-item/notes`, `personal/document`, and
+   `personal/session-context` intentionally have no parser-derived fields; their kind checks, backend validation, and
+   write authority remain in force (§ 7.6).
+
 4. **Nothing an edit could lose is dropped silently.** An edit to a protected or archived file another person owns, an
    unadopted file, a file that fails to parse, a refused edit, a file held by a conflict, a clash found in the checkout
    included, a file other than Markdown whose candidate bases disagree, drawn into once and held until they agree or
@@ -1973,5 +1988,7 @@ this design open.
   _Supersedes:_ none. _Trigger:_ 2.4.b must-stop. _Work:_ 2.4.R. _Revalidated:_ 2.4.R.c.
 - **A2** — 2026-11-06 — spec-depth: make cohort-generation authority explicit for file adoption.
   _Supersedes:_ none. _Trigger:_ 2.8.a must-stop. _Work:_ 2.8.R. _Revalidated:_ 2.8.R.c.
+- **A3** — 2026-11-06 — design: inventory parsers with three explicit exceptions.
+  _Supersedes:_ §7.6 ¶1; §18 storage-cutover. _Trigger:_ 3.1 review. _Work:_ none. _Revalidated:_ pending → 3.1.
 
 ---

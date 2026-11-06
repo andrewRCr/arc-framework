@@ -515,6 +515,10 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   `write-back` or `save`; a verb-owned field change is refused and kept in its file; one refused edit blocks no other;
   each store refusal takes its path; and the `after` view's conformance case passes over each backend that runs checks.
 
+  **Deviation (A3):** Registered parsers run where present. `work-item/notes`, `personal/document`, and
+  `personal/session-context` intentionally have no parser-derived fields; their kind checks, backend validation, and
+  write authority remain in force (spec § 7.6).
+
 - `[ ]` An edit to a protected or another person's archived file, an unadopted file, a file that fails to parse, a
   refused edit, a file held by a conflict, a clash found in the checkout included, a file other than Markdown whose
   candidate bases disagree, drawn into once and held until they agree or `arc save --resolve` sends it, and a file not
