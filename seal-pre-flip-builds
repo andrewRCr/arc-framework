@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "seal-pre-flip-builds",
+  "claimId": "0ba96e52b41b6a4217c3a4a958e56893",
+  "createdAt": "2026-11-06T02:46:18.071Z",
+  "updatedAt": "2026-11-06T02:46:18.071Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Refuse in-repo state writes and notes writes once the store is imported, naming merge base and rebuild",
+  "branch": "chore/seal-pre-flip-builds",
+  "origin": "inbox",
+  "originEntry": "Seal pre-flip builds: refuse in-repo state writes and notes writes once the store is imported",
+  "originEntrySourceDigest": "sha256:6316be9517afef596f318640c0e2667f7830c90ca2506785ab59dc7579d140d9",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
