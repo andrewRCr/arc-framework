@@ -23,7 +23,7 @@ export async function planRenameMemberHeading(store: Store, input: {
 }): Promise<RuleObservation<RenameMemberHeadingPlan>> {
   const document = input.records.find(record => record.reference.kind === "cohort/document");
   if (document === undefined) return { status: "known", value: { rewrite: true, edits: [], observations: [] } };
-  const observations: RecordObservation[] = [], candidates: CohortHoldingCandidate[] = [];
+  const observations: RecordObservation[] = observeRecords([document]), candidates: CohortHoldingCandidate[] = [];
   for (const entry of input.entries) {
     const named = entry.reference.owner.name === input.source || entry.aliases?.some(alias => alias === input.source) === true;
     if (sameOwner(entry.reference.owner, input.primary.reference.owner) || !named) continue;
@@ -50,7 +50,6 @@ export async function planRenameMemberHeading(store: Store, input: {
 async function observeHeadingRead(store: Store, input: ReadInput, observations: RecordObservation[]): Promise<StoreResult<StoreRecord>> {
   const result = await store.read(input);
   if (result.status === "ok") observations.push(...observeRecords([result.result]));
-  else if (result.refusal.code === "not-found") observations.push({ reference: input.reference, expected: null });
   else if (result.refusal.code === "ambiguous-match") {
     for (const reference of result.refusal.candidates) {
       const candidate = await store.read({ reference });
