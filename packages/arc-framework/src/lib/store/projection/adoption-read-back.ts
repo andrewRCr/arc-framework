@@ -38,7 +38,6 @@ export async function resumeAdoptionReadBack(root: ProjectionRootState, index: P
   if (read.status === "refused") return holdReadBack(root, index, path, entry, {
     reason: `The edit landed, but read-back failed: ${read.refusal.condition}`, remedy: read.refusal.remedy,
   });
-  root.unsent.delete(path);
   index = await completeAdoptionRecording(root, index, path, entry, read.result);
   const recorded = index.entries[path];
   if (recorded?.kind !== "record") throw new Error("Accepted adoption lost its record entry");
@@ -49,6 +48,7 @@ export async function resumeAdoptionReadBack(root: ProjectionRootState, index: P
     base: { kind: "blob" as const, blob: entry.base.blob } };
   const installed = await installWriteBack(root.context, index, request, { kind: "landed", record: read.result,
     result: { answer: "taken-in", entry: request.entry, read: adoption.read } });
+  if (installed.result.answer === "taken-in") root.unsent.delete(path);
   return commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: completeReadBack(installed.index, path), checkpoint: root.context.checkpoint });
 }

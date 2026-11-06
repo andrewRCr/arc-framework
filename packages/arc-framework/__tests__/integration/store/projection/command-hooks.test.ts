@@ -46,6 +46,38 @@ describe("projection command hooks", () => {
     expect(events.filter(event => event.stream === "stderr").map(event => event.text).join("")).not.toContain("task-list.close");
   });
 
+  it("reports repeated saves left pending before output and sends the latest bytes on the next command", async () => {
+    const h = await createEngineFixture(directories);
+    let saving = true;
+    let revision = 1;
+    await h.edit(`edit ${revision}\n`);
+    const store = overrideEngineStore(h.store, { write: async input => {
+      const result = await h.store.write(input);
+      if (saving && result.status === "ok") await h.edit(`edit ${++revision}\n`);
+      return result;
+    } });
+    const events: string[] = [];
+    const program = new Command("arc").exitOverride();
+    program.command("probe").action(() => { events.push("command output"); });
+    registerProjectionHooks(program, { input: () => ({ store, checkout: h.checkout }),
+      writeError: text => { events.push(text); } });
+    await program.parseAsync(["probe"], { from: "user" });
+    expect((await h.stored()).content).toBe("edit 4\n");
+    expect(await h.file()).toContain("edit 5\n");
+    expect((await h.disk()).entries[h.path]).toMatchObject({ pending: true });
+    expect(projectionProcessState().roots.get(h.checkout)?.unsent.has(h.path)).toBe(true);
+    const warning = events.slice(0, events.indexOf("command output")).join("");
+    expect(warning).toContain(h.path);
+    expect(warning).toContain("unsettled");
+    expect(warning).toContain("next command");
+    saving = false;
+    events.length = 0;
+    await program.parseAsync(["probe"], { from: "user" });
+    expect((await h.stored()).content).toBe("edit 5\n");
+    expect(projectionProcessState().roots.get(h.checkout)?.unsent.has(h.path)).toBe(false);
+    expect(events).toEqual(["command output"]);
+  });
+
   it("writes completed roots under save only for the root save command and records its start outcome", async () => {
     const h = await createEngineFixture(directories, { path: ".arc/completed/2026-q4/document.md" });
     await h.edit("saved archive edit\n");

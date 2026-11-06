@@ -4,6 +4,7 @@ import type { TakeInRequest, TakeInResult } from "./take-in-port.js";
 import type { ReadBackContext } from "./read-back.js";
 import { createWriteBackPort, type WriteBackSend } from "./write-back.js";
 import { stageRecordFile } from "./staging.js";
+import { holdReadBack } from "./read-back-outcome.js";
 import { guardReplacement } from "./replace-guard.js";
 import { readReference } from "./change-detection.js";
 import { swapBatch } from "./swap.js";
@@ -36,9 +37,7 @@ export async function drawCheckoutClash(context: ReadBackContext, index: Project
     staged: staged.result, renderer, baseline: sent.read, reference: await readReference(request.checkout), format: context.format,
     store: context.store, writer: context.writer, checkpoint: context.checkpoint, takeIn });
   if (guarded.kind === "unreplaced") {
-    if (guarded.cause === "refresh-refused") context.report?.({ path: request.path, copy: null, mark: {
-      reason: `The edit landed, but restaging failed: ${guarded.refusal.condition}`, remedy: guarded.refusal.remedy } });
-    return { result: { ...sent.result, entry: guarded.entry },
+    return { result: holdReadBack(context, request, sent.result, guarded),
       index: { ...index, entries: { ...index.entries, [request.path]: guarded.entry } } };
   }
   const swapped = await swapBatch({ location: context.location, checkout: request.checkout, index,
