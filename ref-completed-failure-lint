@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "ref-completed-failure-lint",
+  "claimId": "99c76e23308156772e79e15845279e3c",
+  "createdAt": "2026-11-06T17:54:02.985Z",
+  "updatedAt": "2026-11-06T17:54:02.985Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Move the ref-backend completed Git failure syntax guard into ESLint, preserving every safe and unsafe fixture and its source scope",
+  "branch": "chore/ref-completed-failure-lint",
+  "origin": "inbox",
+  "originEntry": "Move `ref-completed-failure.guard.test.ts`'s syntax analyzer into an ESLint rule",
+  "originEntrySourceDigest": "sha256:c3c36d85cbacb308889bd60bc33bb9cf6178956536428b9ab5ecee1073b17eaa",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
