@@ -206,11 +206,14 @@ through `run-typecheck.ts` and pass. Every process prints its peak line: each TS
 - _Outcome:_ CI pins both lint steps to 4096 MiB and removes the obsolete V8 heap pin from the native test
   compiler step. The source compiler step remains unpinned.
 
-### `[ ]` **4.4 Record TypeScript 7 for the type checks in the technical overview — D9**
+### `[x]` **4.4 Record TypeScript 7 for the type checks in the technical overview — D9**
 
 - _Goal:_ `TECHNICAL-OVERVIEW.md` § 3's TypeScript line and § 4's Quality Gates entry say that the two type checks
   run on TypeScript 7 through `src/scripts/run-typecheck.ts`, `typecheck:test` as five shards and `typecheck` as one
   process, beside TypeScript 6 for tooling.
+
+- _Outcome:_ The overview records both native type checks and retained TypeScript 6 tooling. The new source and
+  test directories have READMEs describing their modules, memory observations and unit-test boundaries.
 
 ### `[ ]` **4.5 Write the ADR for sharding and TypeScript 7 — D9**
 
