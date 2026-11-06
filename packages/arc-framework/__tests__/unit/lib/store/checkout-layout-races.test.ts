@@ -1,6 +1,6 @@
 /** Delayed filesystem reads cannot replace newer checkout layout observations. */
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -35,6 +35,18 @@ function deferred() {
   const promise = new Promise<void>(resolve => { release = resolve; });
   return { promise, release };
 }
+
+it("defaults the checkout layout and resumes with flat paths after an invalid layout is repaired", async () => {
+  const root = await checkout();
+  expect(await readCheckoutLayoutContext(root)).toMatchObject({ claim: "alpha", layoutActive: "nested" });
+  await mkdir(join(root, ".arc/system"), { recursive: true });
+  const path = join(root, ".arc/system/arc-config.yml");
+  await writeFile(path, "layout.active: unknown\n");
+  await expect(readCheckoutLayoutContext(root, { fresh: true })).rejects.toMatchObject({ code: "store.layout-config-invalid" });
+  await writeFile(path, "layout.active: flat\n");
+  expect(await readCheckoutLayoutContext(root, { fresh: true })).toMatchObject({ claim: "alpha", layoutActive: "flat" });
+  expect(await workItemArtifactPath(root, "alpha", "meta", { kind: "active" }, null)).toBe(".arc/active/meta-alpha.md");
+});
 
 it("keeps a fresh lease observation when an older read succeeds later", async () => {
   const root = await checkout(), captured = deferred(), resume = deferred();

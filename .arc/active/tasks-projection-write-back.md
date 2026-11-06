@@ -426,20 +426,14 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
           Prove an indexed file retains its exact reference despite competing surrounding folder interpretations. Close
           A1's new success criterion without changing the earlier criteria.
 
-### `[ ]` **2.5 The `layout.active` revert key — § 10.3**
+### `[x]` **2.5 The `layout.active` revert key — § 10.3**
 
 - _Goal:_ A project can set `layout.active: flat` in `arc-config.yml` to lay its checkout's work item flat in `active/`,
   leaving everything else unchanged, and a change takes effect at each checkout's next command.
 
-    - An enum field in the configuration schema (`lib/config/schema.ts`), `nested` by default, in the file's flat dotted
-      key form; `arc config validate` lists it (`VALIDATION_DOMAIN_ORDER`, `commands/config/validate.ts`), the schema
-      test's key list gains it, and both copies of `arc-config.yml` document it.
-    - The reader 2.4.c builds reads it typed and passes it to the checkout's own location (2.4.a); the index records the
-      effective value (`ProjectionIndexSchema`, `lib/store/projection/index-schema.ts`), and a command reading a
-      different one reprojects `current/` (`projection-worktrees`).
-    - Build `test-first` (one behavior at a time):
-        - with no key, the value is `nested`
-        - an unknown value is refused by `arc config validate`
+- _Outcome:_ The shared configuration catalog and validator register `nested` and `flat`, defaulting to `nested`;
+  both configuration copies document the key. The checkout reader consumes its validated domain and resolves flat
+  paths after an invalid value is repaired. The index retains its typed layout field for reprojection.
 
 ### `[ ]` **2.6 The in-flight view setting — § 10.4**
 

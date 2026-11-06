@@ -62,6 +62,25 @@ afterEach(() => {
 });
 
 describe("arc config validate", () => {
+  it("defaults the active layout and refuses an unknown layout until it is corrected", () => {
+    const root = fixtureRoot(), selected = join(root, "selected.yml");
+    writeFileSync(selected, "");
+    const absent = runConfigValidate(root, ["--file", "selected.yml"]);
+    expect(absent.status).toBe(0);
+    expect(absent.stdout).toContain("PASS  layout.active: [absent, default: nested]");
+    expectCleanStderr(absent.stderr);
+    writeFileSync(selected, "layout.active: unknown\n");
+    const invalid = runConfigValidate(root, ["--file", "selected.yml"]);
+    expect(invalid.status).toBe(2);
+    expect(invalid.stdout).toContain("ERROR layout.active: 'unknown' is not valid (expected: nested flat)");
+    expectCleanStderr(invalid.stderr);
+    writeFileSync(selected, "layout.active: flat\n");
+    const repaired = runConfigValidate(root, ["--file", "selected.yml"]);
+    expect(repaired.status).toBe(0);
+    expect(repaired.stdout).toContain("PASS  layout.active: flat");
+    expectCleanStderr(repaired.stderr);
+  });
+
   it("resolves the default config from a nested project directory", () => {
     const root = fixtureRoot();
     const configDir = join(root, ".arc", "system");
