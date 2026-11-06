@@ -585,6 +585,15 @@ export function parseMetaProjectionRecord(content: string): MetaProjectionRecord
   return MetaProjectionRecordSchema.parse(record);
 }
 
+/** Read creation inputs while preserving invalid explicit values for the command's validator. */
+export function parseMetaCreationFields(content: string): {
+  owner: string | null; priority: string | null; workClass: string | null; origin: string | null; design: string | null;
+} {
+  const fields = parseMetaProjectionRecord(content);
+  return { owner: nullableProjectionValue(fields.Owner), priority: fields.Priority,
+    workClass: fields.Class === "[TBD]" ? null : fields.Class, origin: fields.Origin, design: fields.Design };
+}
+
 /**
  * Recover the tolerant storage-independent adapter record from a meta projection.
  * Display sentinels normalize at this boundary; invalid closed-domain tokens stay

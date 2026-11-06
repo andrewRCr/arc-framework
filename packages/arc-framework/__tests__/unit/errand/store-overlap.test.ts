@@ -7,6 +7,27 @@ import { runStoreErrandOverlap } from "../../../src/lib/errand/store-overlap.js"
 import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
 import { DerivedLocusFrameSchema } from "../../../src/lib/locus/derived-schema.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
+import { recordReferences } from "../../../src/lib/store/identity.js";
+import type { StoreRecord } from "../../../src/lib/store/read.js";
+import { ProjectionIndexSchema } from "../../../src/lib/store/projection/index-schema.js";
+import { gitBlobId } from "../../../src/lib/store/projection/blob-id.js";
+import { renderStampedFile } from "../../../src/lib/store/projection/stamp.js";
+import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { writeProjectionIndex } from "../../../src/lib/store/projection/index-file.js";
+import { PROJECTION_STATE_FOLDER } from "../../../src/lib/store/projection/location.js";
+
+function indexedRecord(path: string, record: StoreRecord) {
+  const blob = gitBlobId(record.content, "sha1");
+  return ProjectionIndexSchema.parse({ format: 1, state: null, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null,
+    projectedUnder: { view: { mode: "mine", pins: [] }, identity: "alice", claim: null, layoutActive: "nested" },
+    entries: { [path]: { kind: "record", reference: record.reference, stat: null,
+      written: gitBlobId(renderStampedFile({ content: record.content, stamp: blob }), "sha1"),
+      base: { blob, version: record.version }, markers: null, notices: [], unshown: [], protected: false,
+      changed: false, pending: false, withheld: false, refused: null, persisted: null, inProgress: null, copies: [] } },
+  });
+}
 function frame(subject: { kind: "work-unit"; key: string; uid: string } | { kind: "errand"; key: string; claimId: string }, cwd = "/caller") {
   const row = { kind: subject.kind === "work-unit" ? "work-unit" : "transient", subject, checkout: { path: cwd, head: "a".repeat(40), branch: "main", detached: false, primary: true, folderPresent: true },
     markerGeneration: "marker", parentCheckoutPath: null, origin: null, identity: null, context: null, lifecycleLocation: "active", diagnostics: [] };
@@ -25,6 +46,52 @@ it("excludes the calling marker's work-item identity, even with no branch", asyn
   const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [{ stdout: "" }] }]);
   expect((await runStoreErrandOverlap({ store: h.store, exec: fake.exec, cwd: "/caller", identity: "alice", teamMode: false, baseBranch: "main", projectId: async () => "project",
     readFrame: async () => frame({ kind: "work-unit", key: "caller", uid: boundWorkUnitSubject(caller).uid }), targetPaths: [".arc/active/meta-caller.md"] })).result).toEqual({ overlaps: [] });
+});
+
+it.each(["file", "primary"])("retains ownership established by the indexed %s despite another work item's name in its physical path", async evidence => {
+  const h = createLifecycleHarness(), caller = await h.seedMeta("caller"), alpha = await h.seedMeta("alpha");
+  await h.seedMeta("beta");
+  const companion = await h.seed(recordReferences["work-item/companion"](alpha.reference.owner, "beta/meta-beta.md"), "literal companion bytes\n");
+  const path = ".arc/backlog/planned/alpha/beta/meta-beta.md";
+  const cwd = await mkdtemp(join(tmpdir(), "arc-overlap-index-"));
+  onTestFinished(async () => { await rm(cwd, { recursive: true, force: true }); });
+  const gitDir = join(cwd, ".git"), stateDir = join(gitDir, PROJECTION_STATE_FOLDER);
+  await mkdir(stateDir, { recursive: true });
+  await writeProjectionIndex({ gitDir, commonDir: gitDir, stateDir, primary: true }, evidence === "file" ? indexedRecord(path, companion)
+    : indexedRecord(".arc/backlog/planned/alpha/meta-alpha.md", alpha));
+  const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [{ stdout: "" }] }]);
+  const result = await runStoreErrandOverlap({ store: h.store, exec: fake.exec, cwd, identity: "alice", teamMode: false,
+    baseBranch: "main", projectId: async () => "project",
+    readFrame: async () => frame({ kind: "work-unit", key: "caller", uid: boundWorkUnitSubject(caller).uid }, cwd), targetPaths: [path] });
+  expect(result.result).toEqual({ overlaps: [{ workItem: "alpha", remoteOnly: false, matchedPaths: [path] }] });
+});
+
+it("reports an unusable index instead of guessing an indexed path's owner, then resumes after index repair", async () => {
+  const h = createLifecycleHarness(), caller = await h.seedMeta("caller"), alpha = await h.seedMeta("alpha");
+  await h.seedMeta("beta");
+  const companion = await h.seed(recordReferences["work-item/companion"](alpha.reference.owner, "beta/meta-beta.md"), "literal companion bytes\n");
+  const path = ".arc/backlog/planned/alpha/beta/meta-beta.md";
+  const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [{ stdout: "" }, { stdout: "" }] }]);
+  const options = { store: h.store, exec: fake.exec, cwd: "/caller", identity: "alice", teamMode: false,
+    baseBranch: "main", projectId: async () => "project",
+    readFrame: async () => frame({ kind: "work-unit", key: "caller", uid: boundWorkUnitSubject(caller).uid }), targetPaths: [path] };
+  const refused = await runStoreErrandOverlap({ ...options, readIndex: async () => ({ kind: "unusable", cause: "unreadable" }) });
+  expect(refused.result).toMatchObject({ overlaps: [], notes: [expect.stringMatching(/index.*unreadable/iu)] });
+  expect(refused.result.notes?.join("\n")).toMatch(/repair.*retry/iu);
+  const repaired = await runStoreErrandOverlap({ ...options, readIndex: async () => ({ kind: "index", index: indexedRecord(path, companion) }) });
+  expect(repaired.result).toEqual({ overlaps: [{ workItem: "alpha", remoteOnly: false, matchedPaths: [path] }] });
+});
+
+it("reports missing backlog ownership with a stub remedy instead of probing it as code", async () => {
+  const h = createLifecycleHarness(), caller = await h.seedMeta("caller");
+  const path = ".arc/backlog/planned/missing/scratch/file.txt";
+  const fake = scriptGitExec([{ match: { prefix: ["for-each-ref"] }, responses: [{ stdout: "" }] }]);
+  const result = await runStoreErrandOverlap({ store: h.store, exec: fake.exec, cwd: "/caller", identity: "alice", teamMode: false,
+    baseBranch: "main", projectId: async () => "project",
+    readFrame: async () => frame({ kind: "work-unit", key: "caller", uid: boundWorkUnitSubject(caller).uid }),
+    readIndex: async () => ({ kind: "no-projection" }), targetPaths: [path] });
+  expect(result.result).toMatchObject({ overlaps: [], notes: [expect.stringContaining("No work-item container is established")] });
+  expect(result.result.notes?.join("\n")).toContain("arc stub missing --commitment planned --priority <priority> --class <class>");
 });
 
 it("excludes an Errand caller by its exact marker claim instead of the checkout's branch", async () => {

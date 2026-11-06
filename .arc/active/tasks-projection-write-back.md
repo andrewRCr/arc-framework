@@ -404,6 +404,10 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
 
     - `[ ]` **2.4.R.b Establish and bind container evidence for unindexed paths**
 
+        - _Progress:_ The shared resolver collects indexed primary, stored placement/cohort, and validated prospective
+          metadata evidence without a store-wide scan. The Errand overlap reader now consumes it and retains exact
+          indexed references, reporting absent ownership and unusable indexes with repair guidance. Adoption and
+          prospective-stub minting remain in progress.
         - Use indexed primary-folder evidence, a stored primary's placement and cohort, or a prospective stub's meta
           validated through 2.8.b's rules. Retain physical container coordinates separately from the resolved record
           authority, so rename aliases and exact indexed references keep their existing treatment. Collect candidates
