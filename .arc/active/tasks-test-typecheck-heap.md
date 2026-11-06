@@ -91,31 +91,16 @@ verdicts as TS 6 and a clean run on m4-mini, can be tested across the whole part
   exclusions. Parsing the five configs confirms an exact, non-overlapping partition of the reference roots
   outside source and examples.
 
-### `[ ]` **2.2 Guard the partition with the coverage test — D2**
+### `[x]` **2.2 Guard the partition with the coverage test — D2**
 
 - _Goal:_ The shards' roots taken together equal `tsconfig.test.json`'s roots outside `src/` and `examples/`, each a
   root of exactly one shard, with options equal to the reference's apart from the three the shards set. On synthetic
   inputs the comparison reports a missing file, a doubled file and a changed option, each naming the file or option
   and the shard.
 
-    - Exported pure comparison in `src/scripts/typecheck/shards.ts`, over file lists and parsed options. The module
-      imports no `typescript`, so the script's own process never loads the TS 6 compiler (about 110 MiB measured)
-    - The coverage test parses every discovered shard config and `tsconfig.test.json` with `typescript` 6's
-      `ts.readConfigFile` and `ts.parseJsonConfigFileContent` against absolute paths, building no program
-    - Options compared apart from `declaration`, `declarationMap`, `tsBuildInfoFile` and the parser's own
-      `configFilePath`
-    - Synthetic cases in `__tests__/unit/scripts/typecheck/shards.test.ts`; the live partition in
-      `__tests__/unit/scripts/typecheck/shard-coverage.test.ts`, which uses the same discovery function the script
-      runs
-    - Build `test-first` (one behavior at a time):
-        - No shard configs fails
-        - A file the reference has and no shard has fails, naming the file
-        - A file two shards both have fails, naming the file and both shards
-        - A shard root the reference lacks fails, naming the file and the shard
-        - A changed option fails, naming the option and the shard
-        - The three set options and `configFilePath` never fail
-        - A matching partition passes
-        - The live shard configs pass against `tsconfig.test.json`
+- _Outcome:_ Added the pure root/options comparison and a live TS 6 config-parser guard using runtime discovery.
+  Synthetic cases name missing, doubled and extra roots and changed options; only the three shard options and
+  parser path are exempt. Discovery now sorts shard names, with a regression for the integration prefix pair.
 
 ### `[ ]` **2.3 Run every shard in turn and aggregate their exits — D3**
 
