@@ -11,13 +11,14 @@
 - **Design:** `spec-test-typecheck-heap.md`
 - **Task List:** `tasks-test-typecheck-heap.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:10abb9e4f7f96496902e339973c994e16baf21dfa4f0d33caaadb4d923d9a891`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Task 4.6 — Measure the landing figures on m4-mini and draft the handoff
-- **Next Task:** Task 5.1 — Complete verification (line ~243 in `tasks-test-typecheck-heap.md`)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 5.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.1 in a fresh session — load and follow `verify-work-unit.md`.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]

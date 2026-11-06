@@ -240,48 +240,53 @@ through `run-typecheck.ts` and pass. Every process prints its peak line: each TS
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Forced merge gate: 21 checks passed; full non-diagnostic hosted CI run `42303802188` passed at
+  `8d0287f9c124c586b55b7b07f36e11913485442d`. Current-head TS 6/TS 7 parity and every planted-error probe passed.
+- _Success criteria:_ All 12 met. Independent companion Pass 1 of 2 returned no findings and converged.
+  `notes-test-typecheck-heap.md` § Verification retains the exact span, criterion digests, evidence and companion record.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The coverage test passes at the verified head, and on synthetic inputs its comparison reports a missing file, a
+- `[x]` The coverage test passes at the verified head, and on synthetic inputs its comparison reports a missing file, a
   doubled file and a changed option, each naming the file or option and the shard.
 
-- `[ ]` `npm run typecheck:test` runs the five shards in turn on TypeScript 7, each with `--checkers 1` and the soft
+- `[x]` `npm run typecheck:test` runs the five shards in turn on TypeScript 7, each with `--checkers 1` and the soft
   limit (6000 MiB where no cgroup bound is lower). On Linux each runs under the backstop, whose margin comes from the
   desktop gap and m4-mini's sample. Each prints its peak line with its soft limit, and `npm run typecheck` does the same
   over `tsconfig.json`.
 
-- `[ ]` Cold (no incremental state file) on m4-mini under its landing settings, the peak lines of `typecheck` and of
+- `[x]` Cold (no incremental state file) on m4-mini under its landing settings, the peak lines of `typecheck` and of
   every shard each carry a figure read from the native compiler, and every figure is below 3,072 MiB; an
   `unavailable` line fails this.
 
-- `[ ]` At the verified head both type checks report zero errors on TypeScript 7, as TypeScript 6's `tsc --noEmit` does
+- `[x]` At the verified head both type checks report zero errors on TypeScript 7, as TypeScript 6's `tsc --noEmit` does
   over `tsconfig.json` and `tsconfig.test.json`. A type error planted in one root of each shard fails
   `typecheck:test` naming that file. So does one in `__tests__/fixtures/checks/runner-proxy.mjs` for `typecheck:test`,
   and one in `examples/check-runner/local.mjs` fails `typecheck`.
 
-- `[ ]` Cold on m4-mini, `typecheck:test` completes in at most 45 s.
+- `[x]` Cold on m4-mini, `typecheck:test` completes in at most 45 s.
 
-- `[ ]` Under an inherited `ulimit -v` of 2 GiB, `npm run typecheck:test` fails with a non-zero status and a peak line
+- `[x]` Under an inherited `ulimit -v` of 2 GiB, `npm run typecheck:test` fails with a non-zero status and a peak line
   for each shard.
 
-- `[ ]` CI's `typescript` step passes `lint:ts` at its explicit 4096 MiB heap, and the log shows `lint:ts`'s peak line
+- `[x]` CI's `typescript` step passes `lint:ts` at its explicit 4096 MiB heap, and the log shows `lint:ts`'s peak line
   with heap in use. `npm run lint:ts -- --prune-suppressions` reaches eslint, and `lint:ts` exits 2 when a suppression
   is unused.
 
-- `[ ]` In `ci.yml`, `typescript` and `typescript-files` set `NODE_OPTIONS: --max-old-space-size=4096`, and
+- `[x]` In `ci.yml`, `typescript` and `typescript-files` set `NODE_OPTIONS: --max-old-space-size=4096`, and
   `typecheck-tests` sets no `NODE_OPTIONS`.
 
-- `[ ]` `TECHNICAL-OVERVIEW.md` records TypeScript 7 for the type checks, and the new ADR reads Accepted at the
+- `[x]` `TECHNICAL-OVERVIEW.md` records TypeScript 7 for the type checks, and the new ADR reads Accepted at the
   verified head.
 
-- `[ ]` Unit tests cover the cgroup bound's parsing (a numeric `memory.max`, the smallest of nested ones, `max`, a
+- `[x]` Unit tests cover the cgroup bound's parsing (a numeric `memory.max`, the smallest of nested ones, `max`, a
   missing file and no `0::` entry) and the soft limit's computation: 4,608 MiB under a 5,120 MiB bound, 6000 MiB under
   an 8,192 MiB bound and 6000 MiB with none.
 
-- `[ ]` All quality gates pass, and hosted CI passes at the verified head.
+- `[x]` All quality gates pass, and hosted CI passes at the verified head.
 
-- `[ ]` Ready for integration.
+- `[x]` Ready for integration.

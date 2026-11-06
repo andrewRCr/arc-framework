@@ -2,15 +2,16 @@
 
 ## Contents
 
-- Evidence
-- Origin
-- Growth rates and the 3 GiB target
-- Pool state at spec time
-- Why gate runs start cold
-- Measuring on m4-mini
-- Landing handoff
-- TypeScript 7 observations
-- Neighbouring work
+- [Evidence](#evidence)
+- [Origin](#origin)
+- [Growth rates and the 3 GiB target](#growth-rates-and-the-3-gib-target)
+- [Pool state at spec time](#pool-state-at-spec-time)
+- [Why gate runs start cold](#why-gate-runs-start-cold)
+- [Measuring on m4-mini](#measuring-on-m4-mini)
+- [Landing handoff](#landing-handoff)
+- [Verification](#verification)
+- [TypeScript 7 observations](#typescript-7-observations)
+- [Neighbouring work](#neighbouring-work)
 
 ## Evidence
 
@@ -133,9 +134,9 @@ verification's notes consolidation.
   names as `logPath`, with the id percent-encoded as `createCheckReportStore` writes it (`src/lib/checks/reports.ts`):
   `typecheck%3Atest.latest.json` for `typecheck:test`.
 - **The TS 6 baseline (Task 2.4, Success Criterion 4).** `typecheck:test`'s program on TS 6 needs a 6144 MiB V8 heap,
-  as CI's `typecheck-tests` step pins today; at 4096 MiB it ran out of memory. Run `typescript`'s own `bin/tsc` with
-  `NODE_OPTIONS=--max-old-space-size=6144`, pinned to m4-mini, or on WSL only through `memcap_gated` when
-  `memcap_policy` allows it.
+  as CI's `typecheck-tests` step pinned before this change; at 4096 MiB it ran out of memory. Run `typescript`'s own
+  `bin/tsc` with `NODE_OPTIONS=--max-old-space-size=6144`, pinned to m4-mini, or on WSL only through `memcap_gated`
+  when `memcap_policy` allows it.
 - **The backstop gap (Task 3.4).** The peak line reports `VmHWM` only, so the gap takes a one-off pinned command and no
   repository instrument. It polls `/proc/<pid>/status` for `VmPeak` and `VmHWM` while `/proc/<pid>/exe` is the native
   `tsc`, as `scripts/measure.py` does on the desktop. Run it over `unit-b` under `GOMEMLIMIT=6000MiB` and
@@ -287,6 +288,151 @@ After an authorized early probe or source-route edit, the first source run must 
 when the configured 5,120 MiB cap is in force in its job cgroup. A 6000 MiB line means the script found no bound.
 Read that job cgroup's own `memory.max` to distinguish a cap not in force from a missed script read. Undo the source
 route edit until the cause is known; neither a 6000 MiB line nor the registry setting alone qualifies the bound.
+
+## Verification
+
+The author criteria walk covers `tasks-test-typecheck-heap.md` > Success Criteria in full (12 criteria).
+
+- **Diff:** `97a7f471c2007fb7bd57455892068cbbb13c6ed5` to `f1b6dcbb21187a67cc70d522041b30080e6fcf7f`.
+- **Reachability:** tree `10e5011e2659da0c241bc8acb14d79c83eeadd63`, anchored to HEAD `8d0287f9c1`
+  with staged notes consolidation; no Delivery Plan or boundary-order deviation.
+- **Scale attention:** `below-threshold / continue-review`, 2,730 changed lines across 37 files; whole work-unit scope.
+
+- **Author aggregate check:** no material findings; no finding-driven fixes.
+- **Merge gate:** 21 checks passed; four CI-only checks were not selected locally.
+- **Hosted CI:** [run 42303802188](https://github.com/andrewRCr/arc-framework/actions/runs/42303802188)
+  passed at `8d0287f9c124c586b55b7b07f36e11913485442d`, dispatched with no diagnostic inputs.
+  The optional Windows/macOS pair and Git-floor jobs were not requested; Linux portability ran.
+- **Criteria disposition:** 12 met, none superseded or unmet in the combined report.
+- **Independent companion:** Pass 1 of 2 returned no findings; stop reason `converged`.
+
+### Success Criteria > 1
+
+- **Criterion digest:** `sha256:7d5b0ddbc5590e53e39ccdc4e1682bdc24c2e40345d46c515a17f0e6bb3fe0b8`.
+- **Author state:** `[x]`.
+- **Evidence:** Forced merge gate: test:unit passed 1679 files, including shard-coverage.test.ts and synthetic
+  missing/doubled/option cases in shards.test.ts.
+
+### Success Criteria > 2
+
+- **Criterion digest:** `sha256:d1c74da497fc6b91cd0687a54b9d58fa6a829582b26a40d07da6b51e31878c54`.
+- **Author state:** `[x]`.
+- **Evidence:** Current-head parity run 3c86f57e879a47f7be96819e3715da2b executes source and five sequential TS 7
+  shards with native peaks and 6000 MiB soft limits; launch-plan, inherited-limit and gap evidence establish the
+  Linux backstop.
+
+### Success Criteria > 3
+
+- **Criterion digest:** `sha256:2350e6dfa6f2b99c3bc1a2cf81bd62386993c06593af941d81ac5d4b12c6ca84`.
+- **Author state:** `[x]`.
+- **Evidence:** Cold landing run fe3e4d6520b047e4b9ffece0c31b2bc4: source 1931 MiB; shards 1802/1189/1563/1921/2028
+  MiB; no implementation/configuration/dependency delta from bb1499e747 to verified HEAD. Current gate also reports
+  five native m4-mini peaks below 3072 MiB.
+
+### Success Criteria > 4
+
+- **Criterion digest:** `sha256:c85eac1baaf33b10acf9a5376350e73f179fd74318d1e9ca4d6256d545e6fef6`.
+- **Author state:** `[x]`.
+- **Evidence:** Pinned run 3c86f57e879a47f7be96819e3715da2b, snapshot ac073a81259ac48bf770fe7c0fe1fe8bdf0f0f91, has
+  zero implementation/configuration/dependency delta from HEAD. TS 6 source/test baselines pass; TS 7 source/test
+  baselines pass; five shard-root and both checkJs-root injections each exit 1 with TS2322 naming the file. No
+  retry or fallback.
+
+### Success Criteria > 5
+
+- **Criterion digest:** `sha256:68bd8382684961dffe55f97d181dfbea45d9143d1e8a57334be8f49fe0a7a1e2`.
+- **Author state:** `[x]`.
+- **Evidence:** Cold landing run fe3e4d6520b047e4b9ffece0c31b2bc4: typecheck:test wall time 24.199 seconds;
+  implementation unchanged through verified HEAD.
+
+### Success Criteria > 6
+
+- **Criterion digest:** `sha256:24c17f89a404cf017ccc17670c18d5492b05a000470b9fb68ba260dc65e35112`.
+- **Author state:** `[x]`.
+- **Evidence:** Retained inherited-2g-node24-small-semi.log proves soft/hard 2147483648-byte limits, five Go
+  out-of-memory failures with native peaks and npm exit 2. Node 24.15.0 caller settings: --max-old-space-size=128
+  --max-semi-space-size=1 --disable-wasm-trap-handler. Limit and launch modules are unchanged from qualified head
+  2c953db69f. This does not claim default Node startup succeeds under 2 GiB.
+
+### Success Criteria > 7
+
+- **Criterion digest:** `sha256:d8238536d6da2f472401af73b29c0110992b73690bf190fdc95c3660efd89f99`.
+- **Author state:** `[x]`.
+- **Evidence:** Suppression/pruning run 4854d21feb5042e289a6deec2e991d3d: unused entry exits 2; forwarded pruning
+  removes it and exits 0, with RSS/V8 lines. Relevant lint implementation unchanged.
+- **Evidence:** Hosted Lint & Typecheck job 128189174187 passed. Its log records explicit NODE_OPTIONS
+  --max-old-space-size=4096 for both lint steps; lint:ts reports RSS 3616 MiB, heap in use 2575 MiB, actual V8 heap
+  limit 4192 MiB.
+
+### Success Criteria > 8
+
+- **Criterion digest:** `sha256:bab1b05c651c9687bd92703efa4e6d046e1557ff809b7582d27b67ceaf3938c0`.
+- **Author state:** `[x]`.
+- **Evidence:** .github/workflows/ci.yml lines 472-490: typescript-files and typescript each pin 4096 MiB;
+  typecheck-tests and typecheck have no step NODE_OPTIONS.
+
+### Success Criteria > 9
+
+- **Criterion digest:** `sha256:b141ec28b791ef9d0bb53e3ca2318d26b986373f44bee8cf870613b68b64a941`.
+- **Author state:** `[x]`.
+- **Evidence:** TECHNICAL-OVERVIEW.md documents TS 7 source and five test shards beside TS 6 tooling; ADR-041 is
+  Accepted (2026-11-06). Forced merge gate passed ADR status and number checks.
+
+### Success Criteria > 10
+
+- **Criterion digest:** `sha256:3697bf2f49f72eb46d4c8ebab6350c4e92bb453c00692628190c9cbf81ec424b`.
+- **Author state:** `[x]`.
+- **Evidence:** memory-bound.test.ts covers numeric/nested/max/missing/no-unified cgroups and targets
+  4608/6000/6000 MiB. Forced merge gate test:unit passed.
+
+### Success Criteria > 11
+
+- **Criterion digest:** `sha256:c81942061d9e0046dd6a46e9f702682d433080faee247c1d89cea7e27cafac97`.
+- **Author state:** `[x]`.
+- **Evidence:** Forced merge gate passed 21 checks, with four CI-only checks not selected locally. Full
+  non-diagnostic hosted CI run 42303802188 completed successfully at 8d0287f9c124c586b55b7b07f36e11913485442d: 24
+  jobs passed; optional portability-pair and Git-floor jobs, plus event-specific bookkeeping, were skipped as
+  configured. No code change followed this run.
+
+### Success Criteria > 12
+
+- **Criterion digest:** `sha256:58db93fe39223454b81347ff1a639f8238086deb7e85ae3c3f70a2bbbc6c04d1`.
+- **Author state:** `[x]`.
+- **Evidence:** All eleven preceding acceptance criteria are met, the author aggregate check found no material
+  defect, and no implementation blocker remains. This establishes implementer readiness for Candidate preparation;
+  independent-companion disposition, Candidate review/publication, fresh integration readiness and exact-head merge
+  authorization retain their own boundaries.
+
+### Delivery integrity
+
+- Runtime planted-error probes fail with named TS2322 diagnostics for every shard and both checkJs roots; the
+  inherited-limit probe demonstrates bounded abnormal compiler termination.
+- Cold landing figures and current-head native observations are measured evidence; live lower-cgroup behavior on
+  m5-air is not claimed.
+- Machine charge/heap/route proposals remain Owner-owned rollout choices in Landing handoff, with the first m5-air
+  job-cgroup check and rollback condition retained.
+
+The combined criteria walk is complete. Candidate review and exact-head integration authorization remain
+required before merge. Native peaks are observed lower bounds within the polling interval; the TypeScript 7 parity
+qualification establishes the tested verdicts, not permanent equivalence to TypeScript 6.
+
+### Independent companion
+
+- **Pass:** 1 of 2 over the complete selected work-unit criteria, diff and reachable tree.
+- **Finding/account/action set:** empty; no responses or finding-driven changes were required.
+- **Stop reason:** `converged`.
+- **Evidence limits:** fresh-context local read-only inspection of source and retained execution evidence; no tests or
+  external revalidation by the reviewer. Hosted CI covers the anchor commit; the notes-only snapshot delta was inspected.
+- **Primary checks:** all eight typecheck helper suites appear in the passing unit log. The cold landing head differs
+  only in work-unit documents; the parity snapshot differs from the reviewed tree only by its disposable driver.
+- **Consumption:** the combined report supports all 12 criterion dispositions. This supplies verification-companion
+  evidence, with Candidate review and integration authorization retaining their separate boundaries.
+
+Kept look files in the personal workspace's `adversarial-review/` folder:
+
+- Prompt: `70418692d38937a2002e4c27ecdaf6e977666b7041d4181d2da2111c8383577d.md`.
+- Assignment: `a29d401e24971c1e7cde72d990a5bfa0164abd72c73e2bdbb32248bb556fc61e.md`.
+- Report: `b6156aaa45ec3aeb5a934f966c50fe4e4196f527904f5b15f3994166984f1953.md`.
 
 ## TypeScript 7 observations
 
