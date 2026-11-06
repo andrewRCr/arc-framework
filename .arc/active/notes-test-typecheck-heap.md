@@ -8,6 +8,7 @@
 - Pool state at spec time
 - Why gate runs start cold
 - Measuring on m4-mini
+- Landing handoff
 - TypeScript 7 observations
 - Neighbouring work
 
@@ -208,6 +209,84 @@ At `NODE_OPTIONS=--max-old-space-size=4192`, the two peak lines reported RSS 3,6
 and 2,996 MiB, and actual V8 heap limit 4,288 MiB. These are qualification figures, not the final cold landing set.
 The run ended with `arc-offload: exit 0 on m4-mini (m4-mini-runner)` without fallback. Its driver and complete output
 are `lint-suppression-probe.mjs` and `lint-suppression-qualification.log` in the personal evidence directory.
+
+## Landing handoff
+
+Verification keeps this section and § Measuring on m4-mini through notes consolidation and carries this entire
+handoff, including proposals, Owner calls and the m5-air first-run check, into the verification commit body.
+
+### Cold landing measurements
+
+On 2026-11-06, pinned run `fe3e4d6520b047e4b9ffece0c31b2bc4` ran HEAD `bb1499e747b5b68a02588a5bebdf70d9c526bd05`,
+snapshot `51692ed120b01eec394b69e07a5c076d35bb05ce`, on m4-mini with Node 26.3.0, Linux arm64. Every npm invocation
+began after removal of the package's `.cache/tsc` directory. Timing surrounds each root npm command inside the runner,
+after cache removal, and excludes transfer and preparation.
+
+| Process                            | RSS peak (MiB) | Heap in use at exit (MiB) | Actual V8 heap limit (MiB) | Wall time (s) |
+| ---------------------------------- | -------------- | ------------------------- | -------------------------- | ------------- |
+| `typecheck`                        | 1,931          | —                         | —                          | 5.459         |
+| `typecheck:test` integration       | 1,802          | —                         | —                          | —             |
+| `typecheck:test` integration-store | 1,189          | —                         | —                          | —             |
+| `typecheck:test` rest              | 1,563          | —                         | —                          | —             |
+| `typecheck:test` unit-a            | 1,921          | —                         | —                          | —             |
+| `typecheck:test` unit-b            | 2,028          | —                         | —                          | —             |
+| `lint:ts` run 1                    | 3,667          | 2,217                     | 4,288                      | 67.648        |
+| `lint:ts` run 2                    | 3,626          | 2,626                     | 4,288                      | 72.957        |
+| `lint:ts` run 3                    | 3,697          | 2,280                     | 4,288                      | 80.478        |
+
+All commands exited 0. The complete five-shard command took 24.199 s, below 45 s. Every native figure is below
+3,072 MiB and was sampled while the process was the native compiler; each line reports its 6000 MiB soft limit.
+The compiler runs used the script's own target and backstop despite the runner's inherited 6144 MiB Node setting.
+Each lint run explicitly set `NODE_OPTIONS=--max-old-space-size=4192`; the table distinguishes that old-space
+setting from V8's observed total heap limit. End-of-run heap use is an exit observation, not a heap high-water mark.
+
+The final line was `arc-offload: exit 0 on m4-mini (m4-mini-runner)` with no retry, fallback or refusal afterward.
+History records one active job, no swap-in or swap-out, and zero memory pressure during the run. The driver and full
+output are `landing-probe.mjs` and `m4-landing-qualification.log` in this worktree's personal evidence directory.
+
+### Proposed machine configuration
+
+These are proposals for the Owner; no registry, route, heap or mode setting was edited.
+
+- **`typecheck`: 2,700 MB**, replacing 2,800 MB. Its 1,931 MiB RSS peak plus a 512 MiB reserve is about 2,562 MB
+  in decimal units; the proposal rounds upward and leaves about 675 MB over the observed compiler peak.
+- **`typecheck:test`: 2,800 MB**, replacing 6,500 MB, subject to the pairing decision below. Its largest shard's
+  2,028 MiB peak plus 512 MiB is about 2,664 MB; the proposal rounds upward, leaving about 673 MB over that peak.
+- **`typecheck:all`: 2,800 MB**, replacing 6,500 MB, from the larger of the source and shard proposals. The checks
+  run sequentially, and a grouped plan pays for its heaviest command. All three proposed charges cost six of
+  m4-mini's twenty 512 MB tokens; `test:unit` costs nineteen and cannot run beside them.
+- **m4-mini `heap_mb`: 4192 MiB**, replacing 6144 MiB. Native compiler memory is script-owned; all three lint runs
+  passed at the proposed caller setting. The runner-wide value remains unchanged until the Owner applies it.
+- **`lint:ts`: 4,200 MB**, replacing 5,000 MB. The largest of three RSS peaks, 3,697 MiB, is about 3,877 MB,
+  leaving about 323 MB for the controller, npm and variation. This costs nine tokens instead of ten.
+- **Source routes:** add `m5-air-ac` and `m5-air-battery` to `typecheck`, alongside m4-mini and intel-mbp. Its
+  native memory target can follow the m5-air job cap rather than its 2048 MiB Node setting.
+
+The registry read at measurement time still had source charge 2,800 MB, test/all charges 6,500 MB, lint charge
+5,000 MB, and m4-mini heap 6144 MiB. The test/all routes were m4-mini-only with `allow_local: false`; source already
+allowed local fallback. Both m5-air profiles declared `memory_max_mb: 5120` and `heap_mb: 2048`.
+
+### Owner calls
+
+The three decisions were requested while measurements ran and remain pending; no answer is inferred from elapsed time.
+
+- **Pairing with `test:changed`: pending.** Six tokens plus its fourteen admit the pair, which can exceed the
+  11.9 GB VM: historical solo `test:changed` runs reached 11.2 GB and the 90th percentile was 9.5 GB. Recommend
+  retaining the current 6,500 MB test/all admission charges until the pairing is accepted or addressed separately;
+  2,800 MB is the measured physical-budget proposal, not permission to apply it. `test:changed` charging is outside
+  this change. At 4,200 MB, lint costs nine tokens; integration costs eleven and store suites nine.
+- **Early m5-air source probe: pending.** A direct script invocation under arguments no route matches can reach
+  m5-air before a route edit. Recommend that one pinned read-only qualification; none has run without the call.
+- **Test/all routes and `allow_local`: pending.** Recommend keeping the current routes and disabled local fallback
+  until those placements are qualified. Whether they follow the proposed source routes, and whether they regain
+  local fallback, remains the Owner's choice; the WSL memory decision is separate from these measurements.
+
+### First m5-air source check
+
+After an authorized early probe or source-route edit, the first source run must show a **4,608 MiB soft limit**
+when the configured 5,120 MiB cap is in force in its job cgroup. A 6000 MiB line means the script found no bound.
+Read that job cgroup's own `memory.max` to distinguish a cap not in force from a missed script read. Undo the source
+route edit until the cause is known; neither a 6000 MiB line nor the registry setting alone qualifies the bound.
 
 ## TypeScript 7 observations
 

@@ -226,7 +226,7 @@ through `run-typecheck.ts` and pass. Every process prints its peak line: each TS
   native compiler bounds, single-process typed linting and the accepted diagnostic residual. It is Accepted
   and uses the next free number on the refreshed base.
 
-### `[ ]` **4.6 Measure the landing figures on m4-mini and draft the handoff — D3**
+### `[x]` **4.6 Measure the landing figures on m4-mini and draft the handoff — D3**
 
 - _Goal:_ Cold runs on m4-mini under its landing settings give the peaks of `typecheck`, every shard and `lint:ts`,
   and `typecheck:test`'s wall time against Success Criterion 5's 45 s. From the peaks, `notes-test-typecheck-heap.md`
@@ -234,29 +234,9 @@ through `run-typecheck.ts` and pass. Every process prints its peak line: each TS
   section and § Measuring on m4-mini through its notes consolidation, and its commit body carries the whole handoff to
   the Owner: the proposals, the Owner's calls and the m5-air first-run check.
 
-- _Note:_ The pool registry is the Owner's. This task proposes values and applies none, and they stay out of Success
-  Criteria.
-
-    - Take every run as `notes-test-typecheck-heap.md` § Measuring on m4-mini describes: pinned, cold, and its
-      placement proven by its `exit … on m4-mini` line as the Placement bullet reads it
-    - Open § Landing handoff with a line saying verification keeps the section through its notes consolidation and
-      carries all of it, proposals, Owner's calls and the m5-air check, into the verification commit body
-    - `typecheck` and `typecheck:test` under the script's own soft limit and backstop, timing the cold
-      `typecheck:test` run as the notes' Timing bullet says; `lint:ts` three times with
-      `NODE_OPTIONS=--max-old-space-size=4192`, reading V8's heap in use and RSS from each peak line
-    - Write § Landing handoff: each figure with its run and head, then every proposal and Owner's call the spec's
-      Cross-cutting › Landing handoff gives, which is the authority for the list below
-    - The proposals: the charges, `typecheck:test` from its largest shard's peak plus a margin, `typecheck` from its
-      own peak plus a margin, and `typecheck:all` from the larger of the two; m4-mini's `heap_mb` from 6144 to
-      4192 MiB; `lint:ts`'s charge from 5,000 to 4,200 MB or the higher figure the runs support; and `m5-air-ac` and
-      `m5-air-battery` added to the `typecheck` route
-    - The Owner's calls: whether to accept `typecheck:test` running beside `test:changed` on m4-mini, whose pair can
-      exceed its VM; whether a pinned run under arguments no route matches, such as the script invoked directly, may
-      reach m5-air before the route edit does; and whether the `typecheck:test` and `typecheck:all` routes follow and
-      regain `allow_local`
-    - The first m5-air `typecheck` run's check: its peak line should show a 4,608 MiB soft limit. A 6000 MiB line
-      means the script found no bound; the job cgroup's own `memory.max` tells whether the cap was not in force or the
-      script's read missed it, and the route edit is undone until the cause is known
+- _Outcome:_ The pinned cold landing set reports source and all shard peaks below 3 GiB and a 24.199 s test
+  check. Three lint runs pass at the proposed 4192 MiB old-space setting. The landing handoff records exact
+  provenance, charge and route proposals, pending Owner calls and the first m5-air bound check.
 
 ## **Phase 5:** Verification
 
