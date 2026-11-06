@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "pre-meta-archive-metadata",
+  "claimId": "c6ecfb50d471c700e279e548f4c467c0",
+  "createdAt": "2026-11-06T02:46:37.638Z",
+  "updatedAt": "2026-11-06T02:46:37.638Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Reconstruct provenance-marked metas and companion placement for the twenty pre-meta archived work units so the cutover import discovers them",
+  "branch": "chore/pre-meta-archive-metadata",
+  "origin": "inbox",
+  "originEntry": "Give the pre-meta archive folders metas so the cutover's import claims them",
+  "originEntrySourceDigest": "sha256:2a1bb280ac80abc5c2bd89e2ae2f5ee6a3ed98e2a3eb72671042f8ce626c673b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
