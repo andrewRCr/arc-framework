@@ -13,9 +13,11 @@
 
 ## Planning state
 
-- **Readiness:** maturing (third draft-design iteration, 2026-11-06). The 2026-11-05 readiness check returned
-  not-ready. The Owner's planning pass, the consolidation that folded it, and the ADR dispositions (2026-11-06) close
-  its three design gaps: the inbound buffer, the success signal, and the dispositions. What remains is under Next.
+- **Readiness:** formalization-ready (2026-11-06), pending planning review. The 2026-11-05 readiness check returned
+  not-ready; the Owner's planning pass, the consolidation that folded it, and the ADR dispositions (2026-11-06) closed
+  its three gaps: the inbound buffer, the success signal, and the dispositions. The 2026-11-06 loop-exit check
+  returned not-ready on two `needs-detail` gaps, both closed: the build the window imports from, with the backend
+  switch named, and dispositions for #29 and #31. Re-run after those closures, it returned ready.
 - **Entry read:** depth `high`; `Class` stays `Heavy`. Derivation fires, since the window runbook, the flip change, and
   the land-at-flip split must be designed. Scale fires too, given a deletion surface spanning several subsystems. The
   design is composed from the landed members' specifications, not invented. Confirmed 2026-11-05 with no material new
@@ -80,10 +82,13 @@
     - the ADR dispositions, with two amendments to ADR-035, items 2 and 8, that this unit delivers (Owner, 2026-11-06;
       § ADR dispositions);
     - the flip's own landing: import first, then an Owner-directed merge of the head that untracks its records, with
-      no ARC checkpoint (Owner, 2026-11-06; § The order).
+      no ARC checkpoint (Owner, 2026-11-06; § The order);
+    - the window's quiesce check, import, and second run run on `main`'s pre-flip build, so the flip change leaves the
+      import untouched (Owner, 2026-11-06; § The order, § The flip change).
 - **Open:**
     - a review stop rule, agreed before the second review pass.
-- **Next:** readiness again, the review stop rule, planning review, `arc check increment`, and the capture commit.
+- **Next:** planning review (source-grounding over the draft, then the independent pass, with the review stop rule
+  agreed before its second pass), `arc check increment`, and the capture commit.
 
 ### The cut
 
@@ -240,10 +245,10 @@ window's mechanics need neither, so they run first.
   since it has landed (`68bddbb526`), so its accounting case reports the twenty folders and shows the case catches the
   omission it exists for. The second runs with the backfill and confirms it.
 - **Stage 2, the dress rehearsal,** at the flip branch's head once the flip change builds. On a fresh copy it runs the
-  whole window in the order § The order sets: Stage 1's steps; the flip's own landing, with the commit untracking its
-  records, a merge into the copy's mirror standing in for the host merge, and its landing and archive written through
-  the store; and each checkout's steps through its first materialization and the checkout carries (#15, #30). Then it
-  runs:
+  whole window in the order § The order sets: Stage 1's steps, on the copy's pre-flip build; the flip's own landing,
+  with the commit untracking its records, a merge into the copy's mirror standing in for the host merge, and its landing
+  and archive written through the store; and each checkout's steps through its first materialization and the checkout
+  carries (#15, #30). Then it runs:
     - the parser check (#5, below), which rests on `projection-write-back`;
     - a work unit driven end to end through the rewritten workflows (#2, below);
     - cases 2 to 7 below, and the other store-backed paths;
@@ -394,8 +399,9 @@ independent check run first (`DEV-RULES.PROJECT.md` § Self-Hosting Defects).
 
 #### The order
 
-The window runs as ordered steps; the spec sets the exact steps and their abort points from the import's stages
-(§ Abort and recovery).
+The window runs as ordered steps; the spec sets the exact steps and their abort points from the import's stages (§ Abort
+and recovery). The importing checkout runs the quiesce check, the import, and its second run on `main`'s pre-flip build,
+as both rehearsal stages do, and no checkout runs the flip's build until the flip has merged (Owner, 2026-11-06).
 
 - **Ahead of the window:**
     - the sealing guard and the pre-meta backfill, both on `main` before the rehearsal (§ The quiesce, and the check
@@ -543,6 +549,11 @@ dispositions).
 
 The code that must change at the flip, beside the import and the workflow rewrite.
 
+- **The backend switch.** `createStore` (`lib/store/create.ts`), today the in-repo implementation alone, builds the ref
+  backend, so every store a command opens reports `stateOffBranch`. This is the flip; the rest of this section follows
+  from it. The import stays as it is: `runStoreMigrate` builds the import's source through `createStore`, so on a flip
+  build that source would be the ref store itself, and no flip build imports (§ The order).
+  `cutover-tracked-state-removal` deletes the import's transform after the window (#10).
 - **`arc sync` onto the store's `pull` and `push`** (#9). `storage-ref-backend` renamed the contract's `sync()` to
   `push({ carry? })` and added `pull()`, while `arc sync` keeps its name and runs both, pulling then pushing
   (`spec-storage-ref-backend.md` § 6.1). The flip points `handleSync` (`handlers/sync.ts`) at `pull` then `push` and
@@ -796,7 +807,8 @@ Document, as the 2026-09-29 amendments refined items 2, 4, 7, and 10:
 **`none`, temporary:** one-time window machinery, done or deleted once the window closes. The rehearsal's two stages,
 copy safety, chain comparison, accounting case, and canaries; the quiesce, its check with the Errand-ref tips, and the
 sealing guard; the window's order, the flip's own landing by an Owner-directed merge, and its abort and recovery; no
-separate import rerun, and A4's selection kept out of the window; and the pre-meta backfill.
+separate import rerun, A4's selection kept out of the window, and the pre-flip build the window imports from; and the
+pre-meta backfill.
 
 **`none`, not this unit's decision:** the flip applies text a shipped or approved specification settled, whose own
 disposition stands. The task loop, pause and resume, the lifecycle and identity verbs, the delivery and review steps,
@@ -805,8 +817,9 @@ definition, `arc store`'s un-hiding, and the Markdown notice; and the planning-l
 untracked state.
 
 **`none`, meeting none of the five criteria:** planning structure and tactical choices. The cut and the carve, the rule
-for what lands at the flip and the per-check sort, the items moved between members (#3, H4), and the flip asking
-nothing of the projection members beyond their specifications; and the Markdown fix's end-to-end test.
+for what lands at the flip and the per-check sort, the items moved between members (#3, H4), and the flip asking nothing
+of the projection members beyond their specifications; the flip's one repository (#29); no fix before the flip for the
+partial-protection planning entry (#31); and the Markdown fix's end-to-end test.
 
 ---
 
