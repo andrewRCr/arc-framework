@@ -112,14 +112,14 @@
       its complete list; and the Errand branch's suffix covers every Errand type (§ The window; § The rehearsal; § The
       flip change; § The workflow rewrite);
     - planning review's fix checks over the first pass's folds (2026-11-06), each fold approved with its disposition:
-      the flip's changes to project records land on `main` ahead of the window and its branch merges `main` after the
-      last landing, the check refusing any branch that changes a project record, since the import reads project records
-      only at `main`'s `HEAD`; the register rows the flip realizes close through the store after its merge; this
-      repository's `archive.cadence: manual` goes at the flip; verify records Step 1's dispositions in the verification
-      record; and Stage 2 spawns a worktree after the flip (§ The window; § The rehearsal; § The workflow rewrite).
+      every live branch's changes to tracked state outside its own work item's records land on `main` and merge back, or
+      are dropped, ahead of the window, and the flip's branch merges `main` after the last landing, the check refusing
+      any branch that carries such a change, since the import does not read it from that branch; the register rows the
+      flip realizes close through the store after its merge; this repository's `archive.cadence: manual` goes at the
+      flip; verify records Step 1's dispositions in a `_Captures:_` category of the verification record; and Stage 2
+      spawns a worktree after the flip (§ The window; § The rehearsal; § The workflow rewrite).
 - **Open:** none.
-- **Next:** planning review: the third fix check over the first pass's folds, the second pass, `arc check increment`,
-  and the capture commit.
+- **Next:** planning review: the second pass, `arc check increment`, and the capture commit.
 
 ### The cut
 
@@ -274,10 +274,11 @@ window's mechanics need neither, so they run first.
 
 - **Stage 1, the window's mechanics,** from this unit's branch before the flip change exists, once the sealing guard is
   on `main` (landed at `a61e24716a`) and the quiesce check builds. Its build is today's machinery plus the check. It
-  fetches every branch from the copy's mirror, then runs the quiesce check (§ The quiesce, and the check that it holds),
-  first refusing a change to a project record planted on a copied branch and then passing once it is removed, a save
-  from every copied checkout (#34), the copy's mirror designated as its state remote, and a real import, publication to
-  that mirror included, then:
+  fetches every branch from the copy's mirror and applies the check's remedy on the copy to each copied branch that
+  still changes tracked state outside its own work item's records, as live branches do before the window, so the remedy
+  is rehearsed too. It then runs the quiesce check (§ The quiesce, and the check that it holds), first refusing such a
+  change planted on a copied branch and then passing once it is removed, a save from every copied checkout (#34), the
+  copy's mirror designated as its state remote, and a real import, publication to that mirror included, then:
     - the sealing guard (`refuseWriteIfStoreImported`) refusing an in-repo write in every copied checkout once the
       import has run;
     - the Errand identity refs gone from the copy and its mirror with the kept tips dropped;
@@ -310,7 +311,8 @@ window's mechanics need neither, so they run first.
       since the in-repo store reports none (`spec-seam-locus.md` § 9.3);
     - the Markdown fix's end-to-end test over the flipped store (§ The flip change);
     - a worktree spawned after the flip holding `.arc/user/.npmignore`, the policy the projection's guard requires
-      before it writes into any root, and taking its first materialization (`spec-projection-worktrees.md` § 2.5);
+      before it writes into any root, from the repository's tracked copy rather than one the rehearsal supplies, and
+      taking its first materialization (`spec-projection-worktrees.md` § 2.5; § Named assumptions on unlanded members);
     - the representative decomposition cut (#25, #28, below).
 - **Alongside Stage 2,** the destructive CLI matrix (#22) and the partial-protection start (#31) run in synthetic
   scratch repositories through the spawned built CLI, as the matrix requires (below).
@@ -479,6 +481,9 @@ build until the flip has merged (§ The flip change).
     - the sealing guard and the pre-meta backfill, both on `main` before the rehearsal (§ The quiesce, and the check
       that it holds; § Tracked state the import does not claim);
     - implementation work units landed where possible, or parked at a task boundary;
+    - every live branch's changes to tracked state outside its own work item's records landed on `main` and `main`
+      merged back into it, or dropped from it, since the import does not read them from that branch (§ The quiesce, and
+      the check that it holds);
     - the pre-import tidy, worked from the import's trial run, since on a public repository the import publishes this
       repository's personal state for good (#7);
     - every machine's notes brought to the importing machine by `git bundle` or a fetch between machines, since the
@@ -488,11 +493,9 @@ build until the flip has merged (§ The flip change).
     - the flip itself finished up to its merge on the in-repo implementation, its checkout under the override, at one
       head: its review settled, its verification done, and CI passing there. Its own `.arc/active/` files and Candidate
       record stay at its branch tip, where the import reads a live work unit's records (`spec-storage-ref-backend.md`
-      § 10.8), since `main` tracks none of them. Its changes to project records, its cohort record's planning edits
-      among them, land on `main` first by their own pull request, and its branch merges `main` after the last landing
-      ahead of the window, before that head is fixed: the import reads project records only at `main`'s `HEAD` (§ 10.8;
-      `importCohortPlacements`, `lib/store/ref/import/cohort-source.ts`), so its branch must hold exactly what `main`
-      holds there.
+      § 10.8), since `main` tracks none of them. Its own such changes, its cohort record's planning edits among them,
+      land on `main` by their own pull request, and its branch merges `main` after the last landing ahead of the window,
+      before that head is fixed, so it holds exactly what `main` holds outside its own records.
 - **The quiesce** (§ The quiesce, and the check that it holds): every other session handed off and stopped (#2); every
   review attempt in flight on the importing machine finished (#23); ended holders' checkouts and work-unit husks torn
   down (#30); every unlocked marked worktree locked (#19); every branch fetched from `origin`, since the import picks
@@ -517,8 +520,10 @@ build until the flip has merged (§ The flip change).
   reads under the override until the import, and the Owner merges that exact head in the host's interface. Its archive
   is then written through the store from its build (`arc archive`), and the register rows its landing realizes close the
   same way, as store writes to `cohort-state-storage.md`'s record. No landing-commit link is written, since no
-  checkpoint binds the merge (`spec-seam-delivery-review.md` A39), and its completed frame derives from the archive or
-  from the merge's patch identity (`spec-seam-locus.md` § 2.1).
+  checkpoint binds the merge (`spec-seam-delivery-review.md` A39), and its archived work unit reads the retired frame
+  because its checkout's `HEAD` has landed in base by patch identity, which the merge gives it, since from the flip the
+  cadence is `with-integration`, under which the archive alone does not retire a work unit (`completedWorkUnitRetired`,
+  `lib/locus/store-work-unit-evidence.ts`; `spec-seam-locus.md` § 2.1).
 - **Each checkout,** in turn:
     - deletes its own copy of a Candidate or boundary record that differs from `main`'s, and its own `.arc/active/`
       files, from disk as well as the index, and commits the deletion, since a merge refuses an index that differs from
@@ -588,12 +593,14 @@ named:
   candidate branch or staged checkout (`spec-seam-decomposition.md` § 18, "Migration and rollout");
 - every checkout's `HEAD` descends from `a61e24716a`, the sealing guard's merge on `main` (PR #1287), and its build
   carries the guard below;
-- no branch a checkout holds, and no live work unit's branch, changes a project record, one of the project's own records
-  such as a cohort record, since its merge base with `main`; a branch's own work item's records are exempt, since the
-  import picks them from that branch. The import reads project records only at `main`'s `HEAD`
-  (`spec-storage-ref-backend.md` § 10.8; `importCohortPlacements`, `lib/store/ref/import/cohort-source.ts`), so such a
-  change would be lost at that branch's deletion commit or its merge; the remedy is to land it on `main` first.
-  `ROADMAP.md` is no record (§ Tracked state the import does not claim);
+- no branch a checkout holds, and no live work unit's branch, changes tracked state outside its own work item's records
+  since its merge base with `main`: any file under a projected root, or any of the `.internal/` records, other than that
+  work item's records, which the import picks from that branch, and `ROADMAP.md`, which is no record (§ Tracked state
+  the import does not claim). The import reads the project's own records, the cohort records, the project inbox, and
+  lineage's transition records, at `main`'s `HEAD` (`readImportSource`, `lib/store/ref/import/source.ts`), and another
+  work item's records at the copy it picks for that work item (`spec-storage-ref-backend.md` § 10.8), so such a change
+  would be lost at that branch's deletion commit or its merge. The remedy is to land the change on `main` and merge
+  `main` into the branch, or to drop it from the branch;
 - `main`'s `HEAD` is an ancestor of the flip's branch, so the commit deleting the tracked state the import took deletes
   exactly the files the import read, and no shared-root file `main` changed after the flip last merged it conflicts with
   that deletion or survives it in a projected root.
@@ -910,11 +917,14 @@ specification's hand-off to the cutover adds to the map, or where the map leaves
       task with `arc task close`, which closes a task that produced no commit (`spec-seam-lifecycle.md` § 9.2), or with
       `arc release commit --close` where verification changed tracked files, and then runs `arc attest` over that head,
       its review copy riding attest's commit step. Step 1's record of each rejected or dismissed capture, today in the
-      verification commit body, goes into the verification task's verification record (`verify-work-unit.md`
-      § Verification Record), saved with the task, since the ordinary path makes no verification commit. Today verify
-      marks the task `[x]` by hand and attests the staged subject before the verification commit, and attest refuses a
-      task list that is still open (`no-open-task`), so with the task closing through a verb rather than a hand-edited
-      checkbox staged into that commit, attest moves after the close and the staged-subject wording goes (consumer map);
+      verification commit body, goes into a third category of the verification task's verification record,
+      `_Captures:_`, written only when Step 1 rejected or dismissed one and saved with the task, since the ordinary path
+      makes no verification commit. The rewrite changes `verify-work-unit.md` § Verification Record and
+      `strategy-task-list-formatting.md`'s verification-task exception, which names the record's two categories,
+      together (Owner, 2026-11-06). Today verify marks the task `[x]` by hand and attests the staged subject before the
+      verification commit, and attest refuses a task list that is still open (`no-open-task`), so with the task closing
+      through a verb rather than a hand-edited checkbox staged into that commit, attest moves after the close and the
+      staged-subject wording goes (consumer map);
     - archival becomes a store write in both cadences, so the archive commit and its push go, while
       `integrate-work-unit.md`'s step-8 dispatch keeps both arms: under `with-integration` integrate archives before the
       merge and the landing writes the landing-commit link, and under `manual` archival follows the merge
@@ -1151,6 +1161,9 @@ Each assumption is written against the named specification section and re-checke
 - H1, the identity verbs' workflow changes: `cohort-identity-verbs` § Non-Goals ("Workflow text") and § 10.
 - H4, the errata convention onto the archived meta's store history: `projection-write-back` § 8.4.
 - H5, how often the save anchor moves: `projection-write-back` § 11.7, `projection-worktrees` § 11.7.
+- Stage 2's spawned worktree: `projection-worktrees` § 2.5 and its Task 1.3 track `.arc/user/.npmignore` in this
+  repository, so a linked worktree holds the policy the guard requires (`spec-projection-substrate.md` § 11.2). Written
+  against that member's working copy, not yet committed.
 
 Item #32's member depends on this one, so its assumption constrains this unit downstream rather than gating it.
 Item #19 rests on `spec-projection-substrate.md` § 12.7, which has landed.
@@ -1232,9 +1245,9 @@ branch whose Candidate or boundary record differs from `main`'s meets the untrac
 change), so it deletes its own copy after the import, beside its `.arc/active/` files, and commits both before it
 merges, since a merge refuses an index that differs from `HEAD`. A branch that modified `.arc/backlog/ROADMAP.md`, as
 this branch and several planning branches have, takes ROADMAP's deletion when it merges, so the conflict remedy never
-renders it back (§ The order). A branch that changed any other project record would meet a third, after the import had
-read that record at `main`'s `HEAD`; the check refuses such a branch before the import, so its change lands on `main`
-first (§ The quiesce, and the check that it holds).
+renders it back (§ The order). A branch that changed tracked state outside its own work item's records would meet a
+third, after the import had read that state elsewhere; the check refuses such a branch before the import, so its change
+lands on `main` and merges back, or is dropped, first (§ The quiesce, and the check that it holds).
 
 ### The import's part, released
 
