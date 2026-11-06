@@ -4,8 +4,10 @@ import { appendFileSync, readFileSync, readlinkSync } from "node:fs";
 export interface PeakIO { readlink: (path: string) => string; readFile: (path: string) => string }
 /** Observed native peak, retaining the last executable for an unavailable report. */
 export interface PeakState { rssMiB?: number; observedExecutable?: string }
+/** Terminal V8 heap observations, expressed in MiB. */
+export interface NodeHeap { usedMiB: number; limitMiB: number }
 /** Labels and observations for a process's memory report. */
-export interface PeakLine { check: string; shard?: string; softLimitMiB?: number; peak: PeakState; signal?: NodeJS.Signals | null }
+export interface PeakLine { check: string; shard?: string; softLimitMiB?: number; peak: PeakState; signal?: NodeJS.Signals | null; heap?: NodeHeap | null }
 
 const procIO: PeakIO = { readlink: readlinkSync, readFile: path => readFileSync(path, "utf8") };
 
@@ -59,7 +61,7 @@ export function formatPeakLine(line: PeakLine): string {
   const signal = line.signal ? `; signal: ${line.signal}` : "";
   const limit = softLimitMiB === undefined ? "" : `; soft limit: ${softLimitMiB} MiB`;
   const cue = splitDue(line) ? "; due for a split" : "";
-  return `${check}${shard === undefined ? "" : ` [${shard}]`}: peak: ${rss}${signal}${limit}${cue}`;
+  return `${check}${shard === undefined ? "" : ` [${shard}]`}: peak: ${rss}${signal}${limit}${formatHeap(line.heap)}${cue}`;
 }
 
 /** Report a peak and append an advisory shard split cue to a configured CI summary. */
@@ -76,4 +78,10 @@ export function reportPeakLine(line: PeakLine, env: NodeJS.ProcessEnv, append: (
 
 function splitDue(line: PeakLine): boolean {
   return line.shard !== undefined && line.peak.rssMiB !== undefined && Math.ceil(line.peak.rssMiB) >= 2765;
+}
+
+function formatHeap(heap: NodeHeap | null | undefined): string {
+  if (heap === undefined) return "";
+  if (heap === null) return "; heap: unavailable";
+  return `; heap in use: ${Math.ceil(heap.usedMiB)} MiB; heap limit: ${Math.ceil(heap.limitMiB)} MiB`;
 }

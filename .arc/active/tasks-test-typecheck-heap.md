@@ -178,33 +178,16 @@ _Exit criterion:_ At the phase's head, `npm run typecheck`, `npm run typecheck:t
 through `run-typecheck.ts` and pass. Every process prints its peak line: each TS 7 line carries its soft limit, and
 `lint:ts`'s carries V8's heap in use and heap limit. The commit and push gates pass them in the pool.
 
-### `[ ]` **4.1 Run eslint through the script with its peak and heap — D3, D7**
+### `[x]` **4.1 Run eslint through the script with its peak and heap — D3, D7**
 
 - _Goal:_ `lint -- <args>` runs one eslint process from the package's own eslint bin with a heap preload. It exits
   with eslint's own status (0, 1, or 2 for an unused suppression), or 128 plus the signal's number. Its peak line gives
   RSS counted while the process is `node`, plus V8's heap in use at exit and its heap limit in MiB, or `unavailable`
   heap after a signal.
 
-    - Resolve `eslint/package.json` (exported) and take its `bin.eslint`; start
-      `process.execPath --import <preload> <eslint bin> <args>` directly, with no shell, in the package root that 1.6
-      derives, so eslint finds its config and suppressions baseline and its arguments stay package-relative, as
-      `lint:ts` passes them
-    - The `--` after `lint` ends the script's own arguments; everything after it reaches eslint unchanged, including
-      what npm appends from the caller
-    - Preload `src/scripts/typecheck/heap-report.ts`: erasable syntax only and no relative imports, so Node 24 loads it
-      natively; at exit it writes `v8.getHeapStatistics()`'s heap in use and heap limit to the file an environment
-      variable names. Being `.ts` under `src`, it falls within the checks' declared `src/**/*.ts` inputs
-    - The eslint plan (argv, working directory and heap-file variable), the heap-file parse and the run live in
-      `src/scripts/typecheck/lint.ts`, which takes the launch function as 2.3's run loop does; unit tests in
-      `__tests__/unit/scripts/typecheck/lint.test.ts`
-    - Build `test-first` (one behavior at a time):
-        - The eslint argv is the running Node, the preload import, the eslint bin and the caller's arguments in order
-        - Statuses 0, 1 and 2 pass through unchanged
-        - A signal-ended eslint counts as 128 plus its number, never 1
-        - The heap file parses to heap in use and heap limit in MiB, and the line carries both
-        - A signal-ended eslint's line gives RSS, names the signal and reads the heap as `unavailable`
-        - A missing heap file reads the heap as `unavailable`
-        - Identity for eslint is `node`, the running Node's executable
+- _Outcome:_ Lint mode resolves ESLint's own bin and runs it directly in the package root with literal arguments
+  and an owned heap-report file. Its peak line includes V8 observations, or unavailable heap after a signal or
+  missing report, while retaining ESLint's status or 128 plus the signal number.
 
 ### `[ ]` **4.2 Switch `lint:ts` to the script — D4, D7**
 

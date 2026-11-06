@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { signalExitCode } from "../../lib/checks/signal-exit-code.js";
 import { resolveCompiler } from "./compiler.js";
+import { runLintCommand } from "./lint.js";
 import { compilerSoftLimit } from "./memory-bound.js";
 import { reportPeakLine } from "./peak.js";
 import { compilerLaunchPlan, launchProcess, type CompilerLaunchOptions } from "./processes.js";
@@ -31,9 +32,10 @@ export async function runTypechecks(run: TypecheckRun, launch: typeof launchProc
   return status;
 }
 
-/** Resolve installed compiler inputs and run the requested native type check. */
+/** Run the requested type check or typed lint command from the package root. */
 export async function runTypecheckCommand(packageRoot: string, args: string[]): Promise<number> {
   const [mode, ...forwarded] = args;
+  if (mode === "lint") return runLintCommand(packageRoot, forwarded[0] === "--" ? forwarded.slice(1) : forwarded);
   if (mode !== "src" && mode !== "test") throw new Error(`Unknown typecheck mode: ${mode ?? "(missing)"}`);
   return runTypechecks({
     mode, shards: mode === "test" ? discoverShards(packageRoot) : [], writeLine: line => { console.log(line); },
