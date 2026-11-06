@@ -44,6 +44,36 @@ it.each(["work-item/meta", "work-item/record"] as const)("gives primary and seco
   }
 });
 
+it.each(["work-item/meta", "work-item/record"] as const)("keeps UID access usable after %s primaries are removed", async secondKind => {
+  const f = await createRefFixture();
+  const companions = [];
+  for (const [uid, kind] of [[uidA, "work-item/meta"], [uidB, secondKind]] as const) {
+    const reference = await plantRefPrimary(f, { kind, uid, name: "shared" });
+    const companion = RecordReferenceSchema.parse({ kind: "work-item/companion", owner: reference.owner, key: "extra" });
+    const written = success(await f.store.write({ action: "put", reference: companion, expected: null,
+      content: f.content(companion), provenance: testProvenance }));
+    companions.push(success(await f.store.read({ reference: written.reference })));
+    const primary = success(await f.store.read({ reference }));
+    success(await f.store.write({ action: "remove", reference, expected: primary.version, provenance: testProvenance }));
+  }
+  const named = RecordReferenceSchema.parse({ kind: "work-item/companion", owner: { type: "work-item", name: "shared" }, key: "extra" });
+  const before = success(await f.store.version());
+  const read = await f.store.read({ reference: named });
+  expect(read).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match" } });
+  if (read.status !== "refused") throw new Error("Expected an auxiliary-only tie");
+  expect(read.refusal.remedy.text).not.toMatch(/arc rename|arc errand close/u);
+  expect(read.refusal.remedy.text).toContain("UID");
+  const write = await f.store.write({ action: "put", reference: named, expected: null, content: f.content(named), provenance: testProvenance });
+  expect(write).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match", remedy: read.refusal.remedy } });
+  expect(success(await f.store.version())).toBe(before);
+  for (const companion of companions) {
+    expect(success(await f.store.read({ reference: companion.reference }))).toEqual(companion);
+    const content = `${companion.content}\nResolved by UID.\n`;
+    success(await f.store.write({ action: "put", reference: companion.reference, expected: companion.version, content, provenance: testProvenance }));
+    expect(success(await f.store.read({ reference: companion.reference })).content).toBe(content);
+  }
+}, 60_000);
+
 it.each(["frame", "archive", "rename"] as const)("%s names the cohort rename when its member's cohort is clashed", async reader => {
   const f = await createRefFixture();
   for (const uid of [uidA, uidB]) await plantRefPrimary(f, { kind: "cohort/document", uid, name: "shared",

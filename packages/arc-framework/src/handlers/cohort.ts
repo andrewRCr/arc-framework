@@ -6,6 +6,8 @@ import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import { createGitExec } from "../lib/io-context.js";
 import { requireArcProjectRoot } from "./shared.js";
+import { parseLifecycleCommand } from "./lifecycle-shared.js";
+import { CohortCloseInputSchema, CohortRemoveInputSchema } from "./store-command-input.js";
 
 interface CohortOptions { yes?: boolean; json?: boolean }
 
@@ -23,6 +25,9 @@ async function handleCohort(operation: "close" | "remove", cohort: string, optio
   const cwd = requireArcProjectRoot();
   if (cwd === null) return;
   const store = createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec: createGitExec(context?.subprocess) }));
+  const schema = operation === "close" ? CohortCloseInputSchema : CohortRemoveInputSchema;
+  if (store.capabilities.stateOffBranch && parseLifecycleCommand(schema, { cohort, json: options.json },
+    ["cohort", operation], options.json === true) === null) return;
   const input = { operand: cohort, confirmed: options.yes === true };
   const result = operation === "close" ? await runCohortClose(store, input) : await runCohortRemove(store, input);
   renderCohort(result, options.json === true);

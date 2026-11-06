@@ -14,7 +14,7 @@ import { TransientIdentityRecordV3Schema, serializeTransientIdentityRecord } fro
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { resolveWorktreeMarkerPath, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
 import { OwnerIdentitySchema, recordReferences, RecordReferenceSchema, type RecordReference } from "../../src/lib/store/identity.js";
-import { writeMetaTitle } from "../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaTitle, writeMetaCohort } from "../../src/lib/store/kinds/meta/writers.js";
 import { rewriteCohortHeading } from "../../src/lib/store/kinds/cohort/index.js";
 import type { Store } from "../../src/lib/store/contract.js";
 
@@ -103,6 +103,43 @@ it("holds a heading decision on unreadable cohort evidence and retries after rep
   expect(retry.exitCode ?? 0, retry.stdout + retry.stderr).toBe(0);
   expect(success(await f.store.read({ reference: cohort.reference })).content).toContain("### `renamed`");
   expect(success(await f.store.read({ reference: other }))).toEqual(kept);
+}, 60_000);
+
+it("refuses a prepared heading rewrite after an active namesake joins, then reports it on retry", async () => {
+  const f = await fixture(), selectedUid = "12345678-abcd-4abc-8abc-123456789def";
+  const cohortRef = f.reference("cohort/document", "group");
+  const cohort = await seed(f, cohortRef, `# Cohort: \`${cohortRef.owner.name}\`\n\n**Purpose:** Coordinate.\n\n## Members\n\n### \`shared\`\n`);
+  const otherRef = await plantRefPrimary(f, { kind: "work-item/meta", name: "shared", uid: "12345678-abcd-4abc-8abc-123456789abc",
+    content: makeMetaFixture("shared", { cohort: null }) });
+  const selectedRef = await plantRefPrimary(f, { kind: "work-item/meta", name: "shared", uid: selectedUid,
+    content: makeMetaFixture("shared", { cohort: cohort.reference.owner.name }) });
+  const selected = success(await f.store.read({ reference: selectedRef }));
+  let joined = false;
+  const refused = await f.invoke(["rename", selectedUid, "renamed", "--json"], store => {
+    const wrapped = Object.create(store) as Store;
+    wrapped.batch = async input => {
+      if (!joined) {
+        joined = true;
+        const other = success(await store.read({ reference: otherRef }));
+        success(await store.write({ ...recordPut(other, { content: writeMetaCohort(other.content, cohort.reference.owner.name) }),
+          provenance: { verb: "edit", lifecycleAction: "edit" } }));
+      }
+      return store.batch(input);
+    };
+    return wrapped;
+  });
+  expect(refused).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { code: "version-conflict" } } });
+  expect(success(await f.store.read({ reference: selectedRef }))).toEqual(selected);
+  expect(success(await f.store.read({ reference: cohort.reference }))).toEqual(cohort);
+  const other = success(await f.store.read({ reference: otherRef }));
+  expect(other.fields).toMatchObject({ cohort: cohort.reference.owner.name });
+  const retry = await f.invoke(["rename", selectedUid, "renamed", "--json"]);
+  expect(retry.exitCode ?? 0, retry.stdout + retry.stderr).toBe(0);
+  expect(retry.result).toMatchObject({ status: "renamed", report: { memberHeadings: [
+    { document: cohort.reference, line: 7, replacement: "### `renamed`" },
+  ] } });
+  expect(success(await f.store.read({ reference: cohort.reference }))).toEqual(cohort);
+  expect(success(await f.store.read({ reference: otherRef }))).toEqual(other);
 }, 60_000);
 
 it.each(["current", "former", "ended", "former-cohort", "unrelated-cohort"] as const)("decides member heading ownership from a %s holder", async mode => {

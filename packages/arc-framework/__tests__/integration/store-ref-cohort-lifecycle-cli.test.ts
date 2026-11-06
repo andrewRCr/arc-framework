@@ -34,6 +34,26 @@ async function fixture(backend: "reference" | "ref") {
   return { ...f, ref, invoke: (args: readonly string[]) => repairCli(cli, args, options) };
 }
 
+describe.each(["reference", "ref"] as const)("cohort input refusal over %s", backend => {
+  it.each(["close", "remove"] as const)("rejects malformed %s operands without writing and accepts a valid retry", async operation => {
+    const f = await fixture(backend), ref = f.reference("cohort/document", "input");
+    const group = await seed(f, ref, content(ref.owner.name)), before = success(await f.store.version());
+    for (const operand of ["parent/child", "UPPER"]) {
+      for (const json of [false, true]) {
+        const result = await f.invoke(["cohort", operation, operand, "--yes", ...(json ? ["--json"] : [])]);
+        expect(result.exitCode).toBe(1);
+        if (json) expect(result.result).toMatchObject({ status: "rejected", remedy: { argv: ["arc", "cohort", operation, "--help"] } });
+        else expect(result.stdout + result.stderr).toContain(`arc cohort ${operation} --help`);
+        expect(success(await f.store.version())).toBe(before);
+        expect(success(await f.store.read({ reference: group.reference }))).toEqual(group);
+      }
+    }
+    const retry = await f.invoke(["cohort", operation, group.reference.owner.name, "--yes", "--json"]);
+    expect(retry.exitCode ?? 0, retry.stdout + retry.stderr).toBe(0);
+    expect(retry.result).toMatchObject({ status: operation === "close" ? "closed" : "removed", reference: group.reference });
+  }, 60_000);
+});
+
 it("removes the renamed cohort while the remaining current-name owner keeps its member", async () => {
   const f = await fixture("ref");
   if (f.ref === undefined) throw new Error("Expected real refs");

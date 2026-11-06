@@ -11,7 +11,7 @@ import { recordReferences, OwnerIdentitySchema, sameReference } from "../../../.
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import { recordKey } from "../../../helpers/store/model.js";
 import { SlugSchema, ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
-import { writeMetaPause } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { writeMetaPause, writeMetaCohort } from "../../../../src/lib/store/kinds/meta/writers.js";
 import type { LocusPorts } from "../../../../src/lib/work-unit/locus-ports.js";
 import { StoreRecordSchema } from "../../../../src/lib/store/read.js";
 import { HistoryRefSchema, StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
@@ -71,6 +71,49 @@ it("refuses a changed parent observation before applying a nested member rename"
   expect(lifecycleSuccess(await h.store.read({ reference: h.primary.reference }))).toEqual(h.primary);
   expect(lifecycleSuccess(await h.store.read({ reference: h.child.reference }))).toEqual(h.child);
   expect(lifecycleSuccess(await h.store.read({ reference: h.parent.reference }))).toEqual(parent);
+});
+it.each([null, "other-group"])("refuses stale heading authority when a namesake joins from %s", async priorCohort => {
+  const h = createLifecycleHarness();
+  const cohort = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })),
+    "# Cohort: `group`\n\n**Purpose:** Group work.\n\n## Members\n\n### `source`\n");
+  if (priorCohort !== null) await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: priorCohort })),
+    "# Cohort: `other-group`\n\n**Purpose:** Other work.\n");
+  const primary = await h.seedMeta("source", { cohort: "group" }), other = await h.seedMeta("other", { cohort: priorCohort });
+  const store = createClashDouble(h.store, { slug: "source", holders: [primary.reference, other.reference] });
+  const subject = lifecycleSuccess(await readStoreRenameSubject(store, { primary, operand: "source", targetSlug: "target" }));
+  const prepared = lifecycleSuccess(await prepareStoreRename(store, subject, "target"));
+  lifecycleSuccess(await h.store.write({ ...recordPut(other, { content: writeMetaCohort(other.content, "group") }),
+    provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  const changed = lifecycleSuccess(await h.store.read({ reference: other.reference })), before = lifecycleSuccess(await h.store.version());
+  expect(await applyPreparedLifecycleWrite(store, prepared, { verb: "rename", lifecycleAction: "rename" }))
+    .toMatchObject({ status: "refused", refusal: { code: "version-conflict" } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toEqual(primary);
+  expect(lifecycleSuccess(await h.store.read({ reference: cohort.reference }))).toEqual(cohort);
+  const fresh = lifecycleSuccess(await prepareStoreRename(store, subject, "target"));
+  expect(fresh.report.memberHeadings).toEqual([{ document: cohort.reference, line: 7, replacement: "### `target`" }]);
+  expect(await applyPreparedLifecycleWrite(store, fresh, { verb: "rename", lifecycleAction: "rename" })).toMatchObject({ status: "ok" });
+  expect(lifecycleSuccess(await h.store.read({ reference: cohort.reference })).content).toBe(cohort.content);
+  expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(changed);
+});
+it("guards the cohort resolution used by another heading candidate", async () => {
+  const h = createLifecycleHarness();
+  const cohort = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })),
+    "# Cohort: `group`\n\n**Purpose:** Group work.\n\n## Members\n\n### `source`\n");
+  const provider = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "other-group" })),
+    "# Cohort: `other-group`\n\n**Purpose:** Other work.\n");
+  const primary = await h.seedMeta("source", { cohort: "group" }), other = await h.seedMeta("other", { cohort: "other-group" });
+  const store = createClashDouble(h.store, { slug: "source", holders: [primary.reference, other.reference] });
+  const subject = lifecycleSuccess(await readStoreRenameSubject(store, { primary, operand: "source", targetSlug: "target" }));
+  const prepared = lifecycleSuccess(await prepareStoreRename(store, subject, "target"));
+  lifecycleSuccess(await h.store.write({ ...recordPut(provider, { content: provider.content + "\nNew context.\n" }),
+    provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  const before = lifecycleSuccess(await h.store.version());
+  expect(await applyPreparedLifecycleWrite(store, prepared, { verb: "rename", lifecycleAction: "rename" }))
+    .toMatchObject({ status: "refused", refusal: { code: "version-conflict" } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+  expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toEqual(primary);
+  expect(lifecycleSuccess(await h.store.read({ reference: cohort.reference }))).toEqual(cohort);
 });
 it("refuses an occupied target or incomplete inventory before invoking any physical adapter", async () => {
   const h = createLifecycleHarness(); const primary = await h.seedMeta("source"), holder = await h.seedMeta("target");

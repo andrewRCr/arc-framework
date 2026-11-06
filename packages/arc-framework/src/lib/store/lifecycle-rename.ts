@@ -116,7 +116,8 @@ export async function prepareStoreRename(store: Store, subject: StoreRenameSubje
     records: unseen.map(write => write.reference), condition: "The set of backlog records changed during rename preparation.",
     remedy: { text: "Acquire the complete rename groups again, then retry.", argv: ["arc", "rename", subject.operand, targetSlug] } } };
   const own = await settleOwnRenameEdge(store, subject, targetSlug); if (own.status === "refused") return own;
-  const observations = mergeRenameObservations([...groups.result.observations, ...settlement.observations, ...own.result.observations], subject, targetSlug);
+  const observations = mergeRenameObservations([...groups.result.observations, ...heading.value.observations,
+    ...settlement.observations, ...own.result.observations], subject, targetSlug);
   if (observations.status === "refused") return observations;
   const artifactRenames = ownedArtifactRenames(records, subject.primary, targetSlug);
   const ambiguity = authority.shared
