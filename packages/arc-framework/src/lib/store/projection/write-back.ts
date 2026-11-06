@@ -33,6 +33,7 @@ import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
 import { mergeCheckoutBase, prepareAmbiguousDrawing, type CheckoutDrawing, type CheckoutMerge } from "./checkout-merge.js";
 import { decideWriteBackRefusal } from "./write-refusal.js";
 import { explicitResolutionMarkerRefusal } from "./save-markers.js";
+import { observeProjectionEdit } from "./edit-observation.js";
 
 const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
@@ -78,8 +79,10 @@ export type PreparedWriteBack =
 
 /** Read and parse an edit without writing a file, publishing an index, or acquiring a lock. */
 export async function prepareWriteBack(context: WriteBackContext, request: TakeInRequest): Promise<PreparedWriteBack> {
+  request = observeProjectionEdit(request);
   const file = await readEdit(context, request);
   if (file.kind === "held") return file;
+  request = observeProjectionEdit(request, file.read.blob);
   const selected = await selectWriteBackBase(context, request, file.content, file.stamp);
   if (selected.status === "refused") return refusedPreparation(request.entry, selected.refusal);
   if (selected.result.kind === "held") return heldBasePreparation(context, request, file, selected.result.mark);
@@ -202,14 +205,22 @@ async function readEdit(context: WriteBackContext, request: TakeInRequest): Prom
     ...readGateDiagnostic(gate) };
   }
   const bytes = await readFile(path);
+  const blob = gitBlobId(bytes, context.format);
   const text = bytes.toString("utf8");
   if (!request.path.endsWith(".md") && request.copy === null) {
     const held = await stamplessVerdict(context, request, text, gate.stat);
-    if (held !== null) return held;
+    if (held !== null) return observedHeldRead(request, held, blob);
   }
   const parsed = request.path.endsWith(".md") ? parseStampedFile(text) : null;
   const stamp = parsed === null ? null : parsed.stamp;
-  return { kind: "read", content: parsed?.content ?? text.replaceAll("\r\n", "\n"), stamp, read: { stat: gate.stat, blob: gitBlobId(bytes, context.format) } };
+  return { kind: "read", content: parsed?.content ?? text.replaceAll("\r\n", "\n"), stamp, read: { stat: gate.stat, blob } };
+}
+
+function observedHeldRead(request: TakeInRequest, held: HeldWriteBack, blob: string): HeldWriteBack {
+  // An interrupted replacement can leave old projection bytes that the stampless verdict proves unedited.
+  if (held.result.answer === "no-edit") return held;
+  const marked = observeProjectionEdit({ ...request, entry: held.result.entry }, blob);
+  return { ...held, result: { ...held.result, entry: marked.entry } };
 }
 
 function readGateDiagnostic(gate: ReadGateVerdict): { diagnostic?: RefusedMark } {
@@ -290,6 +301,7 @@ type RefusedSend = { kind: "store-refused"; refusal: StoreRefusal; entry: Record
 
 /** Prepare and send an edit, recovering a rejected base once without retrying an already-landed write. */
 export async function sendWriteBack(context: WriteBackContext, request: TakeInRequest): Promise<WriteBackSend> {
+  request = observeProjectionEdit(request);
   const bound = { ...context, memo: context.memo ?? createHistoryMemo(context.store), versionRecoveries: context.versionRecoveries ?? [] };
   let current = request;
   for (const recoveringBase of [false, true]) {
@@ -325,6 +337,7 @@ async function sendAttempt(context: WriteBackContext, request: TakeInRequest): P
   if (prepared.kind === "held") {
     return heldPreparation(context, request, prepared);
   }
+  request = observeProjectionEdit(request, prepared.read.blob);
   let entry = await markOtherCopies(context, request);
   const sent = await sendLeasedWrite(context, prepared.write);
   if (sent.status === "refused") {

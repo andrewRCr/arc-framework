@@ -68,13 +68,14 @@ it("binds rights to refuse another identity's working-memory edit and lands it a
   const root = projectionProcessState().roots.get(view.checkout);
   const entry = (await view.disk()).entries[view.path];
   if (root === undefined || entry?.kind !== "record") throw new Error("The command did not bind a projection root");
+  expect(entry.changed).toBe(false);
   const denied = await withProjectionLock(view.location, async session => {
     root.checkpoint = session.step;
-    try { return await root.takeIn({ checkout: view.checkout, path: view.path, copy: null, entry, base: { kind: "stamp", stamp: null } }); }
+    try { return await root.takeIn({ checkout: view.checkout, path: view.path, copy: null, entry, observedEdit: true, base: { kind: "stamp", stamp: null } }); }
     finally { root.checkpoint = null; }
   });
   expect(denied).toMatchObject({ status: "done", value: {
-    answer: "refused", entry: { pending: true, refused: { reason: expect.stringContaining("alice") } },
+    answer: "refused", entry: { changed: true, pending: true, refused: { reason: expect.stringContaining("alice") } },
   } });
   expect(success(await h.store.read({ reference })).content).toBe(original);
   expect(await view.file()).toBe(bytes);

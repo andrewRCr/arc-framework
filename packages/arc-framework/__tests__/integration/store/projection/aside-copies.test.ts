@@ -75,6 +75,17 @@ async function swapped(path = PATH, contents: readonly [string, string] = ["# Co
 }
 
 describe("an aside copy", () => {
+  it("marks a saved edit even when its moved-on destination prevents taking it in", async () => {
+    const h = await swapped();
+    const edited = renderStampedFile({ content: "# Cohort: one\n\nA retained late save.\n", stamp: h.laid.base.blob });
+    await writeFile(h.aside, edited);
+    await rm(h.file);
+    await writeFile(h.file, "A newer destination.\n");
+    expect(await h.settle(refusing)).toMatchObject({ kind: "moved-on", entry: { changed: true } });
+    expect(await readFile(h.aside, "utf8")).toBe(edited);
+    expect(await readFile(h.file, "utf8")).toBe("A newer destination.\n");
+  });
+
   it("holding the blob its swap was moving, or the one it held when its own take-in landed, is deleted without the port", async () => {
     const unedited = await swapped();
     expect(await unedited.settle(refusing)).toEqual({ kind: "deleted", entry: { ...unedited.entry, copies: [] } });
@@ -95,13 +106,13 @@ describe("an aside copy", () => {
     }));
     const unmoved = await swapped();
     await saveInto(unmoved);
-    expect(await unmoved.settle(takingIn)).toEqual({ kind: "deleted", entry: { ...unmoved.entry, copies: [] } });
+    expect(await unmoved.settle(takingIn)).toEqual({ kind: "deleted", entry: { ...unmoved.entry, changed: true, copies: [] } });
 
     const moved = await swapped();
     await saveInto(moved);
     await rm(moved.file);
     await writeFile(moved.file, renderStampedFile({ content: "# Cohort: one\n\nA later save.\n", stamp: moved.entry.base.blob }));
-    expect(await moved.settle(refusing)).toEqual({ kind: "moved-on", entry: moved.entry, path: PATH, copy: moved.copy.name });
+    expect(await moved.settle(refusing)).toEqual({ kind: "moved-on", entry: { ...moved.entry, changed: true }, path: PATH, copy: moved.copy.name });
     expect(await readStat(moved.aside)).not.toBeNull();
   });
 
@@ -112,14 +123,14 @@ describe("an aside copy", () => {
     const absent = await swapped();
     await save(absent);
     await rm(absent.file);
-    expect(await absent.settle(takingIn)).toEqual({ kind: "deleted", entry: { ...absent.entry, copies: [] } });
+    expect(await absent.settle(takingIn)).toEqual({ kind: "deleted", entry: { ...absent.entry, changed: true, copies: [] } });
 
     const sent = await swapped();
     await save(sent);
     await rm(sent.file);
     const copy = { ...sent.copy, writeBackSent: true };
     const entry = { ...sent.entry, copies: [copy] };
-    expect(await sent.settle(refusing, { copy, entry })).toEqual({ kind: "moved-on", entry, path: PATH, copy: copy.name });
+    expect(await sent.settle(refusing, { copy, entry })).toEqual({ kind: "moved-on", entry: { ...entry, changed: true }, path: PATH, copy: copy.name });
 
     const linked = await swapped();
     await save(linked);
@@ -167,7 +178,7 @@ describe("an aside copy", () => {
     const deferred = await swapped();
     await writeFile(deferred.aside, renderStampedFile({ content: "# Cohort: one\n\nSaved into the copy.\n", stamp: deferred.laid.base.blob }));
     expect(await deferred.settle(async (request) => ({ answer: "deferred", entry: request.entry })))
-      .toEqual({ kind: "kept", entry: deferred.entry, answer: "deferred" });
+      .toEqual({ kind: "kept", entry: { ...deferred.entry, changed: true }, answer: "deferred" });
     expect(await readStat(deferred.aside)).not.toBeNull();
   });
 

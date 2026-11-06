@@ -572,24 +572,13 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   pending edits in, and `--changed` the part this checkout changed since its last `arc save`, refusing wherever that
   take-in could not run; over the in-repo implementation it prints an empty list.
 
-    - `[ ]` **2.11.a The changed mark**
+    - `[x]` **2.11.a The changed mark**
 
-        - The index's changed mark (`RecordEntry`, `lib/store/projection/index-schema.ts`) is set by write-back whenever
-          it finds an edit in a file, whatever comes of it — landed, refused, skipped for failing to parse (1.1.a), or
-          left pending — on the checkout whose file holds the edit, whichever process takes it in, so a sibling's
-          refresh that takes it in through the replace guard (`guardReplacement`) and a persist step
-          (`projection-worktrees`) mark the holding checkout. A verb's write marks its own checkout through the
-          fan-out's refresh of it, which `projection-worktrees`' fan-out adds, so until then `--changed` holds hand
-          edits alone; a refresh that only rewrites a file never sets it.
-        - `arc save`'s handler (1.10), under the projection lock, clears the mark on every file but one still holding an
-          edit the store lacks — refused, failing to parse, pending, withheld (`projection-worktrees`), or held for a
-          resolution (1.4.b) — after its own write-back, so a verb write racing it can only over-include.
-        - Build `test-first` (one behavior at a time):
-            - Integration tier, over the reference backend
-            - a landed edit, a refused edit, an unparseable edit, and a pending edit each set the mark
-            - `arc save` clears the mark on a landed file and keeps it on a refused one
-            - an edit taken in through the replace guard (`guardReplacement`), driven directly as a sibling's refresh
-              would drive it, marks the holding checkout, not the sibling
+        - Proved file and aside edits mark their holding entry before rights, parsing, history, or Store refusals,
+          including late command-end saves. Unchanged retries and projection-only refreshes keep existing marks.
+          Save clears accepted marks under a fresh lease and index read, checks retained copy payloads without settling
+          them, and preserves unsent or uncertain work. Stored-conflict display alone does not retain a mark; clearing
+          lock failures report the holder and retry, while stampless recovery preserves its unedited classification.
 
     - `[ ]` **2.11.b The command**
 

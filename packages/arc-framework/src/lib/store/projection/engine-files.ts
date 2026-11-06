@@ -70,7 +70,7 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
   const intent = projectionProcessState().resolution;
   const resolving = intent?.target?.path === path && !intent.accepted && intent.refusal === null;
   if (changed.status !== "changed" && !entry.pending && !resolving) return { index: withEntry(index, path, { ...entry, stat: changed.stat }), edited: false };
-  return { index, edited: true };
+  return { index: changed.status === "changed" ? withEntry(index, path, { ...entry, changed: true }) : index, edited: true };
 }
 
 async function sendFile(root: ProjectionRootState, index: ProjectionIndex, request: TakeInRequest): Promise<ProjectionIndex> {

@@ -95,6 +95,10 @@ export type CopyCheck =
     readonly blob: string;
   };
 
+/** A read-only observation of a saved copy, before consulting or restoring its original destination. */
+export type AsideCopyObservation = Exclude<CopyCheck, { readonly kind: "moved-on" | "sent" }>
+  | { readonly kind: "edited"; readonly entry: RecordEntry; readonly bytes: Uint8Array; readonly blob: string };
+
 /**
  * Check one aside copy, taking in an edit it holds where its path has not moved on. The copy is read by `lstat` first,
  * so one that is not a file is never followed.
@@ -102,6 +106,20 @@ export type CopyCheck =
  * @returns What the check found.
  */
 export async function checkAsideCopy(input: AsideCopySettling): Promise<CopyCheck> {
+  const observed = await observeAsideCopy(input);
+  if (observed.kind !== "edited") return observed;
+  const { checkout, path, copy } = input;
+  const { entry, bytes, blob } = observed;
+  // An older save from the same buffer and another editor's newer one cannot be told apart, so it is never sent.
+  if (hasPathMovedOn(copy, await readPathHolding(join(checkout, path), input.format))) return { kind: "moved-on", entry };
+  const base = copyBase(copy, bytes, path.endsWith(".md"));
+  const result = await input.takeIn({ checkout, path, copy: copy.name, entry, base, rendering: copy.rendering, observedEdit: true });
+  if (result.answer === "no-edit") return { kind: "no-edit", entry: result.entry };
+  return { kind: "sent", answer: result.answer, entry: result.entry, result, blob };
+}
+
+/** Compare only the copy's payload with its recorded moving or accepted blob; never settle it or read its destination. */
+export async function observeAsideCopy(input: Pick<AsideCopySettling, "checkout" | "path" | "copy" | "entry" | "format" | "gate" | "keepEmpty">): Promise<AsideCopyObservation> {
   const { checkout, path, copy, entry } = input;
   const markdown = path.endsWith(".md");
   const gated = await gateRead({ path: join(checkout, copy.name), markdown }, input.gate ?? SYSTEM_READ_GATE);
@@ -119,12 +137,7 @@ export async function checkAsideCopy(input: AsideCopySettling): Promise<CopyChec
   const blob = gitBlobId(bytes, input.format);
   // What the swap moved, or what the copy held when its own take-in landed, is no edit wherever it is read.
   if (blob === copy.moving || blob === copy.landed) return { kind: "no-edit", entry };
-  // An older save from the same buffer and another editor's newer one cannot be told apart, so it is never sent.
-  if (hasPathMovedOn(copy, await readPathHolding(join(checkout, path), input.format))) return { kind: "moved-on", entry };
-  const base = copyBase(copy, bytes, markdown);
-  const result = await input.takeIn({ checkout, path, copy: copy.name, entry, base, rendering: copy.rendering });
-  if (result.answer === "no-edit") return { kind: "no-edit", entry: result.entry };
-  return { kind: "sent", answer: result.answer, entry: result.entry, result, blob };
+  return { kind: "edited", entry: { ...entry, changed: true }, bytes, blob };
 }
 
 function observedEmpty(verdict: ReadGateVerdict): boolean {

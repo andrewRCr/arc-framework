@@ -3,6 +3,7 @@ import type { Store } from "../contract.js";
 import type { StateVersion } from "../identity.js";
 import type { Remedy, StoreRefusal } from "../refusal.js";
 import { projectionProcessState } from "./process-state.js";
+import { saveProjectionChanges } from "./save-changed.js";
 
 /** A save-specific stop, independent of the backend's closed refusal vocabulary. */
 export interface ProjectionSaveRefusal {
@@ -35,6 +36,5 @@ export async function projectionSaveResult(store: Store): Promise<ProjectionSave
   if (intent !== null && !intent.accepted) return { status: "refused", refusal: { code: "resolution-refused",
     condition: intent.refusal?.reason ?? `The requested resolution ${intent.token} remains pending.`,
     remedy: intent.refusal?.remedy ?? { text: "Repair the subject file's reported condition, then retry arc save --resolve with the same token." } } };
-  const version = await store.version();
-  return version.status === "refused" ? version : { status: "ok", result: { version: version.result } };
+  return saveProjectionChanges(store);
 }

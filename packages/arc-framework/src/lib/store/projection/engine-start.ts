@@ -24,6 +24,7 @@ import { createProjectionProtection } from "./protection.js";
 import { observeProjectionConfiguration } from "./command-configuration.js";
 import { interpretProjectionView } from "./view-settings.js";
 import { createProjectionLinkBoundary, reconcileProjectionLinks } from "./discovery-links.js";
+import { observeProjectionEdit } from "./edit-observation.js";
 
 /** Start independent reads together, drain them all, then sweep and take in files under the lease. */
 export async function startUnderLease(input: ProjectionCommandInput, ports: ProjectionEnginePorts,
@@ -129,6 +130,7 @@ async function bindRoot(input: ProjectionCommandInput, ports: ProjectionEnginePo
     blockedByLink: createProjectionLinkBoundary(links),
     checkpoint: session.step, copies: [], removals: [], unsent, discovered: [], changed: false,
     ready: false, writable: () => false, rights: bindProjectionRights(input.store, config.identity.identity, ports.exec, input.mode ?? "write-back"), takeIn: async request => {
+      request = observeProjectionEdit(request);
       const denied = await root.rights?.(request);
       if (denied === undefined || denied === null) return send(request);
       root.unsent.add(request.path);
