@@ -3,14 +3,20 @@
   "slug": "housekeep-2026-11-06",
   "claimId": "fb2d878bfe7c373eda26d6f6c2b6d4df",
   "createdAt": "2026-11-06T22:56:34.569Z",
-  "updatedAt": "2026-11-06T22:56:34.569Z",
+  "updatedAt": "2026-11-06T23:05:38.754Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Route the 2026-11-06 housekeep's work-unit captures into the three planned cutover stubs",
   "branch": "chore/housekeep-2026-11-06",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/housekeep-2026-11-06",
+    "headSha": "db742f1f005d220712d9ee0b8022d7afa1983d2f"
+  }
 }
