@@ -508,7 +508,11 @@ version-checked batch:
   segments resolve to, with the new slug in the renamed cohort's segment, so a record left on a former slug in either
   segment is rewritten whole: renaming a subcohort `s` of `p` to `t` turns its members' `p/s` into `p/t`, and renaming
   `p` to `q` turns them into `q/s`. A `Parent` takes the new slug. An ambiguous holding is not rewritten; § 4 reports
-  it.
+  it. **Coupled groups (A5):** retain an open child's `Parent` and its member paths when a retained member prevents
+  changing that `Parent` consistently, including when the `Parent` alone resolves solely to the renamed cohort.
+  Likewise retain member paths behind an ambiguous `Parent`. Report every retained holding, including sole ones,
+  through § 4's ordered clear → `Parent` → restore edits. All-sole groups still move in the batch; completed members
+  alone do not prevent a `Parent` update, and closed-child retention and restoration restrictions remain in force.
 - **References to the document's filename,** `` `cohort-<old>.md` ``, in stubs and open cohort documents — a parent
   cites its subcohorts' documents by filename — rewritten by the cohort arm itself where the old slug names the cohort
   alone (§ 4). The work-item sweep cannot serve: it leaves every `cohort-` reference unchanged
@@ -1029,6 +1033,14 @@ Over the ref backend and, where it can form the state, the reference backend, fr
 
 **Superseded (A4):** Success criterion 16's unconditional branch-shape prescription is replaced by criterion 18.
 
+19. **Coherent cohort groups (A5).** The batch and history-recovery outcomes of criterion 8 hold for independently
+    mutable holdings. When a sole `Parent` has an ambiguous open member, or an ambiguous `Parent` has a sole member,
+    the rename lands retaining the coupled open-child `Parent` and member paths, reports their exact ordered edits,
+    and those edits execute successfully. Mixed open/completed members retain placement; completed members alone do
+    not block a sole `Parent` update. All-sole groups move automatically and closed-child restrictions remain intact.
+
+**Superseded (A5):** Criterion 19 replaces criterion 8's unconditional rewrite-all prescription for coupled groups.
+
 ## Open Questions
 
 None.
@@ -1046,5 +1058,8 @@ None.
 
 - **A4** — 2026-11-05 — design: branch remedies use captured facts. _Supersedes:_ § 3.3 ¶1; criterion 16.
   _Trigger:_ F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A5** — 2026-11-06 — design: keep coupled cohort holdings consistent. _Supersedes:_ § 5.1 ¶3; criterion 8.
+  _Trigger:_ sole-parent-ambiguous-open-member review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

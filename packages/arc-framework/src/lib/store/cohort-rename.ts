@@ -52,17 +52,25 @@ async function prepareMembershipWrites(store: Store, primary: StoreRecord, targe
   document: { content: string; records: StoreRecord[] }): Promise<StoreResult<CohortRenameWrites>> {
   const view = capturedView(store, document.records), holdings = await observeAllHoldings(view, primary.reference);
   if (holdings.status !== "known") return malformed(primary, holdings.status === "unavailable" ? holdings.condition : "Cohort holdings are unavailable.");
-  const retainedParents = holdings.value.filter(holding => holding.resolution === "ambiguous" && holding.candidate.field === "parent");
+  const retainedParents = coupledRetainedParents(holdings.value);
   const closed = retainedParents.filter(holding => holding.candidate.completed);
   const plan: CohortRenamePlan = { primary, target, records: document.records, contents: new Map([[primary, document.content]]) };
   const membership = prepareSoleHoldings(plan, holdings.value, retainedParents);
   if (membership.status === "refused") return membership;
-  const retained = reportAmbiguousHoldings(plan, holdings.value.filter(holding => holding.resolution === "ambiguous"), closed);
+  const retainedHoldings = holdings.value.filter(holding => holding.resolution === "ambiguous" || retainedParents.includes(holding));
+  const retained = reportAmbiguousHoldings(plan, retainedHoldings, closed);
   if (retained.status === "refused") return retained;
   const filenames = await prepareFilenameReferences(view, plan, retained.result.report);
   if (filenames.status === "refused") return filenames;
   return { status: "ok", result: { ...retained.result, report: filenames.result,
     writes: cohortRenameMutations(document.records, plan.contents, primary, target) } };
+}
+
+function coupledRetainedParents(holdings: readonly CohortHolding[]): CohortHolding[] {
+  return holdings.filter(holding => holding.candidate.field === "parent" && (holding.resolution === "ambiguous"
+    || (!holding.candidate.completed && holding.members.some(member => !member.candidate.completed
+      && !holdings.some(candidate => candidate.segment === 0 && candidate.resolution === "sole"
+        && sameReference(candidate.candidate.reference, member.candidate.reference))))));
 }
 
 function prepareSoleHoldings(plan: CohortRenamePlan, holdings: readonly CohortHolding[], retainedParents: readonly CohortHolding[]): StoreResult<true> {

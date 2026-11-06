@@ -11,6 +11,7 @@
     - [Superseded input-refusal rule](#superseded-input-refusal-rule)
 - [Captured branch-link facts](#captured-branch-link-facts)
     - [Superseded shape-only remedy rule](#superseded-shape-only-remedy-rule)
+- [Coupled cohort holdings — A5](#coupled-cohort-holdings--a5)
 
 ## Catch-up publication recovery
 
@@ -128,5 +129,22 @@ supersession by the appended replacement at verification.
 > claiming to establish it. For other branch shapes it names the holder and branch and states that no rename-based
 > repair is available; it does not advertise a catch-up. For an Errand it names `arc errand close <uid>`, which ends the
 > holder of its created `chore/<slug>` branch. Its argv remains `arc status --json`.
+
+## Coupled cohort holdings — A5
+
+The sole-holding prescription in § 5.1 and Task 5.2's original goal assumed each holding could move independently:
+
+> Every record holding the cohort by a sole holding (§ 7.1): every member's `Cohort`, open or completed, started
+> members included — a direct member's and, for a parent, its subcohorts' members' — and every subcohort's `Parent`,
+> open or closed, when the renamed cohort is a parent.
+
+An open child's unique former Parent can coexist with an open member's ambiguous current path after a pull. Updating
+only Parent makes `checkCohortParent` refuse; updating the member would choose its owner without evidence.
+`coupledRetainedParents` retains that group, and `prepareSoleHoldings` also retains sole members behind an ambiguous
+Parent. `cohortHoldingEdits` supplies the existing clear → Parent → restore order, with completed-member edits afterward.
+This qualifies the original automatic-update promise rather than weakening admission. Closed-child restrictions stay
+with `closedParentDisposition` and `closedLeafDisposition`; a completed member alone does not require group retention.
+The appended criteria preserve the original batch and missing-history cases while making the mixed-resolution exception
+checkable. The review-fix verification closes this bounded amendment.
 
 ---

@@ -677,7 +677,7 @@ Over the ref backend and, where it can form the state, the reference backend, fr
 - `[x]` Renaming the second holder of a repaired clash away reports the former-slug tie, and a promotion under `--name`
   leaving the tie resumes when rerun by its new name.
 
-- `[x]` Renaming a parent cohort with a started member, a completed member, an open subcohort, and a closed subcohort with
+- `[~]` Renaming a parent cohort with a started member, a completed member, an open subcohort, and a closed subcohort with
   a completed member lands in one batch, on a clone lacking those records' history refs too, after which each names the
   new slug, as do the document's heading, the subcohorts' `Parent`, and the filename references; renaming a subcohort
   rewrites its members' paths, one left on its parent's former slug included, to the current path, and its own `Parent`
@@ -734,8 +734,17 @@ Over the ref backend and, where it can form the state, the reference backend, fr
   and leaves the tie; an eligible later catch-up moves only the retained link and resolves it. A promotion-only alias
   does not establish a prior work-unit rename.
 
+- `[x]` The batch and history-recovery outcomes of criterion 8 hold for independently mutable cohort holdings. A sole
+  Parent with an ambiguous open member, or an ambiguous Parent with a sole member, retains the coupled open-child Parent
+  and member paths while rename lands; its exact ordered edits execute successfully. Mixed open/completed members retain
+  placement, completed members alone do not block a sole Parent update, all-sole groups move automatically, and existing
+  closed-child restrictions remain intact.
+
 **Deviation (criterion 16, A3):** Ordinary same-name rename input checks follow backend selection; outside an ARC project,
 the missing-project refusal takes precedence. Admitted in-repo commands retain distinct-name rejection.
 
 **Superseded (criterion 20, A4):** Criterion 22 replaces the unconditional branch-shape prescription with captured
 holder and selected-link eligibility, including the stated prior-rename and UID-bound-checkout conditions.
+
+**Superseded (criterion 8, A5):** Criterion 23 replaces the unconditional rewrite-all prescription with coherent
+Parent/member groups and executable ordered repairs, retaining the original batch and history-recovery cases.
