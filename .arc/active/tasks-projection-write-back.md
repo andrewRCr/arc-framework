@@ -537,29 +537,12 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
               mints adopts the files
             - the verdict refuses a meta whose priority `StubCommandInputSchema` rejects, as `arc stub` would
 
-    - `[ ]` **2.8.c Never adopted**
+    - `[x]` **2.8.c Never adopted**
 
-        - Matched on the file name before any other test: editor side files (`*~`, `.#*`, `#*#`, `.*.sw?`, `4913`,
-          `*.tmp.<pid>.<hex>`) and operating-system folder files (`.DS_Store`, `._*`, `Thumbs.db`, `desktop.ini`,
-          `.directory`). Then by path: the two files a projected root can hold from before the flip, since no derived
-          view renders as a file from it — `STATUS.USER.md` in an identity's personal root, which nothing deletes but
-          teardown's user-surface migration, which discards a linked worktree's copy as a generated cache
-          (`DISCARDABLE_GENERATED_CACHES`, `lib/user-surface-migration.ts`), and the tracked `ROADMAP.md` on a branch
-          that has not merged the cutover, at the layout's `project-document` address (`lib/layout/schema.ts`), which
-          stays past the cutover — named directly rather than read from `DERIVED_VIEWS`, which leaves in
-          `storage-cutover`'s deletion pass; and any path `MACHINE_LOCAL_PATHS` lists, whose folders write-back's walk
-          skips. A symbolic link, past the name match, is never followed, read, or adopted: one at a path the index
-          lists reads as a deleted file (`gateRead`), and any other in a projected root is never adopted, as the files
-          above are, but is reported, each naming the remedy of replacing it with a regular file. The removal check and
-          the persist and release steps never refuse over one (`projection-worktrees`), since the record lives in the
-          store and the link's target outside the projection.
-        - Build `test-first` (one behavior at a time):
-            - Emacs's `.#name.md` lock, a dangling symlink ending in `.md`, is ignored by name
-            - a Vim swap file and a Claude Code temp file in `active/current/` are ignored
-            - a leftover `ROADMAP.md` and a leftover `STATUS.USER.md` are each neither adopted nor refused, and the
-              second stays on disk
-            - files under an identity's `.internal/` are never walked
-            - a symbolic link in `active/current/` is never adopted but is reported, and its target is never read
+        - Discovery excludes side files before stat and leaves legacy views and private folders untouched. Link
+          boundaries cover retries, resolution, sweep destinations, and freshly observed command-end targets. Obsolete
+          physical blockers clear while exact records, accepted read-back continuations, and saved copies survive;
+          regular-file or directory repair resumes ordinary recovery without resending accepted writes.
 
 ### `[x]` **2.9 The skip switch — § 2.3**
 

@@ -32,7 +32,7 @@ import { createReferenceFixture } from "../../../helpers/store/reference-fixture
 import { seedProjection } from "../../../helpers/store/projection/seeded-projection.js";
 import { configureEngineCheckout } from "../../../helpers/store/projection/engine-fixture.js";
 import { formatConflictToken } from "../../../../src/lib/status/conflict-token.js";
-import { chmod, lstat, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, readFile, rename, symlink, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
@@ -842,6 +842,28 @@ it("keeps the stored side of a content-only whole-record conflict", async () => 
   const current = success(await h.store.read({ reference: h.reference }));
   expect(current.content).toBe(h.current.content);
   expect(current.conflicts).toEqual([]);
+});
+
+it("names a linked resolution destination and accepts the same token after regular-file repair", async () => {
+  const h = await wholeRecordProjection("content");
+  const path = Object.keys(h.index.entries)[0];
+  if (path === undefined) throw new Error("The conflict has no projected subject");
+  const original = await readFile(join(h.checkout, path), "utf8"), target = join(h.checkout, "external-resolution.md");
+  await writeFile(target, "external resolution target\n");
+  await unlink(join(h.checkout, path));
+  await symlink(target, join(h.checkout, path), "file");
+  const before = success(await h.store.version()), token = formatConflictToken(h.conflict);
+  const refused = await save(h, ["--resolve", token]);
+  expect(refused.result).toMatchObject({ status: "refused", refusal: { code: "resolution-refused", condition: "not-a-file",
+    remedy: { text: expect.stringContaining("regular file") } } });
+  expect(success(await h.store.version())).toBe(before);
+  expect(success(await h.store.read({ reference: h.reference })).conflicts).toEqual([h.conflict]);
+  expect(await readFile(target, "utf8")).toBe("external resolution target\n");
+  await unlink(join(h.checkout, path));
+  await writeFile(join(h.checkout, path), original);
+  expect((await save(h, ["--resolve", token])).result.status).toBe("ok");
+  expect(success(await h.store.read({ reference: h.reference })).conflicts).toEqual([]);
+  expect(await readFile(target, "utf8")).toBe("external resolution target\n");
 });
 
 it.each(["", "not-a-token"])("reports an unknown token %j as whole JSON and accepts a corrected token", async token => {

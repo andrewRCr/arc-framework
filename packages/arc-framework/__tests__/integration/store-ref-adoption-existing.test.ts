@@ -1,6 +1,6 @@
 /** An unindexed copy retains its established record's identity and ordinary merge basis. */
 import { afterEach, expect, it, vi } from "vitest";
-import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, symlink, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createAdoptionFixture } from "../helpers/store/projection/adoption-fixture.js";
 import { seed, success, update } from "../helpers/store/suite-tools.js";
@@ -24,6 +24,7 @@ import type { WriteResult } from "../../src/lib/store/write.js";
 import { createStagedFile, nameAsideFile } from "../../src/lib/store/projection/aside.js";
 import { withProjectionLock } from "../../src/lib/store/projection/lock.js";
 import { createWriteBackPort } from "../../src/lib/store/projection/write-back.js";
+import { TAKEN_IN_FOLDER } from "../../src/lib/store/projection/taken-in.js";
 
 afterEach(() => { beginProjectionCommand(); });
 
@@ -124,6 +125,27 @@ it.each(["companion", "inbound"])("remembers an existing %s's accepted edit thro
   await repair();
   expect(success(await f.store.read({ reference })).version).toBe(accepted.version);
   const beforeRetry = success(await f.store.version());
+  const pendingEntry = held.index.entries[path];
+  if (pendingEntry?.kind !== "record" || pendingEntry.adoption?.kind !== "read-back" || !pendingEntry.adoption.recording
+    || pendingEntry.persisted?.takenIn.kind !== "copy") throw new Error("The accepted edit has no unfinished take-in record");
+  const payload = join(projected.location.stateDir, TAKEN_IN_FOLDER, pendingEntry.persisted.takenIn.name);
+  const payloadBytes = await readFile(payload);
+  const external = join(f.root, "external-accepted-destination"), backup = join(f.root, "accepted-authored-directory");
+  await mkdir(external);
+  await writeFile(join(external, path.slice(path.lastIndexOf("/") + 1)), "external content\n");
+  await rename(join(f.root, folder), backup);
+  await symlink(external, join(f.root, folder), "dir");
+  await startProjection({ store: f.store, checkout: f.root });
+  await endProjection({ store: f.store, checkout: f.root });
+  expect(success(await f.store.version())).toBe(beforeRetry);
+  const excluded = await readProjectionIndex(projected.location, true);
+  if (excluded.kind !== "index") throw new Error("The linked destination lost its accepted-write index");
+  expect(excluded.index.entries[path]).toMatchObject({ reference: pendingEntry.reference, base: pendingEntry.base,
+    adoption: pendingEntry.adoption, persisted: pendingEntry.persisted, pending: true, refused: pendingEntry.refused });
+  expect(await readFile(payload)).toEqual(payloadBytes);
+  expect(await readFile(join(external, path.slice(path.lastIndexOf("/") + 1)), "utf8")).toBe("external content\n");
+  await unlink(join(f.root, folder));
+  await rename(backup, join(f.root, folder));
   if (kind === "inbound") {
     const entry = held.index.entries[path];
     if (entry?.kind !== "record") throw new Error("Missing accepted entry for the aside take-in");

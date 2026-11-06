@@ -7,6 +7,7 @@ import { readProjectionIndex } from "./index-file.js";
 import { runSecondCheck } from "./second-check.js";
 import { removeTakenInCopies, TAKEN_IN_FOLDER } from "./taken-in.js";
 import { reportProjectionCopy } from "./report.js";
+import { readProjectionLinkBoundary } from "./discovery-links.js";
 
 /** Settle only this command's copies and collect unreferenced kept content under the same lease. */
 export async function finishProjectionRoot(root: ProjectionRootState): Promise<void> {
@@ -19,7 +20,10 @@ export async function finishProjectionRoot(root: ProjectionRootState): Promise<v
       await session.step();
       const fresh = await readProjectionIndex(root.location, true);
       if (fresh.kind !== "index") return;
+      const blockedByLink = await readProjectionLinkBoundary(root.checkout,
+        [...root.copies.map(copy => copy.path), ...root.removals], root.ports.walkFs);
       const checked = await runSecondCheck({ location: root.location, checkout: root.checkout, index: fresh.index,
+        blockedByLink,
         copies: root.copies, removals: root.removals, format: root.context.format, takeIn: root.takeIn,
         writer: root.context.writer, checkpoint: root.context.checkpoint });
       for (const copy of checked.settled) reportProjectionCopy(copy.path, copy.copy, copy.settlement);

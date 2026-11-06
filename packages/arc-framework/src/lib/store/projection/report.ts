@@ -4,6 +4,7 @@ import { storeRemedyText } from "../native-refusal.js";
 import { formatConflictToken } from "../../status/conflict-token.js";
 import { projectionProcessState } from "./process-state.js";
 import type { CopySettlement } from "./aside-copies.js";
+import { projectionLinkRemedy } from "./discovery-links.js";
 
 /** Flush only new notices, diagnostics, and resolutions at command entry and completion. */
 export function createProjectionReporter(store: Pick<Store, "capabilities">,
@@ -36,6 +37,12 @@ export function reportProjectionCopy(path: string, copy: string, settlement: Cop
         ? "The original path changed. Recover anything wanted from this aside copy, then remove the copy explicitly."
         : "Keep this aside copy; the next command will retry once the save has settled or its refusal is repaired." } };
   projectionProcessState().diagnostics.push({ path, copy, mark });
+}
+
+/** Report unfollowed links without recording them as ownerless files or pending edits. */
+export function reportProjectionLinks(paths: readonly string[]): void {
+  for (const path of paths) projectionProcessState().diagnostics.push({ path, copy: null,
+    mark: { reason: "not-a-file", remedy: projectionLinkRemedy(path) } });
 }
 
 function locus(path: string, copy: string | null): string {

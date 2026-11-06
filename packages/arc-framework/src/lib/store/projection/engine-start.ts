@@ -15,7 +15,7 @@ import type { ProjectionEnginePorts } from "./engine-ports.js";
 import type { ProjectionLocation } from "./location.js";
 import type { ProjectionLockSession } from "./lock.js";
 import type { ReadBackContext } from "./read-back.js";
-import { reportProjectionCopy } from "./report.js";
+import { reportProjectionCopy, reportProjectionLinks } from "./report.js";
 import { selectProjectionResolution, recheckProjectionResolution } from "./save-resolution.js";
 import { sameReference } from "../identity.js";
 import type { ProjectionIndex } from "./index-schema.js";
@@ -23,6 +23,7 @@ import { bindProjectionRights, refuseProjectionEdit } from "./rights-binding.js"
 import { createProjectionProtection } from "./protection.js";
 import { observeProjectionConfiguration } from "./command-configuration.js";
 import { interpretProjectionView } from "./view-settings.js";
+import { createProjectionLinkBoundary, reconcileProjectionLinks } from "./discovery-links.js";
 
 /** Start independent reads together, drain them all, then sweep and take in files under the lease. */
 export async function startUnderLease(input: ProjectionCommandInput, ports: ProjectionEnginePorts,
@@ -35,17 +36,19 @@ export async function startUnderLease(input: ProjectionCommandInput, ports: Proj
     const configuration = observeProjectionConfiguration(input.checkout, () => readProjectionConfiguration(ports.exec, input.checkout));
     const version = input.store.version();
     const shared = walkProjectionRoots(input.checkout, PROJECTED_LIFECYCLE_ROOTS.filter(path => input.mode === "save" || path !== ".arc/completed"), ports.walkFs);
-    const personal = configuration.then(config => config.identity.status === "no-identity" ? []
+    const personal = configuration.then(config => config.identity.status === "no-identity" ? { files: [], links: [] }
       : walkProjectionRoots(input.checkout, projectedRootPaths(config.identity.identity).filter(path => path.startsWith(".arc/user/")), ports.walkFs));
     const read = await Promise.allSettled([configuration, version, shared, personal] as const);
     const config = fulfilled(read[0]);
     if (config.identity.status === "no-identity") {
       const skip = { reason: "no-identity" as const, mark: { reason: `Projection disabled: ${config.identity.cause} identity.`, remedy: config.identity.remedy } };
       state.skip = skip;
-      return { kind: "skipped", skip, pending: read[2].status === "fulfilled" ? read[2].value : [] };
+      return { kind: "skipped", skip, pending: read[2].status === "fulfilled" ? read[2].value.files : [] };
     }
     const saved = fulfilled(read[1]);
-    const files = [...fulfilled(read[2]), ...fulfilled(read[3])].sort();
+    const sharedWalk = fulfilled(read[2]), personalWalk = fulfilled(read[3]);
+    const files = [...sharedWalk.files, ...personalWalk.files].sort();
+    reportProjectionLinks([...sharedWalk.links, ...personalWalk.links]);
     await session.step();
     if (saved.status === "refused") return { kind: "refused", mark: { reason: saved.refusal.condition, remedy: saved.refusal.remedy } };
     const disk = await readProjectionIndex(location, false);
@@ -56,9 +59,11 @@ export async function startUnderLease(input: ProjectionCommandInput, ports: Proj
     if (disk.kind === "unusable") return { kind: "refused", mark: { reason: `Projection index is ${disk.cause}.`,
       remedy: { text: "Restore a readable projection index, then retry; existing projected files have been preserved." } } };
     await bindResolution(input, disk.index);
-    root = await bindRoot(input, ports, location, config, session, unsent);
+    root = await bindRoot(input, ports, location, config, session, unsent, [...sharedWalk.links, ...personalWalk.links]);
     state.roots.set(input.checkout, root);
-    const swept = await sweepAsideFolder({ location, checkout: input.checkout, index: disk.index, format: config.objectFormat,
+    const index = await reconcileProjectionLinks(root, disk.index);
+    const swept = await sweepAsideFolder({ location, checkout: input.checkout, index, format: config.objectFormat,
+      blockedByLink: root.blockedByLink,
       takeIn: root.takeIn, writer: root.context.writer, checkpoint: root.context.checkpoint,
       ignoreRules: config.ignoreRules, readIgnoreRules: async () => (await readProjectionConfiguration(ports.exec, input.checkout)).ignoreRules,
       guard: { root: input.checkout, identity: root.identity, exec: ports.execInput, fs: ports.fs } });
@@ -91,7 +96,7 @@ async function bindResolution(input: ProjectionCommandInput, index: ProjectionIn
 }
 
 async function bindRoot(input: ProjectionCommandInput, ports: ProjectionEnginePorts, location: ProjectionLocation,
-  config: ProjectionConfiguration, session: ProjectionLockSession, unsent: Set<string>): Promise<ProjectionRootState> {
+  config: ProjectionConfiguration, session: ProjectionLockSession, unsent: Set<string>, links: readonly string[]): Promise<ProjectionRootState> {
   if (config.identity.status !== "identified") throw new Error("A projection root needs an identity");
   const state = projectionProcessState();
   state.history ??= createHistoryMemo(input.store);
@@ -121,6 +126,7 @@ async function bindRoot(input: ProjectionCommandInput, ports: ProjectionEnginePo
   const send = createWriteBackPort(context);
   const root: ProjectionRootState = { checkout: input.checkout, store: input.store, location, ports, context, identity: config.identity.identity,
     claim: layout.claim, layoutActive: layout.layoutActive, view: interpretProjectionView(config.view).view,
+    blockedByLink: createProjectionLinkBoundary(links),
     checkpoint: session.step, copies: [], removals: [], unsent, discovered: [], changed: false,
     ready: false, writable: () => false, rights: bindProjectionRights(input.store, config.identity.identity, ports.exec, input.mode ?? "write-back"), takeIn: async request => {
       const denied = await root.rights?.(request);

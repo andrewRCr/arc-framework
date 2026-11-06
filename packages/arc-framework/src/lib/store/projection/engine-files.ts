@@ -22,7 +22,7 @@ export async function writeBackProjectionFiles(root: ProjectionRootState, initia
   const selected = target?.refusal === null ? target.target?.path : undefined;
   const walked = [...new Set([...files, ...adoptionRetries(initial)])].sort();
   const paths = selected === undefined || target?.accepted ? walked : [...new Set([...walked, selected])].sort();
-  for (const path of paths) {
+  for (const path of paths.filter(path => root.blockedByLink(path) === null)) {
     const checked = await checkFileAtPath(root, index, path, reference);
     index = checked.index;
     if (checked.edited) { root.unsent.add(path); pending.push(path); }

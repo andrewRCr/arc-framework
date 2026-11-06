@@ -13,6 +13,7 @@ import type { TakeInPort, TakeInRequest } from "./take-in-port.js";
 import type { WriteBackDiagnostic, WriteBackResolution } from "./write-back.js";
 import type { ProjectionStart } from "./engine.js";
 import type { ProjectionResolution } from "./save-resolution.js";
+import type { ProjectionLinkBoundary } from "./discovery-links.js";
 
 /** A start that disables this command's projection while preserving the command's ordinary execution. */
 export interface ProjectionSkip { readonly reason: "no-identity" | "held" | "lost" | "gone" | "switch"; readonly mark: RefusedMark }
@@ -36,6 +37,7 @@ export interface ProjectionRootState {
   readonly takeIn: TakeInPort;
   readonly identity: Slug;
   readonly view: ProjectionIndex["projectedUnder"]["view"];
+  readonly blockedByLink: ProjectionLinkBoundary;
   claim: Slug | null;
   layoutActive: "nested" | "flat";
   checkpoint: (() => Promise<void>) | null;

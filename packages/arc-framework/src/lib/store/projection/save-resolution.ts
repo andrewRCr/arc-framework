@@ -3,11 +3,12 @@ import { formatConflictToken } from "../../status/conflict-token.js";
 import { sameReference, type RecordReference } from "../identity.js";
 import type { Store } from "../contract.js";
 import { ConflictRecordSchema, WholeRecordConflictSchema } from "../conflict.js";
-import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
+import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { TakeInResolution } from "./take-in-port.js";
 import { closedResolution, unmappedResolutionRefusal } from "./save-lookup.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { wholeRecordResolutionRefusal } from "./save-whole-record.js";
+import { projectionLinkRemedy } from "./discovery-links.js";
 
 /** An exact indexed subject and its requested resolving write. */
 export interface ProjectionResolutionTarget {
@@ -60,6 +61,10 @@ export async function recheckProjectionResolution(root: ProjectionRootState, ind
   const { store } = root;
   const target = intent?.target;
   if (intent === null || target === null || target === undefined || intent.accepted) return;
+  const link = root.blockedByLink(target.path);
+  if (link !== null) {
+    intent.refusal = { reason: "not-a-file", remedy: projectionLinkRemedy(link) }; return;
+  }
   const entry = index.entries[target.path];
   if (entry?.kind !== "record" || !sameReference(entry.reference, target.subject)) {
     intent.refusal = { reason: `The resolution's subject has no projected file at ${target.path}.`,
@@ -70,8 +75,7 @@ export async function recheckProjectionResolution(root: ProjectionRootState, ind
       remedy: { text: "Copy out anything wanted, then delete the withheld file to release it before retrying." } }; return;
   }
   if (target.resolution.kind === "hold") {
-    intent.refusal = entry.refused?.reason === "bases-disagree" && entry.refused.remedy.argv?.at(-1) === intent.token
-      ? null : closedResolution(intent.token); return;
+    intent.refusal = holdResolutionRefusal(entry, intent.token); return;
   }
   const read = await store.read({ reference: target.resolution.reference });
   if (read.status === "refused") {
@@ -89,4 +93,9 @@ export async function recheckProjectionResolution(root: ProjectionRootState, ind
     intent.refusal = await wholeRecordResolutionRefusal(root.context, { checkout: root.checkout, path: target.path,
       copy: null, entry, base: { kind: "stamp", stamp: null } }, whole.data);
   }
+}
+
+function holdResolutionRefusal(entry: RecordEntry, token: string): RefusedMark | null {
+  return entry.refused?.reason === "bases-disagree" && entry.refused.remedy.argv?.at(-1) === token
+    ? null : closedResolution(token);
 }
