@@ -99,9 +99,12 @@
     - the window's quiesce check, designation, and import run on `main`'s pre-flip build, so the flip change leaves the
       import untouched (Owner, 2026-11-06; § The order, § The flip change);
     - the review stop rule (Owner, 2026-11-06): after the first independent pass's fixes and their fix check, a second
-      pass runs only if the first found a critical or major finding; the review stops after the second pass, at the
-      cap, whatever it finds, with any remaining material finding folded or deferred by disposition and the residual
-      named in the capture commit;
+      pass runs only if the first found a critical or major finding; the review stops after the second pass, at the cap,
+      whatever it finds, with any remaining material finding folded or deferred by disposition and the residual named in
+      the capture commit; extended after the second pass (Owner, 2026-11-06): a third pass runs once the fix checks over
+      the second pass's folds converge, and if it finds nothing material the review stops with the residual named in the
+      capture commit, while a material finding is folded and fix-checked and its yield brought back before any fourth
+      pass;
     - planning review's first independent pass (2026-11-06), each fold approved with its disposition: the flip's own
       checkout runs its build with an override selecting the in-repo implementation until the import, and the flip build
       refuses a ref store where state is still tracked and no registry exists; a failure after the merge is fixed
@@ -125,7 +128,8 @@
       post-deletion tree before the window; the window closes by deleting its ref hold (§ The window; § The flip
       change).
 - **Open:** none.
-- **Next:** planning review: the fix check over the second pass's folds, `arc check increment`, and the capture commit.
+- **Next:** planning review: the second fix check over the second pass's folds, the third pass, `arc check increment`,
+  and the capture commit.
 
 ### The cut
 
@@ -283,8 +287,9 @@ window's mechanics need neither, so they run first.
   fetches every branch from the copy's mirror and applies the check's remedy on the copy to each copied branch that
   still changes tracked state outside its own work item's records, as live branches do before the window, so the remedy
   is rehearsed too. It then runs the quiesce check (§ The quiesce, and the check that it holds), first refusing such a
-  change planted on a copied branch and then passing once it is removed, a save from every copied checkout (#34), the
-  copy's mirror designated as its state remote, and a real import, publication to that mirror included, then:
+  change planted on a copied branch and an open pull request planted in the listing the rehearsal supplies, then passing
+  once both are removed, a save from every copied checkout (#34), the copy's mirror designated as its state remote, and
+  a real import, publication to that mirror included, then:
     - the sealing guard (`refuseWriteIfStoreImported`) refusing an in-repo write in every copied checkout once the
       import has run;
     - the Errand identity refs gone from the copy and its mirror with the kept tips dropped;
@@ -546,12 +551,11 @@ build until the flip has merged (§ The flip change).
       while an unresolved one would have the remedy render the file and stage it back under a projected root;
     - removes its pre-flip workspace folder, which the import has folded into the meta's session context and
       `scratch/`;
-        - takes its first materialization;
+    - takes its first materialization;
     - removes from its identity root each pre-flip file and folder the import moved to `scratch/`, once that
       materialization has written their `scratch/` copies, so the root holds only ARC's surfaces and `scratch/`
       (`importPersonalPath`, `lib/store/ref/import/personal-layout.ts`; `spec-storage-ref-backend.md` § 10.12; § Tracked
       state the import does not claim);
-
     - has its pre-flip marker bound or released, or, claimed in place, is carried to an anchored marker (§ The
       rehearsal, the checkout carries; #15, #30).
 - **Notes retire last** (§ Notes retirement), and the window closes by deleting the check's hold under
@@ -627,7 +631,8 @@ named:
   the repository allows auto-merge, the grooming and planning lanes arm it (`gh pr merge --auto`, `drain-inbox.md`), an
   Errand left awaiting its merge keeps its pull request open (`arc errand leave --state awaiting-merge`,
   `run-errand.md`), and `main`'s ruleset requires only the `ci-ok` check. The remedy is to merge each ahead of the
-  window or close it.
+  window or close it. The check reads the open pull requests from the host and refuses when it cannot; the rehearsal,
+  whose copies reach no host, supplies the listing instead, and the window's run never takes a supplied one.
 
 **Then every checkout saves its personal state, and the import runs** (#34). The import blocks on every personal file
 whose disk copy differs from its saved notes copy, naming the remedy `arc user save` and `arc user load`
@@ -641,19 +646,21 @@ the import rather than vanishing. The hardening's trials ran this sequence in tr
 checkout and then the import, clean four times.
 
 **What the check records.** Each worktree's `HEAD`, a digest of its personal files, and `origin/main`'s tip, which the
-window computes again after the import and once more before the flip's merge, any change stopping it before the flip
-change. An Errand write needs no comparison of its own: the import's landing leases each transient-identity ref on the
-tip it read, so one that advanced refuses the landing (`landImportRefs`, `lib/store/ref/import/land.ts`), and from then
-on the sealing guard refuses the Errand writers (`transactTransientIdentities`, `lib/errand/identity-transaction.ts`,
-which writes them through `writeTreeCommit`, `lib/errand/ref-tree.ts`). The check also records every `refs/arc/*` tip,
-local and on `origin`, and holds each under `refs/arc-window/`, fetching `origin`'s there: the abort's restore point
-(§ Abort and recovery). Today those refs hold the Errand identity refs, delivery's candidate, recovery, and bootstrap
-refs, and the notes sync state, none a store ref (`isStateRef`, `lib/store/ref/manifest.ts`). The hold matters after
-publication, when the import has deleted the Errand identity refs on both sides and dropped the tips it kept, and a
-deleted ref's commits are otherwise prunable; neither the import, which reads `refs/arc/`, nor a push reads
-`refs/arc-window/`. The check records the push's tracking refs, `refs/arc-remotes/origin/*`, beside them, empty today:
-an accepted push writes one per published ref outside `refs/arc/` (`acknowledgePushRefs`,
-`lib/store/ref/push-tracking.ts`), and the next push leases on them (`readPushListing`,
+window computes again after the import, any change stopping it before the flip change, and `origin/main`'s tip alone
+once more before the flip's merge, a change there stopping the merge, since by then the flip's own checkout has made its
+deletion commit. Each read of that tip asks the host (`git ls-remote origin refs/heads/main`) rather than the fetched
+ref, which moves only on a fetch. An Errand write needs no comparison of its own: the import's landing leases each
+transient-identity ref on the tip it read, so one that advanced refuses the landing (`landImportRefs`,
+`lib/store/ref/import/land.ts`), and from then on the sealing guard refuses the Errand writers
+(`transactTransientIdentities`, `lib/errand/identity-transaction.ts`, which writes them through `writeTreeCommit`,
+`lib/errand/ref-tree.ts`). The check also records every `refs/arc/*` tip, local and on `origin`, and holds each under
+`refs/arc-window/`, fetching `origin`'s there: the abort's restore point (§ Abort and recovery). Today those refs hold
+the Errand identity refs, delivery's candidate, recovery, and bootstrap refs, and the notes sync state, none a store ref
+(`isStateRef`, `lib/store/ref/manifest.ts`). The hold matters after publication, when the import has deleted the Errand
+identity refs on both sides and dropped the tips it kept, and a deleted ref's commits are otherwise prunable; neither
+the import, which reads `refs/arc/`, nor a push reads `refs/arc-window/`. The check records the push's tracking refs,
+`refs/arc-remotes/origin/*`, beside them, empty today: an accepted push writes one per published ref outside `refs/arc/`
+(`acknowledgePushRefs`, `lib/store/ref/push-tracking.ts`), and the next push leases on them (`readPushListing`,
 `lib/store/ref/push-listing.ts`).
 
 **The sealing guard** closes the one silent loss. Each checkout runs its own build, so a checkout that has not merged
@@ -688,10 +695,11 @@ make them.
 - **An abort restores what the check recorded** (§ The quiesce, and the check that it holds), locally and, once the
   import has published, on `origin`: each `refs/arc/*` ref the record holds goes back to its recorded tip, and every
   other `refs/arc/*` ref is deleted, as is every `refs/arc-remotes/origin/*` tracking ref the record does not hold. It
-  also removes any separate store directory (`<commonDir>/arc/store`) and unsets `remote.origin.arc-state`. The
-  registry ref is gone with the rest, which lifts the guard, while refs the import never touched, such as delivery's
-  candidate refs and the notes sync state, come back unchanged rather than being deleted. Stage 1 exercises it once,
-  after publication, and imports again on the aborted copy (§ The rehearsal).
+  also removes any separate store directory (`<commonDir>/arc/store`) and unsets `remote.origin.arc-state`. The registry
+  ref is gone with the rest, which lifts the guard, while refs the import never touched, such as delivery's candidate
+  refs and the notes sync state, come back unchanged rather than being deleted. Stage 1 exercises it once, after
+  publication, and imports again on the aborted copy (§ The rehearsal). Once restored, the abort deletes the hold under
+  `refs/arc-window/`, so a re-run's check records afresh.
 - **After publication,** the pre-import tidy still matters, since anything pushed may already have been copied.
 - **After the merge, fix forward** (Owner, 2026-11-06). A failed step past the merge, the flip's own archive or register
   closures, a checkout's deletion commit, its merge and rebuild, its workspace folder's removal, its first
@@ -708,11 +716,11 @@ make them.
 
 Notes retire at the import: the import reads each person's notes and deletes no notes ref (`lib/store/ref/import/` reads
 `refs/notes/arc/user/` alone), the sealing guard then refuses every notes writer, and the flip's build has none.
-`origin` holds no notes refs, deleted 2026-10-06 (`cohort-state-storage.md`'s register), so the window's last step is
-local: the importing machine moves its notes ref under a namespace that is neither a tag nor pushed, so
-`git push --tags` cannot publish every past personal note (Owner, 2026-11-05; #7). The old ref goes with the notes
-residue refs in `cutover-notes-removal`, by capture (2026-11-06). This settles analysis § 10.3's "keep the old ref as an
-archive tag", and ADR-035 item 8 is amended to match (§ ADR dispositions).
+`origin` holds no notes refs, deleted 2026-10-06 (`cohort-state-storage.md`'s register), so notes retirement is local:
+the importing machine moves its notes ref under a namespace that is neither a tag nor pushed, so `git push --tags`
+cannot publish every past personal note (Owner, 2026-11-05; #7). The old ref goes with the notes residue refs in
+`cutover-notes-removal`, by capture (2026-11-06). This settles analysis § 10.3's "keep the old ref as an archive tag",
+and ADR-035 item 8 is amended to match (§ ADR dispositions).
 
 ### The flip change
 
