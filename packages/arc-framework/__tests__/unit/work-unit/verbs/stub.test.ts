@@ -287,12 +287,11 @@ describe("runStub — initial Class", () => {
     expect(writes[0]!.content).not.toContain("[TBD]");
   });
 
-  it("normalizes a lowercase Class value to the codified form", async () => {
+  it("refuses a lowercase Class as the command does and accepts its canonical spelling", async () => {
     const { ctx, writes } = buildHarness();
-
-    const result = await runStub(ctx, { ...BASE, cls: "heavy" });
-
-    expect(result.status).toBe("scaffolded");
+    expect(await runStub(ctx, { ...BASE, cls: "heavy" })).toMatchObject({ status: "rejected" });
+    expect(writes).toEqual([]);
+    expect(await runStub(ctx, { ...BASE, cls: "Heavy" })).toMatchObject({ status: "scaffolded" });
     expect(writes[0]!.content).toContain("`Heavy`");
   });
 

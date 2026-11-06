@@ -502,6 +502,9 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
 
     - `[ ]` **2.8.b A new stub**
 
+        - _Progress:_ `stub-parameters.ts` now owns the command schema and the pure `validateStubParameters` verdict;
+          `runStub` consumes its validated inputs before accessing its executor. Direct callers now share the command's
+          canonical Class spelling and schema refusals, including invalid priority, without changing store state.
         - A new folder under `backlog/` holding a meta that parses and names no `Owner` but the adopting identity mints
           through `arc stub`'s path (`runStub`, `lib/work-unit/verbs/stub.ts`), with the meta rendered by
           `renderMetaFile` (`lib/store/kinds/meta/projection.ts`): the commitment tier and any cohort from the path;

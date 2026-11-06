@@ -41,7 +41,6 @@ import {
 import { prompt } from "../lib/command-input/prompter.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { type ParsedMetaRecord } from "../lib/active/meta-schema.js";
-import { COHORT_SEGMENT_CAP } from "../lib/active/cohort-path.js";
 import { expandActiveInFlight, runActiveInFlightExpansion } from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
@@ -79,6 +78,8 @@ import {
 import { runPark, runResume, type ParkResumeFs } from "../lib/work-unit/verbs/park-resume.js";
 import { runMaterialize } from "../lib/work-unit/verbs/materialize.js";
 import { runStub } from "../lib/work-unit/verbs/stub.js";
+import { StubCommandInputSchema } from "../lib/work-unit/verbs/stub-parameters.js";
+export { StubCommandInputSchema } from "../lib/work-unit/verbs/stub-parameters.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import {
   createInRepoAbandonRetirementContext,
@@ -128,7 +129,7 @@ import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { createNodeTeardownSelectionReader } from "../lib/work-unit/teardown-selection.js";
 import { createNodeTeardownWorktreeTransactionDriver } from "../lib/work-unit/teardown-worktree-transaction.js";
 import { spineRemedy } from "../scripts/integration/spine-refusal.js";
-import { PrioritySchema, SLUG_PATTERN, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
+import { PrioritySchema, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -311,28 +312,6 @@ export interface StubOptions {
   /** Initial resolved `Class` (`Light` | `Heavy` | `Novel`); omitted → `[TBD]`. */
   class?: string;
 }
-
-/** Canonical cohort path accepted by the `stub` command boundary. */
-const slugSegmentPatternSource = SLUG_PATTERN.source.slice(1, -1);
-const stubCohortPathPattern = new RegExp(
-  `^${slugSegmentPatternSource}(?:/${slugSegmentPatternSource}){0,${String(COHORT_SEGMENT_CAP - 1)}}$`,
-  "u",
-);
-const StubCohortPathSchema = z.string().regex(
-  stubCohortPathPattern,
-  "Expected a canonical one- or two-segment cohort path",
-);
-
-/** Complete schema-owned stub creation input. */
-export const StubCommandInputSchema = z.object({
-  name: SlugSchema,
-  commitment: z.enum(["provisional", "planned"]),
-  priority: PrioritySchema,
-  origin: z.string().min(1).optional(),
-  design: z.string().min(1).optional(),
-  cohort: StubCohortPathSchema.optional(),
-  class: WorkClassSchema.optional(),
-}).strict();
 
 /** Schema-owned backlog tier inputs. */
 export const PromoteCommandInputSchema = z.object({
