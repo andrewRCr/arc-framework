@@ -61,6 +61,28 @@ describe("partial state fetch completeness", () => {
     expect(success(await store.history({ reference }))).toContainEqual(expect.objectContaining({ content: first }));
   }, 30_000);
 
+  it("preserves a failed completeness refetch while native configuration remains damaged", async () => {
+    const h = await partialFixture("0", true);
+    let repair: (() => Promise<void>) | undefined, injected = false, observed: unknown;
+    const store = createRefStore({ ...h.partial.ports, exec: async (command, args, options) => {
+      if (args.includes("fetch") && args.includes("--refetch")) {
+        injected = true;
+        const path = join(h.partial.root, ".git/config"), bytes = await readFile(path);
+        repair = async () => writeFile(path, bytes);
+        await writeFile(path, Buffer.concat([bytes, Buffer.from("\n[unclosed\n")]));
+      }
+      return h.partial.ports.exec(command, args, options);
+    } });
+    try { observed = await store.pull().catch(error => error); }
+    finally { await repair?.(); }
+    expect(injected).toBe(true);
+    expect(observed).toMatchObject({ status: "ok", result: { pulls: [expect.objectContaining({ status: "failed",
+      failure: expect.objectContaining({ code: "unreachable", condition: expect.stringContaining("bad config") }) })] } });
+    expect((await h.partial.git(["for-each-ref", "--format=%(refname)", expandStoredPath(reference).ref])).stdout).toBe("");
+    success(await h.partial.store.pull());
+    expect(success(await h.partial.store.read({ reference })).content).toBe(first);
+  }, 30_000);
+
   it.each([
     { protocol: "0" as const, bitmaps: true }, { protocol: "0" as const, bitmaps: false },
     { protocol: "2" as const, bitmaps: true }, { protocol: "2" as const, bitmaps: false },

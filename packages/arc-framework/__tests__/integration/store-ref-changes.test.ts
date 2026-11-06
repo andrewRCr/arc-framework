@@ -439,7 +439,7 @@ describe("changes between ref manifests", () => {
       { parents: [ended] });
     await plantRef(f.root, registry, intact, { parents: [broken.tip] });
     expect(await f.store.changes({ from, to: await f.settle() })).toMatchObject({ status: "refused", refusal: { code: "namespace-corrupt",
-      namespace: registry, condition: `Historical metadata on ${registry} is missing or cannot be parsed.`,
+      namespace: registry, condition: `The metadata object for ${registry} cannot be parsed.`,
       remedy: { text: expect.stringContaining("a forward repair cannot change an ancestor") } } });
   });
 

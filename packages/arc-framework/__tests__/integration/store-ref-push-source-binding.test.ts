@@ -1,5 +1,6 @@
 /** Accepted publication belongs to its actual receiver across later source and layout changes. */
 import { join } from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
 import { expect, it } from "vitest";
 import { createRefStore, RecordReferenceSchema, type RefStorePorts } from "../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
@@ -7,6 +8,8 @@ import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { invokeStoreRemote } from "../helpers/store/remote-command.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
+import { makeGitProcessError } from "../helpers/git-exec-fake.js";
+import { isCompletedGitFailure } from "../../src/lib/git/process-error.js";
 
 const provenance = { verb: "edit", lifecycleAction: "save" };
 const personal = RecordReferenceSchema.parse({ kind: "personal/document", key: "source-binding.md", owner: { type: "person", name: "andrew" } });
@@ -33,6 +36,78 @@ function afterAccepted(ports: RefStorePorts, sibling: () => Promise<void>) {
     return result;
   } });
 }
+
+async function comparisonConfiguration(h: Awaited<ReturnType<typeof pendingPersonal>>,
+  phase: "capture" | "finalization", kind: "native" | "canceled" | "signaled" | "untyped" = "native") {
+  const path = join(h.a.root, ".git", "config"), original = await readFile(path);
+  let layouts = 0, accepted = false, injected = false, failure: unknown;
+  const ports: RefStorePorts = { ...h.a.ports, lock: async (...args) => {
+    const release = await h.a.ports.lock(...args);
+    if (args[0] !== "layout") return release;
+    layouts++;
+    return async () => { try { await release(); } finally { layouts--; } };
+  }, exec: async (...args) => {
+    const result = await h.a.ports.exec(...args);
+    if (args[1].includes("push")) accepted = true;
+    return result;
+  }, rawExec: async (args, options) => {
+    if (!injected && layouts > 0 && accepted === (phase === "finalization")
+      && args.includes(`--git-dir=${join(h.a.root, ".git")}`)
+      && args.includes("config") && args.includes("--list") && args.includes("--includes")) {
+      injected = true;
+      if (kind !== "native") {
+        failure = kind === "untyped" ? new TypeError("Comparison configuration failed")
+          : makeGitProcessError({ command: "git", args, ...kind === "canceled" ? { isCanceled: true as const }
+            : { exitCode: 128, signal: "SIGTERM" } });
+        throw failure;
+      }
+      await writeFile(path, Buffer.concat([original, Buffer.from("\n[unclosed\n")]));
+      try { return await h.a.ports.rawExec(args, options); }
+      catch (error) { failure = error; throw error; }
+      finally { await writeFile(path, original); }
+    }
+    return h.a.ports.rawExec(args, options);
+  } };
+  return { store: createRefStore(ports), inspected: () => ({ injected, failure, accepted }),
+    restored: async () => expect(await readFile(path)).toEqual(original) };
+}
+
+it.each((["default", "separate"] as const).flatMap(layout =>
+  (["capture", "finalization"] as const).map(phase => ({ layout, phase })) ))(
+  "retains publication state and retries after native $layout $phase configuration failure", async ({ layout, phase }) => {
+    const h = await pendingPersonal(layout), broken = await comparisonConfiguration(h, phase);
+    const observed: unknown = await broken.store.push().catch(error => error);
+    const { injected, failure, accepted } = broken.inspected();
+    expect(injected).toBe(true);
+    expect(isCompletedGitFailure(failure)).toBe(true);
+    expect(accepted).toBe(phase === "finalization");
+    await broken.restored();
+    expect(observed).toMatchObject({ status: "ok", result: { publishes: expect.arrayContaining([
+      expect.objectContaining(phase === "capture" ? { status: "failed", failure: expect.objectContaining({ code: "refused",
+        remedy: expect.objectContaining({ text: expect.stringContaining("Repair") }) }) } : { status: "pushed" }),
+    ]) } });
+    expect(await tip(h.a, h.tracking)).toBe(h.before);
+    expect((await h.remote("git", ["rev-parse", h.ref])).stdout.trim()).toBe(phase === "capture" ? h.before : h.accepted);
+    expect(success(await broken.store.read({ reference: personal })).content).toBe("accepted at old receiver\n");
+    const retry = success(await broken.store.push());
+    expect(retry.publishes.every(row => row.status !== "failed")).toBe(true);
+    expect(await tip(h.a, h.tracking)).toBe(h.accepted);
+    expect((await h.remote("git", ["rev-parse", h.ref])).stdout.trim()).toBe(h.accepted);
+  }, 60_000);
+
+it.each((["default", "separate"] as const).flatMap(layout =>
+  (["capture", "finalization"] as const).flatMap(phase =>
+    (["canceled", "signaled", "untyped"] as const).map(kind => ({ layout, phase, kind }))))) (
+  "propagates $layout $phase $kind configuration failure and retries", async ({ layout, phase, kind }) => {
+    const h = await pendingPersonal(layout), broken = await comparisonConfiguration(h, phase, kind);
+    const observed: unknown = await broken.store.push().catch(error => error);
+    expect(broken.inspected().injected).toBe(true);
+    expect(observed).toBe(broken.inspected().failure);
+    await broken.restored();
+    expect(success(await broken.store.read({ reference: personal })).content).toBe("accepted at old receiver\n");
+    expect(success(await broken.store.push()).publishes.every(row => row.status !== "failed")).toBe(true);
+    expect((await h.remote("git", ["rev-parse", h.ref])).stdout.trim()).toBe(h.accepted);
+  }, 60_000);
 
 it("publishes to a relative URL matching a code remote's name from the separate store", async () => {
   const h = await refSyncFixture("separate"), receiver = join(h.a.root, "upstream");

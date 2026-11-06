@@ -44,6 +44,7 @@ import { composeReviewDispositionRecord } from "../../../src/lib/store/kinds/rev
 import { publishNativeReviewApproval } from "../../../src/scripts/review-gate/runtime/native-review-approval.js";
 import { publishNativeConditionalPass } from "../../../src/scripts/review-gate/runtime/native-conditional-pass.js";
 import { publishNativeReviewPerformance } from "../../../src/scripts/review-gate/runtime/native-review-performance.js";
+import { createReviewResponsePort } from "../../../src/lib/store/kinds/review/evidence-root-selection/responses.js";
 
 const projectId = "123e4567-e89b-42d3-a456-426614174099";
 
@@ -67,7 +68,9 @@ it("requires owner selection before reading readiness and continues after the bo
   const current = await createPrePublicationCompositionDependencies({ ...h, workItem: owner }).readCandidate("example");
   const version = await h.store.version();
   expect(await h.run(false, {}, undefined, { readBoundary: async () => snapshot, readCandidate: async () => current }))
-    .toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("exact work item") } });
+    .toMatchObject({ error: { code: "invalid-input", message: expect.stringContaining("exact work item") },
+      remedy: { text: expect.stringContaining("Run the command from the work unit's checkout"),
+        argv: ["arc", "review", "pre-publication", "example"] } });
   expect(await h.store.version()).toEqual(version);
   expect(await h.run()).toMatchObject({ nextAction: { kind: "run-self-review" } });
 });
@@ -138,6 +141,7 @@ async function fixture(project = true, head = "a".repeat(40)) {
       overrides?: Parameters<typeof handleReviewPrePublication>[2]) => invoke(
       resume === undefined ? settled ? { selfReview: "settled", lanes: "lanes.json" } : {} : { resume }, lanes, overrides),
     runPendingJudgment: (lanes: unknown) => invoke({ lanes: "lanes.json" }, lanes),
+    runChangeSet: (changeSet: unknown) => invoke({ changeSet: "change-set.json" }, changeSet),
   };
 }
 
@@ -633,6 +637,31 @@ it.each([false, true])("keeps a native scope refusal's grants in its remedy only
     : { frontline: { scopeMode: "whole-target" } });
 });
 
+it("reports the routing inputs a change set's normalization rejected beside the envelope it composed", async () => {
+  const h = await fixture();
+  await h.seedCandidate();
+  const facts = { contentKind: "code-bearing", reviewRisk: "routine", changeDeterminacy: "ordinary", ownership: "self",
+    surfaceAuthority: "ordinary" };
+  expect(await h.runChangeSet({ ...facts, contentKind: "prose" })).toMatchObject({ locus: "candidate-review-pending",
+    diagnostics: [{ code: "routing-input-rejected", message: "Rejected or missing routing input: contentKind" }] });
+  expect(await h.runChangeSet(facts)).not.toHaveProperty("diagnostics");
+});
+
+it("refuses a producer prepared under other routing with the facts to correct and the rejected inputs", async () => {
+  const h = await fixture();
+  await h.seedCandidate();
+  const prepared = { obligation: "required", reasons: ["sensitive-change-set"], rubricVersion: "standard-review/v1",
+    rubricDigest: `sha256:${"a".repeat(64)}`, retrigger: "full-final", count: 1 } as const;
+  const reason = "review producer policy or rubric does not match the policy request";
+  const refused = await h.run(false, {}, undefined, { compose: async () => ({ status: "refused", code: "invalid-input",
+    reason, routingDiagnostics: ["contentKind"],
+    routingMismatch: { producerReview: prepared, requestReview: { ...prepared, reasons: ["unknown-change-set"] } } }) });
+  expect(refused).toMatchObject({ error: { code: "invalid-input", message: reason },
+    diagnostics: [{ code: "routing-input-rejected", message: "Rejected or missing routing input: contentKind" }],
+    remedy: { argv: ["arc", "review", "pre-publication", "example", "--change-set", "-"],
+      text: expect.stringContaining("Supply --change-set with every fact, reviewRisk as the review was prepared") } });
+});
+
 const DELIVERY_REPOSITORY = "arc-framework/example";
 // The first member's frontline pass is complete, so a plan selects the second; the first is where a scope refuses.
 const first = deliveryMember(DELIVERY_REPOSITORY, "1", "2", "3"), second = deliveryMember(DELIVERY_REPOSITORY, "4", "3", "5");
@@ -1052,6 +1081,7 @@ it("reuses performed conditional authority through explicit retry without ordina
   const current = await readCandidateRecord(h.cwd, "example", { store: h.store, owner });
   if (current === null) throw new Error("Expected Candidate");
   const outcomes = createReviewOutcomePort(h.store, owner), evidence = createReviewEvidencePort(h.store, owner);
+  const responses = createReviewResponsePort(h.store, owner);
   const decisions = createReviewDecisionPort(h.store, owner);
   const outcome = ReviewOutcomeSchema.parse(localOutcome({ target: createHostedHandleFixture({ repositoryId: projectId }).admission.reviewTarget,
     lineage: { kind: "candidate", candidateId: current.attestation.candidateId },
@@ -1064,7 +1094,7 @@ it("reuses performed conditional authority through explicit retry without ordina
   if (value.performance === undefined) throw new Error("Expected performance");
   const input = { outcomes, evidence, decisions, readProjectId: h.projectId,
     record: composeReviewDispositionRecord(outcome, [{ ...value, performance: undefined }], owner),
-    now: () => "2026-10-20T12:01:00Z" };
+    now: () => "2026-10-20T12:01:00Z", responses };
   await publishNativeReviewApproval(input);
   const decision = await publishNativeConditionalPass({ ...input, capture: { lane: "standard", repositoryId: projectId,
     headSha: outcome.target.headSha, lineage: outcome.lineage, producerId: outcome.attemptId,

@@ -132,12 +132,12 @@ Framework hook shipped to adopters.
 
 **Strategy documents** and **ADRs** serve complementary roles in ARC's documentation system:
 
-| Aspect     | Strategy documents                            | ADRs                                       |
-| ---------- | --------------------------------------------- | ------------------------------------------ |
-| Content    | Synthesized approaches to problem domains     | Specific decisions made at a point in time |
-| Style      | "How we think about X"                        | "What we chose for X situation"            |
-| Mutability | Updated as understanding evolves              | Immutable once accepted (supersession)     |
-| Origin     | Extracted from multiple experiences/decisions | Raw material that can inform strategies    |
+| Aspect     | Strategy documents                            | ADRs                                                      |
+| ---------- | --------------------------------------------- | --------------------------------------------------------- |
+| Content    | Synthesized approaches to problem domains     | Specific decisions made at a point in time                |
+| Style      | "How we think about X"                        | "What we chose for X situation"                           |
+| Mutability | Updated as understanding evolves              | Immutable once the accepting change merges (supersession) |
+| Origin     | Extracted from multiple experiences/decisions | Raw material that can inform strategies                   |
 
 Multiple related ADRs may reveal patterns worth extracting into a strategy. This separation
 operationalizes a widely-recognized principle: ADRs should remain point-in-time records, not

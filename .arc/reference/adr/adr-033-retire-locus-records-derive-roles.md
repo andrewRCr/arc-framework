@@ -2,11 +2,14 @@
 
 ## Status
 
-Proposed.
+Accepted (2026-11-04).
 
 The decision is made and its planning is in flight (`session-locus-operability-hardening`); promote to Accepted
 when that work unit integrates. Extends [ADR-032] — which stands, and whose decision this one subsumes — and
 applies [ADR-025]'s doctrine-over-mechanism posture one layer down.
+
+The promotion condition is met: the durable locus record store and leases are retired, and checkout roles derive
+from the ownership marker, lifecycle, transient identity, and Git topology.
 
 ## Context
 

@@ -8,7 +8,7 @@ import { projectRefTreeEntry } from "./entry-path.js";
 import { ownerPrimaryReference } from "./archive-refresh.js";
 import { readBatchObjects, readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import type { RefBackendContext } from "./context.js";
-import { corruptRef } from "./namespace-health.js";
+import { refDiagnosticRefusal, refObjectFault } from "./object-fault.js";
 import { syncRefMergeBase } from "./sync-graph.js";
 import type { SyncMergedTree } from "./sync-tree.js";
 import { findRefPathCollision } from "./path-admission.js";
@@ -26,11 +26,12 @@ export async function mergeArchiveTree(context: RefBackendContext, ref: string, 
   const sides: ArchiveSides = { base: new Map(), local: new Map(), incoming: new Map() };
   for (const key of tips.keys()) {
     const entries = trees.get(key);
-    if (!entries) return { status: "refused", refusal: corruptRef(ref, true) };
-    const parsed = (["work-item", "cohort"] as const).map((family) => archivedFolders(family, ref, entries, objects));
+    if (!entries) return { status: "refused", refusal: refObjectFault(ref, "missing", {
+      condition: `The tip or a tree of ${ref} is unavailable locally.`,
+    }).refusal };
+    const parsed = (["work-item", "cohort"] as const).map((family) => archivedFolders(family, ref, entries, objects, key === "base"));
     const diagnostic = parsed.flatMap(({ diagnostics }) => diagnostics)[0];
-    if (diagnostic) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: ref,
-      condition: diagnostic.condition, remedy: diagnostic.remedy } };
+    if (diagnostic) return { status: "refused", refusal: refDiagnosticRefusal(ref, diagnostic) };
     const folders = new Map(parsed.flatMap(({ folders }) => folders).map((folder) => [folderKey(folder), folder]));
     if (key === "base") sides.base = folders;
     else if (key === "local") sides.local = folders;

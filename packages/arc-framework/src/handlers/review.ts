@@ -7,6 +7,7 @@ import { readPrePublicationProgress, bindPrePublicationProgress, readAdvancedPre
 import { defaultReviewHandlerBoundary, executeReviewHandler, ReviewCommandInputSchema, reviewCommandInputSchema, type ReviewHandlerBoundary } from "./review-handler.js";
 import { reviewCommandError, type ReviewHandlerErrorPhase } from "./review-handler-errors.js";
 import { rethrowNativeRefusal } from "../lib/store/native-refusal.js";
+import { ReviewVehicleUnresolvedError } from "../lib/store/kinds/review/errors.js";
 export { ReviewCommandInputSchema } from "./review-handler.js";
 import { ProjectIdentityError } from "../lib/store/project-identity.js";
 import { requireNativeReviewDecisionReferences } from "../scripts/review-gate/policy/review-grant-references.js";
@@ -15,7 +16,7 @@ import { decodePrePublicationReplay, encodePrePublicationReplay, replayTokenFrom
 import { ReviewLaneReadRequestSchema, ReviewLaneReadEnvelopeSchema, type ReviewLaneReadRequest } from "../scripts/review-gate/lane-read-schema.js";
 import { createReviewInvocationResolver, resolveReviewInvocation, type ReviewInvocationOptions, type ReviewInvocationContext, type ReviewInvocationInput } from "../scripts/review-gate/runtime/invocation.js";
 import { resolveHostedAwaitInvocation, resolveHostedRequestInvocation, retainHostedRequestReference, retainHostedAwaitReference,
-  hostedRequestIndexWorkItem } from "../scripts/review-gate/runtime/hosted-invocation.js";
+  hostedRequestIndexWorkItem, hostedVehicleUnresolved } from "../scripts/review-gate/runtime/hosted-invocation.js";
 import { resolveReviewSourceInvocation } from "../scripts/review-gate/runtime/source-invocation.js";
 import { retainReviewOperationReference, reviewContinuationRequestError, resolveReviewOperationInvocation, ReviewContinuationReferenceError } from "../scripts/review-gate/runtime/continuation-invocation.js";
 import { resolveNativeOwnerlessReviewPolicy } from "../scripts/review-gate/runtime/review-policy-context.js";
@@ -104,6 +105,7 @@ import {
   ReviewCommandErrorEnvelopeSchema,
   prePublicationCandidateRefusal,
   prePublicationRemedy,
+  prePublicationRoutingMismatchRemedy,
   prePublicationTargetRemedy,
   type PrePublicationCandidateContinuation,
   type ReviewCommandErrorCode,
@@ -131,6 +133,7 @@ import {
 } from "../scripts/review-gate/hosts/local/frontline-source-preferences.js";
 import { resolveConfiguredLanePolicy } from "../scripts/review-gate/policy/lane-policy-config.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "../scripts/review-gate/policy/standard-review.js";
+import { routingInputDiagnostics } from "../scripts/review-gate/policy/routing-reason-facts.js";
 import {
   createPrePublicationCompositionDependencies,
 } from "../scripts/review-gate/policy/pre-publication-composition.js";
@@ -281,7 +284,8 @@ import {
   type HostedReviewObserver,
 } from "../scripts/review-gate/hosted/await.js";
 import { resolveHostedAwaitTiming } from "../scripts/review-gate/hosted/await-config.js";
-import { AwaitTimingError, resolveAwaitTiming, type AwaitTiming } from "../scripts/review-gate/await-timing.js";
+import { AwaitTimingError, resolveAwaitTiming, type AwaitTimingDiagnostic, type ResolvedAwaitTiming }
+  from "../scripts/review-gate/await-timing.js";
 import {
   acknowledgeHostedRequest,
   hostedLaneAttemptId,
@@ -380,11 +384,13 @@ import {
   HostedReviewAdmissionError,
   HostedIncrementalCoverageError,
   StaleLaneAttemptsError,
+  StaleReviewTargetError,
   hostedRequestAdmissionRemedy,
   localPrepareAdmissionRemedy,
   reviewResolveError,
   reviewResolveRemedy,
   requireReviewSourceSelection,
+  staleReviewTargetResult,
 } from "../scripts/review-gate/runtime/review-policy-remedy.js";
 import { ReviewDriverAdmissionError } from "../scripts/review-gate/policy/review-execution-admission.js";
 import { createReduceDependencies } from "../scripts/review-gate/runtime/reduce-composition.js";
@@ -1219,8 +1225,9 @@ export interface ReviewChecksAwaitHandlerDependencies {
 async function parseChecksAwaitInput(
   options: ReviewChecksAwaitOptions,
   dependencies: Pick<ReviewChecksAwaitHandlerDependencies, "readTimingSettings">,
-): Promise<{ success: true; data: z.infer<typeof ChecksAwaitInputSchema> } | { success: false; detail: string }> {
-  let timing: AwaitTiming;
+): Promise<{ success: true; data: z.infer<typeof ChecksAwaitInputSchema>; diagnostics: readonly AwaitTimingDiagnostic[] }
+  | { success: false; detail: string }> {
+  let timing: ResolvedAwaitTiming;
   try {
     timing = resolveAwaitTiming({
       wait: "required-check await",
@@ -1243,10 +1250,11 @@ async function parseChecksAwaitInput(
     repository: options.repository,
     pullRequest: Number(options.pullRequest),
     headSha: options.headSha,
-    ...timing,
+    timeoutMs: timing.timeoutMs,
+    pollIntervalMs: timing.pollIntervalMs,
   });
   return parsed.success
-    ? { success: true, data: parsed.data }
+    ? { success: true, data: parsed.data, diagnostics: timing.diagnostics }
     : { success: false, detail: parsed.error.issues.map((issue) => issue.message).join("; ") };
 }
 
@@ -1313,7 +1321,9 @@ export async function handleReviewChecksAwait(
         }),
       );
     }
-    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse(result))}\n`);
+    const { diagnostics } = parsed;
+    dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse(
+      diagnostics.length === 0 ? result : { ...result, diagnostics }))}\n`);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     dependencies.write(`${JSON.stringify(ChecksAwaitCommandResultSchema.parse({
@@ -1760,6 +1770,9 @@ async function resolveConfiguredReviewPolicy(
             targetHeadSha: request.target.headSha,
           });
         }
+        if (confirmation.currentTarget.headSha !== request.target.headSha) {
+          throw new StaleReviewTargetError(request.target, confirmation.currentTarget.headSha);
+        }
         throw new Error("review producer target does not match the current exact target");
       }
       return confirmation.target;
@@ -1774,11 +1787,15 @@ async function resolveConfiguredReviewPolicy(
     ...bound, request, root, exec, operationStore, resultReader, dispositionStore, configuredSources: sources,
     confirmApplicability: dependencies.confirmIncrementalApplicability,
   });
-  const composed = await composeNativePolicyGrants({ ...bound, cwd: root, exec, request,
-    operationStore, resultReader, baseBranch: settings["branch.base"], incremental: nextPassContext.incremental !== null });
-  return resolveEvidenceBoundReviewPolicyContinuation(composed, {
-    terminalResponsePerformed: !nextPassContext.responseDue,
-  }, { ...dependencies, nextPassContext });
+  const resolveAt = async (chosenCoverage?: "complete") => resolveEvidenceBoundReviewPolicyContinuation(
+    await composeNativePolicyGrants({ ...bound, cwd: root, exec, request, operationStore, resultReader,
+      baseBranch: settings["branch.base"], incremental: chosenCoverage === undefined && nextPassContext.incremental !== null }),
+    { terminalResponsePerformed: !nextPassContext.responseDue },
+    { ...dependencies, nextPassContext, ...(chosenCoverage === undefined ? {} : { chosenCoverage }) });
+  const policy = await resolveAt();
+  // A hosted source reviews only complete coverage, so its offer counts against the complete-pass ceiling.
+  return policy.state === "ready" && policy.nextAction === "hosted-request" && nextPassContext.incremental !== null
+    ? resolveAt("complete") : policy;
 }
 
 export interface ReviewReadinessHandlerDependencies {
@@ -2062,11 +2079,13 @@ export async function handleReviewResolve(
     requestSchema: ReviewPolicyCommandRequestSchema,
     resultSchema: ReviewResolveEnvelopeSchema,
     dependencies,
-    execute: (request, root) => dependencies.resolve(
-      ReviewPolicyCommandRequestSchema.parse(request),
-      root,
-    ).then(result => requireReviewSourceSelection(result, ReviewPolicyCommandRequestSchema.parse(request)))
-      .catch((error: unknown) => { throw reviewResolveError(error, request); }),
+    execute: (request, root) => {
+      const parsed = ReviewPolicyCommandRequestSchema.parse(request);
+      return dependencies.resolve(parsed, root)
+        .catch((error: unknown) => staleReviewTargetResult(error, parsed))
+        .then(result => requireReviewSourceSelection(result, parsed))
+        .catch((error: unknown) => { throw reviewResolveError(error, request); });
+    },
     remedyFor: reviewResolveRemedy,
   });
 }
@@ -2335,7 +2354,7 @@ async function resolveHostedProgressContext(input: ReviewInvocationOptions & {
   const workUnitId = member?.workUnitId
     ?? (active?.status === "resolved" && active.name !== "" ? active.name : null);
   if (workUnitId === null) {
-    throw new Error("Hosted review progress requires one active work unit or an explicit vehicle.");
+    throw hostedVehicleUnresolved();
   }
   const reviewRecordStore = bound.store;
   const boundary = (await readSubmissionBoundaryVersioned(input.root, workUnitId, { store: reviewRecordStore, owner: bound.workItem })).boundary;
@@ -2639,6 +2658,8 @@ async function resolveCandidateFrontlineLineage(input: ReviewInvocationOptions &
   return lineage;
 }
 
+const FRONTLINE_VEHICLE_UNRESOLVED = "Frontline review needs one work unit or Errand active at this checkout.";
+
 function defaultFrontlineResolveDependencies(context: InteractionContext, invocation: ReviewHandlerInvocationOptions = {}): ReviewFrontlineResolveHandlerDependencies {
   const exec = invocation.exec ?? createGitExec(context.subprocess);
   const invocationFor = createReviewInvocationResolver(exec, invocation);
@@ -2654,7 +2675,7 @@ function defaultFrontlineResolveDependencies(context: InteractionContext, invoca
         if (selectedLive !== null && selectedOwner === undefined) {
           if (request.vehicle !== undefined) throw new PlannedFrontlineMemberRefreshError(request.vehicle.workUnitId,
             "The owning work unit is no longer active in this checkout.");
-          throw new Error("frontline review lineage authority is unavailable");
+          throw new ReviewVehicleUnresolvedError(FRONTLINE_VEHICLE_UNRESOLVED);
         }
         const bound = selectedLive === null ? initial : { ...initial, workItem: selectedOwner };
         const { publisher, family } = createReviewCompositionContext({ ...bound, cwd: root, exec });
@@ -2702,7 +2723,7 @@ function defaultFrontlineResolveDependencies(context: InteractionContext, invoca
             });
           }
           if (live.context.errand === null) {
-            throw new Error("frontline review lineage authority is unavailable");
+            throw new ReviewVehicleUnresolvedError(FRONTLINE_VEHICLE_UNRESOLVED);
           }
           return errandFrontlineLineage(live.context.errand.claimId, target.headSha);
         },
@@ -3935,12 +3956,15 @@ function defaultHostedAwaitDependencies(context: InteractionContext, invocation:
       if (request.handle.admission.repositoryId !== repositoryId) {
         throw new Error("Hosted await does not match the current repository.");
       }
+      // Limit notices describe this call's own wait, so they reach only its output, never the sealed result.
+      let diagnostics: readonly AwaitTimingDiagnostic[] = [];
       const resolved = await resolveHostedAwaitResult(store, {
         repositoryId,
         handle: request.handle,
         observe: async () => {
           const settings = (await readConfigSettings(root)).settings;
           const timing = resolveHostedAwaitTiming(request, settings);
+          diagnostics = timing.diagnostics ?? [];
           return await awaitHostedReview(timing.request, {
             observers,
             attentionAfterMs: timing.attentionAfterMs,
@@ -3973,7 +3997,7 @@ function defaultHostedAwaitDependencies(context: InteractionContext, invocation:
             }),
           }
         : result;
-      return retainHostedAwaitReference(selected, published);
+      return retainHostedAwaitReference(selected, diagnostics.length === 0 ? published : { ...published, diagnostics });
     },
   };
 }
@@ -4637,6 +4661,7 @@ export async function handleReviewPrePublication(
   };
 
   let envelope: PrePublicationReviewEnvelope;
+  let routingDiagnostics: readonly string[];
   try {
     const boundarySnapshot = await dependencies.readBoundary(root, input.data.name);
     const currentRootHead = GitObjectIdSchema.parse(await dependencies.readRootGitHead(root));
@@ -4717,6 +4742,17 @@ export async function handleReviewPrePublication(
       }
       if (composition.pendingReview !== undefined) {
         emitPendingReviewRefusal(composition.pendingReview);
+        return;
+      }
+      if (composition.routingMismatch !== undefined && target.success) {
+        dependencies.write(`${JSON.stringify(ReviewCommandErrorEnvelopeSchema.parse({
+          schemaVersion: 1,
+          mode: "review-pre-publication",
+          diagnostics: routingInputDiagnostics(composition.routingDiagnostics ?? []),
+          error: { code: "invalid-input", message: composition.reason },
+          remedy: prePublicationRoutingMismatchRemedy(target.data, composition.routingMismatch),
+        }))}\n`);
+        dependencies.setExitCode(1);
         return;
       }
       if (composition.scopeMismatch !== undefined) {
@@ -4837,6 +4873,7 @@ export async function handleReviewPrePublication(
       }
     }
     for (const advisory of composition.advisories) dependencies.warn(`${advisory}\n`);
+    routingDiagnostics = composition.routingDiagnostics ?? [];
     const currentFrontlineHeadSha = composition.request.frontline.target.headSha;
     const postAttestContinuation: PostAttestContinuation = {
       reviewedHead: currentRootHead,
@@ -4940,7 +4977,8 @@ export async function handleReviewPrePublication(
   }
 
   try {
-    dependencies.write(`${JSON.stringify(PrePublicationReviewEnvelopeSchema.parse(envelope))}\n`);
+    dependencies.write(`${JSON.stringify(PrePublicationReviewEnvelopeSchema.parse(routingDiagnostics.length === 0
+      ? envelope : { ...envelope, diagnostics: routingInputDiagnostics(routingDiagnostics) }))}\n`);
   } catch (error) {
     emitFailure(error, "output");
   }

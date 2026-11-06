@@ -22,8 +22,9 @@ import { createDispositionSet, approveDispositionSet } from "../../src/scripts/r
 import { publishNativeReviewSuccessor } from "../../src/scripts/review-gate/runtime/native-review-successor.js";
 
 
-export async function createNativeConditionalPassFixture(kind: "local" | "frontline" | "hosted", approve = true, lineage?: LaneSubjectLineage, frontlineMaxPasses?: number) {
-  const f = await createNativeReviewApprovalFixture(kind, "fix", lineage, frontlineMaxPasses);
+export async function createNativeConditionalPassFixture(kind: "local" | "frontline" | "hosted", approve = true, lineage?: LaneSubjectLineage, frontlineMaxPasses?: number,
+  disposition: "fix" | "defer" = "fix") {
+  const f = await createNativeReviewApprovalFixture(kind, disposition, lineage, frontlineMaxPasses);
   const approval = approve ? await publishNativeReviewApproval(f.input) : null;
   const decisions = createReviewDecisionPort(f.h.store, f.primary.reference.owner);
   const capture = { lane: f.outcome.lane, repositoryId: f.outcome.target.repositoryId, headSha: f.outcome.target.headSha,
@@ -31,7 +32,7 @@ export async function createNativeConditionalPassFixture(kind: "local" | "frontl
     authorizedBy: f.approved.approval.approvedBy, exhaustedPassCount: f.outcome.logicalPass,
     nextPass: f.outcome.logicalPass + 1, now: "2026-10-20T13:00:00Z" };
   return { ...f, approval, approvalInput: f.input, input: { outcomes: f.input.outcomes, evidence: f.input.evidence,
-    decisions, readProjectId: f.input.readProjectId, capture } };
+    decisions, responses: f.input.responses, readProjectId: f.input.readProjectId, capture } };
 }
 
 export async function createNativeConditionalAdmissionFixture(kind: "local" | "frontline", perform = true, lineage?: LaneSubjectLineage, frontlineMaxPasses?: number) {
@@ -48,7 +49,7 @@ export async function createNativeConditionalAdmissionFixture(kind: "local" | "f
   const checkout = await createReviewCheckout(f.h);
   const publisher = new RepositoryGitCommonStatePublisher(checkout.exec, checkout.cwd);
   const operations = new NativeReviewInFlightStateStore({ publisher, workItem: f.primary.reference.owner,
-    outcomes: f.input.outcomes, evidence: f.input.evidence, decisions: f.input.decisions, projectId: f.input.readProjectId });
+    outcomes: f.input.outcomes, evidence: f.input.evidence, decisions: f.input.decisions, responses: f.input.responses, projectId: f.input.readProjectId });
   return { ...checkout, f, decision, authorizationId, target, publisher, operations, performanceInput };
 }
 

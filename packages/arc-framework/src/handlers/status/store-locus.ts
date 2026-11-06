@@ -26,7 +26,6 @@ export async function pullStoreStatus(ports: { sync?: StoreSyncPort } = {}): Pro
     const orientation = describeStorePull(pull);
     const parts = [orientation.summary];
     if ("remedy" in pull && pull.remedy && !orientation.summary.includes(pull.remedy.text)) parts.push(pull.remedy.text);
-    if (pull.status === "designation-needed" && pull.remedy.argv) parts.push(pull.remedy.argv.join(" "));
     warnings.push({ code: "pull-incomplete", rendered: parts.join(" ") });
   }
   return [...warnings, ...pullResultNotices(pull).map(notice => ({ code: "pull-notice" as const, rendered: renderPullNotice(notice) })),

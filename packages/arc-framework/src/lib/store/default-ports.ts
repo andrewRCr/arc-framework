@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { createExecaGitExec, createExecaGitExecInput, createExecaRawGitExec } from "../git/process-executor.js";
 import { createGitFloorGate, gateGitExecutors, type GitFloorGate } from "../git/version-floor.js";
-import { acquireAdvisoryLock, releaseAdvisoryLock } from "../advisory-lock.js";
+import { acquireAdvisoryLock, releaseAdvisoryLock, DEFAULT_MAX_WAIT_MS } from "../advisory-lock.js";
 import { readGitDirectories } from "../git/directories.js";
 import type { RefStorePorts } from "./ports.js";
 import { createDefaultStorePorts } from "./default-store-ports.js";
@@ -59,6 +59,6 @@ export function createRefLockFactory(input: Pick<RefStorePorts, "checkoutRoot" |
       exclusiveCreate: (path: string, content: string) => input.fs.exclusiveCreate(path, content),
       readFile: (path: string) => input.fs.readFile(path), removeFile: (path: string) => input.fs.unlink(path) };
     const handle = await acquireAdvisoryLock(path, options);
-    return () => releaseAdvisoryLock(handle, options);
+    return () => releaseAdvisoryLock(handle, waitMs === 0 ? { ...options, maxWaitMs: DEFAULT_MAX_WAIT_MS } : options);
   };
 }

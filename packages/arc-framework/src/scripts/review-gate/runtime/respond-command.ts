@@ -584,9 +584,17 @@ function validateApprovedResponsePolicyBinding(
 /** Refuse a conditional next-pass authorization its capture would refuse, before the approval is recorded. */
 function validateConditionalNextPassAuthorization(
   authorization: z.infer<typeof RespondConditionalNextPassAuthorizationSchema> | undefined,
+  dispositions: ApprovedDispositionSet,
   source: ResolvedResponseSource,
 ): void {
   if (authorization === undefined) return;
+  if (!dispositions.dispositionSet.findings.some(({ disposition }) => disposition === "fix")) {
+    throw new RespondCommandError(
+      "invalid-input",
+      "conditional next-pass authorization re-reviews an approved fix, and these dispositions approve none; approve "
+        + "a fix, or omit the authorization and its ceiling override, then retry the approval",
+    );
+  }
   if (authorization.authorizedBy !== source.actors.approverIdentity) {
     throw new RespondCommandError("invalid-input", "conditional next-pass authorizer is not the active local identity");
   }
@@ -2712,7 +2720,7 @@ async function respondToResolvedReviewCommand(
   }
   validateActors(dispositions, source.actors);
   validateFindings(dispositions, source);
-  validateConditionalNextPassAuthorization(request.conditionalNextPassAuthorization, source);
+  validateConditionalNextPassAuthorization(request.conditionalNextPassAuthorization, dispositions, source);
   const dispositionReportText = await readApprovedResponseReport({ dispositions, producerFindings: source.findings,
     producerId: source.operationId, incomingTags: request.tags, settlementReplay: false,
     readRecord: dependencies.dispositionStore.readDispositionRecord.bind(dependencies.dispositionStore) });

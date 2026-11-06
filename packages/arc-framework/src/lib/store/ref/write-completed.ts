@@ -5,7 +5,7 @@ import { canonicalize } from "../../kernel/canonical/canonical-json.js";
 import type { ArchiveQuarter } from "../../kernel/index.js";
 import type { BatchCreationReceipt } from "../creation-receipt.js";
 import type { BatchInput } from "../write.js";
-import type { StoreResult } from "../refusal.js";
+import type { StoreResult, StoreRefusal } from "../refusal.js";
 import type { ReadPlacement } from "../placement.js";
 import type { RefBackendContext } from "./context.js";
 import { refWriteTargets, type ResolvedBatch } from "./write-resolution.js";
@@ -16,7 +16,7 @@ import { readRefTrees, type RefTreeEntry } from "./batch-read.js";
 import { commitRefTree, type RefWriteGroup } from "./write-commits.js";
 import { closeoutReservations, nextArchiveSequence, type RefArchivePlan, type RefCloseoutPlanning } from "./write-archive.js";
 import { cohortClosePlacement, preparedCohortParents } from "./cohort-coordinates.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
 import { writeRefBlob } from "./tree-write.js";
 import { expandStoredPath } from "../stored-path.js";
 import { quarterCommitReference } from "./quarter-provenance.js";
@@ -209,7 +209,7 @@ async function moveArchivedFolders(context: RefBackendContext, quarters: Readonl
 
 /** Number a moved owner as an end in that quarter numbers it: the next work unit, a record's own name, or a cohort's closeout. */
 async function movedPlacement(context: RefBackendContext, scope: MoveScope, folder: ArchivedFolder, group: RefWriteGroup,
-  quarter: ArchiveQuarter, target: ReadonlyMap<string, RefTreeEntry>): Promise<ReadPlacement | ReturnType<typeof corruptRef>> {
+  quarter: ArchiveQuarter, target: ReadonlyMap<string, RefTreeEntry>): Promise<ReadPlacement | StoreRefusal> {
   const reference = ownerPrimaryReference(folder.owner, group.metadata);
   if (reference.kind === "work-item/record") return { kind: "completed", quarter };
   const fallback = nextArchiveSequence(target.values());
@@ -237,7 +237,9 @@ Promise<StoreResult<Map<string, Map<string, RefTreeEntry>>>> {
   const quarters = new Map<string, Map<string, RefTreeEntry>>();
   for (const ref of refs) {
     const entries = tips.has(ref) ? trees.get(ref) : [];
-    if (!entries) return { status: "refused", refusal: corruptRef(ref, true) };
+    if (!entries) return { status: "refused", refusal: refObjectFault(ref, "missing", {
+      condition: `The tip or a tree of ${ref} is unavailable locally.`,
+    }).refusal };
     quarters.set(ref, new Map(entries.map((entry) => [entry.path, entry])));
   }
   return { status: "ok", result: quarters };

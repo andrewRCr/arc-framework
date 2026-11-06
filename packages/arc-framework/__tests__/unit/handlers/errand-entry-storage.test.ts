@@ -45,3 +45,18 @@ it("adopts past a lone failed read source and writes the failure", async () => {
   expect(plan.writes).toEqual(expect.arrayContaining([expect.objectContaining({ content: expect.stringContaining("Keep this free-text description.") })]));
   expect(written).toEqual(["Read source upstream was not pulled: Upstream is offline. Reconnect the read source."]);
 });
+
+it.each([false, true])("shows the designation question once before adoption: readFailure=%s", async readFailure => {
+  const h = createLifecycleHarness(), written: string[] = [];
+  h.store.pull = async () => ({ status: "ok", result: PullResultSchema.parse({ states: [{ status: "designation-needed", remote: "backup", choices: ["push", "read", "off"],
+    remedy: { text: "Choose the backup role.", argv: ["arc", "store", "remote", "backup", "push"] } }],
+    pulls: readFailure ? [{ status: "failed", remote: "upstream", role: "read", families: ["work-item"], notices: [],
+      failure: { code: "unreachable", class: "recoverable", cause: "network", condition: "Upstream is offline.",
+        remedy: { text: "Reconnect the read source." } } }] : [] }) });
+  const plan = await prepareHandlerErrandAdoption({ slug: "example", intent: "Keep this description." },
+    { store: h.store, identity: "alice", now: () => new Date("2026-10-01T00:00:00.000Z"), writeNotice: line => written.push(line) },
+    async () => { throw new Error("Selected the legacy path"); });
+  expect(plan.writes).toEqual(expect.arrayContaining([expect.objectContaining({ content: expect.stringContaining("Keep this description.") })]));
+  expect(written).toEqual([...readFailure ? ["Read source upstream was not pulled: Upstream is offline. Reconnect the read source."] : [],
+    "Remote backup needs a store designation. Choose the backup role. arc store remote backup push"]);
+});

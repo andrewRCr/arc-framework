@@ -5,7 +5,7 @@ import { createDefaultStorePorts } from "../store/default-store-ports.js";
 import type { Store } from "../store/contract.js";
 import { createProjectIdentityReader } from "../store/project-identity.js";
 import { selectWorkBranchLink, workBranchName } from "../store/lifecycle-branch.js";
-import type { CurrentWorkUnitCandidate } from "../store/current-work-unit.js";
+import type { CurrentWorkUnitCandidate, CurrentWorkUnitResolution } from "../store/current-work-unit.js";
 import { workItemArtifactPath } from "../store/lifecycle-storage.js";
 import { StoreRefusalError } from "../store/refusal-error.js";
 import { isNativeTypedRefusal, type NativeTypedRefusal } from "../store/native-refusal.js";
@@ -31,8 +31,7 @@ export async function resolveActiveWu(opts: ResolveActiveWuOptions): Promise<WuR
   const resolved = await resolveCurrentWorkUnit({ cwd: opts.cwd, store });
   if (resolved.status === "unbound") return { status: "ambiguous", hint: resolved.unbound.reason };
   if (resolved.status === "ambiguous") return { status: "ambiguous", hint: MULTI_CANDIDATE_HINT };
-  if (resolved.status === "none") return resolved.warnings.length === 0 ? { status: "none" }
-    : { status: "ambiguous", hint: resolved.warnings.join("; ") };
+  if (resolved.status === "none") return unresolvedOccupancy(resolved);
   const candidate = resolved.candidate;
   let branch = candidate.record?.branch ?? null;
   if (store.capabilities.stateOffBranch) {
@@ -45,6 +44,13 @@ export async function resolveActiveWu(opts: ResolveActiveWuOptions): Promise<WuR
   return { status: "resolved", name: candidate.reference.owner.name, branch,
     path: workItemArtifactPath(candidate.reference.owner.name, "meta", { kind: "active" }, candidate.record?.cohort ?? null) };
 }
+/** An empty checkout is none; a read failure that left it empty is ambiguous, carrying any native refusal whole. */
+function unresolvedOccupancy(resolved: Extract<CurrentWorkUnitResolution, { status: "none" }>): WuResolution {
+  if (resolved.warnings.length === 0) return { status: "none" };
+  return { status: "ambiguous", hint: resolved.warnings.join("; "),
+    ...(resolved.cause === undefined ? {} : { cause: resolved.cause }) };
+}
+
 /** Raise the native typed refusal behind an ambiguous resolution, for a caller that reports it whole. */
 export function raiseNativeResolutionRefusal(resolution: WuResolution): WuResolution {
   if (resolution.status === "ambiguous" && resolution.cause !== undefined) throw resolution.cause;

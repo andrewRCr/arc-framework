@@ -9,6 +9,7 @@ import { canonicalDigest } from "../../src/lib/kernel/index.js";
 import { mapReviewRecords } from "../../src/lib/store/kinds/review/mapping.js";
 import { ReviewOutcomeSchema } from "../../src/lib/store/kinds/review/outcome/schema.js";
 import { createReviewEvidencePort } from "../../src/lib/store/kinds/review/evidence/access.js";
+import { createReviewResponsePort } from "../../src/lib/store/kinds/review/evidence-root-selection/responses.js";
 
 export async function storedLocalApproval() {
   const claimId = "1".repeat(32);
@@ -39,7 +40,8 @@ export async function storedLocalApproval() {
   })), provenance: { verb: "review", lifecycleAction: "create" } }));
   const outcome = ReviewOutcomeSchema.parse(JSON.parse(mapped.records.find(r => r.reference.kind === "review/outcome")!.contents[0]!));
   return { harness, fixture, original, outcome, owner: primary.reference.owner,
-    evidence: createReviewEvidencePort(harness.store, primary.reference.owner) };
+    evidence: createReviewEvidencePort(harness.store, primary.reference.owner),
+    responses: createReviewResponsePort(harness.store, primary.reference.owner) };
 }
 
 /** Produce a pending Candidate fix and import its actual producer and approval into one checked store. */
@@ -84,5 +86,5 @@ export async function storedCandidateApproval(candidate: import("../../src/lib/w
   lifecycleSuccess(await harness.store.batch({ writes: mapped.records.map(({ reference, contents }) => ({
     action: "put", reference, expected: null, content: contents[0]!,
   })), provenance: { verb: "review", lifecycleAction: "create" } }));
-  return { harness, owner, meta, fixture, original, producer, candidate };
+  return { harness, owner, meta, fixture, original, producer, candidate, responses: createReviewResponsePort(harness.store, owner) };
 }

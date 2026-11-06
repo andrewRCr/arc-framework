@@ -28,8 +28,8 @@ export async function resolveRetiredConflicts(context: RefBackendContext, writes
 }
 
 /** Re-resolve lifecycle and retained metadata when the validated capture changes before locking. */
-export function retainedBasisChanged(targets: readonly RefWriteTarget[], before: ReadonlyMap<string, string>,
-  after: ReadonlyMap<string, string>): boolean {
+export function changedRetainedBasisRefs(targets: readonly RefWriteTarget[], before: ReadonlyMap<string, string>,
+  after: ReadonlyMap<string, string>): string[] {
   const refs = targets.length ? ["refs/arc/project/registry", ...targets.flatMap(({ home }) => [home.ref, home.ref.replace("refs/arc/history/", "refs/arc/")])] : [];
-  return refs.some((ref) => before.get(ref) !== after.get(ref));
+  return refs.filter((ref) => before.get(ref) !== after.get(ref));
 }

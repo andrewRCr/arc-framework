@@ -15,10 +15,7 @@ import { spineRemedy } from "../../../scripts/integration/spine-refusal.js";
 import { recordReferences, type RecordReference } from "../../store/identity.js";
 import { CandidateManagedRecordV1Schema } from "../../store/kinds/review/candidate/schema.js";
 import { describeRecordConflicts } from "../../store/conflict-diagnostics.js";
-import { isOffBranchStoreRefusal } from "../../store/refusal-error.js";
-import { ProjectIdentityError } from "../../store/project-identity.js";
-import { ReviewOwnerSelectionError } from "../../store/kinds/review/errors.js";
-import { isNativeTypedRefusal } from "../../store/native-refusal.js";
+import { isNativeTypedRefusal, nativeRefusalReport } from "../../store/native-refusal.js";
 import { PublicationClaimRefusal } from "../../store/kinds/review/integration-boundary/publication.js";
 
 type PublicationReject = (reason: string, refusal?: StoreRefusal, remedy?: Remedy) => Extract<PublishResult, { status: "rejected" }>;
@@ -81,10 +78,9 @@ function prePublicationRemedy(name: string): Remedy {
 
 /** Reject an off-branch store's refusal whole, and a project-identity or owner failure with its remedy; rethrow others. */
 function rejectStoreFailure(error: unknown, reject: PublicationReject): Extract<PublishResult, { status: "rejected" }> {
-  if (isOffBranchStoreRefusal(error)) return reject(error.refusal.condition, error.refusal);
-  if (error instanceof ProjectIdentityError) return reject(error.failure.reason, undefined, error.failure.remedy);
-  if (error instanceof ReviewOwnerSelectionError) return reject(error.condition, undefined, error.remedy);
-  throw error;
+  const report = nativeRefusalReport(error);
+  if (report === null) throw error;
+  return report.refusal === undefined ? reject(report.condition, undefined, report.remedy) : reject(report.condition, report.refusal);
 }
 
 /** Reject a refused claim with its own remedy, a native typed refusal whole, or any other failure as it is. */

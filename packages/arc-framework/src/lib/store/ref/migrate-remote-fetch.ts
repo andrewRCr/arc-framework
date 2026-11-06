@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { parseFetchPorcelain, type FetchOutcome } from "../../git/fetch.js";
 import { normalizeGitRejection } from "../../git/process-error.js";
 import { PASSIVE_REMOTE_INTERACTION } from "../../git/remote-ref-reader.js";
-import { MigrationRefusal } from "./migrate-refusal.js";
+import { MigrationAcquisitionRefusal, MigrationRefusal } from "./migrate-refusal.js";
 import type { RefBackendContext } from "./context.js";
 import type { MoveRemote } from "./migrate-record.js";
 import { readSyncRefs } from "./sync-graph.js";
@@ -12,7 +12,9 @@ import { refFetchArgs, refFetchNegotiation } from "./fetch-target.js";
 import { refFetchNeedsCompleteness, missingRefFetchObjects, RefFetchIncompleteError } from "./fetch-completeness.js";
 import { isStateRef } from "./manifest.js";
 import { FORWARDING_REF } from "./forwarding-record.js";
-import { migrationTransportTarget } from "./migrate-remote-target.js";
+import { migrationTransportTarget, migrationTransportRefusal } from "./migrate-remote-target.js";
+import { resolveTransport } from "./effective-transport.js";
+import { localFetchObjectFailure } from "./fetch-local-loss.js";
 
 /** Clear exactly one temporary acquisition namespace, preserving the move and copied tips. */
 export async function clearMigrationRefs(context: RefBackendContext, prefix: string): Promise<void> {
@@ -31,7 +33,8 @@ export async function fetchMigrationRemote(context: RefBackendContext, remote: M
   const args = refFetchArgs(remote.name, await refFetchNegotiation(context, await context.identity()), target);
   const input = patterns.map(pattern => `+refs/arc/${pattern}:${prefix}${pattern}`).join("\n") + "\n";
   let fetched = await runMigrationFetch(context, args, input, remote);
-  if (await refFetchNeedsCompleteness(context) && (await missingRefFetchObjects(context, fetched)).length) {
+  if (await resolveTransport(remote.name, "fetch", () => refFetchNeedsCompleteness(context)).catch(migrationTransportRefusal)
+    && (await missingRefFetchObjects(context, fetched)).length) {
     const at = args.indexOf("fetch");
     fetched = await runMigrationFetch(context, [...args.slice(0, at + 1), "--refetch", ...args.slice(at + 1)], input, remote);
     const missing = await missingRefFetchObjects(context, fetched);
@@ -65,7 +68,10 @@ async function runMigrationFetch(context: RefBackendContext, args: string[], inp
     if (failure.kind === "spawn-failure") throw failure;
     failed = true; fetched = parseFetchPorcelain(failure);
   }
-  if (fetched.status === "unreachable") throw new MigrationRefusal({ code: "store", refusal: { code: "unreachable", class: "recoverable", cause: fetched.cause,
+  const localFailure = await localFetchObjectFailure(context, fetched);
+  const Refusal = fetched.status === "unreachable" && fetched.completedFailure ? MigrationAcquisitionRefusal : MigrationRefusal;
+  if (localFailure) throw new Refusal({ code: "store", refusal: localFailure });
+  if (fetched.status === "unreachable") throw new Refusal({ code: "store", refusal: { code: "unreachable", class: "recoverable", cause: fetched.cause,
     condition: fetched.stderr || `Could not fetch migration remote ${remote.name}.`, remedy: { text: `Repair access to ${remote.name} and retry arc store migrate.` } } });
   // Rows printed before a failure do not show what the gathering kept, so the read failed whatever they say.
   if (failed || fetched.refs.some(row => row.flag === "!")) throw new MigrationRefusal({ code: "store", refusal: { code: "refused", class: "terminal",

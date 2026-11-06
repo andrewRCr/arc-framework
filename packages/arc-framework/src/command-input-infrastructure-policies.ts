@@ -164,7 +164,7 @@ export const infrastructureCommandInputPolicyDeclarations = [{
       terminalSubprocessPolicy,
     ),
   ],
-}, ...["store conflict", "store migrate", "store remote"].map((commandPath) => ({
+}, ...["store conflict", "store migrate", "store remote", "store repair-review-roots"].map((commandPath) => ({
   commandPath, aliases: [], sites: [
     batchReadInteractionSite,
     ...([1, 3] as const).map((occurrence) => declareInteractionSite(

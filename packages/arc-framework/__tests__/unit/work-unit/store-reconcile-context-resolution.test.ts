@@ -53,6 +53,14 @@ it("retains the missing UID target's own lineage when its name has been reused",
   await h.seedMeta("target");
   const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "dependent"));
   expect(await context.resolveDependency?.(target)).toEqual({ kind: "not-found", reference: target });
+  const lookup = h.store.lookup.bind(h.store);
+  h.store.lookup = async input => input.kind === "lineage" ? { status: "refused", refusal: {
+    code: "state-unresolvable", class: "recoverable", historyRefs: [],
+    condition: "The lineage object is missing.", remedy: { text: "Restore the missing lineage object, then retry." },
+  } } : lookup(input);
+  expect(await context.queryDisposition({ origin: "target", dependentSlug: "dependent", reference: target }))
+    .toEqual({ status: "namespace-corrupt" });
+  h.store.lookup = lookup;
   expect(await context.queryDisposition({ origin: "target", dependentSlug: "dependent", reference: target }))
     .toEqual({ status: "unique", disposition: { kind: "abandoned" } });
 });

@@ -13,15 +13,16 @@ import type { RefBackendContext } from "./context.js";
  * before Git's history walker can abort, so each caller refuses with its own condition.
  */
 export async function readHistoryBatchIndex(context: RefBackendContext, history: string, tip: string, reference: RecordReference,
-  evidence?: StoreCreationReceiptReader): Promise<StoreResult<Map<string, string>> | undefined> {
+  evidence?: StoreCreationReceiptReader, current?: ReadonlyMap<string, string>): Promise<StoreResult<Map<string, string>> | undefined> {
   if ((await readBatchObjects(context, [tip])).get(tip)?.type !== "commit") return undefined;
-  return indexHistoryBatches(context, history, tip, reference, evidence);
+  return indexHistoryBatches(context, history, tip, reference, evidence, () => unavailableRefHistory(context, reference, history, current));
 }
 
 /** Map each batch named from a tip its caller has already read as a commit to the newest commit naming it. */
 export async function indexHistoryBatches(context: RefBackendContext, history: string, tip: string, reference: RecordReference,
-  evidence?: StoreCreationReceiptReader, unavailable: StoreRefusal = unavailableRefHistory(reference, history)): Promise<StoreResult<Map<string, string>>> {
-  const graph = await readHistoricalGraph(context, ["log", "--topo-order", "--format=%H%x00%B%x00", tip], unavailable);
+  evidence?: StoreCreationReceiptReader, unavailable: StoreRefusal | (() => Promise<StoreRefusal>) = () => unavailableRefHistory(context, reference, history)): Promise<StoreResult<Map<string, string>>> {
+  const graph = await readHistoricalGraph(context, ["log", "--topo-order", "--format=%H%x00%B%x00", tip],
+    () => typeof unavailable === "function" ? unavailable() : unavailable);
   if (graph.status === "refused") return graph;
   const values = graph.result.split("\0"), batches = new Map<string, string>();
   for (let index = 0; index + 1 < values.length; index += 2) {

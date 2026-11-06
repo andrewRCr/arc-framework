@@ -10,6 +10,7 @@ import { TransientIdentityRecordV3Schema, projectLocusIdentity } from "../../../
 import { promoteOrdinaryErrandAtRuntime } from "../../../src/lib/errand/promote-runtime.js";
 import { writeWorktreeMarker, readWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 import { createStoreSyncPort } from "../../../src/lib/store/operational-sync.js";
+import { PullResultSchema } from "../../../src/lib/store/sync.js";
 import { readStoreIdentityEvidence, projectStoreIdentityDiscovery } from "../../../src/lib/locus/store-identities.js";
 import { DerivedLocusFrameSchema, DerivedCheckoutRowSchema } from "../../../src/lib/locus/derived-schema.js";
 import type { DerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js";
@@ -121,4 +122,18 @@ it("pulls the project identity and source owner before acquiring promotion autho
   expect(meta.reference.kind).toBe("work-item/meta");
   expect(meta.fields).toMatchObject({ owner: "alice" });
   expect(meta.links?.branches).toContainEqual({ repository, ref: "feat/grown", linkedAs: "created", excluded: [] });
+});
+
+it.each([false, true])("shows the designation question once while retaining the runtime policy: readFailure=%s", async readFailure => {
+  const f = await fixture(), written: string[] = [];
+  f.store.pull = async () => ({ status: "ok", result: PullResultSchema.parse({ states: [{ status: "designation-needed", remote: "backup", choices: ["push", "read", "off"],
+    remedy: { text: "Choose the backup role.", argv: ["arc", "store", "remote", "backup", "push"] } }],
+    pulls: readFailure ? [{ status: "failed", remote: "upstream", role: "read", families: ["work-item"], notices: [],
+      failure: { code: "unreachable", class: "recoverable", cause: "network", condition: "Upstream is offline.",
+        remedy: { text: "Reconnect the read source." } } }] : [] }) });
+  expect(await promoteOrdinaryErrandAtRuntime({ ...f.options, writeNotice: line => written.push(line) }))
+    .toMatchObject({ outcome: "applied", checkoutPath: f.cwd });
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference })).reference.kind).toBe("work-item/meta");
+  expect(written).toEqual([...readFailure ? ["Read source upstream was not pulled: Upstream is offline. Reconnect the read source."] : [],
+    "Remote backup needs a store designation. Choose the backup role. arc store remote backup push"]);
 });

@@ -3,8 +3,9 @@ import { expect, it } from "vitest";
 import { createLifecycleHarness } from "../../helpers/store/lifecycle-harness.js";
 import { createStore } from "../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../src/lib/store/default-ports.js";
-import { createStoreSyncPort } from "../../../src/lib/store/operational-sync.js";
+import { bindStoreSyncPort, createStoreSyncPort } from "../../../src/lib/store/operational-sync.js";
 import { probeStoreUserPull, describeStorePull } from "../../../src/lib/session-init/store-user-pull.js";
+import { PullResultSchema } from "../../../src/lib/store/sync.js";
 import { SessionInitUserValueSchema } from "../../../src/commands/user/session-init-schema.js";
 
 it("carries a bound designation and typed remedy through the user slot schema", async () => {
@@ -76,4 +77,18 @@ it("orients a synchronized pull beside an unfinished move and offers the move's 
   expect(result.summary).toBe("Store state pulled. A remote move remains unfinished. Finish the move.");
   expect(result.actions).toEqual([remedy]);
   expect(SessionInitUserValueSchema.parse(result)).toEqual(result);
+});
+
+it.each([false, true])("shows the designation question and separate command once in session orientation: readFailure=%s", async readFailure => {
+  const store = createLifecycleHarness().store;
+  store.pull = async () => ({ status: "ok", result: PullResultSchema.parse({ states: [{ status: "designation-needed", remote: "backup", choices: ["push", "read", "off"],
+    remedy: { text: "Choose the backup role.", argv: ["arc", "store", "remote", "backup", "push"] } }],
+    pulls: readFailure ? [{ status: "failed", remote: "upstream", role: "read", families: ["work-item"], notices: [],
+      failure: { code: "unreachable", class: "recoverable", cause: "network", condition: "Upstream is offline.",
+        remedy: { text: "Reconnect the read source." } } }] : [] }) });
+  const value = await probeStoreUserPull({ store, remoteSyncEnabled: true, sync: bindStoreSyncPort(store) });
+  expect(value?.summary).toContain("Remote backup needs a store designation. Choose the backup role. arc store remote backup push");
+  expect(value?.summary.split("arc store remote backup push")).toHaveLength(2);
+  if (readFailure) expect(value?.summary).toContain("Read source upstream was not pulled: Upstream is offline. Reconnect the read source.");
+  expect(SessionInitUserValueSchema.parse(value)).toEqual(value);
 });

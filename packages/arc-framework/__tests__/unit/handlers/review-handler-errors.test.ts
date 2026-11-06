@@ -1,4 +1,4 @@
-/** Review commands report a native store refusal with its code and remedy, and an in-repo one as before. */
+/** Review commands report a native typed refusal with its code and remedy, and an in-repo store refusal as before. */
 import { expect, it } from "vitest";
 import { reviewCommandError } from "../../../src/handlers/review-handler-errors.js";
 import { StoreRefusalError } from "../../../src/lib/store/refusal-error.js";
@@ -6,6 +6,8 @@ import { spineRemedy } from "../../../src/scripts/integration/spine-refusal.js";
 import { prePublicationRemedy, ReviewCommandErrorEnvelopeSchema, ReviewCommandModeSchema }
   from "../../../src/scripts/review-gate/core/review-command-envelope.js";
 import type { StoreRefusal } from "../../../src/lib/store/refusal.js";
+import { ReviewOwnerSelectionError } from "../../../src/lib/store/kinds/review/errors.js";
+import { reviewFailureRequestRemedy } from "../../../src/scripts/review-gate/runtime/project-identity-remedy.js";
 
 const lockHeld = (argv?: string[]): StoreRefusal => ({ code: "lock-held", class: "recoverable", lock: "review",
   condition: "The review lock is held.", remedy: { text: "Wait for the holder to finish, then retry.", ...(argv === undefined ? {} : { argv }) } });
@@ -47,4 +49,36 @@ it.each(ReviewCommandModeSchema.options)("requires the refusal and a remedy for 
   expect.soft(ReviewCommandErrorEnvelopeSchema.safeParse({ ...envelope, remedy }).success).toBe(false);
   expect.soft(ReviewCommandErrorEnvelopeSchema.safeParse({ ...envelope, refusal }).success).toBe(false);
   expect.soft(ReviewCommandErrorEnvelopeSchema.safeParse({ ...envelope, refusal, remedy }).success).toBe(true);
+});
+
+it("reports a work-item selection refusal under its own code, keeping its own command as the remedy", () => {
+  const remedy = { text: "Repair the work unit's branch links, then retry.", argv: ["arc", "status", "example"] };
+  const error = new ReviewOwnerSelectionError("corrupt-state", "The selected work unit has no branch link.", remedy);
+  expect(reviewCommandError("review-local-cancel", error, "execution", ReviewCommandErrorEnvelopeSchema)).toEqual({
+    schemaVersion: 1, mode: "review-local-cancel", diagnostics: [], error: { code: "corrupt-state", message: error.message },
+    remedy: spineRemedy(error.condition, remedy.text, remedy.argv) });
+});
+
+it("retries a review command with its submitted request when a selection refusal names no command", () => {
+  const error = new ReviewOwnerSelectionError("invalid-input", "Review records need the invocation's exact work item.",
+    { text: "Run the command from the work unit's checkout." }), submitted = { schemaVersion: 1 };
+  const retry = reviewFailureRequestRemedy("review-reduce", error, submitted);
+  expect(retry).toEqual(spineRemedy(error.condition, error.remedy.text, ["arc", "review", "reduce", "-"], submitted));
+  expect(reviewCommandError("review-reduce", error, "execution", ReviewCommandErrorEnvelopeSchema, () => {
+    if (retry === undefined) throw new Error("Expected a retry");
+    return retry;
+  })).toMatchObject({ error: { code: "invalid-input" }, remedy: { argv: ["arc", "review", "reduce", "-"], stdin: submitted } });
+  expect(reviewCommandError("review-reduce", error, "execution", ReviewCommandErrorEnvelopeSchema))
+    .toMatchObject({ remedy: { argv: ["arc", "review", "reduce", "-"] } });
+});
+
+it.each(ReviewCommandModeSchema.options)("accepts a remedy on %s invalid-input and corrupt-state refusals", mode => {
+  const remedy = spineRemedy("Refused.", "Retry", ["arc", "review", "resolve", "-"], {});
+  for (const code of ["invalid-input", "corrupt-state"] as const) {
+    const envelope = { schemaVersion: 1, mode, diagnostics: [], error: { code, message: "Refused." } };
+    expect.soft(ReviewCommandErrorEnvelopeSchema.safeParse({ ...envelope, remedy }).success, code).toBe(true);
+    if (mode !== "review-pre-publication") {
+      expect.soft(ReviewCommandErrorEnvelopeSchema.safeParse(envelope).success, code).toBe(true);
+    }
+  }
 });

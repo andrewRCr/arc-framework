@@ -11,7 +11,7 @@ import type { PullNotice } from "../sync.js";
 import type { MigrateReport } from "../commands.js";
 import { migrateNoticeFromPull } from "../commands.js";
 import { readSyncRefs } from "./sync-graph.js";
-import { updateRefTransaction } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 
 /** Copy preparation keeps its resulting refs private until the caller's one landing transaction. */
 export interface PreparedRefCopy { refs: Map<string, string>; notices: MigrateReport["notices"] }
@@ -45,7 +45,7 @@ export async function prepareRefCopy(context: RefBackendContext, source: Readonl
   }
   const held = await capture();
   const controls = [...source].filter(([ref]) => !isStateRef(ref));
-  const applied = await updateRefTransaction(context, controls.map(([ref, next]) => ({ ref: targetRef(ref), next, expected: held.get(ref) ?? null })), { cwd: context.checkoutRoot });
+  const applied = await updateStoreRefTransaction(context, controls.map(([ref, next]) => ({ ref: targetRef(ref), next, expected: held.get(ref) ?? null })), { cwd: context.checkoutRoot });
   if (applied.status !== "committed") throw new Error("An isolated copy's keeper refs changed while preparing it");
   return { refs: await capture(), notices: notices.map(migrateNoticeFromPull) };
 }

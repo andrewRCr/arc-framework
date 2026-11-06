@@ -296,8 +296,8 @@ in-flight, or what's coming.
 - `.arc/reference/briefs/AGENT-BRIEF.PROJECT.md`
 - Any `notes-*.md` companion to a WU
 
-These reference internal WU names, in-flight scope, transitional state, and project-internal
-concerns freely.
+These reference internal WU names, in-flight scope, transitional state, and project-internal concerns freely. ADR bodies
+meet `strategy-adr-methodology.md`'s reader-independence rule; planning references stay in their Status sections.
 
 ### Leak patterns to avoid in adopter-facing content
 

@@ -36,6 +36,7 @@ const objectId = (character: string): string => character.repeat(40);
 
 export interface HostedHandleFixtureInput {
   readonly repositoryId?: string;
+  readonly reviewTarget?: ReturnType<typeof createReviewTarget>;
   readonly lineage?: LaneSubjectLineage;
   readonly logicalPass?: number;
   readonly provider?: HostedProviderId;
@@ -71,7 +72,7 @@ export function createHostedHandleFixture(
       }
     : undefined);
   const deliveryVehicle = input.vehicle?.kind === "delivery-member" ? input.vehicle : undefined;
-  const reviewTarget = createReviewTarget({
+  const reviewTarget = input.reviewTarget ?? createReviewTarget({
     schemaVersion: 2,
     semanticsVersion: "review-gate/v2",
     kind: deliveryVehicle === undefined ? "change-set" : "delivery-member",

@@ -38,6 +38,7 @@ import {
   bindReviewPolicyContinuationEvidence,
   bindReviewPolicyEvidence,
   readIncrementalPredecessorResponseEvidence,
+  ReviewProducerPolicyMismatchError,
   ReviewProducerScopeMismatchError,
 } from "./review-policy-evidence.js";
 import type { ResolvedOwnerAcceptedReviewTerminus } from "./review-terminus.js";
@@ -155,9 +156,9 @@ export function applyCarriedStandardReviewReservation(
  * The routing facts a change set's review obligation turns on are author judgments — content kind,
  * risk, determinacy, ownership, and surface authority. The repository does not establish them, so a
  * caller that supplies none routes as an unknown change set: `required` standard review, reason
- * `unknown-change-set`. What the repository does establish — the work unit's `Class` and the
- * effective activity of the two review methods — is supplied exactly and is never the caller's to
- * assert, because the reducer applies both over whichever base is in force.
+ * `unknown-change-set`. What the repository does establish — that a supplied change set is known, the
+ * work unit's `Class`, and the effective activity of the two review methods — is supplied exactly and
+ * is never the caller's to assert, because the reducer applies them over whichever base is in force.
  */
 const UNESTABLISHED_CHANGE_SET_FACTS = {
   changeSetState: "unknown",
@@ -212,6 +213,14 @@ function evidenceCompositionRefusal(error: unknown): PrePublicationComposition {
       status: "refused",
       reason: `The ${error.pending.lane} review operation ${error.pending.operationId} is still in progress.`,
       pendingReview: error.pending,
+    };
+  }
+  if (error instanceof ReviewProducerPolicyMismatchError) {
+    return {
+      status: "refused",
+      code: "invalid-input",
+      reason: error.message,
+      routingMismatch: { producerReview: error.producerReview, requestReview: error.requestReview },
     };
   }
   if (error instanceof ReviewProducerScopeMismatchError) {
@@ -356,19 +365,21 @@ export function projectPendingResponseSource(
 }
 
 /**
- * Compose the routing input from the caller's change-set facts and the repository's own two facts.
+ * Compose the routing input from the caller's change-set facts and the repository's own facts.
  *
- * The caller supplies facts, never the decision: `assurance` and `activity` are overwritten from
- * the repository, and any other key the caller adds is rejected by the router's own normalization.
+ * The caller supplies facts, never the decision: `changeSetState`, `assurance`, and `activity` are
+ * overwritten from the repository — a supplied change set is the one this call composes, so it is
+ * `known`, as local review preparation records it — and any other key the caller adds is rejected by
+ * the router's own normalization, which still routes a change set with a rejected fact as unknown.
  */
 function routingInput(
   changeSet: unknown,
   assurance: ReviewAssuranceInput,
   activity: ReviewMethodActivity,
 ): unknown {
-  const supplied = changeSet === undefined ? UNESTABLISHED_CHANGE_SET_FACTS : changeSet;
-  if (typeof supplied !== "object" || supplied === null || Array.isArray(supplied)) return supplied;
-  return { ...supplied, schemaVersion: 1, assurance, activity };
+  if (changeSet === undefined) return { ...UNESTABLISHED_CHANGE_SET_FACTS, schemaVersion: 1, assurance, activity };
+  if (typeof changeSet !== "object" || changeSet === null || Array.isArray(changeSet)) return changeSet;
+  return { ...changeSet, schemaVersion: 1, changeSetState: "known", assurance, activity };
 }
 
 async function readCandidateCorrectionContext(
@@ -597,8 +608,12 @@ export async function composePrePublicationReviewRequest(
   const { pendingSources, judgedPasses } = laneState;
   // A delivery call examines several member targets; a scope judgment confirmed for any of them still binds.
   const examinedTargets: ReviewTarget[] = [];
-  const withExaminedTargets = (composition: PrePublicationComposition): PrePublicationComposition =>
-    examinedTargets.length === 0 ? composition : { ...composition, examinedTargets: [...examinedTargets] };
+  // Every composed or evidence-refused result also carries the routing inputs normalization rejected.
+  const withCompositionContext = (composition: PrePublicationComposition): PrePublicationComposition => ({
+    ...composition,
+    ...(examinedTargets.length === 0 ? {} : { examinedTargets: [...examinedTargets] }),
+    ...(routing.diagnostics.length === 0 ? {} : { routingDiagnostics: routing.diagnostics }),
+  });
   const preparation = createPrePublicationLanePreparation(input, candidate, dependencies, examinedTargets);
   const judgeLane = async (
     lane: ReviewLane,
@@ -715,7 +730,7 @@ export async function composePrePublicationReviewRequest(
       [ReviewPolicyTarget, ReviewTarget | null, readonly string[], LaneSubjectLineage?],
     selecting = false,
   ): Promise<PrePublicationComposition> => {
-    const refusal = withExaminedTargets(evidenceCompositionRefusal(error));
+    const refusal = withCompositionContext(evidenceCompositionRefusal(error));
     if (refusal.status !== "refused" || refusal.scopeMismatch === undefined
       || dependencies.resolveExtraPassJudgment === undefined) return refusal;
     try {
@@ -724,7 +739,7 @@ export async function composePrePublicationReviewRequest(
           selecting ? withoutExtraPassGrants(lanes.data.standard) : lanes.data.standard);
       }
     } catch (judgmentError) {
-      return withExaminedTargets(evidenceCompositionRefusal(judgmentError));
+      return withCompositionContext(evidenceCompositionRefusal(judgmentError));
     }
     const terminusDecision = await preparePrePublicationTerminusDecision({ candidateId: candidate.candidateId,
       subjectDigest: candidate.subjectDigest, completedPasses: judgedPasses.standard ?? 0,
@@ -814,7 +829,7 @@ export async function composePrePublicationReviewRequest(
       selectedLineage,
     );
   } catch (error) {
-    return withExaminedTargets(evidenceCompositionRefusal(error));
+    return withCompositionContext(evidenceCompositionRefusal(error));
   }
   const standard = withCeilingOverride("standard", policyTarget, standardRequest);
   const pendingResponse: PrePublicationReviewRequest["pendingResponse"] = {
@@ -857,7 +872,7 @@ export async function composePrePublicationReviewRequest(
   const terminusDecision = await preparePrePublicationTerminusDecision({ candidateId: request.data.candidateId,
     subjectDigest: request.data.candidate.subjectDigest, completedPasses: request.data.standard.completedPasses,
     judgment: lanes.data.standard, authority: ownerTerminusAuthority, dependencies });
-  return withExaminedTargets({
+  return withCompositionContext({
     status: "composed",
     request: request.data,
     advisories,

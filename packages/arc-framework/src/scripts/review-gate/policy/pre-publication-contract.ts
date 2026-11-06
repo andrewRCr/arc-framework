@@ -11,7 +11,7 @@ import type { ReviewScopeMode } from "../core/review-primitives.js";
 import type { LaneSubjectLineage } from "../core/lane-admission.js";
 import type { ApprovedDispositionRecordReader, ReviewResultReader } from "../core/ports.js";
 import type { ReviewPrePublicationRefusalCode } from "../core/review-command-envelope.js";
-import type { PrePublicationCandidateContinuation } from "../core/pre-publication-remedy.js";
+import type { PrePublicationCandidateContinuation, PrePublicationRoutingMismatch } from "../core/pre-publication-remedy.js";
 import type { PreBindingDeliveryReviewTargets } from "./pre-publication-delivery-targets.js";
 import type { PrePublicationReviewRequest } from "./pre-publication-procedure.js";
 import type { ReviewLaneJudgment } from "./review-policy-driver.js";
@@ -187,6 +187,8 @@ export type PrePublicationComposition =
     request: PrePublicationReviewRequest;
     /** Composition facts the envelope cannot carry and a caller must not lose. */
     advisories: readonly string[];
+    /** Routing-input paths normalization rejected or found missing, so the change set routed as unestablished. */
+    routingDiagnostics?: readonly string[];
     terminusDecision?: PreparedNativeReviewTerminus;
     /** Independently observed current root head for an approved, pending Candidate fix. */
     pendingFixRootHeadSha?: string;
@@ -199,7 +201,12 @@ export type PrePublicationComposition =
     /** Explicit native inputs failed read-only comparison before either lane recorded grants. */
     savedJudgmentMismatch?: true;
     savedScopeMismatch?: true;
-    code?: Extract<ReviewPrePublicationRefusalCode, "candidate-unexplained-delta" | "scope-judgment-required">;
+    code?: Extract<ReviewPrePublicationRefusalCode,
+      "candidate-unexplained-delta" | "scope-judgment-required" | "invalid-input">;
+    /** An `invalid-input` refusal's review producer, admitted under routing this call's change set does not reproduce. */
+    routingMismatch?: PrePublicationRoutingMismatch;
+    /** Routing-input paths normalization rejected or found missing, so the change set routed as unestablished. */
+    routingDiagnostics?: readonly string[];
     /** How a `candidate-unexplained-delta` refusal continues: its remedy, and any decision it carries. */
     candidateContinuation?: PrePublicationCandidateContinuation;
     scopeMismatch?: {

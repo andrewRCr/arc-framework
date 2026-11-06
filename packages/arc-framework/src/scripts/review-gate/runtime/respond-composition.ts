@@ -70,6 +70,7 @@ import { createRepositoryReviewResultReader } from
   "../hosts/local/review-result-reader-composition.js";
 import { readLocalReviewLiveContext } from "../hosts/local/live-context.js";
 import { LocalReviewAuthorityError } from "../hosts/local/review-authority.js";
+import { ReviewVehicleUnresolvedError } from "../../../lib/store/kinds/review/errors.js";
 import { RepositoryDeliveryMemberLookup } from "../hosts/local/delivery-member-lookup.js";
 import {
   composeDeliveryMemberTarget,
@@ -529,6 +530,7 @@ function responseDispositionDependencies(input: ReviewInvocationInput & ReviewIn
   const confirmResponseHeadContinuation = createCandidateResponseHeadContinuationReader({ ...input, dispositionStore: family.ports.dispositions, operationStore: operationStore });
   const dispositionStore = family.mode === "stored" ? new NativeApprovedDispositionRecordStore({
     store: input.store, inFlight: operationStore, outcomes: family.ports.outcomes, evidence: family.ports.evidence,
+    responses: family.ports.responses,
     readProjectId: input.projectId, now: () => new Date().toISOString(), confirmResponseHeadContinuation,
   }) : family.ports.dispositions;
   return { dispositionStore, confirmResponseHeadContinuation };
@@ -619,9 +621,7 @@ function createBoundRespondDependencies(input: ReviewInvocationInput & ReviewInv
           proposerIdentity: authority.runtimeIdentity,
         };
       } catch (error) {
-        if (!(error instanceof LocalReviewAuthorityError)
-          || error.reason !== "vehicle-unresolved"
-          || admittedAuthorIdentity === undefined) throw error;
+        if (!(error instanceof ReviewVehicleUnresolvedError) || admittedAuthorIdentity === undefined) throw error;
         const live = await readLocalReviewLiveContext(input);
         if (live.context.activeIdentity !== admittedAuthorIdentity) {
           throw new LocalReviewAuthorityError("active-identity-owner-mismatch");

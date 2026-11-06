@@ -61,7 +61,7 @@ function composeResultReader(publisher: GitCommonStatePublisher,
     inFlight: new LocalReviewOperationStateStore(publisher), dispositions: new LocalApprovedDispositionRecordStore(publisher),
   } });
   if (family.mode === "stored" && invocation?.store !== undefined) {
-    return new StoredReviewResultReader({ outcomes: family.ports.outcomes, evidence: family.ports.evidence,
+    return new StoredReviewResultReader({ responses: family.ports.responses,
       readProjectId: invocation.projectId ?? createProjectIdentityReader(invocation.store) });
   }
   const receiptIndex: ForwardReviewReceiptIndex = {

@@ -27,7 +27,7 @@ export function decodeStoredReference(registry: Readonly<Record<KindId, KindDefi
     if (kind.id === "work-item/companion" || kind.id === "personal/document") continue;
     const candidateOwner = kind.family === "lineage" ? lineageEntryOwner(kind, path, metadata, object) : owner;
     if (!candidateOwner) continue;
-    const decoded = decodeKindReference(kind, candidateOwner, path);
+    const decoded = decodeStoredKindReference(kind, candidateOwner, path);
     if (decoded) return decoded;
   }
   const companion = rootFamily(family) === "work-item" ? decodeCompanion(owner, path) : null;
@@ -36,10 +36,11 @@ export function decodeStoredReference(registry: Readonly<Record<KindId, KindDefi
   if (mismatch) return mismatch;
   if (companion) return companion;
   const document = kinds.find((kind) => kind.id === "personal/document");
-  return document ? decodeKindReference(document, owner, path) : null;
+  return document ? decodeStoredKindReference(document, owner, path) : null;
 }
 
-function decodeKindReference(kind: KindDefinition, owner: OwnerIdentity, path: string): RecordReference | null {
+/** Decode one registered physical path using an already established owner, without reading content or metadata. */
+export function decodeStoredKindReference(kind: KindDefinition, owner: OwnerIdentity, path: string): RecordReference | null {
   const key = keyAtPath(kind, owner, path);
   if (key === null) return null;
   const parsed = RecordReferenceSchema.safeParse({ owner, kind: kind.id, ...(kind.key === null ? {} : { key }) });

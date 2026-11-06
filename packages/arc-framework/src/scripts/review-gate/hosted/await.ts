@@ -25,6 +25,8 @@ import {
 } from "./request.js";
 import { ReviewAttemptSchema } from "../policy/review-policy-attempt.js";
 import { HostedGitHubReadError } from "./github.js";
+import { AWAIT_POLL_INTERVAL_LIMIT_MS, AWAIT_TIMEOUT_LIMIT_MS } from "../await-timing.js";
+import { ReviewCommandDiagnosticSchema } from "../core/review-command-diagnostic.js";
 
 const HostedFindingNavigationShape = {
   sourceOrdinal: ReviewFindingSourceOrdinalSchema,
@@ -201,10 +203,11 @@ type HostedReadFailure = z.infer<typeof HostedReadFailureSchema>;
 
 const HostedAwaitRequestSchema = HostedAwaitActionSchema.unwrap();
 
-const TimeoutSecondsSchema = z.int().positive().max(30 * 60);
-const InitialPollIntervalSecondsSchema = z.int().positive().max(60);
-const TimeoutMsSchema = z.int().positive().max(30 * 60 * 1_000);
-const PollIntervalMsSchema = z.int().positive().max(60 * 1_000);
+// A request above a limit waits at the limit, so only the composed execution timing is bounded.
+const TimeoutSecondsSchema = z.int().positive();
+const InitialPollIntervalSecondsSchema = z.int().positive();
+const TimeoutMsSchema = z.int().positive().max(AWAIT_TIMEOUT_LIMIT_MS);
+const PollIntervalMsSchema = z.int().positive().max(AWAIT_POLL_INTERVAL_LIMIT_MS);
 
 export const HostedAwaitEnvelopeSchema = HostedAwaitRequestSchema.safeExtend({
   timeoutSeconds: TimeoutSecondsSchema.optional(),
@@ -236,6 +239,8 @@ export interface HostedReviewObserver {
 
 const HostedAwaitResultBaseSchema = HostedAwaitRequestSchema.safeExtend({
   mode: z.literal("review-hosted-await"),
+  /** This call's notices, such as a timing override applied at its limit; never part of a sealed result. */
+  diagnostics: z.array(ReviewCommandDiagnosticSchema).min(1).optional(),
 });
 
 const HostedAwaitCleanResultSchema = HostedAwaitResultBaseSchema.safeExtend({

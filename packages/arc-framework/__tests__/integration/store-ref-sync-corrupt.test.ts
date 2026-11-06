@@ -39,7 +39,8 @@ describe("damaged sync refs in the default layout", () => {
   it.each(["missing", "malformed"] as const)("keeps a live ref with %s metadata while applying other refs", async (damage) => {
     const h = await corruptFixture(layout, damage);
     const result = success(await h.b.store.pull());
-    expect(result.pulls.flatMap(({ notices }) => notices)).toEqual([expect.objectContaining({ kind: "namespace-corrupt", ref: h.home.ref })]);
+    expect(result.pulls.flatMap(({ notices }) => notices)).toEqual([expect.objectContaining({ kind: "namespace-corrupt", ref: h.home.ref,
+      remedy: { text: expect.stringContaining(`Repair ${h.home.ref} forward:`) } })]);
     expect((await h.b.git(["rev-parse", h.home.ref])).stdout.trim()).toBe(h.before);
     expect((await h.b.git(["rev-parse", h.home.ref.replace("refs/arc/", `refs/arc-remotes/${h.remoteName}/`)])).stdout.trim()).toBe(h.broken.tip);
     expect(success(await h.b.store.read({ reference: h.made.reference })).content).toBe(makeMetaFixture("alpha"));
@@ -153,7 +154,7 @@ describe("damaged sync refs in the default layout", () => {
     await h.a.git(["push", h.remoteName, `${h.home.ref}:${h.home.ref}`, `${expandStoredPath(h.other).ref}:${expandStoredPath(h.other).ref}`]);
     const result = success(await h.b.store.pull());
     expect(result.pulls.flatMap(({ notices }) => notices)).toContainEqual(expect.objectContaining({ kind: "namespace-corrupt", ref: h.home.ref,
-      condition: expect.stringMatching(/historical metadata/iu), remedy: { text: expect.stringMatching(/ancestor/iu) } }));
+      condition: `The metadata object for ${h.home.ref} cannot be parsed.`, remedy: { text: expect.stringMatching(/ancestor/iu) } }));
     expect((await h.b.git(["rev-parse", h.home.ref])).stdout.trim()).toBe(kept);
     expect(success(await h.b.store.read({ reference: h.made.reference })).content).toBe(`${local.content}\nLocal competing content.\n`);
     expect(success(await h.b.store.read({ reference: h.other })).content).toBe(h.otherContent);

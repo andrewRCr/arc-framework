@@ -56,8 +56,16 @@ interface AgentCompleteEvent {
   status: "review_completed";
   findings: number;
   reviewedFiles: string[];
+  /** Changed files the provider names as binary and did not review; empty when it names none. */
+  excludedBinaryFiles: string[];
   outcome?: string;
   unreviewedFileCount?: number;
+}
+
+/** One path the reviewed target adds or modifies, with Git's judgment of whether its content is binary. */
+export interface CodeRabbitChangedFile {
+  path: string;
+  binary: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -136,14 +144,27 @@ function parseFindingEvent(event: Record<string, unknown>): ParsedAgentFinding |
   };
 }
 
+/**
+ * Read a list of provider-reported paths exactly as reported, so each compares with Git's own name for the file;
+ * anything but non-blank strings is refused.
+ */
+function pathList(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.some((file) => typeof file !== "string" || file.trim().length === 0)) {
+    return null;
+  }
+  return value.map(String);
+}
+
 function parseCompleteEvent(event: Record<string, unknown>): AgentCompleteEvent | null {
+  const reviewedFiles = pathList(event.reviewedFiles);
+  const excludedBinaryFiles = event.excludedBinaryFiles === undefined ? [] : pathList(event.excludedBinaryFiles);
   if (event.type !== "complete"
     || event.status !== "review_completed"
     || !Number.isSafeInteger(event.findings)
     || Number(event.findings) < 0
-    || !Array.isArray(event.reviewedFiles)
-    || event.reviewedFiles.length === 0
-    || event.reviewedFiles.some((file) => typeof file !== "string" || file.trim().length === 0)
+    || reviewedFiles === null
+    || reviewedFiles.length === 0
+    || excludedBinaryFiles === null
     || (event.outcome !== undefined && typeof event.outcome !== "string")
     || (event.unreviewedFileCount !== undefined
       && (!Number.isSafeInteger(event.unreviewedFileCount) || Number(event.unreviewedFileCount) < 0))) {
@@ -153,7 +174,8 @@ function parseCompleteEvent(event: Record<string, unknown>): AgentCompleteEvent 
     type: "complete",
     status: "review_completed",
     findings: Number(event.findings),
-    reviewedFiles: event.reviewedFiles.map((file) => String(file).trim()),
+    reviewedFiles,
+    excludedBinaryFiles,
     ...(typeof event.outcome === "string" ? { outcome: event.outcome } : {}),
     ...(typeof event.unreviewedFileCount === "number"
       ? { unreviewedFileCount: event.unreviewedFileCount } : {}),
@@ -197,9 +219,23 @@ function normalizeFinding(event: ParsedAgentFinding, sourceOrdinal: number): Nor
 }
 
 /**
+ * Whether the review accounts for every changed file: each one reviewed, or a binary file the provider names as
+ * excluded. A review that reports unreviewed files does not cover the change, whatever else it lists.
+ */
+function coversChangedFiles(complete: AgentCompleteEvent, changedFiles: readonly CodeRabbitChangedFile[]): boolean {
+  if ((complete.unreviewedFileCount ?? 0) > 0) return false;
+  const reviewed = new Set(complete.reviewedFiles);
+  const excludedBinary = new Set(complete.excludedBinaryFiles);
+  return changedFiles.every((file) => reviewed.has(file.path) || (file.binary && excludedBinary.has(file.path)));
+}
+
+/**
  * Parse the qualified CodeRabbit agent-mode NDJSON contract without inferring success.
  *
- * @param input - Captured direct-process result plus exact target head binding.
+ * A completed review that does not cover the target's changed files reports unsupported capability, so neither a
+ * clean result nor findings can stand for a review of the whole change.
+ *
+ * @param input - Captured direct-process result, exact target head binding, and the target's changed files.
  * @returns A provider result accepted by frontline outcome normalization.
  */
 export function parseCodeRabbitAgentResult(input: {
@@ -210,6 +246,7 @@ export function parseCodeRabbitAgentResult(input: {
   stderr: string;
   expectedHead: string;
   observedHead: string;
+  changedFiles: readonly CodeRabbitChangedFile[];
 }): CodeRabbitAgentProviderResult {
   if (input.observedHead !== input.expectedHead) {
     return {
@@ -263,14 +300,14 @@ export function parseCodeRabbitAgentResult(input: {
 
   if (complete === null) return { kind: "partial" };
   if (completeIndex !== lines.length - 1) return { kind: "ambiguous" };
-  if ((complete.outcome !== undefined
-      && complete.outcome !== "completed"
-      && complete.outcome !== "completed_with_warnings")
-    || (complete.unreviewedFileCount ?? 0) > 0) return { kind: "partial" };
+  if (complete.outcome !== undefined
+    && complete.outcome !== "completed"
+    && complete.outcome !== "completed_with_warnings") return { kind: "partial" };
   if (complete.findings !== findings.length) return { kind: "partial" };
   if (new Set(findings.map((finding) => finding.findingId)).size !== findings.length) {
     return { kind: "ambiguous" };
   }
+  if (!coversChangedFiles(complete, input.changedFiles)) return { kind: "capability-unsupported" };
   return findings.length === 0
     ? { kind: "clean" }
     : { kind: "findings", findings: NormalizedReviewFindingsSchema.parse(findings) };

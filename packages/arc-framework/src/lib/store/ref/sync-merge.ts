@@ -17,10 +17,11 @@ import { readSyncHistoryQuarters, prepareSyncHistoryFastForward, prepareSyncHist
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { observeSyncEndedConflicts } from "./sync-ended-conflicts.js";
 import { commitRefTree } from "./write-commits.js";
-import { updateRefTransaction, type RefChange } from "../../git/ref-transaction.js";
+import type { RefChange } from "../../git/ref-transaction.js";
+import { updateStoreRefTransaction } from "./ref-transaction.js";
 import { isGitProcessError } from "../../git/process-error.js";
 import { readBatchObjects } from "./batch-read.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
 import { isUnavailableGraphFailure } from "./history-graph.js";
 import type { SyncCohortEndRoute } from "./sync-control-sources.js";
 
@@ -53,7 +54,7 @@ export async function mergeRefSets(context: RefBackendContext, local: ReadonlyMa
     catch (error) {
       if (!isGitProcessError(error) || !error.args.some(arg => arg === "merge-base" || arg === "log")
         || !await isUnavailableGraphFailure(context, error)) throw error;
-      result = heldMerge(ref, corruptRef(ref, true));
+      result = heldMerge(ref, refObjectFault(ref, "missing").refusal);
     }
     if (result.status === "restart") return result;
     changed ||= result.changed;
@@ -71,7 +72,7 @@ async function mergeCapturedSyncRef(context: RefBackendContext, local: ReadonlyM
   const sourceTarget = options.targetRef?.(source) ?? source;
   const sourceTip = local.get(source);
   const endpoints = await readBatchObjects(context, [next, ...sourceTip ? [sourceTip] : []]);
-  if ([...endpoints.values()].some(object => object?.type !== "commit")) return heldMerge(ref, corruptRef(ref, true));
+  if ([...endpoints.values()].some(object => object?.type !== "commit")) return heldMerge(ref, refObjectFault(ref, "missing").refusal);
   const captured = await readSyncHistoryQuarters(context, ref, local, [next]);
   const quarters = captured.status === "ok" ? captured.result.quarters : [];
   return await withRefLocks({ ...context, lock: options.lock }, [target, sourceTarget, ...quarters.map(({ ref }) => options.targetRef?.(ref) ?? ref)], async (): Promise<RefMergeResult> => {
@@ -106,7 +107,7 @@ async function mergeCapturedSyncRef(context: RefBackendContext, local: ReadonlyM
         changes.push({ ref: options.targetRef?.(quarter.ref) ?? quarter.ref, next, expected: quarter.tip });
         refreshed.push({ ref: quarter.ref, before: quarter.tip, after: next });
       }
-      return updateRefTransaction(physical, changes, { cwd: context.checkoutRoot });
+      return updateStoreRefTransaction(physical, changes, { cwd: context.checkoutRoot });
     }, options.commitMode);
     if (committed.status === "layout-changed" || committed.result.status === "lost-race") return { status: "restart" };
     await options.onApplied?.(context, ref, current, publishedTip, applied);

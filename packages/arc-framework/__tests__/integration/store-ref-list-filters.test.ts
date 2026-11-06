@@ -24,9 +24,10 @@ describe.each(["default", "separate"] as const)("scoped listings (%s)", (layout)
 
   it("applies location filters in current, saved, and checked views while preserving scoped absence", async () => {
     let checked = false, inspect = false;
-    async function expectActive(view: StoreView, count: number) {
+    async function expectActive(view: StoreView, count: number, status: "complete" | "absent" = "complete") {
       const listing = success(await view.list({ family: "work-item", kind: "work-item/meta", filter: { locations: ["active"] } }));
-      expect(listing).toMatchObject({ status: "complete", records: Array.from({ length: count }, () => expect.any(Object)) });
+      expect(listing).toMatchObject(status === "absent" ? { status } :
+        { status, records: Array.from({ length: count }, () => expect.any(Object)) });
       expect(success(await view.list({ family: "work-item", kind: "work-item/record", owner: activeOwner })).status).toBe("absent");
     }
     const f = await createRefFixture({ "work-item/meta": { check: async ({ before, after }) => {
@@ -47,7 +48,7 @@ describe.each(["default", "separate"] as const)("scoped listings (%s)", (layout)
     inspect = true;
     success(await f.store.write({ ...update(f, active), placement: { kind: "backlog", commitment: "planned" } }));
     expect(checked).toBe(true);
-    await expectActive(f.store, 0);
+    await expectActive(f.store, 0, "absent");
     expect(success(await f.store.list({ family: "work-item", kind: "work-item/meta", asOf, filter: { locations: ["active"] } })))
       .toMatchObject({ status: "complete", records: [expect.objectContaining({ reference: active.reference })] });
   });

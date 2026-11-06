@@ -88,7 +88,7 @@ async function storedGrantInput(lane: "frontline" | "standard", decisionLane: "f
     projectId: h.projectId });
   const policyRequest = ReviewPolicyCommandRequestSchema.parse({ ...request, lane, target: { ...target, headSha: head } });
   return { policyRequest, compose: () => composeNativePolicyGrants({ ...checkout, workItem: owner, projectId: h.projectId,
-    request: policyRequest, operationStore: ports.inFlight, resultReader: new StoredReviewResultReader({ outcomes: ports.outcomes, evidence: ports.evidence, readProjectId: h.projectId }),
+    request: policyRequest, operationStore: ports.inFlight, resultReader: new StoredReviewResultReader({ responses: ports.responses, readProjectId: h.projectId }),
     baseBranch: "main", incremental: false }) };
 }
 
@@ -130,8 +130,7 @@ async function currentErrand() {
       projectId: h.projectId });
     return composeNativePolicyGrants({ ...checkout, workItem: owner, projectId: h.projectId, baseBranch: "main", incremental: false,
       request: { ...request, completedPasses: 0, ceilingOverride: { target, lane: "standard", exhaustedPassCount: 0, nextPass: 1 } },
-      operationStore: ports.inFlight, resultReader: new StoredReviewResultReader({ outcomes: ports.outcomes,
-        evidence: ports.evidence, readProjectId: h.projectId }) });
+      operationStore: ports.inFlight, resultReader: new StoredReviewResultReader({ responses: ports.responses, readProjectId: h.projectId }) });
   };
   return { ...checkout, owner: primary.reference.owner, compose };
 }

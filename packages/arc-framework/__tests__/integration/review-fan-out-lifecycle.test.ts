@@ -2605,11 +2605,11 @@ describe("hosted review fan-out lifecycle", () => {
           sourceVerification: "verified",
           verificationRefs: ["source:first.txt:1"],
           verifiedSeverity: "major",
-          disposition: "defer",
+          disposition: "fix",
           title: "Finding title",
           issue: "The reviewer's claim.",
           rationale: "The current source supports the material concern.",
-          recommendation: "Carry the approved response before opening another pass.",
+          recommendation: "Fix the claim; the next pass reviews that fix.",
           openQuestions: [],
         }],
       },
@@ -2644,11 +2644,11 @@ describe("hosted review fan-out lifecycle", () => {
       dispositions,
     } as const;
     const result = await respondThroughHandler(harness, approvedRequest);
-    if (result.state !== "settled") throw new Error("expected settled response");
+    if (result.state !== "delivery-correction-required") throw new Error("expected an approved delivery correction");
     const authorizationId = result.payload.conditionalPassAuthorizationId;
     expect(authorizationId).toMatch(/^sha256:[0-9a-f]{64}$/u);
     expect(result.payload).toMatchObject({
-      policy: { state: "pass-complete", nextAction: "none" },
+      policy: { state: "findings", nextAction: "respond", payload: { pass: 1, postResponseAction: "resolve-next-pass" } },
       policyRequest: {
         ceilingOverride: {
           ...ceilingOverride,
@@ -2683,8 +2683,8 @@ describe("hosted review fan-out lifecycle", () => {
     });
     const replay = await respondToReviewCommand(withReviewReport(approvedRequest), replayDependencies);
     expect(replay).toMatchObject({
-      state: "already-settled",
-      nextAction: "reduce",
+      state: "delivery-correction-required",
+      nextAction: "continue-delivery-correction",
       payload: {
         conditionalPassAuthorizationId: authorizationId,
         policyRequest: {

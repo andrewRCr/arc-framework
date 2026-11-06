@@ -1,5 +1,6 @@
 /** Explicit ref-store commands and their clone-wide migration serialization. */
 
+import { RefGitLockError, refGitLockRefusal } from "./git-lock.js";
 import type { Store } from "../contract.js";
 import { StoreMigrateInputSchema, StoreRemoteInputSchema, combineMigrateReports, type StoreMigrateInput, type StoreMigrateResult,
   type StoreRemoteInput, type StoreRemoteResult, type MigrateReport, type StoreCommandResult } from "../commands.js";
@@ -190,6 +191,7 @@ async function withMigrationLock<T>(context: RefBackendContext, operation: () =>
     const release = await context.lock("migrate");
     try { return await operation(); } finally { await release(); }
   } catch (error) {
+    if (error instanceof RefGitLockError) return { status: "refused", refusal: { code: "store", refusal: refGitLockRefusal(error) } };
     if (error instanceof MigrationRefusal) return { status: "refused", refusal: error.refusal };
     if (!(error instanceof AdvisoryLockTimeoutError) || error.phase !== "acquire") throw error;
     return { status: "refused", refusal: { code: "store", refusal: { code: "lock-held", class: "recoverable", lock: error.lockPath,

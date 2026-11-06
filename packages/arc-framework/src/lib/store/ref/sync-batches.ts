@@ -8,7 +8,7 @@ import { viewRefFamily } from "./view-state.js";
 import { RecordReferenceSchema } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
 import { readHistoricalGraph } from "./history-graph.js";
-import { corruptRef } from "./namespace-health.js";
+import { refObjectFault } from "./object-fault.js";
 
 /** One unpublished commit's batch identity and first-parent mutation basis. */
 export interface UnpublishedRefCommit { revision: string; parent: string | null; batch: string }
@@ -27,7 +27,7 @@ export async function readUnpublishedRefBatches(context: RefBackendContext, list
     const reference = family ? refPrototype(context, ref, family)
       : RecordReferenceSchema.parse({ kind: "project-registry/identity", owner: { type: "project", name: "project" } });
     const published = listing.tracking.get(ref) ?? listing.kept?.get(ref);
-    const graph = await readHistoricalGraph(context, ["log", "--format=%H %P%n%B%x00", tip, ...published ? [`^${published}`] : []], corruptRef(ref, true));
+    const graph = await readHistoricalGraph(context, ["log", "--format=%H %P%n%B%x00", tip, ...published ? [`^${published}`] : []], () => refObjectFault(ref, "missing").refusal);
     if (graph.status === "refused") return graph;
     const commits = graph.result.split("\0").flatMap((block) => {
       const [header = "", ...message] = block.trimStart().split("\n"), [revision, parent] = header.split(" ");

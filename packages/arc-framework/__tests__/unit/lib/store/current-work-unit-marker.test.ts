@@ -11,6 +11,9 @@ import { createReferenceFixture } from "../../../helpers/store/reference-fixture
 import { ReferenceBackend } from "../../../helpers/store/reference-backend.js";
 import { seed, success } from "../../../helpers/store/suite-tools.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
+import type { StoreRefusal } from "../../../../src/lib/store/refusal.js";
+import { StoreRefusalError } from "../../../../src/lib/store/refusal-error.js";
+import { ProjectIdentityError } from "../../../../src/lib/store/project-identity.js";
 import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { createDecomposeHarness } from "../../../helpers/store/decompose-harness.js";
@@ -232,5 +235,71 @@ describe("current work-unit marker fallback", () => {
     success(await h.reference.store.write({ action: "put", reference: h.record.reference,
       content: h.record.content, expected: actual.version, placement: { kind: "active" }, provenance: { verb: "restore-role", lifecycleAction: "restore-role" } }));
     expect(await resolve()).toMatchObject({ status: "resolved", candidate: { reference: h.record.reference }, warnings: [] });
+  });
+});
+
+describe("current work-unit store refusals", () => {
+  async function refusing(port: "list" | "lookup" | "read") {
+    const h = await fixture();
+    await h.marker();
+    const store = Object.create(h.reference.store) as Store;
+    const refusal: StoreRefusal = port === "list"
+      ? { code: "lock-held", class: "recoverable", lock: "store", condition: "The store state is being rewritten.",
+        remedy: { text: "Wait for the rewrite to finish, then retry.", argv: ["arc", "store", "pull"] } }
+      : { code: "state-unresolvable", class: "recoverable", historyRefs: [], reference: h.record.reference,
+        condition: "The claimed work unit's record objects are missing.", remedy: { text: "Fetch the missing objects, then retry." } };
+    const state = { refusing: true };
+    if (port === "list") {
+      const list = h.reference.store.list.bind(h.reference.store);
+      store.list = async input => state.refusing ? { status: "refused", refusal } : list(input);
+    } else if (port === "lookup") {
+      const lookup = h.reference.store.lookup.bind(h.reference.store);
+      store.lookup = async input => state.refusing ? { status: "refused", refusal } : lookup(input);
+    } else {
+      const read = h.reference.store.read.bind(h.reference.store);
+      store.read = async input => state.refusing && input.reference.kind === "work-item/meta"
+        ? { status: "refused", refusal } : read(input);
+    }
+    return { h, refusal, state, resolve: () => resolveCurrentWorkUnit({ cwd: h.cwd, store }) };
+  }
+
+  it.each(["list", "lookup", "read"] as const)(
+    "carries an off-branch store's refused %s as the cause beside its warning, and resolves once it reads",
+    async (port) => {
+      const { h, refusal, state, resolve } = await refusing(port);
+      const result = await resolve();
+      expect(result).toMatchObject({ status: "none", candidates: [], warnings: [expect.stringContaining(refusal.condition)] });
+      if (result.status !== "none" || result.cause === undefined) throw new Error(JSON.stringify(result));
+      expect(result.cause).toBeInstanceOf(StoreRefusalError);
+      expect(result.cause).toMatchObject({ offBranch: true, refusal });
+      state.refusing = false;
+      expect(await resolve()).toMatchObject({ status: "resolved", candidate: { reference: h.record.reference }, warnings: [] });
+    });
+
+  it("carries a missing project ID thrown by the claim lookup as the cause, and resolves once the clone holds it", async () => {
+    const h = await fixture();
+    await h.marker();
+    const failure = new ProjectIdentityError({ status: "unavailable", reason: "This clone has no project ID.",
+      remedy: { text: "Seed the project record, then retry.", argv: ["arc", "store", "pull"] } });
+    const lookup = h.reference.store.lookup.bind(h.reference.store), store = Object.create(h.reference.store) as Store;
+    let missing = true;
+    store.lookup = async input => { if (missing) throw failure; return lookup(input); };
+    const resolve = () => resolveCurrentWorkUnit({ cwd: h.cwd, store });
+    expect(await resolve()).toEqual({ status: "none", candidates: [], cause: failure,
+      warnings: [`Unable to resolve the checkout's work-unit claim: ${failure.message}`] });
+    missing = false;
+    expect(await resolve()).toMatchObject({ status: "resolved", warnings: [] });
+  });
+
+  it("keeps a not-found claim and an unrelated thrown failure as absence without a cause", async () => {
+    const h = await fixture();
+    await h.marker();
+    const store = Object.create(h.reference.store) as Store;
+    store.lookup = async () => { throw new Error("Claim index unavailable."); };
+    expect(await resolveCurrentWorkUnit({ cwd: h.cwd, store })).toEqual({ status: "none", candidates: [],
+      warnings: ["Unable to resolve the checkout's work-unit claim: Claim index unavailable."] });
+    store.lookup = async () => ({ status: "refused", refusal: { code: "not-found", class: "recoverable",
+      reference: h.record.reference, condition: "No record holds this claim.", remedy: { text: "Bind the work unit, then retry." } } });
+    expect(await resolveCurrentWorkUnit({ cwd: h.cwd, store })).toEqual({ status: "none", candidates: [], warnings: [] });
   });
 });

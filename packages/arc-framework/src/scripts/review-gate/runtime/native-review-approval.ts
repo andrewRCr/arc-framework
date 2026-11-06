@@ -1,10 +1,9 @@
 /** Initial native approvals and their policy projection are persisted as producer-bound evidence. */
-import { reviewFactListingError } from "../../../lib/store/kinds/review/fact-access.js";
 import { canonicalize } from "../../../lib/kernel/index.js";
 import { StoredReviewResultReader } from "../hosts/local/stored-result-reader.js";
 import { validateApprovedDispositionRecordForResult } from "../core/review-result-disposition.js";
 import { currentApprovedDispositionNode, type ApprovedDispositionLineageNode, type ApprovedDispositionRecord } from "../core/advisory-records.js";
-import type { ReviewOutcomePort, ReviewEvidencePort, StoredReviewFact } from "../core/ports.js";
+import type { ReviewOutcomePort, ReviewEvidencePort, StoredReviewFact, ReviewResponsePort } from "../core/ports.js";
 import { reviewEvidenceBindingForRecord } from "../../../lib/store/kinds/review/evidence/binding.js";
 import { reviewOutcomeKey } from "../../../lib/store/kinds/review/outcome/key.js";
 import type { ReviewOutcome } from "../../../lib/store/kinds/review/outcome/schema.js";
@@ -15,28 +14,29 @@ export interface NativeReviewApprovalInput {
   record: ApprovedDispositionRecord;
   outcomes: ReviewOutcomePort;
   evidence: ReviewEvidencePort;
+  responses: ReviewResponsePort;
   readProjectId(): Promise<string>;
   now(): string;
 }
 
 /** Publish one initial approval, replay its captured binding, or finish its pending policy projection. */
 export async function publishNativeReviewApproval(input: NativeReviewApprovalInput): Promise<StoredReviewFact<ReviewEvidence>> {
-  const result = await new StoredReviewResultReader(input).readResult(input.record.operationId);
+  const authority = await new StoredReviewResultReader(input).readAuthority(input.record.operationId);
+  const { result, outcome } = authority;
   const record = validateApprovedDispositionRecordForResult(input.record, result);
   const node = currentApprovedDispositionNode(record);
   if (record.approvedDispositionLineage.length !== 1 || node.predecessorDispositionSetId !== null
     || node.successorDispositionSetId !== null) throw new Error("Initial approval requires one unsuperseded response.");
   const id = node.approvedDisposition.dispositionSet.dispositionSetId;
-  const prior = await input.evidence.read(id);
-  if (prior !== null) return replayNativeReviewApproval(prior, node, input.evidence);
+  const prior = authority.evidence.find(record => record.value.dispositionSet.dispositionSetId === id);
+  if (prior !== undefined) return replayNativeReviewApproval(prior, node, input.evidence);
+  if (authority.evidence.length > 0) {
+    throw new Error("Approve or replay only the current response in the selected branch; use its successor for another approval.");
+  }
   if (node.errandFixResponse !== null || node.deliveryMemberFixResponse !== null) {
     throw new Error("Record approval before publishing a performed response.");
   }
-  const listing = await input.outcomes.list();
-  if (listing.status !== "complete") throw reviewFactListingError(listing);
-  const stored = listing.records.find(({ value }) => value.attemptId === record.operationId);
-  if (stored === undefined) throw new Error("Restore the exact producer outcome before approving its response.");
-  return input.evidence.create(createNativeReviewApprovalEvidence(record, node, stored.value, input.now()));
+  return input.evidence.create(createNativeReviewApprovalEvidence(record, node, outcome.value, input.now()));
 }
 
 /** Build one approval from its exact immutable producer and captured response binding. */
@@ -68,6 +68,9 @@ function initialHostedSettlement(node: ApprovedDispositionLineageNode, outcome: 
 /** Replay a recorded approval or complete its one pending policy projection without changing its first binding. */
 export async function replayNativeReviewApproval(prior: StoredReviewFact<ReviewEvidence>, node: ApprovedDispositionLineageNode,
   evidence: ReviewEvidencePort): Promise<StoredReviewFact<ReviewEvidence>> {
+  if (prior.value.successorDispositionSetId !== null) {
+    throw new Error("Replay only the current approved response in the selected branch.");
+  }
   if (canonicalize({ dispositionSet: prior.value.dispositionSet, approval: prior.value.approval })
     !== canonicalize({ dispositionSet: node.approvedDisposition.dispositionSet, approval: node.approvedDisposition.approval })) {
     throw new Error("Approval conflicts with its recorded response; replay the original approval.");

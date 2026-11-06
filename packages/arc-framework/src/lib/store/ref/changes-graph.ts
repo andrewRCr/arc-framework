@@ -10,12 +10,13 @@ import { viewRefFamily } from "./view-state.js";
 import type { ChangesInput } from "../contract.js";
 import type { StateVersion } from "../identity.js";
 import type { ReadPlacement } from "../placement.js";
-import { HistoryRefSchema, type StoreResult, type StoreRefusal } from "../refusal.js";
+import { HistoryRefSchema, type HistoryRef, type StoreResult, type StoreRefusal } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { readBatchObjects, readRefTrees, type BatchObject, type RefTreeEntry } from "./batch-read.js";
 import { parseHistoryRows, orderHistoryCommits, type HistoryCommit } from "./history-order.js";
 import { captureHistoricalNamespaces } from "./historical-namespace.js";
-import { historicalMetadataFailure } from "./metadata.js";
+import { refObjectFault } from "./object-fault.js";
+import { missingHistoryRefs } from "./missing-history.js";
 
 /**
  * An exact upper commit with an optional older ancestry exclusion. `placements` names each bound an ended owner's latest
@@ -50,22 +51,22 @@ export function createChangeWindowReader(context: RefBackendContext, evidence = 
 /** Read each branch in local-before-remote order, bounded by the caller's exact commits. */
 async function captureChangeWindow(context: RefBackendContext, window: RefChangeWindow, evidence = new StoreCreationReceiptReader()): Promise<StoreResult<CapturedChangeWindow>> {
   const heads = await readBatchObjects(context, [window.upper, ...window.lower ? [window.lower] : []]);
-  if ([...heads.values()].some((object) => object?.type !== "commit")) return { status: "refused", refusal: missingChangeState(window) };
+  if ([...heads.values()].some((object) => object?.type !== "commit")) return { status: "refused", refusal: missingChangeState(window, await missingHistoryRefs(context, [window.ref])) };
   const headReceipts = captureCommitReceipts(heads, window.ref, evidence);
   if (headReceipts.status === "refused") return headReceipts;
   const unhealthy = await checkWindowTips(context, window);
   if (unhealthy) return { status: "refused", refusal: unhealthy };
   const graph = await readHistoricalGraph(context, ["rev-list", "--full-history", "--parents", "--topo-order", window.upper,
     ...window.lower ? [`^${window.lower}`] : [], ...window.paths ? ["--", ...window.paths.map((path) => `:(literal)${path}`)] : []],
-  missingChangeState(window));
+  async () => missingChangeState(window, await missingHistoryRefs(context, [window.ref])));
   if (graph.status === "refused") return graph;
   const rows = orderHistoryCommits(parseHistoryRows(graph.result)).reverse();
   if (!rows.length) return { status: "ok", result: { window, rows, trees: new Map(), objects: heads, receipts: headReceipts.result, recordFree: new Set() } };
   const revisions = [...new Set([...rows.flatMap(({ revision, parents }) => [revision, ...parents]), ...window.lower ? [window.lower] : []])];
   const trees = await readRefTrees(context, new Map(revisions.map((revision) => [revision, revision])), window.paths);
-  if (revisions.some((revision) => !trees.has(revision))) return { status: "refused", refusal: missingChangeState(window) };
+  if (revisions.some((revision) => !trees.has(revision))) return { status: "refused", refusal: missingChangeState(window, await missingHistoryRefs(context, [window.ref])) };
   const objects = await readBatchObjects(context, [...new Set([...revisions, ...[...trees.values()].flatMap((entries) => entries.map(({ oid }) => oid))])]);
-  if (revisions.some((revision) => objects.get(revision)?.type !== "commit")) return { status: "refused", refusal: missingChangeState(window) };
+  if (revisions.some((revision) => objects.get(revision)?.type !== "commit")) return { status: "refused", refusal: missingChangeState(window, await missingHistoryRefs(context, [window.ref])) };
   const receipts = captureCommitReceipts(objects, window.ref, evidence);
   if (receipts.status === "refused") return receipts;
   const namespaces = await changeNamespaceFacts(context, window, trees, objects);
@@ -78,18 +79,23 @@ async function changeNamespaceFacts(context: RefBackendContext, window: RefChang
   const live = window.ref.replace("refs/arc/history/", "refs/arc/"), family = viewRefFamily(live);
   const home = family ? { ...expandStoredPath(refPrototype(context, live, family), { registry: context.registry }), ref: window.ref } : undefined;
   const namespaces = home ? await captureHistoricalNamespaces(context, home, trees, objects, window.paths === undefined) : undefined;
-  if (namespaces?.unavailable.size) return { status: "refused", refusal: missingChangeState(window) };
-  if (namespaces?.corrupt.size) return { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
-    namespace: window.ref, ...historicalMetadataFailure(window.ref) } };
+  if (namespaces?.unavailable.size) return { status: "refused", refusal: missingChangeState(window, await missingHistoryRefs(context, [window.ref])) };
+  if (namespaces && [...namespaces.missing].some(revision => !namespaces.recordFree.has(revision))) {
+    return { status: "refused", refusal: missingChangeState(window, await missingHistoryRefs(context, [window.ref])) };
+  }
+  const corrupt = [...namespaces?.corrupt ?? []][0];
+  if (corrupt && home) return { status: "refused", refusal: refObjectFault(window.ref,
+    trees.get(corrupt)?.some(({ path }) => path === home.metadataPath) ? "unparseable" : "no-metadata", { saved: true }).refusal };
   return { status: "ok", result: namespaces?.recordFree ?? new Set() };
 }
 
-/** Name the retained history that can repair a missing item window. */
-export function missingChangeState(window: Pick<RefChangeWindow, "ref" | "version">): StoreRefusal {
+/** Keep coordinate-gap routes; object-fault callers supply routes from current tips. */
+export function missingChangeState(window: Pick<RefChangeWindow, "ref" | "version">, historyRefs?: HistoryRef[]): StoreRefusal {
   const history = HistoryRefSchema.safeParse(window.ref.replace(/^refs\/arc\/(?:history\/)?(work|cohort)\//u, "refs/arc/history/$1/"));
-  return { code: "state-unresolvable", class: "recoverable", stateVersion: window.version, historyRefs: history.success ? [history.data] : [],
+  return { ...refObjectFault(window.ref, "missing", { historyRefs: historyRefs ?? (history.success ? [history.data] : []),
     condition: `The saved changes window for ${window.ref} is not available locally.`,
-    remedy: { text: "Pull the named history refs or restore the missing state objects, then retry the comparison." } };
+    remedy: { text: "Pull the named history refs or restore the missing state objects, then retry the comparison." },
+  }).refusal, stateVersion: window.version };
 }
 
 /** Return a captured commit's verbatim message after its Git header. */
