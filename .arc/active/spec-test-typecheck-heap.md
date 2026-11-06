@@ -270,7 +270,8 @@ cap and keeps Go's target under it.
   m4-mini at landing. The margin is 0.5 GiB above the larger of the two gaps, and never below 1.3 GiB. The desktop gap
   gives a provisional margin of 1,817 MiB, a limit of 7,817 MiB at the 6000 MiB soft limit, which stands unless
   m4-mini's gap is larger; the script carries the margin as a constant. An overrun ends with Go's `fatal error: out of
-  memory` and exit status 2, the status tsc also uses for type errors, so the output and the peak line tell them apart.
+  memory` and exit status 2. TS 7 exits 1 on a type error, but some configuration errors, such as a missing root
+  file, also exit 2, so the output and the peak line, not the status, tell an overrun apart from them.
   When a cgroup bound sets the soft limit, the backstop lets the compiler's RSS reach about the bound before it trips,
   so the bound, which also counts the job's other processes, normally ends an overrun first. In the pool, systemd then
   stops the job's whole scope, the script included, so no peak line or later shard follows, and arc-offload's result

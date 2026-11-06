@@ -7,6 +7,7 @@
 - Growth rates and the 3 GiB target
 - Pool state at spec time
 - Why gate runs start cold
+- Measuring on m4-mini
 - TypeScript 7 observations
 - Neighbouring work
 
@@ -94,6 +95,51 @@ project-manager.ARC's local-machine batch.
 
 Only runs outside the gate keep incremental state: a direct run in a checkout, or a direct `arc-offload` command,
 whose runner worktree keeps `node_modules` (`prepare` in `lib/remote-worker.sh`).
+
+## Measuring on m4-mini
+
+Work-unit verification uses this section, for the TS 6 baseline and Success Criteria 3–5, so keep it through
+verification's notes consolidation.
+
+- **Pinned runs.** `arc-offload --runner m4-mini <argv>` runs the working tree's snapshot on m4-mini. The runner
+  worktree reruns its `prepare_commands`, `npm ci` and `npm run setup`, when the digest of its `fingerprint_files`
+  changes (`prepare` in `lib/remote-worker.sh`). The registry lists `package-lock.json` there, so the branch's
+  lockfile installs `typescript-7` and the runner's own platform package. It preserves `node_modules` across runs.
+  The script takes its package root from its own location, so
+  `node --import tsx packages/arc-framework/src/scripts/run-typecheck.ts test` runs from the repository root.
+- **Warm or cold.** A pinned run keeps the runner worktree's `node_modules`, `.cache/tsc` included, so a shard can find
+  its state file and report a lower peak and time. Every gate run starts cold. Read figures that must be cold from a
+  gate run's peak lines, or from a pinned run that first removes `packages/arc-framework/node_modules/.cache/tsc` in
+  the same command.
+- **Timing (Success Criterion 5).** Time `npm run typecheck:test` itself inside the pinned command, after the cache
+  removal, for example with bash's `time`. Timing the `arc-offload` command from outside adds the snapshot's transfer
+  and any `prepare`. A gate run's `costMs` adds plan materialization and `npm ci`: `executeRoutedSelectedCheck` in
+  `src/handlers/check/run.ts` takes `startedAt` before `prepareSelectedCheckExecution`.
+- **Placement.** Record a figure as m4-mini's only when its run proves it ran there. A pinned run proves it by
+  `arc-offload: exit <n> on m4-mini (<host>)` (`run_on` in `arc_offload/execution.py`) with no later `arc-offload:`
+  line reporting a retry, fallback or refusal: `trying another runner`, `running locally` or
+  `forbids local fallback`. A failed run that stalled on memory logs the exit line and is then retried elsewhere or
+  refused (`stall_explains_failure` in `run_on`), and such a line voids it. The warning
+  `check result retained; automatic prune could not start`, which `auto_prune` may log after a successful exit, does
+  not. A gate run proves it by `arc-offload: running sibling on m4-mini` in its log (`_telemetry`, called from
+  `run_one` in `arc_offload/arc_groups.py`). Other lines can name m4-mini for a run that happened on WSL.
+  Under `off`, `arc-offload` ignores `--runner` and runs the command locally (`os.execvp` in `arc_offload/cli.py`).
+  Under `on` or `spill`, a failed m4-mini attempt falls back to WSL and logs `m4-mini: <error>; running locally`
+  (`_dispatch` and `local_run`). Only a pinned run under `speed`, `required`, or a route with `allow_local: false`
+  refuses that fallback. Read `~/.config/arc-offload/mode` before a heavy pinned run such as the TS 6 baseline.
+- **Gate logs.** A passing check prints only its outcome (`QUIET_OUTCOMES` in `src/handlers/check/run-output.ts`). Its
+  full output, placement line and peak lines included, is in the log that `<git-dir>/arc-checks/<id>.latest.json`
+  names as `logPath`, with the id percent-encoded as `createCheckReportStore` writes it (`src/lib/checks/reports.ts`):
+  `typecheck%3Atest.latest.json` for `typecheck:test`.
+- **The TS 6 baseline (Task 2.4, Success Criterion 4).** `typecheck:test`'s program on TS 6 needs a 6144 MiB V8 heap,
+  as CI's `typecheck-tests` step pins today; at 4096 MiB it ran out of memory. Run `typescript`'s own `bin/tsc` with
+  `NODE_OPTIONS=--max-old-space-size=6144`, pinned to m4-mini, or on WSL only through `memcap_gated` when
+  `memcap_policy` allows it.
+- **The backstop gap (Task 3.4).** The peak line reports `VmHWM` only, so the gap takes a one-off pinned command and no
+  repository instrument. It polls `/proc/<pid>/status` for `VmPeak` and `VmHWM` while `/proc/<pid>/exe` is the native
+  `tsc`, as `scripts/measure.py` does on the desktop. Run it over `unit-b` under `GOMEMLIMIT=6000MiB` and
+  `--checkers 1`. Record the gap, the date and the head here. The margin is 512 MiB above the larger of this gap and
+  the desktop's 1,305 MiB, and never below 1,331 MiB.
 
 ## TypeScript 7 observations
 
