@@ -1101,6 +1101,15 @@ check.
 - **`active/in-flight/<slug>/`** — the owner's prose only, under the edit-rights rule (§ 8.1).
 - **`completed/`** — adopted into its archived work unit under § 8.4's rules.
 
+**Cohort generation authority (A2).** A cohort document adopts only into an existing cohort generation; dropping a
+document creates no cohort. `resolveCohortAdoption` must bind a live canonical file by its cohort path and stored
+`Parent`, or a current-location copy by the claimed work unit's membership and that same live authority. An archived
+file must bind its exact quarter and closeout coordinates, even when its public name selects a newer live generation.
+Missing or conflicting authority leaves the file unadopted, its bytes intact, with a refusal naming the condition and
+directing the person to restore that cohort authority or move the file to an existing cohort's canonical path. The same
+edit adopts after repair. Fixed personal records and the project inbox remain eligible for ordinary creation through
+adoption when their identity and edit-rights checks pass.
+
 **Establishing the work-item folder (A1).** A path alone does not identify the owner of an unindexed file below
 `backlog/`: cohort folders and a companion's own folders both vary in depth. Before classifying such a file, the caller
 establishes exactly one work-item container, supplying its semantic `work-unit-container` address to the layout inverse
@@ -1948,6 +1957,10 @@ _These considerations cover the design the three members build together; § 1.1 
    classification with an established container retains that container's owner and relative companion key. Missing or
    conflicting ownership evidence preserves the file unadopted with an actionable refusal; after evidence repair, the
    same edit adopts. Already indexed files retain their exact record authority.
+10. **Cohort adoption requires existing authority (A2).** A dropped cohort document creates no cohort and stays intact
+    with repair guidance until its existing cohort authority is established. The same bytes then adopt into that
+    generation; current copies retain their membership binding, archived files retain exact archive authority despite a
+    live namesake, and ordinary fixed personal and project-inbox creation remains available.
 
 ## Open Questions
 
@@ -1958,5 +1971,7 @@ this design open.
 
 - **A1** — 2026-11-05 — spec-depth: classify companions only with established folder ownership.
   _Supersedes:_ none. _Trigger:_ 2.4.b must-stop. _Work:_ 2.4.R. _Revalidated:_ pending → 2.4.R.c.
+- **A2** — 2026-11-06 — spec-depth: make cohort-generation authority explicit for file adoption.
+  _Supersedes:_ none. _Trigger:_ 2.8.a must-stop. _Work:_ 2.8.R. _Revalidated:_ pending → 2.8.R.c.
 
 ---

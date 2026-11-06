@@ -457,7 +457,8 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
           files and prepared entry identities are covered. Existing files use their stored generation and ordinary
           base recovery; current cohort copies bind membership, archived cohorts bind archive coordinates, and the
           project inbox binds the selected registry identity. Repaired read-back completes the persisted take-in
-          mapping before installation, preserving later stale saves. Cohort-generation creation remains unresolved.
+          mapping before installation, preserving later stale saves. Complete cohort admission under 2.8.R before
+          closing this subtask.
         - Establish one work-item container for an unindexed backlog path through 2.4.R before classification; preserve
           a missing or conflicting ownership result with its remedy, and keep an indexed file's exact reference.
         - The classifier (`identifyArcFileAddress` then `classifyStoreAddress`, over 2.4's addresses) maps a path to a
@@ -488,6 +489,30 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
           boundaries cover retries, resolution, sweep destinations, and freshly observed command-end targets. Obsolete
           physical blockers clear while exact records, accepted read-back continuations, and saved copies survive;
           regular-file or directory repair resumes ordinary recovery without resending accepted writes.
+
+### `[ ]` **2.8.R Require existing cohort authority for file adoption — § 9**
+
+- _Goal:_ Under A2, a dropped cohort document creates no cohort; adoption preserves the file until existing live or
+  exact archived authority is established, then takes in the same edit without changing ordinary fixed-record creation.
+
+    - `[ ]` **2.8.R.a Admit live cohort files only into established generations**
+
+        - Keep `resolveCohortAdoption` closed to cohort creation, with an actionable existing-cohort refusal on missing
+          authority. Preserve the observed bytes and store state, then adopt the same bytes once the live cohort at the
+          matching Parent exists.
+        - Build `test-first` (one behavior at a time): a dropped canonical cohort document remains unadopted without a
+          stored cohort; restoring that cohort permits the unchanged document to adopt into its exact generation.
+
+    - `[ ]` **2.8.R.b Retain copy, archive, and fixed-record authority**
+
+        - Check the bound outer callers over the ref backend: current cohort copies require membership; an archived
+          cohort file binds its exact archive coordinates despite a live namesake; fixed personal records and the
+          uniquely identified project inbox still adopt under their ordinary identity and edit-rights checks.
+
+    - `[ ]` **2.8.R.c Verify cohort admission and repaired continuation**
+
+        - Close A2's appended success criterion with the native refusal-and-repair case and the copy, archive, and
+          fixed-record scenarios. Preserve the earlier criteria and record the bounded evidence on this subtask.
 
 ### `[x]` **2.9 The skip switch — § 2.3**
 
@@ -594,3 +619,8 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   indexed files retain their exact record authority (A1).
 
 - `[ ]` Ready for integration
+
+- `[ ]` A dropped cohort document creates no cohort, stays intact with repair guidance until its existing authority is
+  established, then adopts the same bytes into that generation. Current copies retain membership binding, archived
+  files retain exact archive authority despite a live namesake, and ordinary fixed personal and project-inbox creation
+  remains available (A2).
