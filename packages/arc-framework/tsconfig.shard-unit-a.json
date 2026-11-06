@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.shards.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "node_modules/.cache/tsc/shard-unit-a.tsbuildinfo"
+  },
+  "include": [
+    "__tests__/unit/scripts",
+    "__tests__/unit/lib",
+    "__tests__/unit/work-unit"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

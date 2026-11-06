@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.shards.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "node_modules/.cache/tsc/shard-rest.tsbuildinfo"
+  },
+  "include": [
+    "__tests__",
+    "build-compiler.config.ts",
+    "vitest.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "__tests__/unit",
+    "__tests__/integration"
+  ]
+}

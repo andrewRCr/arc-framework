@@ -82,15 +82,14 @@ _Purpose:_ The test type check becomes the five shards of the spec's partition, 
 type-check npm scripts switch to the script. This is the first point at which TS 7's landing condition, the same
 verdicts as TS 6 and a clean run on m4-mini, can be tested across the whole partition.
 
-### `[ ]` **2.1 Add the remaining four shard configs — D1**
+### `[x]` **2.1 Add the remaining four shard configs — D1**
 
 - _Goal:_ `unit-a`, `unit-b`, `integration` and `rest` carry the `include` and `exclude` of the spec's shard table, so
   that every test root falls in one shard and a new directory lands without a config change.
 
-    - Each extends `./tsconfig.shards.json`, restates `node_modules` and `dist` in its `exclude`, and sets its own
-      `tsBuildInfoFile` under `node_modules/.cache/tsc/`
-    - `unit-b` excludes `unit-a`'s three directories; `integration` excludes `integration-store`'s two patterns;
-      `rest` excludes `__tests__/unit` and `__tests__/integration` and includes the two config files
+- _Outcome:_ Added the four remaining configs with independent caches and the planned fallback includes and
+  exclusions. Parsing the five configs confirms an exact, non-overlapping partition of the reference roots
+  outside source and examples.
 
 ### `[ ]` **2.2 Guard the partition with the coverage test — D2**
 
