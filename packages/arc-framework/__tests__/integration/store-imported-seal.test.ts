@@ -111,6 +111,22 @@ describe("sealed writes", () => {
     for (const [, args] of exec.mock.calls) expect(args).toEqual(expect.arrayContaining(["rev-parse", "--verify", REGISTRY]));
   });
 
+  it("refuses a notes push given no checkout path by its executor's repository, not the process's", async () => {
+    expect(process.cwd()).not.toBe(root);
+    const origin = `${root}-origin`;
+    cleanup.push(origin);
+    await git(root, "init", "--bare", "--quiet", origin);
+    await git(root, "remote", "add", "origin", origin);
+    await git(root, "-c", "core.hooksPath=/dev/null", "push", "--quiet", "origin", "HEAD:refs/heads/main");
+    const push = () => runUserPush({ io: makeUserIO(root), identity: IDENTITY });
+    try {
+      await whileImported(async () => { await expect(push()).rejects.toBeInstanceOf(StoreImportedError); });
+      expect(await push()).toMatchObject({ kind: "pushed" });
+    } finally {
+      await git(root, "remote", "remove", "origin");
+    }
+  });
+
   it("refuses to mint or publish an Errand identity, and mints one once the store is not imported", async () => {
     const io = { exec: makeGitExec(root), execInput: makeGitExecInput(root), identity: IDENTITY };
     const timestamp = "2026-11-05T00:00:00.000Z";

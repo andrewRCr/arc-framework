@@ -1,6 +1,5 @@
 import { runPushabilityStatus } from "../../lib/git/index.js";
-import { refuseWriteIfStoreImported } from "../../lib/store/store-imported.js";
-import { resolveArcRoot } from "../../lib/paths.js";
+import { refuseWriteIfStoreImported, StoreImportedError, storeImportedHere } from "../../lib/store/store-imported.js";
 import {
   isCasRejectionError,
   isNonFastForwardError,
@@ -68,7 +67,7 @@ const FETCH_UPDATE_CAS_ATTEMPTS = 3;
  */
 export async function runUserPush(options: UserPushOptions): Promise<UserPushResult> {
   const { cwd, io, identity, force, access, worktreeBranch } = options;
-  await refuseWriteIfStoreImported(cwd ?? resolveArcRoot(process.cwd()) ?? process.cwd(), io.exec);
+  await refusePushIfStoreImported(cwd, io);
 
   if (access) {
     const pushability = await runPushabilityStatus({
@@ -104,6 +103,12 @@ export async function runUserPush(options: UserPushOptions): Promise<UserPushRes
   if (pushed.kind === "no-remote") return pushed;
   if (cwd) await clearPartialPushMarker(cwd, io, identity);
   return pushed;
+}
+
+/** Refuse once the store is imported, asking the executor's own repository when the caller names no checkout. */
+async function refusePushIfStoreImported(cwd: string | undefined, io: UserIOContext): Promise<void> {
+  if (cwd !== undefined) return refuseWriteIfStoreImported(cwd, io.exec);
+  if (await storeImportedHere(io.exec)) throw new StoreImportedError();
 }
 
 async function readLocalRefHash(io: UserIOContext, ref: string): Promise<string | null> {
