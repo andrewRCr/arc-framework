@@ -9,9 +9,12 @@ import type { RefusedMark } from "./index-schema.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 
 type ClaimOwner = { kind: "owned"; record: StoreRecord } | { kind: "refused"; mark: RefusedMark };
+type ClaimInput = Pick<ProjectionRootState, "checkout" | "store" | "claim"> & {
+  readonly context: Pick<ProjectionRootState["context"], "verb">;
+};
 
 /** Resolve the generation represented by the same physical claim used to classify the file. */
-export async function readAdoptionClaim(root: ProjectionRootState): Promise<ClaimOwner> {
+export async function readAdoptionClaim(root: ClaimInput): Promise<ClaimOwner> {
   try {
     const marker = await readWorktreeMarker(root.checkout);
     if (marker.kind !== "present") return missingClaim(marker.kind === "malformed" ? marker.message : undefined);
@@ -32,7 +35,7 @@ export async function readAdoptionClaim(root: ProjectionRootState): Promise<Clai
   }
 }
 
-async function readClaimOwner(root: ProjectionRootState, claim: CheckoutClaim, kind: "work-item/meta" | "work-item/record"): Promise<ClaimOwner> {
+async function readClaimOwner(root: ClaimInput, claim: CheckoutClaim, kind: "work-item/meta" | "work-item/record"): Promise<ClaimOwner> {
   const found = await root.store.lookup({ kind: "claim", claim });
   if (found.status === "refused") return found.refusal.code === "not-found" ? missingClaim()
     : { kind: "refused", mark: markStoreRefusal(found.refusal, root.context.verb) };
@@ -44,5 +47,5 @@ async function readClaimOwner(root: ProjectionRootState, claim: CheckoutClaim, k
 
 function missingClaim(detail?: string): Extract<ClaimOwner, { kind: "refused" }> {
   return { kind: "refused", mark: { reason: detail ?? "This checkout has no active, bound work-item claim.",
-    remedy: { text: "Repair the checkout's ownership marker or materialize the intended work item here with arc materialize, then retry adoption." } } };
+    remedy: { text: "Repair the checkout's ownership marker or materialize the intended work item here with arc materialize, then retry." } } };
 }

@@ -32,7 +32,7 @@ import { createReferenceFixture } from "../../../helpers/store/reference-fixture
 import { seedProjection } from "../../../helpers/store/projection/seeded-projection.js";
 import { configureEngineCheckout } from "../../../helpers/store/projection/engine-fixture.js";
 import { formatConflictToken } from "../../../../src/lib/status/conflict-token.js";
-import { chmod, lstat, readFile, rename, writeFile } from "node:fs/promises";
+import { chmod, lstat, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
@@ -71,6 +71,8 @@ import { swapBatch } from "../../../../src/lib/store/projection/swap.js";
 import { readReference } from "../../../../src/lib/store/projection/change-detection.js";
 import { writeBackProjectionFiles } from "../../../../src/lib/store/projection/engine-files.js";
 import { createProjectionReporter } from "../../../../src/lib/store/projection/report.js";
+import { createAdoptionFixture } from "../../../helpers/store/projection/adoption-fixture.js";
+import { resolveArcPath } from "../../../../src/lib/layout/index.js";
 
 
 const directories: string[] = [];
@@ -532,6 +534,41 @@ it("names an unmapped conflict's owner without resolving it, then resolves from 
   await writeProjectionIndex(h.location, h.index);
   expect((await save(h, ["--resolve", token])).result.status).toBe("ok");
   expect(success(await h.store.read({ reference: h.reference })).conflicts).toEqual([]);
+});
+
+it("names an unprojected in-flight subject's exact owner and resolves only after its file and conflict mapping are seeded", async () => {
+  const { f, primary, folder } = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" });
+  const other = await seed(f, RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "beta" } }),
+    makeMetaFixture("beta", { owner: "andrew", state: "Active", workClass: "Light", priority: "P1", currentWorkflow: "process-task-loop" }),
+    { kind: "active" });
+  const owner = other.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Native fixture allocated no work-item UID");
+  const subject = await seed(f, recordReferences["work-item/companion"](other.reference.owner, "correction.txt"), "opening\nbase\nclosing\n");
+  for (const content of ["opening\ncurrent\nclosing\n", "opening\nincoming\nclosing\n"]) {
+    success(await f.store.write({ action: "put", reference: subject.reference, expected: subject.version, content,
+      provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  }
+  const clashed = success(await f.store.read({ reference: subject.reference })), conflict = clashed.conflicts[0];
+  if (conflict === undefined) throw new Error("Native writes produced no conflict");
+  const content = "New prose without the conflicted span\n";
+  success(await f.store.write({ action: "put", reference: subject.reference, expected: clashed.version, content,
+    provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  const token = formatConflictToken(conflict), before = success(await f.store.version());
+  const refused = await save({ store: f.store, checkout: f.root }, ["--resolve", token]);
+  expect(refused.result).toMatchObject({ status: "refused", refusal: { condition: expect.stringContaining("no projected file"),
+    remedy: { text: expect.stringContaining(owner.name) } } });
+  expect(refused.result.refusal?.remedy.text).toContain(owner.uid);
+  expect(success(await f.store.version())).toBe(before);
+  expect(success(await f.store.read({ reference: subject.reference })).conflicts).toEqual([conflict]);
+  const path = resolveArcPath({ kind: "work-unit-companion", slug: SlugSchema.parse("beta"), key: "correction.txt",
+    placement: { kind: "active", scope: { kind: "project", location: { kind: "another" } } } });
+  await unlink(join(f.root, folder, "meta-alpha.md"));
+  await seedProjection({ store: f.store, checkout: f.root, files: [
+    { reference: primary.reference, path: `${folder}/meta-alpha.md` }, { reference: subject.reference, path },
+  ] });
+  expect((await save({ store: f.store, checkout: f.root }, ["--resolve", token])).result.status).toBe("ok");
+  expect(success(await f.store.read({ reference: subject.reference }))).toMatchObject({ content, conflicts: [] });
+  expect(await f.store.read({ reference: conflict })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
 });
 
 it("names an indexed conflict that was already resolved", async () => {

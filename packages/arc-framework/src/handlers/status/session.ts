@@ -29,6 +29,7 @@ import { releaseRoutingFromSettings } from "./session-evidence.js";
 import { pullStoreStatus } from "./store-locus.js";
 import { readProjectionStatus } from "../../lib/store/projection/status.js";
 import { createProjectionEnginePorts } from "../../lib/store/projection/engine-ports.js";
+import { readProjectionViewStatus } from "../../lib/store/projection/view-status.js";
 
 function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput {
   if (execInput === undefined) {
@@ -231,7 +232,8 @@ export async function handleCompositeStatus(context: SessionStatusContext, opts:
     user: (id) => runUserStatus({ cwd, io, identity: id }),
     config: () => runConfigStatus({ cwd }),
     active: () => runActiveStatus({ cwd, exec, store: context.store }),
-    projection: () => readProjectionStatus({ store, checkout: cwd, ports: () => ({ ...createProjectionEnginePorts(cwd), exec }) }),
+    projection: () => readProjectionStatus({ store, checkout: cwd, ports: () => ({ ...createProjectionEnginePorts(cwd), exec }),
+      view: () => readProjectionViewStatus({ store, checkout: cwd, exec }) }),
   };
   const result = await runStatus({ identity, role, probes });
 

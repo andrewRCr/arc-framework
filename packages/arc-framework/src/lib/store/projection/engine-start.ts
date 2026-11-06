@@ -21,6 +21,8 @@ import { sameReference } from "../identity.js";
 import type { ProjectionIndex } from "./index-schema.js";
 import { bindProjectionRights, refuseProjectionEdit } from "./rights-binding.js";
 import { createProjectionProtection } from "./protection.js";
+import { observeProjectionConfiguration } from "./command-configuration.js";
+import { interpretProjectionView } from "./view-settings.js";
 
 /** Start independent reads together, drain them all, then sweep and take in files under the lease. */
 export async function startUnderLease(input: ProjectionCommandInput, ports: ProjectionEnginePorts,
@@ -30,7 +32,7 @@ export async function startUnderLease(input: ProjectionCommandInput, ports: Proj
   let root: ProjectionRootState | undefined;
   try {
     await session.step();
-    const configuration = readProjectionConfiguration(ports.exec, input.checkout);
+    const configuration = observeProjectionConfiguration(input.checkout, () => readProjectionConfiguration(ports.exec, input.checkout));
     const version = input.store.version();
     const shared = walkProjectionRoots(input.checkout, PROJECTED_LIFECYCLE_ROOTS.filter(path => input.mode === "save" || path !== ".arc/completed"), ports.walkFs);
     const personal = configuration.then(config => config.identity.status === "no-identity" ? []
@@ -118,7 +120,8 @@ async function bindRoot(input: ProjectionCommandInput, ports: ProjectionEnginePo
     recordBatch: batch => { root.copies.push(...batch.copies); root.removals.push(...batch.removals); } };
   const send = createWriteBackPort(context);
   const root: ProjectionRootState = { checkout: input.checkout, store: input.store, location, ports, context, identity: config.identity.identity,
-    claim: layout.claim, layoutActive: layout.layoutActive, checkpoint: session.step, copies: [], removals: [], unsent, discovered: [], changed: false,
+    claim: layout.claim, layoutActive: layout.layoutActive, view: interpretProjectionView(config.view).view,
+    checkpoint: session.step, copies: [], removals: [], unsent, discovered: [], changed: false,
     ready: false, writable: () => false, rights: bindProjectionRights(input.store, config.identity.identity, ports.exec, input.mode ?? "write-back"), takeIn: async request => {
       const denied = await root.rights?.(request);
       if (denied === undefined || denied === null) return send(request);

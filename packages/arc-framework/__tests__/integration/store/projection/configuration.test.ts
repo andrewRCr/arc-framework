@@ -16,19 +16,22 @@ import { checkIgnores } from "../../../../src/lib/store/projection/ignore-check.
 import {
   parseConfigurationRecords, readProjectionConfiguration,
 } from "../../../../src/lib/store/projection/configuration.js";
+import { observeProjectionConfiguration } from "../../../../src/lib/store/projection/command-configuration.js";
+import { beginProjectionCommand } from "../../../../src/lib/store/projection/process-state.js";
 
 const run = promisify(execFile);
 const directories: string[] = [];
 let environment: NodeJS.ProcessEnv;
 let globalConfig: string;
 beforeEach(async () => {
+  beginProjectionCommand();
   const home = await mkdtemp(join(tmpdir(), "arc-projection-config-home-"));
   directories.push(home);
   globalConfig = join(home, "gitconfig");
   await writeFile(globalConfig, "");
   environment = { ...process.env, GIT_CONFIG_GLOBAL: globalConfig, GIT_CONFIG_NOSYSTEM: "1", XDG_CONFIG_HOME: join(home, "xdg") };
 });
-afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
+afterEach(async () => { beginProjectionCommand(); await removeGitBackedDirs(directories.splice(0)); });
 
 async function repository(objectFormat?: "sha1" | "sha256"): Promise<string> {
   const cwd = await createTempRepoCore({ prefix: "arc-projection-config-", ...(objectFormat ? { objectFormat } : {}) });
@@ -51,6 +54,35 @@ function counting(): { exec: GitExec; calls: string[][] } {
 }
 
 describe("the one configuration read", () => {
+  it("keeps the last view value and every pin fixed within a command, then observes the next command's changes", async () => {
+    const cwd = await repository();
+    await git(cwd, "config", "--add", "arc.inflightView", "mine");
+    await git(cwd, "config", "--add", "arc.inflightView", "cohort");
+    await git(cwd, "config", "--add", "arc.inflightPin", "alpha");
+    await git(cwd, "config", "--add", "arc.inflightPin", "beta");
+    const { exec, calls } = counting(), read = () => readProjectionConfiguration(exec, cwd, environment);
+    expect((await observeProjectionConfiguration(cwd, read)).view).toEqual({ setting: "cohort", pins: ["alpha", "beta"] });
+    await git(cwd, "config", "--replace-all", "arc.inflightView", "all");
+    await git(cwd, "config", "--add", "arc.inflightPin", "gamma");
+    expect((await observeProjectionConfiguration(cwd, read)).view).toEqual({ setting: "cohort", pins: ["alpha", "beta"] });
+    expect(calls).toHaveLength(1);
+    beginProjectionCommand();
+    expect((await observeProjectionConfiguration(cwd, read)).view).toEqual({ setting: "all", pins: ["alpha", "beta", "gamma"] });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("retries a configuration observation after Git's unreadable configuration is repaired", async () => {
+    const cwd = await repository();
+    await git(cwd, "config", "arc.inflightView", "all");
+    const path = join(cwd, ".git/config"), original = await readFile(path, "utf8");
+    const { exec, calls } = counting(), read = () => readProjectionConfiguration(exec, cwd, environment);
+    await writeFile(path, "[broken\n");
+    try { await expect(observeProjectionConfiguration(cwd, read)).rejects.toThrow(); }
+    finally { await writeFile(path, original); }
+    expect((await observeProjectionConfiguration(cwd, read)).view).toEqual({ setting: "all", pins: [] });
+    expect(calls).toHaveLength(2);
+  });
+
   it.each(["local", "global"])("invalidates a cached pass for an earlier Git-invalid %s path and permits repair", async (scope) => {
     const cwd = await repository();
     const source = join(dirname(globalConfig), "valid-ignore");

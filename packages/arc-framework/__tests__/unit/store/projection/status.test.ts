@@ -2,7 +2,8 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { readProjectionStatus } from "../../../../src/lib/store/projection/status.js";
+import { buildProjectionStatusSummary, readProjectionStatus } from "../../../../src/lib/store/projection/status.js";
+import { interpretProjectionView } from "../../../../src/lib/store/projection/view-settings.js";
 import { PROJECTION_INDEX_FILE, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import { readReference } from "../../../../src/lib/store/projection/change-detection.js";
 import { createWriteBackFixture } from "../../../helpers/store/projection/write-back-fixture.js";
@@ -18,6 +19,29 @@ import { createDefaultStorePorts } from "../../../../src/lib/store/default-store
 
 const fixtures: Awaited<ReturnType<typeof createWriteBackFixture>>[] = [];
 afterEach(async () => { await Promise.all(fixtures.splice(0).map(h => h.dispose())); });
+
+it.each(["ready", "no-projection", "unusable"] as const)("reports view warnings with a %s index without changing its authority", async kind => {
+  const h = await createWriteBackFixture();
+  fixtures.push(h);
+  const path = join(h.location.stateDir, PROJECTION_INDEX_FILE);
+  if (kind === "no-projection") await rm(path);
+  if (kind === "unusable") await writeFile(path, "not JSON");
+  const bytes = await readFile(path, "utf8").catch(() => null), reference = await readReference(h.checkout);
+  const interpreted = interpretProjectionView({ setting: "unknown", pins: [] });
+  const view = { ...interpreted.view, diagnostics: interpreted.diagnostics };
+  const result = await readProjectionStatus({ store: h.store, checkout: h.checkout, location: h.location, view: async () => view });
+  expect(result).toMatchObject({ kind, view });
+  expect(buildProjectionStatusSummary(result)).toContain('arc.inflightView value "unknown"');
+  expect(buildProjectionStatusSummary(result)).toContain("mine, cohort, or all");
+  expect(await readFile(path, "utf8").catch(() => null)).toBe(bytes);
+  expect(await readReference(h.checkout)).toBe(reference);
+  await writeProjectionIndex(h.location, h.index);
+  const repaired = interpretProjectionView({ setting: "all", pins: [] });
+  const next = await readProjectionStatus({ store: h.store, checkout: h.checkout, location: h.location,
+    view: async () => ({ ...repaired.view, diagnostics: repaired.diagnostics }) });
+  expect(next).toMatchObject({ kind: "ready", view: { mode: "all", diagnostics: [] } });
+  expect(buildProjectionStatusSummary(next)).toBe("Clean.");
+});
 
 it("reads a pending refusal without writing the index or racy reference, and observes its repair", async () => {
   const h = await createWriteBackFixture();
@@ -93,7 +117,8 @@ it("resolves no projection dependency when the selected backend is dark", async 
   const checkout = "/not-a-repository";
   const store = createStore(createDefaultStorePorts({ checkoutRoot: checkout,
     exec: async () => { throw new Error("Git must remain dark"); } }));
-  expect(await readProjectionStatus({ store, checkout, ports: () => { throw new Error("Projection I/O must remain dark"); } }))
+  expect(await readProjectionStatus({ store, checkout, ports: () => { throw new Error("Projection I/O must remain dark"); },
+    view: () => { throw new Error("View selection must remain dark"); } }))
     .toEqual({ kind: "disabled" });
 });
 

@@ -27,12 +27,20 @@ export interface ProjectionCopyStatus {
   readonly withheld: boolean;
 }
 
-/** Read-only projection information carried by composite status. */
-export type ProjectionStatus =
-  | { readonly kind: "disabled" }
+/** Desired in-flight settings and diagnostics independent of index readability. */
+export interface ProjectionViewStatus {
+  readonly mode: ProjectionIndex["projectedUnder"]["view"]["mode"];
+  readonly pins: readonly string[];
+  readonly diagnostics: readonly RefusedMark[];
+}
+
+type RecordedProjectionStatus =
   | { readonly kind: "no-projection" }
   | { readonly kind: "unusable"; readonly cause: UnusableIndexCause; readonly remedy: Remedy }
   | { readonly kind: "ready"; readonly files: readonly ProjectionFileStatus[]; readonly copies: readonly ProjectionCopyStatus[] };
+
+/** Read-only projection information carried by composite status. */
+export type ProjectionStatus = { readonly kind: "disabled" } | (RecordedProjectionStatus & { readonly view?: ProjectionViewStatus });
 
 /** Capability and lazy checkout access; disabled stores resolve no projection dependency. */
 export interface ProjectionStatusInput {
@@ -40,11 +48,17 @@ export interface ProjectionStatusInput {
   readonly checkout: string;
   readonly location?: ProjectionLocation;
   readonly ports?: () => Pick<ProjectionEnginePorts, "exec" | "fs">;
+  readonly view?: () => Promise<ProjectionViewStatus>;
 }
 
-/** Read the current index without acquiring a lease, publishing an index, or consulting record content. */
+/** Read the current index and optional view diagnostics without acquiring a lease or publishing state. */
 export async function readProjectionStatus(input: ProjectionStatusInput): Promise<ProjectionStatus> {
   if (!input.store.capabilities.stateOffBranch) return { kind: "disabled" };
+  const [recorded, view] = await Promise.all([readRecordedProjectionStatus(input), input.view?.()]);
+  return view === undefined ? recorded : { ...recorded, view };
+}
+
+async function readRecordedProjectionStatus(input: ProjectionStatusInput): Promise<RecordedProjectionStatus> {
   const location = input.location ?? await locateProjection(input.checkout,
     input.ports?.() ?? createProjectionEnginePorts(input.checkout));
   const read = await readProjectionIndex(location, false);
@@ -80,12 +94,18 @@ function snapshot(index: ProjectionIndex): Extract<ProjectionStatus, { kind: "re
 /** Render the recorded conditions, original copy paths, and available repair guidance. */
 export function buildProjectionStatusSummary(status: ProjectionStatus): string {
   if (status.kind === "disabled") return "Disabled.";
-  if (status.kind === "no-projection") return "No projection is recorded in this checkout.";
-  if (status.kind === "unusable") return `Projection index is ${status.cause}.\n${renderRemedy(status.remedy)}`;
+  const lines = [...(status.view?.diagnostics.flatMap(mark => [mark.reason, `  ${renderRemedy(mark.remedy)}`]) ?? []),
+    ...renderRecordedStatus(status)];
+  return lines.length === 0 ? "Clean." : lines.join("\n");
+}
+
+function renderRecordedStatus(status: RecordedProjectionStatus): string[] {
+  if (status.kind === "no-projection") return ["No projection is recorded in this checkout."];
+  if (status.kind === "unusable") return [`Projection index is ${status.cause}.`, renderRemedy(status.remedy)];
   const lines = status.files.flatMap(renderFile);
   for (const copy of status.copies) lines.push(`aside copy ${copy.copy}${copy.withheld ? " (withheld)" : ""}`,
     copy.path === null ? "  Original path unavailable." : `  From ${copy.path}`);
-  return lines.length === 0 ? "Clean." : lines.join("\n");
+  return lines;
 }
 
 function renderFile(file: ProjectionFileStatus): string[] {

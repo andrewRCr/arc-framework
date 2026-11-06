@@ -435,30 +435,16 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   both configuration copies document the key. The checkout reader consumes its validated domain and resolves flat
   paths after an invalid value is repaired. The index retains its typed layout field for reprojection.
 
-### `[ ]` **2.6 The in-flight view setting — § 10.4**
+### `[x]` **2.6 The in-flight view setting — § 10.4**
 
 - _Goal:_ A person chooses which other in-flight work items project — `mine` by default, `cohort`, or `all`, plus pinned
   slugs — through personal `git config` keys read in the projection's one configuration read.
 
-    - `arc.inflightView`, one value, and `arc.inflightPin`, one entry per pinned slug, set with `git config --local` and
-      read by the configuration read (`readProjectionConfiguration`, `lib/store/projection/configuration.ts`), which
-      reports them lowercased (`arc.inflightview`, `arc.inflightpin`), the last `arc.inflightView` winning and every
-      `arc.inflightPin` counting. An unknown value reads as `mine`, and a pin naming no in-flight work item selects
-      nothing; `arc status` names each.
-    - The selection lists in-flight work items from the store with no owner filter: the identity's own for `mine`, the
-      other members of the checkout's work unit's cohort for `cohort`, every one for `all`, plus the pins; the
-      checkout's own work item is never among them.
-    - The index records the effective setting, pins included, with the identity and checkout claim; reprojection on a
-      change is `projection-worktrees`'.
-    - Build `test-first` (one behavior at a time):
-        - with no key set, the view is `mine`
-        - `cohort` selects the cohort's other members, and a pin adds a work item outside it
-        - `all` selects another person's in-flight work unit
-        - the checkout's own work item never appears in the selection
-        - an unknown value reads as `mine`, and `arc status` names it
-        - `arc save --resolve` on a conflict whose subject projects in no file here refuses naming where it projects or
-          its owner, and resolves once the subject's file and its conflict mapping are seeded here (`seedProjection`,
-          extended as 1.9's note says)
+- _Outcome:_ One command observation retains the last view value and every pin; active work units and ordinary Errands
+  select by identity, exact cohort, or all, with pins added before exact-own exclusion. Explicit status reports unknown
+  values and missing pins through the selected store, preserving incomplete-inventory and claim diagnostics and their
+  repair routes. Ordinary entry adds no inventory listing, and observing settings preserves the index's last-projected
+  inputs for reprojection. An unprojected conflict names its exact owner and resolves after its mapping is seeded.
 
 ### `[ ]` **2.7 Project a paused work unit as any in-flight one — § 8.3**
 

@@ -7,7 +7,8 @@ import type { HistoryMemo } from "./base-recovery.js";
 import type { ProjectionLocation } from "./location.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import type { ReadBackContext } from "./read-back.js";
-import type { RefusedMark } from "./index-schema.js";
+import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
+import type { ProjectionConfiguration } from "./configuration.js";
 import type { TakeInPort, TakeInRequest } from "./take-in-port.js";
 import type { WriteBackDiagnostic, WriteBackResolution } from "./write-back.js";
 import type { ProjectionStart } from "./engine.js";
@@ -34,6 +35,7 @@ export interface ProjectionRootState {
   readonly context: ReadBackContext;
   readonly takeIn: TakeInPort;
   readonly identity: Slug;
+  readonly view: ProjectionIndex["projectedUnder"]["view"];
   claim: Slug | null;
   layoutActive: "nested" | "flat";
   checkpoint: (() => Promise<void>) | null;
@@ -64,6 +66,7 @@ export interface ProjectionProcessState {
   readonly composedCapabilities: Map<string, boolean>;
   readonly engineCapabilityRoots: Set<string>;
   readonly layoutContexts: Map<string, Promise<ActiveLayoutContext>>;
+  readonly configurations: Map<string, Promise<ProjectionConfiguration>>;
   readonly fanOutRounds: Set<string>;
   readonly notices: string[];
   readonly diagnostics: WriteBackDiagnostic[];
@@ -73,7 +76,7 @@ export interface ProjectionProcessState {
 function freshState(composedCapabilities = new Map<string, boolean>()): ProjectionProcessState {
   return { command: null, start: null, resolution: null, skip: null, lockHeld: false, history: null, roots: new Map(),
     capabilities: new Map(composedCapabilities), composedCapabilities,
-    engineCapabilityRoots: new Set(), layoutContexts: new Map(), fanOutRounds: new Set(),
+    engineCapabilityRoots: new Set(), layoutContexts: new Map(), configurations: new Map(), fanOutRounds: new Set(),
     notices: [], diagnostics: [], resolutions: [] };
 }
 const key = Symbol.for("arc.projection.command-state");
