@@ -13,12 +13,13 @@
 
 ## Planning state
 
-- **Readiness:** re-check due after planning review's source-grounding, whose folds reshaped the window (2026-11-06);
-  formalization-ready before it. The 2026-11-05 readiness check returned not-ready; the Owner's planning pass, the
-  consolidation that folded it, and the ADR dispositions (2026-11-06) closed its three gaps: the inbound buffer, the
-  success signal, and the dispositions. The 2026-11-06 loop-exit check returned not-ready on two `needs-detail` gaps,
-  both closed: the build the window imports from, with the backend switch named, and dispositions for #29 and #31.
-  Re-run after those closures, it returned ready.
+- **Readiness:** formalization-ready (2026-11-06), re-checked after planning review's source-grounding reshaped the
+  window: one `needs-detail` gap, dispositions for the staged-cut refusal and the landing rules' retirement, closed in
+  place. The 2026-11-05 readiness check returned not-ready; the Owner's planning pass, the consolidation that folded it,
+  and the ADR dispositions (2026-11-06) closed its three gaps: the inbound buffer, the success signal, and the
+  dispositions. The 2026-11-06 loop-exit check returned not-ready on two `needs-detail` gaps, both closed: the build the
+  window imports from, with the backend switch named, and dispositions for #29 and #31. Re-run after those closures, it
+  returned ready.
 - **Entry read:** depth `high`; `Class` stays `Heavy`. Derivation fires, since the window runbook, the flip change, and
   the land-at-flip split must be designed. Scale fires too, given a deletion surface spanning several subsystems. The
   design is composed from the landed members' specifications, not invented. Confirmed 2026-11-05 with no material new
@@ -968,10 +969,11 @@ the decomposition end state, and the session-init module's deletion; the capture
 definition, `arc store`'s un-hiding, and the Markdown notice; the personal surfaces and routing onto `arc route`,
 `arc handoff write`, and `arc save`; the invariant's reword (`spec-storage-contract.md` D15), branchless planning's and
 the inbox verbs' text, `arc init`'s state remote and project ID, the Errand branch's UID suffix, which the register's
-fate settled, and the status help text; the errata convention's content (`spec-projection-write-back.md` § 8.4); the
-ceremony check requests and the relocatability rule's movable set (`spec-projected-markdown-checks.md` § 1.4); the other
-always-loaded edits, each following a decision above or a specification it names; and the planning-lane prose, dropped
-as a consequence of untracked state.
+fate settled, and the status help text; the quiesce check's refusal of an unlanded staged cut
+(`spec-seam-decomposition.md` § 18); `RELEASE-GATES.md`'s landing rules retiring, which the register's row settled; the
+errata convention's content (`spec-projection-write-back.md` § 8.4); the ceremony check requests and the relocatability
+rule's movable set (`spec-projected-markdown-checks.md` § 1.4); the other always-loaded edits, each following a decision
+above or a specification it names; and the planning-lane prose, dropped as a consequence of untracked state.
 
 **`none`, meeting none of the five criteria:** planning structure and tactical choices. The cut and the carve, the rule
 for what lands at the flip and the per-check sort, the items moved between members (#3, H4, and the relocatability
