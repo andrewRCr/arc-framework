@@ -11,7 +11,8 @@
 
 ## Planning state
 
-- **Readiness:** rough (second draft-design iteration, 2026-11-05).
+- **Readiness:** maturing (second draft-design iteration, 2026-11-05). The loop-exit readiness check returned
+  not-ready on 2026-11-05, with the gaps under Next.
 - **Entry read:** depth `high`; `Class` stays `Heavy`. Derivation fires, since the window runbook, the flip change, and
   the land-at-flip split must be designed. Scale fires too, given a deletion surface spanning several subsystems. The
   design is composed from the landed members' specifications, not invented. Confirmed 2026-11-05 with no material new
@@ -52,11 +53,28 @@
     - the rehearsal: two stages on full copies, stopping at the host boundary, with the first Errand and the first work
       unit landed after the window as canaries (Owner, 2026-11-05; § The rehearsal);
     - the flip untracks the Candidate and transition records under `.arc/system/.internal/`, data only, and takes #3
-      from `cutover-tracked-state-removal` (Owner, 2026-11-05; § Direction).
+      from `cutover-tracked-state-removal` (Owner, 2026-11-05; § Direction);
+    - the window's abort and recovery (Owner, 2026-11-05; § The window's abort and recovery);
+    - H5: a save per review increment, at each approval gate's commit (Owner, 2026-11-05; § Direction);
+    - the old notes ref stays on the importing machine under a namespace that is neither a tag nor pushed, and goes in
+      `cutover-notes-removal` (Owner, 2026-11-05; § Direction).
 - **Open:**
     - a review stop rule, agreed before the second review pass.
-- **Next:**
-    - The Owner's planning pass over the inbound entries.
+- **Next** (the readiness check's gaps, 2026-11-05, in this order):
+    - The Owner's planning pass: a dispositions table for the 29 inbound entries below, #3 and H4 as their moves
+      arrive, and the three `USER-INBOX` captures naming this unit ("Lift the flip's hold on the import", "Update the
+      Markdown fix's end-to-end test", and "Give this repository's task-list segmentation check a path it can see"),
+      confirmed by the Owner.
+    - Fold every confirmed entry into the body as one consolidation rewrite, settling on the way the smaller open
+      points the specifications decide (#11's inbox-list survivor through `seam-locus`'s `arc inbox`, #27's descriptor
+      check, #23's `delivery-observe-attest` question).
+    - In the same rewrite, a success signal: Stage 2 clean at the head that lands; the window complete with the
+      accounting case reporting nothing unexplained and the chain comparison matching; no tracked file under the
+      projected roots or in `.internal/candidates/` and `.internal/transitions/`; the notes refs retired; both canaries
+      landed.
+    - An ADR disposition on every settled decision, most expected to be covered by ADR-035, or `none` for the
+      temporary pieces (the guard, the quiesce check, the canaries).
+    - Then readiness again, the review stop rule, planning review, `arc check increment`, and the capture commit.
 
 ### The cut
 
@@ -154,7 +172,9 @@ This map places items in sections only. Each is integrated or rejected at the Ow
   test) go here, since the test fails on the missing folder.
 - **The workflow rewrite:**
     - #6, #12, #13, #16, #21, #23's five steps, #25's end state, #27's ceremony requests kept before each save, #37
-      (the module deletion and the spine's remaining prose), H1, and H5;
+      (the module deletion and the spine's remaining prose), H1, and H5, whose cadence is a save per review
+      increment, at each approval gate's commit, so the selection a ceremony checks matches the increment (Owner,
+      2026-11-05);
     - H4, `archive-work-unit.md` § Post-`Shipped` errata convention, whose "git history is the lock" misleads once a
       shipped meta is a stored record: a correction becomes a write to the completed item, and its history is the
       store's history of the archived meta (`spec-projection-write-back.md` § 8.4);
@@ -164,7 +184,10 @@ This map places items in sections only. Each is integrated or rejected at the Ow
       `arc review planning-grooming resolve`: `run-errand.md`, `drain-inbox.md`, and `setup-merge-gate.md`, with the
       planning-grooming lane selection in `route-discovered-work`. Both commands answer `reviewed` or
       `not-eligible` once state is untracked, so the steps would never fire again.
-- **Notes retirement:** #7's notes-ref handling, including keeping the old ref outside `refs/tags/`.
+- **Notes retirement:** #7's notes-ref handling. The old notes ref stays on the importing machine under a namespace
+  that is neither a tag nor pushed, so `git push --tags` cannot publish every past personal note, and goes with the
+  notes residue refs in `cutover-notes-removal` (Owner, 2026-11-05). This settles analysis § 10.3's "keep the old ref
+  as an archive tag" against #7.
 
 **Follows, in the follow-on members** (`cohort-storage-cutover.md`):
 
@@ -247,6 +270,24 @@ it cannot ride this unit's single landing: it lands as an Errand built from this
 **Where the check lives** (Owner, 2026-11-05): a script in this unit's change, reviewed and tested with it and exercised
 by the rehearsal, since it gates an irreversible step; `cutover-tracked-state-removal` deletes it with the in-repo
 implementation.
+
+### The window's abort and recovery
+
+Decided 2026-11-05 (Owner). Three of the window's steps cannot simply be undone: the import's push publishes
+`refs/arc/*` to a public origin, notes retirement deletes the remote notes refs, and the flip merges to `main`. The
+sealing guard adds a fourth hazard: once `refs/arc/project/registry` exists locally, every pre-flip build refuses its
+writes, so a failed import with no usable store behind it would leave every checkout on the machine unable to write.
+
+- **Ordered steps, each with an abort rule.** The window runs as ordered steps; any refusal, mismatch, or failed check
+  stops it at that step.
+- **Before publication,** an abort deletes the local `refs/arc/*`, which also lifts the guard, and the repository is
+  as it was.
+- **After publication,** an abort also deletes the remote refs. The pre-import tidy (#7) exists because anything
+  pushed may already have been copied.
+- **Notes retire last,** after the flip has merged and the first materialization has succeeded, so the notes stay a
+  valid fallback until then.
+
+The spec sets the exact steps and their abort points from the import's stages.
 
 ### The rehearsal
 
