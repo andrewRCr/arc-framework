@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** draft-design — the Owner's planning pass: dispositions table for the inbound entries (draft § Next)
+- **Next Action:** draft-design — the consolidation rewrite: fold § Dispositions' rows into the body (draft § Next)
 
 - **PR URL:** [none]
 - **Completed:** [none]
