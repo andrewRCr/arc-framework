@@ -99,7 +99,7 @@ async function acquireTargetArtifacts(store: Store, input: DecomposeTerminalReco
   }
   return { status: "ok", result: records.flatMap(record => {
     const name = lifecycleRecordName(primary.reference.owner.name, record);
-    return name === null ? [] : [{ basename: name, record }];
+    return name === null ? [] : [{ basename: posix.basename(name), record }];
   }) };
 }
 

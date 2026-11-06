@@ -3,6 +3,7 @@ import type { DecomposeContext } from "./context.js";
 import type { DecomposeResult, DecomposeRefusal } from "./refusal.js";
 import type { StoreRecord } from "../store/read.js";
 import type { LifecycleEntry } from "../store/lifecycle-index.js";
+import { posix } from "node:path";
 import { readWorkUnit } from "../store/lifecycle-write.js";
 import { acquireLifecycleRecords } from "../work-unit/prepared-lifecycle-write.js";
 import { listLifecycleIndex } from "../store/lifecycle-index.js";
@@ -48,7 +49,7 @@ export async function acquireDecomposeOriginRecords(store: DecomposeReadStore, s
   const artifacts = group.result.flatMap(record => {
     if (record.reference.kind === "work-item/meta") return [];
     const name = lifecycleRecordName(primary.reference.owner.name, record);
-    return name === null ? [] : [{ basename: name, record }];
+    return name === null ? [] : [{ basename: posix.basename(name), record }];
   });
   const conflicts = checkDecomposeSourceConflicts({ primary, artifacts });
   if (conflicts !== undefined) return conflicts;
