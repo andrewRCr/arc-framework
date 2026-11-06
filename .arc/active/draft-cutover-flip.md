@@ -22,7 +22,7 @@
 - **Entry read:** depth `high`; `Class` stays `Heavy`. Derivation fires, since the window runbook, the flip change, and
   the land-at-flip split must be designed. Scale fires too, given a deletion surface spanning several subsystems. The
   design is composed from the landed members' specifications, not invented. Confirmed 2026-11-05 with no material new
-  evidence: the boundary stays one work unit, as cut on 2026-11-03. The draft runs about 1,080 lines, so the spec's size
+  evidence: the boundary stays one work unit, as cut on 2026-11-03. The draft runs about 1,150 lines, so the spec's size
   against the 1,500-line mark is watched at create-spec's entry.
 - **Planning limits** (Owner-agreed, 2026-11-03):
     - Draft now what rests on landed work.
@@ -87,16 +87,18 @@
     - planning review's source-grounding (2026-11-06), each fold approved with its disposition: `origin` designated as
       the state remote before the import, which retires the Errand identity refs in one run; the check records every
       `refs/arc/*` tip as the abort's restore point, and Stage 1 exercises the abort once after publication; notes
-      retirement made local, since `origin` holds no notes refs; `lint:md:descriptors` kept for the task-list
-      template, with `generate-tasks`' pre-save step naming the save; the relocatability rule's rewrite moved here
-      from `cutover-documentation`; and the hand-offs shipped specifications make to the cutover's rewrite and
-      rehearsal folded in (§ The window; § The rehearsal; § The workflow rewrite);
+      retirement made local, since `origin` holds no notes refs; `lint:md:descriptors` kept for the task-list template,
+      with `generate-tasks`' pre-save step naming the save; the relocatability rule's rewrite moved here from
+      `cutover-documentation`; and the hand-offs shipped specifications and the consumer map make to the cutover's
+      rewrite, flip change, quiesce, and rehearsal folded in, the consumer map named the rewrite's authoritative list,
+      and the Errand branch's UID suffix built at the flip (Owner, 2026-11-06) (§ The window; § The rehearsal; § The
+      flip change; § The workflow rewrite);
     - the window's quiesce check, designation, and import run on `main`'s pre-flip build, so the flip change leaves the
       import untouched (Owner, 2026-11-06; § The order, § The flip change).
 - **Open:**
     - a review stop rule, agreed before the second review pass.
-- **Next:** planning review: fold the expected-contract sweep's findings, re-check readiness, then the independent
-  pass, with the review stop rule agreed before its second pass; `arc check increment`; and the capture commit.
+- **Next:** planning review: re-check readiness, then the independent pass, with the review stop rule agreed before its
+  second pass; `arc check increment`; and the capture commit.
 
 ### The cut
 
@@ -120,6 +122,8 @@ same number.
     - the `role-conflict` fast-forward;
     - the landing bridge's Candidate re-asks;
     - the decomposition procedure until the cutover.
+- **`RELEASE-GATES.md`'s landing rules until the program completes** retire when the flip lands, with the two-PR landing
+  bridge and `archive.cadence: manual` (the register's row for them, owner `storage-cutover`).
 
 ---
 
@@ -188,11 +192,14 @@ pre-routed `USER-INBOX` captures, since none of those members has a session:
 - **`cutover-tracked-state-removal`:** #1's branch-tree readers, lifecycle classification, lifecycle hook checks, and CI
   planning classifier (the per-check sort below); #4; #10's import transform, after the window; #20; #24; #26's in-repo
   arms and `DERIVED_VIEWS`; #35; H2; the residue refs, once the held delivery work unit's artifacts are imported; the
-  sealing guard and the quiesce check (captured 2026-11-05); and `seam-delivery-review`'s retired review-gate arms,
-  keeping the review copy's classification arm (captured 2026-11-06).
-- **`cutover-notes-removal`:** #1's notes-sync machinery, #10's sync-state ref, #17, and the notes configuration
-  keys, once the session-init module's deletion leaves them no reader; the old notes ref with the notes residue refs;
-  and `arc user inbox-list`'s handler and registration (the last two captured 2026-11-06).
+  sealing guard and the quiesce check (captured 2026-11-05); the auto-merge block in `.github/CODEOWNERS` and the
+  shipped merge-gate CODEOWNERS template, and `verify-integrity.sh`'s meta-shape check (captured 2026-11-06); and
+  `seam-delivery-review`'s retired review-gate arms, keeping the review copy's classification arm (captured 2026-11-06).
+- **`cutover-notes-removal`:** #1's notes-sync machinery, #10's sync-state ref, #17, and the notes configuration keys,
+  once the session-init module's deletion leaves them no reader; the old notes ref with the notes residue refs;
+  `arc user inbox-list`'s handler and registration; the notes lock's surviving callers moved onto the store's write
+  serialization before `notes-lock.ts` goes; and `isCasRejectionError`'s fate reconciled with
+  `spec-storage-ref-backend.md` § 11.1 (the last four captured 2026-11-06).
 - **`cutover-decompose-removal`:** #25's deletion set.
 - **`cutover-documentation`:** #33, H3, the strategy rewrites the register names, among them the strategy sentences
   that end a locus at teardown alone and reassign `Owner` by hand (captured 2026-11-06), and the ADR supersessions and
@@ -217,8 +224,10 @@ at the flip.
   (#22), the partial-protection start (#31), and the harness for `seam-delivery-review`'s cases.
 - **Quiesce:** the worktree lock (#19), and the check that the quiesce holds.
 - **Flip change:** the capture gates onto `arc inbox` (#11), the ROADMAP template's install entries (#26), the
-  transition-record test's removal (#3), and the `arc store` un-hide and its documentation.
-- **Workflow rewrite:** every step from a landed member: #6, #12, #13, #14, #16, #21, #23, #25, and #37.
+  transition-record test's removal (#3), the `arc store` un-hide and its documentation, `arc init`'s state remote and
+  project ID, the Errand branch's UID suffix, and the status help text.
+- **Workflow rewrite:** every step from a landed member: #6, #12, #13, #14, #16, #21, #23, #25, and #37, and the
+  consumer map's and shipped specifications' hand-offs but `arc save`'s naming.
 
 What waits:
 
@@ -263,6 +272,10 @@ window's mechanics need neither, so they run first.
     - the parser check (#5, below), which rests on `projection-write-back`;
     - a work unit driven end to end through the rewritten workflows (#2, below);
     - cases 2 to 7 below, and the other store-backed paths;
+    - the status and view arms from the flip, the roster read, the identity fix, and the slug clash among them, which
+      first run for real here (`spec-seam-status-roadmap.md`);
+    - the tripwire report's first live figures, from `arc handoff write`'s `maintain()` and the rewired sync's push,
+      since the in-repo store reports none (`spec-seam-locus.md` § 9.3);
     - the Markdown fix's end-to-end test over the flipped store (§ The flip change);
     - the representative decomposition cut (#25, #28, below).
 - **Alongside Stage 2,** the destructive CLI matrix (#22) and the partial-protection start (#31) run in synthetic
@@ -305,10 +318,11 @@ them, so entry merge (`mergeEntryText`, `lib/store/concurrency/entry-merge.ts`) 
 
 **The end-to-end work unit** (#2). `arc save`, write-back, the close verb closing tasks and capturing their commits, and
 the import's footer-derived task captures (`importTaskCaptures`) all first run for real at the flip, so only the
-rehearsal exercises them through the rewritten workflows before it. The run takes one work unit through draft capture,
-create-spec with an ADR companion, a task closed through the close verb, handoff, and pre-publication with the review
-copy, through `arc publish`, its pre-publication review on the local source. Integration's candidate tail lies past the
-host boundary, with the work-unit canary.
+rehearsal exercises them through the rewritten workflows before it. The run takes one work unit, started branchless,
+with activation creating its branch at base's tip (`spec-storage-contract.md` D17), through draft capture, create-spec
+with an ADR companion, a task closed through the close verb, handoff, and pre-publication with the review copy, through
+`arc publish`, its pre-publication review on the local source. Integration's candidate tail lies past the host boundary,
+with the work-unit canary.
 
 **The checkout carries** (#15, #30). Before the flip no in-place arm writes a checkout marker: the cold start,
 `arc start --here`'s graduation, `arc materialize --here`, in-place resume, and promotion on the primary all leave none
@@ -489,8 +503,10 @@ that seals the pre-flip builds.
 **The sessions.** Nothing may break across the flip (`spec-storage-contract.md` D15), and a session still holding
 pre-flip workflow text in context would follow steps the rewrite removed, so the quiesce reaches live sessions, not only
 in-flight work units (#2). ARC sees no harness session, so the Owner stops every other session, in every harness, after
-each has handed off, and each resumes on the rewritten text; no message round asks them to stop. What ARC can see, it
-checks.
+each has handed off, and each resumes on the rewritten text; no message round asks them to stop. A pass loop open across
+the flip keeps its earlier passes in the scratch file the import moves its workspace's other files to; its session
+supplies them as prior findings by hand and carries the pass count and any pending approval forward
+(`spec-storage-contract.md` D14). What ARC can see, it checks.
 
 **What the window does before the check:**
 
@@ -513,6 +529,8 @@ named:
   which carry no such marker (`spec-projection-worktrees.md` § 2.5), are torn down or named;
 - every linked checkout whose marker names a work unit or an Errand holds the projection's lock;
 - no ended holder or work-unit husk remains to tear down;
+- no decomposition cut today's machine has staged remains unlanded and uncleaned, since the store version reads no
+  candidate branch or staged checkout (`spec-seam-decomposition.md` § 18, "Migration and rollout");
 - every checkout's `HEAD` descends from `a61e24716a`, the sealing guard's merge on `main` (PR #1287), and its build
   carries the guard below.
 
@@ -664,6 +682,20 @@ The code that must change at the flip, beside the import and the workflow rewrit
   (`program.command("store", { hidden: true })`, `cli.ts`), and `spec-storage-ref-backend.md`'s expected contract for
   the cutover un-hides and documents it (§ Cross-cutting Considerations, "Migration and rollout"). Its documentation
   joins QUICK-REFERENCE's verb index (§ The workflow rewrite).
+- **`arc init`'s state remote and project ID** (`spec-storage-ref-backend.md` § 9.2, § 9.8). From the flip `arc init`
+  sets `push` on the code remote at creation, where one exists, and mints the project ID into the registry's
+  create-only identity record, pulling first and adopting an ID it finds where a remote is already designated. Both are
+  expected contracts wired with `arc init` at the flip; today `commands/init.ts` does neither, and a fresh install after
+  the flip, CineXplorer's among them, needs both. This repository takes its ID from the import.
+- **The Errand branch's UID suffix** (Owner, 2026-11-06). From the flip `arc errand open` names the Errand's branch
+  `chore/<slug>-<suffix>`, an eight-character suffix from the Errand's UID, and records its branch link with that ref,
+  as the storage-coupling register's fate for the Errand identity refs and `spec-storage-ref-backend.md` § 13.3 hand to
+  the flip's rewrite of the Errand verbs. `spec-seam-locus.md` § 8.2's link names `chore/<slug>`, which
+  `lib/errand/identity-record.ts` builds today; the suffix keeps two same-slug Errands from different clones off one
+  remote branch, and that register row closes with it.
+- **The status help text** (`spec-seam-status-roadmap.md` § 2.4, § 12). The status flags' help text in `cli.ts` and the
+  `status` help notes in `lib/cli-help-content.ts` describe today's arms until the flip, which rewrites them for the
+  arms from the flip.
 - **The flip's Markdown notice** (#27; `spec-projected-markdown-checks.md` § 1.4 and § 7.3). It tells a project how
   its Markdown checks change: one listing through Git or reading the index stops seeing state, while one globbing from
   disk keeps reading the shared roots, which the projection excludes only through `.git/info/exclude`, conflict-marker
@@ -690,7 +722,12 @@ workflow step, and the always-loaded process text agents act on, from the consum
 (`notes-storage-contract.md`), each step checked against `strategy-procedure-evolution.md`. The register's row
 "Workflow steps commit state with `git`" moves here, and its fate sets the shape: a commit step that carried only state
 becomes `arc save` or goes, the ROADMAP hand-render steps and their refresh commits go, a ceremony that also changes
-tracked files keeps a commit step for them, and the task loop closes through the close verb.
+tracked files keeps a commit step for them, and the task loop closes through the close verb. The consumer map's rows
+whose end state lands at the flip are the authoritative list of sites, its workflow, skill, method, script, and setup
+rows among them, whichever member owns the row, since each seam left its text change to this rewrite
+(`spec-seam-locus.md` § Non-Goals; `spec-seam-delivery-review.md` § 14.2). The items below are what a decision, an
+inbound item, or a shipped specification's hand-off to the cutover adds to the map, or where the map leaves the change
+implicit (planning review, 2026-11-06).
 
 - **The save cadence** (H5; Owner, 2026-11-05). `arc save` clears each projected file's changed mark, except on a file
   still holding an edit the store lacks, so until a workflow saves per increment, `--changed` spans everything since
@@ -716,7 +753,9 @@ tracked files keeps a commit step for them, and the task loop closes through the
   line goes, the verb's result standing as the record; the completion note stays the agent's hand edit before the gate;
   deferred review closes its range in one call; and a hand `[~]` becomes `arc task defer` (§ 9.5). Delivery's correction
   acknowledgment, which closes the task mid-protocol and then resumes, is reordered around the close. No extension step
-  reorders: `retire-extension-points` removed `post-task-completion` outright.
+  reorders: `retire-extension-points` removed `post-task-completion` outright. The loop's Crash Recovery reads state and
+  workflow continuity from the store's version, changes, and history, keeping its `HEAD`, recent-commit, index, and
+  working-tree probes and its mismatch handling (consumer map).
 - **Pause and resume** (#13). From the flip `arc pause` and `arc resume` replace `arc park`: a pause is a record on the
   work item, not a move, and the checkout stays unless released (`arc locus release`); the pointer record, park from
   Planning's landing, and the parked position retire (`spec-seam-lifecycle.md` § 8.1, § 8.9; Owner, 2026-10-12). The
@@ -752,12 +791,15 @@ tracked files keeps a commit step for them, and the task loop closes through the
       `commit-*` step (§ 14.3). Attest's commit step, and the one after a fix's response, stay for the review copy
       alone, which `arc attest` writes and `arc review respond` re-exports when a fix amends the spec
       (`recordPerformedResponse`, `scripts/review-gate/runtime/respond-command.ts`), as `spec-storage-contract.md` D15
-      keeps a commit step for any ceremony that changes tracked files (§ 12.5);
+      keeps a commit step for any ceremony that changes tracked files (§ 12.5). `deliver-stack.md`'s step committing a
+      returned `commit-selection` goes likewise (§ 14.2);
+    - `archive-work-unit.md`'s manual-cadence routing and `integrate-work-unit.md`'s step-8 cadence dispatch go, as
+      archival becomes a store write, and so does integrate's `arc user close` backstop (consumer map);
     - the adversarial-review method's fire-points record a pass through `arc review adversarial record` rather than
       appending to `ADVERSARIAL-PASSES.md`;
     - review reports, chunk reports, aggregate results, and evaluator reports among them, go to the work unit's scratch
       folder rather than its workspace, so archive's sweep loses nothing, and `archive-work-unit.md`'s
-      teardown-ownership sentence and `integrate-work-unit.md`'s `arc user close` backstop no longer need to say so;
+      teardown-ownership sentence no longer needs to say so;
     - the step that opens a work unit's pull request (`gh pr create`, `integrate-work-unit.md`) becomes a verb that
       writes the work item's change-request link, its repository the project ID; today no verb writes that link, and
       archive records the pull request only as the meta's `PR URL`;
@@ -796,11 +838,40 @@ tracked files keeps a commit step for them, and the task loop closes through the
       naming the meta's session context (§ 2.8);
     - handoff's `SESSION-NOTES` write becomes `arc handoff write` (§ 9.1), and every step naming `arc user save` names
       `arc save` (`spec-projection-write-back.md` § 18);
+    - `session-handoff.md`'s sync section loses its paired push, its notes legs, and the notes-drift surface; its
+      `Commit at Handoff` anchor becomes the store's state version, and its `git show <hash>:<meta>` restate reads
+      `history` (consumer map);
     - the new settings are documented in the shipped configuration template (§ 14).
+- **The inbox and the Errand queue** (`spec-storage-contract.md` D11; `spec-seam-locus.md` § 7.6, § 7.7, § 14):
+    - each step that removes a routed capture by its title, `arc user inbox-remove` in `create-spec.md`,
+      `activate-work-unit.md`, `verify-work-unit.md`, and `drain-inbox.md`, removes it by `--id` and
+      `--expected-version`;
+    - `drain-inbox.md`'s execute-bound marks become `arc errand queue set`, and `--from-inbox` takes
+      `<personal|project>:<id>` in `drain-inbox.md`, `run-errand.md`, and the `arc-errand` skill, each refusing a title;
+    - `run-errand.md` takes an Errand's goal from its entry's description, an Errand's start takes the entry off the
+      queue and its abandon returns it, and the next offer is the head of the person's Errand queue rather than the
+      next execute-bound sibling in file order; the task loop's Atomic Task Completion follows D11's full Errand close
+      and partial removal by ID and version (consumer map);
+    - `assess-draft-readiness`' third criterion reads the work unit's inbound list, empty meaning drained, rather than a
+      buffer section the import has emptied, so readiness never passes a draft over stranded entries
+      (`spec-inbound-routing-method.md`).
+- **Branchless planning and grooming from any checkout** (`spec-storage-contract.md` D13, D17; `spec-seam-lifecycle.md`
+  § 6.3). From the flip a work unit plans with no `plan/` branch, and a stub is groomed or the inbox drained from any
+  checkout, so the prose for planning and grooming branches goes: `draft-design.md`'s grooming-branch redirect and
+  groom-and-stop's commit-and-push pause; `create-spec.md`'s planning branch; the `plan/` steps of
+  `activate-work-unit.md` and `deactivate-work-unit.md`, deactivate's Step 5 among them; `init-work-unit.md`'s
+  base-parity and write-context preconditions; `drain-inbox.md`'s grooming branch and pull request; and the
+  `arc-housekeep` skill's write-context precondition. Removing the draft becomes a record delete at create-spec and
+  stays inside the verb at activation, since `git rm` fails on an untracked projected file (consumer map).
+- **Other skill, method, and setup text** (consumer map): the `arc-commit` skill's meta-file rule; the `commit-format`
+  method's ceremony-commit wording; `initial-setup/01_verify-and-configure.md`'s `user.notes_push` text; the
+  `arc-task-review` skill's comparison of a task list against Git, which reads its prior version through `history`;
+  and the `arc-inbox` skill's USER-INBOX rooting text.
 - **The errata convention** (H4; Owner, 2026-11-05). `archive-work-unit.md` § Post-`Shipped` errata convention says
   "git history is the lock", which misleads once a shipped meta is a stored record: a correction becomes a write to the
   completed item, and its history is the store's history of the archived meta (`spec-projection-write-back.md` § 8.4).
-- **The planning-lane prose.** `run-errand.md`, `drain-inbox.md`, and `setup-merge-gate.md` arm auto-merge on
+- **The planning-lane prose.** `run-errand.md`, `drain-inbox.md`, `setup-merge-gate.md`, `draft-design.md`'s "Ship
+  instead of pause", and `initial-setup/01_verify-and-configure.md`'s planning auto-merge lane steps arm auto-merge on
   `arc review planning-lane`, or claim the routing exemption through `arc review planning-grooming resolve`, as does the
   planning-grooming lane selection in `route-discovered-work`. Both commands answer `reviewed` or `not-eligible` once
   state is untracked (`classifyPlanningLane`, `lib/change-facts.ts`, where an empty planning set answers `reviewed`;
@@ -834,9 +905,10 @@ tracked files keeps a commit step for them, and the task loop closes through the
       "commit shared documentation (task list updates) last" follows them;
     - `DEV-RULES.ARC.md` § Handoff's "SESSION-NOTES.md (gitignored) is written only at handoff", and § Write for the
       reader's "author's workflow continuity, which belongs in the active WU's `meta-{name}.md` and SESSION-NOTES";
-    - `DEV-RULES.ARC.md` § Review-Increment Invariant's bounded exception, whose operations that may commit and push
-      before their review include archive composition and readiness regeneration, which from the flip are store writes
-      or go with the ROADMAP's hand render;
+    - `DEV-RULES.ARC.md` § Review-Increment Invariant, reworded to say that after the flip a persist is a save, not a
+      commit under the invariant, with the gates staying on lifecycle transitions, stage advances, task closes, and code
+      commits, and no further (`spec-storage-contract.md` D15, "Approval"); its bounded exception's archive composition
+      and readiness regeneration, which from the flip are store writes or go with the ROADMAP's hand render, follow;
     - `DEV-RULES.ARC.md` § `.arc/` artifact references' relocatability rule (above);
     - `DEV-RULES.ARC.md`'s rebase scope, whose reason, that rewriting published commits orphans the SHA-keyed Git
       notes, stops holding once notes retire. The flip drops that reason and keeps the invariant; relaxing it under
@@ -894,7 +966,9 @@ window imports from; and the pre-meta backfill.
 disposition stands. The task loop, pause and resume, the lifecycle and identity verbs, the delivery and review steps,
 the decomposition end state, and the session-init module's deletion; the capture gates onto `arc inbox`, the Locus
 definition, `arc store`'s un-hiding, and the Markdown notice; the personal surfaces and routing onto `arc route`,
-`arc handoff write`, and `arc save`; the errata convention's content (`spec-projection-write-back.md` § 8.4); the
+`arc handoff write`, and `arc save`; the invariant's reword (`spec-storage-contract.md` D15), branchless planning's and
+the inbox verbs' text, `arc init`'s state remote and project ID, the Errand branch's UID suffix, which the register's
+fate settled, and the status help text; the errata convention's content (`spec-projection-write-back.md` § 8.4); the
 ceremony check requests and the relocatability rule's movable set (`spec-projected-markdown-checks.md` § 1.4); the other
 always-loaded edits, each following a decision above or a specification it names; and the planning-lane prose, dropped
 as a consequence of untracked state.
@@ -1042,44 +1116,45 @@ members, the three `USER-INBOX` captures naming this unit, one gap the pass foun
 Every `fold` is woven into the body at the location named. Each capture is a pre-routed `USER-INBOX` capture for the
 named member, which has no session.
 
-| Entry                                                                   | Outcome                   | Fold location                                                                                                                                                                                                    | Reason or route                                                                                                                                                                           |
-| ----------------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| #2                                                                      | fold                      | § The rehearsal, the end-to-end work unit; § The quiesce, the sessions                                                                                                                                           | —                                                                                                                                                                                         |
-| #5                                                                      | fold; dismiss entry shape | § The rehearsal, the parser check, for each kind with structured content                                                                                                                                         | Entry shape resolved: `ENTRY_CONFIGS` declares `work-item/description`, `work-item/inbound`, and `personal/errand-queue`                                                                  |
-| #6                                                                      | fold; dismiss two parts   | § The workflow rewrite, the lifecycle verbs: Class steps onto `arc set-class` or `--class`, `Branch` edits onto verbs, the cohort template's "convenience pointer" note, `_Routed from:_`'s date to `_Created:_` | `hooks.task_numbering` is held by `draft-cutover-tracked-state-removal.md`'s retired keys; an Integrating unit already takes no route (`route-discovered-work` § Target lifecycle)        |
-| #7                                                                      | fold                      | § The order: tidy, notes bundles, reviews finished elsewhere, no buffer or held capture left at import, Errand refs retired by the import; § Notes retirement                                                    | —                                                                                                                                                                                         |
-| #8                                                                      | fold                      | § The rehearsal, the chain comparison                                                                                                                                                                            | —                                                                                                                                                                                         |
-| #9                                                                      | fold                      | § The flip change, `arc sync`, after `projection-worktrees`: `handleSync` onto `pull` then `push`, dropping the notes leg's call                                                                                 | State publishes first, whatever the branch push's outcome, each reported separately (Owner, 2026-11-06); notes machinery: `cutover-notes-removal`                                         |
-| #11                                                                     | fold; capture             | § The flip change, the capture gates onto `arc inbox`                                                                                                                                                            | The inbox writer and `user inbox` mutations survive; `arc user inbox-list` is replaced, its removal captured for `cutover-notes-removal`                                                  |
-| #12                                                                     | fold                      | § The workflow rewrite, the task loop: `arc task close` and `arc release commit --close`, `[~]` through `arc task defer`, delivery's acknowledgment reordered                                                    | —                                                                                                                                                                                         |
-| #13                                                                     | fold                      | § The workflow rewrite, pause and resume; the always-loaded text, QUICK-REFERENCE's verb index                                                                                                                   | —                                                                                                                                                                                         |
-| #14                                                                     | fold; capture             | § The workflow rewrite, the always-loaded text: `AGENT-BRIEF.ARC.md`'s Locus definition; `resume-work-unit.md`'s sibling sentence                                                                                | `strategy-work-organization.md`'s sentence follows with the strategies, captured for `cutover-documentation`                                                                              |
-| #15                                                                     | fold                      | § The rehearsal, the checkout carries; § The order, after the import; in-place resume and promotion on the primary (`spec-seam-locus.md` § 2.7)                                                                  | —                                                                                                                                                                                         |
-| #16                                                                     | fold; capture; dismiss    | § The workflow rewrite, the lifecycle verbs: `arc set-class`, `arc handover`, activation's Step 5, deactivation's Step 3                                                                                         | `strategy-team-coordination.md`'s passages captured for `cutover-documentation`; the `handleBaseSync` serialization ended when `seam-lifecycle` shipped                                   |
-| #18                                                                     | fold                      | § The flip change, no tracked or installed file in a projected root                                                                                                                                              | —                                                                                                                                                                                         |
-| #19                                                                     | fold                      | § The quiesce, the worktree lock                                                                                                                                                                                 | Drain note obsolete: `PROJECTION_LOCK_REASON` is in `lib/git/worktree-removal.ts`                                                                                                         |
-| #21                                                                     | fold                      | § The workflow rewrite, the task loop, with no extension step to reorder                                                                                                                                         | `post-task-completion` is gone from the shipped workflows                                                                                                                                 |
-| #22                                                                     | fold                      | § The rehearsal, the destructive CLI matrix, alongside Stage 2                                                                                                                                                   | —                                                                                                                                                                                         |
-| #23                                                                     | fold; capture; dismiss    | § The workflow rewrite, delivery and review; § The rehearsal, the chain comparison and Stage 1's import; § The quiesce, attempts in flight                                                                       | Deletion share captured for `cutover-tracked-state-removal`, with `delivery-observe-attest`'s treatment; `.git/arc/review-gate/operations/` is its #35                                    |
-| #26                                                                     | fold                      | § The flip change, the ROADMAP template and its entries, `verify-integrity.sh`'s presence test                                                                                                                   | In-repo arms: `cutover-tracked-state-removal` (`cohort-storage-cutover.md`)                                                                                                               |
-| #27                                                                     | fold                      | § The workflow rewrite, the relocatability rule and ceremony requests kept before each save; § The flip change, the notice                                                                                       | —                                                                                                                                                                                         |
-| #28                                                                     | fold                      | § The rehearsal, the representative decomposition cut; both cohorts close on its evidence                                                                                                                        | The stub retirement ran: `decompose-scaling` no longer exists                                                                                                                             |
-| #29                                                                     | fold                      | Purpose line; § Scope, Won't do                                                                                                                                                                                  | No other step is written for a second repository                                                                                                                                          |
-| #30                                                                     | fold                      | § The order and § The quiesce, teardown before and bind or release after the import; § The rehearsal, the checkout carries                                                                                       | —                                                                                                                                                                                         |
-| #31                                                                     | fold                      | § The rehearsal, the partial-protection start, alongside Stage 2                                                                                                                                                 | Still live: `classifyPlanningEntry` (`lib/git/write-context.ts`)                                                                                                                          |
-| #32                                                                     | fold                      | § The flip change, the three templates deleted with their entries                                                                                                                                                | —                                                                                                                                                                                         |
-| #34                                                                     | fold                      | § The quiesce, the save before the import; § The rehearsal, Stage 1                                                                                                                                              | —                                                                                                                                                                                         |
-| #36                                                                     | fold                      | The body cites the member specifications                                                                                                                                                                         | —                                                                                                                                                                                         |
-| #37                                                                     | fold                      | § The workflow rewrite, session-init: delete the cutover module, then `spec-session-init-agenda.md` § 7.3's reads                                                                                                | —                                                                                                                                                                                         |
-| H1                                                                      | fold                      | § The workflow rewrite, the identity verbs                                                                                                                                                                       | —                                                                                                                                                                                         |
-| H5                                                                      | fold                      | § The workflow rewrite, the save cadence: a save per review increment                                                                                                                                            | —                                                                                                                                                                                         |
-| #3                                                                      | fold                      | § The flip change, the `.internal/` records untracked                                                                                                                                                            | Its entry stays in `draft-cutover-tracked-state-removal.md` until the move capture drains                                                                                                 |
-| H4                                                                      | fold                      | § The workflow rewrite, the errata convention                                                                                                                                                                    | Its entry stays in `draft-cutover-documentation.md` until the move capture drains                                                                                                         |
-| Capture: lift the hold on the import                                    | dismiss two parts; fold   | § The import's part, released: A4's selector                                                                                                                                                                     | Hold lifted 2026-11-03; no rerun (Owner, 2026-11-05). A4: no legacy source, so the import writes no selector; #7 leaves no competing root at the window; the repair is post-flip recovery |
-| Capture: the Markdown fix's end-to-end test                             | fold                      | § The flip change, the end-to-end test; § The rehearsal, Stage 2; § Named assumptions on unlanded members                                                                                                        | —                                                                                                                                                                                         |
-| Capture: the segmentation check's path                                  | fold                      | § The workflow rewrite, `generate-tasks`' pre-save step names the save, and `lint:md:descriptors` stays for the template                                                                                         | Owner, 2026-11-06; the capture's premise, that the check misses an untracked list, did not hold at planning review; the held Errand naming the task-list validator is removed unrun       |
-| Found at the pass: un-hide `arc store`                                  | fold                      | § The flip change, `arc store` un-hidden and documented; § The workflow rewrite, QUICK-REFERENCE's verb index                                                                                                    | `spec-storage-ref-backend.md`'s expected contract for the cutover; no member held it                                                                                                      |
-| Found at the consolidation: `DEV-RULES.ARC.md`'s state-committing rules | fold                      | § The workflow rewrite, the always-loaded text: task-list accuracy, meta-file timing and commit shape, § Atomicity, § Handoff, the rebase rule's notes reason                                                    | Owner, 2026-11-06; the rebase rule's relaxation stays with `history-policy`                                                                                                               |
-| Found at planning review: the relocatability rule                       | fold                      | § The workflow rewrite, ceremony check requests and the relocatability rule                                                                                                                                      | Always-loaded text the flip makes false (Owner, 2026-11-06); its move from `draft-cutover-documentation.md` is captured for that member                                                   |
+| Entry                                                                   | Outcome                   | Fold location                                                                                                                                                                                                    | Reason or route                                                                                                                                                                                |
+| ----------------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #2                                                                      | fold                      | § The rehearsal, the end-to-end work unit; § The quiesce, the sessions                                                                                                                                           | —                                                                                                                                                                                              |
+| #5                                                                      | fold; dismiss entry shape | § The rehearsal, the parser check, for each kind with structured content                                                                                                                                         | Entry shape resolved: `ENTRY_CONFIGS` declares `work-item/description`, `work-item/inbound`, and `personal/errand-queue`                                                                       |
+| #6                                                                      | fold; dismiss two parts   | § The workflow rewrite, the lifecycle verbs: Class steps onto `arc set-class` or `--class`, `Branch` edits onto verbs, the cohort template's "convenience pointer" note, `_Routed from:_`'s date to `_Created:_` | `hooks.task_numbering` is held by `draft-cutover-tracked-state-removal.md`'s retired keys; an Integrating unit already takes no route (`route-discovered-work` § Target lifecycle)             |
+| #7                                                                      | fold                      | § The order: tidy, notes bundles, reviews finished elsewhere, no buffer or held capture left at import, Errand refs retired by the import; § Notes retirement                                                    | —                                                                                                                                                                                              |
+| #8                                                                      | fold                      | § The rehearsal, the chain comparison                                                                                                                                                                            | —                                                                                                                                                                                              |
+| #9                                                                      | fold                      | § The flip change, `arc sync`, after `projection-worktrees`: `handleSync` onto `pull` then `push`, dropping the notes leg's call                                                                                 | State publishes first, whatever the branch push's outcome, each reported separately (Owner, 2026-11-06); notes machinery: `cutover-notes-removal`                                              |
+| #11                                                                     | fold; capture             | § The flip change, the capture gates onto `arc inbox`                                                                                                                                                            | The inbox writer and `user inbox` mutations survive; `arc user inbox-list` is replaced, its removal captured for `cutover-notes-removal`                                                       |
+| #12                                                                     | fold                      | § The workflow rewrite, the task loop: `arc task close` and `arc release commit --close`, `[~]` through `arc task defer`, delivery's acknowledgment reordered                                                    | —                                                                                                                                                                                              |
+| #13                                                                     | fold                      | § The workflow rewrite, pause and resume; the always-loaded text, QUICK-REFERENCE's verb index                                                                                                                   | —                                                                                                                                                                                              |
+| #14                                                                     | fold; capture             | § The workflow rewrite, the always-loaded text: `AGENT-BRIEF.ARC.md`'s Locus definition; `resume-work-unit.md`'s sibling sentence                                                                                | `strategy-work-organization.md`'s sentence follows with the strategies, captured for `cutover-documentation`                                                                                   |
+| #15                                                                     | fold                      | § The rehearsal, the checkout carries; § The order, after the import; in-place resume and promotion on the primary (`spec-seam-locus.md` § 2.7)                                                                  | —                                                                                                                                                                                              |
+| #16                                                                     | fold; capture; dismiss    | § The workflow rewrite, the lifecycle verbs: `arc set-class`, `arc handover`, activation's Step 5, deactivation's Step 3                                                                                         | `strategy-team-coordination.md`'s passages captured for `cutover-documentation`; the `handleBaseSync` serialization ended when `seam-lifecycle` shipped                                        |
+| #18                                                                     | fold                      | § The flip change, no tracked or installed file in a projected root                                                                                                                                              | —                                                                                                                                                                                              |
+| #19                                                                     | fold                      | § The quiesce, the worktree lock                                                                                                                                                                                 | Drain note obsolete: `PROJECTION_LOCK_REASON` is in `lib/git/worktree-removal.ts`                                                                                                              |
+| #21                                                                     | fold                      | § The workflow rewrite, the task loop, with no extension step to reorder                                                                                                                                         | `post-task-completion` is gone from the shipped workflows                                                                                                                                      |
+| #22                                                                     | fold                      | § The rehearsal, the destructive CLI matrix, alongside Stage 2                                                                                                                                                   | —                                                                                                                                                                                              |
+| #23                                                                     | fold; capture; dismiss    | § The workflow rewrite, delivery and review; § The rehearsal, the chain comparison and Stage 1's import; § The quiesce, attempts in flight                                                                       | Deletion share captured for `cutover-tracked-state-removal`, with `delivery-observe-attest`'s treatment; `.git/arc/review-gate/operations/` is its #35                                         |
+| #26                                                                     | fold                      | § The flip change, the ROADMAP template and its entries, `verify-integrity.sh`'s presence test                                                                                                                   | In-repo arms: `cutover-tracked-state-removal` (`cohort-storage-cutover.md`)                                                                                                                    |
+| #27                                                                     | fold                      | § The workflow rewrite, the relocatability rule and ceremony requests kept before each save; § The flip change, the notice                                                                                       | —                                                                                                                                                                                              |
+| #28                                                                     | fold                      | § The rehearsal, the representative decomposition cut; both cohorts close on its evidence                                                                                                                        | The stub retirement ran: `decompose-scaling` no longer exists                                                                                                                                  |
+| #29                                                                     | fold                      | Purpose line; § Scope, Won't do                                                                                                                                                                                  | No other step is written for a second repository                                                                                                                                               |
+| #30                                                                     | fold                      | § The order and § The quiesce, teardown before and bind or release after the import; § The rehearsal, the checkout carries                                                                                       | —                                                                                                                                                                                              |
+| #31                                                                     | fold                      | § The rehearsal, the partial-protection start, alongside Stage 2                                                                                                                                                 | Still live: `classifyPlanningEntry` (`lib/git/write-context.ts`)                                                                                                                               |
+| #32                                                                     | fold                      | § The flip change, the three templates deleted with their entries                                                                                                                                                | —                                                                                                                                                                                              |
+| #34                                                                     | fold                      | § The quiesce, the save before the import; § The rehearsal, Stage 1                                                                                                                                              | —                                                                                                                                                                                              |
+| #36                                                                     | fold                      | The body cites the member specifications                                                                                                                                                                         | —                                                                                                                                                                                              |
+| #37                                                                     | fold                      | § The workflow rewrite, session-init: delete the cutover module, then `spec-session-init-agenda.md` § 7.3's reads                                                                                                | —                                                                                                                                                                                              |
+| H1                                                                      | fold                      | § The workflow rewrite, the identity verbs                                                                                                                                                                       | —                                                                                                                                                                                              |
+| H5                                                                      | fold                      | § The workflow rewrite, the save cadence: a save per review increment                                                                                                                                            | —                                                                                                                                                                                              |
+| #3                                                                      | fold                      | § The flip change, the `.internal/` records untracked                                                                                                                                                            | Its entry stays in `draft-cutover-tracked-state-removal.md` until the move capture drains                                                                                                      |
+| H4                                                                      | fold                      | § The workflow rewrite, the errata convention                                                                                                                                                                    | Its entry stays in `draft-cutover-documentation.md` until the move capture drains                                                                                                              |
+| Capture: lift the hold on the import                                    | dismiss two parts; fold   | § The import's part, released: A4's selector                                                                                                                                                                     | Hold lifted 2026-11-03; no rerun (Owner, 2026-11-05). A4: no legacy source, so the import writes no selector; #7 leaves no competing root at the window; the repair is post-flip recovery      |
+| Capture: the Markdown fix's end-to-end test                             | fold                      | § The flip change, the end-to-end test; § The rehearsal, Stage 2; § Named assumptions on unlanded members                                                                                                        | —                                                                                                                                                                                              |
+| Capture: the segmentation check's path                                  | fold                      | § The workflow rewrite, `generate-tasks`' pre-save step names the save, and `lint:md:descriptors` stays for the template                                                                                         | Owner, 2026-11-06; the capture's premise, that the check misses an untracked list, did not hold at planning review; the held Errand naming the task-list validator is removed unrun            |
+| Found at the pass: un-hide `arc store`                                  | fold                      | § The flip change, `arc store` un-hidden and documented; § The workflow rewrite, QUICK-REFERENCE's verb index                                                                                                    | `spec-storage-ref-backend.md`'s expected contract for the cutover; no member held it                                                                                                           |
+| Found at the consolidation: `DEV-RULES.ARC.md`'s state-committing rules | fold                      | § The workflow rewrite, the always-loaded text: task-list accuracy, meta-file timing and commit shape, § Atomicity, § Handoff, the rebase rule's notes reason                                                    | Owner, 2026-11-06; the rebase rule's relaxation stays with `history-policy`                                                                                                                    |
+| Found at planning review: the relocatability rule                       | fold                      | § The workflow rewrite, ceremony check requests and the relocatability rule                                                                                                                                      | Always-loaded text the flip makes false (Owner, 2026-11-06); its move from `draft-cutover-documentation.md` is captured for that member                                                        |
+| Found at planning review: the expected-contract sweep                   | fold                      | § The workflow rewrite; § The flip change, `arc init`, the Errand branch's suffix, and the status help text; § The quiesce; § The rehearsal, Stage 2                                                             | Hand-offs the consumer map and shipped specifications make to the cutover; the suffix (Owner, 2026-11-06); four parts captured for `cutover-tracked-state-removal` and `cutover-notes-removal` |
 
 ---
