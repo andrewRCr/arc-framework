@@ -1,7 +1,7 @@
 /** Registered cohort lifecycle commands preview and retire exact owners on both backends. */
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { createKindRegistry, RecordReferenceSchema, type StoreRecord } from "../../src/lib/store/index.js";
+import { createKindRegistry, RecordReferenceSchema, type StoreRecord, type Store } from "../../src/lib/store/index.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import { createReferenceFixture } from "../helpers/store/reference-fixture.js";
@@ -24,14 +24,17 @@ async function fixture(backend: "reference" | "ref") {
   const cli = await repairCliFixture();
   const ref = backend === "ref" ? await createRefFixture(overrides) : undefined;
   const f = ref ?? createReferenceFixture({}, overrides);
-  const options = ref === undefined ? { store: f.store } : { storeFactory: async () => {
+  const open = async (): Promise<Store> => {
+    if (ref === undefined) return f.store;
     const { createRefStore } = await import("../../src/lib/store/create.js");
     const { createDefaultRefStorePorts } = await import("../../src/lib/store/default-ports.js");
     const fresh = createDefaultRefStorePorts({ checkoutRoot: ref.root, backingRepository: async () => null });
     return createRefStore({ ...fresh, registry: ref.ports.registry, identity: ref.ports.identity,
       actor: ref.ports.actor, clock: ref.ports.clock, random: ref.ports.random });
-  } };
-  return { ...f, ref, invoke: (args: readonly string[]) => repairCli(cli, args, options) };
+  };
+  return { ...f, ref, invoke: (args: readonly string[], decorate?: (store: Store) => Store) => repairCli(cli, args, {
+    storeFactory: async () => { const store = await open(); return decorate?.(store) ?? store; },
+  }) };
 }
 
 describe.each(["reference", "ref"] as const)("cohort input refusal over %s", backend => {
@@ -271,6 +274,52 @@ describe.each(["reference", "ref"] as const)("cohort remove over %s", backend =>
       .toMatchObject({ result: { status: "removed", reference: group.reference, placement: null } });
     expect(await f.store.read({ reference: group.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
     if (f.ref !== undefined) expect((await f.ref.ports.exec("git", ["ls-remote", "origin", "refs/arc/*"], { cwd: f.ref.root })).stdout).toBe("");
+  }, 60_000);
+
+  it.each(["member", "subcohort"] as const)("retains a cohort when a completed %s joins at batch admission", async role => {
+    const f = await fixture(backend), ref = f.reference("cohort/document", "unheld");
+    const group = await seed(f, ref, content(ref.owner.name)), quarter = ArchiveQuarterSchema.parse("2026-q4");
+    let held: StoreRecord;
+    if (role === "member") {
+      const member = f.reference("work-item/meta", "late");
+      held = await seed(f, member, makeMetaFixture(member.owner.name, { state: "Shipped", cohort: null }), { kind: "completed", quarter });
+    } else {
+      const childRef = f.reference("cohort/document", "late-child");
+      const child = await seed(f, childRef, content(childRef.owner.name));
+      success(await f.store.write({ ...update(f, child, child.content), placement: { kind: "completed", quarter } }));
+      held = success(await f.store.read({ reference: child.reference }));
+    }
+    let joined: StoreRecord | undefined, afterJoin: string | undefined;
+    const result = await f.invoke(["cohort", "remove", ref.owner.name, "--yes", "--json"], store => new Proxy(store, {
+      get(target, key) {
+        if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
+          if (joined === undefined) {
+            const next = role === "member" ? writeMetaCohort(held.content, ref.owner.name)
+              : content(held.reference.owner.name, ref.owner.name);
+            success(await store.write(update(f, held, next)));
+            joined = success(await store.read({ reference: held.reference }));
+            afterJoin = success(await store.version());
+          }
+          return store.batch(input);
+        };
+        const value: unknown = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }));
+    expect(joined).toBeDefined();
+    expect(joined?.fields).toMatchObject(role === "member" ? { cohort: ref.owner.name } : { parent: ref.owner.name });
+    expect(result).toMatchObject({ exitCode: 1, result: { status: "refused", refusal: {
+      code: "record-malformed", rule: "cohort.remove-holdings", condition: expect.stringContaining(held.reference.owner.name),
+    } } });
+    expect(success(await f.store.version())).toBe(afterJoin);
+    expect(success(await f.store.read({ reference: group.reference }))).toEqual(group);
+    expect(success(await f.store.read({ reference: held.reference }))).toEqual(joined);
+    const current = success(await f.store.read({ reference: held.reference }));
+    success(await f.store.write(update(f, current, held.content)));
+    expect(await f.invoke(["cohort", "remove", ref.owner.name, "--yes", "--json"]))
+      .toMatchObject({ result: { status: "removed", reference: group.reference } });
+    expect(await f.store.read({ reference: group.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+    expect(success(await f.store.read({ reference: held.reference })).placement).toEqual(held.placement);
   }, 60_000);
 
   it.each(["member", "subcohort"] as const)("retains a cohort held by a completed %s and names close", async role => {

@@ -81,9 +81,9 @@ export function observeOpenHoldings(view: StoreView, resolve: StoreView, cohort:
   return observeHoldings(view, resolve, cohort, "open");
 }
 
-/** Count every current record holding a cohort, including completed members and closed subcohorts. */
-export function observeAllHoldings(view: StoreView, cohort: RecordReference): Promise<RuleObservation<readonly CohortHolding[]>> {
-  return observeHoldings(view, view, cohort, "all");
+/** Count every candidate-view holding, optionally resolving identities before a proposed removal. */
+export function observeAllHoldings(view: StoreView, cohort: RecordReference, resolve: StoreView = view): Promise<RuleObservation<readonly CohortHolding[]>> {
+  return observeHoldings(view, resolve, cohort, "all");
 }
 
 async function observeHoldings(view: StoreView, resolve: StoreView, cohort: RecordReference, scope: "open" | "all"): Promise<RuleObservation<readonly CohortHolding[]>> {

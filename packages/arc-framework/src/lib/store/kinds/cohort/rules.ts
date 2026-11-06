@@ -2,7 +2,7 @@
 import { OwnerIdentitySchema, recordReferences } from "../../identity.js";
 import type { Remedy } from "../../refusal.js";
 import { brokenRule, observeRecord, observeNamedRecord, type RuleObservation } from "../rule-support.js";
-import { changedCohortFields, observeOpenCohorts, observeOpenMembers, observeOpenHoldings, describeCohortHoldings, type CohortEvidence, type CohortMemberEvidence } from "./check-support.js";
+import { changedCohortFields, observeOpenCohorts, observeOpenMembers, observeOpenHoldings, observeAllHoldings, describeCohortHoldings, describeCohortHoldingOwners, type CohortEvidence, type CohortMemberEvidence } from "./check-support.js";
 import { parseCohortDocument } from "./parser.js";
 import type { BrokenRule, StoreView, WriteCheckInput } from "../../write-check.js";
 /** Require an authored Purpose on creation or a proved Purpose change.
@@ -52,6 +52,15 @@ export async function checkCohortOpenMembers(input: WriteCheckInput): Promise<re
   const held = await observeOpenHoldings(input.after, input.before, input.reference);
   if (held.status !== "known") return fail(held.status === "unavailable" ? held.condition : "Open holding evidence is unavailable.");
   return held.value.length === 0 ? [] : fail(describeCohortHoldings(held.value, input.reference.owner.name));
+}
+/** Keep every holder's document during explicit removal, including completed records. */
+export async function checkCohortRemoveHoldings(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
+  if (input.next !== undefined || input.writer.kind !== "verb" || input.writer.verb !== "cohort-remove") return [];
+  const held = await observeAllHoldings(input.after, input.reference, input.before);
+  const fail = (condition: string): readonly BrokenRule[] => [brokenRule("cohort.remove-holdings", condition,
+    "Keep this document until every holder's owner clears or re-points Cohort and Parent, then retry removal.")];
+  if (held.status !== "known") return fail(held.status === "unavailable" ? held.condition : "All-record holding evidence is unavailable.");
+  return held.value.length === 0 ? [] : fail(describeCohortHoldingOwners(held.value));
 }
 /** Require local archive closeout in the batch that removes the final open holding.
  * @param input - Cohort write and whole-batch membership views.
