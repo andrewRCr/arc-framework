@@ -3,6 +3,9 @@ import { chmod, lstat, mkdir, readFile, rm, symlink, writeFile } from "node:fs/p
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { resolveArcPath } from "../../../../src/lib/layout/index.js";
+import { selectProjectionView } from "../../../../src/lib/store/projection/view-selection.js";
+import { writeMetaPause } from "../../../../src/lib/store/kinds/meta/writers.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { scanRegisteredWorktrees } from "../../../../src/lib/git/worktree-roster.js";
 import { localPathsEqual } from "../../../../src/lib/local-path-identity.js";
@@ -27,9 +30,16 @@ import { createClashDouble } from "../../../helpers/store/clash-double.js";
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
-async function fixture(extension = "md") {
+async function fixture(extension = "md", paused = false) {
   const h = createLifecycleHarness();
-  const record = await h.seedMeta("subject", { owner: "alice" });
+  let record = await h.seedMeta("subject", { owner: "alice" });
+  if (paused) {
+    const write = success(await h.store.write({ action: "put", reference: record.reference, expected: record.version, placement: { kind: "active" },
+      content: writeMetaPause(record.content, { pausedBy: SlugSchema.parse("alice"), since: "2026-11-01T12:00:00Z",
+        reason: "Waiting for review", waitsOn: null, resumeNotes: null, open: false }),
+      provenance: { verb: "pause", lifecycleAction: "pause" } }));
+    record = success(await h.store.read({ reference: write.reference }));
+  }
   const path = `.arc/active/in-flight/subject/meta-subject.${extension}`;
   const view = await seedProjection({ store: h.store, identity: SlugSchema.parse("alice"), files: [{ reference: record.reference, path }] });
   directories.push(view.checkout);
@@ -83,6 +93,42 @@ it("installs a protected meta read-only with its native holding checkout named b
   expect(parseStampedFile(file).notices.join("\n")).toContain(h.holder);
   expect(parseStampedFile(file).content).toBe(h.record.content);
   expect(installed.index.entries[h.path]).toMatchObject({ protected: true });
+});
+
+it("keeps paused work in its active view with ordinary protection and a materialization remedy after release", async () => {
+  const h = await fixture("md", true);
+  expect(await selectProjectionView({ store: h.store, identity: SlugSchema.parse("alice"), own: null,
+    view: { mode: "mine", pins: [] } })).toEqual({ kind: "selected", references: [h.record.reference], missingPins: [] });
+  expect(resolveArcPath({ kind: "work-unit-artifact", slug: SlugSchema.parse("subject"), artifact: "meta",
+    placement: { kind: "active", scope: { kind: "project", location: { kind: "another" } } } })).toBe(h.path);
+  await refresh(h);
+  expect((await lstat(join(h.checkout, h.path))).mode & 0o222).toBe(0);
+  expect(parseStampedFile(await h.file())).toMatchObject({ content: h.record.content,
+    notices: expect.arrayContaining([expect.stringContaining(h.holder)]) });
+  await rm(resolveWorktreeMarkerPath(h.holder));
+  await refresh(h);
+  const released = parseStampedFile(await h.file());
+  expect(released.notices.join("\n")).toContain("arc materialize subject");
+  expect(released.notices.join("\n")).not.toContain("arc resume");
+  expect(released.content).toBe(h.record.content);
+  expect(success(await h.store.read({ reference: h.record.reference }))).toMatchObject({ placement: { kind: "active" },
+    fields: { pause: { reason: "Waiting for review" } } });
+  await writeWorktreeMarker(h.holder, { spawnedByArc: false, spawningIdentity: "alice",
+    createdAt: "2026-10-24T00:00:00Z", createdFor: boundWorkUnitSubject(h.record) });
+  await refresh(h);
+  expect(parseStampedFile(await h.file()).notices.join("\n")).toContain(h.holder);
+  const parsed = parseStampedFile(await h.file());
+  if (parsed.stamp === null) throw new Error("The paused projection lost its stamp");
+  const content = h.record.content + "\nIndependent paused correction.\n";
+  const bytes = renderStampedFile({ content, stamp: parsed.stamp });
+  await chmod(join(h.checkout, h.path), 0o644);
+  await writeFile(join(h.checkout, h.path), bytes);
+  await startProjection({ store: h.store, checkout: h.checkout });
+  expect(success(await h.store.read({ reference: h.record.reference })).content).toBe(h.record.content);
+  expect(await h.file()).toBe(bytes);
+  await saveInHolder(h, bytes);
+  expect(success(await h.store.read({ reference: h.record.reference }))).toMatchObject({ content,
+    placement: { kind: "active" }, fields: { pause: { reason: "Waiting for review" } } });
 });
 
 it("refuses a forced edit naming the live holding checkout and accepts the same edit there", async () => {

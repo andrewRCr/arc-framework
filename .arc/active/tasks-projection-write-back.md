@@ -446,17 +446,14 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   repair routes. Ordinary entry adds no inventory listing, and observing settings preserves the index's last-projected
   inputs for reprojection. An unprojected conflict names its exact owner and resolves after its mapping is seeded.
 
-### `[ ]` **2.7 Project a paused work unit as any in-flight one — § 8.3**
+### `[x]` **2.7 Project a paused work unit as any in-flight one — § 8.3**
 
 - _Goal:_ A paused work unit projects where any in-flight one does, under the same rights, its protected files' notice
   naming its owning checkout here or, with none, `arc materialize <slug>`.
 
-    - From the flip a pause is a section of the meta that changes neither `State` nor placement, so nothing in the
-      layout reads it; the notice follows 2.2, since `arc resume` only clears the pause.
-    - Build `test-first` (one behavior at a time):
-        - a paused work unit's files resolve under `active/in-flight/<slug>/` with the in-flight view, laid there
-          through the seeded projection (`seedProjection`)
-        - with its checkout released, its protected file's notice names `arc materialize <slug>`
+- _Outcome:_ A seeded paused record remains selected at its active in-flight address, with its Pause and placement
+  intact. Its protected metadata names the holding checkout, then materialization after release; a forced edit stays
+  unsent outside the owner and persists in the repaired holder without clearing the pause.
 
 ### `[ ]` **2.8 Adopt files the store does not know — § 9**
 
