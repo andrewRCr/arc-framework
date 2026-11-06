@@ -141,6 +141,19 @@ verification's notes consolidation.
   `--checkers 1`. Record the gap, the date and the head here. The margin is 512 MiB above the larger of this gap and
   the desktop's 1,305 MiB, and never below 1,331 MiB.
 
+### First-shard qualification
+
+On 2026-11-06, with HEAD `7b3b65ab55` plus Task 1.6's working-tree changes, the script ran the store shard
+successfully from the package root on WSL and from the repository root on m4-mini. The WSL run used
+`memcap_gated -m 8G` and `nicecap`; both native address-space columns were 8,196,718,592 bytes, and its peak line
+reported 1,179 MiB at a 6000 MiB soft limit. The first admission was refused for insufficient free memory; the
+successful retry waited for memory to free and retained the 8 GiB gate.
+
+Pinned run `785c4f522ef2496fa68006ad9848ed94`, snapshot `4db2f405b3dc3ddf952cb52f0b75debcff5af813`, reported
+1,185 MiB at the same soft limit and ended with `arc-offload: exit 0 on m4-mini (m4-mini-runner)`, with no fallback.
+Raw logs, the WSL observer and source hashes live in this worktree's personal `test-typecheck-heap/evidence/`.
+These first-shard figures qualify the launch and observation path; the landing figures are measured afresh cold.
+
 ## TypeScript 7 observations
 
 - With no `GOMEMLIMIT`, TS 7 ran out of memory under a 6 GiB address-space cap at about 4.7 GiB in use, with four

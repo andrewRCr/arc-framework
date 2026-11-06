@@ -66,28 +66,15 @@ coverage test, so no commit before then narrows what the commit gate checks.
   and rejecting samples across an executable change. The peak formatter reports whole MiB, the check/shard and
   soft limit, or unavailable with the observed executable; child finalization stops the reader.
 
-### `[ ]` **1.6 Run the first shard through the script on WSL and m4-mini — D3**
+### `[x]` **1.6 Run the first shard through the script on WSL and m4-mini — D3**
 
 - _Goal:_ `node --import tsx src/scripts/run-typecheck.ts test`, run from the package root, discovers the shard
   configs and runs `integration-store` with zero errors and a peak line read from the native compiler, on WSL under
   the backstop and on m4-mini.
 
-    - Thin entry `src/scripts/run-typecheck.ts`, as `run-build.ts` and `run-local-test-tier.ts` are; it parses the
-      mode, and an unknown mode exits 1 naming it
-    - The package root comes from the script's own location, as `run-build.ts` takes it from `import.meta.dirname`,
-      so the same command also runs from the repository root
-    - Shard discovery in `src/scripts/typecheck/shards.ts`: exported, returning the `tsconfig.shard-*.json` files in
-      the package root sorted by shard name; the base `tsconfig.shards.json` falls outside the pattern
-    - Build `test-first` (one behavior at a time):
-        - Discovery returns shard configs in name order, with the shard name taken from the file name
-        - The base config and other `tsconfig*.json` files are not shards
-    - On WSL, read `/proc/<pid>/limits` of the running native `tsc` once and confirm its "Max address space" is the
-      soft limit plus the margin, 8,196,718,592 bytes at 6000 + 1,817 MiB; any other value stops the phase. The run
-      needs an inherited limit above that, so under the host's memory gate use `memcap_gated -m 8G`, not a lower cap,
-      which by 1.4's rule sets no backstop
-    - On m4-mini, through a pinned `arc-offload` run of the same command whose placement its `exit … on m4-mini` line
-      proves, the peak line must name a figure read from the native binary of the runner's own platform package;
-      `unavailable` there stops the phase. See `notes-test-typecheck-heap.md` § Measuring on m4-mini › Placement
+- _Outcome:_ Added the thin entry and shared sorted shard discovery. The first shard passes from the package
+  root on WSL and the repository root on m4-mini, with native peaks of 1,179 and 1,185 MiB respectively. WSL
+  reports the expected 8,196,718,592-byte soft and hard backstop; the notes retain the pinned-run evidence.
 
 ## **Phase 2:** The five-shard partition replaces the single test program
 
