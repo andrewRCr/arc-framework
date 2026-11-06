@@ -80,11 +80,12 @@ async function errand(f: Fixture, uid: string, prefix = "chore", checkout = true
 }
 
 it.each(["close", "abandon"])("refuses a partial Errand UID before runtime dispatch for %s", async verb => {
-  const f = await fixture("partial");
+  const f = await fixture("partial"), before = success(await f.store.version());
   const result = await invoke(f, f.root, ["errand", verb, uidA, "--json"]);
-  expect(result, JSON.stringify(result)).toMatchObject({ exitCode: 1, result: { outcome: "refused", reason: "identity-conflict",
+  expect(result, JSON.stringify(result)).toMatchObject({ exitCode: 1, result: { outcome: "refused", reason: "not-found",
     recommendedPromptText: expect.stringContaining(uidA) } });
   expect(JSON.stringify(result.result)).toMatch(/pull/iu);
+  expect(success(await f.store.version())).toBe(before);
 }, 60_000);
 
 it("closes only the UID-selected Errand and leaves the remaining slug resolvable", async () => {

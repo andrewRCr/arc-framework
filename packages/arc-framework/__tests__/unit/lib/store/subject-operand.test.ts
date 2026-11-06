@@ -25,13 +25,17 @@ async function primary(f: ReturnType<typeof createReferenceFixture>, kind: typeo
 const cells = (["rename", "cohort", "errand"] as const).flatMap(typeRule => allKinds.map(kind => ({ typeRule, kind,
   expected: typeRule === "rename" ? kind === "work-item/record" ? "refused" : "selected"
     : typeRule === "cohort" ? kind === "cohort/document" ? "selected" : "refused"
-    : kind === "work-item/record" ? "selected" : kind === "cohort/document" ? "unselected" : "refused" })));
+    : kind === "work-item/record" ? "selected" : "refused" })));
 it.each(cells)("$typeRule applies its type rule to $kind", async ({ typeRule, kind, expected }) => {
   const f = createReferenceFixture(), record = await primary(f, kind, "subject");
   const result = await resolveSubjectOperand(f.store, options(uid(record), typeRule));
   expect(result.status).toBe(expected);
   if (result.status === "selected") expect(result).toMatchObject({ primary: record, selectedBy: "uid", operand: uid(record) });
   if (result.status === "refused") {
+    if (typeRule === "errand" && kind === "cohort/document") {
+      expect(result.refusal).toMatchObject({ code: "not-found", uid: uid(record) });
+      return;
+    }
     expect(result.refusal).toMatchObject({ code: "record-malformed", rule: `identity.${typeRule}-subject`, reference: record.reference });
     expect(result.refusal.remedy.text).toContain(kind === "work-item/record" ? `arc errand close ${uid(record)}` : "work-unit");
   }
@@ -64,10 +68,11 @@ it("returns incomplete UID evidence with its repair", async () => {
   expect(await resolveSubjectOperand(f.store, options(uid(record), "rename")))
     .toMatchObject({ status: "unselected", condition: listed.condition, remedy: listed.remedy });
 });
-it("explains an absent UID without fabricating a store lookup", async () => {
+it("classifies an absent UID without fabricating a store lookup", async () => {
   const f = createReferenceFixture();
   expect(await resolveSubjectOperand(f.store, options(uidA, "rename")))
-    .toMatchObject({ status: "unselected", condition: expect.stringContaining(uidA), remedy: { text: expect.stringMatching(/pull/iu) } });
+    .toMatchObject({ status: "refused", refusal: { code: "not-found", uid: uidA,
+      condition: expect.stringContaining(uidA), remedy: { text: expect.stringMatching(/pull/iu) } } });
 });
 it("selects a slug through lookup and reads its primary fields and version", async () => {
   const f = createReferenceFixture(), record = await primary(f, "cohort/document", "subject");

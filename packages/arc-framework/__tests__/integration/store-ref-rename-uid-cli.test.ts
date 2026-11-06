@@ -271,9 +271,9 @@ it("emits one JSON rename result with the selected reference and report", async 
   expect(success(await f.store.read({ reference })).reference.owner.name).toBe("target");
 }, 60_000);
 
-it("emits a store refusal as one lifecycle JSON envelope without changing state", async () => {
+it.each(["missing", "abcdef01-2345-4678-9abc-def012345678"])("emits a missing subject %s as one lifecycle JSON envelope without changing state", async operand => {
   const f = await fixture(), before = success(await f.store.version());
-  const result = await f.invoke(["rename", "missing", "target", "--json"]);
+  const result = await f.invoke(["rename", operand, "target", "--json"]);
   expect(result.exitCode).toBe(1);
   expect(result.result).toMatchObject({ status: "rejected", reason: expect.any(String),
     refusal: { code: "not-found" }, remedy: { invariant: expect.any(String), text: expect.any(String) } });

@@ -45,8 +45,8 @@ async function uidReference(store: Store, uid: string, kinds: readonly UidPrimar
   const selected = await readWorkItemByUid(store, uid, kinds);
   if (selected.status === "refused") return selected;
   if (selected.status === "incomplete") return { status: "unselected", condition: selected.condition, remedy: selected.remedy };
-  return selected.result === null ? { status: "unselected", condition: `UID ${uid} does not select an owner.`,
-    remedy: { text: `Pull store state or check UID ${uid}, then retry.` } }
+  return selected.result === null ? { status: "refused", refusal: { code: "not-found", class: "recoverable", uid,
+    condition: `UID ${uid} does not select an owner.`, remedy: { text: `Pull store state or check UID ${uid}, then retry.` } } }
     : { status: "reference", reference: selected.result.reference, selectedBy: "uid" };
 }
 

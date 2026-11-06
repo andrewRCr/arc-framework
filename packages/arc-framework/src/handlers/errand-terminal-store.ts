@@ -46,7 +46,8 @@ export async function selectErrandTerminalSubject(store: Store, operand: string,
     if (selected.status === "selected") return { kind: "ready", slug: selected.primary.reference.owner.name, selectedRecord: selected.primary };
     if (selected.status === "slug") return { kind: "ready", slug: selected.slug };
     const refusal = selected.status === "refused" ? selected.refusal : selected;
-    return { kind: "stop", result: createErrandTerminalResult({ ...common, outcome: "refused", reason: "identity-conflict",
+    const reason = selected.status === "refused" && selected.refusal.code === "not-found" ? "not-found" : "identity-conflict";
+    return { kind: "stop", result: createErrandTerminalResult({ ...common, outcome: "refused", reason,
       recommendedPromptText: `${refusal.condition} ${refusal.remedy.text}` }) };
   } catch (error) {
     return { kind: "stop", result: createErrandTerminalResult({ ...common, outcome: "error",

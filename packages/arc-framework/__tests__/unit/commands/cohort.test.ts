@@ -18,6 +18,14 @@ async function fixture() {
   return { ...h, group };
 }
 
+it.each([runCohortClose, runCohortRemove])("classifies an absent cohort UID without changing state", async run => {
+  const h = await fixture(), uid = "abcdef01-2345-4678-9abc-def012345678";
+  const before = lifecycleSuccess(await h.store.version());
+  expect(await run(h.store, { operand: uid, confirmed: true })).toMatchObject({ status: "refused",
+    refusal: { code: "not-found", uid, condition: expect.stringContaining(uid), remedy: { text: expect.stringMatching(/pull/iu) } } });
+  expect(lifecycleSuccess(await h.store.version())).toBe(before);
+});
+
 it("refuses a completed cohort selected by UID without rewriting it", async () => {
   const h = await fixture();
   lifecycleSuccess(await h.store.write({ ...recordPut(h.group, { placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }),
