@@ -496,6 +496,7 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   adoptions, and enforce person ownership for Planning backlog inbound lists while preserving ordinary stub grooming.
   Swap settlement now keeps unreplaced read-backs reported and unsent, and unreadable retained inputs hold only their
   file, preserving accepted-adoption recording and allowing independent edits and a repaired retry.
+  Whole-record resolution validates the submitted edit while preserving the stored side and its envelope.
 
 ---
 

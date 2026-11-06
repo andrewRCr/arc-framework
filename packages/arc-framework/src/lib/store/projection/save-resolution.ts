@@ -2,12 +2,11 @@
 import { formatConflictToken } from "../../status/conflict-token.js";
 import { sameReference, type RecordReference } from "../identity.js";
 import type { Store } from "../contract.js";
-import { ConflictRecordSchema, WholeRecordConflictSchema } from "../conflict.js";
+import { ConflictRecordSchema } from "../conflict.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { TakeInResolution } from "./take-in-port.js";
 import { closedResolution, unmappedResolutionRefusal } from "./save-lookup.js";
 import type { ProjectionRootState } from "./process-state.js";
-import { wholeRecordResolutionRefusal } from "./save-whole-record.js";
 import { projectionLinkRemedy } from "./discovery-links.js";
 
 /** An exact indexed subject and its requested resolving write. */
@@ -88,11 +87,7 @@ export async function recheckProjectionResolution(root: ProjectionRootState, ind
   intent.refusal = !conflict.success || !sameReference(conflict.data.record, target.subject)
     ? { reason: `The indexed conflict ${intent.token} does not identify a readable conflict on this subject.`,
       remedy: { text: "Repair the conflict record or restore its correct projection mapping, then retry." } } : null;
-  const whole = WholeRecordConflictSchema.safeParse(conflict.success ? conflict.data : null);
-  if (intent.refusal === null && whole.success) {
-    intent.refusal = await wholeRecordResolutionRefusal(root.context, { checkout: root.checkout, path: target.path,
-      copy: null, entry, base: { kind: "stamp", stamp: null } }, whole.data);
-  }
+  // The subject's submitted content passes the ordinary hand-edit checks; discarded alternatives grant no authority.
 }
 
 function holdResolutionRefusal(entry: RecordEntry, token: string): RefusedMark | null {

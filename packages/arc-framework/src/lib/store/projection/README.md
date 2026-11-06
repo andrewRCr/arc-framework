@@ -176,10 +176,11 @@ available. Disabled backends resolve no projection dependency.
 `save.ts` reports the save start's refusal or its final store version using the backend retained by command entry. The
 retained selection includes the checkout even when initialization is disabled or refused; the handler takes its Store
 explicitly. An explicit resolution binds its exact subject and conflict through the index before the sweep, rechecks
-them afterward, and sends only at that subject's path. Standing or malformed markers keep their repair route;
-whole-record removal, placement and verb-owned alternatives keep their owning verbs. `bases-disagree` holds use their
-recorded token and the current stored base after controls are removed. Accepted resolutions remain accepted when later
-rendering or read-back fails.
+them afterward, and sends only at that subject's path. Standing or malformed markers keep their repair route.
+Whole-record resolution checks the submitted content while retaining the stored placement and links: keeping the stored
+side or an admitted content edit discards the other alternative; actual verb-owned field changes require their owning
+verbs. `bases-disagree` holds use their recorded token and the current stored base after controls are removed. Accepted
+resolutions remain accepted when later rendering or read-back fails.
 
 `check-edit.ts` runs the kind's production check over merged content, with current parsed fields or raw prior content
 when parsing fails. It stamps only the entry merge's check copy and reports every broken rule with its remedy.

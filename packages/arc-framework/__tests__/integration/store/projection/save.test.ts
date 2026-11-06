@@ -622,11 +622,12 @@ it("refuses an unmapped token shared by two owner generations and names both UID
   expect(mapped.result).toMatchObject({ status: "refused", refusal: { condition: expect.stringContaining("Ambiguous") } });
 });
 
-async function wholeRecordProjection(change: "removal" | "placement" | "verb-owned" | "content") {
+async function wholeRecordProjection(change: "removal" | "placement" | "verb-owned" | "content" | "links") {
   const fixture = createReferenceFixture({}, { "work-item/meta": { parser: META_REGISTRATION.parser } });
   const content = makeMetaFixture("work-item-one", { owner: "andrew", workClass: "Light", priority: "P1",
     currentWorkflow: "process-task-loop", design: ["spec-work-item-one.md"] });
-  const base = await seed(fixture, fixture.reference("work-item/meta"), content);
+  const base = await seed(fixture, fixture.reference("work-item/meta"), content, { kind: "active" },
+    { changeRequest: { repository: "project", number: 7 } });
   const remote = fixture.remote(true);
   if (remote === undefined) throw new Error("No reference remote");
   success(await fixture.store.push());
@@ -635,6 +636,7 @@ async function wholeRecordProjection(change: "removal" | "placement" | "verb-own
   else success(await fixture.store.write({ ...update(fixture, base, change === "verb-owned"
     ? content.replace("`andrew`", "`bob`") : content + "\nLocal note.\n"),
     ...(change === "placement" ? { placement: { kind: "backlog" as const, commitment: "planned" as const } } : {}),
+    ...(change === "links" ? { links: { changeRequest: { repository: "project", number: 8 } } } : {}),
     provenance: { verb: change === "placement" ? "promote" : change === "verb-owned" ? "handover" : "edit", lifecycleAction: "edit" } }));
   success(await remote.write({ ...update(fixture, base, content + "\nRemote note.\n"), provenance: { verb: "edit", lifecycleAction: "edit" } }));
   success(await fixture.store.push());
@@ -647,21 +649,46 @@ async function wholeRecordProjection(change: "removal" | "placement" | "verb-own
   await configureEngineCheckout(projected.checkout);
   await writeWorktreeMarker(projected.checkout, { spawnedByArc: false, spawningIdentity: "andrew",
     createdAt: "2026-10-24T00:00:00Z", createdFor: boundWorkUnitSubject(base) });
-  return { ...fixture, ...projected, fixture, reference: base.reference, conflict, current };
+  return { ...fixture, ...projected, fixture, reference: base.reference, conflict, current, path };
 }
 
-it.each([
-  ["removal", "abandon"], ["placement", "promote"], ["verb-owned", "handover"],
-] as const)("refuses a whole-record %s alternative and names its owning verb", async (change, verb) => {
+it.each(["removal", "placement", "verb-owned"] as const)("keeps the stored side when discarding a whole-record %s alternative", async change => {
   const h = await wholeRecordProjection(change);
+  const saved = await save(h, ["--resolve", formatConflictToken(h.conflict)]);
+  expect(saved.result.status).toBe("ok");
+  expect(saved.exitCode).toBe(0);
+  expect(success(await h.store.read({ reference: h.reference }))).toMatchObject({ reference: h.current.reference,
+    content: h.current.content, fields: h.current.fields, placement: h.current.placement, links: h.current.links, conflicts: [] });
+});
+
+it("resolves with an admitted content edit while retaining stored traceability links", async () => {
+  const h = await wholeRecordProjection("links");
+  const entry = h.index.entries[h.path];
+  if (entry?.kind !== "record") throw new Error("Missing whole-record subject");
+  const content = `${h.current.content}\nChosen content correction.\n`;
+  await writeFile(join(h.checkout, h.path), renderStampedFile({ content, stamp: entry.base.blob }));
+  const saved = await save(h, ["--resolve", formatConflictToken(h.conflict)]);
+  expect(saved.result.status).toBe("ok");
+  expect(success(await h.store.read({ reference: h.reference }))).toMatchObject({ content,
+    placement: h.current.placement, links: h.current.links, conflicts: [] });
+});
+
+it("refuses a submitted verb-owned field change, then resolves the same conflict after the file is repaired", async () => {
+  const h = await wholeRecordProjection("placement");
+  const entry = h.index.entries[h.path];
+  if (entry?.kind !== "record") throw new Error("Missing whole-record subject");
+  const bytes = renderStampedFile({ content: h.current.content.replace("`andrew`", "`bob`"), stamp: entry.base.blob });
+  await writeFile(join(h.checkout, h.path), bytes);
   const refused = await save(h, ["--resolve", formatConflictToken(h.conflict)]);
-  expect(refused.result).toMatchObject({ status: "refused", refusal: { condition: expect.stringContaining(change),
-    remedy: { text: expect.stringContaining(verb) } } });
-  expect(success(await h.store.read({ reference: h.reference })).conflicts).toEqual([h.conflict]);
-  success(await h.store.write({ ...update(h.fixture, h.current, h.current.content), resolves: [h.conflict],
-    provenance: { verb, lifecycleAction: "edit" } }));
-  expect((await save(h)).result.status).toBe("ok");
-  expect(success(await h.store.read({ reference: h.reference })).conflicts).toEqual([]);
+  expect(refused.result).toMatchObject({ status: "refused", refusal: { condition: expect.stringContaining("meta.verb-owned-field"),
+    remedy: { text: expect.stringContaining("arc handover") } } });
+  expect(await readFile(join(h.checkout, h.path), "utf8")).toBe(bytes);
+  expect(success(await h.store.read({ reference: h.reference }))).toMatchObject({ content: h.current.content,
+    placement: h.current.placement, links: h.current.links, conflicts: [h.conflict] });
+  await writeFile(join(h.checkout, h.path), renderStampedFile({ content: h.current.content, stamp: entry.base.blob }));
+  expect((await save(h, ["--resolve", formatConflictToken(h.conflict)])).result.status).toBe("ok");
+  expect(success(await h.store.read({ reference: h.reference }))).toMatchObject({ content: h.current.content,
+    placement: h.current.placement, links: h.current.links, conflicts: [] });
 });
 
 it("refuses without identity as whole JSON, then saves after identity repair", async () => {
