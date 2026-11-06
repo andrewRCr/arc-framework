@@ -29,6 +29,7 @@ import { resolveRenameReferences } from "./rename-reference-resolution.js";
 import { workUnitRenameReferenceReport } from "./rename-reference-report.js";
 import type { RenameReport } from "../work-unit/rename-report.js";
 import { planRenameMemberHeading } from "./rename-member-heading.js";
+import { ownedArtifactRenames } from "./rename-artifact-names.js";
 /** Selected subject and reporting evidence retained independently of physical checkout steps. */
 export interface StoreRenameSubject { primary: StoreRecord; operand: string; resuming: boolean; originName: string; advisories: string[] }
 /** Complete acquisition and expected-version writes prepared before physical renames. */
@@ -166,17 +167,6 @@ function sameExpectation(left: RecordObservation["expected"], right: RecordObser
   if (left === null || right === null) return left === right;
   return left.version === right.version && left.conflicts.length === right.conflicts.length
     && left.conflicts.every(reference => right.conflicts.some(other => sameReference(reference, other)));
-}
-function ownedArtifactRenames(records: readonly StoreRecord[], primary: StoreRecord, target: string): Map<string, string> {
-  const renamed = { ...primary, reference: RecordReferenceSchema.parse({ ...primary.reference,
-    owner: { ...primary.reference.owner, name: target } }) };
-  const names = new Map<string, string>();
-  for (const record of records) {
-    if (!sameOwner(record.reference.owner, primary.reference.owner)) continue;
-    const from = lifecycleRecordPath(primary, record), to = lifecycleRecordPath(renamed, record);
-    if (from !== null && to !== null) names.set(posix.relative(posix.dirname(workUnitMetaPath(primary)), from), posix.relative(posix.dirname(workUnitMetaPath(renamed)), to));
-  }
-  return names;
 }
 async function acquireRenameGroups(store: Store, primary: StoreRecord): Promise<StoreResult<{
   records: StoreRecord[]; entries: readonly LifecycleEntry[]; observations: RecordObservation[];

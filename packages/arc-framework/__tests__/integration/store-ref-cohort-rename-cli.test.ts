@@ -507,6 +507,46 @@ it.each([false, true])("retains a sole former-path member behind an ambiguous Pa
   expect(success(await f.store.read({ reference: other }))).toEqual(keptOther);
 }, 60_000);
 
+it.each(["filename", "membership"] as const)("refuses a stale cohort %s rewrite after a new holder arrives", async kind => {
+  const f = await fixture("ref");
+  if (f.native === undefined) throw new Error("Expected native store");
+  const reference = f.reference("cohort/document", "parent"), parent = await seed(f, reference, document(reference.owner.name));
+  const memberRef = f.reference("work-item/meta", "waiting");
+  const member = await seed(f, memberRef, `${makeMetaFixture(memberRef.owner.name, { state: "Planning", currentWorkflow: null,
+    cohort: kind === "membership" ? reference.owner.name : null })}\n${kind === "filename" ? `See \`cohort-${reference.owner.name}.md\`.` : "Unrelated prose."}\n`,
+  { kind: "backlog", commitment: "planned" });
+  const owner = parent.reference.owner;
+  if (owner.type !== "cohort" || owner.uid === undefined) throw new Error("Expected parent UID");
+  let other: typeof reference | undefined, racedVersion: string | undefined;
+  const result = await f.invoke(["rename", owner.uid, "after", "--json"], store => {
+    const wrapped = Object.create(store) as Store;
+    wrapped.batch = async input => {
+      if (other === undefined) {
+        other = await plantRefPrimary(f.native!, { kind: "cohort/document", name: reference.owner.name,
+          uid: "00000000-0000-4000-8000-000000000093", content: document(reference.owner.name) });
+        racedVersion = success(await f.store.version());
+      }
+      return store.batch(input);
+    };
+    return wrapped;
+  });
+  expect(result).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { code: "record-malformed", rule: "rename.references" } } });
+  expect(racedVersion).toBeDefined();
+  expect(success(await f.store.version())).toBe(racedVersion);
+  expect(success(await f.store.read({ reference: parent.reference }))).toEqual(parent);
+  expect(success(await f.store.read({ reference: member.reference }))).toEqual(member);
+  if (other === undefined) throw new Error("Expected concurrent holder");
+  const keptOther = success(await f.store.read({ reference: other }));
+  const retry = await f.invoke(["rename", owner.uid, "after", "--json"]);
+  expect(retry.exitCode ?? 0, retry.stdout + retry.stderr).toBe(0);
+  expect(retry.result).toMatchObject({ status: "renamed", report: { references: expect.arrayContaining([
+    expect.objectContaining({ record: expect.objectContaining({ name: member.reference.owner.name }) }),
+  ]) } });
+  expect(success(await f.store.read({ reference: parent.reference })).reference.owner.name).toBe("after");
+  expect(success(await f.store.read({ reference: member.reference }))).toEqual(member);
+  expect(success(await f.store.read({ reference: other }))).toEqual(keptOther);
+}, 60_000);
+
 it.each([{ closed: false, former: false }, { closed: true, former: false }, { closed: true, former: true }])(
   "reports safe repairs under a two-cohort clash, closed=$closed former=$former", async ({ closed, former }) => {
   const f = await fixture("ref");

@@ -18,7 +18,7 @@ export interface RenameMemberHeadingPlan {
 }
 
 /** Count current and former name holders before deciding whether a heading denotes only the subject. */
-export async function planRenameMemberHeading(store: Store, input: {
+export async function planRenameMemberHeading(store: StoreView, input: {
   primary: StoreRecord; records: readonly StoreRecord[]; entries: readonly LifecycleEntry[]; source: string; target: string;
 }): Promise<RuleObservation<RenameMemberHeadingPlan>> {
   const document = input.records.find(record => record.reference.kind === "cohort/document");
@@ -47,7 +47,7 @@ export async function planRenameMemberHeading(store: Store, input: {
   return { status: "known", value: { rewrite: false, edits, observations } };
 }
 
-async function observeHeadingRead(store: Store, input: ReadInput, observations: RecordObservation[]): Promise<StoreResult<StoreRecord>> {
+async function observeHeadingRead(store: Pick<Store, "read">, input: ReadInput, observations: RecordObservation[]): Promise<StoreResult<StoreRecord>> {
   const result = await store.read(input);
   if (result.status === "ok") observations.push(...observeRecords([result.result]));
   else if (result.refusal.code === "ambiguous-match") {

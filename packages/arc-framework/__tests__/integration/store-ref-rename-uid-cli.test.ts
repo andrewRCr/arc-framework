@@ -282,6 +282,50 @@ it.each([false, true])("leaves a reused ended subject's references unreported, t
   expect(success(await f.store.read({ reference: live }))).toEqual(kept);
 }, 60_000);
 
+it.each([false, true])("refuses stale shared-reference authority after archived-name reuse, heading=%s", async heading => {
+  const f = await fixture(), sourceRef = recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "shared" }));
+  const groupRef = f.reference("cohort/document", "group");
+  const group = heading ? await seed(f, groupRef,
+    `# Cohort: \`${groupRef.owner.name}\`\n\n**Purpose:** Coordinate.\n\n## Members\n\n### \`shared\`\n`) : undefined;
+  const source = await seed(f, sourceRef, makeMetaFixture("shared", { state: "Shipped", currentWorkflow: null,
+    cohort: group?.reference.owner.name ?? null, completed: "2026-10-16", prUrl: "https://example.test/pull/1" }),
+  { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const waitingRef = f.reference("work-item/meta", "waiting");
+  const waiting = await seed(f, waitingRef, `${makeMetaFixture(waitingRef.owner.name,
+    { state: "Planning", currentWorkflow: null })}\n${heading ? "Unrelated prose." : "See `meta-shared.md`."}\n`, { kind: "backlog", commitment: "planned" });
+  if (source.reference.owner.type !== "work-item" || source.reference.owner.uid === undefined) throw new Error("Expected source UID");
+  let replacement: typeof source | undefined, racedVersion: string | undefined;
+  const result = await f.invoke(["rename", source.reference.owner.uid, "renamed", "--json"], store => {
+    const wrapped = Object.create(store) as Store;
+    wrapped.batch = async input => {
+      if (replacement === undefined) {
+        replacement = await seed(f, sourceRef, makeMetaFixture("shared", { state: "Planning", currentWorkflow: null,
+          cohort: group?.reference.owner.name ?? null }), { kind: "backlog", commitment: "planned" });
+        racedVersion = success(await f.store.version());
+      }
+      return store.batch(input);
+    };
+    return wrapped;
+  });
+  expect(result).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { code: "record-malformed", rule: "rename.references" } } });
+  expect(racedVersion).toBeDefined();
+  expect(success(await f.store.version())).toBe(racedVersion);
+  expect(success(await f.store.read({ reference: source.reference }))).toEqual(source);
+  expect(success(await f.store.read({ reference: waiting.reference }))).toEqual(waiting);
+  if (group !== undefined) expect(success(await f.store.read({ reference: group.reference }))).toEqual(group);
+  if (replacement === undefined) throw new Error("Expected concurrent replacement");
+  const keptReplacement = replacement;
+  const retry = await f.invoke(["rename", source.reference.owner.uid, "renamed", "--json"]);
+  expect(retry.exitCode ?? 0, retry.stdout + retry.stderr).toBe(0);
+  expect(success(await f.store.read({ reference: source.reference })).reference.owner.name).toBe("renamed");
+  expect(success(await f.store.read({ reference: waiting.reference }))).toEqual(waiting);
+  expect(success(await f.store.read({ reference: keptReplacement.reference }))).toEqual(keptReplacement);
+  if (group !== undefined) {
+    expect(success(await f.store.read({ reference: group.reference }))).toEqual(group);
+    expect(retry.result).toMatchObject({ report: { memberHeadings: [{ document: group.reference, line: 7, replacement: "### `renamed`" }] } });
+  } else expect(retry.result).toMatchObject({ report: { references: [], memberHeadings: [] } });
+}, 60_000);
+
 it("keeps target settlement when ambiguous source references are left for authored repair", async () => {
   const f = await fixture(), uid = "12345678-abcd-4abc-8abc-123456789abc";
   await plantRefPrimary(f, { kind: "work-item/meta", name: "shared", uid, content: makeMetaFixture("shared") });
