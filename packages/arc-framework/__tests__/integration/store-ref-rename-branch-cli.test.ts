@@ -171,9 +171,12 @@ it("catches up only the subject's remote checkout after both holders rename else
   expect((await f.cli.exec("git", ["branch", "--show-current"], { cwd: f.peer })).stdout.trim()).toBe("feat/shared");
   const before = await resolveStoreBranch(f.store, "feat/shared", async () => f.repository);
   expect(before).toMatchObject({ status: "unavailable", reason: expect.stringContaining(`arc rename ${f.uid} renamed`) });
+  if (before.status !== "unavailable") throw new Error("Expected branch-link repair");
+  const repair = /`arc (rename [^`]+)`/u.exec(before.reason)?.[1];
+  if (repair === undefined) throw new Error("Expected an executable rename repair");
   const marker = await readWorktreeMarker(f.peer), otherMarker = await readWorktreeMarker(f.cli.cwd);
   const history = success(await f.store.history({ reference: f.source }));
-  const caughtUp = await f.invoke(["rename", f.uid, "renamed", "--json"], undefined, f.peer);
+  const caughtUp = await f.invoke([...repair.split(" "), "--json"], undefined, f.peer);
   expect(caughtUp.exitCode ?? 0, caughtUp.stdout + caughtUp.stderr).toBe(0);
   expect(caughtUp.result).toMatchObject({ status: "renamed", recordBatch: "applied", remote: { status: "retained", oldBranch: "feat/shared" },
     report: { keptBranches: [{ branch: "feat/shared", reason: "continuation" }] } });

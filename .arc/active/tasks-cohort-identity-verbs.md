@@ -26,6 +26,8 @@ former slug naming the current one and admit a completed meta's rewrite onto a c
 - _Outcome:_ Added `branchLinkRepair` with per-holder rename, catch-up, and Errand-close instructions on the holding
   machine; completed holders retain the UID-bearing no-repair result.
 
+    - _Amended in:_ review-fix (A2).
+
 ### `[x]` **1.2 Give each lookup arm's ambiguity its repair in both backends — § 3.1, § 3.3**
 
 - _Goal:_ Every reader that meets a clash through the lookup prints a repair that names a command which ends it: the slug
@@ -703,3 +705,8 @@ Over the ref backend and, where it can form the state, the reference backend, fr
 - `[ ]` All quality gates pass (tests, linting, type checking)
 
 - `[ ]` Ready for integration
+
+- `[ ]` A branch-link tie names a work unit's UID rename for a two-segment branch named after its current slug, and a
+  catch-up only if the suffix is a former slug, explicitly stating the limitation otherwise; other branch shapes state
+  that no rename-based repair is available. Executing a supported catch-up moves only the selected holder's link and
+  resolves the tie.

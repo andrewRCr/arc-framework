@@ -12,11 +12,13 @@ export function branchLinkRepair(candidates: readonly RecordReference[], tie: Cl
     if (reference.kind === "work-item/record") return `\`arc errand close ${uid}\``;
     const currentBranch = workBranchName(branch);
     const parts = currentBranch.split("/");
-    const target = parts.length === 2 && parts[0] !== "" && parts[1] === reference.owner.name
-      ? "<new-slug>" : reference.owner.name;
-    return `\`arc rename ${uid} ${target}\``;
+    if (parts.length !== 2 || parts[0] === "" || parts[1] === "") {
+      return `No rename-based repair is available for \`${reference.owner.name}\` (UID ${uid}) on \`${currentBranch}\``;
+    }
+    if (parts[1] === reference.owner.name) return `\`arc rename ${uid} <new-slug>\``;
+    return `\`arc rename ${uid} ${reference.owner.name}\` only if \`${parts[1]}\` is a former slug of \`${reference.owner.name}\`; otherwise rename cannot move this branch link`;
   });
-  return { text: `On the machine holding each holder's checkout, move its branch link with ${moves.join("; ")}.`,
+  return { text: `On the machine holding each holder's checkout: ${moves.join("; ")}.`,
     argv: ["arc", "status", "--json"] };
 }
 /** Build a human repair and one executable next observation or action. */

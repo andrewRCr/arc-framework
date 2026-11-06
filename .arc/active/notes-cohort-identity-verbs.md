@@ -1,6 +1,14 @@
 # Notes: cohort-identity-verbs
 
-## A1 — Catch-up publication recovery
+## Contents
+
+- [Catch-up publication recovery](#catch-up-publication-recovery)
+    - [Superseded subject rule](#superseded-subject-rule)
+    - [Superseded continuation and catch-up rules](#superseded-continuation-and-catch-up-rules)
+- [Branch-link remedy limits](#branch-link-remedy-limits)
+    - [Superseded branch-link rule](#superseded-branch-link-rule)
+
+## Catch-up publication recovery
 
 The public `HistoryEntrySchema` retains a record reference, version, content, and provenance, but no branch links.
 `ReadInputSchema` takes a whole-store `StateVersion`, not the historical `RecordVersion`. `renameOrigin` therefore
@@ -42,5 +50,32 @@ The following settled text is superseded only for failed catch-up publication; o
 >   branch step matches only a branch named after the current slug (`branchRename`), so without the catch-up nothing
 >   would
 >   move the link.
+
+## Branch-link remedy limits
+
+Amendment A2 keeps `catchUpCoordinates`' existing authority: the holder's checkout must be on a linked two-segment
+branch whose last segment is a retained alias. `branchLinkRepair` has only references, not those aliases. Its remedy
+therefore qualifies catch-up by that condition, and states the absence of a rename-based repair for other branch
+shapes. Adding branch movement for arbitrary linked names would broaden rename's authority without serving its
+established work-branch naming rule.
+
+### Superseded branch-link rule
+
+> The branch-link lookup's `ambiguous-match`, whose `tie` carries `liveness` alone, takes a remedy from
+> `branchLinkRepair(candidates, tie, branch)` in `lib/store/clash-repair.ts`, not `clashRepair`, whose moves would not move
+> a link; `branch` is the branch the lookup names, since neither the tie nor a holder's reference carries the link. A
+> completed tie — only Errands link the branch, and every one is closed (`refCandidates`) — takes the completed text
+> `clashRepair` gives: no lifecycle repair, naming each holder's UID. A live tie's remedy names, per holder, the move that
+> takes its link off the branch, run on the machine holding that holder's checkout:
+> `arc rename <uid> <new-slug>` for a work unit, or the catch-up `arc rename <uid> <slug>` for one whose current slug no
+> longer names the branch (§ 2.5), and `arc errand close <uid>` for an Errand, which links its `chore/<slug>` branch as
+> created and which no rename moves. Its argv is `arc status --json`. Only the branch lookup's readers meet the tie:
+> teardown's gate, which leaves the branch and reports it, and two session-start checks, each warning with the refusal's
+> remedy — the orphan-branch sweep (`readOrphanStoreCandidates`, `lib/session-init/orphan-store-candidates.ts`, through
+> `resolveStoreBranch`) and the missing-worktree check (`readStoreMissingFolderActions`,
+> `lib/session-init/missing-worktree-store.ts`). Session start resolves a live checkout's work unit by its claim, never
+> through its branch, so the first rename run's report of the branch kept is what names the catch-up. The tie lasts until
+> one holder completes, the lookup then ranking the live one first, or one holder's link moves: the other holder renamed
+> on the machine holding its own checkout, or the subject's catch-up run.
 
 ---

@@ -370,12 +370,15 @@ The branch-link lookup's `ambiguous-match`, whose `tie` carries `liveness` alone
 `branchLinkRepair(candidates, tie, branch)` in `lib/store/clash-repair.ts`, not `clashRepair`, whose moves would not move
 a link; `branch` is the branch the lookup names, since neither the tie nor a holder's reference carries the link. A
 completed tie — only Errands link the branch, and every one is closed (`refCandidates`) — takes the completed text
-`clashRepair` gives: no lifecycle repair, naming each holder's UID. A live tie's remedy names, per holder, the move that
-takes its link off the branch, run on the machine holding that holder's checkout:
-`arc rename <uid> <new-slug>` for a work unit, or the catch-up `arc rename <uid> <slug>` for one whose current slug no
-longer names the branch (§ 2.5), and `arc errand close <uid>` for an Errand, which links its `chore/<slug>` branch as
-created and which no rename moves. Its argv is `arc status --json`. Only the branch lookup's readers meet the tie:
-teardown's gate, which leaves the branch and reports it, and two session-start checks, each warning with the refusal's
+`clashRepair` gives: no lifecycle repair, naming each holder's UID. A live tie's remedy names each holder's move or limitation,
+with moves run on the machine holding its checkout (A2). For a work unit linking `<prefix>/<current-slug>`, it names
+`arc rename <uid> <new-slug>`. For any other two-segment branch, it names the catch-up `arc rename <uid> <slug>`
+only if the branch's last segment is a former slug of that holder (§ 2.5), and explicitly says that rename cannot move
+the link otherwise. `branchLinkRepair` receives references without aliases, so it states that condition rather than
+claiming to establish it. For other branch shapes it names the holder and branch and states that no rename-based
+repair is available; it does not advertise a catch-up. For an Errand it names `arc errand close <uid>`, which ends the
+holder of its created `chore/<slug>` branch. Its argv remains `arc status --json`. Only the branch lookup's readers meet
+the tie: teardown's gate, which leaves the branch and reports it, and two session-start checks, each warning with the refusal's
 remedy — the orphan-branch sweep (`readOrphanStoreCandidates`, `lib/session-init/orphan-store-candidates.ts`, through
 `resolveStoreBranch`) and the missing-worktree check (`readStoreMissingFolderActions`,
 `lib/session-init/missing-worktree-store.ts`). Session start resolves a live checkout's work unit by its claim, never
@@ -994,6 +997,11 @@ Over the ref backend and, where it can form the state, the reference backend, fr
     retained-branch report. Executing it publishes the new branch, keeps the actual old remote, and changes no stored
     records, markers, or folders. Ordinary rename continuations still repeat the original operand and finish publication.
 
+16. **Reachable branch-link remedies (A2).** For each live work-unit holder, a two-segment branch named after its
+    current slug names its UID rename; another two-segment branch names catch-up only if its suffix is a former slug,
+    explicitly stating the limitation otherwise. Other branch shapes state that no rename-based repair is available.
+    Executing a supported catch-up moves only the selected holder's branch link and resolves the tie.
+
 ## Open Questions
 
 None.
@@ -1002,5 +1010,8 @@ None.
 
 - **A1** — 2026-11-05 — design: failed catch-up pushes use Git recovery. _Supersedes:_ § 2.1 ¶2; § 2.5 ¶4, ¶6.
   _Trigger:_ 4.11 must-stop. _Work:_ 4.11.R. _Revalidated:_ 4.12.
+
+- **A2** — 2026-11-05 — design: branch-link remedies state rename’s limits. _Supersedes:_ § 3.3 ¶1.
+  _Trigger:_ F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

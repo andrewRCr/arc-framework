@@ -17,9 +17,19 @@ it("names both moves in a work-unit and Errand branch tie", () => {
   expect(repair.text).toContain(`arc errand close ${uidB}`);
   expect(repair.argv).toEqual(["arc", "status", "--json"]);
 });
-it.each(["refs/heads/feat/shared", "shared", "team/feat/renamed"])("names the catch-up rename for a mismatched branch %s", branch => {
+it("qualifies catch-up by the linked branch's former-slug eligibility", () => {
+  const branch = "refs/heads/feat/shared";
   const repair = branchLinkRepair([holder("work-item/meta", "renamed", uidA), holder("work-item/meta", "shared", uidB)], { liveness: "live" }, branch);
   expect(repair.text).toContain(`arc rename ${uidA} renamed`);
+  expect(repair.text).toContain("only if `shared` is a former slug of `renamed`");
+  expect(repair.text).toContain("otherwise rename cannot move this branch link");
+});
+it.each(["shared", "team/feat/renamed"])("states that rename cannot repair a non-work branch %s", branch => {
+  const repair = branchLinkRepair([holder("work-item/meta", "renamed", uidA)], { liveness: "live" }, branch);
+  expect(repair.text).toContain(`No rename-based repair is available for \`renamed\` (UID ${uidA})`);
+  expect(repair.text).toContain(`\`${branch}\``);
+  expect(repair.text).not.toContain("arc rename");
+  expect(repair.argv).toEqual(["arc", "status", "--json"]);
 });
 it("gives completed branch holders the completed repair", () => {
   const candidates = [holder("work-item/record", "shared", uidA), holder("work-item/record", "shared", uidB)];
