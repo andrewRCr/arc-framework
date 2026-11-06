@@ -762,15 +762,18 @@ and the reference backend's (`checkRefWrites`; `observeSyncChecks`, `lib/store/r
 - `arc cohort close` and `arc cohort remove` register and refuse `unsupported`, naming today's route — edits to the
   tracked cohort files, and archive's sidecar sweep — through `runDormantStoreCommand`
   (`commands/store-command-support.ts`), whose `DormantStoreCommand` union gains `cohort close` and `cohort remove`.
-- `arc rename`, `arc errand close`, and `arc errand abandon` keep their in-repo arms unchanged and take every operand
-  as a slug, since the in-repo implementation holds no UIDs. Unlike teardown, which passes its operand on unparsed
-  before the flip (`runTeardownForOperand`), the in-repo arm parses each operand with `SlugSchema` once the store is
-  open, since only the store says whether state is off-branch (`usesOffBranchState`), and refuses one it rejects
-  through today's input refusal: `parseLifecycleCommand`'s for rename, and `locus.errand-close.input` and
-  `locus.errand-abandon.input` for the Errand verbs. Today that parse runs first, so where an operand that is a UUID but
-  not a slug also meets a refusal the verb reaches before its store opens — identity, the project root, configuration
-  such as `branch.protection` and `branch.base`, the stdin Git boundary, or the store's own open — that refusal now
-  shows first.
+- `arc rename`, `arc errand close`, and `arc errand abandon` keep their in-repo operations unchanged and take every
+  operand as a slug, since the in-repo implementation holds no UIDs. Unlike teardown, which passes its operand on
+  unparsed before the flip (`runTeardownForOperand`), the in-repo arm parses each operand with `SlugSchema` once the
+  store is open, since only the store says whether state is off-branch (`usesOffBranchState`), and refuses one it
+  rejects through today's input refusal: `parseLifecycleCommand`'s for rename, and `locus.errand-close.input` and
+  `locus.errand-abandon.input` for the Errand verbs. `handleRename` also applies
+  `InRepoRenameCommandInputSchema`'s distinct-name check after backend selection: equal ordinary slug operands must
+  remain available to the store arm's continuation and catch-up paths (A3). Both checks ran before admission before
+  this change. Thus where a UUID rejected by `SlugSchema`, or equal ordinary source and destination slugs, also meet
+  an earlier refusal — identity, the project root, configuration such as `branch.protection` and `branch.base`, the
+  stdin Git boundary, or the store's own open — that earlier refusal now shows first. In an admitted in-repo command,
+  equal names still refuse with the existing distinct-name input refusal.
 - `arc rename --json` (§ 4) gives either arm's result and refusal one form: before the flip the in-repo arm's result
   carries an empty report, and its text output is today's.
 - Promote's recovery and refusal changes are in its store arm, which runs only off-branch.
@@ -1002,6 +1005,10 @@ Over the ref backend and, where it can form the state, the reference backend, fr
     explicitly stating the limitation otherwise. Other branch shapes state that no rename-based repair is available.
     Executing a supported catch-up moves only the selected holder's branch link and resolves the tie.
 
+17. **Same-name refusal order (A3).** Before the flip, `arc rename example example` outside an ARC project reports
+    the missing project before its distinct-name input refusal, while an admitted in-repo command still rejects equal
+    names. Same-name store continuation and catch-up requests remain available.
+
 ## Open Questions
 
 None.
@@ -1013,5 +1020,8 @@ None.
 
 - **A2** — 2026-11-05 — design: branch-link remedies state rename’s limits. _Supersedes:_ § 3.3 ¶1.
   _Trigger:_ F1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A3** — 2026-11-05 — design: same-name checks follow backend selection. _Supersedes:_ § 10, input-refusal bullet.
+  _Trigger:_ F2 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

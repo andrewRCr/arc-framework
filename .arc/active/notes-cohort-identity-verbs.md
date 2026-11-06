@@ -7,6 +7,8 @@
     - [Superseded continuation and catch-up rules](#superseded-continuation-and-catch-up-rules)
 - [Branch-link remedy limits](#branch-link-remedy-limits)
     - [Superseded branch-link rule](#superseded-branch-link-rule)
+- [Same-name refusal order](#same-name-refusal-order)
+    - [Superseded input-refusal rule](#superseded-input-refusal-rule)
 
 ## Catch-up publication recovery
 
@@ -77,5 +79,25 @@ established work-branch naming rule.
 > through its branch, so the first rename run's report of the branch kept is what names the catch-up. The tie lasts until
 > one holder completes, the lookup then ranking the live one first, or one holder's link moves: the other holder renamed
 > on the machine holding its own checkout, or the subject's catch-up run.
+
+## Same-name refusal order
+
+Amendment A3 keeps `handleRename`'s distinct-name check after `buildExecutor` selects the backend. The store arm's
+`readStoreRenameSubject` and `catchUpCoordinates` use equal names for continuation and catch-up; rejecting them in
+`RenameCommandInputSchema` would block those paths. The in-repo arm still applies
+`InRepoRenameCommandInputSchema`, so the observable difference is which refusal wins when admission also fails.
+The new native CLI case pins a missing project's precedence without changing repository content.
+
+### Superseded input-refusal rule
+
+> - `arc rename`, `arc errand close`, and `arc errand abandon` keep their in-repo arms unchanged and take every operand
+>   as a slug, since the in-repo implementation holds no UIDs. Unlike teardown, which passes its operand on unparsed
+>   before the flip (`runTeardownForOperand`), the in-repo arm parses each operand with `SlugSchema` once the store is
+>   open, since only the store says whether state is off-branch (`usesOffBranchState`), and refuses one it rejects
+>   through today's input refusal: `parseLifecycleCommand`'s for rename, and `locus.errand-close.input` and
+>   `locus.errand-abandon.input` for the Errand verbs. Today that parse runs first, so where an operand that is a UUID but
+>   not a slug also meets a refusal the verb reaches before its store opens — identity, the project root, configuration
+>   such as `branch.protection` and `branch.base`, the stdin Git boundary, or the store's own open — that refusal now
+>   shows first.
 
 ---

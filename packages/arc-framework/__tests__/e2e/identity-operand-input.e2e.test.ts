@@ -17,6 +17,14 @@ async function fixture(initialized: boolean) {
   return root;
 }
 describe("identity operands before the store capability flip", () => {
+  it("reports a missing project before rejecting a same-name rename", async () => {
+    const root = await fixture(false), before = await git(root, ["status", "--porcelain"]);
+    const result = await runArcNoTty(["--no-input", "rename", "example", "example", "--json"], root);
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({ status: "rejected", reason: expect.stringContaining("ARC project") });
+    expect(result.stdout + result.stderr).not.toContain("The new slug must differ");
+    expect(await git(root, ["status", "--porcelain"])).toBe(before);
+  });
   it.each(cases)("$command help describes UID subjects", async ({ command }) => {
     const root = await fixture(false);
     const result = await runArcNoTty([...command.split(" "), "--help"], root);

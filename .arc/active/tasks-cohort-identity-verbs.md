@@ -140,6 +140,8 @@ former slug naming the current one and admit a completed meta's rewrite onto a c
           input refusal paths. Earlier project-root refusals precede UUID rejection; lower-case UUIDs remain slugs.
           Shared the Errand terminal store boundary without growing the existing handlers.
 
+        - _Amended in:_ review-fix (A3).
+
 ## **Phase 2:** Selecting a subject by UID, and the Errand exits
 
 _Purpose:_ Build the subject operand every new verb shares — an exact UID scanned across the primary kinds a verb names,
@@ -710,3 +712,7 @@ Over the ref backend and, where it can form the state, the reference backend, fr
   catch-up only if the suffix is a former slug, explicitly stating the limitation otherwise; other branch shapes state
   that no rename-based repair is available. Executing a supported catch-up moves only the selected holder's link and
   resolves the tie.
+
+- `[ ]` Before the flip, `arc rename example example` outside an ARC project reports the missing project before its
+  distinct-name input refusal, while the same request in an admitted in-repo command retains that input refusal;
+  same-name store continuation and catch-up requests remain available.
