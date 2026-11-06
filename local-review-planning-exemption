@@ -3,7 +3,7 @@
   "slug": "local-review-planning-exemption",
   "claimId": "373cdc9dafbb368053255c7f30220750",
   "createdAt": "2026-11-06T15:02:15.033Z",
-  "updatedAt": "2026-11-06T15:02:15.033Z",
+  "updatedAt": "2026-11-06T17:51:21.646Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Diagnose whether local review preparation can grant the planning-grooming exemption without its classifier gate; report reachability before any code change",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Check whether local review prepare grants the planning-grooming exemption without the planning-lane gate",
   "originEntrySourceDigest": "sha256:8ab1c1a0bad84731e722f367ae62e5b1a3d5450cadec630826fadc0585114009",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/local-review-planning-exemption",
+    "headSha": "076be153418db52d2c7310c0c93c8ee2527f16b9"
+  }
 }
