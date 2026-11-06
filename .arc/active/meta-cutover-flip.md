@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** draft-design — the Owner's planning pass: dispositions table for the inbound entries (draft § Next)
 
 - **PR URL:** [none]
 - **Completed:** [none]
