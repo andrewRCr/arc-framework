@@ -13,11 +13,11 @@
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `process-task-loop`
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Parse an edit and send it against its base
+- **Last Completed:** Phase 2 complete — Task 2.4.R.c — Verify the ownership boundary and repaired continuation
+- **Next Task:** Task 3.1 — Complete verification (line ~491 in `tasks-projection-write-back.md`)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 under the task loop
+- **Next Action:** Begin Task 3.1 in a fresh session; load and follow `verify-work-unit.md`.
 
 - **PR URL:** [none]
 - **Completed:** [none]
