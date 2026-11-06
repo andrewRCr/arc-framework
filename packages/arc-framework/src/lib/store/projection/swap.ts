@@ -61,6 +61,8 @@ export interface SwapBatchResult {
   readonly copies: readonly { readonly path: string; readonly copy: string }[];
   /** The paths the batch removed a file from whose entry goes once the file and its last aside copy are gone. */
   readonly removals: readonly string[];
+  /** Staged replacements that did not remain installed at their paths when the batch settled. */
+  readonly unreplaced: readonly string[];
 }
 
 /** One file's swap as the first index write records it. */
@@ -96,11 +98,16 @@ export async function swapBatch(input: SwapBatchInput): Promise<SwapBatchResult>
     returned.push(...(swapped.returned ?? []).map(copy => ({ path: each.path, copy })));
     copies.push(...madeCopies(each.original, swapped.entry).map((copy) => ({ path: each.path, copy })));
   }
-  for (const each of plans) index = withEntry(index, each.path, await settled(input, each, entryAt(index, each.path)));
+  const unreplaced: string[] = [];
+  for (const each of plans) {
+    const settlement = await settled(input, each, entryAt(index, each.path));
+    index = withEntry(index, each.path, settlement.entry);
+    if (each.staged !== null && !settlement.installed) unreplaced.push(each.path);
+  }
   const removals = input.files.filter((file) => file.replace.staged === null && file.relaid !== true).map((file) => file.path);
   index = await dropRemovedEntries(index, input.checkout, removals);
   index = await commitReturnedCopies({ location: input.location, checkout: input.checkout, index, checkpoint: input.checkpoint, returned });
-  return { index, copies: remainingCopies(index, copies), removals };
+  return { index, copies: remainingCopies(index, copies), removals, unreplaced };
 }
 
 /**
@@ -122,15 +129,15 @@ export async function dropRemovedEntries(index: ProjectionIndex, checkout: strin
 }
 
 /** The entry the second write records: what a file the batch put in place no longer needs. */
-async function settled(input: SwapBatchInput, swap: PlannedSwap, entry: RecordEntry): Promise<RecordEntry> {
+async function settled(input: SwapBatchInput, swap: PlannedSwap, entry: RecordEntry): Promise<{ entry: RecordEntry; installed: boolean }> {
   // A removal links nothing, so its file stays pending until it and its copies are gone.
-  if (swap.staged === null) return entry;
+  if (swap.staged === null) return { entry, installed: false };
   const stat = await readStat(join(input.checkout, swap.path));
   const holdsStaged = stat?.type === "file" && stat.ino === swap.staged.stat.ino;
-  if (!holdsStaged) return entry;
+  if (!holdsStaged) return { entry, installed: false };
   // A read-back lays what write-back took in, so a file already pending before it waits for the next refresh.
   const placed = { ...entry, pending: swap.staged.file.rendering?.keepPending === true || input.readBack && swap.original.pending };
-  return swap.copy === null ? { ...placed, inProgress: null } : placed;
+  return { entry: swap.copy === null ? { ...placed, inProgress: null } : placed, installed: true };
 }
 
 function entryAt(index: ProjectionIndex, path: string): RecordEntry {

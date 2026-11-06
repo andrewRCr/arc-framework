@@ -6,6 +6,7 @@ import { createAdoptionFixture } from "../helpers/store/projection/adoption-fixt
 import { overrideEngineStore } from "../helpers/store/projection/engine-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
 import { recordReferences } from "../../src/lib/store/identity.js";
+import { createProjectionEnginePorts } from "../../src/lib/store/projection/engine-ports.js";
 import { startProjection } from "../../src/lib/store/projection/engine.js";
 import { beginProjectionCommand, projectionProcessState } from "../../src/lib/store/projection/process-state.js";
 import { gitBlobId } from "../../src/lib/store/projection/blob-id.js";
@@ -45,5 +46,37 @@ it("retains an accepted creation and its latest unsent bytes, then completes rea
   if (repaired.kind !== "index") throw new Error("Missing repaired index");
   expect(repaired.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false });
   expect(repaired.index.entries[path]).not.toHaveProperty("adoption");
+  expect(projectionProcessState().roots.get(f.root)?.unsent.has(path)).toBe(false);
+});
+
+it("retains a newer save that wins an accepted creation's swap and reports it until the next command", async () => {
+  const { f, primary, folder, projected } = await createAdoptionFixture();
+  const path = `${folder}/swap-note.md`, absolute = join(f.root, path);
+  const accepted = "accepted creation\n", latest = "new save wins\n";
+  await writeFile(absolute, accepted);
+  const reference = recordReferences["work-item/companion"](primary.reference.owner, "swap-note.md");
+  let recreate = true;
+  const native = createProjectionEnginePorts(f.root);
+  const input = { store: f.store, checkout: f.root, ports: () => ({ ...native, hooks: { afterMove: async (swapped: string) => {
+    if (recreate && swapped === path) await writeFile(absolute, renderStampedFile({ content: latest, stamp: gitBlobId(accepted, "sha1") }));
+  } } }) };
+  await startProjection(input);
+  expect(success(await f.store.read({ reference })).content).toBe(accepted);
+  expect(parseStampedFile(await readFile(absolute, "utf8")).content).toBe(latest);
+  const held = await readProjectionIndex(projected.location, true);
+  if (held.kind !== "index") throw new Error("Missing pending index");
+  expect(held.index.entries[path]).toMatchObject({ kind: "record", reference, pending: true, adoption: { kind: "read-back" } });
+  expect(projectionProcessState().roots.get(f.root)?.unsent.has(path)).toBe(true);
+  expect(projectionProcessState().diagnostics).toEqual(expect.arrayContaining([
+    expect.objectContaining({ path, mark: expect.objectContaining({ reason: expect.stringContaining("pending"),
+      remedy: { text: expect.stringContaining("next command") } }) }),
+  ]));
+  recreate = false;
+  await startProjection(input);
+  expect(success(await f.store.read({ reference })).content).toBe(latest);
+  const settled = await readProjectionIndex(projected.location, true);
+  if (settled.kind !== "index") throw new Error("Missing settled index");
+  expect(settled.index.entries[path]).toMatchObject({ pending: false });
+  expect(settled.index.entries[path]).not.toHaveProperty("adoption");
   expect(projectionProcessState().roots.get(f.root)?.unsent.has(path)).toBe(false);
 });

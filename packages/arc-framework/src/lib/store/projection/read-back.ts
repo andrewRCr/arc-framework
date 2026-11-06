@@ -4,7 +4,7 @@ import type { ProjectionIndex } from "./index-schema.js";
 import type { TakeInRequest, TakeInResult } from "./take-in-port.js";
 import { createWriteBackPort, sendWriteBack, type WriteBackContext, type WriteBackSend } from "./write-back.js";
 import { readReference } from "./change-detection.js";
-import { holdReadBack } from "./read-back-outcome.js";
+import { holdReadBack, readBackSwapResult } from "./read-back-outcome.js";
 import { guardReplacement } from "./replace-guard.js";
 import { stageRecordFile } from "./staging.js";
 import { swapBatch, type SwapBatchResult, type SwapHooks } from "./swap.js";
@@ -60,7 +60,5 @@ export async function installWriteBack(context: ReadBackContext, index: Projecti
     format: context.format, takeIn, hooks: context.hooks, checkpoint: context.checkpoint });
   context.recordBatch?.(swapped);
   updated = swapped.index;
-  const entry = updated.entries[request.path];
-  if (entry?.kind !== "record") throw new Error(`Read-back lost the projected entry for ${request.path}`);
-  return { result: { ...sent.result, entry }, index: updated };
+  return { result: readBackSwapResult(context, request, sent.result, swapped), index: updated };
 }

@@ -78,6 +78,35 @@ describe("projection command hooks", () => {
     expect(events).toEqual(["command output"]);
   });
 
+  it("reports a save that wins read-back's swap and persists it on the next command", async () => {
+    const h = await createEngineFixture(directories);
+    await h.edit("accepted first save\n");
+    let recreate = true;
+    const native = h.ports();
+    const events: string[] = [];
+    const program = new Command("arc").exitOverride();
+    program.command("probe").action(() => { events.push("command output"); });
+    registerProjectionHooks(program, { input: () => ({ store: h.store, checkout: h.checkout,
+      ports: () => ({ ...native, hooks: { afterMove: async path => {
+        if (recreate && path === h.path) await h.edit("new save wins\n");
+      } } }) }), writeError: text => { events.push(text); } });
+    await program.parseAsync(["probe"], { from: "user" });
+    expect((await h.stored()).content).toBe("accepted first save\n");
+    expect(await h.file()).toBe(renderStampedFile({ content: "new save wins\n", stamp: h.entry.base.blob }));
+    expect((await h.disk()).entries[h.path]).toMatchObject({ pending: true });
+    expect(projectionProcessState().roots.get(h.checkout)?.unsent.has(h.path)).toBe(true);
+    const warning = events.slice(0, events.indexOf("command output")).join("");
+    expect(warning).toContain(h.path);
+    expect(warning).toContain("pending");
+    expect(warning).toContain("next command");
+    recreate = false;
+    events.length = 0;
+    await program.parseAsync(["probe"], { from: "user" });
+    expect((await h.stored()).content).toBe("new save wins\n");
+    expect(projectionProcessState().roots.get(h.checkout)?.unsent.has(h.path)).toBe(false);
+    expect(events).toEqual(["command output"]);
+  });
+
   it("writes completed roots under save only for the root save command and records its start outcome", async () => {
     const h = await createEngineFixture(directories, { path: ".arc/completed/2026-q4/document.md" });
     await h.edit("saved archive edit\n");

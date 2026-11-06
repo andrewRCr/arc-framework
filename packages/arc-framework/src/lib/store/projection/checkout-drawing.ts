@@ -4,7 +4,7 @@ import type { TakeInRequest, TakeInResult } from "./take-in-port.js";
 import type { ReadBackContext } from "./read-back.js";
 import { createWriteBackPort, type WriteBackSend } from "./write-back.js";
 import { stageRecordFile } from "./staging.js";
-import { holdReadBack } from "./read-back-outcome.js";
+import { holdReadBack, readBackSwapResult } from "./read-back-outcome.js";
 import { guardReplacement } from "./replace-guard.js";
 import { readReference } from "./change-detection.js";
 import { swapBatch } from "./swap.js";
@@ -44,12 +44,12 @@ export async function drawCheckoutClash(context: ReadBackContext, index: Project
     files: [{ path: request.path, replace: guarded }], readBack: true, writer: context.writer,
     format: context.format, takeIn, hooks: context.hooks, checkpoint: context.checkpoint });
   context.recordBatch?.(swapped);
-  const entry = swapped.index.entries[request.path];
-  if (entry?.kind !== "record") throw new Error(`Drawing lost the projected entry for ${request.path}`);
+  const result = readBackSwapResult(context, request, sent.result, swapped);
+  const { entry } = result;
   if (mark !== undefined && entry.refused?.remedy.argv?.at(-1) === mark.remedy.argv?.at(-1)) {
     context.report?.({ path: request.path, copy: null, mark });
   }
-  return { result: { ...sent.result, entry }, index: swapped.index };
+  return { result, index: swapped.index };
 }
 
 function disagreementMark(reference: RecordReference): RefusedMark {
