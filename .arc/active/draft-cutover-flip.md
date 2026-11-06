@@ -11,15 +11,18 @@
 
 ## Planning state
 
-- **Readiness:** rough (first draft-design iteration, 2026-11-03, carried across the cut).
+- **Readiness:** rough (second draft-design iteration, 2026-11-05).
 - **Entry read:** depth `high`; `Class` stays `Heavy`. Derivation fires, since the window runbook, the flip change, and
   the land-at-flip split must be designed. Scale fires too, given a deletion surface spanning several subsystems. The
-  design is composed from the landed members' specifications, not invented.
+  design is composed from the landed members' specifications, not invented. Confirmed 2026-11-05 with no material new
+  evidence: the boundary stays one work unit, as cut on 2026-11-03. The draft runs about 1,130 lines, so the spec's size
+  against the 1,500-line mark is watched at create-spec's entry.
 - **Planning limits** (Owner-agreed, 2026-11-03):
     - Draft now what rests on landed work.
     - Write each item resting on an unlanded member against that member's approved specification, as a named
       assumption (§ Unknowns and Assumptions), re-checked when the member lands.
-    - Hold the import's part until `storage-ref-hardening`'s trial imports (its Tasks 5.12 and 5.13) report.
+    - Hold the import's part until `storage-ref-hardening`'s trial imports (its Tasks 5.12 and 5.13) report. Lifted
+      2026-11-03 (§ The import's part, released).
     - Generate no task list until `projection-worktrees` is in verification, except phases that touch no unlanded
       member.
 - **Resolved:**
@@ -31,16 +34,29 @@
     - the per-check sort: every lifecycle hook check and the CI planning classifier follow, and only the prose acting
       on two classifier commands goes at the flip (§ Direction);
     - the carve: five members, their items and edges, the size mark, and the follow-ons' Gate B placement (Owner,
-      2026-11-03; `cohort-storage-cutover.md`).
+      2026-11-03; `cohort-storage-cutover.md`);
+    - no separate import rerun before the rehearsal (Owner, 2026-11-05; § The import's part, released);
+    - the flip asks nothing of `projection-write-back` or `projection-worktrees` beyond their approved specifications
+      (Owner, 2026-11-05; § What the flip needs from the projection members);
+    - H4, the errata convention, moves from `cutover-documentation` into the flip's workflow rewrite, since it is
+      workflow text (Owner, 2026-11-05; § Direction);
+    - #9 leaves the set that builds before `projection-worktrees` lands (§ Building before `projection-worktrees`
+      lands);
+    - the pre-meta archive folders get metas in an Errand before the rehearsal, and the rehearsal carries an accounting
+      case for tracked state under the projected roots (Owner, 2026-11-05; § Tracked state the import does not claim);
+    - #25 and #28 hold against `storage-ref-hardening`'s landed § 10 (§ Named assumptions on unlanded members);
+    - the quiesce: the Owner stops every other session, then a check of what ARC can see, the import as the witness for
+      personal state, and a guard sealing the pre-flip builds (Owner, 2026-11-05; § The quiesce, and the check that it
+      holds); the guard lands as an Errand ahead of the window, and the check is a script in this unit's change (Owner,
+      2026-11-05);
+    - the rehearsal: two stages on full copies, stopping at the host boundary, with the first Errand and the first work
+      unit landed after the window as canaries (Owner, 2026-11-05; § The rehearsal).
 - **Open:**
     - whether the flip untracks the Candidate and transition records under `.arc/system/.internal/`, which decides
       #3's member;
-    - the quiesce, and the check that it holds;
-    - the rehearsal's shape;
     - a review stop rule, agreed before the second review pass.
 - **Next:**
-    - The quiesce and the check that it holds, then the rehearsal's shape, designed from the landed members'
-      specifications.
+    - Whether the flip untracks the `.internal/` records (#3), then the Owner's planning pass over the inbound entries.
 
 ### The cut
 
@@ -84,9 +100,10 @@ This map places items in sections only. Each is integrated or rejected at the Ow
   review left (the PM brief, § What the rehearsal needs first).
 - **The window** (quiesce, import, flip, notes retirement): #7, #19, #23's quiesce and import clauses, #30, #34.
 - **The flip change** (code that must change at the flip): #9, #11, #18, #26, #27's notice, #32.
-- **The flip's workflow rewrite:** #2, #6, #12, #13, #16, #21, #23, #25, #27, #37, H1, H5.
-- **Held by the follow-on members:** #1, #3, #4, #10, #17, #20, #24, #25, #33, #35, H2, H3, and H4, with the
-  shares of #1, #10, #25, and #26 that `cohort-storage-cutover.md` names.
+- **The flip's workflow rewrite:** #2, #6, #12, #13, #16, #21, #23, #25, #27, #37, H1, H4, H5.
+- **Held by the follow-on members:** #1, #3, #4, #10, #17, #20, #24, #25, #33, #35, H2, and H3, with the shares of
+  #1, #10, #25, and #26 that `cohort-storage-cutover.md` names. H4 left `cutover-documentation` for the flip's
+  rewrite (Owner, 2026-11-05); its inbound entry stays in that member's draft until the move reaches it.
 - **This draft's own text:** #29 (the Purpose line) and #36 (the citation repoint).
 
 ---
@@ -132,6 +149,9 @@ This map places items in sections only. Each is integrated or rejected at the Ow
 - **The workflow rewrite:**
     - #6, #12, #13, #16, #21, #23's five steps, #25's end state, #27's ceremony requests kept before each save, #37
       (the module deletion and the spine's remaining prose), H1, and H5;
+    - H4, `archive-work-unit.md` § Post-`Shipped` errata convention, whose "git history is the lock" misleads once a
+      shipped meta is a stored record: a correction becomes a write to the completed item, and its history is the
+      store's history of the archived meta (`spec-projection-write-back.md` § 8.4);
     - the always-loaded process text agents act on, which changes with the workflows: #14's Locus definition in
       `AGENT-BRIEF.ARC.md`, and the QUICK-REFERENCE verb index from #13;
     - the prose that arms auto-merge on `arc review planning-lane`, or claims the routing exemption through
@@ -149,34 +169,171 @@ This map places items in sections only. Each is integrated or rejected at the Ow
 - **`cutover-notes-removal`:** #1's notes-sync machinery, #10's sync-state ref, #17, and the notes configuration
   keys, once #37's module deletion leaves them no reader.
 - **`cutover-decompose-removal`:** #25's deletion set.
-- **`cutover-documentation`:** #33, H3, H4, the strategy rewrites the register names, and the ADR supersessions and
+- **`cutover-documentation`:** #33, H3, the strategy rewrites the register names, and the ADR supersessions and
   amendments.
 
 **The per-check sort** (2026-11-03): every lifecycle hook check and every part of the CI planning classifier
 follows. None fails once tracked state is gone, and nothing relies on its result; only the prose acting on two
-classifier commands goes at the flip, in the workflow rewrite above. The checks' detail and the deletion's ordering
-hazards are in `draft-cutover-tracked-state-removal.md`.
+classifier commands goes at the flip, in the workflow rewrite above. None refuses the flip commit itself, which deletes
+their inputs: each selects staged files with `--diff-filter=ACMR` (`.arc/system/.internal/githooks/pre-commit`), so a
+deletion gives it nothing to read, and no tracked document outside the state roots, `docs/`, and the tests links into
+them (checked 2026-11-05). The checks' detail and the deletion's ordering hazards are in
+`draft-cutover-tracked-state-removal.md`.
 
 ### Building before `projection-worktrees` lands
 
 Phases that touch no unlanded member can build in the flip member before `projection-worktrees` lands. They still land
 at the flip.
 
-- **Rehearsal harness:** #22's matrix, #31's partial-protection start, and `seam-delivery-review`'s cases.
+- **Rehearsal:** Stage 1 whole, with its copy driver (§ The rehearsal); for Stage 2, #22's matrix, #31's
+  partial-protection start, and the harness for `seam-delivery-review`'s cases.
 - **Quiesce:** #19's lock, and the check that the quiesce holds.
-- **Flip change:** #9, #11, and #26's install entries, with #3's test removal if the flip untracks the
-  `.internal/` records.
-- **Workflow rewrite:** every step from a landed member: #6, #12, #13, #16, #21, #23, #25, #37.
+- **Flip change:** #11 and #26's install entries, with #3's test removal if the flip untracks the `.internal/`
+  records.
+- **Workflow rewrite:** every step from a landed member: #6, #12, #13, #16, #21, #23, #25, #37, and H4.
 
 What waits:
 
 - for `projection-write-back`: #2, #5, #27, and H5;
-- for `projection-worktrees`: #18;
+- for `projection-worktrees`: #9, which rewires `handleSync` (`handlers/sync.ts`) where that member adds its
+  rebuild of deleted files ahead of the network steps (`spec-projection-worktrees.md` § 2.4), and #18;
 - for `adopter-install-authority`'s specification: #32;
-- for `cohort-identity-verbs`: H1;
-- for the trial imports: the import's part.
+- for `cohort-identity-verbs`: H1.
 
 ---
+
+### The quiesce, and the check that it holds
+
+Decided 2026-11-05 (Owner): check, then import at once, with the import's own comparisons as the witness, plus a guard
+that seals the pre-flip builds. ARC sees no harness session, so the Owner stops every other session, in every harness,
+after each has handed off (#2); no message round asks them to stop. What ARC can see, it checks.
+
+**The check,** run from the importing checkout immediately before the import, refuses with each failing checkout
+named:
+
+- the primary and every checkout whose marker names a work unit or an Errand is clean and its branch matches its
+  upstream, so each in-flight implementation unit sits at a task boundary, landed or paused; ARC's machinery checkouts,
+  which carry no such marker and sit detached by design (`spec-projection-worktrees.md` § 2.5), are torn down or
+  named;
+- every linked checkout whose marker names a work unit or an Errand holds the projection's lock (#19), the window
+  having run `git worktree lock --reason` with `PROJECTION_LOCK_REASON` (`lib/git/worktree-removal.ts`) on each one
+  without it;
+- no ended holder or work-unit husk remains to tear down (#30);
+- every checkout's build carries the sealing guard below.
+
+Then every checkout saves its personal state (#34), and the import runs. **The import is the witness for personal
+state:** it refuses a notes file whose disk copy differs from its saved copy, an attempt in flight in the review gate,
+and an unmapped review source, so a write that slipped past the stop refuses the import rather than vanishing. The
+hardening's trials ran this sequence in trial form, a save from every registered checkout and then the import, clean
+four times. The check also records each worktree's `HEAD` and a digest of its personal files; after the import it computes
+them again, and any change stops the window before the flip change.
+
+**The sealing guard** closes the one silent loss. Each checkout runs its own build, so a checkout that has not merged
+the flip would keep writing tracked state and Git notes after the import. Its personal writes would vanish, since the
+import retires notes. A small change lands on `main` ahead of the window: the in-repo implementation, and every notes
+write, refuses once `refs/arc/project/registry` exists, naming the remedy (merge base and rebuild). No such ref exists
+before the import, and every worktree on a machine shares one ref namespace, so the guard fires in every checkout the
+moment the primary imports. It lands ahead of the rehearsal, not only the window, so the rehearsal's copy carries it and
+exercises the moment it exists for. A clone on another machine sees the ref only through ARC's state fetch, so other machines
+stay a residual the window's own steps cover (#7). The guard is dead once the in-repo implementation goes, so
+`cutover-tracked-state-removal` deletes it with that implementation. Since it must be on `main` before the rehearsal,
+it cannot ride this unit's single landing: it lands as an Errand built from this section (Owner, 2026-11-05).
+
+**Where the check lives** (Owner, 2026-11-05): a script in this unit's change, reviewed and tested with it and exercised
+by the rehearsal, since it gates an irreversible step; `cutover-tracked-state-removal` deletes it with the in-repo
+implementation.
+
+### The rehearsal
+
+Decided 2026-11-05 (Owner): two stages, each on a full copy of this machine's repository, stopping at the host
+boundary, with the first landings after the window as canaries for what lies past it.
+
+**Two stages, because of the dates.** One dress rehearsal could not start until `projection-worktrees` lands and the
+flip change builds, which would put every step's first run in December, with the 2027-01-08 fallback close behind. The
+window's mechanics need neither, so they run first.
+
+- **Stage 1, the window's mechanics,** from this unit's branch before the flip change exists, once the sealing guard is
+  on `main` and the quiesce check builds. Its build is today's machinery plus the check. It runs the quiesce check
+  (§ The quiesce, and the check that it holds), a save from every copied checkout (#34), and a real import, publication
+  included, then:
+    - the sealing guard refusing an in-repo write in every copied checkout once the import has run;
+    - the import's second run and notes retirement (#7);
+    - the accounting case (§ Tracked state the import does not claim);
+    - #8's chain comparison;
+    - case 1 below;
+    - the import's time and peak memory, under `memcap_gated -m 6G` with its in-process ceiling below that cap.
+
+  It runs again once the pre-meta backfill lands. The first run's accounting case reports the twenty folders, which
+  shows the case catches the omission it exists for, and the second confirms the backfill.
+- **Stage 2, the dress rehearsal,** at the flip branch's head once the flip change builds. On a fresh copy it runs the
+  whole window in order: Stage 1's steps, then the flip change merged and rebuilt, each worktree's first
+  materialization, #15's and #30's checkout carries, and the per-branch untracks and workspace removals (§ Tracked
+  state the import does not claim). Then it runs:
+    - #5's parser check, which rests on `projection-write-back`;
+    - #2's work unit end to end through the rewritten workflows, through `arc publish`, with its pre-publication review
+      on the local source;
+    - cases 2 to 7 below, and the other store-backed paths;
+    - #28's representative cut (#25).
+- **Alongside Stage 2,** #22's matrix and #31's partial-protection start run in synthetic scratch repositories
+  through the spawned built CLI, as #22 specifies.
+
+Each stage records its run under `~/dev/arc-evidence/cutover-flip/` on this machine. A failure is fixed in this unit's
+change and its stage re-run. The window opens only after a clean Stage 2, which re-runs at the new head after any later
+change to the flip change, the import, or the rewritten workflows.
+
+**Copy safety.** The hardening's trial driver copied the primary with `cp -a`, which left `origin` on the host and the
+copy's worktree registrations on the live checkouts; a trial publishes nothing, so neither mattered. A real import would
+publish to the host and could reach the live worktrees. Before any `arc` command in a copy, the driver rewrites every
+remote to a local bare mirror and repairs each worktree registration to its copied checkout (`git worktree repair`). It
+then asserts both, with `storage.backing_repository` naming no other repository and `gh` finding none in the copy. A
+copy that fails any of these stops the stage.
+
+**The store-backed paths.** `seam-delivery-review`'s review stopped after five complete passes without converging,
+with most of pass 5's majors in code that runs only from the flip or in the import. The Owner accepted that residual,
+so the rehearsal exercises those paths (the PM brief, § What the rehearsal needs first). Each pass's disposition
+records settle all 123 of its findings: fixed with a failing-then-passing test, rejected with a reason, or deferred
+and since landed (pass 1's F5, as `ea8dd53321`). The rehearsal therefore runs paths, not known defects. The seven
+cases:
+
+1. the import refuses a review boundary filed under another work unit's owner (Stage 1);
+2. a pending local review's recovery command carries its operation reference and runs, with the hosted half at the
+   canary;
+3. lifecycle composition works with no projected directory;
+4. the next-pass budget counts a superseded terminal producer once;
+5. a consumed additional-pass grant stays consumed across native projection;
+6. reopen and readiness publish with the Candidate version;
+7. specification export refuses or contains a linked destination.
+
+Item #2's run also deliberately takes the other paths the passes name:
+
+- a re-entry carrying the Owner's judgments after a scope refusal, a self-review retry among them;
+- a native re-entry from an imported saved replay grant, where the copy's import carries one;
+- a reopen followed by session-init;
+- a work unit started under an archived unit's slug;
+- an earlier member's readiness once #28's cut closes its cohort.
+
+The finding-by-finding grouping is at `~/dev/arc-evidence/cutover-flip/seam-delivery-review-paths.md`.
+
+**Past the host boundary, the canaries** (Owner, 2026-11-05). The copies have no host, so no pull request, hosted
+review, CI, or Candidate tail runs in either stage. Publication and its readiness still run in Stage 2, since
+`arc publish` is a store write before the pull request opens (`prepare-work-unit.md`). Three groups of paths run only
+past the boundary:
+
+- the integration checkpoint and its landing write;
+- hosted review's approval and settlement;
+- native delivery's hosted member admission.
+
+A throwaway hosted repository would rehearse its own CI and reviewer setup more than the flip, and each of these paths'
+fixes carries a test at the host seam. Instead, the first Errand and the first work unit to land after the window are
+canaries. Each lands with the Owner present, and nothing else lands until it has. A small Errand goes first, through
+hosted review, settlement, and the Errand merge, which lands through `arc errand merge` rather than the integration
+checkpoint. `cutover-documentation`, mostly prose, is the preferred first work unit, through the pull request, hosted
+review, the integration checkpoint, and landing. Native delivery's hosted admission has no landing to run it until
+delivery resumes, so its first real run falls to `delivery-rebuild-continuity`.
+
+Because each canary lands through the step it tests, a native checkpoint or landing step that refuses there also
+refuses the landing of its own fix. The exit is an Owner-directed merge of that fix in the host's interface, with every
+independent check run first (`DEV-RULES.PROJECT.md` § Self-Hosting Defects).
 
 ## Unknowns and Assumptions
 
@@ -192,20 +349,100 @@ Each assumption is written against the named specification section and re-checke
 - #27, the movable set, the ceremony check requests, and the notice: `projection-write-back` § 7.6, for link rules in
   each kind's check, and § 11.7.
 - #36, the repoint from `spec-storage-projection.md`: each projection member's § 18.
-- #25 and #28, the decomposition rehearsal cut: `storage-ref-hardening` § 10, for copied-companion naming.
+- #25 and #28, the decomposition rehearsal cut: `storage-ref-hardening` § 10, for copied-companion naming. Re-checked
+  against it as landed (2026-11-04, #1271) and holding: `copyCoordinates` (`lib/decompose/scaffold-copy.ts`) names each
+  copied companion with `companionStoredName` (`lib/store/companion-name.ts`), and the additive report returns that
+  stored name (`reportDecomposeAdditive`). Its A3 keeps Design admission to a member's own conventional draft, spec,
+  or paired-spec names (`checkMetaDesignEntry`), so the representative cut copies a verbatim-keyed companion, as the
+  hardening's native case does with a nested notes companion, and gives each member a conventional Design, never a
+  verbatim one.
 - #32, removing the projected-root install entries: `adopter-install-authority` D1, D2, and D6, in its specification
   on its planning branch.
 - H1, the identity verbs' workflow changes: `cohort-identity-verbs` § Non-Goals ("Workflow text") and § 10.
-- H5, how often the save anchor moves: `projection-write-back` § 11.7, `projection-worktrees` § 11.
+- H4, the errata convention onto the archived meta's store history: `projection-write-back` § 8.4.
+- H5, how often the save anchor moves: `projection-write-back` § 11.7, `projection-worktrees` § 11.7.
 
 Item #32's member depends on this one, so its assumption constrains this unit downstream rather than gating it. #19 rests
 on `spec-projection-substrate.md` § 12.7, which has landed. #23's conditional on `delivery-observe-attest` is an open
 question, not an assumption.
 
-### Held until the trial imports report
+### What the flip needs from the projection members
 
-The import's part of the design waits for `storage-ref-hardening`'s trial imports and the import rerun over current
-`main`. That covers #7, #8, #34, and #23's import-trial clause.
+Nothing beyond their approved specifications (Owner, 2026-11-05), so no ask reaches either member's spec or task list.
+Each item was read against the section it rests on:
+
+- **#2:** write-back § 2.4 builds `arc save`, worktrees § 2.2 and § 2.5 build the fan-out and materialization, and both
+  members' § 1.5 name the live rehearsal as this unit's. No CLI process runs over either backend before the flip,
+  since `createStore` (`lib/store/create.ts`) builds the in-repo implementation alone, so the rehearsal runs the flip
+  change's own build.
+- **#5:** write-back § 7.6 leaves the catch to the rehearsal. Every entry kind now declares its grammar
+  (`ENTRY_CONFIGS`, `lib/store/kinds/entry-configs.ts`), which resolves the entry-shape half. The projected kinds with a
+  ref family and no parser in `PRODUCTION_REGISTRATIONS` are the free-prose ones — `work-item/notes`,
+  `personal/document`, and the interim `personal/session-context` — and `personal/errand-queue` has a parser but no
+  check. The rehearsal's check therefore requires a parser of each kind with structured content, not of every
+  writable kind.
+- **#18:** both members' § 18 state the flip's duty, and `lib/classification.ts` installs exactly three files into
+  projected roots: the ROADMAP and ATOMIC-INBOX templates and `completed/README.md`. The gap below is the flip's own.
+- **#27, and the segmentation-check capture:** write-back § 11.7's selection holds `active/current/`'s task list,
+  read through `readProjectedSelection`; the descriptor check's form is the flip's choice.
+- **H1:** `spec-cohort-identity-verbs.md` § Non-Goals ("Workflow text") and § 10 leave every workflow change to the
+  flip.
+- **H2 and H3:** worktrees § 12.8 keeps the user-surface rooting and its migration as in-repo arms, inert from the flip;
+  worktrees § 10.5's isolation test runs over the reference backend and guards no pre-flip layout.
+- **H5:** write-back § 11.7 clears the changed mark at `arc save` and leaves the cadence to the flip.
+
+### Tracked state the import does not claim
+
+The import reads the in-repo store's records (`lib/store/ref/import/`). That store discovers work items by their meta
+files (`collectHeldMetaSources`, `lib/store/in-repo/meta.ts`) and companions beside a meta by the `<word>-<slug>.md`
+pattern (`companionNames`, `lib/store/in-repo/paths.ts`, through `artifactMatcher`). A tracked file under a projected
+root that no record claims is never imported, and no trial reports it, since an omission refuses nothing. By that code
+path, three groups go unclaimed:
+
+- twenty pre-meta work-unit folders — 2025-q4's `01` to `04`, 2026-q1's `01` to `07`, and 2026-q2's `01` to `09` — each
+  holding a PRD, a task list, and completion, notes, or atomic files, but no meta;
+- `completed/2026-q1/completed-atomic-2026-q1.md`, at a quarter folder's top level;
+- `completed/README.md`, an installed file the flip deletes (#18, #32).
+
+Closed cohorts' folders (`<n>a_cohort-<slug>/`) are claimed: the import recovers their archive coordinate
+(`cohort-source.ts`). Untracking `completed/` at the flip would leave the first two groups in Git history only.
+
+**They get metas before the rehearsal** (Owner, 2026-11-05), in an Errand captured in `USER-INBOX § Errand`, so the
+rehearsal's import claims them, rather than moving out to a tracked folder beyond the projected roots. One archive keeps
+every shipped work unit, and nothing else in the repository reads a second location. The backfill is mechanical:
+
+- one meta per folder in the shape of the earliest archived metas, its values taken from the folder's own files or Git
+  history and `—` or `[none]` where neither says, its `Origin` line naming it a reconstruction and any field it
+  inferred, with `Design: [none]`, since a meta's design names only its own
+  `draft-` or `spec-` file (`checkMetaDesignEntry`, `lib/store/kinds/meta/reference-rules.ts`); each `prd-<slug>.md`
+  imports beside it as a companion;
+- `tasks-incidental-terminology-refactoring.md` renamed to `tasks-terminology-refactoring.md`;
+- `completed-atomic-2026-q1.md` split by its own `Branch:` lines into `atomic-structural-readiness-pass.md` and
+  `atomic-structural-validation.md`, in those two work units' folders.
+
+Today's task-list parser accepts all twenty task lists, and no slug clashes with another work unit. The rehearsal adds
+an accounting case: it tallies every tracked file under a projected root as imported, deliberately left, or reported,
+which catches this class of omission rather than these instances.
+
+Two window steps follow from the same rule. After the import, a pre-flip file left at a projected path is withheld at
+its checkout's first materialization, and the persist step refuses over it (`spec-projection-worktrees.md` § 2.5,
+§ 12.2):
+
+- each in-flight branch tracks its own `.arc/active/` files, which the flip commit on `main` does not delete, so each
+  branch untracks its own after the import;
+- each checkout's pre-flip workspace folder under `.arc/user/<id>/<slug>/` maps to no record
+  (`spec-projection-write-back.md` § 9), so it goes once the import has folded its session notes into the meta and
+  moved the rest into `scratch/`.
+
+### The import's part, released
+
+The hold on the import's part lifted when `storage-ref-hardening`'s trial imports (its Tasks 5.12 and 5.13) came back
+clean on 2026-11-03. No separate import rerun over current `main` runs before the rehearsal (Owner, 2026-11-05): the
+hardening's real-state trials took its place, the last at its final head `6343d32b6c` (`task-8.1-20261105T000620Z`).
+Each saved every registered checkout first, bound the review mapping, refused no record, and accounted for every review
+source (`notes-storage-ref-hardening.md` § Verification at the final head). A trial places no store and publishes
+nothing, so the build and publication stages first run in the rehearsal's own import, at its head. Items #7, #8, #34,
+and #23's import-trial clause draft now.
 
 ---
 
