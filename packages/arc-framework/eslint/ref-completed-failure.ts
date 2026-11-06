@@ -1,18 +1,17 @@
-/** Exit-code decisions in the ref backend must prove completed Git failure before suppressing it. */
-import { readdirSync, readFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+/** Require completed Git failure before ref-backend exit-code decisions. */
+
+import { dirname, resolve } from "node:path";
+import type { Rule } from "eslint";
 import ts from "typescript";
-import { describe, expect, it } from "vitest";
 
 type Helper = { parameter: string; expression: ts.Expression; declaration: ts.FunctionDeclaration };
-const refRoot = resolve(import.meta.dirname, "../../../../src/lib/store/ref");
+const refRoot = resolve(import.meta.dirname, "../src/lib/store/ref");
 
 /**
  * This is a conservative syntax guard, not a replacement for execution tests of process outcomes. It follows direct
  * const projections of an exit code; it does not infer `let` or reassigned aliases, or chains of aliases.
  */
-function unguardedExitCodes(text: string, filename = "fixture.ts"): string[] {
-  const source = ts.createSourceFile(filename, text, ts.ScriptTarget.Latest, true);
+function findUnguardedExitCodes(source: ts.SourceFile, filename: string): ts.Node[] {
   const helpers = new Map<string, Helper>();
   const completionNames = new Set<string>();
   for (const statement of source.statements) {
@@ -146,7 +145,7 @@ function unguardedExitCodes(text: string, filename = "fixture.ts"): string[] {
     }
     return undefined;
   }
-  const violations: string[] = [];
+  const violations: ts.Node[] = [];
   function visit(node: ts.Node): void {
     const receiver = exitCodeReceiver(node) ?? (ts.isIdentifier(node) ? aliasReceiver(node) : undefined);
     if (receiver !== undefined && isClassification(node)) {
@@ -164,8 +163,7 @@ function unguardedExitCodes(text: string, filename = "fixture.ts"): string[] {
         if (ts.isConditionalExpression(parent) && parent.condition === ancestor) guarded ||= proves(parent.condition, true, error);
       }
       if (!guarded) {
-        const position = source.getLineAndCharacterOfPosition(node.getStart(source));
-        violations.push(`${filename}:${position.line + 1}:${position.character + 1} ${node.getText(source)}`);
+        violations.push(node);
       }
     }
     ts.forEachChild(node, visit);
@@ -174,85 +172,43 @@ function unguardedExitCodes(text: string, filename = "fixture.ts"): string[] {
   return violations;
 }
 
-const canonicalImport = 'import { isCompletedGitFailure } from "../../git/process-error.js";\n';
 
-const safe = [
-  'const code = error.exitCode; if (isCompletedGitFailure(error) && code === 1) return null;',
-  'const { exitCode: code } = error; if (!isCompletedGitFailure(error)) throw error; if (code === 1) return null;',
-  'const code = error.exitCode; throw new Error(String(code));',
-  'const { exitCode: code } = error; return { status: "failed", exitCode: code };',
-  'const code = error.exitCode; { const code = 2; if (code === 1) return null; }',
-
-  'throw new Error(String(error.exitCode));',
-  'return { status: "failed", exitCode: error.exitCode };',
-  'if (isCompletedGitFailure(error) && error.exitCode === 1) return "";',
-  'if (!isCompletedGitFailure(error) || error.exitCode !== 5) throw error;',
-  'if (!isCompletedGitFailure(error)) throw error; if (error.exitCode === 1) return null;',
-  'if (!isCompletedGitFailure(error)) { throw error; } return error.exitCode === 1;',
-  'function complete(e: unknown) { return isCompletedGitFailure(e); } if (complete(error) && error.exitCode === 1) return false;',
-  'function complete(e: unknown) { return isCompletedGitFailure(e); } function done(x: unknown) { return complete(x); } if (done(error) && error.exitCode === 1) return false;',
-  'import { isCompletedGitFailure as done } from "../../git/process-error.js"; if (done(error) && error["exitCode"] === 1) return null;',
-  'return isCompletedGitFailure(error) && error.exitCode === 1;',
-  'return isCompletedGitFailure(error) && error.exitCode === 1 ? null : fail(error);',
-  'promise.catch(({ stderr }) => stderr === "" ? null : fail());',
-  'promise.catch((caught) => isCompletedGitFailure(caught) && caught.exitCode === 1 ? null : fail(caught));',
-];
-const unsafe = [
-  'const code = error.exitCode; if (code === 1) return null;',
-  'const { exitCode: code } = error; if (code === 1) return null;',
-  'const { exitCode } = error; if (exitCode === 1) return null;',
-  'const code = error.exitCode; if (isCompletedGitFailure(other) && code === 1) return null;',
-
-  'if (isGitProcessError(error) && error.kind === "nonzero-exit" && error.exitCode === 1) return "";',
-  'if (!isGitProcessError(error) || error.kind !== "nonzero-exit" || error.exitCode !== 5) throw error;',
-  '// isCompletedGitFailure(error)\nif (error.exitCode === 1) return false;',
-  'if (isCompletedGitFailure(other) && error.exitCode === 1) return null;',
-  'if (isCompletedGitFailure(error) || error.exitCode === 1) return null;',
-  'if (flag) isCompletedGitFailure(error); if (error.exitCode === 1) return null;',
-  'if (error.exitCode === 1) { isCompletedGitFailure(error); return null; }',
-  'function complete(e: unknown) { return isCompletedGitFailure(other); } if (complete(error) && error.exitCode === 1) return false;',
-  'function complete(e: unknown) { return complete(e); } if (complete(error) && error.exitCode === 1) return false;',
-  'if (!isCompletedGitFailure(error) && error.exitCode !== 5) throw error;',
-  'if (error["exitCode"] === 1) return null;',
-  'try { run(); } catch ({ exitCode }) { if (exitCode === 1) return null; }',
-  'promise.catch(({ exitCode }) => exitCode === 1 ? null : fail());',
-  'promise.catch(({ exitCode: code }) => { if (code === 1) return null; });',
-];
-
-const untrusted = [
-  'if (isCompletedGitFailure(error) && error.exitCode === 1) return null;',
-  'function isCompletedGitFailure(e: unknown) { return true; } if (isCompletedGitFailure(error) && error.exitCode === 1) return null;',
-  'import { isCompletedGitFailure } from "../../fake/git/process-error.js"; if (isCompletedGitFailure(error) && error.exitCode === 1) return null;',
-  canonicalImport + 'function classify(isCompletedGitFailure: (e: unknown) => boolean) { if (isCompletedGitFailure(error) && error.exitCode === 1) return null; }',
-  canonicalImport + 'function classify() { const isCompletedGitFailure = () => true; if (isCompletedGitFailure(error) && error.exitCode === 1) return null; }',
-  canonicalImport + 'try { run(); } catch ({ isCompletedGitFailure }) { if (isCompletedGitFailure(error) && error.exitCode === 1) return null; }',
-  canonicalImport + 'function classify([isCompletedGitFailure]: Array<(e: unknown) => boolean>) { if (isCompletedGitFailure(error) && error.exitCode === 1) return null; }',
-  canonicalImport + 'function complete(e: unknown) { return isCompletedGitFailure(e); } function classify() { const complete = (e: unknown) => true; if (complete(error) && error.exitCode === 1) return null; }',
-  canonicalImport + 'function complete(e: unknown) { return isCompletedGitFailure(e); } function classify({ complete }: Checks) { if (complete(error) && error.exitCode === 1) return null; }',
-];
-
-describe("ref completed-failure guard fixtures", () => {
-  it.each(untrusted)("rejects untrusted or shadowed completion: %s", (source) => {
-    expect(unguardedExitCodes(source)).toHaveLength(1);
-  });
-  it.each(safe)("accepts proven completion: %s", (source) => {
-    expect(unguardedExitCodes(canonicalImport + source)).toEqual([]);
-  });
-  it.each(unsafe)("rejects incomplete completion: %s", (source) => {
-    expect(unguardedExitCodes(canonicalImport + source)).toHaveLength(1);
-  });
-});
-
-function sourceFiles(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
-    const path = join(directory, entry.name);
-    return entry.isDirectory() ? sourceFiles(path) : entry.name.endsWith(".ts") ? [path] : [];
-  });
+function parsedModule(context: Rule.RuleContext): ts.SourceFile {
+  const services: unknown = context.sourceCode.parserServices;
+  if (services === null || typeof services !== "object" || !("esTreeNodeToTSNodeMap" in services)) {
+    throw new Error("The completed-failure guard requires the TypeScript parser's node map");
+  }
+  const map: unknown = services.esTreeNodeToTSNodeMap;
+  if (map === null || typeof map !== "object" || !("get" in map) || typeof map.get !== "function") {
+    throw new Error("The completed-failure guard requires the TypeScript parser's node map");
+  }
+  const node: unknown = (map as { get(node: unknown): unknown }).get(context.sourceCode.ast);
+  if (node === null || typeof node !== "object" || !("kind" in node) || node.kind !== ts.SyntaxKind.SourceFile) {
+    throw new Error("The completed-failure guard requires the parser's original TypeScript source file");
+  }
+  return node as ts.SourceFile;
 }
 
-it("routes ref-backend exit-code suppression through isCompletedGitFailure", () => {
-  const files = sourceFiles(refRoot).sort();
-  expect(files.length).toBeGreaterThan(0);
-  const violations = files.flatMap(file => unguardedExitCodes(readFileSync(file, "utf8"), relative(refRoot, file)));
-  expect(violations, "Prove completed Git failure before treating its exit code as absence or a no-op").toEqual([]);
-});
+/** Enforce completion proof before an exit code controls absence or a no-op. */
+export const refCompletedFailureRule: Rule.RuleModule = {
+  meta: {
+    type: "problem",
+    schema: [],
+    messages: { unguarded: "Prove completed Git failure with isCompletedGitFailure before classifying its exit code" },
+  },
+  create(context) {
+    return {
+      Program() {
+        const source = parsedModule(context);
+        for (const node of findUnguardedExitCodes(source, context.filename)) {
+          const start = source.getLineAndCharacterOfPosition(node.getStart(source));
+          const end = source.getLineAndCharacterOfPosition(node.getEnd());
+          context.report({
+            loc: { start: { line: start.line + 1, column: start.character }, end: { line: end.line + 1, column: end.character } },
+            messageId: "unguarded",
+          });
+        }
+      },
+    };
+  },
+};
