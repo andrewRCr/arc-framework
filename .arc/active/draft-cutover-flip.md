@@ -25,7 +25,7 @@
 - **Entry read:** depth `high`; `Class` stays `Heavy`. Derivation fires, since the window runbook, the flip change, and
   the land-at-flip split must be designed. Scale fires too, given a deletion surface spanning several subsystems. The
   design is composed from the landed members' specifications, not invented. Confirmed 2026-11-05 with no material new
-  evidence: the boundary stays one work unit, as cut on 2026-11-03. The draft runs about 1,350 lines, so the spec's size
+  evidence: the boundary stays one work unit, as cut on 2026-11-03. The draft runs about 1,370 lines, so the spec's size
   against the 1,500-line mark is watched at create-spec's entry.
 - **Planning limits** (Owner-agreed, 2026-11-03):
     - Draft now what rests on landed work.
@@ -125,11 +125,14 @@
       while any pull request into `main` but the flip's own is open, scans a live Errand's branch as well as a work
       unit's, and records `origin/main`'s tip; each checkout removes the identity-root files the import moved to
       `scratch/`; tests and checks that read the state roots from the tree change with the flip, and CI passes over the
-      post-deletion tree before the window; the window closes by deleting its ref hold (§ The window; § The flip
-      change).
+      post-deletion tree before the window; the window closes by deleting its ref hold (§ The window; § The flip change);
+    - planning review's fix checks over the second pass's folds (2026-11-06), each fold approved with its disposition:
+      the check re-reads only the host's tip of `main` before the flip's merge, as the last act before it, and refuses
+      unless the tip it records equals the importing checkout's `HEAD`; the pull-request check takes a supplied listing
+      only where `gh` finds no repository; an abort deletes the ref hold once restored and, after the flip's deletion
+      commit, reverts that commit and restores the override (§ The window).
 - **Open:** none.
-- **Next:** planning review: the second fix check over the second pass's folds, the third pass, `arc check increment`,
-  and the capture commit.
+- **Next:** planning review: the third pass, `arc check increment`, and the capture commit.
 
 ### The cut
 
@@ -534,13 +537,15 @@ build until the flip has merged (§ The flip change).
   The check then recomputes what it recorded, and any change stops the window before the flip change.
 - **The flip lands** (below): one commit on its branch deletes the tracked state the import took, its own records, the
   shared roots' files, which are `main`'s (above), and the `.internal/` records, all of which its in-repo lifecycle
-  reads under the override until the import, and the Owner merges that exact head in the host's interface. Its archive
-  is then written through the store from its build (`arc archive`), and the register rows its landing realizes close the
-  same way, as store writes to `cohort-state-storage.md`'s record. No landing-commit link is written, since no
-  checkpoint binds the merge (`spec-seam-delivery-review.md` A39), and its own checkout, spawned before the flip, holds
-  an unbound marker, which claim readers refuse before deriving any frame (`readStoreWorkUnitEvidence`,
-  `lib/locus/store-work-unit-evidence.ts`), so that checkout leaves by `arc locus release`, the one exit for a spawned
-  marker whose holder is archived (`spec-lifecycle-slug-selection.md` § 7.4; § The rehearsal, the checkout carries).
+  reads under the override until the import, and the Owner merges that exact head in the host's interface, once its
+  checks there have finished and, as the last act before the merge, the host's tip of `main` reads as recorded (§ The
+  quiesce, and the check that it holds). Its archive is then written through the store from its build (`arc archive`),
+  and the register rows its landing realizes close the same way, as store writes to `cohort-state-storage.md`'s record.
+  No landing-commit link is written, since no checkpoint binds the merge (`spec-seam-delivery-review.md` A39), and its
+  own checkout, spawned before the flip, holds an unbound marker, which claim readers refuse before deriving any frame
+  (`readStoreWorkUnitEvidence`, `lib/locus/store-work-unit-evidence.ts`), so that checkout leaves by
+  `arc locus release`, the one exit for a spawned marker whose holder is archived (`spec-lifecycle-slug-selection.md`
+  § 7.4; § The rehearsal, the checkout carries).
 - **Each checkout,** in turn:
     - deletes its own copy of a Candidate or boundary record that differs from `main`'s, and its own `.arc/active/`
       files, from disk as well as the index, and commits the deletion, since a merge refuses an index that differs from
@@ -569,12 +574,12 @@ rehearsal), so it stays off the flip's own landing. The flip therefore finishes 
 in-repo implementation ahead of the window. After the import has read its records and `main`'s, its checkout drops the
 override and one commit deletes the tracked state the import took from its branch, so the merged head differs from the
 head reviewed and verified only by deleted state files, a tree CI passed ahead of the window (above). The Owner
-authorizes that exact head, every independent check run there first, and merges it in the host's interface; no ARC
-checkpoint runs. The flip's post-merge records are the first lifecycle writes the store takes past the host boundary.
-Merging after the import keeps the abort rule as it stands: until the merge, an abort leaves `main` untouched (§ Abort
-and recovery). Merging first, through today's checkpoint, was the alternative: it would put the merge, which cannot
-simply be undone, ahead of an import not yet shown to hold, and turn an import's abort into a revert of the flip on
-`main`.
+authorizes that exact head, every independent check run there first, reads the host's tip of `main` once more as the
+last act before the merge, and merges it in the host's interface; no ARC checkpoint runs. The flip's post-merge records
+are the first lifecycle writes the store takes past the host boundary. Merging after the import keeps the abort rule as
+it stands: until the merge, an abort leaves `main` untouched (§ Abort and recovery). Merging first, through today's
+checkpoint, was the alternative: it would put the merge, which cannot simply be undone, ahead of an import not yet shown
+to hold, and turn an import's abort into a revert of the flip on `main`.
 
 #### The quiesce, and the check that it holds
 
@@ -631,8 +636,9 @@ named:
   the repository allows auto-merge, the grooming and planning lanes arm it (`gh pr merge --auto`, `drain-inbox.md`), an
   Errand left awaiting its merge keeps its pull request open (`arc errand leave --state awaiting-merge`,
   `run-errand.md`), and `main`'s ruleset requires only the `ci-ok` check. The remedy is to merge each ahead of the
-  window or close it. The check reads the open pull requests from the host and refuses when it cannot; the rehearsal,
-  whose copies reach no host, supplies the listing instead, and the window's run never takes a supplied one.
+  window or close it. The check reads the open pull requests from the host and refuses when it cannot; it takes a
+  supplied listing only where `gh` finds no repository, as in the rehearsal's copies (§ The rehearsal, copy safety), and
+  refuses one anywhere else, so the window's run cannot take one.
 
 **Then every checkout saves its personal state, and the import runs** (#34). The import blocks on every personal file
 whose disk copy differs from its saved notes copy, naming the remedy `arc user save` and `arc user load`
@@ -648,9 +654,13 @@ checkout and then the import, clean four times.
 **What the check records.** Each worktree's `HEAD`, a digest of its personal files, and `origin/main`'s tip, which the
 window computes again after the import, any change stopping it before the flip change, and `origin/main`'s tip alone
 once more before the flip's merge, a change there stopping the merge, since by then the flip's own checkout has made its
-deletion commit. Each read of that tip asks the host (`git ls-remote origin refs/heads/main`) rather than the fetched
-ref, which moves only on a fetch. An Errand write needs no comparison of its own: the import's landing leases each
-transient-identity ref on the tip it read, so one that advanced refuses the landing (`landImportRefs`,
+deletion commit; that read comes after the checks at the flip's merged head have finished, as the last act before the
+merge, since `main`'s ruleset does not require a branch to be current and a merge landing while they run would otherwise
+go unseen. Each read of that tip asks the host (`git ls-remote origin refs/heads/main`) rather than the fetched ref,
+which moves only on a fetch, and the check refuses unless the tip it records equals the importing checkout's `HEAD`,
+which the import reads (`importTrackedState`'s `codeHead`, `lib/store/ref/import/entry.ts`), so a merge landing between
+the fetch and the check stops the window too. An Errand write needs no comparison of its own: the import's landing
+leases each transient-identity ref on the tip it read, so one that advanced refuses the landing (`landImportRefs`,
 `lib/store/ref/import/land.ts`), and from then on the sealing guard refuses the Errand writers
 (`transactTransientIdentities`, `lib/errand/identity-transaction.ts`, which writes them through `writeTreeCommit`,
 `lib/errand/ref-tree.ts`). The check also records every `refs/arc/*` tip, local and on `origin`, and holds each under
@@ -699,7 +709,11 @@ make them.
   ref is gone with the rest, which lifts the guard, while refs the import never touched, such as delivery's candidate
   refs and the notes sync state, come back unchanged rather than being deleted. Stage 1 exercises it once, after
   publication, and imports again on the aborted copy (§ The rehearsal). Once restored, the abort deletes the hold under
-  `refs/arc-window/`, so a re-run's check records afresh.
+  `refs/arc-window/`, so a re-run's check records afresh. An abort after the flip's deletion commit also reverts that
+  commit on the flip's branch, an ordinary commit rather than a rewrite of the pushed branch, and puts its checkout back
+  under the override before any further `arc` command, since on a tree that no longer tracks ARC state the flip build's
+  refusal does not fire (§ The flip change); before the window runs again the flip's head is fixed again, merging `main`
+  and passing CI, as ahead of the first run.
 - **After publication,** the pre-import tidy still matters, since anything pushed may already have been copied.
 - **After the merge, fix forward** (Owner, 2026-11-06). A failed step past the merge, the flip's own archive or register
   closures, a checkout's deletion commit, its merge and rebuild, its workspace folder's removal, its first
