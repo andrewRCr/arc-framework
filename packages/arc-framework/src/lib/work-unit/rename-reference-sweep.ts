@@ -135,7 +135,8 @@ function isLifecycleTierFile(path: string): boolean {
     || path.startsWith("backlog/provisional/");
 }
 
-function rewriteArtifactSelfReferences(
+/** Apply only the conventional artifact's supported self-title and planning-operand rewrites. */
+export function rewriteArtifactSelfReferences(
   relativePath: string,
   content: string,
   sourceSlug: string,

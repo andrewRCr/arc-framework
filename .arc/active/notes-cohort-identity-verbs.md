@@ -229,4 +229,11 @@ ambiguous name reads on the native backend. The memory fixture's name read uses 
 that tie. Every case preserves the complete post-arrival state on refusal, then retries and checks the owned rewrite
 beside the shared reference's rewrite, report or preservation.
 
+Admission also reuses preparation's conventional self-reference transformer and its group-relative filename projection.
+Title-only and backticked `--plan` references require the same owned participant capture as filename citations. Eligible
+shared research/analysis companions require capture only when the source names the subject alone; an ambiguous or
+other-holder self-reference remains untouched and unreported. A shared self-reference edit prepared before name
+resolution changes refuses at admission and succeeds on fresh retry with that reference preserved. Unsupported titles,
+plain operands, nonconventional companion filenames and started/completed shared groups retain their existing behavior.
+
 ---

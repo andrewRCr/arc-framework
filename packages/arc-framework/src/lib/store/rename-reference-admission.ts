@@ -1,6 +1,6 @@
 /** Revalidate rename participants and reference authority inside the backend's atomic write admission. */
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
-import { rewriteBacktickedArtifactReferences } from "../work-unit/rename-reference-sweep.js";
+import { rewriteBacktickedArtifactReferences, rewriteArtifactSelfReferences } from "../work-unit/rename-reference-sweep.js";
 import { findAmbiguousPairedReference } from "../work-unit/paired-reference-owners.js";
 import { sameOwner, sameReference, OwnerIdentitySchema, recordReferences } from "./identity.js";
 import type { StoreRecord } from "./read.js";
@@ -10,7 +10,7 @@ import { parseCohortDocument } from "./kinds/cohort/parser.js";
 import { rewriteCohortFilenameReferences } from "./kinds/cohort/filename-reference-writer.js";
 import { rewriteCohortMemberHeading } from "./kinds/cohort/member-heading-writer.js";
 import { resolveRenameReferences } from "./rename-reference-resolution.js";
-import { ownedArtifactRenames } from "./rename-artifact-names.js";
+import { ownedArtifactRenames, renameSweepFilename } from "./rename-artifact-names.js";
 import { planRenameMemberHeading } from "./rename-member-heading.js";
 import { readLifecycleView } from "./lifecycle-view.js";
 import { observeAllHoldings } from "./kinds/cohort/check-support.js";
@@ -20,6 +20,7 @@ interface RenameAdmission {
   primary: StoreRecord;
   target: string;
   artifacts: ReadonlyMap<string, string>;
+  records: readonly StoreRecord[];
 }
 
 /** Admit prepared participants and cross-owner rewrites against the locked before view. */
@@ -35,9 +36,9 @@ export async function checkRenameReferences(input: WriteCheckInput): Promise<rea
   if (captured.status !== "known") return fail(captured.status === "unavailable" ? captured.condition : "Rename reference evidence is absent.");
   const own = await observeRecords(input.before, { family: primary.reference.owner.type === "cohort" ? "cohort" : "work-item", owner: primary.reference.owner });
   if (own.status !== "known") return fail(own.status === "unavailable" ? own.condition : "The renamed owner's records are absent.");
-  const context: RenameAdmission = { input, primary, target,
-    artifacts: primary.reference.owner.type === "cohort" ? new Map() : ownedArtifactRenames(own.value, primary, target) };
   const participants = [...captured.value, ...own.value.filter(record => record.reference.kind !== "work-item/cut-map")];
+  const context: RenameAdmission = { input, primary, target, records: participants,
+    artifacts: primary.reference.owner.type === "cohort" ? new Map() : ownedArtifactRenames(own.value, primary, target) };
   const problem = await participantProblem(context, participants) ?? await sharedRecordsProblem(context, captured.value);
   return problem === null ? [] : fail(problem);
 }
@@ -47,17 +48,26 @@ async function participantProblem(context: RenameAdmission, records: readonly St
   if (observed.status !== "known") return observed.status === "unavailable" ? observed.condition : "Rename participants are unavailable.";
   const uncaptured = observed.value;
   if (uncaptured.length === 0) return null;
-  if (uncaptured.some(record => sameOwner(record.reference.owner, context.primary.reference.owner) && hasFilenameReference(context, record.content))) {
+  if (uncaptured.some(record => sameOwner(record.reference.owner, context.primary.reference.owner)
+    && (hasFilenameReference(context, record.content) || hasSelfReference(context, record)))) {
     return "The rename's required owned-artifact participants changed after preparation.";
   }
   if (context.primary.reference.owner.type === "cohort") {
     const problem = await holdingParticipantsProblem(context, uncaptured);
     if (problem !== null) return problem;
   }
-  if (!uncaptured.some(record => !sameOwner(record.reference.owner, context.primary.reference.owner) && sharedParticipant(context, record))) return null;
+  return sharedParticipantsProblem(context, uncaptured);
+}
+
+async function sharedParticipantsProblem(context: RenameAdmission, records: readonly StoreRecord[]): Promise<string | null> {
+  const shared = records.filter(record => !sameOwner(record.reference.owner, context.primary.reference.owner));
+  const references = shared.some(record => sharedParticipant(context, record));
+  const selfReferences = shared.some(record => hasSelfReference(context, record));
+  if (!references && !selfReferences) return null;
   const resolution = await resolveRenameReferences(context.input.before, context.primary.reference, context.primary.reference.owner.name);
   if (resolution.status === "refused") return resolution.refusal.condition;
-  return resolution.result === "other" ? null : "The rename's required reference participants changed after preparation.";
+  return references && resolution.result !== "other" || selfReferences && resolution.result === "subject"
+    ? "The rename's required reference participants changed after preparation." : null;
 }
 
 async function unpreparedParticipants(context: RenameAdmission, records: readonly StoreRecord[]): Promise<RuleObservation<readonly StoreRecord[]>> {
@@ -91,6 +101,20 @@ function sharedParticipant(context: RenameAdmission, record: StoreRecord): boole
   if (!cohort && (fields.data.dependsOn.includes(source)
     || fields.data.pause?.waitsOn?.kind === "work-unit" && fields.data.pause.waitsOn.slug === source)) return true;
   return record.placement?.kind === "backlog" && fields.data.state === "Planning" && hasFilenameReference(context, record.content);
+}
+
+function rewriteSelfReference(context: RenameAdmission, record: StoreRecord, content: string): string {
+  if (context.primary.reference.owner.type !== "work-item" || record.reference.kind === "cohort/document") return content;
+  if (record.reference.kind === "work-item/meta" && !sameOwner(record.reference.owner, context.primary.reference.owner)) {
+    const fields = ParsedMetaRecordSchema.safeParse(record.fields);
+    if (record.placement?.kind !== "backlog" || !fields.success || fields.data.state !== "Planning") return content;
+  }
+  return rewriteArtifactSelfReferences(renameSweepFilename(context.records, context.primary, record), content,
+    context.primary.reference.owner.name, context.target, context.artifacts);
+}
+
+function hasSelfReference(context: RenameAdmission, record: StoreRecord): boolean {
+  return rewriteSelfReference(context, record, record.content) !== record.content;
 }
 
 function hasFilenameReference(context: RenameAdmission, content: string): boolean {
@@ -149,7 +173,9 @@ async function stubReferenceRecords(input: WriteCheckInput, metas: readonly Stor
 async function sharedReferenceProblem(context: RenameAdmission, prior: StoreRecord, next: StoreRecord): Promise<string | null> {
   const { primary, input } = context, source = primary.reference.owner.name;
   const cohort = primary.reference.owner.type === "cohort";
-  if (changedFilename(context, prior.content, next.content) || (!cohort && changedWorkItemEdge(prior, next, source))) {
+  if (changedFilename(context, prior.content, next.content)
+    || removedText(prior.content, next.content, content => rewriteSelfReference(context, prior, content))
+    || (!cohort && changedWorkItemEdge(prior, next, source))) {
     const resolution = await resolveRenameReferences(input.before, primary.reference, source);
     if (resolution.status === "refused") return resolution.refusal.condition;
     if (resolution.result !== "subject") return `Shared references to '${source}' no longer name only the renamed owner.`;

@@ -1,6 +1,6 @@
 /** Rename target admission shares creation's ranked namespace over both backends. */
 import { describe, expect, it } from "vitest";
-import { createKindRegistry, RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { createKindRegistry, RecordReferenceSchema, sameOwner } from "../../src/lib/store/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { createRefFixture } from "../helpers/store/ref-fixture.js";
@@ -268,4 +268,183 @@ describe.each(["reference", "ref"] as const)("owned participant resolution over 
         expect.objectContaining({ record: expect.objectContaining({ name: shared.reference.owner.name }) }),
       ]) : [] } });
     }, 60_000);
+});
+
+function renameUid(source: StoreRecord): string {
+  if (source.reference.owner.type !== "work-item" || source.reference.owner.uid === undefined) throw new Error("Expected source UID");
+  return source.reference.owner.uid;
+}
+
+function beforeRenameBatch(inject: () => Promise<void>): (store: Store) => Store {
+  return store => new Proxy(store, { get(target, key) {
+    if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
+      await inject();
+      return store.batch(input);
+    };
+    const value: unknown = Reflect.get(target, key);
+    return typeof value === "function" ? value.bind(target) : value;
+  } });
+}
+
+function selfReferenceArtifacts(owner: StoreRecord["reference"]["owner"], form: "title" | "plan", source: string, shared = false) {
+  const roles = shared ? [["work-item/companion", "Research", `research-${source}.md`],
+    ["work-item/companion", "Analysis", `analysis-${source}.md`]] as const
+    : [["work-item/draft", "Draft"], ["work-item/spec", "Spec (`brief`)"],
+      ["work-item/task-list", "Task List"], ["work-item/notes", "Notes"],
+      ["work-item/companion", "Research", "research"],
+      ["work-item/companion", "Analysis", "analysis"]] as const;
+  return roles.map(([kind, label, key]) => ({
+    reference: RecordReferenceSchema.parse({ kind, owner, ...(key === undefined ? {} : { key }) }),
+    content: form === "title" ? `# ${label}: ${source}\n\nBody.\n` : `# Artifact\n\nUse \`--plan ${source}\`.\n`,
+  }));
+}
+
+describe.each(["reference", "ref"] as const)("self-reference participant admission over %s", backend => {
+  const resolutions = backend === "reference" ? ["subject", "other"] as const : ["subject", "ambiguous", "other"] as const;
+  describe.each(["title", "plan"] as const)("%s rewrites", form => {
+    it.each(resolutions)("reprepares owned artifacts under %s resolution", async resolution => {
+      const f = await fixture(backend), ref = f.reference("work-item/meta", "source");
+      const source = await seed(f, ref, makeMetaFixture(ref.owner.name,
+        { state: resolution === "ambiguous" ? "Planning" : "Shipped", currentWorkflow: null }),
+      resolution === "ambiguous" ? { kind: "backlog", commitment: "planned" } : completed);
+      const namesake = resolution === "subject" ? undefined : resolution === "ambiguous"
+        ? await f.concurrentWorkUnit(ref.owner.name) : await seed(f, ref,
+          makeMetaFixture(ref.owner.name, { state: "Planning", currentWorkflow: null }), { kind: "backlog", commitment: "planned" });
+      expect(await resolveRenameReferences(f.store, source.reference, ref.owner.name)).toEqual({ status: "ok", result: resolution });
+      const arrivals: StoreRecord[] = [];
+      let version: unknown;
+      const argv = ["rename", renameUid(source), "renamed", "--json"];
+      const refused = await f.invoke(argv, beforeRenameBatch(async () => {
+        if (arrivals.length !== 0) return;
+        for (const artifact of selfReferenceArtifacts(source.reference.owner, form, ref.owner.name)) {
+          arrivals.push(await seed(f, artifact.reference, artifact.content));
+        }
+        version = success(await f.store.version());
+      }));
+      expect(refused, JSON.stringify(refused)).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { rule: "rename.references" } } });
+      expect(success(await f.store.version())).toBe(version);
+      for (const record of [source, namesake, ...arrivals]) {
+        if (record !== undefined) expect(success(await f.store.read({ reference: record.reference }))).toEqual(record);
+      }
+      const retried = await f.invoke(argv);
+      expect(retried.exitCode ?? 0, retried.stdout + retried.stderr).toBe(0);
+      for (const arrival of arrivals) {
+        const current = success(await f.store.read({ reference: arrival.reference }));
+        expect(current.reference.owner).toEqual({ ...source.reference.owner, name: "renamed" });
+        expect(current.content).toBe(arrival.content.replaceAll(ref.owner.name, "renamed"));
+      }
+      if (namesake !== undefined) {
+        const current = success(await f.store.read({ reference: namesake.reference }));
+        expect(current).toEqual({ ...namesake, version: current.version });
+      }
+      expect(retried.result).toMatchObject({ report: { references: [] } });
+    }, 60_000);
+
+    it.each(resolutions)("admits shared companions according to %s resolution", async resolution => {
+      const f = await fixture(backend), ref = f.reference("work-item/meta", "source");
+      const source = await seed(f, ref, makeMetaFixture(ref.owner.name,
+        { state: resolution === "ambiguous" ? "Planning" : "Shipped", currentWorkflow: null }),
+      resolution === "ambiguous" ? { kind: "backlog", commitment: "planned" } : completed);
+      const namesake = resolution === "subject" ? undefined : resolution === "ambiguous"
+        ? await f.concurrentWorkUnit(ref.owner.name) : await seed(f, ref,
+          makeMetaFixture(ref.owner.name, { state: "Planning", currentWorkflow: null }), { kind: "backlog", commitment: "planned" });
+      const holderRef = f.reference("work-item/meta", "holder");
+      const holder = await seed(f, holderRef, makeMetaFixture(holderRef.owner.name, { state: "Planning", currentWorkflow: null }),
+        { kind: "backlog", commitment: "planned" });
+      expect(await resolveRenameReferences(f.store, source.reference, ref.owner.name)).toEqual({ status: "ok", result: resolution });
+      const arrivals: StoreRecord[] = [];
+      let version: unknown;
+      const argv = ["rename", renameUid(source), "renamed", "--json"];
+      const result = await f.invoke(argv, beforeRenameBatch(async () => {
+        if (arrivals.length !== 0) return;
+        for (const artifact of selfReferenceArtifacts(holder.reference.owner, form, ref.owner.name, true)) {
+          arrivals.push(await seed(f, artifact.reference, artifact.content));
+        }
+        version = success(await f.store.version());
+      }));
+      if (resolution === "subject") {
+        expect(result, JSON.stringify(result)).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { rule: "rename.references" } } });
+        expect(success(await f.store.version())).toBe(version);
+        for (const record of [source, holder, ...arrivals]) expect(success(await f.store.read({ reference: record.reference }))).toEqual(record);
+        const retried = await f.invoke(argv);
+        expect(retried.exitCode ?? 0, retried.stdout + retried.stderr).toBe(0);
+        for (const arrival of arrivals) expect(success(await f.store.read({ reference: arrival.reference })).content)
+          .toBe(arrival.content.replaceAll(ref.owner.name, "renamed"));
+        expect(retried.result).toMatchObject({ report: { references: [] } });
+      } else {
+        expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+        for (const record of [holder, namesake, ...arrivals]) {
+          if (record === undefined) continue;
+          const current = success(await f.store.read({ reference: record.reference }));
+          expect(current).toEqual({ ...record, version: current.version });
+        }
+        expect(result.result).toMatchObject({ report: { references: [] } });
+      }
+    }, 60_000);
+
+    it("rechecks prepared shared self-reference authority before publication", async () => {
+      const f = await fixture(backend), ref = f.reference("work-item/meta", "source");
+      const source = await seed(f, ref, makeMetaFixture(ref.owner.name, { state: "Shipped", currentWorkflow: null }), completed);
+      const holderRef = f.reference("work-item/meta", "holder");
+      const holder = await seed(f, holderRef, makeMetaFixture(holderRef.owner.name, { state: "Planning", currentWorkflow: null }),
+        { kind: "backlog", commitment: "planned" });
+      const shared: StoreRecord[] = [];
+      for (const artifact of selfReferenceArtifacts(holder.reference.owner, form, ref.owner.name, true)) {
+        shared.push(await seed(f, artifact.reference, artifact.content));
+      }
+      let namesake: StoreRecord | undefined, version: unknown;
+      const argv = ["rename", renameUid(source), "renamed", "--json"];
+      const refused = await f.invoke(argv, beforeRenameBatch(async () => {
+        if (namesake !== undefined) return;
+        namesake = await seed(f, ref, makeMetaFixture(ref.owner.name, { state: "Planning", currentWorkflow: null }),
+          { kind: "backlog", commitment: "planned" });
+        version = success(await f.store.version());
+      }));
+      expect(refused, JSON.stringify(refused)).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { rule: "rename.references" } } });
+      expect(success(await f.store.version())).toBe(version);
+      for (const record of [source, holder, namesake, ...shared]) {
+        if (record !== undefined) expect(success(await f.store.read({ reference: record.reference }))).toEqual(record);
+      }
+      const retried = await f.invoke(argv);
+      expect(retried.exitCode ?? 0, retried.stdout + retried.stderr).toBe(0);
+      for (const record of shared) {
+        const current = success(await f.store.read({ reference: record.reference }));
+        expect(current).toEqual({ ...record, version: current.version });
+      }
+      expect(retried.result).toMatchObject({ report: { references: [] } });
+    }, 60_000);
+  });
+});
+
+describe.each(["reference", "ref"] as const)("self-reference no-op admission over %s", backend => {
+  it("preserves unsupported owned forms and shared artifacts outside Planning backlog", async () => {
+    const f = await fixture(backend), ref = f.reference("work-item/meta", "source");
+    const source = await seed(f, ref, makeMetaFixture(ref.owner.name, { state: "Planning", currentWorkflow: null }),
+      { kind: "backlog", commitment: "planned" });
+    const arrivals: StoreRecord[] = [];
+    const result = await f.invoke(["rename", renameUid(source), "renamed", "--json"], beforeRenameBatch(async () => {
+      if (arrivals.length !== 0) return;
+      arrivals.push(await seed(f, RecordReferenceSchema.parse({ kind: "work-item/notes", owner: source.reference.owner }),
+        `# Unsupported: ${ref.owner.name}\n\nUse --plan ${ref.owner.name} plainly.\n`));
+      arrivals.push(await seed(f, RecordReferenceSchema.parse({ kind: "work-item/companion", owner: source.reference.owner, key: "appendix.md" }),
+        `# Research: ${ref.owner.name}\n\nUse \`--plan ${ref.owner.name}\`.\n`));
+      for (const state of ["Active", "Shipped"] as const) {
+        const holderRef = f.reference("work-item/meta", state.toLowerCase());
+        const holder = await seed(f, holderRef, makeMetaFixture(holderRef.owner.name,
+          { state, currentWorkflow: state === "Active" ? "process-task-loop" : null }), state === "Active" ? { kind: "active" } : completed);
+        arrivals.push(holder);
+        for (const artifact of selfReferenceArtifacts(holder.reference.owner, "title", ref.owner.name, true)) {
+          arrivals.push(await seed(f, artifact.reference, artifact.content + `\nUse \`--plan ${ref.owner.name}\`.\n`));
+        }
+      }
+    }));
+    expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+    for (const arrival of arrivals) {
+      const current = success(await f.store.read({ reference: arrival.reference }));
+      expect(current.content).toBe(arrival.content);
+      expect(current.reference.owner).toEqual(sameOwner(arrival.reference.owner, source.reference.owner)
+        ? { ...arrival.reference.owner, name: "renamed" } : arrival.reference.owner);
+    }
+    expect(result.result).toMatchObject({ report: { references: [] } });
+  }, 60_000);
 });

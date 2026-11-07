@@ -6,8 +6,7 @@ import { ParsedMetaRecordSchema, MetaPauseSchema } from "../active/meta-schema.j
 import { recordReferences, OwnerIdentitySchema, RecordReferenceSchema, sameReference, sameOwner } from "./identity.js";
 import { readLifecycleView } from "./lifecycle-view.js";
 import { requireCompleteInventory } from "./lifecycle-storage.js";
-import { recordPut, mergeLifecycleLinks, workUnitMetaPath } from "./lifecycle-write.js";
-import { lifecycleRecordPath } from "./lifecycle-record-path.js";
+import { recordPut, mergeLifecycleLinks } from "./lifecycle-write.js";
 import { acquireLifecycleRecords, revalidateLifecycleRecords, type PreparedLifecycleWrite } from "../work-unit/prepared-lifecycle-write.js";
 import { findAmbiguousPairedReference } from "../work-unit/paired-reference-owners.js";
 import { planRenameReferences, applyRenameReferencePlan, rewriteBacktickedArtifactReferences } from "../work-unit/rename-reference-sweep.js";
@@ -29,7 +28,7 @@ import { resolveRenameReferences } from "./rename-reference-resolution.js";
 import { workUnitRenameReferenceReport, workUnitRenameReportObservations } from "./rename-reference-report.js";
 import type { RenameReport } from "../work-unit/rename-report.js";
 import { planRenameMemberHeading } from "./rename-member-heading.js";
-import { ownedArtifactRenames } from "./rename-artifact-names.js";
+import { ownedArtifactRenames, renameSweepFilename } from "./rename-artifact-names.js";
 /** Selected subject and reporting evidence retained independently of physical checkout steps. */
 export interface StoreRenameSubject { primary: StoreRecord; operand: string; resuming: boolean; originName: string; advisories: string[] }
 /** Complete acquisition and expected-version writes prepared before physical renames. */
@@ -191,10 +190,7 @@ function renameProjection(records: StoreRecord[], primary: StoreRecord, seeds: r
   const paths = new Map<string, StoreRecord>();
   for (const record of renameSweepRecords(records)) {
     if (!rewriteShared && !sameOwner(record.reference.owner, primary.reference.owner)) continue;
-    const own = record.reference.owner.type !== "person" && primary.reference.owner.type !== "person" && record.reference.owner.uid === primary.reference.owner.uid;
-    const groupPrimary = own ? primary : records.find((candidate) => candidate.reference.kind === "work-item/meta" && candidate.reference.owner.type !== "person" && record.reference.owner.type !== "person" && candidate.reference.owner.uid === record.reference.owner.uid);
-    const projected = groupPrimary === undefined ? null : lifecycleRecordPath(groupPrimary, record);
-    const filename = projected === null || groupPrimary === undefined ? `${record.reference.kind.replaceAll("/", "-")}-${record.reference.owner.name}.md` : posix.relative(posix.dirname(workUnitMetaPath(groupPrimary)), projected);
+    const filename = renameSweepFilename(records, primary, record);
     const path = posix.join(".arc", "active", record.reference.owner.name, filename);
     paths.set(path, record);
   }

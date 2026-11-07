@@ -17,3 +17,14 @@ export function ownedArtifactRenames(records: readonly StoreRecord[], primary: S
   }
   return names;
 }
+
+/** Project the same group-relative filename used by preparation's virtual reference sweep. */
+export function renameSweepFilename(records: readonly StoreRecord[], primary: StoreRecord, record: StoreRecord): string {
+  const own = sameOwner(record.reference.owner, primary.reference.owner);
+  const groupPrimary = own ? primary : records.find(candidate => candidate.reference.kind === "work-item/meta"
+    && sameOwner(candidate.reference.owner, record.reference.owner));
+  const projected = groupPrimary === undefined ? null : lifecycleRecordPath(groupPrimary, record);
+  return projected === null || groupPrimary === undefined
+    ? `${record.reference.kind.replaceAll("/", "-")}-${record.reference.owner.name}.md`
+    : posix.relative(posix.dirname(workUnitMetaPath(groupPrimary)), projected);
+}

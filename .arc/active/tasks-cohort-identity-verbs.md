@@ -481,6 +481,12 @@ its history refs, discharging the edges naming it.
   Both backends cover subject/other resolution; native CLI dispatch also covers a concurrent ambiguous name read, which
   the memory fixture's identity-index read does not model.
 
+- _Self-reference correction:_ Admission uses preparation's existing self-title and backticked `--plan` transformation
+  over the same group-relative filenames. Arriving owned conventional artifacts always fence; shared research/analysis
+  companions fence only under subject resolution. Prepared shared edits recheck current name authority. Both backends
+  cover title-only and operand-only refusal/retry, other-holder preservation, unsupported forms and non-Planning prose;
+  native coverage includes ambiguous shared-name resolution.
+
 ### `[x]` **4.6 Pull history refs round after round — § 2.6**
 
 - _Goal:_ A rename batch that writes completed records lands on a clone lacking their history refs, pulling each round
