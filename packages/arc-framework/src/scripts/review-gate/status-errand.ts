@@ -38,6 +38,8 @@ import type { ReviewResult } from "./core/review-result.js";
 import type { LaneProgressState } from "./core/operation-state-schema.js";
 import type { ChangeRequestCandidate } from "./change-request.js";
 import { HostedProviderIdSchema } from "./hosted/request.js";
+import { errandReviewContinuationDecision } from "./errand-review-continuation.js";
+import type { ReviewNextPassContext } from "./policy/review-next-pass-schema.js";
 import { STANDARD_REVIEW_RUBRIC_IDENTITY } from "./policy/standard-review.js";
 import { resolveConfiguredLanePolicy } from "./policy/lane-policy-config.js";
 import { projectReviewPolicyAttempt } from "./policy/review-policy-driver.js";
@@ -667,11 +669,45 @@ async function nextErrandPassObligation(input: {
     return blocked(`The Errand's next standard-review pass is ${policy.state}/${policy.nextAction}.`);
   }
   const detail = `This Errand claim has used ${count}; the new head still requires review.`;
-  return policy.state === "ready" && policy.nextAction === "hosted-request"
-    ? errandHostedRequestObligation({ ...input, sourceId: policy.payload.sourceId, detail })
-    : policy.state === "ready" && policy.nextAction === "local-prepare"
-      ? errandLocalReviewObligation(detail)
-      : { state: "review-required", detail };
+  if (policy.state === "ready" && policy.nextAction === "hosted-request") {
+    const obligation = errandHostedRequestObligation({ ...input, sourceId: policy.payload.sourceId, detail });
+    return !("action" in obligation) || !await headMovedPastSettledReview(input, nextPassContext.convergence)
+      ? obligation
+      : errandContinuationObligation({ detail, reviewedHeadSha: input.result.target.headSha,
+        completePasses: input.completePasses, maxPasses: configured.maxPasses, hostedAction: obligation.action });
+  }
+  return policy.state === "ready" && policy.nextAction === "local-prepare"
+    ? errandLocalReviewObligation(detail)
+    : { state: "review-required", detail };
+}
+
+/**
+ * Whether the head moved past a converged review by changes no approved response made, with no pass the Owner
+ * already authorized. An approved fix's next look, a ceiling override, and an additional pass were each decided when
+ * approved, so they are not asked again.
+ */
+async function headMovedPastSettledReview(input: {
+  readonly result: StandardReviewResult;
+  readonly dispositionStore: ApprovedDispositionRecordReader;
+  readonly store: Pick<ReviewOperationStateStore, "readOperation">;
+  readonly ceilingOverride?: ReviewCeilingOverride;
+  readonly additionalPassAuthorization?: ReviewAdditionalPassAuthorization;
+}, convergence: ReviewNextPassContext["convergence"]): Promise<boolean> {
+  if (convergence !== "converged" || input.ceilingOverride !== undefined
+    || input.additionalPassAuthorization !== undefined) return false;
+  const response = await readIncrementalPredecessorResponseEvidence(input.result, input.dispositionStore,
+    producer => readLaneResponsePerformance(input.store, producer));
+  return !response.hasFix;
+}
+
+/** Hold a complete hosted pass after a converged review for the Owner, who may take the Errand stop instead. */
+function errandContinuationObligation(input: Parameters<typeof errandReviewContinuationDecision>[0] & {
+  readonly detail: string;
+}): RoutedReviewObligation {
+  const { detail, ...decision } = input;
+  return { state: "review-required", scope: "errand",
+    detail: `${detail} The last review converged, so another complete hosted pass waits for the Owner's decision.`,
+    continuationDecision: errandReviewContinuationDecision(decision) };
 }
 
 /** Name ordinary local prepare, whose coverage selection uses the shared next-pass context. */
