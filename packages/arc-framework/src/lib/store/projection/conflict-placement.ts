@@ -12,7 +12,7 @@ export interface ConflictPlacement {
   readonly incoming: readonly string[];
 }
 
-/** Return a placement only when identity or checked historical context establishes it. */
+/** Return a placement only when the captured side and its identity or historical context still agree. */
 export async function placeStoredConflict(input: {
   content: string; conflict: TextConflictRecord; memo: HistoryMemo; grammar?: EntryListConfig;
 }): Promise<ConflictPlacement | null> {
@@ -51,6 +51,7 @@ function placeEntry(content: string, conflict: TextConflictRecord, grammar: Entr
   let offset = 0;
   for (const part of splitEntryList(content, grammar).parts) {
     if (part.kind === "entry" && part.id === conflict.location.id) {
+      if (part.bytes !== conflict.current.content) return null;
       return { start: offset, end: offset + part.bytes.length,
         current: textLines(conflict.current.content), incoming: textLines(conflict.incoming.content) };
     }

@@ -36,6 +36,11 @@ describe("stored conflict placement", () => {
     expect(placed).not.toBeNull();
     expect(content.slice(placed?.start, placed?.end)).toBe("### [ ] **First**\n\n- _Id:_ `11111111`\n\nstored text");
     expect(placed?.incoming.join("\n")).toContain("incoming text");
+    const place = (content: string) => placeStoredConflict({ content, conflict: conflict.data, memo: fixture.context.memo,
+      grammar: ENTRY_CONFIGS["personal/inbox"] });
+    expect(await place(content.replace("stored text", "newer accepted text"))).toBeNull();
+    expect(await place(content.replace("stored text\n\n", "stored text\n\n\n"))).not.toBeNull();
+    expect(await place(content)).toEqual(placed);
   });
 
   it("relocates an untouched hunk and rejects changed neighbors or sides until repaired", async () => {
