@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "repeat-review-guard",
+  "claimId": "e54a214bd9b99b9a058e477c146d81ca",
+  "createdAt": "2026-11-07T03:20:44.506Z",
+  "updatedAt": "2026-11-07T03:20:44.506Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Find where ARC requests another hosted review on its own after an accepted clean review, and propose a narrow guard",
+  "branch": "chore/repeat-review-guard",
+  "origin": "inbox",
+  "originEntry": "Investigate automatic repeat-review requests after approved review",
+  "originEntrySourceDigest": "sha256:12a7e7ad5dd832b956b5edc14a0cfd177da0fcdf17f3fce6dfb18b5ac469dadd",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
