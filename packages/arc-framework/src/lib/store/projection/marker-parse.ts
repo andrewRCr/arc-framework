@@ -38,7 +38,10 @@ export function parseMarkerContent(input: MarkerInput): MarkerParseResult {
       reason: `resolution-in-progress: ${formatConflictToken(conflict.reference)} still has markers around edited sides.`,
       remedy: { text: "Finish this set's resolution by removing its markers, or restore both original sides, then save again." },
     } };
-    content += input.content.slice(cursor, span.start) + renderStoredSide(conflict.data, "current");
+    const side = renderStoredSide(conflict.data, "current");
+    const replacement = span.end === input.content.length && !input.content.endsWith("\n")
+      ? side.replace(/\n$/u, "") : side;
+    content += input.content.slice(cursor, span.start) + replacement;
     shown.push(conflict.reference);
     cursor = span.end;
   }

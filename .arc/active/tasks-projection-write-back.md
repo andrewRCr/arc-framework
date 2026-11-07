@@ -121,6 +121,10 @@ among them, has one.
           the same put. Malformed entries restore selected-base content while independent edits land; refused files
           retain their bytes. Persisted take-ins support repair, and unseen conflicts carry the file's repair remedy.
 
+        - Standard review repair: parsing an untouched EOF set preserves the absent final newline. Production
+          stamped and stampless rendering regressions retain that boundary while independent edits persist and the
+          conflict remains open; following text and existing final newlines keep their separators.
+
 ### `[x]` **1.5 Merge in the checkout where the store holds no base — § 7.7**
 
 - _Goal:_ The three edits whose base the store never held — a save merging from content a persisted write-back took in

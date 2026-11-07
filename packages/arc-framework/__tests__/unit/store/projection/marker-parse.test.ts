@@ -25,6 +25,26 @@ const fixtures: Awaited<ReturnType<typeof createMarkerFixture>>[] = [];
 afterEach(async () => { await Promise.all(fixtures.splice(0).map(fixture => fixture.dispose())); });
 
 describe("marker parse-back", () => {
+  it.each([false, true])("preserves an unchanged EOF conflict with stamped=%s through an independent edit", async stamped => {
+    const fixture = await createMarkerFixture({ base: "heading\nbase", current: "heading\nstored", incoming: "heading\nincoming" });
+    fixtures.push(fixture);
+    const rendered = await fixture.context.renderer({ record: fixture.record, content: fixture.record.content, stamped });
+    if (rendered.status !== "ok" || rendered.result.state.markers === null) throw new Error("No rendered EOF conflict");
+    const { content, state } = rendered.result;
+    expect(content.endsWith("\n")).toBe(false);
+    const parse = (text: string) => parseMarkerContent({ content: text, markers: state.markers!,
+      conflicts: fixture.conflicts, open: fixture.record.conflicts });
+    expect(parse(content)).toMatchObject({ kind: "ready", content: "heading\nstored", resolves: [] });
+    expect(parse(content.replace("heading", "edited heading"))).toMatchObject({ kind: "ready", content: "edited heading\nstored", resolves: [] });
+    expect(parse(`${content}\n`)).toMatchObject({ kind: "ready", content: "heading\nstored\n", resolves: [] });
+    expect(parse(`${content}\nafter\n`)).toMatchObject({ kind: "ready", content: "heading\nstored\nafter\n", resolves: [] });
+    await fixture.edit(content.replace("heading", "edited heading"));
+    await createWriteBackPort(fixture.context)({ ...fixture.request, entry: { ...fixture.entry, ...state } });
+    expect(await fixture.store.read({ reference: fixture.entry.reference })).toMatchObject({ status: "ok", result: {
+      content: "edited heading\nstored", conflicts: fixture.record.conflicts,
+    } });
+  });
+
   it("withholds a new malformed entry absent from the base while another ID-less entry lands", async () => {
     const input = entryCases[0];
     if (input === undefined) throw new Error("Entry fixture missing");
