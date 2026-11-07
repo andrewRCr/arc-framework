@@ -488,30 +488,26 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
 
 ## **Phase 3:** Verification
 
-### `[ ]` **3.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **3.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Note:_ Verification repairs declare source-CLI entrypoints in store-suite reach, retain decomposition basename locators
-  beside full stored companion paths, disambiguate the selection diagnostic, and align integration fixtures with the nested
-  active layout. Further repairs retain unsent guarded read-backs with actionable reporting, including accepted
-  adoptions, and enforce person ownership for Planning backlog inbound lists while preserving ordinary stub grooming.
-  Swap settlement now keeps unreplaced read-backs reported and unsent, and unreadable retained inputs hold only their
-  file, preserving accepted-adoption recording and allowing independent edits and a repaired retry.
-  Whole-record resolution validates the submitted edit while preserving the stored side and its envelope.
-  Equivalent projected aliases now share resolution authority; incompatible or held copies retain their bytes with
-  repair guidance while independent edits continue, and agreeing copies resolve through the same conflict token.
-  Refused aliases retain per-file changed observations for selection without marking untouched siblings.
-  Fixed session-context filenames retain precedence over scratch documents, whose schema rejects the reserved alias.
-  Unit-file setup clears projection bindings so composed capabilities cannot leak across shared workers' fixtures.
+- _Quality gates:_ Required local gates passed, including lint, both type checks, build, the complete unit tier and
+  six store shards. Full non-diagnostic CI 42375263422 at `8e8706a989` passed with the Windows/macOS pair and full
+  portability store coverage after one captured timing-job retry. Related selection did not reach unit setup;
+  the complete unit tier covered it.
+- _Success criteria:_ All eleven met, with the approved A3 parser exceptions recorded as a deviation. Five complete
+  independent criteria passes finished; the last found one minor inverse gap, corrected and verified. Approved
+  corrections retain their checks and explicit fix-check declines. Reference/native behavior is verified within
+  the specification's boundary; cutover and worktree follow-ons remain with their named owners.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Over the reference backend with real repositories and worktrees, on Linux and in a dispatched run of the
+- `[x]` Over the reference backend with real repositories and worktrees, on Linux and in a dispatched run of the
   portability pair, a hand edit saved in place, by renaming a new file over it, or by an agent's write reaches the
   store at the next `arc` command, but for the residuals the spec's § 17 names.
 
-- `[ ]` A clash with a stored base lands as a conflict record that the writing checkout's read-back draws in — markers
+- `[x]` A clash with a stored base lands as a conflict record that the writing checkout's read-back draws in — markers
   where placement's check passes and no set the file already shows overlaps its span, escalated with the resolve-by-hand
   line where the file holds a marker-like line, a notice line where the check fails, where such a set overlaps it, or
   where the conflict is whole-record, status and the refusing verbs alone for a stampless file, and write-back's report
@@ -520,7 +516,7 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   its file is held; untouched markers keep it open, malformed ones refuse, and a clash with no stored base stays in its
   file and persists once resolved.
 
-- `[ ]` Write-back and `arc save` send each edit through its kind's parser against its base's record version, under
+- `[x]` Write-back and `arc save` send each edit through its kind's parser against its base's record version, under
   `write-back` or `save`; a verb-owned field change is refused and kept in its file; one refused edit blocks no other;
   each store refusal takes its path; and the `after` view's conformance case passes over each backend that runs checks.
 
@@ -528,33 +524,33 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   `personal/session-context` intentionally have no parser-derived fields; their kind checks, backend validation, and
   write authority remain in force (spec § 7.6).
 
-- `[ ]` An edit to a protected or another person's archived file, an unadopted file, a file that fails to parse, a
+- `[x]` An edit to a protected or another person's archived file, an unadopted file, a file that fails to parse, a
   refused edit, a file held by a conflict, a clash found in the checkout included, a file other than Markdown whose
   candidate bases disagree, drawn into once and held until they agree or `arc save --resolve` sends it, and a file not
   yet settled each stay in their file and are reported, as an aside copy kept because its path moved on stays in the
   aside folder, reported with its path.
 
-- `[ ]` Every projected path resolves through `resolveArcPath` and back through the classifier, under
+- `[x]` Every projected path resolves through `resolveArcPath` and back through the classifier, under
   `layout.active: flat` as under `nested`; and every work-item path a caller reports, resolved from its checkout root,
   names the path the spec's § 10.1 lays its file at.
 
-- `[ ]` `arc selection` prints the projected Markdown files the checkout may edit, leaving out `completed/`, protected
+- `[x]` `arc selection` prints the projected Markdown files the checkout may edit, leaving out `completed/`, protected
   files, files holding conflict markers, and the personal `.internal/` and `scratch/`; `--changed` prints those the
   checkout changed by hand since its last `arc save` under the spec's § 11.7 rules; and the Markdown checks' reader
   returns what the command prints.
 
-- `[ ]` Over the in-repo implementation the root hooks do nothing, `arc save` and `arc editor` refuse `unsupported`,
+- `[x]` Over the in-repo implementation the root hooks do nothing, `arc save` and `arc editor` refuse `unsupported`,
   `arc selection` prints an empty list, and `arc init` and `arc join` print no Zed setting.
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` An unindexed backlog path is classified within one established work-item container. Missing or conflicting
+- `[x]` An unindexed backlog path is classified within one established work-item container. Missing or conflicting
   ownership evidence preserves its bytes unadopted with an actionable refusal; the same edit adopts after repair, and
   indexed files retain their exact record authority (A1).
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
-- `[ ]` A dropped cohort document creates no cohort, stays intact with repair guidance until its existing authority is
+- `[x]` A dropped cohort document creates no cohort, stays intact with repair guidance until its existing authority is
   established, then adopts the same bytes into that generation. Current copies retain membership binding, archived
   files retain exact archive authority despite a live namesake, and ordinary fixed personal and project-inbox creation
   remains available (A2).

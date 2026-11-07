@@ -1989,6 +1989,6 @@ this design open.
 - **A2** — 2026-11-06 — spec-depth: make cohort-generation authority explicit for file adoption.
   _Supersedes:_ none. _Trigger:_ 2.8.a must-stop. _Work:_ 2.8.R. _Revalidated:_ 2.8.R.c.
 - **A3** — 2026-11-06 — design: inventory parsers with three explicit exceptions.
-  _Supersedes:_ §7.6 ¶1; §18 storage-cutover. _Trigger:_ 3.1 review. _Work:_ none. _Revalidated:_ pending → 3.1.
+  _Supersedes:_ §7.6 ¶1; §18 storage-cutover. _Trigger:_ 3.1 review. _Work:_ none. _Revalidated:_ 3.1.
 
 ---

@@ -11,13 +11,14 @@
 - **Design:** `spec-projection-write-back.md`
 - **Task List:** `tasks-projection-write-back.md`
 - **Review Rubric:** [none]
+- **Candidate:** `sha256:e1b48319b9f3330d2b15d93c25e17e9955eb185d30d4bf2a1591e09997e7210c`
 
-- **Current Workflow:** `process-task-loop`
-- **Last Completed:** Phase 2 complete — Task 2.4.R.c — Verify the ownership boundary and repaired continuation
-- **Next Task:** Task 3.1 — Complete verification (line ~491 in `tasks-projection-write-back.md`)
+- **Current Workflow:** `prepare-work-unit`
+- **Last Completed:** Task 3.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.1 in a fresh session; load and follow `verify-work-unit.md`.
+- **Next Action:** Run or resume the typed pre-publication review procedure.
 
 - **PR URL:** [none]
 - **Completed:** [none]
