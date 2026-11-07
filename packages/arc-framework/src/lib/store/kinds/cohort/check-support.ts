@@ -7,10 +7,10 @@ import type { StoreRecord } from "../../read.js";
 import type { StoreView, WriteCheckInput } from "../../write-check.js";
 import type { RecordReference } from "../../identity.js";
 import { observeCohortHoldings, type CohortHolding, type CohortHoldingCandidate } from "./holdings.js";
-import { cohortHoldingEdits } from "./holding-edits.js";
+import { cohortHoldingRepairs } from "./holding-edits.js";
 export { observeCohortHoldings, type CohortHoldingCandidate, type CohortHoldingSegment,
   type ResolvedCohortCandidate, type CohortHolding } from "./holdings.js";
-export { cohortHoldingEdits, type CohortHoldingEdit } from "./holding-edits.js";
+export { cohortHoldingRepairs, type CohortHoldingEdit, type CohortHoldingRepairPlan } from "./holding-edits.js";
 /** A document with proved parsed nesting fields and its observed placement. */
 export interface CohortEvidence { readonly record: StoreRecord; readonly fields: ParsedCohortDocument }
 /** A work unit with its proved membership field and observed placement. */
@@ -111,9 +111,10 @@ export function describeCohortHoldingOwners(holdings: readonly CohortHolding[]):
 
 /** Name exact holders and the ordered field repairs supported by their resolved paths. */
 export function describeCohortHoldings(holdings: readonly CohortHolding[], slug: string): string {
-  const names = describeCohortHoldingOwners(holdings), edits = cohortHoldingEdits(holdings, slug);
+  const names = describeCohortHoldingOwners(holdings), edits = cohortHoldingRepairs(holdings, slug);
   if (edits.status !== "known") return `${names} ${edits.status === "unavailable" ? edits.condition : "Holding edits are unavailable."}`;
-  const repair = edits.value.map(edit => `${edit.record.type} ${edit.record.name} (UID ${edit.record.uid}): `
+  const repair = edits.value.edits.map(edit => `${edit.record.type} ${edit.record.name} (UID ${edit.record.uid}): `
     + `${edit.field === "cohort" ? "Cohort" : "Parent"} ${JSON.stringify(edit.from)} -> ${JSON.stringify(edit.to)}.`).join(" ");
-  return `${names}${repair === "" ? "" : ` Re-pointing edits, in order: ${repair}`}`;
+  const deferred = edits.value.deferred.map(group => group.condition).join(" ");
+  return `${names}${repair === "" ? "" : ` Re-pointing edits, in order: ${repair}`}${deferred === "" ? "" : ` ${deferred}`}`;
 }

@@ -141,7 +141,7 @@ The sole-holding prescription in § 5.1 and Task 5.2's original goal assumed eac
 An open child's unique former Parent can coexist with an open member's ambiguous current path after a pull. Updating
 only Parent makes `checkCohortParent` refuse; updating the member would choose its owner without evidence.
 `coupledRetainedParents` retains that group, and `prepareSoleHoldings` also retains sole members behind an ambiguous
-Parent. `cohortHoldingEdits` supplies the existing clear → Parent → restore order, with completed-member edits afterward.
+Parent. `cohortHoldingRepairs` supplies the existing clear → Parent → restore order, with completed-member edits afterward.
 This qualifies the original automatic-update promise rather than weakening admission. Closed-child restrictions stay
 with `closedParentDisposition` and `closedLeafDisposition`; a completed member alone does not require group retention.
 The appended criteria preserve the original batch and missing-history cases while making the mixed-resolution exception
@@ -171,5 +171,18 @@ The original Goal 3 reporting clause, now qualified for unresolved companions, w
 The scoped revision covers shared field planning, rename report consumption, retirement and archive report consumers,
 and behavior tests that execute every advertised edit or resolve the named prerequisite first. Existing all-sole,
 completion/history and closed-child behavior remains part of the regression boundary.
+
+`cohortHoldingRepairs` separates proved edits from deferred groups. `observeCandidateParent` captures the leaf’s own
+Parent binding through the shared segment cache, so the report can include prerequisites outside the selected
+cohort’s direct holdings. `parentTargetEligibility` keeps changed Parent edits subject to the existing open,
+top-level and conflict rules. The original closed-child case caught and removed an overly broad retention condition:
+only an unresolved companion, rather than the renamed parent’s own segment, adds that retention.
+
+The native regression exercises simultaneous parent/child clashes for open and completed members, retaining all
+unresolved fields before owner-chosen continuation. The memory reference fixture cannot execute half of a two-clash
+repair: its unchanged `indexIdentities` validation rejects any remaining duplicate live name on every batch. It is
+not modified here. Both backends execute the former-Parent prerequisite sequence, and the shared planner matrix covers
+separate aliases and unavailable evidence. The full local merge gate passed all 20 selected checks and all six store
+shards over 431 eligible suites. Hosted CI and the independent fix check follow the committed repair.
 
 ---

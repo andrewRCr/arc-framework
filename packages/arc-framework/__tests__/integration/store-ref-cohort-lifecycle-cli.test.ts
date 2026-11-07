@@ -9,7 +9,7 @@ import { createRefFixture } from "../helpers/store/ref-fixture.js";
 import { repairCliFixture, repairCli } from "../helpers/repair-cli.js";
 import { seed, success, update } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
-import { observeOpenHoldings, cohortHoldingEdits } from "../../src/lib/store/kinds/cohort/check-support.js";
+import { observeOpenHoldings, cohortHoldingRepairs } from "../../src/lib/store/kinds/cohort/check-support.js";
 import { writeMetaCohort } from "../../src/lib/store/kinds/meta/writers.js";
 import { writeCohortParent } from "../../src/lib/store/kinds/cohort/index.js";
 import { plantRefPrimary } from "../helpers/store/ref-primary-plant.js";
@@ -157,7 +157,7 @@ describe.each(["reference", "ref"] as const)("cohort close over %s", backend => 
     expect(await f.invoke(["cohort", "close", owner.uid, "--yes", "--json"])).toMatchObject({ result: { status: "closed", reference: primary.reference } });
   }, 60_000);
 
-  it("reports the ordered Parent repair and admits each field edit before child and parent close", async () => {
+  it.each(["parent", "child"] as const)("reports the ordered Parent repair when retiring the %s, then admits every edit", async target => {
     const f = await fixture(backend), parentRef = f.reference("cohort/document", "parent"), childRef = f.reference("cohort/document", "child");
     const parent = await seed(f, parentRef, content(parentRef.owner.name));
     await seed(f, childRef, content(childRef.owner.name, parentRef.owner.name));
@@ -166,16 +166,17 @@ describe.each(["reference", "ref"] as const)("cohort close over %s", backend => 
     const renamed = RecordReferenceSchema.parse({ ...parent.reference, owner: { ...parent.reference.owner, name: "renamed" } });
     success(await f.store.write({ ...update(f, parent, content("renamed")), reference: renamed }));
     const nextPath = `renamed/${childRef.owner.name}`;
-    const refused = await f.invoke(["cohort", "close", "renamed", "--yes", "--json"]);
+    const retiring = target === "parent" ? renamed : success(await f.store.read({ reference: childRef })).reference;
+    const refused = await f.invoke(["cohort", "close", retiring.owner.name, "--yes", "--json"]);
     expect(refused).toMatchObject({ exitCode: 1, result: { status: "refused", refusal: {
       condition: expect.stringMatching(new RegExp(`Cohort "${oldPath}" -> null.*Parent "${parentRef.owner.name}" -> "renamed".*Cohort null -> "${nextPath}"`, "su")),
     } } });
-    const holdings = await observeOpenHoldings(f.store, f.store, renamed);
+    const holdings = await observeOpenHoldings(f.store, f.store, retiring);
     if (holdings.status !== "known") throw new Error("Expected Parent holdings");
-    const edits = cohortHoldingEdits(holdings.value, "renamed");
+    const edits = cohortHoldingRepairs(holdings.value, retiring.owner.name);
     if (edits.status !== "known") throw new Error("Expected ordered repair");
-    expect(edits.value).toHaveLength(3);
-    for (const edit of edits.value) {
+    expect(edits.value.edits).toHaveLength(3);
+    for (const edit of edits.value.edits) {
       const reference = RecordReferenceSchema.parse({ kind: edit.field === "parent" ? "cohort/document" : "work-item/meta",
         owner: { type: edit.field === "parent" ? "cohort" : "work-item", name: edit.record.name, uid: edit.record.uid } });
       const saved = success(await f.store.read({ reference }));

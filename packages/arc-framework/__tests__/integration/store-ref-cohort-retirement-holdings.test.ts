@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createKindRegistry, RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
-import { observeOpenHoldings, cohortHoldingEdits } from "../../src/lib/store/kinds/cohort/check-support.js";
+import { observeOpenHoldings, cohortHoldingRepairs } from "../../src/lib/store/kinds/cohort/check-support.js";
 import { writeCohortParent } from "../../src/lib/store/kinds/cohort/index.js";
 import { writeMetaCohort } from "../../src/lib/store/kinds/meta/writers.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
@@ -96,7 +96,7 @@ it("keeps closed-child Parent facts when only open records are counted for retir
   const holdings = await observeOpenHoldings(f.store, f.store, renamed);
   if (holdings.status !== "known") throw new Error("Expected open holdings");
   expect(holdings.value.map(holding => holding.candidate.reference)).toEqual([member]);
-  expect(cohortHoldingEdits(holdings.value, "renamed"))
+  expect(cohortHoldingRepairs(holdings.value, "renamed"))
     .toMatchObject({ status: "unavailable", condition: expect.stringMatching(/closed|completed/iu) });
 
   const savedChild = success(await f.store.read({ reference: child.reference }));
@@ -110,8 +110,8 @@ it("keeps closed-child Parent facts when only open records are counted for retir
     content: makeMetaFixture("late", { cohort: oldPath }) });
   const repaired = await observeOpenHoldings(f.store, f.store, renamed);
   if (repaired.status !== "known") throw new Error("Expected remaining open holdings");
-  const edits = cohortHoldingEdits(repaired.value, "renamed");
-  expect(edits).toMatchObject({ status: "known", value: [{ record: { name: "late" }, from: oldPath, to: nextPath }] });
+  const edits = cohortHoldingRepairs(repaired.value, "renamed");
+  expect(edits).toMatchObject({ status: "known", value: { edits: [{ record: { name: "late" }, from: oldPath, to: nextPath }] } });
   const saved = success(await f.store.read({ reference: late }));
   success(await f.store.write(update(f, saved, writeMetaCohort(saved.content, nextPath))));
 });

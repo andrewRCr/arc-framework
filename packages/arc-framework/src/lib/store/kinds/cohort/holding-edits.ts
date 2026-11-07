@@ -1,6 +1,8 @@
 /** Ordered field edits for re-pointing cohort holdings without violating Parent checks. */
 import type { RuleObservation } from "../rule-support.js";
 import type { CohortHolding, CohortHoldingCandidate, CohortHoldingSegment, ResolvedCohortCandidate } from "./holdings.js";
+import { cohortChildMembers } from "./holdings.js";
+import { sameOwner } from "../../identity.js";
 import { parseCohortDocument } from "./parser.js";
 import { describeRecordConflicts } from "../../conflict-diagnostics.js";
 
@@ -12,37 +14,74 @@ export interface CohortHoldingEdit {
   to: string | null;
 }
 
-/** Build safe ordered edits, preserving completion facts from the candidate view. */
-export function cohortHoldingEdits(holdings: readonly CohortHolding[], slug: string): RuleObservation<readonly CohortHoldingEdit[]> {
+/** A proved edit sequence and retained groups whose identities must be repaired first. */
+export interface CohortHoldingRepairPlan {
+  edits: CohortHoldingEdit[];
+  deferred: { candidates: readonly CohortHoldingCandidate[]; condition: string }[];
+}
+type DeferredRepair = { status: "deferred"; condition: string };
+type EditObservation<T> = RuleObservation<T> | DeferredRepair;
+
+/** Plan admissible field edits separately from unresolved identity prerequisites. */
+export function cohortHoldingRepairs(holdings: readonly CohortHolding[], slug: string): RuleObservation<CohortHoldingRepairPlan> {
   const parents = prepareParents(holdings, slug);
   if (parents.status !== "known") return parents;
-  const { edits, handled } = parents.value;
+  const { plan, handled } = parents.value;
   for (const holding of holdings) {
     if (handled.has(holding.candidate)) continue;
     const segments = new Set(holdings.filter(item => item.candidate === holding.candidate).map(item => item.segment));
     const edit = directEdit(holding, segments, slug);
-    if (edit.status !== "known") return edit;
-    if (edit.value !== null) edits.push(edit.value);
+    if (edit.status === "deferred") plan.deferred.push({ candidates: [holding.candidate], condition: edit.condition });
+    else if (edit.status !== "known") return edit;
+    else if (edit.value !== null) plan.edits.push(edit.value);
     handled.add(holding.candidate);
   }
-  return { status: "known", value: edits };
+  return { status: "known", value: plan };
 }
 
 function prepareParents(holdings: readonly CohortHolding[], slug: string): RuleObservation<{
-  edits: CohortHoldingEdit[]; handled: Set<CohortHoldingCandidate> }> {
-  const edits: CohortHoldingEdit[] = [], handled = new Set<CohortHoldingCandidate>();
-  for (const holding of holdings) {
-    if (holding.candidate.field !== "parent") continue;
-    const closed = closedParentDisposition(holding, slug);
+  plan: CohortHoldingRepairPlan; handled: Set<CohortHoldingCandidate> }> {
+  const prerequisites = parentPrerequisites(holdings, slug);
+  if (prerequisites.status !== "known") return prerequisites;
+  const plan: CohortHoldingRepairPlan = { edits: [], deferred: [] }, handled = new Set<CohortHoldingCandidate>();
+  for (const { holding, target } of prerequisites.value) {
+    const closed = closedParentDisposition(holding, target);
     if (closed === "keep") { markHandled(holding, handled); continue; }
     if (closed !== null) return closed;
-    if (holding.candidate.path === slug) continue;
-    const planned = parentEdits(holding, slug);
-    if (planned.status !== "known") return planned;
-    edits.push(...planned.value);
+    if (holding.candidate.path === target) continue;
+    const planned = parentEdits(holding, target);
+    if (planned.status === "deferred") plan.deferred.push({
+      candidates: [holding.candidate, ...holding.members.map(member => member.candidate)], condition: planned.condition });
+    else if (planned.status !== "known") return planned;
+    else plan.edits.push(...planned.value);
     markHandled(holding, handled);
   }
-  return { status: "known", value: { edits, handled } };
+  return { status: "known", value: { plan, handled } };
+}
+
+function parentPrerequisites(holdings: readonly CohortHolding[], slug: string): RuleObservation<{
+  holding: CohortHolding; target: string }[]> {
+  const result = holdings.filter(holding => holding.candidate.field === "parent").map(holding => ({ holding, target: slug }));
+  const candidates = [...new Map([...holdings, ...holdings.flatMap(holding => holding.members)].map(item => [item.candidate, item])).values()];
+  for (const holding of holdings) {
+    if (holding.candidate.field !== "cohort" || holding.segments.length !== 2) continue;
+    const leaf = holding.segments.at(-1), parent = holding.segments[0];
+    if (leaf?.status !== "known" || parent?.status !== "known" || leaf.resolutionRecord.placement?.kind === "completed") continue;
+    if (result.some(item => sameOwner(item.holding.candidate.reference.owner, leaf.reference.owner))) continue;
+    const parsed = parseCohortDocument(leaf.resolutionRecord.content);
+    if (!parsed.success) return { status: "unavailable", condition: parsed.error };
+    const changed = holdings.some(item => item.candidate === holding.candidate && item.segment === 0);
+    const target = changed ? slug : parent.currentSlug;
+    if (parsed.data.parent === target) continue;
+    const proof = holding.parent;
+    if (parsed.data.parent === null || proof?.status !== "known" || !sameOwner(proof.reference.owner, parent.reference.owner)) {
+      return { status: "unavailable", condition: `The path ${holding.candidate.path} has no proved matching Parent. Repair Parent or clear Cohort before re-pointing it.` };
+    }
+    const candidate: CohortHoldingCandidate = { reference: leaf.reference, field: "parent", path: parsed.data.parent, completed: false };
+    result.push({ holding: { candidate, segments: [proof], segment: 0, resolution: "sole",
+      members: cohortChildMembers(candidates, leaf.reference) }, target });
+  }
+  return { status: "known", value: result };
 }
 
 function markHandled(holding: CohortHolding, handled: Set<CohortHoldingCandidate>): void {
@@ -60,7 +99,9 @@ function closedParentDisposition(holding: CohortHolding, slug: string): "keep" |
       + "Cleared memberships cannot be restored onto this closed cohort." } : null;
 }
 
-function parentEdits(holding: CohortHolding, slug: string): RuleObservation<readonly CohortHoldingEdit[]> {
+function parentEdits(holding: CohortHolding, slug: string): EditObservation<readonly CohortHoldingEdit[]> {
+  const eligible = parentTargetEligibility(holding.segments[0]);
+  if (eligible.status !== "known") return eligible;
   const parent = fieldEdit(holding.candidate, holding.candidate.path, slug);
   if (parent.status !== "known") return parent;
   const clears: CohortHoldingEdit[] = [], restores: CohortHoldingEdit[] = [], completed: CohortHoldingEdit[] = [];
@@ -81,7 +122,18 @@ function parentEdits(holding: CohortHolding, slug: string): RuleObservation<read
   return { status: "known", value: [...clears, parent.value, ...restores, ...completed] };
 }
 
-function directEdit(holding: ResolvedCohortCandidate, changed: ReadonlySet<number>, slug: string): RuleObservation<CohortHoldingEdit | null> {
+function parentTargetEligibility(segment: CohortHoldingSegment | undefined): RuleObservation<true> {
+  if (segment?.status !== "known") return { status: "known", value: true };
+  const record = segment.resolutionRecord;
+  const fail = (condition: string): RuleObservation<true> => ({ status: "unavailable", condition: `${condition} Keep Parent unchanged or clear Cohort before choosing another group.` });
+  if (record.conflicts.length > 0) return fail(`The parent is disputed.${describeRecordConflicts(record.conflicts)}`);
+  if (record.placement?.kind === "completed") return fail("The parent is completed; a changed Parent must name an open cohort.");
+  const parsed = parseCohortDocument(record.content);
+  if (!parsed.success) return fail(parsed.error);
+  return parsed.data.parent === null ? { status: "known", value: true } : fail("The parent is already nested; a changed Parent must name a top-level cohort.");
+}
+
+function directEdit(holding: ResolvedCohortCandidate, changed: ReadonlySet<number>, slug: string): EditObservation<CohortHoldingEdit | null> {
   const parts = holding.segments.map((segment, index) => changed.has(index) ? slug
     : segment.status === "known" ? segment.currentSlug : segment.name);
   const to = parts.join("/");
@@ -118,8 +170,8 @@ function fieldEdit(candidate: CohortHoldingCandidate, from: string | null, to: s
     field: candidate.field, from, to } };
 }
 
-function unresolvedSegment(segment: CohortHoldingSegment | undefined, path: string): { status: "unavailable"; condition: string } {
-  return { status: "unavailable", condition: segment?.status === "ambiguous"
+function unresolvedSegment(segment: CohortHoldingSegment | undefined, path: string): DeferredRepair {
+  return { status: "deferred", condition: segment?.status === "ambiguous"
     ? `The cohort path ${path} has an ambiguous child or companion segment. ${segment.condition} ${segment.remedy.text}`
-    : `The cohort path ${path} has no proved current cohort at '${segment?.name ?? ""}'. Repair that path or clear Cohort before retrying.` };
+    : `The cohort path ${path} has no proved current cohort at '${segment?.name ?? ""}'. Resolve that path or clear Cohort before choosing a new membership.` };
 }

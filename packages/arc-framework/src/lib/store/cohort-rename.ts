@@ -10,7 +10,7 @@ import { rewriteCohortHeading, writeCohortParent, parseCohortDocument, rewriteCo
 import { observeRenameFormerName, resolveRenameReferences } from "./rename-reference-resolution.js";
 import { emptyRenameReport, type RenameReport, type RenameReportRecord } from "../work-unit/rename-report.js";
 import type { RunRenameResult } from "../work-unit/verbs/rename.js";
-import { observeAllHoldings, cohortHoldingEdits, type CohortHolding, type CohortHoldingSegment } from "./kinds/cohort/check-support.js";
+import { observeAllHoldings, cohortHoldingRepairs, type CohortHolding, type CohortHoldingSegment } from "./kinds/cohort/check-support.js";
 import { writeMetaCohort } from "./kinds/meta/writers.js";
 import type { StoreView } from "./write-check.js";
 import type { Mutation } from "./write.js";
@@ -57,7 +57,7 @@ async function prepareMembershipWrites(store: Store, primary: StoreRecord, targe
   const plan: CohortRenamePlan = { primary, target, records: document.records, contents: new Map([[primary, document.content]]) };
   const membership = prepareSoleHoldings(plan, holdings.value, retainedParents);
   if (membership.status === "refused") return membership;
-  const retainedHoldings = holdings.value.filter(holding => holding.resolution === "ambiguous" || retainedParents.includes(holding));
+  const retainedHoldings = holdings.value.filter(holding => holding.resolution === "ambiguous" || retainedParents.includes(holding) || holding.segments.some(segment => segment.status !== "known"));
   const retained = reportAmbiguousHoldings(plan, retainedHoldings, closed);
   if (retained.status === "refused") return retained;
   const filenames = await prepareFilenameReferences(view, plan, retained.result.report);
@@ -68,9 +68,10 @@ async function prepareMembershipWrites(store: Store, primary: StoreRecord, targe
 
 function coupledRetainedParents(holdings: readonly CohortHolding[]): CohortHolding[] {
   return holdings.filter(holding => holding.candidate.field === "parent" && (holding.resolution === "ambiguous"
-    || (!holding.candidate.completed && holding.members.some(member => !member.candidate.completed
-      && !holdings.some(candidate => candidate.segment === 0 && candidate.resolution === "sole"
-        && sameReference(candidate.candidate.reference, member.candidate.reference))))));
+    || holding.members.some(member => member.segments.slice(1).some(segment => segment.status !== "known")
+      || (!holding.candidate.completed && !member.candidate.completed
+        && !holdings.some(candidate => candidate.segment === 0 && candidate.resolution === "sole"
+          && sameReference(candidate.candidate.reference, member.candidate.reference))))));
 }
 
 function prepareSoleHoldings(plan: CohortRenamePlan, holdings: readonly CohortHolding[], retainedParents: readonly CohortHolding[]): StoreResult<true> {
@@ -80,7 +81,7 @@ function prepareSoleHoldings(plan: CohortRenamePlan, holdings: readonly CohortHo
     const record = plan.records.find(item => sameReference(item.reference, holding.candidate.reference));
     if (record === undefined) return malformed(plan.primary, "A cohort holding has no captured record.");
     const path = currentHoldingPath(holding, plan.primary, plan.target);
-    if (path === null) return malformed(plan.primary, `The cohort path ${holding.candidate.path} has an unresolved companion segment.`);
+    if (path === null) continue;
     const content = plan.contents.get(record) ?? record.content;
     plan.contents.set(record, holding.candidate.field === "cohort" ? writeMetaCohort(content, path) : writeCohortParent(content, path) ?? content);
   }
@@ -140,20 +141,39 @@ function cohortRenameMutations(records: readonly StoreRecord[], contents: Readon
 function reportAmbiguousHoldings(plan: CohortRenamePlan, holdings: readonly CohortHolding[],
   closed: readonly CohortHolding[]): StoreResult<Pick<CohortRenameWrites, "report" | "advisories">> {
   const { primary, target } = plan;
-  const edits = cohortHoldingEdits(postBatchHoldings(holdings, plan), target);
+  const edits = cohortHoldingRepairs(postBatchHoldings(holdings, plan), target);
   if (edits.status !== "known") return malformed(primary, edits.status === "unavailable" ? edits.condition : "Holding edits are unavailable.");
-  const references: Array<RenameReport["references"][number]> = edits.value.map(({ record, ...edit }) => ({ record, edits: [{ kind: "field", ...edit }] }));
-  const advisories: string[] = [];
+  const references: Array<RenameReport["references"][number]> = edits.value.edits.map(({ record, ...edit }) => ({ record, edits: [{ kind: "field", ...edit }] }));
+  const advisories: string[] = edits.value.deferred.map(group => group.condition
+    + " Retain the reported fields, resolve the companion identity first, then have their owners choose the intended current path and clear Cohort before changing Parent and restoring membership.");
+  for (const group of edits.value.deferred) {
+    const added = appendReportHolders(references, group.candidates.map(candidate => candidate.reference), primary);
+    if (added.status === "refused") return added;
+  }
   for (const holding of closed) {
-    const child = holding.candidate.reference.owner;
-    advisories.push(`Closed subcohort ${child.name} (${child.type === "person" ? "unavailable" : child.uid}) stays with the holder keeping ${JSON.stringify(holding.candidate.path)}; Parent and member paths were kept unchanged.`);
-    for (const candidate of [holding.candidate, ...holding.members.map(member => member.candidate)]) {
-      const record = holdingReportRecord(candidate.reference);
-      if (record === null) return malformed(primary, "The exact identity of a retained cohort holding is unavailable.");
-      if (!references.some(row => row.record.type === record.type && row.record.uid === record.uid)) references.push({ record, edits: [] });
-    }
+    advisories.push(closedHoldingAdvisory(holding));
+    const added = appendReportHolders(references, [holding.candidate, ...holding.members.map(member => member.candidate)]
+      .map(candidate => candidate.reference), primary);
+    if (added.status === "refused") return added;
   }
   return { status: "ok", result: { report: { ...emptyRenameReport(), references }, advisories } };
+}
+
+function appendReportHolders(references: Array<RenameReport["references"][number]>, candidates: readonly StoreRecord["reference"][],
+  primary: StoreRecord): StoreResult<true> {
+  for (const candidate of candidates) {
+    const record = holdingReportRecord(candidate);
+    if (record === null) return malformed(primary, "A retained holding has no exact owner identity.");
+    if (!references.some(row => row.record.type === record.type && row.record.uid === record.uid)) references.push({ record, edits: [] });
+  }
+  return { status: "ok", result: true };
+}
+
+function closedHoldingAdvisory(holding: CohortHolding): string {
+  const child = holding.candidate.reference.owner;
+  return holding.resolution === "sole"
+    ? `Closed subcohort ${child.name} has unresolved companion membership; Parent and member paths were kept unchanged.`
+    : `Closed subcohort ${child.name} (${child.type === "person" ? "unavailable" : child.uid}) stays with the holder keeping ${JSON.stringify(holding.candidate.path)}; Parent and member paths were kept unchanged.`;
 }
 
 /** Repairs use persisted prerequisite content while retaining captured ownership and candidate identity. */

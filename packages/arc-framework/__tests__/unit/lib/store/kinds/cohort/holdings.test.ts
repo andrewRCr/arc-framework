@@ -1,6 +1,6 @@
 /** One view resolves each cohort segment once and retains complete Parent repair context. */
 import { expect, it } from "vitest";
-import { observeCohortHoldings, cohortHoldingEdits, type CohortHoldingCandidate } from "../../../../../../src/lib/store/kinds/cohort/check-support.js";
+import { observeCohortHoldings, cohortHoldingRepairs, type CohortHoldingCandidate } from "../../../../../../src/lib/store/kinds/cohort/check-support.js";
 import type { StoreRecord } from "../../../../../../src/lib/store/read.js";
 import type { StoreView } from "../../../../../../src/lib/store/write-check.js";
 import { ReadPlacementSchema } from "../../../../../../src/lib/store/placement.js";
@@ -57,12 +57,12 @@ it("retains a Parent's child members even when their first segment names another
       { candidate: parent, members: [{ candidate: elsewhere }, { candidate: ended }] }, { candidate: ended },
     ] });
   if (holdings.status !== "known") throw new Error("Expected cohort holdings");
-  expect(cohortHoldingEdits(holdings.value, "renamed")).toMatchObject({ status: "known", value: [
+  expect(cohortHoldingRepairs(holdings.value, "renamed")).toMatchObject({ status: "known", value: { edits: [
     { record: { name: "elsewhere" }, field: "cohort", from: "other/child", to: null },
     { record: { name: "child" }, field: "parent", from: "group", to: "renamed" },
     { record: { name: "elsewhere" }, field: "cohort", from: null, to: "renamed/child" },
     { record: { name: "completed" }, field: "cohort", from: "group/child", to: "renamed/child" },
-  ] });
+  ] } });
 });
 
 it("requires an ambiguous child to be disambiguated before proposing a restoration path", async () => {
@@ -72,16 +72,19 @@ it("requires an ambiguous child to be disambiguated before proposing a restorati
   const holdings = await observeCohortHoldings([candidate(first, "parent", "group"), candidate(second, "parent", "group"),
     candidate(held, "cohort", "group/child")], ruleView([target, first, second, held]), target.reference);
   if (holdings.status !== "known") throw new Error("Expected cohort holdings");
-  expect(cohortHoldingEdits(holdings.value, "renamed"))
-    .toMatchObject({ status: "unavailable", condition: expect.stringMatching(/ambiguous|multiple.*generations/iu) });
+  expect(cohortHoldingRepairs(holdings.value, "renamed"))
+    .toMatchObject({ status: "known", value: { edits: [], deferred: [
+      { condition: expect.stringMatching(/ambiguous|multiple.*generations/iu) },
+      { condition: expect.stringMatching(/ambiguous|multiple.*generations/iu) },
+    ] } });
   const other = cohortDoc("other", "group");
   const renamed = ruleRecord("cohort/document", "other", "00000000-0000-4000-8000-000000000099", other.content, other.fields);
   const repaired = await observeCohortHoldings([candidate(first, "parent", "group"), candidate(renamed, "parent", "group"),
     candidate(held, "cohort", "group/child")], ruleView([target, first, renamed, held]), target.reference);
   if (repaired.status !== "known") throw new Error("Expected repaired cohort holdings");
-  expect(cohortHoldingEdits(repaired.value, "renamed")).toMatchObject({ status: "known", value: expect.arrayContaining([
+  expect(cohortHoldingRepairs(repaired.value, "renamed")).toMatchObject({ status: "known", value: { edits: expect.arrayContaining([
     expect.objectContaining({ record: expect.objectContaining({ name: "held" }), from: null, to: "renamed/child" }),
-  ]) });
+  ]) } });
 });
 
 it("keeps a closed subcohort and its stragglers with the holder retaining an ambiguous parent name", async () => {
@@ -91,11 +94,11 @@ it("keeps a closed subcohort and its stragglers with the holder retaining an amb
   const holdings = await observeCohortHoldings([candidate(child, "parent", "group"), candidate(held, "cohort", "group/child")],
     ruleView([first, other, child, held]), first.reference);
   if (holdings.status !== "known") throw new Error("Expected cohort holdings");
-  expect(cohortHoldingEdits(holdings.value, "renamed")).toEqual({ status: "known", value: [] });
+  expect(cohortHoldingRepairs(holdings.value, "renamed")).toEqual({ status: "known", value: { edits: [], deferred: [] } });
   const openOnly = await observeCohortHoldings([candidate(held, "cohort", "group/child")],
     ruleView([first, other, child, held]), first.reference);
   if (openOnly.status !== "known") throw new Error("Expected open-only holdings");
-  expect(cohortHoldingEdits(openOnly.value, "renamed")).toEqual({ status: "known", value: [] });
+  expect(cohortHoldingRepairs(openOnly.value, "renamed")).toEqual({ status: "known", value: { edits: [], deferred: [] } });
 });
 
 it("needs no edit when a closed subcohort's Parent and straggler path are already current", async () => {
@@ -105,5 +108,43 @@ it("needs no edit when a closed subcohort's Parent and straggler path are alread
   const holdings = await observeCohortHoldings([candidate(child, "parent", "group"), candidate(held, "cohort", "group/child")],
     ruleView([target, child, held]), target.reference);
   if (holdings.status !== "known") throw new Error("Expected cohort holdings");
-  expect(cohortHoldingEdits(holdings.value, "group")).toEqual({ status: "known", value: [] });
+  expect(cohortHoldingRepairs(holdings.value, "group")).toEqual({ status: "known", value: { edits: [], deferred: [] } });
+});
+
+it.each([false, true].flatMap(completed => ["old-parent", "another-alias"].map(prefix => ({ completed, prefix }))))(
+  "plans a child's former Parent prerequisite, completed=$completed prefix=$prefix", async ({ completed, prefix }) => {
+  const path = `${prefix}/child`;
+  const parent = cohortDoc("parent"), child = cohortDoc("child", "old-parent"), held = member("held", path, 7, completed);
+  const view = ruleView([parent, child, held]);
+  const resolve: StoreView = { ...view, read: input => view.read(["old-parent", "another-alias"].includes(input.reference.owner.name)
+    ? { ...input, reference: { ...input.reference, owner: parent.reference.owner } } : input) };
+  const holdings = await observeCohortHoldings([candidate(held, "cohort", path)], resolve, child.reference);
+  if (holdings.status !== "known") throw new Error("Expected child holdings");
+  const plan = cohortHoldingRepairs(holdings.value, "child");
+  expect(plan).toMatchObject({ status: "known", value: { deferred: [], edits: [
+    ...completed ? [] : [{ field: "cohort", from: path, to: null }],
+    { field: "parent", from: "old-parent", to: "parent" },
+    { field: "cohort", from: completed ? path : null, to: "parent/child" },
+  ] } });
+});
+
+it("withholds a Parent repair to a completed parent rather than advertising rejected edits", async () => {
+  const parent = cohortDoc("parent", null, "Coordinate.", ReadPlacementSchema.parse({ kind: "completed", quarter: "2026-q1", sequence: "01", closeout: "a" }));
+  const child = cohortDoc("child", "old-parent"), held = member("held", "old-parent/child", 7);
+  const view = ruleView([parent, child, held]);
+  const resolve: StoreView = { ...view, read: input => view.read(input.reference.owner.name === "old-parent"
+    ? { ...input, reference: { ...input.reference, owner: parent.reference.owner } } : input) };
+  const holdings = await observeCohortHoldings([candidate(held, "cohort", "old-parent/child")], resolve, child.reference);
+  if (holdings.status !== "known") throw new Error("Expected child holdings");
+  expect(cohortHoldingRepairs(holdings.value, "child")).toMatchObject({ status: "unavailable", condition: expect.stringMatching(/completed/iu) });
+});
+
+it("withholds child holdings when its separate Parent alias cannot be observed", async () => {
+  const parent = cohortDoc("parent"), child = cohortDoc("child", "old-parent"), held = member("held", "parent/child", 7);
+  const view = ruleView([parent, child, held]);
+  const resolve: StoreView = { ...view, read: input => input.reference.owner.name === "old-parent"
+    ? Promise.resolve({ status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "cohort",
+      condition: "The Parent alias is unreadable.", remedy: { text: "Repair Parent evidence." } } }) : view.read(input) };
+  expect(await observeCohortHoldings([candidate(held, "cohort", "parent/child")], resolve, child.reference))
+    .toMatchObject({ status: "unavailable", condition: "The Parent alias is unreadable." });
 });

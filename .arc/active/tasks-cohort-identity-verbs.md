@@ -584,14 +584,20 @@ old name refuses naming the current one.
   carry ordered edits that land; closed ambiguous subtrees retain their Parent and member paths, including members
   on unique former aliases, with exact identity rows and an explanatory advisory.
 
-### `[ ]` **5.2.R Keep cohort repair planning reachable — A6**
+### `[x]` **5.2.R Keep cohort repair planning reachable — A6**
 
 - _Goal:_ Under A6, a parent UID rename retains unresolved companion groups and reports their prerequisite identity
   repairs; fully proved field repairs include every Parent prerequisite and execute in order.
 - _Work:_ Add failing nested-clash and former-Parent regressions, correct the shared planner and every consumer, then
   execute the full repair sequences. Cover current/former and sole/ambiguous segments, open/completed members and
   closed-child restrictions on both operational backends where they can form the state, including native CLI coverage.
-- _Verification:_ Run the approved full review-fix checks and the independent fix check after committed verification.
+- _Outcome:_ Native parent UID rename lands under simultaneous parent/child clashes while every unresolved field stays
+  unchanged; its report names all retained owners and the companion prerequisite. Owner-chosen clear → Parent → restore
+  continuation lands for open and completed members. Both backends execute the former-Parent repair sequence; shared
+  planner cases cover separate aliases, unavailable evidence and completed-parent refusal. Original closed-child and
+  mixed-state/history cases remain covered. Full merge verification passed 20 checks, including all six store shards
+  and the full run of 431 eligible suites; increment, related feedback and both type checks passed.
+- _Review:_ The separately authorized independent fix check follows committed verification.
 
 ### `[x]` **5.3 Rewrite references to the document's filename where the old slug names the cohort alone — § 5.1, § 4**
 
@@ -743,13 +749,13 @@ Over the ref backend and, where it can form the state, the reference backend, fr
   and leaves the tie; an eligible later catch-up moves only the retained link and resolves it. A promotion-only alias
   does not establish a prior work-unit rename.
 
-- `[x]` The batch and history-recovery outcomes of criterion 8 hold for independently mutable cohort holdings. A sole
+- `[~]` The batch and history-recovery outcomes of criterion 8 hold for independently mutable cohort holdings. A sole
   Parent with an ambiguous open member, or an ambiguous Parent with a sole member, retains the coupled open-child Parent
   and member paths while rename lands; its exact ordered edits execute successfully. Mixed open/completed members retain
   placement, completed members alone do not block a sole Parent update, all-sole groups move automatically, and existing
   closed-child restrictions remain intact.
 
-- `[ ]` With two live parents sharing a name and two live children sharing a name, a parent UID rename lands while
+- `[x]` With two live parents sharing a name and two live children sharing a name, a parent UID rename lands while
   retaining unresolved Parent/member fields. Every retained owner and companion prerequisite is reported without an
   unproved field edit. After child UID disambiguation, owner-chosen clear → Parent → restore edits at the selected
   child’s current path all land. Fully proved groups and closed-child restrictions remain intact; child retirement
@@ -764,5 +770,5 @@ holder and selected-link eligibility, including the stated prior-rename and UID-
 **Superseded (criterion 8, A5):** Criterion 23 replaces the unconditional rewrite-all prescription with coherent
 Parent/member groups and executable ordered repairs, retaining the original batch and history-recovery cases.
 
-**Amended in A6 (criterion 23):** Criterion 24 qualifies exact ordered edits only while companion identities are proved;
-otherwise the retained owners and prerequisite repairs are reported. Criterion 23’s original outcome stays preserved.
+**Superseded in A6 (criterion 23):** Criterion 24 qualifies exact ordered edits to proved companion identities;
+otherwise the retained owners and prerequisite repairs are reported. Original text and earlier verification stay preserved.

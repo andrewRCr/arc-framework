@@ -1,5 +1,6 @@
 /** Registered cohort renames preserve identity and compose version-bound content changes. */
 import { describe, expect, it } from "vitest";
+import type { StoreRecord } from "../../src/lib/store/read.js";
 import { createKindRegistry, RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { SlugSchema, ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
@@ -853,4 +854,56 @@ it("refuses a completed work unit arriving at a cohort destination and retries a
   expect(retry.exitCode ?? 0, retry.stdout + retry.stderr).toBe(0);
   expect(success(await f.store.read({ reference: primary.reference })).reference.owner.name).toBe("available");
   expect(success(await f.store.read({ reference: holder.reference }))).toEqual(holder);
+}, 60_000);
+
+async function plantCohortName(f: Awaited<ReturnType<typeof fixture>>, record: StoreRecord, name: string, parent?: string) {
+  const reference = RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name } });
+  if (reference.owner.type !== "cohort" || reference.owner.uid === undefined) throw new Error("Expected cohort UID");
+  const content = document(name, parent);
+  if (f.native === undefined) throw new Error("Expected native ref store");
+  await plantRefPrimary(f.native, { kind: "cohort/document", uid: reference.owner.uid, name, content });
+  return success(await f.store.read({ reference }));
+}
+
+it.each([false, true])("repairs simultaneous parent and child clashes without assigning members, completed=%s", async completed => {
+  const f = await fixture("ref"), parentRef = f.reference("cohort/document", "parent"), childRef = f.reference("cohort/document", "child");
+  const parent = await seed(f, parentRef, document(parentRef.owner.name));
+  const child = await seed(f, childRef, document(childRef.owner.name, parentRef.owner.name));
+  const otherParentRef = f.reference("cohort/document", "other-parent"), otherChildRef = f.reference("cohort/document", "other-child");
+  const otherParent = await seed(f, otherParentRef, document(otherParentRef.owner.name));
+  const otherChild = await seed(f, otherChildRef, document(otherChildRef.owner.name, otherParentRef.owner.name));
+  const memberRef = f.reference("work-item/meta", "nested"), path = `${parentRef.owner.name}/${childRef.owner.name}`;
+  const member = await seed(f, memberRef, makeMetaFixture(memberRef.owner.name, {
+    cohort: path, state: completed ? "Shipped" : "Planning", currentWorkflow: null,
+  }), completed ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "backlog", commitment: "planned" });
+  const keptParent = await plantCohortName(f, otherParent, parentRef.owner.name);
+  const keptChild = await plantCohortName(f, otherChild, childRef.owner.name, parentRef.owner.name);
+  const owner = parent.reference.owner;
+  if (owner.type !== "cohort" || owner.uid === undefined) throw new Error("Expected parent UID");
+  const result = await f.invoke(["rename", owner.uid, "next-parent", "--json"]);
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  const report = holdingReport.parse(result.result).report;
+  expect(report.references.map(row => row.record.uid)).toEqual(expect.arrayContaining([
+    child.reference.owner.type === "cohort" ? child.reference.owner.uid : "", keptChild.reference.owner.type === "cohort" ? keptChild.reference.owner.uid : "",
+    member.reference.owner.type === "work-item" ? member.reference.owner.uid : "",
+  ]));
+  expect(report.references.flatMap(row => row.edits)).toEqual([]);
+  expect(result.stdout).toMatch(/ambiguous|multiple.*generations/iu);
+  for (const record of [child, keptChild, keptParent, member]) expect(success(await f.store.read({ reference: record.reference }))).toEqual(record);
+  const childOwner = keptChild.reference.owner;
+  if (childOwner.type !== "cohort" || childOwner.uid === undefined) throw new Error("Expected child UID");
+  const nextChild = await f.invoke(["rename", childOwner.uid, "next-child", "--json"]);
+  expect(nextChild.exitCode ?? 0, nextChild.stdout + nextChild.stderr).toBe(0);
+  expect(success(await f.store.read({ reference: member.reference }))).toEqual(member);
+  const savedMember = success(await f.store.read({ reference: member.reference }));
+  success(await f.store.write({ ...recordPut(savedMember, { content: writeMetaCohort(savedMember.content, null) }), provenance: { verb: "write-back", lifecycleAction: "edit" } }));
+  const chosen = success(await f.store.read({ reference: keptChild.reference })), next = writeCohortParent(chosen.content, "next-parent");
+  if (next === null) throw new Error("Expected Parent field");
+  success(await f.store.write({ ...recordPut(chosen, { content: next }), provenance: { verb: "write-back", lifecycleAction: "edit" } }));
+  const cleared = success(await f.store.read({ reference: member.reference }));
+  success(await f.store.write({ ...recordPut(cleared, { content: writeMetaCohort(cleared.content, "next-parent/next-child") }), provenance: { verb: "write-back", lifecycleAction: "edit" } }));
+  const repaired = success(await f.store.read({ reference: member.reference }));
+  expect(repaired.fields).toMatchObject({ cohort: "next-parent/next-child" });
+  expect(repaired.placement).toEqual(member.placement);
+  for (const record of [child, keptParent]) expect(success(await f.store.read({ reference: record.reference }))).toEqual(record);
 }, 60_000);

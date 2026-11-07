@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { createKindRegistry, RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
-import { observeCohortHoldings, cohortHoldingEdits, type CohortHoldingCandidate } from "../../src/lib/store/kinds/cohort/check-support.js";
+import { observeCohortHoldings, cohortHoldingRepairs, type CohortHoldingCandidate } from "../../src/lib/store/kinds/cohort/check-support.js";
 import { writeMetaCohort } from "../../src/lib/store/kinds/meta/writers.js";
 import { writeCohortParent } from "../../src/lib/store/kinds/cohort/index.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
@@ -37,9 +37,9 @@ describe.each(["reference", "ref"] as const)("resolved cohort holdings over %s",
       { candidate: candidates[1], resolution: "sole", segment: 0, segments: [{ status: "known", currentSlug: "renamed", reference: renamed }] },
     ] });
     if (holdings.status !== "known") throw new Error("Expected cohort holdings");
-    expect(cohortHoldingEdits(holdings.value, "renamed")).toMatchObject({ status: "known", value: [
+    expect(cohortHoldingRepairs(holdings.value, "renamed")).toMatchObject({ status: "known", value: { edits: [
       { record: { type: "work-unit", name: oldMember.reference.owner.name, uid: expect.any(String) }, field: "cohort", from: reference.owner.name, to: "renamed" },
-    ] });
+    ] } });
   });
 
   it("re-points a former Parent and child path with open clears before Parent and completed rewrites afterward", async () => {
@@ -61,15 +61,15 @@ describe.each(["reference", "ref"] as const)("resolved cohort holdings over %s",
       { reference: ended.reference, field: "cohort", path: oldPath, completed: true },
     ], f.store, newParent);
     if (holdings.status !== "known") throw new Error("Expected cohort holdings");
-    const edits = cohortHoldingEdits(holdings.value, "parent-now"), nextPath = "parent-now/child-now";
-    expect(edits).toMatchObject({ status: "known", value: [
+    const edits = cohortHoldingRepairs(holdings.value, "parent-now"), nextPath = "parent-now/child-now";
+    expect(edits).toMatchObject({ status: "known", value: { edits: [
       { record: { name: open.reference.owner.name }, field: "cohort", from: oldPath, to: null },
       { record: { name: "child-now" }, field: "parent", from: parentRef.owner.name, to: "parent-now" },
       { record: { name: open.reference.owner.name }, field: "cohort", from: null, to: nextPath },
       { record: { name: ended.reference.owner.name }, field: "cohort", from: oldPath, to: nextPath },
-    ] });
+    ] } });
     if (edits.status !== "known") throw new Error("Expected ordered edits");
-    for (const edit of edits.value) {
+    for (const edit of edits.value.edits) {
       const reference = RecordReferenceSchema.parse({ kind: edit.record.type === "cohort" ? "cohort/document" : "work-item/meta",
         owner: { type: edit.record.type === "cohort" ? "cohort" : "work-item", name: edit.record.name, uid: edit.record.uid } });
       const saved = success(await f.store.read({ reference }));
@@ -109,9 +109,9 @@ it("withholds a sequential Parent repair that would erase an open straggler's co
     { reference: member, field: "cohort", path: oldPath, completed: false },
   ], f.store, renamed);
   if (holdings.status !== "known") throw new Error("Expected cohort holdings");
-  const plan = cohortHoldingEdits(holdings.value, "renamed");
+  const plan = cohortHoldingRepairs(holdings.value, "renamed");
   let refusal: unknown;
-  if (plan.status === "known") for (const edit of plan.value) {
+  if (plan.status === "known") for (const edit of plan.value.edits) {
     const reference = edit.record.type === "cohort" ? child.reference : member;
     const saved = success(await f.store.read({ reference }));
     const next = edit.field === "cohort" ? writeMetaCohort(saved.content, edit.to)
@@ -127,8 +127,8 @@ it("withholds a sequential Parent repair that would erase an open straggler's co
     { reference: child.reference, field: "parent", path: parentRef.owner.name, completed: true },
   ], f.store, renamed);
   if (repaired.status !== "known") throw new Error("Expected remaining Parent holding");
-  const nextPlan = cohortHoldingEdits(repaired.value, "renamed");
-  expect(nextPlan).toMatchObject({ status: "known", value: [{ field: "parent", from: parentRef.owner.name, to: "renamed" }] });
+  const nextPlan = cohortHoldingRepairs(repaired.value, "renamed");
+  expect(nextPlan).toMatchObject({ status: "known", value: { edits: [{ field: "parent", from: parentRef.owner.name, to: "renamed" }] } });
   const closed = success(await f.store.read({ reference: child.reference }));
   const next = writeCohortParent(closed.content, "renamed");
   if (next === null) throw new Error("Expected Parent field");
