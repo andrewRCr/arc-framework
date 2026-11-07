@@ -38,6 +38,18 @@ Four guards, agreed with the Owner, keep the split from fragmenting the design o
 3. `cutover-flip`'s specification writes its errata convention (H4) for `arc unlock` from the start.
 4. Stage 2 runs with this work unit landed.
 
+## Transition invariants to state in planning
+
+Agreed with the Owner on 2026-11-07, after `cohort-identity-verbs` traced six review passes to transition invariants
+its design never stated. For each step pair in C and D, the design states what must hold between the steps, where it
+is enforced, and the perturbation test that proves it. Each test asserts a refusal, then a legitimate repair, then the
+operation continuing. The cases known now:
+
+- **C:** the narrowing decision when the view setting or the root's size changes between the size check and the
+  reprojection.
+- **D:** `arc unlock`, the edit, and the re-lock, across a concurrent change to the same archived record; and the
+  archive pickup now that `arc save` no longer scans the archive.
+
 ## Held design text — C and D
 
 Copied from `projection-worktrees` as written on 2026-11-07, with only heading levels adjusted. Part 1 is the design
