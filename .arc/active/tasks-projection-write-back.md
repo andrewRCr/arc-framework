@@ -339,6 +339,9 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
           healthy owning checkout. Real Errand tests cover nested metadata, task and load-set paths, seed inheritance,
           historical task bytes, replacement-parent rejection, and a mismatched parent frame; native flat evidence
           retains its configured layout.
+        - Hosted integration exposed two stale flat-path expectations in the native handoff cache fixture. They now
+          assert the current path before marker replacement and the in-flight path afterward, preserving the cached
+          subject and fresh-frame assertions while verifying required path invalidation. Production behavior is unchanged.
 
 ### `[x]` **2.4.R Establish folder ownership before classifying new backlog files — § 9, § 10.1**
 
