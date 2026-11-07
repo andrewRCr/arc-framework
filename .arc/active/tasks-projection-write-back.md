@@ -501,6 +501,7 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   repair guidance while independent edits continue, and agreeing copies resolve through the same conflict token.
   Refused aliases retain per-file changed observations for selection without marking untouched siblings.
   Fixed session-context filenames retain precedence over scratch documents, whose schema rejects the reserved alias.
+  Unit-file setup clears projection bindings so composed capabilities cannot leak across shared workers' fixtures.
 
 ---
 
