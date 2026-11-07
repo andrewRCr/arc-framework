@@ -3,7 +3,7 @@
   "slug": "dependency-exposure-refresh",
   "claimId": "6cd27fd7bf367d2182de3df905f865a4",
   "createdAt": "2026-11-06T23:07:15.216Z",
-  "updatedAt": "2026-11-06T23:07:15.216Z",
+  "updatedAt": "2026-11-07T00:36:37.966Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Refresh the recorded dependency exposure dispositions from a current audit without changing dependency versions",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Refresh the dependency exposure assessment for new advisories",
   "originEntrySourceDigest": "sha256:07e101ce68035b0ee7738dba711b03a9506c342bd36c2bc37ceeba94ff312512",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/dependency-exposure-refresh",
+    "headSha": "851308e177948b0f3e4fdadd9594fcea738fd760"
+  }
 }
