@@ -117,6 +117,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | cutover-documentation           | P1       | andrew | cutover-flip                  | storage-cutover            |
 | cutover-notes-removal           | P1       | andrew | cutover-flip                  | storage-cutover            |
 | cutover-tracked-state-removal   | P1       | andrew | cutover-flip                  | storage-cutover            |
+| projection-team-scale           | P1       | andrew | projection-worktrees          | storage-projection         |
 | delivery-correction-convergence | P1       | andrew | cutover-flip                  | —                          |
 | delivery-observe-attest         | P1       | andrew | cutover-flip                  | —                          |
 | work-item-relations             | P1       | andrew | cutover-flip                  | —                          |

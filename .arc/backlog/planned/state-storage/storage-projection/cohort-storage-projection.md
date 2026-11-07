@@ -6,9 +6,9 @@
 **Parent:** `state-storage`
 
 **Purpose:** Build the projection: the gitignored working copy of the store at the familiar `.arc/` paths, which every
-worktree holds and every `arc` command writes back and refreshes. One specification designed it whole; the members
-deliver it in three work units in order, each landing single-branch with chunked review, so the pieces that need no
-store land while `storage-ref-hardening` does.
+worktree holds and every `arc` command writes back and refreshes. One specification designed it whole; three members
+deliver it in order, each landing single-branch with chunked review, so the pieces that need no store land while
+`storage-ref-hardening` does. A fourth, split from the third, keeps the projection's cost bounded at team scale.
 
 ---
 
@@ -19,12 +19,15 @@ projection-substrate     the ignore strategy, the engine's state, reading and re
 └── projection-write-back  write-back and conflicts with `arc save`, edit rights, the `active/` layout, adoption,
     │                      the settings, and the selection; after storage-ref-hardening
     └── projection-worktrees  refresh, fan-out, materialization and the tripwires, the removal slots and the
-                              release step, the user surfaces in every worktree, and scratch
+        │                     release step, the user surfaces in every worktree, and scratch
+        └── projection-team-scale  the backlog and archive view narrowed by size, and the archive laid read-only and
+                                   amended through a command
 ```
 
 Each member's `Depends On` edges are the source of truth: `projection-write-back` depends on `projection-substrate` and
-`storage-ref-hardening`, `projection-worktrees` on `projection-write-back`, and `storage-cutover` on all three. These
-orderings are not edges:
+`storage-ref-hardening`, `projection-worktrees` on `projection-write-back`, `projection-team-scale` on
+`projection-worktrees`, and `storage-cutover` on all four; `cutover-flip` records its edge on `projection-team-scale`
+with its specification. These orderings are not edges:
 
 - **Review chunks.** Each member lands its chunks in the order § Review chunks gives, `projection-substrate`'s worktree
   lock last, live before the flip.
@@ -35,6 +38,9 @@ orderings are not edges:
   as a slot; `projection-worktrees` fills it, with the fan-out and the changed mark a verb's write sets.
 - **The selection.** `projected-markdown-checks` has shipped its `selection` mode over `readProjectedSelection`;
   `projection-write-back` fills the reader's body.
+- **The index's seams.** `projection-worktrees` designs the index's partitions (its § 3.1) as the seams
+  `projection-team-scale` builds on: a narrower view or a read-only archive changes the entries a partition holds,
+  never how entries are grouped, named, or committed.
 
 ### Why three
 
@@ -55,6 +61,18 @@ change-set forecast against the third mark, about 10,000 changed lines. The Owne
 each sits at its marks rather than well past them, its task list holds only the origin's tasks for its sections, and its
 specification's growth past them is the terms and sibling contracts a member needs to stand alone, not added scope, so
 one review of each member's change set can hold it.
+
+### Why a fourth
+
+A Windows scale assessment on 2026-11-07 (`~/dev/arc-evidence/projection-worktrees/SCALE-SUMMARY.md`) led the Owner to
+approve five scale changes to `projection-worktrees`, which with all five would have landed about 2026-11-26 to 12-01.
+The Owner split them the same day. `projection-worktrees` keeps the index split by root and the archive by quarter,
+with plain JSON on the hot path, and shared protection reads, landing about 11-23 to 11-27; a third change it kept,
+later catch-up after a pull, was reverted that day, since holding a pull's merges does not avoid their cost.
+`projection-team-scale` takes the backlog and archive view narrowed by size, the read-only archive amended through a
+command, and the growth-relative scale criterion; it is planned during `projection-worktrees`' build and built right
+after it lands. The held design text for the view and the archive moves to it as written, and `cutover-flip`'s
+specification writes its errata convention for the archive's unlock command from the start.
 
 ### Review chunks
 
@@ -89,6 +107,7 @@ numbers are its own specification's:
        regression test (§ 11.6).
     2. **The removal slots and the release step** (§ 12.2, § 12.3), with the multi-process lane's saves into a persist
        step (§ 1.5), the user surfaces in every worktree (§ 12.8), and scratch (§ 12.9).
+- **`projection-team-scale`**: its specification, when written, sets its chunks and their order.
 
 ### Closeout criteria
 
@@ -119,5 +138,14 @@ _Exposes:_ refresh, fan-out, materialization, and the tripwires; the removal slo
 surfaces in every worktree; and scratch.
 
 _Consumes:_ `projection-write-back`'s write path and the start's refresh slot.
+
+### `projection-team-scale`
+
+_Exposes:_ the backlog and archive views (`arc.backlogView`, `arc.archiveView`), narrowed by size with a notice; the
+archive laid read-only, with the command that unlocks one archived file for an in-place correction; `arc save` walking
+only unlocked archive entries; and the growth-relative scale criterion.
+
+_Consumes:_ `projection-worktrees`' index partitions and their seams, reprojection on a changed view setting, and the
+removal and release steps' walk of the archive; `projection-write-back`'s edit rights, protection, and `arc save`.
 
 ---
