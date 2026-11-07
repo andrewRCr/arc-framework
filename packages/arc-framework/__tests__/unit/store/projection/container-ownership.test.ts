@@ -1,11 +1,15 @@
 /** A stored primary establishes only the physical container its placement and cohort identify. */
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { expect, it } from "vitest";
-import { resolveBacklogOwnership } from "../../../../src/lib/store/projection/container-ownership.js";
+import { resolveBacklogOwnership, resolveEstablishedContainer } from "../../../../src/lib/store/projection/container-ownership.js";
 import { identifyArcFileAddress, resolveArcPath } from "../../../../src/lib/layout/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { classifyStoreAddress } from "../../../../src/lib/store/target-classification.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
+import { ArcLayoutAddressSchema } from "../../../../src/lib/layout/index.js";
+import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
+import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
+import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 
 it("uses the sole stored outer container for a nested companion without writing state", async () => {
   const h = createLifecycleHarness();
@@ -50,7 +54,7 @@ it("uses an accepted pending primary receipt when public-name lookup has no bind
   if (absent.status !== "refused") throw new Error("The missing-name fixture unexpectedly resolves");
   const before = lifecycleSuccess(await h.store.version());
   const result = await resolveBacklogOwnership({ checkout: "/unused", identity: "test-user", path: ".arc/backlog/planned/alpha/note.txt",
-    store: { read: input => h.store.read(input), lookup: () => Promise.resolve(absent) }, index: { entries: {
+    store: { read: input => h.store.read(input), lookup: () => Promise.resolve(absent), list: input => h.store.list(input) }, index: { entries: {
       ".arc/backlog/planned/alpha/meta-alpha.md": { kind: "ownerless", stat: null,
         refused: { reason: "The accepted stub's basis is not yet bound.", remedy: { text: "Retry its exact receipt read." } },
         minted: { reference: primary.reference, version: primary.version } },
@@ -59,4 +63,23 @@ it("uses an accepted pending primary receipt when public-name lookup has no bind
   if (result.kind !== "owned") throw new Error("Expected the accepted metadata generation's container");
   expect(resolveArcPath(result.container)).toBe(".arc/backlog/planned/alpha");
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
+});
+
+it("preserves an archive inventory refusal and resolves the same exact coordinates after repair", async () => {
+  const h = createLifecycleHarness();
+  const primary = await h.seedMeta("alpha", { state: "Shipped", priority: "P1", currentWorkflow: null },
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  const container = ArcLayoutAddressSchema.parse({ kind: "work-unit-container", slug: "alpha", placement: primary.placement });
+  if (container.kind !== "work-unit-container") throw new Error("Expected completed container");
+  const boundary = createRefusingStore(h.store);
+  boundary.refuse("list", StoreRefusalSchema.parse({ code: "state-unresolvable", class: "recoverable",
+    reference: primary.reference, historyRefs: [], condition: "Archive inventory is unavailable.",
+    remedy: { text: "Restore archive objects, then retry." } }));
+  const input = { checkout: "/unused", identity: "test-user", path: `${resolveArcPath(container)}/correction.txt`,
+    store: boundary.store, index: { entries: {} } };
+  expect(await resolveEstablishedContainer(input, container)).toMatchObject({ kind: "refused", mark: {
+    reason: expect.stringContaining("Archive inventory is unavailable"), remedy: { text: "Restore archive objects, then retry." },
+  } });
+  boundary.refuse("list", null);
+  expect(await resolveEstablishedContainer(input, container)).toMatchObject({ kind: "owned", record: { reference: primary.reference } });
 });

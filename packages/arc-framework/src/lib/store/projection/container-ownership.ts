@@ -14,6 +14,7 @@ import { sameOwner } from "../identity.js";
 import { WorkUnitReadPlacementSchema } from "../placement.js";
 import type { StoreRecord } from "../read.js";
 import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
+import { readArchivedOwners } from "./archived-owners.js";
 
 /** Physical coordinates remain separate from the exact record that authorizes writes. */
 export type WorkItemContainer = Extract<ArcLayoutAddress, { kind: "work-unit-container" }>;
@@ -22,7 +23,7 @@ export interface BacklogOwnershipInput {
   readonly checkout: string;
   readonly identity: string;
   readonly path: string;
-  readonly store: Pick<Store, "read" | "lookup">;
+  readonly store: Pick<Store, "read" | "lookup" | "list">;
   readonly index: Pick<ProjectionIndex, "entries">;
 }
 /** Exactly one established container, or a refusal preserving the unadopted file. */
@@ -74,9 +75,10 @@ async function readEstablishedOwners(input: BacklogOwnershipInput, container: Wo
   if (indexed.kind === "refused") return indexed;
   const owners: StoredOwner[] = [];
   for (const owner of indexed.owners) addStoredOwner(owners, owner);
-  const stored = await readStoredOwner(input, container);
+  const stored = container.placement.kind === "completed"
+    ? await readArchivedContainerOwners(input, container) : await readStoredOwners(input, container);
   if (stored.kind === "refused") return stored;
-  if (stored.kind === "owned") addStoredOwner(owners, stored);
+  for (const owner of stored.owners) addStoredOwner(owners, owner);
   return { kind: "owners", owners };
 }
 
@@ -123,14 +125,31 @@ async function readIndexedOwners(input: BacklogOwnershipInput, container: WorkIt
   return { kind: "indexed", owners };
 }
 
-async function readStoredOwner(input: BacklogOwnershipInput, container: WorkItemContainer): Promise<StoredProbe> {
+async function readStoredOwners(input: BacklogOwnershipInput, container: WorkItemContainer): Promise<IndexedProbe> {
   const found = await input.store.lookup({ kind: "slug", slug: container.slug });
-  if (found.status === "refused") return found.refusal.code === "not-found" ? { kind: "absent" }
+  if (found.status === "refused") return found.refusal.code === "not-found" ? { kind: "indexed", owners: [] }
     : { kind: "refused", mark: markStoreRefusal(found.refusal) };
-  if (found.result.reference.kind !== "work-item/meta") return { kind: "absent" };
+  if (found.result.reference.kind !== "work-item/meta") return { kind: "indexed", owners: [] };
   const read = await input.store.read({ reference: found.result.reference });
   if (read.status === "refused") return { kind: "refused", mark: markStoreRefusal(read.refusal) };
-  const record = read.result;
+  const checked = await matchStoredContainer(input, container, read.result);
+  return checked.kind === "refused" ? checked : { kind: "indexed", owners: checked.kind === "owned" ? [checked] : [] };
+}
+
+async function readArchivedContainerOwners(input: BacklogOwnershipInput, container: WorkItemContainer): Promise<IndexedProbe> {
+  const listed = await readArchivedOwners(input.store, "work-item/meta");
+  if (listed.kind === "refused") return listed;
+  const owners: StoredOwner[] = [];
+  for (const record of listed.records) {
+    if (record.reference.owner.name !== container.slug) continue;
+    const checked = await matchStoredContainer(input, container, record);
+    if (checked.kind === "refused") return checked;
+    if (checked.kind === "owned") addStoredOwner(owners, checked);
+  }
+  return { kind: "indexed", owners };
+}
+
+async function matchStoredContainer(input: BacklogOwnershipInput, container: WorkItemContainer, record: StoreRecord): Promise<StoredProbe> {
   if (record.reference.kind !== "work-item/meta" || record.placement === undefined
     || record.placement.kind !== container.placement.kind) return { kind: "absent" };
   const fields = readLifecycleMetaFields(record);

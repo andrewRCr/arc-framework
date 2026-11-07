@@ -1,7 +1,7 @@
 /** A native checked primary and its real projected metadata, ready for discovering a new file. */
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createRefFixture } from "../ref-fixture.js";
+import { createRefFixture, type RefFixtureLayout } from "../ref-fixture.js";
 import { seed } from "../suite-tools.js";
 import { seedProjection } from "./seeded-projection.js";
 import { configureEngineCheckout } from "./engine-fixture.js";
@@ -13,13 +13,15 @@ import { boundWorkUnitSubject } from "../bound-checkout.js";
 import { resolveArcPath, type WorkUnitPlacement } from "../../../../src/lib/layout/index.js";
 import { WorkUnitReadPlacementSchema, type WritePlacement } from "../../../../src/lib/store/placement.js";
 import { workItemLayoutPlacement } from "../../../../src/lib/store/lifecycle-storage.js";
-import { SlugSchema } from "../../../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { TransientIdentityRecordSchema } from "../../../../src/lib/errand/identity-record.js";
 
 /** Choose only physical inputs that the real marker, layout resolver, and metadata renderer produce. */
-export async function createAdoptionFixture(input: { placement?: WritePlacement; owner?: string; ownLayout?: "nested" | "flat" } = {}) {
-  const registry = createKindRegistry(PRODUCTION_REGISTRATIONS), f = await createRefFixture(registry);
+export async function createAdoptionFixture(input: {
+  placement?: WritePlacement; owner?: string; ownLayout?: "nested" | "flat"; layout?: RefFixtureLayout;
+} = {}) {
+  const registry = createKindRegistry(PRODUCTION_REGISTRATIONS), f = await createRefFixture(registry, input.layout);
   f.identity("andrew");
   const placement: WritePlacement = input.placement ?? { kind: "backlog", commitment: "planned" };
   const primary = await seed(f, RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } }),
@@ -43,21 +45,32 @@ export async function createAdoptionFixture(input: { placement?: WritePlacement;
 }
 
 /** Project an active Errand through its exact ready claim and its description's real address. */
-export async function createErrandAdoptionFixture() {
+export async function createErrandAdoptionFixture(input: { completed?: boolean; own?: boolean; unindexed?: boolean } = {}) {
   const registry = createKindRegistry(PRODUCTION_REGISTRATIONS), f = await createRefFixture(registry);
   f.identity("andrew");
   const claimId = "a".repeat(32), slug = SlugSchema.parse("alpha");
   const primary = await seed(f, recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: slug })),
     JSON.stringify(TransientIdentityRecordSchema.parse({ version: 3, kind: "errand", purpose: "errand", slug, claimId,
       createdAt: "2026-11-01T00:00:00Z", updatedAt: "2026-11-01T00:00:00Z", intent: "A bounded correction", branch: "chore/alpha",
-      owner: "andrew", origin: "description", originEntry: null, state: "open", savedHead: null, changeRequest: null })), { kind: "active" });
+      owner: "andrew", origin: "description", originEntry: null, state: "open", savedHead: null, changeRequest: null })),
+    input.completed ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" });
   const description = await seed(f, recordReferences["work-item/description"](primary.reference.owner), "## Description\n\n");
   await configureEngineCheckout(f.root);
-  await writeWorktreeMarker(f.root, { spawnedByArc: false, spawningIdentity: "andrew", createdAt: new Date(0).toISOString(),
-    createdFor: { kind: "errand", slug, claimId }, provisioning: "ready" });
-  const placement = { kind: "active", scope: { kind: "project", location: { kind: "own", claim: slug, layoutActive: "nested" } } } as const;
-  const folder = resolveArcPath({ kind: "work-unit-container", slug, placement });
+  if (!input.completed && input.own !== false) {
+    await writeWorktreeMarker(f.root, { spawnedByArc: false, spawningIdentity: "andrew", createdAt: new Date(0).toISOString(),
+      createdFor: { kind: "errand", slug, claimId }, provisioning: "ready" });
+  }
+  const placement = input.completed
+    ? { kind: "completed" as const, quarter: ArchiveQuarterSchema.parse("2026-q4") }
+    : { kind: "active" as const, scope: { kind: "project" as const, location: input.own === false
+      ? { kind: "another" as const } : { kind: "own" as const, claim: slug, layoutActive: "nested" as const } } };
+  const path = resolveArcPath({ kind: "errand-description", slug, placement });
+  const folder = path.slice(0, path.lastIndexOf("/"));
   const projected = await seedProjection({ store: f.store, checkout: f.root,
-    files: [{ reference: description.reference, path: resolveArcPath({ kind: "errand-description", slug, placement }) }] });
-  return { f, primary, folder, projected };
+    files: input.unindexed ? [] : [{ reference: description.reference, path }] });
+  if (input.unindexed) {
+    await mkdir(join(f.root, folder), { recursive: true });
+    await writeFile(join(f.root, path), description.content);
+  }
+  return { f, primary, description, folder, projected };
 }

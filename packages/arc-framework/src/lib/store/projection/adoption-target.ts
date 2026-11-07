@@ -9,6 +9,7 @@ import { resolveEstablishedContainer } from "./container-ownership.js";
 import { readAdoptionClaim } from "./adoption-claim.js";
 import { resolveCohortAdoption } from "./cohort-adoption.js";
 import { resolveProjectInboxAdoption } from "./project-adoption.js";
+import { resolveErrandAdoption } from "./errand-adoption.js";
 
 /** A classified file still needs generation authority before it can be created. */
 export type AdoptionReference = { kind: "reference"; reference: RecordReference } | { kind: "refused"; mark: RefusedMark };
@@ -24,15 +25,14 @@ export async function resolveLocatedAdoption(root: ProjectionRootState, index: P
   if (address === null || !("placement" in address)) return misplaced(path);
   const own = address.placement.kind === "active" && address.placement.scope.kind === "project"
     && address.placement.scope.location?.kind === "own";
-  if (!own) {
-    const container = ArcLayoutAddressSchema.parse({ kind: "work-unit-container", slug: target.workItem, placement: address.placement });
-    if (container.kind !== "work-unit-container") return misplaced(path);
-    const established = await resolveEstablishedContainer({ checkout: root.checkout, store: root.store,
-      identity: root.identity, path, index }, container);
-    if (established.kind === "refused") return established;
-    return established.kind === "absent" ? misplaced(path) : bindReference(target, established.record.reference.owner);
-  }
-  return resolveCurrentReference(root, target);
+  if (own) return resolveCurrentReference(root, target);
+  if (address.kind === "errand-description") return resolveErrandAdoption(root, path, address);
+  const container = ArcLayoutAddressSchema.parse({ kind: "work-unit-container", slug: target.workItem, placement: address.placement });
+  if (container.kind !== "work-unit-container") return misplaced(path);
+  const established = await resolveEstablishedContainer({ checkout: root.checkout, store: root.store,
+    identity: root.identity, path, index }, container);
+  if (established.kind === "refused") return established;
+  return established.kind === "absent" ? misplaced(path) : bindReference(target, established.record.reference.owner);
 }
 
 async function resolveCurrentReference(root: ProjectionRootState, target: { kind: RecordReference["kind"]; key?: string }): Promise<AdoptionReference> {
