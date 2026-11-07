@@ -3,7 +3,7 @@
   "slug": "git-fallback-evidence",
   "claimId": "7d56c380153fb90005e4046a033393ad",
   "createdAt": "2026-11-07T03:03:26.574Z",
-  "updatedAt": "2026-11-07T03:03:26.574Z",
+  "updatedAt": "2026-11-07T17:24:57.938Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Audit the named Git fallback sites by cutover fate, repair only surviving fallbacks with complete failure evidence, and report unresolved fates.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Audit inherited Git fallbacks for complete absence evidence",
   "originEntrySourceDigest": "sha256:7fc97835d296cd5fe7bb83f3deda0ea933629cce9f1dff12e5edd2da353cf910",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/git-fallback-evidence",
+    "headSha": "af2974e7768ef772a2cc33edfa70015b7b1a0137"
+  }
 }
