@@ -64,10 +64,14 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
   }
   const aliasRefusal = resolutionAliasRefusal(path);
   if (aliasRefusal !== null) {
+    await root.checkpoint?.();
+    const changed = await checkChange({ path: join(root.checkout, path), recorded: entry.stat,
+      written: entry.written, reference, format: root.context.format });
     root.unsent.add(path);
     root.context.report?.({ path, copy: null, mark: aliasRefusal });
     return { index: await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-      index: withEntry(index, path, { ...entry, pending: true, refused: aliasRefusal }), checkpoint: root.context.checkpoint }), edited: false };
+      index: withEntry(index, path, { ...entry, changed: entry.changed || changed.status === "changed",
+        pending: true, refused: aliasRefusal }), checkpoint: root.context.checkpoint }), edited: false };
   }
   if (entry.adoption?.kind === "read-back") return { index: await resumeAdoptionReadBack(root, index, path, entry), edited: false };
   if (entry.adoption?.kind === "write-back") return { index, edited: true };

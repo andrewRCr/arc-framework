@@ -75,6 +75,7 @@ import { writeBackProjectionFiles } from "../../../../src/lib/store/projection/e
 import { createProjectionReporter } from "../../../../src/lib/store/projection/report.js";
 import { createAdoptionFixture } from "../../../helpers/store/projection/adoption-fixture.js";
 import { resolveArcPath } from "../../../../src/lib/layout/index.js";
+import { selectProjectedMarkdown } from "../../../../src/lib/store/projection/selection.js";
 
 
 const directories: string[] = [];
@@ -669,6 +670,7 @@ it.each([false, true])("resolves one cohort conflict through equivalent canonica
 
 it("preserves incompatible cohort choices while another edit lands, then resolves after the copies agree", async () => {
   const h = await cohortResolutionCopies(), choices = [];
+  const original = await Promise.all(h.paths.map(path => readFile(join(h.checkout, path), "utf8")));
   for (const [i, path] of h.paths.entries()) choices.push({ path,
     bytes: await writeCohortChoice(h, path, `${h.current.content}\nChoice ${i}.\n`) });
   const independent = "# Extra\n\nIndependent edit.\n";
@@ -679,6 +681,15 @@ it("preserves incompatible cohort choices while another edit lands, then resolve
   for (const choice of choices) expect(await readFile(join(h.checkout, choice.path), "utf8")).toBe(choice.bytes);
   expect(success(await h.store.read({ reference: h.current.reference }))).toMatchObject({ content: h.current.content, conflicts: [h.conflict] });
   expect(success(await h.store.read({ reference: h.extra.reference })).content).toBe(independent);
+  const held = await readProjectionIndex(h.location, true);
+  if (held.kind !== "index") throw new Error("Missing held index");
+  for (const path of h.paths) expect(held.index.entries[path]).toMatchObject({ changed: true });
+  expect(selectProjectedMarkdown(held.index.entries, { changed: true })).toEqual(expect.arrayContaining(h.paths));
+  for (const [i, path] of h.paths.entries()) if (i === 0) await writeFile(join(h.checkout, path), original[i]!);
+  expect((await save(h, ["--resolve", formatConflictToken(h.conflict)])).result.status).toBe("refused");
+  const observedAgain = await readProjectionIndex(h.location, true);
+  if (observedAgain.kind !== "index") throw new Error("Missing held index");
+  for (const path of h.paths) expect(observedAgain.index.entries[path]).toMatchObject({ changed: true });
   const content = `${h.current.content}\nAgreed correction.\n`;
   for (const path of h.paths) await writeCohortChoice(h, path, content);
   expect((await save(h, ["--resolve", formatConflictToken(h.conflict)])).result.status).toBe("ok");
@@ -690,6 +701,10 @@ it("does not bypass a withheld cohort alias and resolves after that alias is rel
   if (path === undefined) throw new Error("Missing canonical path");
   const entry = h.index.entries[path];
   if (entry?.kind !== "record") throw new Error("Missing canonical entry");
+  const editedPath = h.paths[1];
+  if (editedPath === undefined) throw new Error("Missing current path");
+  const content = `${h.current.content}\nChosen correction.\n`;
+  await writeCohortChoice(h, editedPath, content);
   const before = await Promise.all(h.paths.map(path => readFile(join(h.checkout, path), "utf8")));
   await writeProjectionIndex(h.location, { ...h.index, entries: { ...h.index.entries, [path]: { ...entry, withheld: true } } });
   const refused = await save(h, ["--resolve", formatConflictToken(h.conflict)]);
@@ -700,8 +715,10 @@ it("does not bypass a withheld cohort alias and resolves after that alias is rel
   const held = await readProjectionIndex(h.location, true);
   if (held.kind !== "index") throw new Error("Missing held index");
   for (const alias of h.paths) expect(held.index.entries[alias]).toMatchObject({ pending: true,
-    refused: { reason: expect.stringContaining("withheld") } });
+    changed: alias === editedPath, refused: { reason: expect.stringContaining("withheld") } });
+  expect(selectProjectedMarkdown(held.index.entries, { changed: true })).toEqual([editedPath]);
   await writeProjectionIndex(h.location, { ...held.index, entries: { ...held.index.entries, [path]: { ...entry, withheld: false } } });
+  await writeCohortChoice(h, path, content);
   expect((await save(h, ["--resolve", formatConflictToken(h.conflict)])).result.status).toBe("ok");
   expect(success(await h.store.read({ reference: h.current.reference })).conflicts).toEqual([]);
 });
