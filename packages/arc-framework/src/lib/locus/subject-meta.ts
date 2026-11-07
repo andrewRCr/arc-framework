@@ -1,6 +1,7 @@
 /** Checkout-directed projection of one exact work-unit metadata subject. */
 
 import type { Store } from "../store/contract.js";
+import { recordComposedStoreCapability } from "../store/projection/process-state.js";
 import { readStoreSubjectCandidate } from "./subject-meta-candidate.js";
 import type { StoreWorkUnitEvidence } from "./store-work-unit-evidence.js";
 import { WorkUnitReadPlacementSchema } from "../store/placement.js";
@@ -123,6 +124,7 @@ export async function projectCheckoutSubjectMeta(options: {
   foreignCheckout?: boolean;
   io: SubjectMetaIO;
 }): Promise<SubjectMetaProjection> {
+  if (options.store !== undefined) recordComposedStoreCapability(options.cwd, options.store.capabilities.stateOffBranch);
   const workUnitPlacement = options.workUnit === undefined ? null
     : await workItemLayoutPlacement(options.cwd, options.subjectKey, WorkUnitReadPlacementSchema.parse(options.workUnit.record.placement), options.workUnit.fields.cohort);
   const expectedPath = workUnitPlacement !== null

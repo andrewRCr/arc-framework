@@ -243,6 +243,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions, interaction?
     }),
     resolveTaskListEvidence: (taskListPath) => resolveRecoveryTaskListEvidence({
       cwd,
+      recover,
       exec: recoveryGitExec,
       seedHead: parsedSeed.seed.head,
       taskListPath,

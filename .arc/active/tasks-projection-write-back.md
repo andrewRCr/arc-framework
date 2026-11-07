@@ -334,6 +334,11 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
           checkout root. An Errand seed inherits its healthy parent's exact
           meta path and identity without interpreting those paths through the Errand's claim; an unhealthy parent
           supplies no inherited identity.
+        - Standard review repair: shared native-store context acquisition binds every parent and sibling root.
+          Recovery continuity recognizes the exact inherited metadata entry, and task evidence resolves through its
+          healthy owning checkout. Real Errand tests cover nested metadata, task and load-set paths, seed inheritance,
+          historical task bytes, replacement-parent rejection, and a mismatched parent frame; native flat evidence
+          retains its configured layout.
 
 ### `[x]` **2.4.R Establish folder ownership before classifying new backlog files — § 9, § 10.1**
 

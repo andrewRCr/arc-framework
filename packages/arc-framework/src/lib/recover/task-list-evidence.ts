@@ -10,6 +10,18 @@ import { SlugSchema } from "../kernel/index.js";
 import { bindStoreSyncPort, type StoreSyncPort } from "../store/operational-sync.js";
 import type { StoreRecord } from "../store/read.js";
 import { readStateHistory } from "../handoff/state-history.js";
+import { readCheckoutLayoutContext } from "../store/checkout-layout.js";
+import { resolveRecoveryParentContext } from "./locus-context.js";
+import type { RecoveryAuditProbeState } from "./audit.js";
+
+type TaskListRecoveryContext = Pick<RecoveryAuditProbeState, "derivedLocusState" | "recoveryFrame">;
+
+function taskListCheckout(cwd: string, taskListPath: string, recover?: TaskListRecoveryContext): string {
+  if (recover?.recoveryFrame.ok !== true || !recover.derivedLocusState.ok) return cwd;
+  const frame = recover.recoveryFrame.value;
+  const parent = resolveRecoveryParentContext(recover.derivedLocusState.value, frame);
+  return parent?.taskListPath === taskListPath ? frame.parentCheckoutPath ?? cwd : cwd;
+}
 
 /** Resolve the same evidence over the selected substrate, retaining the code baseline.
  * @param input - Checkout, saved code/state anchors and current selected store.
@@ -24,12 +36,14 @@ export async function resolveRecoveryTaskListEvidence(input: {
   stateVersion?: StateVersion | null;
   currentStateVersion?: StateVersion | null;
   sync?: StoreSyncPort;
+  recover?: TaskListRecoveryContext;
 }): Promise<RecoveryTaskListEvidence> {
   if (input.store?.capabilities.stateOffBranch === true) {
     try {
       const store = input.store;
       const sync = input.sync ?? bindStoreSyncPort(store);
-      const identified = identifyWorkUnitArtifactPath(input.taskListPath);
+      const checkout = taskListCheckout(input.cwd, input.taskListPath, input.recover);
+      const identified = identifyWorkUnitArtifactPath(input.taskListPath, await readCheckoutLayoutContext(checkout));
       if (identified === null || identified.artifact !== "tasks") throw new Error(`No task-list record corresponds to ${input.taskListPath}. Repair the work unit's Task List reference and retry.`);
       if (input.stateVersion === null || input.stateVersion === undefined) throw new Error("The recovery seed has no state version. Rebuild the seed from current operational state and retry recovery.");
       const stateVersion = input.stateVersion;
