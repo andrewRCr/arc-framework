@@ -13,15 +13,16 @@
 
 ## Planning state
 
-- **Readiness:** not ready since planning review's first independent pass (2026-11-06), which found one critical and six
-  major findings, its second, which found three major, and its third, which found two major, each folded in place with
-  its approved disposition; the folds are under review, and readiness is re-checked when the review closes. Before that
-  pass the draft was formalization-ready, re-checked after planning review's source-grounding reshaped the window: one
-  `needs-detail` gap, dispositions for the staged-cut refusal and the landing rules' retirement, closed in place. The
-  2026-11-05 readiness check returned not-ready; the Owner's planning pass, the consolidation that folded it, and the
-  ADR dispositions (2026-11-06) closed its three gaps: the inbound buffer, the success signal, and the dispositions. The
-  2026-11-06 loop-exit check returned not-ready on two `needs-detail` gaps, both closed: the build the window imports
-  from, with the backend switch named, and dispositions for #29 and #31. Re-run after those closures, it returned ready.
+- **Readiness:** formalization-ready, re-checked 2026-11-06 at planning review's close, with no gap: three independent
+  passes, which found one critical and six major findings, then three major, then two major, each folded in place with
+  its approved disposition and fix-checked, the last fix check finding six minor, folded and not re-reviewed. Before the
+  first pass the draft was formalization-ready, re-checked after planning review's source-grounding reshaped the window:
+  one `needs-detail` gap, dispositions for the staged-cut refusal and the landing rules' retirement, closed in place.
+  The 2026-11-05 readiness check returned not-ready; the Owner's planning pass, the consolidation that folded it, and
+  the ADR dispositions (2026-11-06) closed its three gaps: the inbound buffer, the success signal, and the dispositions.
+  The 2026-11-06 loop-exit check returned not-ready on two `needs-detail` gaps, both closed: the build the window
+  imports from, with the backend switch named, and dispositions for #29 and #31. Re-run after those closures, it
+  returned ready.
 - **Entry read:** depth `high`; `Class` stays `Heavy`. Derivation fires, since the window runbook, the flip change, and
   the land-at-flip split must be designed. Scale fires too, given a deletion surface spanning several subsystems. The
   design is composed from the landed members' specifications, not invented. Confirmed 2026-11-05 with no material new
@@ -141,7 +142,7 @@
       abandons the Errands it copied and opens its own to refuse on, the copy taken while no Errand awaits its merge;
       and the review ends there, with no fourth pass (Owner, 2026-11-06) (§ The window; § The rehearsal).
 - **Open:** none.
-- **Next:** planning review's close: `arc check increment`, the readiness re-check, and the capture commit.
+- **Next:** the capture commit, then create-spec.
 
 ### The cut
 
