@@ -218,4 +218,15 @@ outside the writable sweep, retaining authored bytes while binding the evidence 
 Dual-backend CLI tests insert participants at the preparation/admission boundary, assert refusal preserves the
 post-arrival state, and retry from fresh preparation to include the new rewrite or report.
 
+Owned-artifact completeness uses the selected owner's identity before shared-name resolution. An archived work item's
+old slug can resolve to a live namesake while its own group still requires supported filename rewrites. Arriving owned
+drafts, specs, task lists, notes and keyed companions therefore refuse until fresh preparation includes them; the live
+holder's shared references remain unchanged and unreported. The shared resolution exemption applies only to shared
+participants. Cut-map exclusion and unrelated arrivals retain their existing behavior.
+
+The ownership/resolution matrix exercises subject and other-holder resolution on both backends and concurrent
+ambiguous name reads on the native backend. The memory fixture's name read uses its identity index and does not model
+that tie. Every case preserves the complete post-arrival state on refusal, then retries and checks the owned rewrite
+beside the shared reference's rewrite, report or preservation.
+
 ---

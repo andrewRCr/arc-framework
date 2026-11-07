@@ -5,12 +5,14 @@ import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registration
 import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { createRefFixture } from "../helpers/store/ref-fixture.js";
 import { createReferenceFixture } from "../helpers/store/reference-fixture.js";
+import { plantRefPrimary } from "../helpers/store/ref-primary-plant.js";
 import { seed, success } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { repairCliFixture, repairCli } from "../helpers/repair-cli.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import type { Store } from "../../src/lib/store/contract.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
+import { resolveRenameReferences } from "../../src/lib/store/rename-reference-resolution.js";
 import { writeMetaPause, writeMetaDependsOn } from "../../src/lib/store/kinds/meta/writers.js";
 
 const production = createKindRegistry(PRODUCTION_REGISTRATIONS);
@@ -28,7 +30,14 @@ async function fixture(backend: "reference" | "ref") {
     return createRefStore({ ...fresh, registry: native.ports.registry, identity: native.ports.identity,
       actor: native.ports.actor, clock: native.ports.clock, random: native.ports.random });
   };
-  return { ...state, cli, invoke: (args: readonly string[], decorate?: (store: Store) => Store) => repairCli(cli, args, {
+  const concurrentWorkUnit = async (name: string) => {
+    if (native === undefined) throw new Error("Concurrent name-read ties require the native fixture");
+    const uid = "12345678-abcd-4abc-8abc-123456789abc";
+    const content = makeMetaFixture(name, { state: "Planning", currentWorkflow: null });
+    return success(await state.store.read({ reference: await plantRefPrimary(native,
+      { kind: "work-item/meta", name, uid, content }) }));
+  };
+  return { ...state, cli, concurrentWorkUnit, invoke: (args: readonly string[], decorate?: (store: Store) => Store) => repairCli(cli, args, {
     storeFactory: async () => { const store = await storeFactory(); return decorate?.(store) ?? store; },
   }) };
 }
@@ -197,4 +206,66 @@ describe.each(["reference", "ref"] as const)("work-item rename participant arriv
     expect(success(await f.store.read({ reference: arrival.reference }))).toEqual(arrival);
     expect(result.result).toMatchObject({ report: { references: [] } });
   }, 60_000);
+});
+
+describe.each(["reference", "ref"] as const)("owned participant resolution over %s", backend => {
+  // Memory name reads use an identity index; the native store exercises concurrent name-read ambiguity.
+  const resolutions = backend === "reference" ? ["subject", "other"] as const : ["subject", "ambiguous", "other"] as const;
+  it.each(resolutions)(
+    "reprepares owned arrivals independently of %s shared-name resolution", async resolution => {
+      const f = await fixture(backend), sourceRef = f.reference("work-item/meta", "source");
+      const source = await seed(f, sourceRef, makeMetaFixture(sourceRef.owner.name,
+        { state: resolution === "ambiguous" ? "Planning" : "Shipped", currentWorkflow: null }),
+      resolution === "ambiguous" ? { kind: "backlog", commitment: "planned" } : completed);
+      const namesake = resolution === "subject" ? undefined : resolution === "ambiguous"
+        ? await f.concurrentWorkUnit(sourceRef.owner.name) : await seed(f, sourceRef,
+          makeMetaFixture(sourceRef.owner.name, { state: "Planning", currentWorkflow: null }), { kind: "backlog", commitment: "planned" });
+      expect(await resolveRenameReferences(f.store, source.reference, source.reference.owner.name)).toEqual({ status: "ok", result: resolution });
+      if (source.reference.owner.type !== "work-item" || source.reference.owner.uid === undefined) throw new Error("Expected source UID");
+      const citation = `See \`meta-${source.reference.owner.name}.md\`.\n`;
+      const sharedRef = f.reference("work-item/meta", "waiting");
+      const shared = await seed(f, sharedRef, makeMetaFixture(sharedRef.owner.name, { state: "Planning", currentWorkflow: null }) + citation,
+        { kind: "backlog", commitment: "planned" });
+      const arrivals: StoreRecord[] = [];
+      let version: unknown;
+      const argv = ["rename", source.reference.owner.uid, "renamed", "--json"];
+      const refused = await f.invoke(argv, store => new Proxy(store, { get(target, key) {
+        if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
+          if (arrivals.length === 0) {
+            for (const kind of ["work-item/draft", "work-item/spec", "work-item/task-list", "work-item/notes", "work-item/companion"] as const) {
+              const reference = RecordReferenceSchema.parse({ kind, owner: source.reference.owner,
+                ...(kind === "work-item/companion" ? { key: "appendix.md" } : {}) });
+              arrivals.push(await seed(f, reference, `# Artifact\n\n${citation}`));
+            }
+            expect(success(await f.store.read({ reference: source.reference }))).toEqual(source);
+            version = success(await f.store.version());
+          }
+          return store.batch(input);
+        };
+        const value: unknown = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+      expect(refused, JSON.stringify(refused)).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { rule: "rename.references" } } });
+      expect(success(await f.store.version())).toBe(version);
+      for (const record of [source, shared, namesake, ...arrivals]) {
+        if (record !== undefined) expect(success(await f.store.read({ reference: record.reference }))).toEqual(record);
+      }
+      const retried = await f.invoke(argv);
+      expect(retried.exitCode ?? 0, retried.stdout + retried.stderr).toBe(0);
+      for (const arrival of arrivals) {
+        const current = success(await f.store.read({ reference: arrival.reference }));
+        expect(current.reference.owner).toEqual({ ...source.reference.owner, name: "renamed" });
+        expect(current.content).toContain("See `meta-renamed.md`.");
+      }
+      const currentShared = success(await f.store.read({ reference: shared.reference }));
+      if (resolution === "subject") expect(currentShared.content).toContain("See `meta-renamed.md`.");
+      else expect(currentShared).toEqual({ ...shared, version: currentShared.version });
+      if (namesake !== undefined) {
+        const currentNamesake = success(await f.store.read({ reference: namesake.reference }));
+        expect(currentNamesake).toEqual({ ...namesake, version: currentNamesake.version });
+      }
+      expect(retried.result).toMatchObject({ report: { references: resolution === "ambiguous" ? expect.arrayContaining([
+        expect.objectContaining({ record: expect.objectContaining({ name: shared.reference.owner.name }) }),
+      ]) : [] } });
+    }, 60_000);
 });

@@ -475,6 +475,12 @@ its history refs, discharging the edges naming it.
   fresh retry includes shared and owned artifact rewrites or repair rows without changing started content. Both backends
   exercise the boundary through CLI dispatch; unrelated started/completed prose and plain mentions remain allowed.
 
+- _Fix-check correction:_ Required citations in arriving owned artifacts fence admission independently of shared-name
+  resolution. Archived UID rename with live name reuse refuses without publishing, then fresh preparation rewrites
+  owned drafts, specs, task lists, notes and keyed companions while preserving the live holder and its shared references.
+  Both backends cover subject/other resolution; native CLI dispatch also covers a concurrent ambiguous name read, which
+  the memory fixture's identity-index read does not model.
+
 ### `[x]` **4.6 Pull history refs round after round — § 2.6**
 
 - _Goal:_ A rename batch that writes completed records lands on a clone lacking their history refs, pulling each round

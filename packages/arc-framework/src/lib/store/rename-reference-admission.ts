@@ -47,11 +47,14 @@ async function participantProblem(context: RenameAdmission, records: readonly St
   if (observed.status !== "known") return observed.status === "unavailable" ? observed.condition : "Rename participants are unavailable.";
   const uncaptured = observed.value;
   if (uncaptured.length === 0) return null;
+  if (uncaptured.some(record => sameOwner(record.reference.owner, context.primary.reference.owner) && hasFilenameReference(context, record.content))) {
+    return "The rename's required owned-artifact participants changed after preparation.";
+  }
   if (context.primary.reference.owner.type === "cohort") {
     const problem = await holdingParticipantsProblem(context, uncaptured);
     if (problem !== null) return problem;
   }
-  if (!uncaptured.some(record => sharedParticipant(context, record))) return null;
+  if (!uncaptured.some(record => !sameOwner(record.reference.owner, context.primary.reference.owner) && sharedParticipant(context, record))) return null;
   const resolution = await resolveRenameReferences(context.input.before, context.primary.reference, context.primary.reference.owner.name);
   if (resolution.status === "refused") return resolution.refusal.condition;
   return resolution.result === "other" ? null : "The rename's required reference participants changed after preparation.";
