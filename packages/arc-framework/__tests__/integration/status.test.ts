@@ -1338,7 +1338,7 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
         responses: [({ args }) => {
           const value = args[2] === undefined ? undefined : overrides[args[2]];
           return value === undefined
-            ? { failure: { exitCode: 1, stderr: "exit 1" } }
+            ? { failure: { exitCode: 1, stdout: "", stderr: "" } }
             : { stdout: `${value}\n` };
         }],
       }]).exec);
@@ -1402,7 +1402,7 @@ describe("runSessionInitStatus — release-mode key resolution at envelope path"
       responses: [({ args }) => {
         const value = args[2] === undefined ? undefined : overrides[args[2]];
         return value === undefined
-          ? { failure: { exitCode: 1, stderr: "exit 1" } }
+          ? { failure: { exitCode: 1, stdout: "", stderr: "" } }
           : { stdout: `${value}\n` };
       }],
     }]).exec);
@@ -1489,7 +1489,7 @@ describe("runSessionHandoffStatus — releaseRouting envelope path", () => {
       responses: [({ args }) => {
         const value = args[2] === undefined ? undefined : overrides[args[2]];
         return value === undefined
-          ? { failure: { exitCode: 1, stderr: "exit 1" } }
+          ? { failure: { exitCode: 1, stdout: "", stderr: "" } }
           : { stdout: `${value}\n` };
       }],
     }]).exec);
