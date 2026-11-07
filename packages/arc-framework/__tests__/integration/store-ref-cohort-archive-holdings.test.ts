@@ -60,7 +60,7 @@ describe.each(["reference", "ref"] as const)("registered archive holdings over %
   }, 60_000);
 });
 
-it("archive advice clears every child member before changing its former Parent", async () => {
+it.each([false, true])("archive advice repairs every child member, other-prefix UID sorts first=%s", async otherFirst => {
   const cli = await repairCliFixture(), f = await createRefFixture(overrides);
   const options = { storeFactory: async () => {
     const { createRefStore } = await import("../../src/lib/store/create.js");
@@ -75,12 +75,17 @@ it("archive advice clears every child member before changing its former Parent",
   await seed(f, otherRef, content(otherRef.owner.name));
   const child = await seed(f, childRef, content(childRef.owner.name).replace("**Parent:** [none]", `**Parent:** \`${parentRef.owner.name}\``));
   const members = [];
-  for (const name of ["former-member", "current-prefix-member", "subject"]) {
+  for (const [index, name] of ["former-member", "current-prefix-member"].entries()) {
     const reference = f.reference("work-item/meta", name);
-    members.push(await seed(f, reference, makeMetaFixture(reference.owner.name, { cohort: oldPath })));
+    const ordinal = (index === 0) === otherFirst ? "2" : "1";
+    const planted = await plantRefPrimary(f, { kind: "work-item/meta", name: reference.owner.name,
+      uid: `00000000-0000-4000-8000-00000000000${ordinal}`, content: makeMetaFixture(reference.owner.name, { cohort: oldPath }) });
+    members.push(success(await f.store.read({ reference: planted })));
   }
-  const [former, current, subject] = members;
-  if (former === undefined || current === undefined || subject === undefined || current.reference.owner.type === "person"
+  const subjectRef = f.reference("work-item/meta", "subject");
+  const subject = await seed(f, subjectRef, makeMetaFixture(subjectRef.owner.name, { cohort: oldPath }));
+  const [former, current] = members;
+  if (former === undefined || current === undefined || current.reference.owner.type === "person"
     || current.reference.owner.uid === undefined) throw new Error("Expected exact member identities");
   await plantRefPrimary(f, { kind: "work-item/meta", name: current.reference.owner.name, uid: current.reference.owner.uid,
     content: writeMetaCohort(current.content, `${otherRef.owner.name}/${childRef.owner.name}`) });

@@ -314,6 +314,9 @@ nothing without `--yes`; and a member a pull lands naming a removed cohort refus
   and text report the assigned placement, while failed result reads retain the persisted close. The in-repo arm keeps
   its unsupported result.
 
+- _Review correction:_ Close carries the selected version and conflict set into atomic admission. A conflict-only
+  arrival now refuses without retirement; resolution and a fresh confirmed command succeed on both backends.
+
 ### `[x]` **3.5 Remove a cohort — § 8.2, § 8.5**
 
 - _Goal:_ `arc cohort remove <cohort>` removes a cohort no record has ever held, so no record names a removed one.
@@ -322,6 +325,10 @@ nothing without `--yes`; and a member a pull lands naming a removed cohort refus
   unheld document in one confirmed `cohort-remove` batch without publication. Close and remove share plan and result
   rendering; completed members and closed subcohorts retain the document. A named-history retry re-reads the selected
   UID and repeats the complete holding check with a fresh version, preserving a live cohort that reuses its slug.
+
+- _Review correction:_ Removal also binds the selected primary's conflict set at admission. Both backends reject a
+  newly arrived conflict despite its unchanged primary version, retain the document, then remove it after resolution
+  and a fresh confirmed retry.
 
 ### `[x]` **3.6 Report a cohort left with nothing open from abandon, close, and remove — § 8.3, § 7.2**
 
@@ -472,6 +479,10 @@ its history refs, discharging the edges naming it.
   every retry keeps the original operand and recovery guard. Archived subjects and closed-cohort headings now land
   together after their required histories are restored, while unrelated histories remain unfetched.
 
+- _Review correction:_ Successful selection pins the owner and record kind through every recovery round. Both native
+  layouts now retain the archived work unit when its history pull also imports a higher-ranked live namesake cohort;
+  the cohort remains unchanged and the original operand stays available for reporting and recovery.
+
 ### `[x]` **4.7 Report a former-slug tie the batch leaves — § 2.7**
 
 - _Goal:_ Renaming the second holder of a repaired clash away from the slug reports the former-slug tie it leaves and its
@@ -602,6 +613,11 @@ old name refuses naming the current one.
   trigger the notice and plans over all holdings. A native CLI regression failed with three advertised edits, then
   passed with five; it applies every edit through the production store and successfully retries archive. The approved
   correction uses focused verification; no further independent fix check was selected for this minor repair.
+- _Follow-up:_ Hosted CI exposed an order-dependent prerequisite check in the shared planner. Complete discovery now
+  finds every provable Parent group before rejecting other-prefix members. Reversing the same open or completed
+  holdings preserves semantic repairs, and both pinned native UID orders apply every advertised edit and retry archive.
+  The three transition regressions and their affected suites pass all 75 cases. Full verification passed all 20 selected
+  merge checks, including all six store shards over 431 eligible suites.
 
 ### `[x]` **5.3 Rewrite references to the document's filename where the old slug names the cohort alone — § 5.1, § 4**
 

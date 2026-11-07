@@ -2,7 +2,7 @@
 import type { RuleObservation } from "../rule-support.js";
 import type { CohortHolding, CohortHoldingCandidate, CohortHoldingSegment, ResolvedCohortCandidate } from "./holdings.js";
 import { cohortChildMembers } from "./holdings.js";
-import { sameOwner } from "../../identity.js";
+import { sameOwner, type RecordReference } from "../../identity.js";
 import { parseCohortDocument } from "./parser.js";
 import { describeRecordConflicts } from "../../conflict-diagnostics.js";
 
@@ -21,6 +21,8 @@ export interface CohortHoldingRepairPlan {
 }
 type DeferredRepair = { status: "deferred"; condition: string };
 type EditObservation<T> = RuleObservation<T> | DeferredRepair;
+interface ParentRepair { holding: CohortHolding; target: string }
+interface ParentPrerequisite { child: RecordReference; repair: RuleObservation<ParentRepair> }
 
 /** Plan admissible field edits separately from unresolved identity prerequisites. */
 export function cohortHoldingRepairs(holdings: readonly CohortHolding[], slug: string): RuleObservation<CohortHoldingRepairPlan> {
@@ -59,29 +61,46 @@ function prepareParents(holdings: readonly CohortHolding[], slug: string): RuleO
   return { status: "known", value: { plan, handled } };
 }
 
-function parentPrerequisites(holdings: readonly CohortHolding[], slug: string): RuleObservation<{
-  holding: CohortHolding; target: string }[]> {
+function parentPrerequisites(holdings: readonly CohortHolding[], slug: string): RuleObservation<ParentRepair[]> {
   const result = holdings.filter(holding => holding.candidate.field === "parent").map(holding => ({ holding, target: slug }));
   const candidates = [...new Map([...holdings, ...holdings.flatMap(holding => holding.members)].map(item => [item.candidate, item])).values()];
-  for (const holding of holdings) {
-    if (holding.candidate.field !== "cohort" || holding.segments.length !== 2) continue;
-    const leaf = holding.segments.at(-1), parent = holding.segments[0];
-    if (leaf?.status !== "known" || parent?.status !== "known" || leaf.resolutionRecord.placement?.kind === "completed") continue;
-    if (result.some(item => sameOwner(item.holding.candidate.reference.owner, leaf.reference.owner))) continue;
-    const parsed = parseCohortDocument(leaf.resolutionRecord.content);
-    if (!parsed.success) return { status: "unavailable", condition: parsed.error };
-    const changed = holdings.some(item => item.candidate === holding.candidate && item.segment === 0);
-    const target = changed ? slug : parent.currentSlug;
-    if (parsed.data.parent === target) continue;
-    const proof = holding.parent;
-    if (parsed.data.parent === null || proof?.status !== "known" || !sameOwner(proof.reference.owner, parent.reference.owner)) {
-      return { status: "unavailable", condition: `The path ${holding.candidate.path} has no proved matching Parent. Repair Parent or clear Cohort before re-pointing it.` };
-    }
-    const candidate: CohortHoldingCandidate = { reference: leaf.reference, field: "parent", path: parsed.data.parent, completed: false };
-    result.push({ holding: { candidate, segments: [proof], segment: 0, resolution: "sole",
-      members: cohortChildMembers(candidates, leaf.reference) }, target });
+  const discovered = holdings.flatMap(holding => {
+    const leaf = holding.segments.at(-1);
+    if (leaf?.status === "known" && hasParentRepair(result, leaf.reference)) return [];
+    const prerequisite = childParentPrerequisite(holding, holdings, candidates, slug);
+    return prerequisite === null ? [] : [prerequisite];
+  });
+  // A proved child group covers all its members, including other-prefix paths.
+  for (const item of discovered) {
+    if (item.repair.status === "known" && !hasParentRepair(result, item.child)) result.push(item.repair.value);
   }
+  const blocked = discovered.find(item => item.repair.status !== "known" && !hasParentRepair(result, item.child));
+  if (blocked !== undefined && blocked.repair.status !== "known") return blocked.repair;
   return { status: "known", value: result };
+}
+
+function hasParentRepair(repairs: readonly ParentRepair[], child: RecordReference): boolean {
+  return repairs.some(item => sameOwner(item.holding.candidate.reference.owner, child.owner));
+}
+
+function childParentPrerequisite(holding: CohortHolding, holdings: readonly CohortHolding[],
+  candidates: readonly ResolvedCohortCandidate[], slug: string): ParentPrerequisite | null {
+  if (holding.candidate.field !== "cohort" || holding.segments.length !== 2) return null;
+  const leaf = holding.segments.at(-1), parent = holding.segments[0];
+  if (leaf?.status !== "known" || parent?.status !== "known" || leaf.resolutionRecord.placement?.kind === "completed") return null;
+  const child = leaf.reference, parsed = parseCohortDocument(leaf.resolutionRecord.content);
+  if (!parsed.success) return { child, repair: { status: "unavailable", condition: parsed.error } };
+  const changed = holdings.some(item => item.candidate === holding.candidate && item.segment === 0);
+  const target = changed ? slug : parent.currentSlug;
+  if (parsed.data.parent === target) return null;
+  const proof = holding.parent;
+  if (parsed.data.parent === null || proof?.status !== "known" || !sameOwner(proof.reference.owner, parent.reference.owner)) {
+    return { child, repair: { status: "unavailable",
+      condition: `The path ${holding.candidate.path} has no proved matching Parent. Repair Parent or clear Cohort before re-pointing it.` } };
+  }
+  const candidate: CohortHoldingCandidate = { reference: child, field: "parent", path: parsed.data.parent, completed: false };
+  return { child, repair: { status: "known", value: { holding: { candidate, segments: [proof], segment: 0, resolution: "sole",
+    members: cohortChildMembers(candidates, child) }, target } } };
 }
 
 function markHandled(holding: CohortHolding, handled: Set<CohortHoldingCandidate>): void {

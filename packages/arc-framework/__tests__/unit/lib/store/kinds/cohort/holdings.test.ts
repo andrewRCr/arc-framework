@@ -139,6 +139,35 @@ it("withholds a Parent repair to a completed parent rather than advertising reje
   expect(cohortHoldingRepairs(holdings.value, "child")).toMatchObject({ status: "unavailable", condition: expect.stringMatching(/completed/iu) });
 });
 
+it.each([false, true])("plans equivalent child repairs for either complete inventory order, completed=%s", async completed => {
+  const parent = cohortDoc("parent"), other = cohortDoc("other"), child = cohortDoc("child", "old-parent");
+  const matching = member("matching", "old-parent/child", 7, completed), elsewhere = member("elsewhere", "other/child", 8, completed);
+  const view = ruleView([parent, other, child, matching, elsewhere]);
+  const resolve: StoreView = { ...view, read: input => view.read(input.reference.owner.name === "old-parent"
+    ? { ...input, reference: { ...input.reference, owner: parent.reference.owner } } : input) };
+  const observed = await observeCohortHoldings([candidate(matching, "cohort", "old-parent/child"),
+    candidate(elsewhere, "cohort", "other/child")], resolve, child.reference);
+  if (observed.status !== "known") throw new Error("Expected complete child holdings");
+  const plans = [observed.value, [...observed.value].reverse()].map(holdings => cohortHoldingRepairs(holdings, "child"));
+  const semantic = plans.map(plan => {
+    expect(plan.status).toBe("known");
+    if (plan.status !== "known") throw new Error("Expected ordered repairs");
+    expect(plan.value.deferred).toEqual([]);
+    expect(plan.value.edits).toHaveLength(completed ? 3 : 5);
+    const parentIndex = plan.value.edits.findIndex(edit => edit.field === "parent");
+    for (const [index, edit] of plan.value.edits.entries()) {
+      if (edit.field !== "cohort") expect(edit).toMatchObject({ from: "old-parent", to: "parent" });
+      else if (edit.to === null) expect(index).toBeLessThan(parentIndex);
+      else {
+        expect(edit.to).toBe("parent/child");
+        expect(index).toBeGreaterThan(parentIndex);
+      }
+    }
+    return plan.value.edits.map(edit => JSON.stringify(edit)).sort();
+  });
+  expect(semantic[0]).toEqual(semantic[1]);
+});
+
 it("withholds child holdings when its separate Parent alias cannot be observed", async () => {
   const parent = cohortDoc("parent"), child = cohortDoc("child", "old-parent"), held = member("held", "parent/child", 7);
   const view = ruleView([parent, child, held]);
