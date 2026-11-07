@@ -3,14 +3,20 @@
   "slug": "mint-projection-team-scale",
   "claimId": "100a1c5ffcd98e8865d362a179364549",
   "createdAt": "2026-11-07T15:50:34.638Z",
-  "updatedAt": "2026-11-07T15:50:34.638Z",
+  "updatedAt": "2026-11-07T18:05:11.082Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Mint the projection-team-scale backlog stub for the split-off scale changes and record it in the storage-projection cohort",
   "branch": "chore/mint-projection-team-scale",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/mint-projection-team-scale",
+    "headSha": "eee86e1b9ab025229fecaf52e05af68085d0c96a"
+  }
 }
