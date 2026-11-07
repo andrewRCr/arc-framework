@@ -1,6 +1,6 @@
 /** Send the command's edited files, keeping ignored roots untouched while recording their landings. */
 import { join } from "node:path";
-import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
+import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { projectionProcessState } from "./process-state.js";
 import { checkChange, readReference } from "./change-detection.js";
@@ -44,6 +44,11 @@ function adoptionRetries(index: ProjectionIndex): string[] {
   });
 }
 
+function resolutionAliasRefusal(path: string): RefusedMark | null {
+  const intent = projectionProcessState().resolution;
+  return intent?.accepted || !intent?.target?.aliases?.includes(path) ? null : intent.refusal;
+}
+
 function pendingFileRequest(root: ProjectionRootState, path: string, entry: RecordEntry): TakeInRequest {
   const adopting = entry.adoption?.kind === "write-back";
   return { checkout: root.checkout, path, copy: null, entry: adopting ? { ...entry, pending: false } : entry,
@@ -56,6 +61,13 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
   if (entry?.kind !== "record") {
     const adopted = await adoptProjectionFile(root, index, path), bound = adopted.entries[path];
     return { index: adopted, edited: bound?.kind === "record" && bound.adoption?.kind === "write-back" };
+  }
+  const aliasRefusal = resolutionAliasRefusal(path);
+  if (aliasRefusal !== null) {
+    root.unsent.add(path);
+    root.context.report?.({ path, copy: null, mark: aliasRefusal });
+    return { index: await commitProjectionIndex({ location: root.location, checkout: root.checkout,
+      index: withEntry(index, path, { ...entry, pending: true, refused: aliasRefusal }), checkpoint: root.context.checkpoint }), edited: false };
   }
   if (entry.adoption?.kind === "read-back") return { index: await resumeAdoptionReadBack(root, index, path, entry), edited: false };
   if (entry.adoption?.kind === "write-back") return { index, edited: true };

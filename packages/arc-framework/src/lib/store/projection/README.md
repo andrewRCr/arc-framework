@@ -177,6 +177,10 @@ available. Disabled backends resolve no projection dependency.
 retained selection includes the checkout even when initialization is disabled or refused; the handler takes its Store
 explicitly. An explicit resolution binds its exact subject and conflict through the index before the sweep, rechecks
 them afterward, and sends only at that subject's path. Standing or malformed markers keep their repair route.
+`save-resolution.ts` groups equivalent indexed subject/conflict mappings and checks every alias through ordinary
+write-back preparation. Agreeing prepared content resolves through the first path in walk order; incompatible choices,
+withheld files, and other preparation refusals keep the group unsent with repair guidance. `engine-files.ts` preserves
+those files while independent edits continue. Distinct owner generations remain ambiguous.
 Whole-record resolution checks the submitted content while retaining the stored placement and links: keeping the stored
 side or an admitted content edit discards the other alternative; actual verb-owned field changes require their owning
 verbs. `bases-disagree` holds use their recorded token and the current stored base after controls are removed. Accepted

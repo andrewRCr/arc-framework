@@ -35,6 +35,7 @@ import { formatConflictToken } from "../../../../src/lib/status/conflict-token.j
 import { chmod, lstat, readFile, rename, symlink, unlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
+import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { createCheckoutFixture } from "../../../helpers/store/projection/checkout-fixture.js";
 import { initializeEngineCheckout } from "../../../helpers/store/projection/engine-fixture.js";
@@ -48,6 +49,7 @@ import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { writeWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
 import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { META_REGISTRATION } from "../../../../src/lib/store/kinds/meta/registration.js";
+import { COHORT_REGISTRATION } from "../../../../src/lib/store/kinds/cohort/registration.js";
 import { withProjectionLock, PROJECTION_LOCK_FILE } from "../../../../src/lib/store/projection/lock.js";
 import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
 import { acquireAdvisoryLock, releaseAdvisoryLockConfirmed, type AdvisoryLockHandle } from "../../../../src/lib/advisory-lock.js";
@@ -620,6 +622,88 @@ it("refuses an unmapped token shared by two owner generations and names both UID
   await configureEngineCheckout(projected.checkout);
   const mapped = await save({ ...h, ...projected }, ["--resolve", formatConflictToken(first.reference)]);
   expect(mapped.result).toMatchObject({ status: "refused", refusal: { condition: expect.stringContaining("Ambiguous") } });
+});
+
+async function cohortResolutionCopies() {
+  const fixture = createReferenceFixture({}, { "cohort/document": { parser: COHORT_REGISTRATION.parser } });
+  const content = "# Cohort: cohort-one\n\n**Parent:** [none]\n\n**Purpose:** Coordinate work.\n\nOriginal prose.\n";
+  const base = await seed(fixture, fixture.reference("cohort/document"), content);
+  success(await fixture.store.write(update(fixture, base, content.replace("Original prose.", "Stored prose."))));
+  success(await fixture.store.write(update(fixture, base, content.replace("Original prose.", "Competing prose."))));
+  const current = success(await fixture.store.read({ reference: base.reference })), conflict = current.conflicts[0];
+  if (conflict === undefined) throw new Error("Sync produced no cohort conflict");
+  const paths = [resolveArcPath({ kind: "cohort-document", cohort: [SlugSchema.parse("cohort-one")],
+    placement: { kind: "planned" } }), ".arc/active/current/cohort-cohort-one.md"];
+  const extraPath = ".arc/user/andrew/extra.md";
+  const extra = await seed(fixture, RecordReferenceSchema.parse({ kind: "personal/document",
+    owner: { type: "person", name: "andrew" }, key: "extra.md" }), "# Extra\n\nOriginal.\n");
+  const withoutHistory = createHistoryRefusingStore(fixture.store, [current.reference]);
+  const projected = await seedProjection({ store: fixture.store, renderer: () => createRecordRenderer({ store: withoutHistory.store }), files: [
+    ...paths.map(path => ({ path, reference: current.reference })), { path: extraPath, reference: extra.reference },
+  ] });
+  for (const path of paths) {
+    const entry = projected.index.entries[path];
+    if (entry?.kind !== "record" || entry.markers !== null || entry.notices.length !== 1) throw new Error("Cohort conflict was not rendered as a notice");
+  }
+  directories.push(projected.checkout);
+  await configureEngineCheckout(projected.checkout);
+  return { ...fixture, ...projected, current, conflict, paths, extra, extraPath };
+}
+
+async function writeCohortChoice(h: Awaited<ReturnType<typeof cohortResolutionCopies>>, path: string, content: string) {
+  const entry = h.index.entries[path];
+  if (entry?.kind !== "record") throw new Error("Missing cohort projection");
+  const bytes = renderStampedFile({ content, stamp: entry.base.blob });
+  await writeFile(join(h.checkout, path), bytes);
+  return bytes;
+}
+
+it.each([false, true])("resolves one cohort conflict through equivalent canonical and current copies (edited: %s)", async edited => {
+  const h = await cohortResolutionCopies(), content = h.current.content + (edited ? "\nChosen correction.\n" : "");
+  if (edited) for (const path of h.paths) await writeCohortChoice(h, path, content);
+  const saved = await save(h, ["--resolve", formatConflictToken(h.conflict)]);
+  expect(saved.result.status).toBe("ok");
+  expect(saved.exitCode).toBe(0);
+  expect(success(await h.store.read({ reference: h.current.reference }))).toMatchObject({ content, conflicts: [] });
+});
+
+it("preserves incompatible cohort choices while another edit lands, then resolves after the copies agree", async () => {
+  const h = await cohortResolutionCopies(), choices = [];
+  for (const [i, path] of h.paths.entries()) choices.push({ path,
+    bytes: await writeCohortChoice(h, path, `${h.current.content}\nChoice ${i}.\n`) });
+  const independent = "# Extra\n\nIndependent edit.\n";
+  await writeFile(join(h.checkout, h.extraPath), renderStampedFile({ content: independent, stamp: gitBlobId(h.extra.content, "sha1") }));
+  const refused = await save(h, ["--resolve", formatConflictToken(h.conflict)]);
+  expect(refused.result).toMatchObject({ status: "refused", refusal: { condition: expect.stringContaining("copies disagree"),
+    remedy: { text: expect.stringContaining("agree") } } });
+  for (const choice of choices) expect(await readFile(join(h.checkout, choice.path), "utf8")).toBe(choice.bytes);
+  expect(success(await h.store.read({ reference: h.current.reference }))).toMatchObject({ content: h.current.content, conflicts: [h.conflict] });
+  expect(success(await h.store.read({ reference: h.extra.reference })).content).toBe(independent);
+  const content = `${h.current.content}\nAgreed correction.\n`;
+  for (const path of h.paths) await writeCohortChoice(h, path, content);
+  expect((await save(h, ["--resolve", formatConflictToken(h.conflict)])).result.status).toBe("ok");
+  expect(success(await h.store.read({ reference: h.current.reference }))).toMatchObject({ content, conflicts: [] });
+});
+
+it("does not bypass a withheld cohort alias and resolves after that alias is released", async () => {
+  const h = await cohortResolutionCopies(), path = h.paths[0];
+  if (path === undefined) throw new Error("Missing canonical path");
+  const entry = h.index.entries[path];
+  if (entry?.kind !== "record") throw new Error("Missing canonical entry");
+  const before = await Promise.all(h.paths.map(path => readFile(join(h.checkout, path), "utf8")));
+  await writeProjectionIndex(h.location, { ...h.index, entries: { ...h.index.entries, [path]: { ...entry, withheld: true } } });
+  const refused = await save(h, ["--resolve", formatConflictToken(h.conflict)]);
+  expect(refused.result).toMatchObject({ status: "refused", refusal: { condition: expect.stringContaining("withheld"),
+    remedy: { text: expect.stringContaining("delete") } } });
+  expect(await Promise.all(h.paths.map(path => readFile(join(h.checkout, path), "utf8")))).toEqual(before);
+  expect(success(await h.store.read({ reference: h.current.reference })).conflicts).toEqual([h.conflict]);
+  const held = await readProjectionIndex(h.location, true);
+  if (held.kind !== "index") throw new Error("Missing held index");
+  for (const alias of h.paths) expect(held.index.entries[alias]).toMatchObject({ pending: true,
+    refused: { reason: expect.stringContaining("withheld") } });
+  await writeProjectionIndex(h.location, { ...held.index, entries: { ...held.index.entries, [path]: { ...entry, withheld: false } } });
+  expect((await save(h, ["--resolve", formatConflictToken(h.conflict)])).result.status).toBe("ok");
+  expect(success(await h.store.read({ reference: h.current.reference })).conflicts).toEqual([]);
 });
 
 async function wholeRecordProjection(change: "removal" | "placement" | "verb-owned" | "content" | "links") {

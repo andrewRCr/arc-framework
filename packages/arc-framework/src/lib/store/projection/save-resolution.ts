@@ -8,10 +8,13 @@ import type { TakeInResolution } from "./take-in-port.js";
 import { closedResolution, unmappedResolutionRefusal } from "./save-lookup.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { projectionLinkRemedy } from "./discovery-links.js";
+import { prepareWriteBack, type PreparedWriteBack } from "./write-back.js";
 
 /** An exact indexed subject and its requested resolving write. */
 export interface ProjectionResolutionTarget {
   readonly path: string;
+  /** Every equivalent indexed path, including the selected path. */
+  readonly aliases?: readonly string[];
   readonly subject: RecordReference;
   readonly resolution: TakeInResolution;
 }
@@ -48,11 +51,22 @@ export async function selectProjectionResolution(store: Store, index: Projection
 function selectTarget(token: string, targets: readonly ProjectionResolutionTarget[]): ProjectionResolution | null {
   const target = targets[0];
   if (target === undefined) return null;
-  return targets.length === 1 ? { token, target, accepted: false, refusal: null }
-    : { token, target: null, accepted: false, refusal: {
+  if (targets.every(each => equivalentTarget(each, target))) {
+    const aliases = targets.map(each => each.path).sort();
+    return { token, target: aliases.length === 1 ? target : { ...target, path: aliases[0] ?? target.path, aliases },
+      accepted: false, refusal: null };
+  }
+  return { token, target: null, accepted: false, refusal: {
       reason: `Ambiguous conflict token ${token}: ${targets.map(each => `${each.path} (${JSON.stringify(each.subject)})`).join("; ")}.`,
       remedy: { text: "Use a checkout projecting only the intended owner UID, then retry the token there." },
     } };
+}
+
+function equivalentTarget(left: ProjectionResolutionTarget, right: ProjectionResolutionTarget): boolean {
+  if (!sameReference(left.subject, right.subject)) return false;
+  return left.resolution.kind === "stored" && right.resolution.kind === "stored"
+    ? sameReference(left.resolution.reference, right.resolution.reference)
+    : left.resolution.kind === "hold" && right.resolution.kind === "hold" && left.resolution.token === right.resolution.token;
 }
 
 /** Recheck the selected identity after the sweep, which may already have fulfilled the intent. */
@@ -60,21 +74,10 @@ export async function recheckProjectionResolution(root: ProjectionRootState, ind
   const { store } = root;
   const target = intent?.target;
   if (intent === null || target === null || target === undefined || intent.accepted) return;
-  const link = root.blockedByLink(target.path);
-  if (link !== null) {
-    intent.refusal = { reason: "not-a-file", remedy: projectionLinkRemedy(link) }; return;
-  }
-  const entry = index.entries[target.path];
-  if (entry?.kind !== "record" || !sameReference(entry.reference, target.subject)) {
-    intent.refusal = { reason: `The resolution's subject has no projected file at ${target.path}.`,
-      remedy: { text: `Retry from a checkout projecting ${JSON.stringify(target.subject.owner)}.` } }; return;
-  }
-  if (entry.withheld) {
-    intent.refusal = { reason: `The resolution's subject ${target.path} is withheld.`,
-      remedy: { text: "Copy out anything wanted, then delete the withheld file to release it before retrying." } }; return;
-  }
+  const entry = resolutionFile(root, index, target, target.path);
+  if ("reason" in entry) { intent.refusal = entry; return; }
   if (target.resolution.kind === "hold") {
-    intent.refusal = holdResolutionRefusal(entry, intent.token); return;
+    intent.refusal = holdResolutionRefusal(entry, intent.token) ?? await aliasResolutionRefusal(root, index, target); return;
   }
   const read = await store.read({ reference: target.resolution.reference });
   if (read.status === "refused") {
@@ -87,7 +90,50 @@ export async function recheckProjectionResolution(root: ProjectionRootState, ind
   intent.refusal = !conflict.success || !sameReference(conflict.data.record, target.subject)
     ? { reason: `The indexed conflict ${intent.token} does not identify a readable conflict on this subject.`,
       remedy: { text: "Repair the conflict record or restore its correct projection mapping, then retry." } } : null;
+  if (intent.refusal === null) intent.refusal = await aliasResolutionRefusal(root, index, target);
   // The subject's submitted content passes the ordinary hand-edit checks; discarded alternatives grant no authority.
+}
+
+function resolutionFile(root: ProjectionRootState, index: ProjectionIndex, target: ProjectionResolutionTarget,
+  path: string): RecordEntry | RefusedMark {
+  const link = root.blockedByLink(path);
+  if (link !== null) return { reason: "not-a-file", remedy: projectionLinkRemedy(link) };
+  const entry = index.entries[path];
+  if (entry?.kind !== "record" || !sameReference(entry.reference, target.subject)) return {
+    reason: `The resolution's subject has no projected file at ${path}.`,
+    remedy: { text: `Retry from a checkout projecting ${JSON.stringify(target.subject.owner)}.` } };
+  return entry.withheld ? { reason: `The resolution's subject ${path} is withheld.`,
+    remedy: { text: "Copy out anything wanted, then delete the withheld file to release it before retrying." } } : entry;
+}
+
+async function aliasResolutionRefusal(root: ProjectionRootState, index: ProjectionIndex,
+  target: ProjectionResolutionTarget): Promise<RefusedMark | null> {
+  let content: string | undefined;
+  for (const path of target.aliases ?? []) {
+    const entry = resolutionFile(root, index, target, path);
+    if ("reason" in entry) return entry;
+    const request = { checkout: root.checkout, path, copy: null, entry, resolution: target.resolution,
+      base: path.endsWith(".md") ? { kind: "stamp" as const, stamp: null } : { kind: "blob" as const, blob: entry.base.blob } };
+    const denied = await root.rights?.(request);
+    if (denied !== undefined && denied !== null) return denied;
+    const prepared = await prepareWriteBack(root.context, request);
+    if (prepared.kind !== "ready") return unreadyAlias(path, prepared);
+    if (content !== undefined && content !== prepared.write.content) return {
+      reason: `Projected resolution copies disagree: ${target.aliases?.join(", ")}.`,
+      remedy: { text: "Make the projected copies agree on the intended resolution, then retry the same conflict token." } };
+    content = prepared.write.content;
+  }
+  return null;
+}
+
+function unreadyAlias(path: string, prepared: Exclude<PreparedWriteBack, { kind: "ready" }>): RefusedMark {
+  if (prepared.kind === "clashed") return { reason: `The resolution copy ${path} requires a checkout merge.`,
+    remedy: { text: "Run arc save without --resolve to draw the checkout conflict, resolve its markers, make the copies agree, then retry the token.",
+      argv: ["arc", "save"] } };
+  return prepared.diagnostics?.[0] ?? prepared.diagnostic ?? ("mark" in prepared.result ? prepared.result.mark : {
+    reason: `The resolution copy ${path} is not ready to send.`,
+    remedy: { text: `Restore a settled regular file at ${path}, then retry the same conflict token.` },
+  });
 }
 
 function holdResolutionRefusal(entry: RecordEntry, token: string): RefusedMark | null {
