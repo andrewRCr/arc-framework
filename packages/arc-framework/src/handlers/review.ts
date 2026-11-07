@@ -335,6 +335,7 @@ import {
   HostedSettleResultSchema,
   hostedFixNotPerformedResult,
   settleHostedFinding,
+  withVerifiedFixHeadRetry,
   type HostedSettlementPort,
 } from "../scripts/review-gate/hosted/settle.js";
 import { explainHostedSettlementBindingMismatch } from
@@ -4146,16 +4147,16 @@ function defaultHostedSettleDependencies(context: InteractionContext, invocation
             || disposition?.disposition !== request.disposition) {
             throw new Error("Hosted settlement does not match its approved disposition.");
           }
-          const confirmedContinuation = disposition.disposition === "fix"
+          const confirmedContinuation = request.fixTarget !== null
             ? await hostedSettlementHeadContinuation({
               attempt, repositoryId: persisted.repositoryId, lineage: persisted.lineage,
-              requestedHeadSha: request.fixTarget?.headSha, confirmResponseHeadContinuation,
+              requestedHeadSha: request.fixTarget.headSha, confirmResponseHeadContinuation,
             }) : undefined;
-          if (disposition.disposition === "fix" && !hostedFixSettlementPerformed({
+          if (request.fixTarget !== null && !hostedFixSettlementPerformed({
             attemptId: attempt.attemptId,
             originatingHeadSha: attempt.headSha,
             dispositionSetId: request.response.dispositionSetId,
-            producedHeadSha: request.fixTarget?.headSha,
+            producedHeadSha: request.fixTarget.headSha,
             responsePerformance: attempt.responsePerformance,
             confirmedContinuation,
           })) {
@@ -4184,7 +4185,9 @@ function defaultHostedSettleDependencies(context: InteractionContext, invocation
               now: new Date().toISOString(),
             });
           }
-          return result;
+          const performance = attempt.responsePerformance;
+          return withVerifiedFixHeadRetry(result, request,
+            performance?.dispositionSetId === request.response.dispositionSetId ? performance.producedHeadSha : undefined);
         },
       );
     },

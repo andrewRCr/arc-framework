@@ -25,6 +25,21 @@ describe("per-set hosted settlement", () => {
     expect(validateHostedDispositionSetSettlement(input).length).toBeGreaterThan(0);
     expect(validateHostedDispositionSetSettlement(valid)).toEqual([]);
   });
+  it("keeps a fix bound to a changed head and lets a missed non-fix thread record one", () => {
+    const target = { repository: "owner/repo", pullRequest: 42, headSha: "a".repeat(40) };
+    const replied = { ...action, channelAction: "reply-and-resolve" as const, dispositionSetId,
+      performedAt: "2026-10-19T13:00:00Z", carriedFromDispositionSetId: null, actorIdentity: "1", target,
+      commentId: "comment-1", threadId: "thread-1", replyDigest: dispositionSetId, replyId: "reply-1" };
+    const fixHead = { ...target, headSha: "b".repeat(40) };
+    expect(HostedSettlementEvidenceSchema.safeParse({ ...replied, fixTarget: null }).success).toBe(true);
+    expect(HostedSettlementEvidenceSchema.safeParse({ ...replied, fixTarget: fixHead }).success).toBe(true);
+    expect(HostedSettlementEvidenceSchema.safeParse({ ...replied, fixTarget: target }).success).toBe(false);
+    expect(HostedSettlementEvidenceSchema.safeParse({ ...replied, disposition: "fix", fixTarget: fixHead }).success)
+      .toBe(true);
+    expect(HostedSettlementEvidenceSchema.safeParse({ ...replied, disposition: "fix", fixTarget: null }).success)
+      .toBe(false);
+  });
+
   it("admits settlement carried from the direct predecessor", () => {
     expect(validateHostedDispositionSetSettlement({ ...valid, predecessorDispositionSetId: otherSet,
       evidence: [{ ...evidence, carriedFromDispositionSetId: otherSet }] })).toEqual([]);

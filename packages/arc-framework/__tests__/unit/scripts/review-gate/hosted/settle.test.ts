@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   settleHostedFinding,
+  withVerifiedFixHeadRetry,
   type HostedSettlementPort,
 } from "../../../../../src/scripts/review-gate/hosted/settle.js";
 
@@ -10,7 +11,7 @@ const request = {
   schemaVersion: 1 as const,
   response: {
     attemptRef: "arc-review-source:v1:hosted:lane-progress%2F1:hosted%2F1",
-    dispositionSetId: `sha256:${"d".repeat(64)}`,
+    dispositionSetId: `sha256:${"d".repeat(64)}` as const,
     findingId: "finding-1",
   },
   target: { repository: "owner/repo", pullRequest: 42, headSha: HEAD },
@@ -125,15 +126,90 @@ describe("hosted finding settlement", () => {
         headSha: "b".repeat(40),
       },
     }],
-    ["non-fix with a changed target", {
+    ["non-fix on the originating head", {
+      ...request,
+      fixTarget: request.target,
+    }],
+    ["non-fix on another pull request", {
       ...request,
       fixTarget: {
         ...request.target,
+        pullRequest: request.target.pullRequest + 1,
         headSha: "b".repeat(40),
       },
     }],
   ])("rejects %s", async (_case, invalidRequest) => {
     await expect(settleHostedFinding(invalidRequest, { port: port() })).rejects.toThrow();
+  });
+
+  it.each(["defer", "reject"] as const)(
+    "settles a %s thread missed before the fix push at the verified fix head",
+    async (disposition) => {
+      const fixedHead = "b".repeat(40);
+      const headTargets: unknown[] = [];
+      const threadTargets: unknown[] = [];
+      const result = await settleHostedFinding({
+        ...request,
+        disposition,
+        fixTarget: { ...request.target, headSha: fixedHead },
+      }, {
+        port: port({
+          readHead: (target) => {
+            headTargets.push(target);
+            return Promise.resolve(fixedHead);
+          },
+          readThread: (target) => {
+            threadTargets.push(target);
+            return Promise.resolve({ kind: "present", isResolved: threadTargets.length > 1, commentIds: ["PRRC_1"] });
+          },
+        }),
+      });
+
+      expect(result).toMatchObject({ state: "settled", nextAction: "complete", disposition, replyId: "PRRC_REPLY" });
+      expect(headTargets.length).toBeGreaterThan(0);
+      expect(headTargets.every((target) => (target as { headSha: string }).headSha === fixedHead)).toBe(true);
+      expect(threadTargets).toEqual([request.target, request.target]);
+    },
+  );
+
+  it("refuses a missed non-fix thread at a fix head the host no longer reports", async () => {
+    const result = await settleHostedFinding({
+      ...request,
+      fixTarget: { ...request.target, headSha: "b".repeat(40) },
+    }, { port: port({ readHead: () => Promise.resolve("c".repeat(40)) }) });
+
+    expect(result).toMatchObject({ state: "stale-target", nextAction: "stop" });
+  });
+
+  describe("stale non-fix retry at the verified fix head", () => {
+    const stale = { schemaVersion: 1 as const, mode: "review-hosted-settle" as const, response: request.response,
+      disposition: "defer" as const, threadId: request.finding.threadId, state: "stale-target" as const,
+      nextAction: "stop" as const };
+    const fixedHead = "b".repeat(40);
+
+    it("names the exact request at the recorded fix head", () => {
+      expect(withVerifiedFixHeadRetry(stale, request, fixedHead)).toEqual({
+        ...stale,
+        nextAction: "retry",
+        remedy: {
+          text: expect.stringContaining("verified fix head"),
+          argv: ["arc", "review", "hosted", "settle", "-"],
+          stdin: { ...request, fixTarget: { ...request.target, headSha: fixedHead } },
+        },
+      });
+    });
+
+    it.each([
+      ["no recorded fix head", stale, request, undefined],
+      ["a fix head equal to the originating head", stale, request, HEAD],
+      ["a request already at a fix head", stale, { ...request, fixTarget: { ...request.target, headSha: fixedHead } },
+        fixedHead],
+      ["a fix disposition", { ...stale, disposition: "fix" as const },
+        { ...request, disposition: "fix" as const, fixTarget: { ...request.target, headSha: "c".repeat(40) } }, fixedHead],
+      ["a non-stale result", { ...stale, state: "ambiguous" as const }, request, fixedHead],
+    ] as const)("leaves the stop unchanged for %s", (_case, result, input, producedHeadSha) => {
+      expect(withVerifiedFixHeadRetry(result, input, producedHeadSha)).toEqual(result);
+    });
   });
 
   it("reports an exactly replied and resolved thread idempotently", async () => {

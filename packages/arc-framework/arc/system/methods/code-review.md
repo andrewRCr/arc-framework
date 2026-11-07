@@ -336,8 +336,10 @@ those tests. On GitHub, use `gh pr edit <n> --body-file <path>` before review re
 this upkeep to the terminal request after a delivery-owned pushed correction and before its next action.
 
 Then settle every `afterFixFindingIds` entry against the originating `target` plus the verified changed `fixTarget`.
-For a delivery member, require `delivery-member-advanced` or idempotent `delivery-member-current` and pass
-`payload.hostedFixTarget` unchanged; never derive it from the checkout.
+A `beforeFixFindingIds` entry missed before the push settles the same way: its `stale-target / retry` carries that
+request as `remedy.stdin`, passed unchanged through `remedy.argv`. For a delivery member, require
+`delivery-member-advanced` or idempotent `delivery-member-current` and pass `payload.hostedFixTarget` unchanged;
+never derive it from the checkout.
 
 A `not-applicable` finding appears in neither phase: no hosted settle, reply, resolution, or compensating summary. At
 `head-pending / retry`, surface `remedy.text` and end this attempt; later re-entry passes `remedy.stdin` unchanged
