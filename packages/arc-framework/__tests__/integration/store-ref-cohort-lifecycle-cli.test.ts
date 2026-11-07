@@ -57,6 +57,51 @@ describe.each(["reference", "ref"] as const)("cohort input refusal over %s", bac
   }, 60_000);
 });
 
+describe.each(["reference", "ref"] as const)("cohort conflict admission over %s", backend => {
+  it.each(["close", "remove"] as const)("refuses %s after a conflict-only arrival and succeeds after resolution", async operation => {
+    const f = await fixture(backend), reference = f.reference("cohort/document", "conflict-arrival");
+    const base = await seed(f, reference, content(reference.owner.name));
+    success(await f.store.write(update(f, base, base.content.replace("Coordinate", "Coordinate locally"))));
+    const group = success(await f.store.read({ reference: base.reference }));
+    const label = { actor: "test-user", time: new Date(0).toISOString() };
+    const merged = mergeLineText({ record: group.reference, baseVersion: base.version, base: base.content, current: group.content,
+      incoming: base.content.replace("Coordinate", "Coordinate remotely"), currentLabel: label, incomingLabel: label });
+    const data = merged.conflicts[0];
+    if (data === undefined) throw new Error("Expected a producer-generated conflict");
+    const conflict = RecordReferenceSchema.parse({ owner: group.reference.owner, kind: "cohort/conflict-record",
+      key: "00000000-0000-4000-8000-000000000099" });
+    let injected = false;
+    const refused = await f.invoke(["cohort", operation, group.reference.owner.name, "--yes", "--json"], store => new Proxy(store, {
+      get(target, key) {
+        if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
+          if (!injected) {
+            injected = true;
+            success(await store.write({ action: "put", expected: null, reference: conflict, content: JSON.stringify(data),
+              provenance: { verb: "sync", lifecycleAction: "reconcile" } }));
+            expect(success(await store.read({ reference: group.reference })).version).toBe(group.version);
+          }
+          return store.batch(input);
+        };
+        const value: unknown = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }));
+    expect(refused, JSON.stringify(refused)).toMatchObject({ exitCode: 1, result: { status: "refused", refusal: { code: "version-conflict" } } });
+    const disputed = success(await f.store.read({ reference: group.reference }));
+    expect(disputed).toMatchObject({ version: group.version, content: group.content, conflicts: [conflict] });
+    expect(disputed.placement).toEqual(group.placement);
+    success(await f.store.write({ ...update(f, disputed, disputed.content), resolves: disputed.conflicts }));
+    const owner = group.reference.owner;
+    if (owner.type !== "cohort" || owner.uid === undefined) throw new Error("Expected exact cohort identity");
+    const retried = await f.invoke(["cohort", operation, owner.uid, "--yes", "--json"]);
+    expect(retried.exitCode ?? 0, retried.stdout + retried.stderr).toBe(0);
+    expect(retried.result).toMatchObject({ status: operation === "close" ? "closed" : "removed", reference: group.reference });
+    if (operation === "close") expect(success(await f.store.read({ reference: group.reference })))
+      .toMatchObject({ placement: { kind: "completed" }, conflicts: [] });
+    else expect(await f.store.read({ reference: group.reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  }, 60_000);
+});
+
 it("removes the renamed cohort while the remaining current-name owner keeps its member", async () => {
   const f = await fixture("ref");
   if (f.ref === undefined) throw new Error("Expected real refs");

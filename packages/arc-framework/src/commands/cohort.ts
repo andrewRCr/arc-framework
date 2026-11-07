@@ -6,6 +6,7 @@ import type { RecordReference } from "../lib/store/identity.js";
 import type { StoreRefusal } from "../lib/store/refusal.js";
 import type { StoreRecord } from "../lib/store/read.js";
 import { recordConflictRefusal } from "../lib/store/conflict-diagnostics.js";
+import { observeRecords } from "../lib/store/record-observations.js";
 import { pullHistoryForRetry } from "../lib/store/pull-consumption.js";
 import { reportEmptyCohorts, type EmptyCohortReport } from "../lib/store/cohort-retirement.js";
 import { observeOpenHoldings, observeAllHoldings, describeCohortHoldings, describeCohortHoldingOwners, type CohortHolding } from "../lib/store/kinds/cohort/check-support.js";
@@ -38,7 +39,8 @@ export async function runCohortClose(store: Store, input: { operand: string; con
   const plan: CohortClosePlan = { operation: "close", reference: primary.reference, placement: { kind: "completed",
     quarter: ArchiveQuarterSchema.parse(`${date.getFullYear()}-q${Math.floor(date.getMonth() / 3) + 1}`) } };
   if (!input.confirmed) return confirmationRequired(plan, input.operand);
-  const written = await batchLifecycleWrites(store, [recordPut(primary, { placement: plan.placement })], { verb: "cohort-close", lifecycleAction: "close" });
+  const written = await batchLifecycleWrites(store, [recordPut(primary, { placement: plan.placement })],
+    { verb: "cohort-close", lifecycleAction: "close" }, observeRecords([primary]));
   if (written.status === "refused") return written;
   const result = await readClosedCohort(store, plan), retirement = await reportEmptyCohorts(store, primary);
   return { ...result, parents: retirement.cohorts, notices: retirement.notices };
@@ -63,7 +65,7 @@ async function removeSelectedCohort(store: Store, primary: StoreRecord, input: {
   const plan: CohortRemovePlan = { operation: "remove", reference: primary.reference };
   if (!input.confirmed) return confirmationRequired(plan, input.operand);
   const written = await batchLifecycleWrites(store, [{ action: "remove", reference: primary.reference, expected: primary.version }],
-    { verb: "cohort-remove", lifecycleAction: "remove" });
+    { verb: "cohort-remove", lifecycleAction: "remove" }, observeRecords([primary]));
   if (written.status === "refused") return written;
   const retirement = await reportEmptyCohorts(store, primary);
   return { status: "removed", reference: primary.reference, placement: null, parents: retirement.cohorts, notices: retirement.notices };
