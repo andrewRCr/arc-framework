@@ -147,4 +147,29 @@ with `closedParentDisposition` and `closedLeafDisposition`; a completed member a
 The appended criteria preserve the original batch and missing-history cases while making the mixed-resolution exception
 checkable. The review-fix verification closes this bounded amendment.
 
+## Deferred companion repairs — A6
+
+The nested-clash probe on 2026-11-06 showed both possible UID rename orders refusing. `parentEdits` requires a known
+child before proposing restoration, while `prepareDocument` requires a known parent before renaming a child. Two
+independently valid nested groups arriving together can therefore create a repair cycle. The Owner approved A6 and
+its full review-fix verification on 2026-11-07, with one independent fix check after the repairs.
+
+The superseded exact-edit requirement was:
+
+> Report every retained holding, including sole ones, through § 4's ordered clear → `Parent` → restore edits.
+
+A6 preserves those edits when the full destination is proved. Unproved companion groups instead retain every field,
+name every exact holding owner and report the identity prerequisite through existing reference rows and advisories.
+No guessed member assignment, new command, weaker admission rule or closed-child restoration is introduced.
+A6 also requires the shared planner to include a known child Parent prerequisite when retirement selects the child
+rather than its parent; otherwise a former-name member path could be canonicalized before Parent was repaired.
+
+The original Goal 3 reporting clause, now qualified for unresolved companions, was:
+
+> reports every reference to the subject that rule leaves with the edit that re-points it.
+
+The scoped revision covers shared field planning, rename report consumption, retirement and archive report consumers,
+and behavior tests that execute every advertised edit or resolve the named prerequisite first. Existing all-sole,
+completion/history and closed-child behavior remains part of the regression boundary.
+
 ---

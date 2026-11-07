@@ -93,7 +93,8 @@ refusals").
    selected by slug or by exact UID, and lands under a clash of its own slug.
 3. **A rename changes only what names its subject.** It rewrites another record's reference to the old slug only where
    that slug, resolved within the family the reference names, names the subject alone, and reports every reference to
-   the subject that rule leaves with the edit that re-points it.
+   the subject that rule leaves with the edit that re-points it. When a companion identity is unproved, report the
+   retained owner and the prerequisite repair instead of an unsupported field edit (A6).
 4. **A cohort rename is one write the store's checks admit,** whatever its members' states, on a clone missing their
    history refs.
 5. **A cohort can always be retired.** `arc cohort close` and `arc cohort remove` retire a cohort nothing else will,
@@ -481,7 +482,11 @@ alike, so the verb resolves once per family before its batch:
   members' `Cohort` is set to the same path after the second edit, each by its owner, who edits archived work in place,
   with no clearing, since `cohort.parent` checks open members alone (`observeOpenMembers`,
   `lib/store/kinds/cohort/check-support.ts`). The report names the edits in that order. A closed subcohort is reported
-  and stays with the holder that keeps the slug.
+  and stays with the holder that keeps the slug. **Unproved companions (A6):** if a member’s companion segment is
+  ambiguous or otherwise unresolved, retain the whole coupled group and report each exact holding owner with the
+  prerequisite identity repair. The parent’s UID rename still lands. These report rows carry no unsupported field
+  edit; existing advisories name the unresolved segment and its available repair. After the companion clash is resolved,
+  owners choose the intended child by UID and apply clear → its current `Parent` → restore at the current full path.
 - **The slug names another holder** — an ended subject whose slug a live item has reused, which the lookup ranks above
   it: those references are the live holder's, and the rename leaves them unreported.
 
@@ -489,7 +494,8 @@ The report is part of the rename's result, in its text and in `--json`, which `a
 to the subject this rule leaves, its member heading among them, the record holding it by type, name, and UID, and the
 edit, as the command or field change that re-points it. A member heading's edit is a change to its document's text,
 rewriting that heading line to the new slug where the heading is the subject's; its `--json` entry carries the document,
-the line, and the replacement, with no command. Prose the rename never rewrites — a started member's prose and a closed
+the line, and the replacement, with no command. A retained cohort holding whose companion identity is unproved has an
+empty edit list and a prerequisite advisory (A6). Prose the rename never rewrites — a started member's prose and a closed
 document's text (§ 5.1) — is not reported.
 
 ### 5. Rename: the cohort arm
@@ -511,8 +517,10 @@ version-checked batch:
   it. **Coupled groups (A5):** retain an open child's `Parent` and its member paths when a retained member prevents
   changing that `Parent` consistently, including when the `Parent` alone resolves solely to the renamed cohort.
   Likewise retain member paths behind an ambiguous `Parent`. Report every retained holding, including sole ones,
-  through § 4's ordered clear → `Parent` → restore edits. All-sole groups still move in the batch; completed members
-  alone do not prevent a `Parent` update, and closed-child retention and restoration restrictions remain in force.
+  through § 4’s ordered clear → `Parent` → restore edits where every companion identity is proved; otherwise retain
+  the group and report § 4’s prerequisite instead (A6). All-sole groups still move in the batch; completed members
+  alone do not prevent a `Parent` update when its members’ destination paths are proved, and closed-child retention
+  and restoration restrictions remain in force.
 - **References to the document's filename,** `` `cohort-<old>.md` ``, in stubs and open cohort documents — a parent
   cites its subcohorts' documents by filename — rewritten by the cohort arm itself where the old slug names the cohort
   alone (§ 4). The work-item sweep cannot serve: it leaves every `cohort-` reference unchanged
@@ -1041,6 +1049,16 @@ Over the ref backend and, where it can form the state, the reference backend, fr
 
 **Superseded (A5):** Criterion 19 replaces criterion 8's unconditional rewrite-all prescription for coupled groups.
 
+20. **Reachable nested-clash repairs (A6).** With two live parents sharing a name and two live children sharing a name,
+    the parent selected by UID renames while unresolved `Parent` and member fields remain unchanged. The report names
+    every retained owner and the companion-clash prerequisite, with no unproved executable field edit. After child UID
+    disambiguation, owner-chosen clear → `Parent` → restore edits use the selected child’s current name and all land,
+    without automatically assigning an ambiguous member. Fully proved group updates, completion/history behavior and
+    closed-child restrictions still hold. Retirement of a child with a former-name `Parent` reports the complete
+    admissible prerequisite sequence rather than an independently canonicalized member path.
+
+**Superseded (A6):** Criterion 20 qualifies criterion 19’s exact-edit prescription only for unproved companions.
+
 ## Open Questions
 
 None.
@@ -1061,5 +1079,8 @@ None.
 
 - **A5** — 2026-11-06 — design: keep coupled cohort holdings consistent. _Supersedes:_ § 5.1 ¶3; criterion 8.
   _Trigger:_ sole-parent-ambiguous-open-member review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A6** — 2026-11-06 — design: defer unproved path edits. _Supersedes:_ Goal 3; § 4; § 5.1; criterion 19.
+  _Trigger:_ nested-cohort-clash review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

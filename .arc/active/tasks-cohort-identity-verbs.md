@@ -584,6 +584,15 @@ old name refuses naming the current one.
   carry ordered edits that land; closed ambiguous subtrees retain their Parent and member paths, including members
   on unique former aliases, with exact identity rows and an explanatory advisory.
 
+### `[ ]` **5.2.R Keep cohort repair planning reachable — A6**
+
+- _Goal:_ Under A6, a parent UID rename retains unresolved companion groups and reports their prerequisite identity
+  repairs; fully proved field repairs include every Parent prerequisite and execute in order.
+- _Work:_ Add failing nested-clash and former-Parent regressions, correct the shared planner and every consumer, then
+  execute the full repair sequences. Cover current/former and sole/ambiguous segments, open/completed members and
+  closed-child restrictions on both operational backends where they can form the state, including native CLI coverage.
+- _Verification:_ Run the approved full review-fix checks and the independent fix check after committed verification.
+
 ### `[x]` **5.3 Rewrite references to the document's filename where the old slug names the cohort alone — § 5.1, § 4**
 
 - _Goal:_ Stubs and open cohort documents citing `` `cohort-<old>.md` `` name the new file after the batch where the old
@@ -740,6 +749,12 @@ Over the ref backend and, where it can form the state, the reference backend, fr
   placement, completed members alone do not block a sole Parent update, all-sole groups move automatically, and existing
   closed-child restrictions remain intact.
 
+- `[ ]` With two live parents sharing a name and two live children sharing a name, a parent UID rename lands while
+  retaining unresolved Parent/member fields. Every retained owner and companion prerequisite is reported without an
+  unproved field edit. After child UID disambiguation, owner-chosen clear → Parent → restore edits at the selected
+  child’s current path all land. Fully proved groups and closed-child restrictions remain intact; child retirement
+  with a former-name Parent reports its complete admissible prerequisite sequence.
+
 **Deviation (criterion 16, A3):** Ordinary same-name rename input checks follow backend selection; outside an ARC project,
 the missing-project refusal takes precedence. Admitted in-repo commands retain distinct-name rejection.
 
@@ -748,3 +763,6 @@ holder and selected-link eligibility, including the stated prior-rename and UID-
 
 **Superseded (criterion 8, A5):** Criterion 23 replaces the unconditional rewrite-all prescription with coherent
 Parent/member groups and executable ordered repairs, retaining the original batch and history-recovery cases.
+
+**Amended in A6 (criterion 23):** Criterion 24 qualifies exact ordered edits only while companion identities are proved;
+otherwise the retained owners and prerequisite repairs are reported. Criterion 23’s original outcome stays preserved.
