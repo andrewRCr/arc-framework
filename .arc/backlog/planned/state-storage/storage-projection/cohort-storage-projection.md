@@ -26,7 +26,8 @@ projection-substrate     the ignore strategy, the engine's state, reading and re
 
 Each member's `Depends On` edges are the source of truth: `projection-write-back` depends on `projection-substrate` and
 `storage-ref-hardening`, `projection-worktrees` on `projection-write-back`, `projection-team-scale` on
-`projection-worktrees`, and `storage-cutover` on the first three. These orderings are not edges:
+`projection-worktrees`, and `storage-cutover` on all four; `cutover-flip` records its edge on `projection-team-scale`
+with its specification. These orderings are not edges:
 
 - **Review chunks.** Each member lands its chunks in the order § Review chunks gives, `projection-substrate`'s worktree
   lock last, live before the flip.
@@ -40,8 +41,6 @@ Each member's `Depends On` edges are the source of truth: `projection-write-back
 - **The index's seams.** `projection-worktrees` designs the index's partitions (its § 3.1) as the seams
   `projection-team-scale` builds on: a narrower view or a read-only archive changes the entries a partition holds,
   never how entries are grouped, named, or committed.
-- **The flip's window.** `projection-team-scale` lands before `cutover-flip`'s final full rehearsal and the cutover
-  window, and the rehearsal runs with it landed; if it cannot land before the window's quiesce, it lands after the flip.
 
 ### Why three
 

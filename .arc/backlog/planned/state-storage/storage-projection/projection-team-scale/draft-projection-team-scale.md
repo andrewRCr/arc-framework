@@ -29,7 +29,7 @@ criterion's clause "a pull lays nothing in other worktrees until their next comm
 
 Plan this work unit during `projection-worktrees`' build (about 2026-11-11 to 11-20). Build from that unit's landing; a
 few days of build should land it in early December, before `cutover-flip`'s final full rehearsal (Stage 2) and the
-cutover window. If it cannot land before the window's quiesce, it waits until after the flip.
+cutover window. `cutover-flip` depends on it, so the rehearsal and the window wait for it to land.
 
 Four guards, agreed with the Owner, keep the split from fragmenting the design or forcing rework:
 
