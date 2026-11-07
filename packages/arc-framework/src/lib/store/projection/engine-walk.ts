@@ -4,6 +4,7 @@ import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { MACHINE_LOCAL_PATHS } from "../registry.js";
 import { isExcludedProjectionFile } from "./discovery-exclusions.js";
+import { readProjectionLinkBoundary } from "./discovery-links.js";
 
 /** Filesystem observations used by discovery, native unless a caller needs a fault or scheduling boundary. */
 export interface ProjectionWalkFs {
@@ -32,9 +33,14 @@ function excludedFromDiscovery(path: string): boolean {
 
 /** Walk each root by lstat, returning regular files and unfollowed links in stable order. */
 export async function walkProjectionRoots(checkout: string, roots: readonly string[], fs: ProjectionWalkFs = { lstat, readdir }): Promise<ProjectionWalkResult> {
-  const pending = [...roots];
+  const selected = roots.filter(path => !excludedFromDiscovery(path));
+  const boundary = await readProjectionLinkBoundary(checkout, selected, fs);
+  const pending = selected.filter(path => boundary(path) === null);
   const files: string[] = [];
-  const links: string[] = [];
+  const links = [...new Set(selected.flatMap(path => {
+    const link = boundary(path);
+    return link === null ? [] : [link];
+  }))];
   for (let path = pending.pop(); path !== undefined; path = pending.pop()) {
     if (excludedFromDiscovery(path)) continue;
     try {

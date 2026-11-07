@@ -1,7 +1,7 @@
 /** Declared selection checks consume the command's native ref-backed projection start. */
 import { expect, it, vi } from "vitest";
-import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, rename, symlink, writeFile, unlink } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import type { Store } from "../../src/lib/store/contract.js";
 import type { ProjectionEnginePorts } from "../../src/lib/store/projection/engine-ports.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
@@ -59,6 +59,43 @@ it("checks a changed file through the connected production reader", async () => 
   expect(check).toMatchObject({ outcome: "passed", record: { status: "not-recordable" } });
   expect(JSON.parse(check.output)).toEqual({ paths: [path] });
   expect(success(await f.store.read({ reference: primary.reference })).content).toContain("A changed note to check.");
+});
+
+it.each([false, true])("excludes an indexed file behind a directory-link=%s from both selection readers and checks until repair", async directoryLink => {
+  const { f, primary, path } = await fixture();
+  await writeFile(join(f.root, path), `${await readFile(join(f.root, path), "utf8")}\nA retained changed mark.\n`);
+  expect(JSON.parse((await command(f.store, f.root, ["selection", "--changed", "--json"])).output)).toEqual({ paths: [path] });
+  const link = directoryLink ? dirname(join(f.root, path)) : join(f.root, path);
+  const backup = join(f.root, "regular-backup"), outside = join(f.root, "external-selection");
+  await mkdir(outside);
+  const target = join(outside, basename(path));
+  await writeFile(target, "outside selection content\n");
+  await rename(link, backup);
+  await symlink(directoryLink ? outside : target, link, directoryLink ? "dir" : "file");
+  const before = success(await f.store.version());
+  for (const changed of [false, true]) {
+    const observed: PathListSelection[] = [];
+    const selected = await command(f.store, f.root, ["selection", "--json", ...(changed ? ["--changed"] : [])], program =>
+      program.hook("preAction", async () => {
+        const { readProjectedSelection } = await import("../../src/lib/checks/projected-selection.js");
+        observed.push(await readProjectedSelection(f.root, { changed }));
+      }));
+    expect(selected.exitCode, selected.output).toBe(0);
+    expect(JSON.parse(selected.output)).toEqual({ paths: [] });
+    expect(observed).toEqual([{ status: "ok", paths: [] }]);
+    const checked = await command(f.store, f.root, ["check", "run", "selected", "--json", ...(changed ? ["--changed"] : [])]);
+    expect(checked.exitCode, checked.output).toBe(0);
+    expect(JSON.parse(checked.output).result.checks).toMatchObject([{ outcome: "not selected", reason: "no files to check" }]);
+  }
+  expect(success(await f.store.version())).toBe(before);
+  expect(success(await f.store.read({ reference: primary.reference })).content).not.toContain("outside selection");
+  expect(await readFile(target, "utf8")).toBe("outside selection content\n");
+  await unlink(link);
+  await rename(backup, link);
+  expect(JSON.parse((await command(f.store, f.root, ["selection", "--json"])).output)).toEqual({ paths: [path] });
+  const repaired = await command(f.store, f.root, ["check", "run", "selected", "--changed", "--json"]);
+  expect(repaired.exitCode, repaired.output).toBe(0);
+  expect(JSON.parse(repaired.output).result.checks).toMatchObject([{ outcome: "passed" }]);
 });
 
 it("leaves a changed file with native conflict markers out of selection checks", async () => {

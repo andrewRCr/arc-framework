@@ -1,6 +1,6 @@
 /** Native discovery reports links without adopting their targets or withholding an indexed record. */
-import { mkdir, readFile, rename, symlink, unlink, utimes, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { lstat, mkdir, readFile, readdir, rename, symlink, unlink, utimes, writeFile } from "node:fs/promises";
+import { join, sep } from "node:path";
 import { expect, it } from "vitest";
 import { createAdoptionFixture } from "../helpers/store/projection/adoption-fixture.js";
 import { seed, success } from "../helpers/store/suite-tools.js";
@@ -14,6 +14,51 @@ import { projectionProcessState } from "../../src/lib/store/projection/process-s
 import { parseStampedFile, renderStampedFile } from "../../src/lib/store/projection/stamp.js";
 import { writeMetaOwner } from "../../src/lib/store/kinds/meta/writers.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
+import { seedProjection } from "../helpers/store/projection/seeded-projection.js";
+
+it.each([".arc/user", ".arc"])("keeps indexed and new personal content behind linked %s opaque until repair", async container => {
+  const { f } = await createAdoptionFixture();
+  const reference = RecordReferenceSchema.parse({ kind: "personal/document", owner: { type: "person", name: "andrew" }, key: "document.md" });
+  const record = await seed(f, reference, "accepted content\n");
+  const path = ".arc/user/andrew/document.md", added = ".arc/user/andrew/scratch/new.md";
+  const projected = await seedProjection({ store: f.store, checkout: f.root, files: [{ reference: record.reference, path }] });
+  const bytes = await readFile(join(f.root, path), "utf8");
+  await mkdir(join(f.root, ".arc/user/andrew/scratch"), { recursive: true });
+  await writeFile(join(f.root, path), bytes.replace("accepted content", "external target content"));
+  await writeFile(join(f.root, added), "external unindexed content\n");
+  const external = join(f.root, "outside-projection");
+  await rename(join(f.root, container), external);
+  await symlink(external, join(f.root, container), "dir");
+  const before = success(await f.store.version());
+  const ports = createProjectionEnginePorts(f.root);
+  expect(await startProjection({ store: f.store, checkout: f.root, ports: () => ({ ...ports,
+    walkFs: { lstat: async name => {
+      if (name.startsWith(`${join(f.root, container)}${sep}`)) throw new Error("Linked descendants must stay unobserved");
+      return lstat(name);
+    }, readdir: async name => {
+      if (name === join(f.root, container) || name.startsWith(`${join(f.root, container)}${sep}`)) throw new Error("Link target must not be enumerated");
+      return readdir(name);
+    } },
+  }) })).toMatchObject({ kind: "ready" });
+  expect(success(await f.store.version())).toBe(before);
+  expect(success(await f.store.read({ reference: record.reference })).content).toBe("accepted content\n");
+  const disk = await readProjectionIndex(projected.location, true);
+  if (disk.kind !== "index") throw new Error("The linked checkout lost its index");
+  expect(disk.index.entries[added]).toBeUndefined();
+  expect(disk.index.entries[path]).toMatchObject({ reference: record.reference, pending: false });
+  expect(projectionProcessState().roots.get(f.root)?.blockedByLink(path)).toBe(container);
+  await unlink(join(f.root, container));
+  await rename(external, join(f.root, container));
+  await writeFile(join(f.root, path), bytes.replace("accepted content", "repaired content"));
+  await writeFile(join(f.root, added), "repaired new content\n");
+  expect(await startProjection({ store: f.store, checkout: f.root })).toMatchObject({ kind: "ready" });
+  expect(success(await f.store.read({ reference: record.reference })).content).toBe("repaired content\n");
+  const repaired = await readProjectionIndex(projected.location, true);
+  if (repaired.kind !== "index") throw new Error("No repaired index");
+  const adopted = repaired.index.entries[added];
+  if (adopted?.kind !== "record") throw new Error("The restored personal file did not adopt");
+  expect(success(await f.store.read({ reference: adopted.reference })).content).toBe("repaired new content\n");
+});
 
 it.each([false, true])("reports an indexed=%s link without taking in its target and accepts regular-file repair", async indexed => {
   const { f, folder, projected } = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" });

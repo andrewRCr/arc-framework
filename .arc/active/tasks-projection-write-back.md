@@ -408,6 +408,10 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
           physical blockers clear while exact records, accepted read-back continuations, and saved copies survive;
           regular-file or directory repair resumes ordinary recovery without resending accepted writes.
 
+        - Standard review repair: discovery checks ancestors above every supplied root before traversing it. Native
+          tests keep indexed and adoptable personal targets opaque behind linked `.arc/user` and `.arc`, preserve
+          their record authority, and resume write-back and adoption after directory repair.
+
 ### `[x]` **2.8.R Require existing cohort authority for file adoption — § 9**
 
 - _Goal:_ Under A2, a dropped cohort document creates no cohort; adoption preserves the file until existing live or
@@ -473,6 +477,10 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
           filters editable Markdown and changed marks, and prints paths or `{ paths }`. Shared start refusal mapping
           preserves holder, identity, lease, and Git-directory remedies; unusable indexes refuse until repaired.
           The in-repo backend returns an empty selection, with the skip switch taking precedence.
+
+        - Standard review repair: normal and changed selection retain the completed start's link exclusions while
+          keeping indexed authority for recovery. Registered selection and shared check-reader tests exclude final-file
+          and directory links, retain changed marks, and restore selection and checking after regular-file repair.
 
 ### `[x]` **2.12 Connect the Markdown checks' reader — § 11.7**
 

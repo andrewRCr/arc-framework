@@ -41,5 +41,6 @@ export async function projectionSelectionResult(store: Store, checkout: string,
   if (disk.kind !== "index") return { status: "refused", refusal: { code: "projection-refused",
     condition: `Projection index is ${disk.kind === "unusable" ? disk.cause : "missing"}.`,
     remedy: { text: "Restore a readable projection index, then retry arc selection; existing projected files have been preserved." } } };
-  return { status: "ok", result: { paths: selectProjectedMarkdown(disk.index.entries, options) } };
+  return { status: "ok", result: { paths: selectProjectedMarkdown(disk.index.entries, options)
+    .filter(path => root.blockedByLink(path) === null) } };
 }
