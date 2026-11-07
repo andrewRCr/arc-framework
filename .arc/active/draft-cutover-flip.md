@@ -14,18 +14,18 @@
 ## Planning state
 
 - **Readiness:** not ready since planning review's first independent pass (2026-11-06), which found one critical and six
-  major findings, and its second, which found three major, each folded in place with its approved disposition; the folds
-  are under review, and readiness is re-checked when the review closes. Before that pass the draft was
-  formalization-ready, re-checked after planning review's source-grounding reshaped the window: one `needs-detail` gap,
-  dispositions for the staged-cut refusal and the landing rules' retirement, closed in place. The 2026-11-05 readiness
-  check returned not-ready; the Owner's planning pass, the consolidation that folded it, and the ADR dispositions
-  (2026-11-06) closed its three gaps: the inbound buffer, the success signal, and the dispositions. The 2026-11-06
-  loop-exit check returned not-ready on two `needs-detail` gaps, both closed: the build the window imports from, with
-  the backend switch named, and dispositions for #29 and #31. Re-run after those closures, it returned ready.
+  major findings, its second, which found three major, and its third, which found two major, each folded in place with
+  its approved disposition; the folds are under review, and readiness is re-checked when the review closes. Before that
+  pass the draft was formalization-ready, re-checked after planning review's source-grounding reshaped the window: one
+  `needs-detail` gap, dispositions for the staged-cut refusal and the landing rules' retirement, closed in place. The
+  2026-11-05 readiness check returned not-ready; the Owner's planning pass, the consolidation that folded it, and the
+  ADR dispositions (2026-11-06) closed its three gaps: the inbound buffer, the success signal, and the dispositions. The
+  2026-11-06 loop-exit check returned not-ready on two `needs-detail` gaps, both closed: the build the window imports
+  from, with the backend switch named, and dispositions for #29 and #31. Re-run after those closures, it returned ready.
 - **Entry read:** depth `high`; `Class` stays `Heavy`. Derivation fires, since the window runbook, the flip change, and
   the land-at-flip split must be designed. Scale fires too, given a deletion surface spanning several subsystems. The
   design is composed from the landed members' specifications, not invented. Confirmed 2026-11-05 with no material new
-  evidence: the boundary stays one work unit, as cut on 2026-11-03. The draft runs about 1,370 lines, so the spec's size
+  evidence: the boundary stays one work unit, as cut on 2026-11-03. The draft runs about 1,410 lines, so the spec's size
   against the 1,500-line mark is watched at create-spec's entry.
 - **Planning limits** (Owner-agreed, 2026-11-03):
     - Draft now what rests on landed work.
@@ -106,7 +106,7 @@
       capture commit, while a material finding is folded and fix-checked and its yield brought back before any fourth
       pass;
     - planning review's first independent pass (2026-11-06), each fold approved with its disposition: the flip's own
-      checkout runs its build with an override selecting the in-repo implementation until the import, and the flip build
+      checkout runs its build with an override selecting the in-repo implementation until its merge, and the flip build
       refuses a ref store where state is still tracked and no registry exists; a failure after the merge is fixed
       forward; the window fetches every branch first, each branch takes ROADMAP's deletion and deletes its own
       `.arc/active/` files, and the check records and the abort restores the push's tracking refs, with Stage 1's second
@@ -130,9 +130,14 @@
       the check re-reads only the host's tip of `main` before the flip's merge, as the last act before it, and refuses
       unless the tip it records equals the importing checkout's `HEAD`; the pull-request check takes a supplied listing
       only where `gh` finds no repository; an abort deletes the ref hold once restored and, after the flip's deletion
-      commit, reverts that commit and restores the override (§ The window).
+      commit, reverts that commit (§ The window);
+    - planning review's third independent pass (2026-11-06), each fold approved with its disposition: the check refuses
+      while any Errand is open, so no Errand crosses the window with a branch from before the suffix; the flip's own
+      checkout keeps the override until its merge, so nothing projects there before it, and after the merge it removes
+      its pre-flip workspace folder before its release; the parser check takes write-back's A3, the entry-shape
+      inventory among it (§ The window; § The rehearsal; § The flip change).
 - **Open:** none.
-- **Next:** planning review: the third pass, `arc check increment`, and the capture commit.
+- **Next:** planning review: the fix check over the third pass's folds, `arc check increment`, and the capture commit.
 
 ### The cut
 
@@ -222,8 +227,9 @@ same number.
 notes retirement (§ The window); the flip change (§ The flip change); and the workflow rewrite (§ The workflow
 rewrite).
 
-**Follows, in the follow-on members** (`cohort-storage-cutover.md`). Items this draft routed there travel as
-pre-routed `USER-INBOX` captures, since none of those members has a session:
+**Follows, in the follow-on members** (`cohort-storage-cutover.md`). Items this draft routed there are held as pending
+entries in those members' drafts on `main`, routed by the 2026-11-06 housekeep (PR #1290), since none of those members
+has a session:
 
 - **`cutover-tracked-state-removal`:** #1's branch-tree readers, lifecycle classification, lifecycle hook checks, and CI
   planning classifier (the per-check sort below); #4; #10's import transform, after the window; #20; #24; #26's in-repo
@@ -290,8 +296,9 @@ window's mechanics need neither, so they run first.
   fetches every branch from the copy's mirror and applies the check's remedy on the copy to each copied branch that
   still changes tracked state outside its own work item's records, as live branches do before the window, so the remedy
   is rehearsed too. It then runs the quiesce check (§ The quiesce, and the check that it holds), first refusing such a
-  change planted on a copied branch and an open pull request planted in the listing the rehearsal supplies, then passing
-  once both are removed, a save from every copied checkout (#34), the copy's mirror designated as its state remote, and
+  change planted on a copied branch, an open pull request planted in the listing the rehearsal supplies, and an Errand
+  left open on the copy, then passing once the planted change and pull request are removed and the Errand is abandoned
+  on the copy, a save from every copied checkout (#34), the copy's mirror designated as its state remote, and
   a real import, publication to that mirror included, then:
     - the sealing guard (`refuseWriteIfStoreImported`) refusing an in-repo write in every copied checkout once the
       import has run;
@@ -312,11 +319,12 @@ window's mechanics need neither, so they run first.
 - **Stage 2, the dress rehearsal,** at the flip branch's head once the flip change builds. On a fresh copy it runs the
   whole window in the order § The order sets: Stage 1's steps, on the copy's pre-flip build; the flip's own landing,
   with the commit deleting the tracked state the import took, a merge into the copy's mirror standing in for the host
-  merge, and its archive and register closures written through the store; and each checkout's steps through its first
-  materialization and the checkout carries (#15, #30), the primary's identity root left holding only ARC's surfaces and
-  `scratch/`. The copy's flip checkout runs its own build with the in-repo override until the import, and without it
-  after (§ The flip change); before the copy's import it also runs the flip build's refusal of a ref store over the
-  copy, with no override set. Then it runs:
+  merge, its archive and register closures written through the store, and its checkout's release once that checkout has
+  removed its pre-flip workspace folder; and each checkout's steps through its first materialization and the checkout
+  carries (#15, #30), the primary's identity root left holding only ARC's surfaces and `scratch/`. The copy's flip
+  checkout runs its own build with the in-repo override until its merge into the copy's mirror, its deletion commit
+  included, and without it after (§ The flip change); before the copy's import it also runs the flip build's refusal of
+  a ref store over the copy, with no override set. Then it runs:
     - the parser check (#5, below), which rests on `projection-write-back`;
     - a work unit driven end to end through the rewritten workflows (#2, below);
     - cases 2 to 7 below, and the other store-backed paths;
@@ -362,11 +370,13 @@ empty (`createKindRegistry`, `lib/store/registry.ts`) writes unvalidated. Merge 
 fails visibly, but the commit-time content checks retire at the cutover, and the parser replaces them (the register
 row "Lifecycle hook checks": "Removed at cutover, except content rules that move into a record-family parser"). The
 write path registers through `PRODUCTION_REGISTRATIONS`, and the check slot, not the parser, refuses edits to verb-owned
-fields. The check lists every kind with a writable projected path and refuses the flip while a kind with structured
-content has an empty parser slot. The free-prose kinds need none (§ What the flip needs from the projection members).
-Entry shapes need no check: every entry kind now declares its grammar (`ENTRY_CONFIGS`,
-`lib/store/kinds/entry-configs.ts`), `work-item/description`, `work-item/inbound`, and `personal/errand-queue` among
-them, so entry merge (`mergeEntryText`, `lib/store/concurrency/entry-merge.ts`) has a grammar for every hand edit.
+fields. The check takes the inventory write-back's A3 hands the rehearsal (`spec-projection-write-back.md` § 7.6). It
+lists every kind with a writable projected path and refuses the flip while one has an empty parser slot, save the
+three free-prose kinds A3 names as intentional exceptions (§ What the flip needs from the projection members). It also
+lists every entry kind and refuses while one declares no entry grammar (`ENTRY_CONFIGS`,
+`lib/store/kinds/entry-configs.ts`). Every entry kind declares one today, `work-item/description`, `work-item/inbound`,
+and `personal/errand-queue` among them, so entry merge (`mergeEntryText`, `lib/store/concurrency/entry-merge.ts`) has a
+grammar for every hand edit; the check passes now and catches an entry kind added before the flip without one.
 
 **The end-to-end work unit** (#2). `arc save`, write-back, the close verb closing tasks and capturing their commits, and
 the import's footer-derived task captures (`importTaskCaptures`) all first run for real at the flip, so only the
@@ -489,8 +499,8 @@ The window runs as ordered steps; the spec sets the exact steps and their abort 
 and recovery), and each step from what its commands change, the refs, files, and configuration, so the check's record,
 the abort's restore, and each checkout's steps cover all of it. The importing checkout runs the quiesce check, the state
 remote's designation, and the import on `main`'s pre-flip build, as both rehearsal stages do (Owner, 2026-11-06). Until
-the import, the flip's own checkout runs its build under the in-repo override, and no other checkout runs the flip's
-build until the flip has merged (§ The flip change).
+the flip has merged, its own checkout runs its build under the in-repo override, and no other checkout runs that build
+(§ The flip change).
 
 - **Ahead of the window:**
     - the sealing guard and the pre-meta backfill, both on `main` before the rehearsal (§ The quiesce, and the check
@@ -502,6 +512,8 @@ build until the flip has merged (§ The flip change).
     - every pull request into `main` but the flip's own merged or closed, since the repository allows auto-merge and
       `main`'s ruleset requires only the `ci-ok` check, so an armed pull request would merge with no session running,
       after the import has read `main` (§ The quiesce, and the check that it holds);
+    - every Errand closed or abandoned, since a record carrying its branch from before the suffix would be malformed
+      from the flip (§ The quiesce, and the check that it holds);
     - the pre-import tidy, worked from the import's trial run, since on a public repository the import publishes this
       repository's personal state for good (#7);
     - every machine's notes brought to the importing machine by `git bundle` or a fetch between machines, since the
@@ -535,17 +547,20 @@ build until the flip has merged (§ The flip change).
   `lib/store/ref/import/transient-cleanup.ts`). Running it again only finishes a run that stopped part-way
   (`spec-storage-ref-backend.md` § 10.11). The accounting case and the chain comparison run over it as in the rehearsal.
   The check then recomputes what it recorded, and any change stops the window before the flip change.
-- **The flip lands** (below): one commit on its branch deletes the tracked state the import took, its own records, the
-  shared roots' files, which are `main`'s (above), and the `.internal/` records, all of which its in-repo lifecycle
-  reads under the override until the import, and the Owner merges that exact head in the host's interface, once its
-  checks there have finished and, as the last act before the merge, the host's tip of `main` reads as recorded (§ The
-  quiesce, and the check that it holds). Its archive is then written through the store from its build (`arc archive`),
-  and the register rows its landing realizes close the same way, as store writes to `cohort-state-storage.md`'s record.
-  No landing-commit link is written, since no checkpoint binds the merge (`spec-seam-delivery-review.md` A39), and its
-  own checkout, spawned before the flip, holds an unbound marker, which claim readers refuse before deriving any frame
-  (`readStoreWorkUnitEvidence`, `lib/locus/store-work-unit-evidence.ts`), so that checkout leaves by
-  `arc locus release`, the one exit for a spawned marker whose holder is archived (`spec-lifecycle-slug-selection.md`
-  § 7.4; § The rehearsal, the checkout carries).
+- **The flip lands** (below): one commit on its branch, made under the override, deletes the tracked state the import
+  took, its own records, the shared roots' files, which are `main`'s (above), and the `.internal/` records, all of which
+  its in-repo lifecycle reads under the override up to the import, and the Owner merges that exact head in the host's
+  interface, once its checks there have finished and, as the last act before the merge, the host's tip of `main` reads
+  as recorded (§ The quiesce, and the check that it holds). Its checkout then drops the override, and its archive is
+  written through the store from its build (`arc archive`), and the register rows its landing realizes close the same
+  way, as store writes to `cohort-state-storage.md`'s record. No landing-commit link is written, since no checkpoint
+  binds the merge (`spec-seam-delivery-review.md` A39), and its own checkout, spawned before the flip, holds an unbound
+  marker, which claim readers refuse before deriving any frame (`readStoreWorkUnitEvidence`,
+  `lib/locus/store-work-unit-evidence.ts`), so that checkout leaves by `arc locus release`, the one exit for a spawned
+  marker whose holder is archived (`spec-lifecycle-slug-selection.md` § 7.4; § The rehearsal, the checkout carries). It
+  first removes its pre-flip workspace folder, copying out what it keeps: its first command without the override
+  materialized it, the projection withholds a file at a path where it lays no record, and release refuses over a
+  withheld file (`spec-projection-worktrees.md` § 2.5, § 12.3).
 - **Each checkout,** in turn:
     - deletes its own copy of a Candidate or boundary record that differs from `main`'s, and its own `.arc/active/`
       files, from disk as well as the index, and commits the deletion, since a merge refuses an index that differs from
@@ -567,19 +582,28 @@ build until the flip has merged (§ The flip change).
   `refs/arc-window/`, which nothing restores from once the flip has merged (§ Abort and recovery).
 
 **The flip's own landing** (Owner, 2026-11-06): import first, then an Owner-directed merge. The flip branch's build
-selects the ref store, so before the import it runs under the in-repo override, and after it the sealing guard refuses
-the in-repo implementation's writes, so neither today's integration checkpoint nor its landing write and archive can run
-for the flip once its records are imported. The store's checkpoint is a canary path no rehearsal reaches (§ The
-rehearsal), so it stays off the flip's own landing. The flip therefore finishes everything before its merge on the
-in-repo implementation ahead of the window. After the import has read its records and `main`'s, its checkout drops the
-override and one commit deletes the tracked state the import took from its branch, so the merged head differs from the
-head reviewed and verified only by deleted state files, a tree CI passed ahead of the window (above). The Owner
-authorizes that exact head, every independent check run there first, reads the host's tip of `main` once more as the
-last act before the merge, and merges it in the host's interface; no ARC checkpoint runs. The flip's post-merge records
-are the first lifecycle writes the store takes past the host boundary. Merging after the import keeps the abort rule as
-it stands: until the merge, an abort leaves `main` untouched (§ Abort and recovery). Merging first, through today's
-checkpoint, was the alternative: it would put the merge, which cannot simply be undone, ahead of an import not yet shown
-to hold, and turn an import's abort into a revert of the flip on `main`.
+selects the ref store, so until its merge it runs under the in-repo override, and once the import has run the sealing
+guard refuses the in-repo implementation's writes, so neither today's integration checkpoint nor its landing write and
+archive can run for the flip once its records are imported. The store's checkpoint is a canary path no rehearsal reaches
+(§ The rehearsal), so it stays off the flip's own landing. The flip therefore finishes everything before its merge on
+the in-repo implementation ahead of the window. After the import has read its records and `main`'s, one commit, made
+under the override, deletes the tracked state the import took from its branch, so the merged head differs from the head
+reviewed and verified only by deleted state files, a tree CI passed ahead of the window (above). The override stays
+until the merge, so no command in that checkout builds a ref store before it: under the override `createStore` builds
+the in-repo implementation, whose capability leaves the projection off (`initializeProjection`,
+`lib/store/projection/engine.ts`, on write-back's branch), and the deletion commit's hook writes nothing through it,
+since its checks read and the table formatter only restages Markdown it rewrites, while `arc check` builds no store.
+Without the override, every command runs write-back's root hook, which builds a store and projects
+(`registerProjectionHooks`, `lib/store/projection/command-hooks.ts`; write-back § 2.2), so the deletion commit's hook
+would materialize the checkout before the merge, writing the clone's exclude entries (`spec-projection-substrate.md`
+§ 11.1), which every pre-flip checkout would then meet after an abort. Stage 2 makes the copy's deletion commit under
+the override (§ The rehearsal). The Owner authorizes that exact head, every independent check run there first, reads the
+host's tip of `main` once more as the last act before the merge, and merges it in the host's interface; no ARC
+checkpoint runs. The flip's post-merge records are the first lifecycle writes the store takes past the host boundary.
+Merging after the import keeps the abort rule as it stands: until the merge, an abort leaves `main` untouched (§ Abort
+and recovery). Merging first, through today's checkpoint, was the alternative: it would put the merge, which cannot
+simply be undone, ahead of an import not yet shown to hold, and turn an import's abort into a revert of the flip on
+`main`.
 
 #### The quiesce, and the check that it holds
 
@@ -638,7 +662,14 @@ named:
   `run-errand.md`), and `main`'s ruleset requires only the `ci-ok` check. The remedy is to merge each ahead of the
   window or close it. The check reads the open pull requests from the host and refuses when it cannot; it takes a
   supplied listing only where `gh` finds no repository, as in the rehearsal's copies (§ The rehearsal, copy safety), and
-  refuses one anywhere else, so the window's run cannot take one.
+  refuses one anywhere else, so the window's run cannot take one;
+- no Errand is open, read from every `refs/arc/user/<id>/errands`, locally and on `origin`, which holds only open
+  Errands, since a close, an abandon, or a promotion retires its Errand's record from the ref (the `retire` transition,
+  `lib/errand/identity-transitions.ts`). The import carries an open Errand's record across with its branch as recorded,
+  `<type>/<slug>` (`appendTransientRecord`, `lib/store/ref/import/transient.ts`), and from the flip the record's branch
+  check takes only the suffixed form (§ The flip change), so every reader would refuse the record as malformed or drop
+  it (`decodeBasis`, `lib/errand/store-runtime.ts`; `decodeErrand`, `lib/inbox/lists.ts`). The remedy is to close each
+  Errand, landing its branch, or abandon it.
 
 **Then every checkout saves its personal state, and the import runs** (#34). The import blocks on every personal file
 whose disk copy differs from its saved notes copy, naming the remedy `arc user save` and `arc user load`
@@ -710,18 +741,19 @@ make them.
   refs and the notes sync state, come back unchanged rather than being deleted. Stage 1 exercises it once, after
   publication, and imports again on the aborted copy (§ The rehearsal). Once restored, the abort deletes the hold under
   `refs/arc-window/`, so a re-run's check records afresh. An abort after the flip's deletion commit also reverts that
-  commit on the flip's branch, an ordinary commit rather than a rewrite of the pushed branch, and puts its checkout back
-  under the override before any further `arc` command, since on a tree that no longer tracks ARC state the flip build's
-  refusal does not fire (§ The flip change); before the window runs again the flip's head is fixed again, merging `main`
-  and passing CI, as ahead of the first run.
+  commit on the flip's branch, an ordinary commit rather than a rewrite of the pushed branch, made under the override
+  its checkout keeps until the merge, so nothing has projected there and no projection is left to remove (§ The order,
+  the flip's own landing); before the window runs again the flip's head is fixed again, merging `main` and passing CI,
+  as ahead of the first run.
 - **After publication,** the pre-import tidy still matters, since anything pushed may already have been copied.
 - **After the merge, fix forward** (Owner, 2026-11-06). A failed step past the merge, the flip's own archive or register
-  closures, a checkout's deletion commit, its merge and rebuild, its workspace folder's removal, its first
-  materialization, its identity root's removal of what the import moved, its marker's carry, or notes retirement, stops
-  the window there; nothing is reverted, and the store writes made after the merge stand. Its fix lands as the canaries'
-  does: an Owner-directed merge in the host's interface, every independent check run first (`DEV-RULES.PROJECT.md`
-  § Self-Hosting Defects; § The rehearsal). Reverting the merge and restoring the record was the alternative; it would
-  lose those writes and unwind every checkout that had already merged and rebuilt.
+  closures, its checkout's workspace folder removal and release, a checkout's deletion commit, its merge and rebuild,
+  its workspace folder's removal, its first materialization, its identity root's removal of what the import moved, its
+  marker's carry, or notes retirement, stops the window there; nothing is reverted, and the store writes made after the
+  merge stand. Its fix lands as the canaries' does: an Owner-directed merge in the host's interface, every independent
+  check run first (`DEV-RULES.PROJECT.md` § Self-Hosting Defects; § The rehearsal). Reverting the merge and restoring
+  the record was the alternative; it would lose those writes and unwind every checkout that had already merged and
+  rebuilt.
 - **Notes retire last,** after the flip has merged and the first materialization has succeeded. Until then each
   person's notes stay where the import read them, unchanged, for comparison with the imported records and for
   re-deriving one the import got wrong; they are the import's source, not a path back.
@@ -754,12 +786,15 @@ The code that must change at the flip, beside the import and the workflow rewrit
   seals every pre-flip checkout (`storeImported`, `lib/store/store-imported.ts`), and a stray store makes the import
   refuse as occupied or as a layout mismatch (`landImportRefs`, `lib/store/ref/import/land.ts`). Two pieces close
   this:
-    - an override, read from the environment, under which `createStore` builds the in-repo implementation. Until the
-      import, the flip's checkout sets it in the environment of every command it runs, `git` included, since a hook
-      inherits the environment of the `git` process that runs it, and this repository's pre-commit hook builds a store
-      when a cohort record or a planned meta is staged (`validate-cohort-consistency.ts`); a check that runs the
-      checkout's code elsewhere carries it too. The flip's own lifecycle then runs on the in-repo implementation up to
-      the import (§ The order). The capability stays a fixed property of the store a command builds;
+    - an override, read from the environment, under which `createStore` builds the in-repo implementation. Until its
+      merge, the flip's checkout sets it in the environment of every command it runs, `git` included, since a hook
+      inherits the environment of the `git` process that runs it. The pre-commit hook runs `arc check pre-commit` on
+      every commit, and under the flip build every `arc` command builds a store in write-back's root hook
+      (`registerProjectionHooks`), beside the store this repository's hook builds when a cohort record or a planned
+      meta is staged (`validate-cohort-consistency.ts`); a check that runs the checkout's code elsewhere carries it
+      too. The flip's own lifecycle then runs on the in-repo implementation up to the import, and its deletion commit
+      under the override after it (§ The order, the flip's own landing). The capability stays a fixed property of the
+      store a command builds;
     - the flip build refuses to open a ref store in a repository whose tree still tracks ARC state and which holds no
       registry ref, the sealing guard's mirror, with a recoverable refusal naming the remedy: import from the pre-flip
       build, or set the override. A command run without the override then refuses rather than creating a store.
@@ -851,12 +886,14 @@ The code that must change at the flip, beside the import and the workflow rewrit
   `<type>/<slug>-<suffix>`, its type one of `ERRAND_BRANCH_TYPES` (`lib/errand/branch-type.ts`) and the suffix eight
   characters from the Errand's UID, and records its branch link with that ref, as the storage-coupling register's fate
   for the Errand identity refs and `spec-storage-ref-backend.md` § 13.3 hand to the flip's rewrite of the Errand verbs.
-  Today `lib/errand/open.ts` and `lib/session-init/errand-branch-cut.ts` build `<type>/<slug>`, and
-  `spec-seam-locus.md` § 8.2's link names it. The exact-match checks change with the builders: the identity record's
-  branch validation (`lib/errand/identity-record.ts`) and resume's recorded-branch check (`lib/errand/open.ts`). The
-  import's created-branch test (`lib/store/ref/import/code-links.ts`) reads only names from before the flip and stays.
-  The suffix keeps two same-slug Errands from different clones off one remote branch, and that register row closes
-  with it.
+  Today `lib/errand/open.ts` and `lib/session-init/errand-branch-cut.ts` build `<type>/<slug>`, and `spec-seam-locus.md`
+  § 8.2's link names it. The exact-match checks change with the builders: an Errand record's branch validation
+  (`validateOrdinaryNamespace`, `lib/errand/identity-record.ts`), which the record's schema applies at every read, and
+  resume's recorded-branch check (`lib/errand/open.ts`); the housekeep routing record and the grooming claim keep their
+  own checks. Each takes only the suffixed form, since no Errand crosses the window open (§ The quiesce, and the check
+  that it holds), so no record carries a branch from before the flip. The import's created-branch test
+  (`lib/store/ref/import/code-links.ts`) reads only names from before the flip and stays. The suffix keeps two same-slug
+  Errands from different clones off one remote branch, and that register row closes with it.
 - **The status help text** (`spec-seam-status-roadmap.md` § 2.4, § 12). The status flags' help text in `cli.ts` and the
   `status` help notes in `lib/cli-help-content.ts` describe today's arms until the flip, which rewrites them for the
   arms from the flip.
@@ -1228,13 +1265,13 @@ Each item was read against the section it rests on:
   members' § 1.5 name the live rehearsal as this unit's. No CLI process runs over either backend before the flip,
   since `createStore` (`lib/store/create.ts`) builds the in-repo implementation alone, so the rehearsal runs the flip
   change's own build.
-- **#5:** write-back § 7.6 leaves the catch to the rehearsal. Every entry kind now declares its grammar
-  (`ENTRY_CONFIGS`, `lib/store/kinds/entry-configs.ts`), which resolves the entry-shape half. The projected kinds with a
-  ref family and no parser in `PRODUCTION_REGISTRATIONS` are the free-prose ones — `work-item/notes`,
-  `personal/document`, and the interim `personal/session-context` — and `personal/errand-queue` has a parser but no
-  check. The rehearsal's check therefore requires a parser of each kind with structured content, not of every writable
-  kind, narrower than write-back § 7.6 and § 18's "every hand-editable projected kind has its parser"; the divergence
-  goes to that member's session to reconcile in its verification (2026-11-06).
+- **#5:** write-back § 7.6 leaves the catch to the rehearsal, and its A3 (2026-11-06) sets what the rehearsal
+  inventories: every hand-editable projected kind, requiring its registered parser or an explicit intentional
+  exception, and every entry kind's declared entry shape. The exceptions are the projected kinds with a ref family and
+  no parser in `PRODUCTION_REGISTRATIONS`, the free-prose ones — `work-item/notes`, `personal/document`, and the interim
+  `personal/session-context`. `personal/errand-queue` has a parser but no check, and A3 places it outside the
+  inventory, since it has no recognized projected address. Every entry kind now declares its grammar (`ENTRY_CONFIGS`,
+  `lib/store/kinds/entry-configs.ts`), so the entry-shape half passes today (§ The rehearsal, the parser check).
 - **#18:** both members' § 18 state the flip's duty, and `init-recipe.json` installs exactly three files into projected
   roots: the ROADMAP and ATOMIC-INBOX templates and `completed/README.md`. The gap in § Tracked state the import does
   not claim is the flip's own.
