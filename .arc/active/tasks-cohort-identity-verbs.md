@@ -470,6 +470,11 @@ its history refs, discharging the edges naming it.
           exact document-line repair, including completed holders and former cohort paths. Unavailable holding evidence
           refuses with the original retry; repair permits continuation, and a distinct cohort permits the heading rewrite.
 
+- _Review correction:_ Shared admission refuses a newly visible required reference participant before publishing any
+  rename mutations. Preparation binds acquired records and report-only dependency and waits-on owners separately, so
+  fresh retry includes shared and owned artifact rewrites or repair rows without changing started content. Both backends
+  exercise the boundary through CLI dispatch; unrelated started/completed prose and plain mentions remain allowed.
+
 ### `[x]` **4.6 Pull history refs round after round — § 2.6**
 
 - _Goal:_ A rename batch that writes completed records lands on a clone lacking their history refs, pulling each round
@@ -594,6 +599,11 @@ old name refuses naming the current one.
   one batch, preserving completed placement and started prose. Every unchanged read is observed. Ambiguous holdings
   carry ordered edits that land; closed ambiguous subtrees retain their Parent and member paths, including members
   on unique former aliases, with exact identity rows and an explanatory advisory.
+
+- _Review correction:_ Atomic admission re-derives all relevant holdings and supported citations against captured
+  participants. Direct/completed membership, descendants, Parent owners and new filename participants cannot be
+  omitted; refusal preserves all rename state and fresh preparation includes them. Coupled retention and existing
+  closed-child restrictions remain enforced; unrelated arrivals do not invalidate a prepared rename.
 
 ### `[x]` **5.2.R Keep cohort repair planning reachable — A6**
 

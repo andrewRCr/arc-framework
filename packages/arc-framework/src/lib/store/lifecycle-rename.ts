@@ -26,7 +26,7 @@ import { observeRecords } from "./record-observations.js";
 import type { Mutation, RecordObservation } from "./write.js";
 import type { LifecycleEntry } from "./lifecycle-index.js";
 import { resolveRenameReferences } from "./rename-reference-resolution.js";
-import { workUnitRenameReferenceReport } from "./rename-reference-report.js";
+import { workUnitRenameReferenceReport, workUnitRenameReportObservations } from "./rename-reference-report.js";
 import type { RenameReport } from "../work-unit/rename-report.js";
 import { planRenameMemberHeading } from "./rename-member-heading.js";
 import { ownedArtifactRenames } from "./rename-artifact-names.js";
@@ -100,7 +100,7 @@ export async function prepareStoreRename(store: Store, subject: StoreRenameSubje
     records: unseen.map(write => write.reference), condition: "The set of backlog records changed during rename preparation.",
     remedy: { text: "Acquire the complete rename groups again, then retry.", argv: ["arc", "rename", subject.operand, targetSlug] } } };
   const own = await settleOwnRenameEdge(store, subject, targetSlug); if (own.status === "refused") return own;
-  const observations = mergeRenameObservations([...groups.result.observations, ...heading.value.observations,
+  const observations = mergeRenameObservations([...observeRecords(records), ...groups.result.observations, ...heading.value.observations,
     ...settlement.observations, ...own.result.observations], subject, targetSlug);
   if (observations.status === "refused") return observations;
   const artifactRenames = ownedArtifactRenames(records, subject.primary, targetSlug);
@@ -118,7 +118,10 @@ export async function prepareStoreRename(store: Store, subject: StoreRenameSubje
   });
   const report = { ...workUnitRenameReferenceReport({ primary: subject.primary, records: retained, entries: groups.result.entries,
     resolution: resolution.result, source: subject.originName, target: targetSlug, artifactRenames }), memberHeadings: heading.value.edits };
-  return { status: "ok", result: { subject, records, writes, observations: observations.result, report } };
+  const complete = mergeRenameObservations([...observations.result,
+    ...workUnitRenameReportObservations({ records, entries: groups.result.entries }, report)], subject, targetSlug);
+  if (complete.status === "refused") return complete;
+  return { status: "ok", result: { subject, records, writes, observations: complete.result, report } };
 }
 async function settleOwnRenameEdge(store: Store, subject: StoreRenameSubject, target: string): Promise<StoreResult<CreationSlugSettlement>> {
   const primary = subject.primary, fields = ParsedMetaRecordSchema.parse(primary.fields);

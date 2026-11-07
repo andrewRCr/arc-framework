@@ -6,6 +6,7 @@ import type { StoreRecord } from "./read.js";
 import type { RenameReferenceResolution } from "./rename-reference-resolution.js";
 import { emptyRenameReport, type RenameReport, type RenameReferenceEdit, type RenameReportRecord } from "../work-unit/rename-report.js";
 import { rewriteBacktickedArtifactReferences } from "../work-unit/rename-reference-sweep.js";
+import type { RecordObservation } from "./write.js";
 
 interface WorkUnitRenameReportInput {
   primary: StoreRecord; records: readonly StoreRecord[]; entries: readonly LifecycleEntry[];
@@ -26,6 +27,15 @@ export function workUnitRenameReferenceReport(input: WorkUnitRenameReportInput):
   reportDependencies(input, shared, append);
   if (input.resolution === "ambiguous") reportText(input, shared, append);
   return { ...emptyRenameReport(), references };
+}
+
+/** Bind report-only dependents without adding their authored content to the writable reference sweep. */
+export function workUnitRenameReportObservations(input: Pick<WorkUnitRenameReportInput, "entries" | "records">,
+  report: RenameReport): RecordObservation[] {
+  return input.entries.filter(entry => !input.records.some(record => sameReference(record.reference, entry.reference))
+    && report.references.some(row => row.record.type === "work-unit" && entry.reference.owner.type === "work-item"
+      && row.record.uid === entry.reference.owner.uid))
+    .map(entry => ({ reference: entry.reference, expected: { version: entry.version, conflicts: [] } }));
 }
 
 function reportDependencies(input: WorkUnitRenameReportInput, shared: readonly StoreRecord[], append: AppendRepair): void {

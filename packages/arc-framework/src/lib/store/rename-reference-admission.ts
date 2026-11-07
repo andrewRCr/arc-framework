@@ -1,4 +1,4 @@
-/** Revalidate shared rename-reference authority inside the backend's atomic write admission. */
+/** Revalidate rename participants and reference authority inside the backend's atomic write admission. */
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { rewriteBacktickedArtifactReferences } from "../work-unit/rename-reference-sweep.js";
 import { findAmbiguousPairedReference } from "../work-unit/paired-reference-owners.js";
@@ -13,6 +13,7 @@ import { resolveRenameReferences } from "./rename-reference-resolution.js";
 import { ownedArtifactRenames } from "./rename-artifact-names.js";
 import { planRenameMemberHeading } from "./rename-member-heading.js";
 import { readLifecycleView } from "./lifecycle-view.js";
+import { observeAllHoldings } from "./kinds/cohort/check-support.js";
 
 interface RenameAdmission {
   input: WriteCheckInput;
@@ -21,7 +22,7 @@ interface RenameAdmission {
   artifacts: ReadonlyMap<string, string>;
 }
 
-/** Admit cross-owner rewrites only where their ownership remains proved in the locked before view. */
+/** Admit prepared participants and cross-owner rewrites against the locked before view. */
 export async function checkRenameReferences(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
   if (input.writer.kind !== "verb" || input.writer.verb !== "rename" || input.prior === undefined || input.next === undefined) return [];
   const fail = (condition: string): readonly BrokenRule[] => [brokenRule("rename.references", condition,
@@ -36,8 +37,61 @@ export async function checkRenameReferences(input: WriteCheckInput): Promise<rea
   if (own.status !== "known") return fail(own.status === "unavailable" ? own.condition : "The renamed owner's records are absent.");
   const context: RenameAdmission = { input, primary, target,
     artifacts: primary.reference.owner.type === "cohort" ? new Map() : ownedArtifactRenames(own.value, primary, target) };
-  const problem = await sharedRecordsProblem(context, captured.value);
+  const participants = [...captured.value, ...own.value.filter(record => record.reference.kind !== "work-item/cut-map")];
+  const problem = await participantProblem(context, participants) ?? await sharedRecordsProblem(context, captured.value);
   return problem === null ? [] : fail(problem);
+}
+
+async function participantProblem(context: RenameAdmission, records: readonly StoreRecord[]): Promise<string | null> {
+  const observed = await unpreparedParticipants(context, records);
+  if (observed.status !== "known") return observed.status === "unavailable" ? observed.condition : "Rename participants are unavailable.";
+  const uncaptured = observed.value;
+  if (uncaptured.length === 0) return null;
+  if (context.primary.reference.owner.type === "cohort") {
+    const problem = await holdingParticipantsProblem(context, uncaptured);
+    if (problem !== null) return problem;
+  }
+  if (!uncaptured.some(record => sharedParticipant(context, record))) return null;
+  const resolution = await resolveRenameReferences(context.input.before, context.primary.reference, context.primary.reference.owner.name);
+  if (resolution.status === "refused") return resolution.refusal.condition;
+  return resolution.result === "other" ? null : "The rename's required reference participants changed after preparation.";
+}
+
+async function unpreparedParticipants(context: RenameAdmission, records: readonly StoreRecord[]): Promise<RuleObservation<readonly StoreRecord[]>> {
+  const uncaptured: StoreRecord[] = [];
+  for (const record of records) {
+    if (context.input.observations.some(item => item.expected !== null && sameReference(item.reference, record.reference))) continue;
+    const proposed = await observeRecord(context.input.after, record.reference);
+    if (proposed.status !== "known") return { status: "unavailable", condition: "A shared rename participant became unavailable." };
+    if (proposed.value.content === record.content) uncaptured.push(record);
+  }
+  return { status: "known", value: uncaptured };
+}
+
+async function holdingParticipantsProblem(context: RenameAdmission, records: readonly StoreRecord[]): Promise<string | null> {
+  const holdings = await observeAllHoldings(context.input.before, context.primary.reference);
+  if (holdings.status !== "known") return holdings.status === "unavailable" ? holdings.condition : "Cohort holdings are unavailable.";
+  const participants = holdings.value.flatMap(holding => [holding.candidate.reference,
+    ...holding.members.map(member => member.candidate.reference)]);
+  return records.some(record => participants.some(reference => sameReference(reference, record.reference)))
+    ? "The cohort rename's required membership participants changed after preparation." : null;
+}
+
+function sharedParticipant(context: RenameAdmission, record: StoreRecord): boolean {
+  const cohort = context.primary.reference.owner.type === "cohort";
+  if (record.reference.kind === "cohort/document") return cohort && record.placement?.kind !== "completed"
+    && hasFilenameReference(context, record.content);
+  if (record.reference.kind !== "work-item/meta") return hasFilenameReference(context, record.content);
+  const fields = ParsedMetaRecordSchema.safeParse(record.fields);
+  if (!fields.success) return true;
+  const source = context.primary.reference.owner.name;
+  if (!cohort && (fields.data.dependsOn.includes(source)
+    || fields.data.pause?.waitsOn?.kind === "work-unit" && fields.data.pause.waitsOn.slug === source)) return true;
+  return record.placement?.kind === "backlog" && fields.data.state === "Planning" && hasFilenameReference(context, record.content);
+}
+
+function hasFilenameReference(context: RenameAdmission, content: string): boolean {
+  return [...content.matchAll(/`[^`\r\n]+`/gu)].some(match => rewriteFilename(context, match[0]) !== match[0]);
 }
 
 async function sharedRecordsProblem(context: RenameAdmission, records: readonly StoreRecord[]): Promise<string | null> {

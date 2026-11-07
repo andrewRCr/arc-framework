@@ -203,4 +203,19 @@ verification of the current corrections:
   Unit cases reverse the same inventory, and the native archive regression pins both UID orders and applies every
   advertised edit. Semantic plans are compared without requiring incidental serialization order.
 
+### Rename participant completeness — 2026-11-07
+
+At atomic admission, the shared rename check compares fresh holdings and supported references with preparation's
+record observations. A newly visible required participant refuses the whole batch and names fresh preparation as the
+retry. Cohort holdings include completed members, Parent owners and all members needed by a retained coupled group;
+reference participants include supported filename citations in shared and owned artifacts, plus work-item dependency
+or waits-on report rows. Existing family resolution, coupled retention, unproved-companion advisories and closed-child
+restrictions still decide each participant's rewrite or report. Unrelated started or closed prose and plain filename
+mentions do not fence the rename.
+
+Work-item preparation observes every acquired record and every additional report-only dependent. The latter stay
+outside the writable sweep, retaining authored bytes while binding the evidence used to produce their repair rows.
+Dual-backend CLI tests insert participants at the preparation/admission boundary, assert refusal preserves the
+post-arrival state, and retry from fresh preparation to include the new rewrite or report.
+
 ---

@@ -1,6 +1,6 @@
 /** Rename target admission shares creation's ranked namespace over both backends. */
 import { describe, expect, it } from "vitest";
-import { createKindRegistry } from "../../src/lib/store/index.js";
+import { createKindRegistry, RecordReferenceSchema } from "../../src/lib/store/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { createRefFixture } from "../helpers/store/ref-fixture.js";
@@ -9,7 +9,9 @@ import { seed, success } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { repairCliFixture, repairCli } from "../helpers/repair-cli.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
-import { writeMetaDependsOn } from "../../src/lib/store/kinds/meta/writers.js";
+import type { Store } from "../../src/lib/store/contract.js";
+import type { StoreRecord } from "../../src/lib/store/read.js";
+import { writeMetaPause, writeMetaDependsOn } from "../../src/lib/store/kinds/meta/writers.js";
 
 const production = createKindRegistry(PRODUCTION_REGISTRATIONS);
 const completed = { kind: "completed" as const, quarter: ArchiveQuarterSchema.parse("2026-q4") };
@@ -26,7 +28,9 @@ async function fixture(backend: "reference" | "ref") {
     return createRefStore({ ...fresh, registry: native.ports.registry, identity: native.ports.identity,
       actor: native.ports.actor, clock: native.ports.clock, random: native.ports.random });
   };
-  return { ...state, cli, invoke: (args: readonly string[]) => repairCli(cli, args, { storeFactory }) };
+  return { ...state, cli, invoke: (args: readonly string[], decorate?: (store: Store) => Store) => repairCli(cli, args, {
+    storeFactory: async () => { const store = await storeFactory(); return decorate?.(store) ?? store; },
+  }) };
 }
 
 describe.each(["reference", "ref"] as const)("rename target reuse over %s", backend => {
@@ -111,5 +115,86 @@ describe.each(["reference", "ref"] as const)("rename target reuse over %s", back
     expect(success(await f.store.read({ reference: target.reference }))).toEqual(target);
     expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse(target.reference.owner.name) })).reference).toEqual(renamed.reference);
     expect(result.result).toMatchObject({ status: "renamed", reference: renamed.reference });
+  }, 60_000);
+});
+
+describe.each(["reference", "ref"] as const)("work-item rename participant arrival over %s", backend => {
+  it.each(["dependency", "active-dependency", "wait", "filename", "owned-filename"] as const)(
+    "reprepares after a %s participant arrives before admission", async kind => {
+      const f = await fixture(backend), sourceRef = f.reference("work-item/meta", "source");
+      const source = await seed(f, sourceRef, makeMetaFixture(sourceRef.owner.name, { state: "Planning", currentWorkflow: null }),
+        { kind: "backlog", commitment: "planned" });
+      if (source.reference.owner.type !== "work-item" || source.reference.owner.uid === undefined) throw new Error("Expected source UID");
+      const arriving = kind === "owned-filename" ? RecordReferenceSchema.parse({ kind: "work-item/draft", owner: source.reference.owner })
+        : f.reference("work-item/meta", "arriving"), active = kind === "active-dependency" || kind === "wait";
+      let arrival: StoreRecord | undefined, version: unknown;
+      const argv = ["rename", source.reference.owner.uid, "renamed", "--json"];
+      const refused = await f.invoke(argv, store => new Proxy(store, { get(target, key) {
+        if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
+          if (arrival === undefined) {
+            const content = kind === "owned-filename" ? `# Draft\n\nSee \`meta-${sourceRef.owner.name}.md\`.\n`
+              : makeMetaFixture(arriving.owner.name, { state: active ? "Active" : "Planning",
+              currentWorkflow: active ? "process-task-loop" : null,
+              dependsOn: kind === "dependency" || kind === "active-dependency" ? [sourceRef.owner.name] : [] })
+              + (kind === "filename" ? `\nSee \`meta-${sourceRef.owner.name}.md\`.\n` : "");
+            arrival = await seed(f, arriving, content, active ? { kind: "active" } : { kind: "backlog", commitment: "planned" });
+            if (kind === "wait") {
+              success(await f.store.write({ ...recordPut(arrival, { content: writeMetaPause(arrival.content,
+                { pausedBy: SlugSchema.parse("test-user"), since: "2026-10-16T00:00:00Z", reason: "Wait for work.",
+                  waitsOn: { kind: "work-unit", slug: SlugSchema.parse(sourceRef.owner.name) }, resumeNotes: null, open: true }) }),
+              provenance: { verb: "pause", lifecycleAction: "pause" } }));
+              arrival = success(await f.store.read({ reference: arrival.reference }));
+            }
+            version = success(await f.store.version());
+          }
+          return store.batch(input);
+        };
+        const value: unknown = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+      expect(refused).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { rule: "rename.references" } } });
+      expect(success(await f.store.version())).toBe(version);
+      expect(success(await f.store.read({ reference: source.reference }))).toEqual(source);
+      if (arrival === undefined) throw new Error("Expected concurrent arrival");
+      expect(success(await f.store.read({ reference: arrival.reference }))).toEqual(arrival);
+      const retried = await f.invoke(argv);
+      expect(retried.exitCode ?? 0, retried.stdout + retried.stderr).toBe(0);
+      const current = success(await f.store.read({ reference: arrival.reference }));
+      if (kind === "dependency") expect(current.fields).toMatchObject({ dependsOn: ["renamed"] });
+      else if (kind === "filename" || kind === "owned-filename") expect(current.content).toContain("See `meta-renamed.md`.");
+      else {
+        expect(current).toEqual(arrival);
+        if (current.reference.owner.type !== "work-item" || current.reference.owner.uid === undefined) throw new Error("Expected arrival UID");
+        expect(retried.result).toMatchObject({ report: { references: expect.arrayContaining([
+          { record: { type: "work-unit", name: arriving.owner.name, uid: current.reference.owner.uid },
+            edits: [{ kind: "field", field: kind === "wait" ? "waitsOn" : "dependsOn", from: sourceRef.owner.name, to: "renamed" }] },
+        ]) } });
+      }
+    }, 60_000);
+
+  it.each(["started-prose", "completed-prose", "plain-prose"] as const)("allows an unrelated %s arrival", async kind => {
+    const f = await fixture(backend), sourceRef = f.reference("work-item/meta", "source");
+    const source = await seed(f, sourceRef, makeMetaFixture(sourceRef.owner.name, { state: "Planning", currentWorkflow: null }),
+      { kind: "backlog", commitment: "planned" });
+    const arriving = f.reference("work-item/meta", "unrelated");
+    let arrival: StoreRecord | undefined;
+    const result = await f.invoke(["rename", source.reference.owner.name, "renamed", "--json"], store => new Proxy(store, { get(target, key) {
+      if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
+        if (arrival === undefined) {
+          const active = kind === "started-prose", ended = kind === "completed-prose";
+          const citation = kind === "plain-prose" ? `Mention meta-${sourceRef.owner.name}.md plainly.\n` : `See \`meta-${sourceRef.owner.name}.md\`.\n`;
+          arrival = await seed(f, arriving, makeMetaFixture(arriving.owner.name, { state: active ? "Active" : ended ? "Shipped" : "Planning",
+            currentWorkflow: active ? "process-task-loop" : null }) + citation,
+          active ? { kind: "active" } : ended ? completed : { kind: "backlog", commitment: "planned" });
+        }
+        return store.batch(input);
+      };
+      const value: unknown = Reflect.get(target, key);
+      return typeof value === "function" ? value.bind(target) : value;
+    } }));
+    expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+    if (arrival === undefined) throw new Error("Expected arrival");
+    expect(success(await f.store.read({ reference: arrival.reference }))).toEqual(arrival);
+    expect(result.result).toMatchObject({ report: { references: [] } });
   }, 60_000);
 });

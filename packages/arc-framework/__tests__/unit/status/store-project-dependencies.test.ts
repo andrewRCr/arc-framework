@@ -19,6 +19,7 @@ import { resolveStoreProjectDependencies } from "../../../src/lib/status/store-p
 import { importRetiredAlias } from "../../helpers/store/terminal-alias-harness.js";
 import { composeProjectReadinessViewResult } from "../../../src/lib/status/project-view.js";
 import { runStoreRename } from "../../../src/lib/work-unit/verbs/rename-store.js";
+import { observeRecords } from "../../../src/lib/store/record-observations.js";
 
 async function project(store: Store) {
   const view = lifecycleSuccess(await readLifecycleView(store));
@@ -61,9 +62,9 @@ async function retiredOriginFixture(disposition: "replace" | "drop" | "unmapped"
     { kind: "backlog", commitment: "planned" });
   if (formerAlias) {
     const reference = RecordReferenceSchema.parse({ ...origin.reference, owner: { ...origin.reference.owner, name: "origin" } });
-    lifecycleSuccess(await h.store.write({ action: "put", reference, expected: origin.version,
-      content: origin.content.replaceAll("former-origin", "origin"), placement: { kind: "active" },
-      provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    lifecycleSuccess(await batchLifecycleWrites(h.store, [{ action: "put", reference, expected: origin.version,
+      content: origin.content.replaceAll("former-origin", "origin"), placement: { kind: "active" } }],
+      { verb: "rename", lifecycleAction: "rename" }, observeRecords([dependent])));
     origin = lifecycleSuccess(await h.store.read({ reference }));
   }
   const owner = dependent.reference.owner;
@@ -87,12 +88,12 @@ it("classifies a former slug against its renamed standing work unit", async () =
   await h.seedMeta("root");
   const former = await h.seedMeta("former", { state: "Planning", currentWorkflow: "draft-design", dependsOn: ["root"] },
     { kind: "backlog", commitment: "planned" });
-  await h.seedMeta("dependent", { state: "Planning", currentWorkflow: "draft-design", dependsOn: ["former"] },
+  const dependent = await h.seedMeta("dependent", { state: "Planning", currentWorkflow: "draft-design", dependsOn: ["former"] },
     { kind: "backlog", commitment: "planned" });
   const current = RecordReferenceSchema.parse({ ...former.reference, owner: { ...former.reference.owner, name: "current" } });
-  lifecycleSuccess(await h.store.write({ action: "put", reference: current, expected: former.version,
-    content: former.content.replaceAll("former", "current"), placement: { kind: "backlog", commitment: "planned" },
-    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  lifecycleSuccess(await batchLifecycleWrites(h.store, [{ action: "put", reference: current, expected: former.version,
+    content: former.content.replaceAll("former", "current"), placement: { kind: "backlog", commitment: "planned" } }],
+    { verb: "rename", lifecycleAction: "rename" }, observeRecords([dependent])));
 
   const result = await project(h.store);
   expect(result.facts.find(fact => fact.slug === "dependent")).toMatchObject({ readiness: "blocked",

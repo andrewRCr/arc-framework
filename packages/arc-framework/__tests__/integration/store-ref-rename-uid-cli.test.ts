@@ -1,4 +1,5 @@
 /** Registered rename selects one exact work-unit owner beneath a same-name clash. */
+import { observeRecords } from "../../src/lib/store/record-observations.js";
 import { expect, it } from "vitest";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -122,9 +123,9 @@ it.each(["none", "holder", "cohort"] as const)("handles a missing foreign cohort
         changed = true;
         if (race === "holder") success(await store.write({ ...recordPut(other, { content: writeMetaCohort(other.content, cohort.reference.owner.name) }),
           provenance: { verb: "edit", lifecycleAction: "edit" } }));
-        else success(await store.write({ ...recordPut(cohort, { content: rewriteCohortHeading(cohort.content, "missing") }),
-          reference: RecordReferenceSchema.parse({ ...cohort.reference, owner: { ...cohort.reference.owner, name: "missing" } }),
-          provenance: { verb: "rename", lifecycleAction: "rename" } }));
+        else success(await store.batch({ writes: [{ ...recordPut(cohort, { content: rewriteCohortHeading(cohort.content, "missing") }),
+          reference: RecordReferenceSchema.parse({ ...cohort.reference, owner: { ...cohort.reference.owner, name: "missing" } }) }],
+        observations: observeRecords([cohort, selected, other]), provenance: { verb: "rename", lifecycleAction: "rename" } }));
         if (race === "cohort") {
           const observed = success(await store.read({ reference: cohort.reference }));
           expect(observed.reference.owner.name).toBe("missing");
@@ -216,8 +217,9 @@ it.each(["current", "former", "ended", "former-cohort", "unrelated-cohort"] as c
   }
   if (mode === "former-cohort") {
     const reference = RecordReferenceSchema.parse({ ...cohort.reference, owner: { ...cohort.reference.owner, name: "current-group" } });
-    success(await f.store.write({ ...recordPut(cohort, { content: rewriteCohortHeading(cohort.content, "current-group") }),
-      reference, provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    success(await f.store.batch({ writes: [{ ...recordPut(cohort, { content: rewriteCohortHeading(cohort.content, "current-group") }), reference }],
+    observations: observeRecords([cohort, success(await f.store.read({ reference: other }))]),
+    provenance: { verb: "rename", lifecycleAction: "rename" } }));
     cohort = success(await f.store.read({ reference }));
   }
   const selected = await plantRefPrimary(f, { kind: "work-item/meta", name: "shared", uid,

@@ -2,11 +2,12 @@
 import { expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences } from "../../../../src/lib/store/identity.js";
-import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
+import { batchLifecycleWrites, recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import { runArchive } from "../../../../src/lib/work-unit/verbs/archive.js";
 import { createMemoryRemote } from "../../../helpers/store/sync.js";
+import { observeRecords } from "../../../../src/lib/store/record-observations.js";
 
 const cohortContent = (name: string, parent?: string) => `# Cohort: \`${name}\`\n\n**Purpose:** Deliver the group.\n${parent === undefined ? "" : `\n**Parent:** \`${parent}\`\n`}`;
 function archive(store: Store, name: string) {
@@ -21,8 +22,8 @@ async function fixture(nested = false) {
   const group = await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "former" })), cohortContent("former"));
   const held = await h.seedMeta("straggler", { state: "Planning", currentWorkflow: null, cohort: "former" }, { kind: "backlog", commitment: "planned" });
   const renamed = RecordReferenceSchema.parse({ ...group.reference, owner: { ...group.reference.owner, name: "current" } });
-  lifecycleSuccess(await h.store.write({ ...recordPut(group, { content: cohortContent("current") }), reference: renamed,
-    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  lifecycleSuccess(await batchLifecycleWrites(h.store, [{ ...recordPut(group, { content: cohortContent("current") }), reference: renamed }],
+    { verb: "rename", lifecycleAction: "rename" }, observeRecords([group, held])));
   const child = nested ? await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "leaf" })),
     cohortContent("leaf", "current")) : undefined;
   const subject = await h.seedMeta("subject", { cohort: nested ? "current/leaf" : "current" });

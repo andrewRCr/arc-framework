@@ -11,6 +11,7 @@ import { repairCliFixture, repairCli } from "../helpers/repair-cli.js";
 import { seed, success } from "../helpers/store/suite-tools.js";
 import { expandStoredPath } from "../../src/lib/store/stored-path.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
+import { observeRecords } from "../../src/lib/store/record-observations.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { join } from "node:path";
 import { writeFile } from "node:fs/promises";
@@ -24,6 +25,7 @@ import { writeMetaCohort, writeMetaNextAction } from "../../src/lib/store/kinds/
 import { writeCohortParent } from "../../src/lib/store/kinds/cohort/index.js";
 
 const production = createKindRegistry(PRODUCTION_REGISTRATIONS);
+const arrivalCompleted = { kind: "completed" as const, quarter: ArchiveQuarterSchema.parse("2026-q4") };
 const document = (name: string, parent?: string) => `# Cohort: \`${name}\`\n\n**Purpose:** Coordinate.\n${parent === undefined ? "" : `\n**Parent:** \`${parent}\`\n`}`;
 const reportRecord = z.object({ type: z.enum(["work-unit", "cohort"]), name: SlugSchema, uid: z.uuid() });
 const holdingReport = z.object({ report: z.object({ references: z.array(z.object({
@@ -52,6 +54,19 @@ async function fixture(backend: "reference" | "ref") {
     return decorate?.(store) ?? store;
   } });
   return { ...f, native, cli, invoke, open };
+}
+
+async function seedFormerName(store: Store, record: StoreRecord, name: string, content: string): Promise<void> {
+  const records: StoreRecord[] = [];
+  for (const family of ["cohort", "work-item"] as const) {
+    const listing = success(await store.list({ family }));
+    if (listing.status === "absent") continue;
+    if (listing.status !== "complete" || listing.missed || listing.diagnostics.length > 0) throw new Error("Expected complete fixture inventory");
+    records.push(...listing.records);
+  }
+  success(await store.batch({ writes: [{ ...recordPut(record, { content }),
+    reference: RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name } }) }],
+  observations: observeRecords(records), provenance: { verb: "rename", lifecycleAction: "rename" } }));
 }
 
 describe.each(["reference", "ref"] as const)("cohort rename over %s", backend => {
@@ -358,9 +373,7 @@ describe.each(["reference", "ref"] as const)("cohort rename over %s", backend =>
     const untouchedHistory = success(await f.store.history({ reference: untouched.reference }));
     if (former) {
       for (const [record, name, parentName] of [[parent, "present-parent", undefined], [child, "present-child", parentRef.owner.name]] as const) {
-        success(await f.store.write({ ...recordPut(record, { content: document(name, parentName) }),
-          reference: RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name } }),
-          provenance: { verb: "rename", lifecycleAction: "rename" } }));
+        await seedFormerName(f.store, record, name, document(name, parentName));
       }
     }
     const childOwner = child.reference.owner, parentOwner = parent.reference.owner;
@@ -392,8 +405,7 @@ describe.each(["reference", "ref"] as const)("cohort rename over %s", backend =>
     const parent = await seed(f, parentRef, document(parentRef.owner.name));
     const child = await seed(f, childRef, document(childRef.owner.name, parentRef.owner.name));
     const currentRef = RecordReferenceSchema.parse({ ...parent.reference, owner: { ...parent.reference.owner, name: "current-parent" } });
-    success(await f.store.write({ ...recordPut(parent, { content: document("current-parent") }), reference: currentRef,
-      provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    await seedFormerName(f.store, parent, currentRef.owner.name, document("current-parent"));
     const current = success(await f.store.read({ reference: parent.reference }));
     const history = success(await f.store.history({ reference: parent.reference }));
     let advanced = current;
@@ -461,9 +473,7 @@ it.each([false, true])("retains a sole former-path member behind an ambiguous Pa
   const member = await seed(f, memberRef, makeMetaFixture(memberRef.owner.name, {
     state: completed ? "Shipped" : "Active", currentWorkflow: completed ? null : "process-task-loop", cohort: path,
   }), completed ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" });
-  success(await f.store.write({ ...recordPut(parent, { content: document(shared) }),
-    reference: RecordReferenceSchema.parse({ ...parent.reference, owner: { ...parent.reference.owner, name: shared } }),
-    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  await seedFormerName(f.store, parent, shared, document(shared));
   if (child.reference.owner.type !== "cohort" || child.reference.owner.uid === undefined) throw new Error("Expected child UID");
   await plantRefPrimary(f.native, { kind: "cohort/document", name: childRef.owner.name, uid: child.reference.owner.uid,
     content: document(childRef.owner.name, shared) });
@@ -563,9 +573,7 @@ it("retains a sole Parent with ambiguous open and completed member paths, then e
       cohort: `${oldRef.owner.name}/${childRef.owner.name}`,
     }), completed ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" }));
   }
-  success(await f.store.write({ ...recordPut(parent, { content: document(shared) }),
-    reference: RecordReferenceSchema.parse({ ...parent.reference, owner: { ...parent.reference.owner, name: shared } }),
-    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  await seedFormerName(f.store, parent, shared, document(shared));
   const path = `${shared}/${childRef.owner.name}`;
   success(await f.store.batch({ writes: [recordPut(child, { content: document(childRef.owner.name, shared) }),
     ...members.map(member => recordPut(member, { content: writeMetaCohort(member.content, path) }))],
@@ -626,9 +634,7 @@ it.each([{ closed: false, former: false }, { closed: true, former: false }, { cl
   const open = closed ? undefined : await seed(f, openRef, makeMetaFixture(openRef.owner.name,
     { state: "Active", currentWorkflow: "process-task-loop", cohort: path }), { kind: "active" });
   if (former) {
-    success(await f.store.write({ ...recordPut(parent, { content: document(sharedName) }),
-      reference: RecordReferenceSchema.parse({ ...parent.reference, owner: { ...parent.reference.owner, name: sharedName } }),
-      provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    await seedFormerName(f.store, parent, sharedName, document(sharedName));
     success(await f.store.write({ ...recordPut(child, { content: document(childRef.owner.name, sharedName) }),
       provenance: { verb: "write-back", lifecycleAction: "edit" } }));
     success(await f.store.write({ ...recordPut(direct, { content: writeMetaCohort(direct.content, sharedName) }),
@@ -774,9 +780,7 @@ it.each([false, true])("settles a closed child's late member through a unique fo
   const parentOwner = parent.reference.owner;
   if (parentOwner.type !== "cohort" || parentOwner.uid === undefined) throw new Error("Expected parent UID");
   success(await local.push()); success(await peer.pull());
-  success(await local.write({ ...recordPut(parent, { content: document(shared) }),
-    reference: RecordReferenceSchema.parse({ ...parent.reference, owner: { ...parentOwner, name: shared } }),
-    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  await seedFormerName(local, parent, shared, document(shared));
   const parentGitRef = `refs/arc/cohort/${parentOwner.uid}`;
   await f.cli.exec("git", ["push", "origin", `${parentGitRef}:${parentGitRef}`], { cwd: f.native.root });
   success(await peer.pull());
@@ -907,3 +911,83 @@ it.each([false, true])("repairs simultaneous parent and child clashes without as
   expect(repaired.placement).toEqual(member.placement);
   for (const record of [child, keptParent]) expect(success(await f.store.read({ reference: record.reference }))).toEqual(record);
 }, 60_000);
+
+describe.each(["reference", "ref"] as const)("cohort rename participant arrival over %s", backend => {
+  it.each(["direct", "completed", "descendant", "parent", "document-reference", "stub-reference"] as const)(
+    "reprepares after a %s participant arrives before admission", async kind => {
+      const f = await fixture(backend), parentRef = f.reference("cohort/document", "source");
+      const parent = await seed(f, parentRef, document(parentRef.owner.name));
+      const childRef = f.reference("cohort/document", "child");
+      if (kind === "descendant") await seed(f, childRef, document(childRef.owner.name, parentRef.owner.name));
+      const isDocument = kind === "parent" || kind === "document-reference";
+      const arrivalRef = isDocument ? f.reference("cohort/document", "arriving") : f.reference("work-item/meta", "arriving");
+      const citation = `See \`cohort-${parentRef.owner.name}.md\`.\n`;
+      let arrival: StoreRecord | undefined, version: unknown;
+      if (parent.reference.owner.type !== "cohort" || parent.reference.owner.uid === undefined) throw new Error("Expected cohort UID");
+      const argv = ["rename", parent.reference.owner.uid, "renamed", "--json"];
+      const refused = await f.invoke(argv, store => new Proxy(store, { get(target, key) {
+        if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
+          if (arrival === undefined) {
+            const cohort = kind === "stub-reference" ? null : kind === "descendant"
+              ? `${parentRef.owner.name}/${childRef.owner.name}` : parentRef.owner.name;
+            const content = isDocument ? document(arrivalRef.owner.name, kind === "parent" ? parentRef.owner.name : undefined) + citation
+              : makeMetaFixture(arrivalRef.owner.name, { state: kind === "completed" ? "Shipped" : "Planning", currentWorkflow: null, cohort }) + citation;
+            arrival = await seed(f, arrivalRef, content, isDocument ? undefined : kind === "completed" ? arrivalCompleted
+              : { kind: "backlog", commitment: "planned" });
+            version = success(await f.store.version());
+          }
+          return store.batch(input);
+        };
+        const value: unknown = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      } }));
+      expect(refused).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: {
+        rule: kind === "descendant" ? "cohort.parent" : "rename.references",
+      } } });
+      expect(success(await f.store.version())).toBe(version);
+      expect(success(await f.store.read({ reference: parent.reference }))).toEqual(parent);
+      if (arrival === undefined) throw new Error("Expected concurrent arrival");
+      expect(success(await f.store.read({ reference: arrival.reference }))).toEqual(arrival);
+      const retried = await f.invoke(argv);
+      expect(retried.exitCode ?? 0, retried.stdout + retried.stderr).toBe(0);
+      const current = success(await f.store.read({ reference: arrival.reference }));
+      if (kind === "parent") expect(current.fields).toMatchObject({ parent: "renamed" });
+      else if (kind === "direct" || kind === "completed" || kind === "descendant")
+        expect(current.fields).toMatchObject({ cohort: kind === "descendant" ? `renamed/${childRef.owner.name}` : "renamed" });
+      if (kind !== "completed") expect(current.content).toContain("See `cohort-renamed.md`.");
+      const own = success(await f.store.history({ reference: parent.reference }))[0]?.provenance;
+      const changed = success(await f.store.history({ reference: arrival.reference }))[0]?.provenance;
+      if (own === undefined || !("batchId" in own)) throw new Error("Expected rename batch");
+      expect(changed).toMatchObject({ batchId: own.batchId });
+    }, 60_000);
+
+  it.each(["started-prose", "closed-prose", "plain-prose"] as const)("allows an unrelated %s arrival", async kind => {
+    const f = await fixture(backend), reference = f.reference("cohort/document", "source");
+    const primary = await seed(f, reference, document(reference.owner.name));
+    const arriving = kind === "closed-prose" ? f.reference("cohort/document", "unrelated") : f.reference("work-item/meta", "unrelated");
+    let arrival: StoreRecord | undefined;
+    const result = await f.invoke(["rename", primary.reference.owner.name, "renamed", "--json"], store => new Proxy(store, { get(target, key) {
+      if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
+        if (arrival === undefined) {
+          const citation = kind === "plain-prose" ? `Mention cohort-${reference.owner.name}.md plainly.\n` : `See \`cohort-${reference.owner.name}.md\`.\n`;
+          arrival = await seed(f, arriving, (kind === "closed-prose" ? document(arriving.owner.name)
+            : makeMetaFixture(arriving.owner.name, { state: kind === "started-prose" ? "Active" : "Planning",
+              currentWorkflow: kind === "started-prose" ? "process-task-loop" : null })) + citation,
+          kind === "closed-prose" ? arrivalCompleted : kind === "started-prose" ? { kind: "active" } : { kind: "backlog", commitment: "planned" });
+          if (kind === "closed-prose") {
+            success(await f.store.write({ ...recordPut(arrival, { placement: arrivalCompleted }),
+              provenance: { verb: "cohort-close", lifecycleAction: "close" } }));
+            arrival = success(await f.store.read({ reference: arrival.reference }));
+          }
+        }
+        return store.batch(input);
+      };
+      const value: unknown = Reflect.get(target, key);
+      return typeof value === "function" ? value.bind(target) : value;
+    } }));
+    expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+    if (arrival === undefined) throw new Error("Expected arrival");
+    expect(success(await f.store.read({ reference: arrival.reference }))).toEqual(arrival);
+    expect(result.result).toMatchObject({ report: { references: [] } });
+  }, 60_000);
+});
