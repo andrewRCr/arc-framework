@@ -5,6 +5,7 @@ import { identifyArcFileAddress } from "../../../src/lib/layout/file-identificat
 import { resolveArcPath } from "../../../src/lib/layout/projection.js";
 import { ArcLayoutAddressSchema } from "../../../src/lib/layout/schema.js";
 import { classifyStoreAddress } from "../../../src/lib/store/target-classification.js";
+import { assertSchemaRefuses } from "../../helpers/schema-assertion.js";
 it.each([
   { kind: "work-unit-artifact", placement: { kind: "active", scope: { kind: "project" } }, slug: "demo", artifact: "meta" },
   { kind: "work-unit-artifact", placement: { kind: "completed", quarter: "2026-q4", sequence: "03" }, slug: "demo", artifact: "tasks" },
@@ -180,6 +181,22 @@ it("recognizes a cohort copy inside an explicitly established own container", ()
   if (container.kind !== "work-unit-container") throw new Error("Expected an own container");
   const address = ArcLayoutAddressSchema.parse({ kind: "cohort-copy", cohort: "core", location: { kind: "own", ...active } });
   expect(identifyArcFileAddress(resolveArcPath(address), { workItem: container })).toEqual(address);
+});
+
+it("preserves session-context identity for a work unit named scratch", () => {
+  const address = ArcLayoutAddressSchema.parse({ kind: "user-document", identity: "alice",
+    document: { kind: "session-notes", workUnit: "scratch" } });
+  const path = resolveArcPath(address);
+  expect(path).toBe(".arc/user/alice/scratch/SESSION-NOTES.md");
+  const identified = identifyArcFileAddress(path);
+  expect(identified).toEqual(address);
+  if (identified === null) throw new Error("The session context was not identified");
+  expect(classifyStoreAddress(identified)).toEqual({ kind: "personal/session-context", identity: "alice", key: "scratch", entryList: false });
+});
+
+it("refuses a scratch-document address reserved for session context", () => {
+  assertSchemaRefuses(ArcLayoutAddressSchema,
+    { kind: "scratch-document", identity: "alice", key: "scratch/SESSION-NOTES.md" }, ["key"]);
 });
 
 it.each(["scratch/note.md", "scratch/sub/diagram.svg", "scratch/持ち物 'quoted'.txt"])("round-trips the personal document %s", key => {

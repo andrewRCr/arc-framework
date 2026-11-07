@@ -500,6 +500,7 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   Equivalent projected aliases now share resolution authority; incompatible or held copies retain their bytes with
   repair guidance while independent edits continue, and agreeing copies resolve through the same conflict token.
   Refused aliases retain per-file changed observations for selection without marking untouched siblings.
+  Fixed session-context filenames retain precedence over scratch documents, whose schema rejects the reserved alias.
 
 ---
 

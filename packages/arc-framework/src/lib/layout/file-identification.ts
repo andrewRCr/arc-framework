@@ -72,10 +72,10 @@ function userFiles(path: string): unknown[] {
   const parts = path.split("/");
   if (parts[0] !== ".arc" || parts[1] !== "user") return [];
   const identity = parts[2], file = parts.at(-1);
-  if (parts[3] === "scratch") return [{ kind: "scratch-document", identity, key: parts.slice(3).join("/") }];
   if (parts.length === 4 && file === "USER-INBOX.md") return [{ kind: "inbox", scope: { kind: "identity", identity } }];
   if (parts.length === 4 && file === "WORKING-MEMORY.md") return [{ kind: "user-document", identity, document: { kind: "working-memory" } }];
   if (parts.length === 5 && file === "SESSION-NOTES.md") return [{ kind: "user-document", identity, document: { kind: "session-notes", workUnit: parts[3] } }];
+  if (parts[3] === "scratch") return [{ kind: "scratch-document", identity, key: parts.slice(3).join("/") }];
   return [];
 }
 function cohortFiles(path: string): unknown[] {

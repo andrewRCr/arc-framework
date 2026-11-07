@@ -194,7 +194,8 @@ export const ArcLayoutAddressSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("project-document"), document: ProjectDocumentKindSchema }),
   z.strictObject({ kind: z.literal("user-root"), identity: SlugSchema }),
   z.strictObject({ kind: z.literal("scratch-document"), identity: SlugSchema,
-    key: z.string().superRefine(managedPathRefinement).refine(key => key.startsWith("scratch/") && key.length > "scratch/".length),
+    key: z.string().superRefine(managedPathRefinement).refine(key => key.startsWith("scratch/") && key.length > "scratch/".length)
+      .refine(key => key !== "scratch/SESSION-NOTES.md", "The scratch key is reserved for session context."),
   }),
   z.strictObject({
     kind: z.literal("user-document"),
