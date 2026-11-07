@@ -597,7 +597,11 @@ old name refuses naming the current one.
   planner cases cover separate aliases, unavailable evidence and completed-parent refusal. Original closed-child and
   mixed-state/history cases remain covered. Full merge verification passed 20 checks, including all six store shards
   and the full run of 431 eligible suites; increment, related feedback and both type checks passed.
-- _Review:_ The separately authorized independent fix check follows committed verification.
+- _Review:_ The independent fix check found one minor archive reporting omission: selecting former-name holders before
+  repair planning dropped a current-prefix sibling needed for Parent changes. Archive now uses that selection only to
+  trigger the notice and plans over all holdings. A native CLI regression failed with three advertised edits, then
+  passed with five; it applies every edit through the production store and successfully retries archive. The approved
+  correction uses focused verification; no further independent fix check was selected for this minor repair.
 
 ### `[x]` **5.3 Rewrite references to the document's filename where the old slug names the cohort alone — § 5.1, § 4**
 

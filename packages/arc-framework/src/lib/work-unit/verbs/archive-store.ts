@@ -251,7 +251,7 @@ async function observeArchiveHoldings(store: Store, cohort: RecordReference, sna
 function formerHoldingNotices(holdings: readonly CohortHolding[], slug: string): string[] {
   const former = holdings.filter(holding => holding.segments[holding.segment]?.name !== slug
     || holding.segments.some(segment => segment.status === "known" && segment.name !== segment.currentSlug));
-  return former.length === 0 ? [] : [`Cohort ${slug} remains open. ${describeCohortHoldings(former, slug)}`];
+  return former.length === 0 ? [] : [`Cohort ${slug} remains open. ${describeCohortHoldings(holdings, slug)}`];
 }
 
 function cohortReferencesFor(cohort: string | null): RecordReference[] {
