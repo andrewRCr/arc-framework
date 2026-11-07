@@ -5,7 +5,7 @@ import type { StoreResult, StoreRefusal } from "./refusal.js";
 import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences, sameReference, sameOwner } from "./identity.js";
 import { batchLifecycleWrites, recordPut, recordWritePlacement, readLifecycleMetaFields } from "./lifecycle-write.js";
 import { observeRecords } from "./record-observations.js";
-import { checkCohortRenameTarget } from "./lifecycle-rename.js";
+import { checkCohortRenameTarget } from "./rename-target-admission.js";
 import { rewriteCohortHeading, writeCohortParent, parseCohortDocument, rewriteCohortFilenameReferences } from "./kinds/cohort/index.js";
 import { observeRenameFormerName, resolveRenameReferences } from "./rename-reference-resolution.js";
 import { emptyRenameReport, type RenameReport, type RenameReportRecord } from "../work-unit/rename-report.js";

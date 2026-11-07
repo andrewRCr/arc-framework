@@ -3,7 +3,7 @@ import { posix } from "node:path";
 import { SlugSchema } from "../kernel/index.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { ParsedMetaRecordSchema, MetaPauseSchema } from "../active/meta-schema.js";
-import { recordReferences, OwnerIdentitySchema, RecordReferenceSchema, sameReference, sameOwner, type RecordReference } from "./identity.js";
+import { recordReferences, OwnerIdentitySchema, RecordReferenceSchema, sameReference, sameOwner } from "./identity.js";
 import { readLifecycleView } from "./lifecycle-view.js";
 import { requireCompleteInventory } from "./lifecycle-storage.js";
 import { recordPut, mergeLifecycleLinks, workUnitMetaPath } from "./lifecycle-write.js";
@@ -18,7 +18,7 @@ import type { StoreRecord } from "./read.js";
 import type { StoreResult, Remedy } from "./refusal.js";
 import type { BranchLink } from "./links.js";
 import { memberCohortReadRefusal } from "./cohort-membership-refusal.js";
-import { checkCreationAdmission, renderCreationAdmissionRefusal, holderCondition } from "./creation-admission.js";
+import { checkCreationAdmission, renderCreationAdmissionRefusal } from "./creation-admission.js";
 import { settleCreationSlugEdges, type CreationSlugSettlement } from "./creation-slug-settlement.js";
 import { resolveRetiredEdge } from "./retired-edge.js";
 import { replaceDependencySlot } from "./dependency-slot.js";
@@ -60,23 +60,6 @@ export async function readStoreRenameSubject(store: Store, request: { primary: S
   return { status: "ok", result: { primary, operand: request.operand, resuming, originName: origin.result, advisories } };
 }
 
-/** Preserve strict namespace admission for a cohort's proposed rename target. */
-export async function checkCohortRenameTarget(store: Store, primary: StoreRecord, target: string): Promise<StoreResult<never> | undefined> {
-  const collision = await store.lookup({ kind: "slug", slug: SlugSchema.parse(target) });
-  let references: RecordReference[];
-  if (collision.status === "ok") {
-    if (sameReference(collision.result.reference, primary.reference)) return undefined;
-    references = [collision.result.reference];
-  } else {
-    if (collision.refusal.code !== "ambiguous-match") return collision.refusal.code === "not-found" ? undefined : collision;
-    references = collision.refusal.candidates;
-  }
-  const condition = holderCondition(target, { kind: "refused", cause: "lookup", ambiguous: references.length > 1,
-    holders: references.map(reference => ({ reference, name: reference.owner.name === target ? "current" : "former" })) });
-  const remedy = { text: "Choose another slug." };
-  return collision.status === "refused" ? { ...collision, refusal: { ...collision.refusal, condition, remedy } }
-    : malformed(primary, condition, remedy);
-}
 async function checkRenamePublication(store: Store, primary: StoreRecord, resuming: boolean,
   legacyCandidateId: string | null): Promise<StoreResult<never> | undefined> {
   if (resuming) return undefined;

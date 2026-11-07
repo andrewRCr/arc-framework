@@ -824,3 +824,33 @@ it.each([false, true])("settles a closed child's late member through a unique fo
   expect(childEvent).toMatchObject({ batchId: expect.any(String) });
   expect(parentEvent).toMatchObject({ batchId: childEvent !== undefined && "batchId" in childEvent ? childEvent.batchId : undefined });
 }, 60_000);
+
+it("refuses a completed work unit arriving at a cohort destination and retries another name", async () => {
+  const f = await fixture("ref"), reference = f.reference("cohort/document", "origin");
+  const primary = await seed(f, reference, document(reference.owner.name));
+  let holder: typeof primary | undefined, version: string | undefined;
+  const result = await f.invoke(["rename", reference.owner.name, "target", "--json"], store => {
+    const wrapped = Object.create(store) as Store;
+    wrapped.batch = async input => {
+      if (holder === undefined) {
+        const allocated = f.reference("work-item/meta", "target");
+        const target = RecordReferenceSchema.parse({ ...allocated, owner: { ...allocated.owner, name: "target" } });
+        holder = await seed(f, target, makeMetaFixture(target.owner.name, { state: "Shipped", currentWorkflow: null }),
+          { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+        version = success(await f.store.version());
+      }
+      return store.batch(input);
+    };
+    return wrapped;
+  });
+  expect(result).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { code: "record-malformed", rule: "rename.target" } } });
+  expect(version).toBeDefined();
+  expect(success(await f.store.version())).toBe(version);
+  expect(success(await f.store.read({ reference: primary.reference }))).toEqual(primary);
+  if (holder === undefined) throw new Error("Expected concurrent destination holder");
+  expect(success(await f.store.read({ reference: holder.reference }))).toEqual(holder);
+  const retry = await f.invoke(["rename", reference.owner.name, "available", "--json"]);
+  expect(retry.exitCode ?? 0, retry.stdout + retry.stderr).toBe(0);
+  expect(success(await f.store.read({ reference: primary.reference })).reference.owner.name).toBe("available");
+  expect(success(await f.store.read({ reference: holder.reference }))).toEqual(holder);
+}, 60_000);
