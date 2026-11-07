@@ -16,7 +16,7 @@ import type { Store } from "../../store/contract.js";
 import type { GitExec } from "../../git/exec.js";
 import type { LocusPorts } from "../locus-ports.js";
 import { resolveSubjectOperand } from "../../store/subject-operand.js";
-import { RecordReferenceSchema, sameOwner } from "../../store/identity.js";
+import { RecordReferenceSchema, sameOwner, type RecordReference } from "../../store/identity.js";
 import type { StoreRecord } from "../../store/read.js";
 import type { HistoryRef, StoreResult, Remedy } from "../../store/refusal.js";
 import type { LookupResult } from "../../store/lookup.js";
@@ -40,6 +40,7 @@ interface BranchRename {
   prior: BranchLink; next: BranchLink; oldBranch: string; newBranch: string; oldRemoteOid: string | null;
   local: boolean; catchUp: boolean; kept?: RenameKeptBranch; remotePolicy: { keepOld: boolean; kept?: RenameKeptBranch };
 }
+interface RenameInvocation { selected?: RecordReference }
 type BranchCoordinates = Pick<BranchRename, "prior" | "next" | "oldBranch" | "newBranch" | "catchUp">;
 /** Rename one logical owner while respecting record and checkout authority.
  * @param ctx - Operational store and physical adapters.
@@ -49,30 +50,37 @@ type BranchCoordinates = Pick<BranchRename, "prior" | "next" | "oldBranch" | "ne
 export async function runStoreRename(ctx: StoreRenameContext, params: { operand: string; targetSlug: string }): Promise<RunRenameResult> {
   try {
     const pulled = new Set<HistoryRef>();
-    let result = await rename(ctx, params);
+    const invocation: RenameInvocation = {};
+    let result = await rename(ctx, params, invocation);
     while (result.status === "rejected" && result.recovery === undefined && result.refusal?.code === "state-unresolvable") {
       const refs = result.refusal.historyRefs;
       if (refs.every(reference => pulled.has(reference))) return result;
       for (const reference of refs) pulled.add(reference);
       if (!await pullHistoryForRetry(ctx.store, refs, ctx.writeNotice)) return result;
-      result = await rename(ctx, params);
+      result = await rename(ctx, params, invocation);
     }
     return result;
   }
   catch (error) { return { status: "rejected", reason: error instanceof Error ? error.message : String(error) }; }
 }
-async function rename(ctx: StoreRenameContext, params: { operand: string; targetSlug: string }): Promise<RunRenameResult> {
+async function rename(ctx: StoreRenameContext, params: { operand: string; targetSlug: string }, invocation: RenameInvocation): Promise<RunRenameResult> {
   if (!usesOffBranchState(ctx.store)) return { status: "rejected", reason: "Store rename is unsupported before the storage flip." };
-  const target = SlugSchema.parse(params.targetSlug), selection = await selectRenamePrimary(ctx.store, params.operand);
+  const target = SlugSchema.parse(params.targetSlug), selection = await selectRenamePrimary(ctx.store, params.operand, invocation.selected);
   if (selection.status === "rejected") return selection;
+  invocation.selected ??= selection.primary.reference;
   if (selection.primary.reference.kind === "cohort/document") return runCohortRename(ctx.store, selection.primary, params);
   const selected = await readStoreRenameSubject(ctx.store, { primary: selection.primary, operand: params.operand, targetSlug: target });
   if (selected.status === "refused") return { status: "rejected", reason: selected.refusal.condition, refusal: selected.refusal };
   return renameSelectedWorkUnit(ctx, params, selected.result, target);
 }
 
-async function selectRenamePrimary(store: Store, operand: string): Promise<
+async function selectRenamePrimary(store: Store, operand: string, selectedReference?: RecordReference): Promise<
   { status: "selected"; primary: StoreRecord } | Extract<RunRenameResult, { status: "rejected" }>> {
+  if (selectedReference !== undefined) {
+    const refreshed = await store.read({ reference: selectedReference });
+    return refreshed.status === "ok" ? { status: "selected", primary: refreshed.result }
+      : { status: "rejected", reason: refreshed.refusal.condition, refusal: refreshed.refusal };
+  }
   const selected = await resolveSubjectOperand(store, { operand, primaryKinds: ["work-item/meta", "work-item/record", "cohort/document"],
     typeRule: "rename", resolveSlug: true });
   if (selected.status === "selected") return selected;

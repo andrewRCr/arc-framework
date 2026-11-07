@@ -4,7 +4,7 @@ import { refSyncFixture, type RefSyncFixture } from "../helpers/store/ref-sync.j
 import { success } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { repairCliFixture, repairCli } from "../helpers/repair-cli.js";
-import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
+import { ArchiveQuarterSchema, SlugSchema } from "../../src/lib/kernel/index.js";
 import { RecordReferenceSchema, createKindRegistry } from "../../src/lib/store/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import type { WritePlacement } from "../../src/lib/store/placement.js";
@@ -19,6 +19,35 @@ async function productionStore(checkout: RefSyncFixture["a"]) {
 }
 
 describe.each(["default", "separate"] as const)("rename history rounds in the %s layout", layout => {
+  it("keeps the selected archived owner when its history pull imports a live namesake cohort", async () => {
+    const h = await refSyncFixture(layout), a = await productionStore(h.a), b = await productionStore(h.b);
+    const created = success(await a.write({ action: "put", expected: null,
+      reference: RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "before" } }),
+      content: makeMetaFixture("before", { state: "Shipped", currentWorkflow: null }),
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
+      provenance: { verb: "archive", lifecycleAction: "archive" } }));
+    success(await a.push()); success(await b.pull());
+    expect(success(await b.lookup({ kind: "slug", slug: SlugSchema.parse("before") })).reference).toEqual(created.reference);
+    const arriving = success(await a.write({ action: "put", expected: null,
+      reference: RecordReferenceSchema.parse({ kind: "cohort/document", owner: { type: "cohort", name: "before" } }),
+      content: "# Cohort: `before`\n\n**Purpose:** Coordinate.\n", provenance: { verb: "create", lifecycleAction: "create" } }));
+    const cli = await repairCliFixture();
+    let published = false;
+    const result = await repairCli(cli, ["rename", "before", "after", "--json"], { storeFactory: async () => {
+      const store = await productionStore(h.b);
+      return { ...store, pull: async input => {
+        if (!published) { published = true; success(await a.push()); }
+        return store.pull(input);
+      } };
+    } });
+    expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+    expect(result.result).toMatchObject({ status: "renamed", shape: "archived", reference: {
+      kind: "work-item/meta", owner: { ...created.reference.owner, name: "after" },
+    } });
+    expect(success(await b.read({ reference: created.reference })).reference.owner.name).toBe("after");
+    expect(success(await b.read({ reference: arriving.reference })).reference).toEqual(arriving.reference);
+  }, 60_000);
+
   it("renames a mixed-state cohort while pulling only its completed holdings' histories", async () => {
     const h = await refSyncFixture(layout), a = await productionStore(h.a), b = await productionStore(h.b);
     const completed = { kind: "completed" as const, quarter: ArchiveQuarterSchema.parse("2026-q4") };
