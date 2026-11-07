@@ -9,7 +9,7 @@ import { requireCompleteInventory } from "./lifecycle-storage.js";
 import { recordPut, mergeLifecycleLinks, workUnitMetaPath } from "./lifecycle-write.js";
 import { lifecycleRecordPath } from "./lifecycle-record-path.js";
 import { acquireLifecycleRecords, revalidateLifecycleRecords, type PreparedLifecycleWrite } from "../work-unit/prepared-lifecycle-write.js";
-import { readPairedReferenceOwners } from "../work-unit/paired-reference-owners.js";
+import { findAmbiguousPairedReference } from "../work-unit/paired-reference-owners.js";
 import { planRenameReferences, applyRenameReferencePlan, rewriteBacktickedArtifactReferences } from "../work-unit/rename-reference-sweep.js";
 import { writeMetaTitle, writeMetaDesign, writeMetaTaskList, writeMetaPause, writeMetaDependsOn } from "./kinds/meta/writers.js";
 import { rewriteCohortMemberHeading } from "./kinds/cohort/index.js";
@@ -256,15 +256,12 @@ function malformed(primary: StoreRecord, condition: string,
 async function checkSharedPairedReferences(store: Store, records: readonly StoreRecord[], primary: StoreRecord,
   artifactRenames: ReadonlyMap<string, string>, source: string, target: string): Promise<StoreResult<never> | undefined> {
   const shared = renameSweepRecords(records).filter((record) => !sameOwner(record.reference.owner, primary.reference.owner));
-  const interpretations = await readPairedReferenceOwners(store, shared, new Set());
-  if (interpretations.status === "refused") return interpretations;
-  for (const [filename, owners] of interpretations.result) {
+  const ambiguity = await findAmbiguousPairedReference(store, shared, filename => {
     const reference = `\`${filename}\``;
-    const rewritten = artifactRenames.has(filename) || rewriteBacktickedArtifactReferences(reference, source, target) !== reference;
-    if (owners.length > 1 && rewritten
-      && shared.some((record) => record.content.includes(`\`${filename}\``))) {
-      return malformed(primary, `Ambiguous artifact reference ${filename}: possible owners ${owners.map((owner) => owner.subject).join(", ")}. Disambiguate the shared reference before retrying rename.`);
-    }
-  }
-  return undefined;
+    return artifactRenames.has(filename) || rewriteBacktickedArtifactReferences(reference, source, target) !== reference;
+  });
+  if (ambiguity.status === "refused") return ambiguity;
+  if (ambiguity.result === null) return undefined;
+  const { filename, owners } = ambiguity.result;
+  return malformed(primary, `Ambiguous artifact reference ${filename}: possible owners ${owners.map((owner) => owner.subject).join(", ")}. Disambiguate the shared reference before retrying rename.`);
 }

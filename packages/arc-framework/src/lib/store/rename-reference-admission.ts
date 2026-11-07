@@ -1,6 +1,7 @@
 /** Revalidate shared rename-reference authority inside the backend's atomic write admission. */
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
 import { rewriteBacktickedArtifactReferences } from "../work-unit/rename-reference-sweep.js";
+import { findAmbiguousPairedReference } from "../work-unit/paired-reference-owners.js";
 import { sameOwner, sameReference, OwnerIdentitySchema, recordReferences } from "./identity.js";
 import type { StoreRecord } from "./read.js";
 import type { BrokenRule, WriteCheckInput } from "./write-check.js";
@@ -89,7 +90,7 @@ async function stubReferenceRecords(input: WriteCheckInput, metas: readonly Stor
 }
 
 async function sharedReferenceProblem(context: RenameAdmission, prior: StoreRecord, next: StoreRecord): Promise<string | null> {
-  const { primary, input, target } = context, source = primary.reference.owner.name;
+  const { primary, input } = context, source = primary.reference.owner.name;
   const cohort = primary.reference.owner.type === "cohort";
   if (changedFilename(context, prior.content, next.content) || (!cohort && changedWorkItemEdge(prior, next, source))) {
     const resolution = await resolveRenameReferences(input.before, primary.reference, source);
@@ -97,6 +98,13 @@ async function sharedReferenceProblem(context: RenameAdmission, prior: StoreReco
     if (resolution.result !== "subject") return `Shared references to '${source}' no longer name only the renamed owner.`;
   }
   if (cohort) return cohortPathProblem(context, prior, next);
+  const paired = await pairedFilenameProblem(context, prior, next);
+  if (paired !== null) return paired;
+  return memberHeadingProblem(context, prior, next);
+}
+
+async function memberHeadingProblem(context: RenameAdmission, prior: StoreRecord, next: StoreRecord): Promise<string | null> {
+  const { primary, input, target } = context, source = primary.reference.owner.name;
   if (prior.reference.kind !== "cohort/document" || !removedText(prior.content, next.content,
     line => rewriteCohortMemberHeading(line, source, target))) return null;
   const view = await readLifecycleView(input.before);
@@ -108,20 +116,36 @@ async function sharedReferenceProblem(context: RenameAdmission, prior: StoreReco
     : heading.value.rewrite ? null : `The member heading '${source}' is also held by another work item.`;
 }
 
-function changedFilename(context: RenameAdmission, prior: string, next: string): boolean {
-  const source = context.primary.reference.owner.name;
-  return removedText(prior, next, token => {
-    if (context.primary.reference.owner.type === "cohort") return rewriteCohortFilenameReferences(token, source, context.target);
-    const exact = context.artifacts.get(token.slice(1, -1));
-    return exact === undefined ? rewriteBacktickedArtifactReferences(token, source, context.target) : `\`${exact}\``;
+async function pairedFilenameProblem(context: RenameAdmission, prior: StoreRecord, next: StoreRecord): Promise<string | null> {
+  if (!changedFilename(context, prior.content, next.content)) return null;
+  const ambiguity = await findAmbiguousPairedReference(context.input.before, [prior], filename => {
+    const token = `\`${filename}\``;
+    return rewriteFilename(context, token) !== token && removedToken(prior.content, next.content, token);
   });
+  if (ambiguity.status === "refused") return ambiguity.refusal.condition;
+  return ambiguity.result === null ? null : `Shared artifact reference '${ambiguity.result.filename}' has multiple owner interpretations.`;
+}
+
+function changedFilename(context: RenameAdmission, prior: string, next: string): boolean {
+  return removedText(prior, next, token => rewriteFilename(context, token));
+}
+
+function rewriteFilename(context: RenameAdmission, token: string): string {
+  const source = context.primary.reference.owner.name;
+  if (context.primary.reference.owner.type === "cohort") return rewriteCohortFilenameReferences(token, source, context.target);
+  const exact = context.artifacts.get(token.slice(1, -1));
+  return exact === undefined ? rewriteBacktickedArtifactReferences(token, source, context.target) : `\`${exact}\``;
+}
+
+function removedToken(prior: string, next: string, token: string): boolean {
+  return next.split(token).length < prior.split(token).length;
 }
 
 function removedText(prior: string, next: string, rewrite: (token: string) => string): boolean {
   const tokens = new Set([...prior.matchAll(/`[^`\r\n]+`/gu)].map(match => match[0]).filter(token => rewrite(token) !== token));
   const rewritten = rewrite(prior).split(/\r?\n/u);
   for (const [index, line] of prior.split(/\r?\n/u).entries()) if (rewritten[index] !== line) tokens.add(line);
-  return [...tokens].some(token => next.split(token).length < prior.split(token).length);
+  return [...tokens].some(token => removedToken(prior, next, token));
 }
 
 function changedWorkItemEdge(prior: StoreRecord, next: StoreRecord, source: string): boolean {

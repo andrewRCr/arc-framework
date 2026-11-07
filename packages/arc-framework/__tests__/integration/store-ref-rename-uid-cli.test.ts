@@ -16,6 +16,7 @@ import { resolveWorktreeMarkerPath, writeWorktreeMarker } from "../../src/lib/gi
 import { OwnerIdentitySchema, recordReferences, RecordReferenceSchema, type RecordReference } from "../../src/lib/store/identity.js";
 import { writeMetaTitle, writeMetaCohort } from "../../src/lib/store/kinds/meta/writers.js";
 import { rewriteCohortHeading } from "../../src/lib/store/kinds/cohort/index.js";
+import { checkCreationAdmission } from "../../src/lib/store/creation-admission.js";
 import type { Store } from "../../src/lib/store/contract.js";
 
 async function fixture() {
@@ -324,6 +325,53 @@ it.each([false, true])("refuses stale shared-reference authority after archived-
     expect(success(await f.store.read({ reference: group.reference }))).toEqual(group);
     expect(retry.result).toMatchObject({ report: { memberHeadings: [{ document: group.reference, line: 7, replacement: "### `renamed`" }] } });
   } else expect(retry.result).toMatchObject({ report: { references: [], memberHeadings: [] } });
+}, 60_000);
+
+it.each(["prd", "rfc"].flatMap(half => [false, true].flatMap(generic => [false, true].map(document =>
+  ({ half, generic, document })))))("refuses arriving paired-filename interpretations: %j", async ({ half, generic, document }) => {
+  const f = await fixture(), name = generic ? `origin-${half}` : "origin", filename = `spec-origin-${half}.md`;
+  const groupRef = f.reference("cohort/document", "group");
+  const group = document ? await seed(f, groupRef,
+    `# Cohort: \`${groupRef.owner.name}\`\n\n**Purpose:** Coordinate.\n\nSee \`${filename}\`.\n`) : undefined;
+  const source = await seed(f, recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name })), makeMetaFixture(name,
+    { state: "Planning", currentWorkflow: null, cohort: group?.reference.owner.name ?? null }), { kind: "backlog", commitment: "planned" });
+  const paired = generic ? undefined : await seed(f, recordReferences["work-item/companion"](source.reference.owner, `spec-${half}`),
+    `# Paired ${half} specification\n`);
+  const waiting = await seed(f, f.reference("work-item/meta", "waiting"), makeMetaFixture("waiting",
+    { state: "Planning", currentWorkflow: null }), { kind: "backlog", commitment: "planned" });
+  const citation = group ?? await seed(f, recordReferences["work-item/draft"](waiting.reference.owner), `See \`${filename}\`.\n`);
+  if (source.reference.owner.type !== "work-item" || source.reference.owner.uid === undefined) throw new Error("Expected source UID");
+  let alternate: typeof source | undefined, racedVersion: string | undefined;
+  const result = await f.invoke(["rename", source.reference.owner.uid, "renamed", "--json"], store => {
+    const wrapped = Object.create(store) as Store;
+    wrapped.batch = async input => {
+      if (alternate === undefined) {
+        const otherName = generic ? "origin" : `origin-${half}`;
+        expect(await checkCreationAdmission(f.store, otherName)).toMatchObject({ kind: "free" });
+        alternate = await seed(f, recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: otherName })), makeMetaFixture(otherName,
+          { state: "Planning", currentWorkflow: null }), { kind: "backlog", commitment: "planned" });
+        racedVersion = success(await f.store.version());
+      }
+      return store.batch(input);
+    };
+    return wrapped;
+  });
+  expect(result).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { code: "record-malformed", rule: "rename.references" } } });
+  expect(racedVersion).toBeDefined();
+  expect(success(await f.store.version())).toBe(racedVersion);
+  for (const record of [source, waiting, citation, ...(paired === undefined ? [] : [paired])]) {
+    expect(success(await f.store.read({ reference: record.reference }))).toEqual(record);
+  }
+  if (alternate === undefined) throw new Error("Expected an arriving alternate owner");
+  const retained = alternate;
+  success(await f.store.write({ ...recordPut(citation, { content: citation.content.replace(filename, `meta-${name}.md`) }),
+    provenance: { verb: "save", lifecycleAction: "edit" } }));
+  const retry = await f.invoke(["rename", source.reference.owner.uid, "renamed", "--json"]);
+  expect(retry.exitCode ?? 0, retry.stdout + retry.stderr).toBe(0);
+  expect(success(await f.store.read({ reference: source.reference }))).toMatchObject({ reference: { owner: { name: "renamed" } } });
+  expect(success(await f.store.read({ reference: citation.reference })).content).toContain("`meta-renamed.md`");
+  expect(success(await f.store.read({ reference: retained.reference }))).toEqual(retained);
+  if (paired !== undefined) expect(success(await f.store.read({ reference: paired.reference }))).toMatchObject({ reference: { owner: { name: "renamed" } } });
 }, 60_000);
 
 it("keeps target settlement when ambiguous source references are left for authored repair", async () => {

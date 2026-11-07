@@ -9,6 +9,9 @@ import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import { ParsedMetaRecordSchema } from "../../../../src/lib/active/meta-schema.js";
 import { createStoreReconcilePrepareContext } from "../../../../src/lib/work-unit/store-reconcile-context.js";
+import { prepareStoreRename, readStoreRenameSubject } from "../../../../src/lib/store/lifecycle-rename.js";
+import { applyPreparedLifecycleWrite } from "../../../../src/lib/work-unit/prepared-lifecycle-write.js";
+import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import type { StoreRecord } from "../../../../src/lib/store/read.js";
 
 it("keeps both paired Design bindings and references coherent after a refused batch is retried", async () => {
@@ -176,3 +179,31 @@ it("renames the root Design while a nested draft-named companion retains its pat
   expect((await readLifecycleDesign(h.store, renamed)).content)
     .toBe(lifecycleSuccess(await h.store.read({ reference: draft.reference })).content);
 });
+
+it.each(["prd", "rfc"].flatMap(half => [false, true].map(generic => ({ half, generic }))))(
+  "refuses an arriving alternate paired-filename owner in the reference backend: %j", async ({ half, generic }) => {
+    const h = createLifecycleHarness(), name = generic ? `origin-${half}` : "origin", filename = `spec-origin-${half}.md`;
+    const primary = await h.seedMeta(name, { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "planned" });
+    const paired = generic ? undefined : await h.seed(recordReferences["work-item/companion"](primary.reference.owner, `spec-${half}`), "# Design\n");
+    const waiting = await h.seedMeta("waiting", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "planned" });
+    const draft = await h.seed(recordReferences["work-item/draft"](waiting.reference.owner), `See \`${filename}\`.\n`);
+    const subject = lifecycleSuccess(await readStoreRenameSubject(h.store, { primary, operand: name, targetSlug: "after" }));
+    const prepared = lifecycleSuccess(await prepareStoreRename(h.store, subject, "after"));
+    const alternate = await h.seedMeta(generic ? "origin" : `origin-${half}`, { state: "Planning", currentWorkflow: null },
+      { kind: "backlog", commitment: "planned" });
+    const version = lifecycleSuccess(await h.store.version());
+    expect(await applyPreparedLifecycleWrite(h.store, prepared, { verb: "rename", lifecycleAction: "rename" }))
+      .toMatchObject({ status: "refused", refusal: { code: "record-malformed", rule: "rename.references" } });
+    expect(lifecycleSuccess(await h.store.version())).toBe(version);
+    for (const record of [primary, draft, alternate, ...(paired === undefined ? [] : [paired])]) {
+      expect(lifecycleSuccess(await h.store.read({ reference: record.reference }))).toEqual(record);
+    }
+    lifecycleSuccess(await h.store.write({ ...recordPut(draft, { content: `See \`meta-${name}.md\`.\n` }),
+      provenance: { verb: "save", lifecycleAction: "edit" } }));
+    const fresh = lifecycleSuccess(await prepareStoreRename(h.store, subject, "after"));
+    expect(await applyPreparedLifecycleWrite(h.store, fresh, { verb: "rename", lifecycleAction: "rename" })).toMatchObject({ status: "ok" });
+    expect(lifecycleSuccess(await h.store.read({ reference: draft.reference })).content).toBe("See `meta-after.md`.\n");
+    expect(lifecycleSuccess(await h.store.read({ reference: alternate.reference }))).toMatchObject({
+      reference: alternate.reference, content: alternate.content, fields: alternate.fields, placement: alternate.placement, aliases: alternate.aliases,
+    });
+  });
