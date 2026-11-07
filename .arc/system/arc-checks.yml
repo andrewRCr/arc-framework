@@ -248,7 +248,9 @@ checks:
     gate: commit
     inputs:
       - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/src/**/*.mjs
       - packages/arc-framework/__tests__/**/*.ts
+      - packages/arc-framework/__tests__/**/*.mjs
       - packages/arc-framework/examples/**/*.mjs
       - packages/arc-framework/examples/**/*.mts
     mode: files
@@ -262,8 +264,11 @@ checks:
       - typecheck
     gate: commit
     inputs:
+      - packages/arc-framework/tsconfig*.json
       - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/src/**/*.mjs
       - packages/arc-framework/__tests__/**/*.ts
+      - packages/arc-framework/__tests__/**/*.mjs
       - packages/arc-framework/examples/**/*.mjs
       - packages/arc-framework/examples/**/*.mts
   typecheck:test:
@@ -275,8 +280,11 @@ checks:
       - typecheck:test
     gate: commit
     inputs:
+      - packages/arc-framework/tsconfig*.json
       - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/src/**/*.mjs
       - packages/arc-framework/__tests__/**/*.ts
+      - packages/arc-framework/__tests__/**/*.mjs
       - packages/arc-framework/examples/**/*.mjs
       - packages/arc-framework/examples/**/*.mts
   lint:ts:
@@ -288,8 +296,11 @@ checks:
       - lint:ts
     gate: push
     inputs:
+      - packages/arc-framework/tsconfig*.json
       - packages/arc-framework/src/**/*.ts
+      - packages/arc-framework/src/**/*.mjs
       - packages/arc-framework/__tests__/**/*.ts
+      - packages/arc-framework/__tests__/**/*.mjs
       - packages/arc-framework/examples/**/*.mjs
       - packages/arc-framework/examples/**/*.mts
   lint:sh:
