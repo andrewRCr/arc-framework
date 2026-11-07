@@ -13,8 +13,9 @@ interface HostedFixSettlementHeadsInput {
 }
 
 /**
- * Require every host fix receipt, and every deferred or rejected receipt settled after the fix push, to name the
- * verified head or its proved record continuation.
+ * Require every host fix receipt, and every deferred or rejected receipt this response settled after its fix push, to
+ * name the verified head or its proved record continuation. A receipt carried from a predecessor response was checked
+ * against that response's head when it settled.
  */
 export async function assertHostedFixSettlementHeads(input: HostedFixSettlementHeadsInput): Promise<void> {
   const { performance, context } = input;
@@ -29,7 +30,8 @@ export async function assertHostedFixSettlementHeads(input: HostedFixSettlementH
     throw new Error("hosted fix settlement does not match durable response-head evidence");
   }
   const afterFixEvidence = setEvidence.filter((evidence) => !hostFixFindingIds.includes(evidence.findingId)
-    && evidence.channelAction === "reply-and-resolve" && evidence.fixTarget !== null);
+    && evidence.channelAction === "reply-and-resolve" && evidence.fixTarget !== null
+    && evidence.carriedFromDispositionSetId === null);
   for (const evidence of [...fixEvidence, ...afterFixEvidence]) {
     if (evidence.channelAction !== "reply-and-resolve") {
       throw new Error("hosted fix settlement does not match durable response-head evidence");
