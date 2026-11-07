@@ -1,6 +1,7 @@
 /** Pure projection from semantic ARC layout addresses to managed paths. */
 
-import { assertNever, validateManagedPath, SlugSchema, type ManagedPath, type Slug } from "../kernel/index.js";
+import { assertNever, validateManagedPath, type ManagedPath, type Slug } from "../kernel/index.js";
+import { companionStoredName } from "./companion-key.js";
 import { LayoutError } from "./errors.js";
 import {
   ArcLayoutAddressSchema,
@@ -70,7 +71,7 @@ function projectAddress(address: ArcLayoutAddress): string {
     case "work-unit-artifact":
       return `${projectContainer(address.placement, address.slug)}/${address.artifact}-${address.slug}.md`;
     case "work-unit-companion": {
-      const file = SlugSchema.safeParse(address.key).success ? `${address.key}-${address.slug}.md` : address.key;
+      const file = companionStoredName(address.slug, address.key);
       return `${projectContainer(address.placement, address.slug)}/${file}`;
     }
     case "work-unit-spec-part":

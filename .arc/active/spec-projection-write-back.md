@@ -492,8 +492,9 @@ since VS Code's actions handle them correctly (§ Spike 4).
 
 A conflict the store filed is drawn into the file when write-back or a refresh replaces it with the record:
 
-- **An entry conflict** goes around the entry its `_Id:_` names, and shows as a notice line, below, where the content
-  being written holds no entry with that ID.
+- **An entry conflict** goes around the entry its `_Id:_` names only while its exact entry bytes equal the captured
+  current side, excluding the separator that `splitEntryList` keeps outside the entry (A4). An absent or changed entry
+  takes the notice/unshown path below; its latest bytes remain intact while the conflict stays open.
 - **A hunk conflict,** which its record locates by a base line range (`TextConflictRecordSchema`,
   `lib/store/conflict.ts`), is placed at its start line moved through a diff from the base content into the content
   being written (`relocateTextOffsets`, `lib/store/concurrency/line-merge.ts`), spanning as many lines as the record's
@@ -1175,25 +1176,30 @@ The paths come from the layout resolver (`resolveArcPath`, `lib/layout/projectio
 paired spec's halves, keyed `spec-prd` and `spec-rfc`; `inbound-<slug>.md`; `errand-<slug>.md` for an Errand's
 description; `cohort-<cohort>.md` for a cohort document's copy; and `scratch/` documents, each keyed by its path. Any
 other text file in a work item's folder, or in a folder beneath it, is a companion keyed by its path below the work
-item's folder, forward slashes between its folders, and projected back at that path. The classifier tries, in order, a
-work unit's artifact names; the fixed forms — a paired spec's halves, `inbound-`, `errand-`, and a cohort copy;
-`<name>-<slug>.md`; then the path key. The schema refuses a companion key equal to `meta`, `tasks`, `draft`, `spec`,
-`notes`, `errand`, `inbound`, or `cohort`, as the ref backend does; one beginning `cohort-`, which D13 reserves inside
-`current/`; and a path key an earlier form would claim, judged against the slug the folder names, or the checkout
-claim's for its own location, as the ref backend judges a verbatim key against the resolved owner's current slug
-(`spec-storage-ref-backend.md` § 3.2, § 5.1, its A10), so after `alpha` is renamed to `beta` a literal `extra-alpha.md`
-under `beta` is a path key. The `<name>-<slug>.md` form claims neither `spec-prd` nor `spec-rfc`, whose files are a
-paired spec's halves, so no key resolves to a path that inverts to another (Owner, 2026-10-14). `resolveArcPath` then
-resolves every projected path, and the classifier inverts it (`identifyArcFileAddress`, then `classifyStoreAddress`;
-Owner, 2026-10-13; § 9). Both locations lie under the active placement's project scope (`ActivePlacementSchema`), since
-the store's `active` placement carries no scope; the contributor scope's flat form stays the in-repo implementation's
-alone. The checkout's own location carries the effective `layout.active` value and the slug of the work item the
-checkout claims in its address, since `lib/layout/` reads no configuration and no marker (§ 10.3); a path at the
-checkout's own location — under `active/current/`, or at the top of `active/` under `flat` — inverts by that slug and
-the effective `layout.active`, since the path alone holds no slug a hyphenated name could not also claim, and the top of
-`active/` names a record only under `flat`. A record projects only where the schema holds an address for its kind: a
-projection-defined kind with none projects nothing, the Errand queue among them, which D13 keeps a machine record `arc`
-reads (`personal/errand-queue`, `lib/store/registry.ts`).
+item's folder, forward slashes between its folders, and projected back at that path. A literal root filename that
+`SlugSchema` admits uses the companion-only logical key `./<filename>` (A5): `readme` names `readme-<slug>.md`, while
+`./readme` names the literal file `readme`. The prefix is decoded before filesystem use, never a managed filesystem
+path. It is canonical only for one slug-safe basename; redundant forms such as `./readme.txt`, repeated prefixes,
+traversal, and reserved physical paths refuse. Personal-document keys and `validateManagedPath` retain their grammar.
+The classifier tries, in order, a work unit's artifact names; the fixed forms — a paired spec's halves, `inbound-`,
+`errand-`, and a cohort copy; `<name>-<slug>.md`; then the path key. The schema refuses a companion key equal to `meta`,
+`tasks`, `draft`, `spec`, `notes`, `errand`, `inbound`, or `cohort`, as the ref backend does; one beginning `cohort-`,
+which D13 reserves inside `current/`; and a path key an earlier form would claim, judged against the slug the folder
+names, or the checkout claim's for its own location, as the ref backend judges a verbatim key against the resolved
+owner's current slug (`spec-storage-ref-backend.md` § 3.2, § 5.1, its A10), so after `alpha` is renamed to `beta` a
+literal `extra-alpha.md` under `beta` is a path key. The `<name>-<slug>.md` form claims neither `spec-prd` nor
+`spec-rfc`, whose files are a paired spec's halves, so no key resolves to a path that inverts to another (Owner,
+2026-10-14). `resolveArcPath` then resolves every projected path, and the classifier inverts it
+(`identifyArcFileAddress`, then `classifyStoreAddress`; Owner, 2026-10-13; § 9). Both locations lie under the active
+placement's project scope (`ActivePlacementSchema`), since the store's `active` placement carries no scope; the
+contributor scope's flat form stays the in-repo implementation's alone. The checkout's own location carries the
+effective `layout.active` value and the slug of the work item the checkout claims in its address, since `lib/layout/`
+reads no configuration and no marker (§ 10.3); a path at the checkout's own location — under `active/current/`, or at
+the top of `active/` under `flat` — inverts by that slug and the effective `layout.active`, since the path alone holds
+no slug a hyphenated name could not also claim, and the top of `active/` names a record only under `flat`. A record
+projects only where the schema holds an address for its kind: a projection-defined kind with none projects nothing, the
+Errand queue among them, which D13 keeps a machine record `arc` reads (`personal/errand-queue`,
+`lib/store/registry.ts`).
 
 **Container input to the inverse (A1).** `identifyArcFileAddress` and its work-item filename recognizer accept the
 established work-item container from § 9. They confirm that the file is strictly below that container through
@@ -1203,19 +1209,22 @@ containers that produce the same path. The layout layer remains free of store an
 active-layout context supplies the checkout's own location, while the caller supplies the established backlog container.
 The caller owns missing or conflicting ownership evidence and its refusal; the inverse never guesses a folder prefix.
 
-A companion (`work-item/companion`) is keyed by a managed path, as a personal document is, where D2 keys it by name
-(`KIND_SHAPES`, `lib/store/catalog.ts`): `<name>-<slug>.md` keeps the key `<name>`, and any other companion's key is its
-path. `storage-ref-backend` stores a key `SlugSchema` (`lib/kernel/schema/slug.ts`) admits as `<key>-<slug>.md`, a
-paired spec's halves as `spec-<slug>-prd.md` and `spec-<slug>-rfc.md`, and any other key verbatim, with its codec for
-it, and refuses a key that would collide with its own folders and files in a work item's ref — at the root, any name
-matching `^metadata-[0-9a-f-]{36}\.json$` or a path under one (`isOwnerMetadataName`,
-`lib/store/ref/metadata-filename.ts`), while a nested `scratch/metadata-<uid>.json` stays an ordinary companion — or
-that Git refuses, which write-back reports as a refused edit (§ 7.6, § 16.3, § 18). A true alias, which only a folder
-not yet re-laid after a rename can reach, since a known file writes back under its index reference
-(`spec-projection-substrate.md` § 3.1), comes back the same way, carrying the backend's remedy. The in-repo
-implementation refuses `unsupported` `unhomed-kind` a key naming a registered role, and every key but a name of
-lowercase letters alone or a paired spec's half, since any other file name fails the matcher `companionPath` applies
-(`artifactMatcher`, `lib/work-unit/mutators/relocate-artifacts.ts`; `lib/store/in-repo/paths.ts`).
+A companion (`work-item/companion`) is keyed by a managed path or the literal-root discriminator above (A5), where D2
+keys it by name (`KIND_SHAPES`, `lib/store/catalog.ts`): `<name>-<slug>.md` keeps the key `<name>`, and any other
+companion's key is its path, except for the canonical literal-root discriminator. `storage-ref-backend` stores a key
+`SlugSchema` (`lib/kernel/schema/slug.ts`) admits as `<key>-<slug>.md`, a paired spec's halves as `spec-<slug>-prd.md`
+and `spec-<slug>-rfc.md`, and any other key verbatim, with its codec for it. A5 extends the shared companion codec to
+decode the literal-root discriminator on write and reconstruct it on read, listing, reopen, copy, and rename; a literal
+basename stays fixed while a conventional name follows its owner. Every backend retains its supported-key boundary, and
+refuses a key that would collide with its own folders and files in a work item's ref — at the root, any name matching
+`^metadata-[0-9a-f-]{36}\.json$` or a path under one (`isOwnerMetadataName`, `lib/store/ref/metadata-filename.ts`),
+while a nested `scratch/metadata-<uid>.json` stays an ordinary companion — or that Git refuses, which write-back reports
+as a refused edit (§ 7.6, § 16.3, § 18). A true alias, which only a folder not yet re-laid after a rename can reach,
+since a known file writes back under its index reference (`spec-projection-substrate.md` § 3.1), comes back the same
+way, carrying the backend's remedy. The in-repo implementation refuses `unsupported` `unhomed-kind` a key naming a
+registered role, and every key but a name of lowercase letters alone or a paired spec's half, since any other file name
+fails the matcher `companionPath` applies (`artifactMatcher`, `lib/work-unit/mutators/relocate-artifacts.ts`;
+`lib/store/in-repo/paths.ts`).
 
 #### 10.2 Ordering
 
@@ -1517,11 +1526,13 @@ amendment to D6 and built (`spec-storage-ref-backend.md` § 2.6, § 3.7); this c
 
 #### 16.3 Companion keys (D2), recorded by `storage-ref-backend`
 
-D2 keys a companion by its name. Here any text file in a work item's folder, or in a folder beneath it, is a companion
-keyed by its path below that folder, so a person's own files there persist and project back where they were made;
-`<name>-<slug>.md` keeps the key `<name>` (§ 10.1). `storage-ref-backend` records the change as its forward amendment to
-D2 and builds the key shape, the stored path, and the codec (§ 18); this change builds the addresses and the
-classifier's inverse (§ 10.1).
+A companion is keyed by its path below its work-item folder, while `<name>-<slug>.md` keeps the conventional key
+`<name>`. A5 amends D2 forward here: a literal slug-safe root filename uses `./<filename>`, decoded before filesystem
+use and reconstructed by the inverse (§ 10.1). Shared companion validation and filename conversion govern the layout,
+record-reference admission, stored paths and inverse, and lifecycle and copy consumers. Reserved physical paths and
+noncanonical encodings refuse; the in-repo backend retains its conventional-name-only boundary. This member carries
+the codec correction in its implementation and records the shared decision in the cohort; the shipped backend
+specification remains the record of what it built.
 
 #### 16.4 The racy reference (`spec-projection-substrate.md` § 3.3)
 
@@ -1977,6 +1988,14 @@ _These considerations cover the design the three members build together; § 1.1 
     generation; current copies retain their membership binding, archived files retain exact archive authority despite a
     live namesake, and ordinary fixed personal and project-inbox creation remains available.
 
+12. **Newer entry text survives an older conflict (A4).** If a stored entry conflict stays open after the entry is
+    accepted with newer text, rendering and an independent save preserve that text and the open conflict. A placement
+    refusal remains visible and repairable; explicit resolution succeeds, and unchanged entry bytes still draw markers.
+13. **Literal and conventional companions stay distinct (A5).** The files `readme` and `readme-<slug>.md` adopt
+    together with distinct keys, reopen and reproject without aliasing, and survive owner rename with the literal
+    basename fixed and the conventional basename updated. Both ref layouts preserve this distinction; unsupported
+    backends and unsafe, redundant, or reserved keys refuse with repair guidance and allow a supported retry.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -1990,5 +2009,10 @@ this design open.
   _Supersedes:_ none. _Trigger:_ 2.8.a must-stop. _Work:_ 2.8.R. _Revalidated:_ 2.8.R.c.
 - **A3** — 2026-11-06 — design: inventory parsers with three explicit exceptions.
   _Supersedes:_ §7.6 ¶1; §18 storage-cutover. _Trigger:_ 3.1 review. _Work:_ none. _Revalidated:_ 3.1.
+
+- **A4** — 2026-11-07 — design: reject stale entry-conflict placement. _Supersedes:_ §6.3 entry bullet.
+  _Trigger:_ conflicts-2 review. _Work:_ 1.4.R. _Revalidated:_ 1.4.R.c.
+- **A5** — 2026-11-07 — design: distinguish literal companion keys. _Supersedes:_ §10.1 ¶2; §16.3 ¶1.
+  _Trigger:_ layout-core-1 review. _Work:_ 2.4.K. _Revalidated:_ 2.4.K.c.
 
 ---

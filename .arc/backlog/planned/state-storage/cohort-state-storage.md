@@ -137,6 +137,12 @@ Amended 2026-10-29 — `storage-ref-backend` amends D2 forward in `spec-storage-
 other path verbatim; and a non-person owner's generation, retained creation receipts included, takes the lowercase UID
 grammar stored names carry (`StoredUidSchema`).
 
+Amended 2026-11-07 — `projection-write-back` amends D2 forward in `spec-projection-write-back.md` § 10.1 and
+§ 16.3 (A5): a literal slug-safe root companion filename uses the logical key `./<filename>`, decoded before
+filesystem use and reconstructed by the inverse. Conventional names retain their existing spelling; redundant and
+unsafe encodings and reserved physical paths refuse. Personal-document paths and each backend's supported-key
+boundary remain unchanged.
+
 Amended 2026-10-29 — `storage-ref-backend` amends D3 forward in `spec-storage-ref-backend.md` § 3.1 and § 6.4 (A55): a
 divergent archive-quarter merge whose folder inventories are all valid and empty names its archive ref in the commit
 subject and omits `Arc-Owner`, keeping the fresh batch, actor, and complete-none creation receipt; every other merge

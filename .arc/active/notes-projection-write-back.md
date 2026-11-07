@@ -310,3 +310,24 @@ The named exceptions preserve the rehearsal's complete inventory without hiding 
 prose category. `DESIGN_REGISTRATIONS` still parses companions to expose Purpose. `identifyArcFileAddress` and
 `classifyStoreAddress` expose no errand-queue file, so its missing check is outside that inventory. A3 changes only the
 acceptance record; registered parsers, link checks, backend validation, and write authority retain their behavior.
+
+## A4 — Check current entry bytes before placement
+
+The superseded § 6.3 entry bullet placed markers around the named ID and used a notice only when that ID was absent.
+`placeStoredConflict` consequently let an older conflict snapshot replace a later accepted entry edit. The conflict
+sides are immutable; `splitEntryList` separates exact entry bytes from its trailing separator. Equality of those entry
+bytes reuses the hunk-placement preservation rule without changing the conflict model. A changed entry remains intact
+and uses the existing notice/unshown path, with explicit resolution still available.
+
+## A5 — Distinguish a literal root companion filename
+
+The superseded § 10.1 and § 16.3 used a path key verbatim for every nonconventional file. A slug-safe root basename
+therefore collided with the conventional name key: both `readme` and `readme-alpha.md` became `readme`.
+`companionStoredName`, `companionFileKey`, and `decodeStoredReference` expose the two directions of this ambiguity.
+
+The companion-only logical discriminator `./readme` selects the literal basename without changing managed filesystem
+paths or personal-document keys. Canonical admission permits only one slug-safe basename after `./`; filenames with
+extensions and nested paths retain their existing keys. Decoding precedes physical path validation and storage
+reservation checks. Inverse decoding retains the literal key across listing, reopen and rename, so rename changes
+only conventional filenames. Existing in-repo support remains conventional-only with an explicit unsupported refusal.
+The shared D2 decision is recorded forward here and in the cohort; the shipped member's spec is unchanged.

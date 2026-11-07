@@ -108,6 +108,7 @@ among them, has one.
   marker-like line — and parse back exactly, each set to its own conflict: untouched markers keep a stored conflict
   open, replaced markers resolve it, a clash found in the checkout keeps its file unsent, and a malformed set refuses
   until repaired.
+    - _Amended in:_ 1.4.R (A4)
 
     - `[x]` **1.4.a Rendering and length**
 
@@ -156,6 +157,7 @@ among them, has one.
 - _Goal:_ A conflict the store files shows in every checkout that renders its record — markers where placement's check
   passes and its span meets no other set, and a notice line where the check fails, where it would meet another set, or
   where the conflict is whole-record — never markers placed by guess.
+    - _Amended in:_ 1.4.R (A4)
 
     - `[x]` **1.7.a Placing an entry or hunk conflict**
 
@@ -232,9 +234,27 @@ among them, has one.
   preserve their recorded tokens until accepted. Marker, whole-record and lookup refusals carry their repair routes,
   and decomposition's source-conflict remedy names the registered resolution command.
 
+### `[x]` **1.4.R Preserve newer entry text during stored conflict placement — § 6.3**
+
+- _Goal:_ An open conflict never replaces a later accepted entry edit; exact current-side equality governs marker
+  placement, with visible refusal and explicit resolution retained (A4).
+
+    - `[x]` **1.4.R.a Guard exact entry bytes**
+        - Check `placeStoredConflict` against `splitEntryList` entry bytes, excluding its separator; preserve the
+          existing notice/unshown path and unchanged-entry behavior.
+    - `[x]` **1.4.R.b Verify preservation and continuation**
+        - Regress production rendering, unrelated save with the conflict still open, and explicit resolution; retain
+          title, ordering, separator, and unchanged-entry controls.
+    - `[x]` **1.4.R.c Revalidate the amended behavior**
+        - Run focused regressions and the review-fix full verification; record evidence for criterion 12.
+
+- _Outcome:_ Exact current-side checks preserve newer entry bytes during rendering and an independent save, with
+  explicit resolution retained. Focused regressions and the forced full local gate passed on 2026-11-07.
+
 ### `[x]` **1.11 A hand edit persists through write-back** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds end to end on a freshly merged base.
+    - _Amended in:_ 1.4.R (A4)
 
 - _Outcome:_ One reference-store checkout carries command-start write-back, a stale conflict, marker resolution, and
   a refused edit through repair via the registered CLI. In-repo hooks stay dark and save names `arc user save`.
@@ -306,6 +326,7 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
 - _Goal:_ Every path the projection writes resolves through `resolveArcPath` and inverts back through the classifier
   to one record: `active/current/` for the checkout's own work item and its cohort copies, `active/in-flight/<slug>/`
   for the other work items its view selects, and every file name the projection defines.
+    - _Amended in:_ 2.4.K (A5)
 
     - `[x]` **2.4.a The two locations**
 
@@ -494,6 +515,25 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
           keeping indexed authority for recovery. Registered selection and shared check-reader tests exclude final-file
           and directory links, retain changed marks, and restore selection and checking after regular-file repair.
 
+### `[x]` **2.4.K Distinguish literal root companion names — § 10.1, § 16.3**
+
+- _Goal:_ A literal slug-safe root filename has its canonical companion-only `./` discriminator, with one shared
+  forward/inverse codec and unchanged filesystem-path validation (A5).
+
+    - `[x]` **2.4.K.a Extend the shared logical-key codec**
+        - Update companion reference and layout admission, filename conversion, and native stored-path decoding;
+          keep personal paths strict and refuse noncanonical or reserved encodings at their existing boundary.
+    - `[x]` **2.4.K.b Verify every retained consumer**
+        - Cover simultaneous literal/conventional adoption, reopen, reprojection and rename in both ref layouts;
+          retain copy/lifecycle naming and the in-repo unsupported-key refusal with a successful supported retry.
+    - `[x]` **2.4.K.c Revalidate the amended contract**
+        - Run focused regressions and the review-fix full verification; record evidence for criterion 13 and the
+          forward/backward consumer sweep.
+
+- _Outcome:_ Literal root keys remain distinct across both ref layouts, adoption, reopen, reprojection, rename and
+  the supported copy API. Reserved and unsupported forms retain repair paths. The forced full local gate passed on
+  2026-11-07; the kernel surface and indexed ownership contracts remain unchanged.
+
 ### `[x]` **2.12 Connect the Markdown checks' reader — § 11.7**
 
 - _Goal:_ The `selection` checks, `lint:md:fix`, and `lint:md:fix:file` read what `arc selection` prints for the same
@@ -574,3 +614,8 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   established, then adopts the same bytes into that generation. Current copies retain membership binding, archived
   files retain exact archive authority despite a live namesake, and ordinary fixed personal and project-inbox creation
   remains available (A2).
+
+- `[x]` Newer accepted entry text survives rendering and an independent save while the old conflict stays open;
+  explicit resolution remains available, with unchanged-entry controls (A4; criterion 12).
+- `[x]` Literal root and conventional companion names adopt distinctly and retain their identities through reopen,
+  reprojection and rename, with supported-key repair and both ref layouts covered (A5; criterion 13).

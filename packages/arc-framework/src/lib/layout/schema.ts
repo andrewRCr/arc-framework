@@ -5,6 +5,7 @@
 import { z } from "zod";
 
 import { ArchiveQuarterSchema, ArchiveSequenceSchema, SlugSchema, validateManagedPath, type Slug } from "../kernel/index.js";
+import { companionKeyForFile, companionStoredName, validateCompanionKey } from "./companion-key.js";
 
 /** Runtime authority for project lifecycle placement roots. */
 export const ArcPlacementTierSchema = z.enum(["active", "planned", "provisional", "completed"]);
@@ -33,13 +34,14 @@ export function companionFileKey(key: string, slug: Slug): string | null {
   if (key === `spec-prd-${slug}.md` || key === `spec-rfc-${slug}.md`) return key;
   const artifact = /^([a-z]+)-(.+)\.md$/u.exec(key);
   if (WorkUnitArtifactKindSchema.safeParse(artifact?.[1]).success && SlugSchema.safeParse(artifact?.[2]).success) return null;
-  return key;
+  return companionKeyForFile(slug, key);
 }
 
 function hasDistinctCompanionKey({ key, slug, placement }: { key: string; slug: Slug; placement: WorkUnitPlacement }): boolean {
   if (placement.kind === "active" && placement.scope.kind === "project" && placement.scope.location?.kind === "own"
     && placement.scope.location.layoutActive === "flat" && key.startsWith("in-flight/")) return false;
-  const file = SlugSchema.safeParse(key).success ? `${key}-${slug}.md` : key;
+  let file: string;
+  try { file = companionStoredName(slug, key); } catch { return false; }
   return companionFileKey(file, slug) === key;
 }
 
@@ -64,6 +66,12 @@ function managedPathRefinement(value: string, context: z.RefinementCtx): void {
       code: "custom",
       message: error instanceof Error ? error.message : "invalid managed path",
     });
+  }
+}
+
+function companionKeyRefinement(value: string, context: z.RefinementCtx): void {
+  try { validateCompanionKey(value); } catch (error) {
+    context.addIssue({ code: "custom", message: error instanceof Error ? error.message : "invalid companion key" });
   }
 }
 
@@ -171,7 +179,7 @@ export const ArcLayoutAddressSchema = z.discriminatedUnion("kind", [
     artifact: WorkUnitArtifactKindSchema,
   }).refine(matchesOwnClaim, "An own location must name the checkout's claimed work item."),
   z.strictObject({ kind: z.literal("work-unit-companion"), placement: WorkUnitPlacementSchema, slug: SlugSchema,
-    key: z.string().superRefine(managedPathRefinement),
+    key: z.string().superRefine(companionKeyRefinement),
   }).refine(matchesOwnClaim, "An own location must name the checkout's claimed work item.")
     .refine(hasDistinctCompanionKey, "The companion key is reserved or has an earlier filename interpretation."),
   z.strictObject({ kind: z.literal("work-unit-spec-part"), placement: WorkUnitPlacementSchema, slug: SlugSchema,

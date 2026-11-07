@@ -1,5 +1,6 @@
 /** Public API for semantic ARC layout projection and materialization. */
 
+export { companionArtifactName, companionStoredName, companionKeyForFile, validateCompanionKey } from "./companion-key.js";
 export { identifyArcFileAddress, type FileAddressContext } from "./file-identification.js";
 export { LayoutError } from "./errors.js";
 export type { LayoutErrorCode } from "./errors.js";
