@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "hosted-thread-settle",
+  "claimId": "4b349da40a8a0362fda89f3df525d443",
+  "createdAt": "2026-11-07T01:20:08.983Z",
+  "updatedAt": "2026-11-07T01:20:08.983Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Let hosted settle accept a deferred or rejected thread at the approved produced head after a fix push",
+  "branch": "chore/hosted-thread-settle",
+  "origin": "inbox",
+  "originEntry": "Give a deferred or rejected hosted thread left unsettled after a fix push a way to settle",
+  "originEntrySourceDigest": "sha256:6da7a342aca7f3b5de3d95fb6ea9fac650d128242882845d87e48226b99a4212",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
