@@ -11,3 +11,17 @@ it("resolves the slugified Git name when no ARC identity is configured", async (
   ]);
   await expect(readIdentityPointers(exec)).resolves.toEqual({ identity: "andrew-creekmore", role: "maintainer" });
 });
+
+
+it("keeps a failed diagnostic role read unresolved and observes its repaired retry", async () => {
+  const { exec } = scriptGitExec([
+    { match: ["config", "--null", "--get", "arc.identity"], responses: [{ failure: { exitCode: 1 } }] },
+    { match: ["config", "--get", "user.name"], responses: [{ stdout: "Andrew Creekmore\n" }] },
+    { match: ["config", "--get", "arc.role"], responses: [
+      { failure: { exitCode: 1, signal: "SIGTERM", stdout: "", stderr: "" } },
+      { stdout: "maintainer\n" },
+    ] },
+  ]);
+  await expect(readIdentityPointers(exec)).resolves.toEqual({ identity: "andrew-creekmore", role: null });
+  await expect(readIdentityPointers(exec)).resolves.toEqual({ identity: "andrew-creekmore", role: "maintainer" });
+});
