@@ -13,20 +13,19 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit                       | Priority | Owner  | Depends on                                                         | Cohort             |
-| ------------- | ------------------------------- | -------- | ------ | ------------------------------------------------------------------ | ------------------ |
-| `Planning`    | cutover-flip                    | P1       | andrew | cohort-identity-verbs, projection-worktrees, projection-write-back | storage-cutover    |
-| `Planning`    | projection-worktrees            | P1       | andrew | projection-write-back                                              | storage-projection |
-| `Active`      | projection-write-back           | P1       | andrew | —                                                                  | storage-projection |
-| `Active`      | cohort-identity-verbs           | P1       | andrew | —                                                                  | storage-seam       |
-| `Planning`    | adopter-install-authority       | P1       | andrew | storage-cutover                                                    | —                  |
-| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —                                                                  | —                  |
-| `Planning`    | decomposition-doctrine          | P1       | andrew | —                                                                  | —                  |
-| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —                                                                  | —                  |
-| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —                                                                  | —                  |
-| `Planning`    | stub-mint-to-launch             | P1       | andrew | —                                                                  | —                  |
-| `Integrating` | test-typecheck-heap             | P1       | andrew | —                                                                  | —                  |
-| `Planning`    | cli-output-contract             | P2       | andrew | —                                                                  | —                  |
+| State      | Work unit                       | Priority | Owner  | Depends on                                                         | Cohort             |
+| ---------- | ------------------------------- | -------- | ------ | ------------------------------------------------------------------ | ------------------ |
+| `Planning` | cutover-flip                    | P1       | andrew | cohort-identity-verbs, projection-worktrees, projection-write-back | storage-cutover    |
+| `Planning` | projection-worktrees            | P1       | andrew | projection-write-back                                              | storage-projection |
+| `Active`   | projection-write-back           | P1       | andrew | —                                                                  | storage-projection |
+| `Active`   | cohort-identity-verbs           | P1       | andrew | —                                                                  | storage-seam       |
+| `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover                                                    | —                  |
+| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                                                                  | —                  |
+| `Planning` | decomposition-doctrine          | P1       | andrew | —                                                                  | —                  |
+| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                                                                  | —                  |
+| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                                                                  | —                  |
+| `Planning` | stub-mint-to-launch             | P1       | andrew | —                                                                  | —                  |
+| `Planning` | cli-output-contract             | P2       | andrew | —                                                                  | —                  |
 
 ## Ready
 
@@ -41,6 +40,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | review-evaluator-isolation            | P1       | andrew | —          | review-protocol-alignment  |
 | review-source-authority               | P1       | andrew | —          | review-protocol-alignment  |
 | storage-native-windows-bulk-transport | P1       | andrew | —          | state-storage              |
+| compact-schema-declarations           | P1       | andrew | —          | —                          |
 | cross-worktree-git-state-safety       | P1       | andrew | —          | —                          |
 | delivery-intent-integrity             | P1       | andrew | —          | —                          |
 | locus-claim-revalidation              | P1       | andrew | —          | —                          |
@@ -117,7 +117,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | cutover-documentation           | P1       | andrew | cutover-flip                  | storage-cutover            |
 | cutover-notes-removal           | P1       | andrew | cutover-flip                  | storage-cutover            |
 | cutover-tracked-state-removal   | P1       | andrew | cutover-flip                  | storage-cutover            |
-| compact-schema-declarations     | P1       | andrew | test-typecheck-heap           | —                          |
 | delivery-correction-convergence | P1       | andrew | cutover-flip                  | —                          |
 | delivery-observe-attest         | P1       | andrew | cutover-flip                  | —                          |
 | work-item-relations             | P1       | andrew | cutover-flip                  | —                          |
