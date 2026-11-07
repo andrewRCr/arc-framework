@@ -471,9 +471,13 @@ jobs:
         ARC_E2E_SKIP_BUILD: ''
     - id: typescript-files
       if: ${{ needs.classify.outputs.weight != 'light' }}
+      env:
+        NODE_OPTIONS: --max-old-space-size=4096
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck typescript-files
     - id: typescript
       if: ${{ needs.classify.outputs.weight != 'light' }}
+      env:
+        NODE_OPTIONS: --max-old-space-size=4096
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck typescript
     - id: shell
       if: ${{ needs.classify.outputs.weight != 'light' }}
@@ -483,8 +487,6 @@ jobs:
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck typecheck
     - id: typecheck-tests
       if: ${{ needs.classify.outputs.weight != 'light' }}
-      env:
-        NODE_OPTIONS: --max-old-space-size=6144
       run: node --import tsx scripts/run-ci-checks.mjs run lint-typecheck typecheck-tests
 
   unit:
