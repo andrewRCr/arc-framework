@@ -67,7 +67,8 @@ one review of each member's change set can hold it.
 A Windows scale assessment on 2026-11-07 (`~/dev/arc-evidence/projection-worktrees/SCALE-SUMMARY.md`) led the Owner to
 approve five scale changes to `projection-worktrees`, which with all five would have landed about 2026-11-26 to 12-01.
 The Owner split them the same day. `projection-worktrees` keeps the index split by root and the archive by quarter,
-with plain JSON on the hot path, later catch-up after a pull, and shared protection reads, landing about 11-23 to 11-27.
+with plain JSON on the hot path, and shared protection reads, landing about 11-23 to 11-27; a third change it kept,
+later catch-up after a pull, was reverted that day, since holding a pull's merges does not avoid their cost.
 `projection-team-scale` takes the backlog and archive view narrowed by size, the read-only archive amended through a
 command, and the growth-relative scale criterion; it is planned during `projection-worktrees`' build and built right
 after it lands. The held design text for the view and the archive moves to it as written, and `cutover-flip`'s

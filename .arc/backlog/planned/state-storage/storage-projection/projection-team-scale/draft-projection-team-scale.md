@@ -2,8 +2,8 @@
 
 - **Origin:** split from `projection-worktrees` on 2026-11-07. After a Windows scale assessment the Owner approved
   five scale changes to that work unit (A–E), then split them: `projection-worktrees` keeps A (the index split by root,
-  the archive by quarter, plain JSON on the hot path), B (later catch-up after a pull) and E (shared protection reads),
-  and this work unit takes C, D and the growth-relative scale criterion.
+  the archive by quarter, plain JSON on the hot path) and E (shared protection reads), and this work unit takes C, D
+  and the growth-relative scale criterion. B (later catch-up after a pull) was reverted the same day (§ Scope).
 - **Purpose:** Keep a worktree's projected files and an ordinary command's cost bounded as the store grows to team
   scale, by narrowing the projected backlog and archive by size and laying the archive read-only, amended in place
   through a command.
@@ -20,10 +20,20 @@
 - **The growth-relative scale criterion.**
 - **ADR-035 item 6's refinement:** a dated amendment recording that C narrows "any artifact opens by name".
 
-Not here, and kept by `projection-worktrees`: A, B and E; the plain benchmark for A's growth claim (Task 1.12.a, with
-a structural test in Task 1.2 - `tasks-projection-worktrees.md`); and ADR-035 item 7's refinement for B. The
-criterion's clause "a pull lays nothing in other worktrees until their next command" is B's behavior, which
-`projection-worktrees` keeps under its amended success criterion 1; this work unit cites it rather than owning it.
+Not here, and kept by `projection-worktrees`: A and E, and the plain benchmark for A's growth claim (Task 1.12.a, with
+a structural test in Task 1.2 - `tasks-projection-worktrees.md`).
+
+**B was reverted** (2026-11-07, in `projection-worktrees`' review loop): a pull's or push's merges fan out to every
+worktree again, its success criterion 1 reads as before B, and ADR-035 takes no item 7 amendment. Two consequences
+land here:
+
+- The criterion's clause "a pull lays nothing in other worktrees until their next command" was B's behavior and no
+  longer holds anywhere: drop it, or own a mechanism that makes it true.
+- A fanned pull's cost at team scale may be this work unit's to own. With the partitioned index it costs about 0.4 s
+  on Windows across this repository's five worktrees, and at T=50, k=2 about 2.8 s on Windows and 0.4 s on Linux
+  across 20, past the fan-out tripwire (600 ms and 100 ms) on both. Holding the merges until each worktree's next
+  command does not avoid it, since the next write's fan-out lays them. The model's `narrow` rows cut it
+  (`notes-projection-worktrees.md` § Spike 4, its last paragraph; `scale-model.py`).
 
 ## Sequencing and guards
 
@@ -133,7 +143,8 @@ No specification text was drafted for these before the split. The substance is s
   pickup reach H4 wherever it lands; `cutover-flip` writes H4 for `arc unlock` from the start (guard 3).
 - **The unlocked set's read:** `arc save` reading only unlocked archive entries needs the unlocked set readable without
   loading every `completed/` quarter's partition. A header field beside `withheldCopies` fits A's seams without
-  reshaping them.
+  reshaping them, and § 3.1's per-partition mark is that shape already; as drafted there, `arc save` reads every
+  partition, which D narrows.
 
 ## The growth-relative scale criterion
 
@@ -152,7 +163,9 @@ The later wording, put to the Owner on 2026-11-07 as decision 4 of four:
 
 Status: leaning-approved with the other leans; confirm at drafting. `projection-worktrees` keeps only a plain benchmark
 for A's own claim, a no-change start with about 60,000 `completed/` entries against one with none, reported rather
-than held as a criterion.
+than held as a criterion. The second clause depended on B (§ Scope). `projection-worktrees`' success criterion 4 now
+reads each Windows median with its Git calls' host time replaced by 42 ms a call, calls run at once counting as one;
+this criterion's Windows N could read the same way.
 
 ## ADR-035 item 6's refinement
 
@@ -168,9 +181,9 @@ No amendment text was drafted. What was put to the Owner on 2026-11-07:
 >   bounds what lands by default past a size, with `all` one setting away.
 > - **(b) A new ADR that supersedes it,** if you read C as changing the decision itself.
 
-The Owner agreed route (a), the Tier 2 lean. Item 7's refinement stays with `projection-worktrees`; item 6's lands here.
-Follow ADR-035 § Amending This Document and its four "**Amendment (2026-09-29):** The contract design refines item N"
-annotations, and load `strategy-adr-methodology.md` before writing it.
+The Owner agreed route (a), the Tier 2 lean, for item 6's refinement, which lands here. Item 7 takes no amendment: B,
+which refined it, was reverted. Follow ADR-035 § Amending This Document and its four "**Amendment (2026-09-29):** The
+contract design refines item N" annotations, and load `strategy-adr-methodology.md` before writing it.
 
 ## Seams this builds on
 
@@ -181,7 +194,11 @@ so re-read the committed text before relying on it here.
 - **§ 3.1 "The index's parts":** the header and partitions. One root group per root and per `completed/` quarter, loose
   `completed/` files their own group; SHA-1 blob-id names; the header as the commit point; reads load only the
   partitions holding touched entries; lock-free readers; a racy reference per written partition; a plain-JSON codec;
-  and separate header and partition schemas.
+  and separate header and partition schemas. The header also marks each partition holding an unsettled entry
+  (ownerless; aside or kept copy; adoption; pending, withheld, changed, or in-progress; refusal; unshown conflict):
+  passes over every entry read the walked partitions and the marked ones, `arc save` reads every partition, and the
+  selection every one outside `completed/`; a partition mismatch found after the start deletes that partition, never
+  the header.
 - **§ 3.1 "The partitions' seams":** the fixed-seams statement, quoted below.
 - **§ 15.3 "The index read, and what is left on Windows":** a command reads its walked roots' partitions, and an
   archive quarter's only where it lays, removes or sweeps a file there, so the archive's size costs a command nothing.
