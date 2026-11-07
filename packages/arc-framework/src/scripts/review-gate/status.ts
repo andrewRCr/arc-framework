@@ -42,6 +42,7 @@ import {
   type HostedReviewCoverage,
 } from "./hosted/request.js";
 import { HostedAwaitEnvelopeSchema } from "./hosted/await.js";
+import { ErrandReviewContinuationDecisionSchema } from "./errand-review-continuation.js";
 import { HostReviewStatusSchema, type HostReviewStatus } from "./host-review.js";
 import { ReviewContributionApplicabilityResultSchema } from
   "./policy/review-contribution-applicability.js";
@@ -327,6 +328,12 @@ export const RoutedReviewObligationSchema = z.union([
     detail: z.string().min(1),
     scope: z.literal("errand"),
     action: HostedRequestEnvelopeSchema,
+  }),
+  z.strictObject({
+    state: z.literal("review-required"),
+    detail: z.string().min(1),
+    scope: z.literal("errand"),
+    continuationDecision: ErrandReviewContinuationDecisionSchema,
   }),
   z.strictObject({
     state: z.literal("review-required"),
@@ -1053,6 +1060,12 @@ const ReviewStatusHostedRequestSchema = z.strictObject({
   action: HostedRequestEnvelopeSchema,
   terminusAction: DeliveryReviewTerminusAcceptanceActionSchema.optional(),
 });
+const ReviewStatusContinuationDecisionSchema = z.strictObject({
+  ...ReviewStatusBaseShape,
+  state: z.literal("review-required"),
+  nextAction: z.literal("decide-review-continuation"),
+  decision: ErrandReviewContinuationDecisionSchema,
+});
 const ReviewStatusHostedAwaitSchema = z.strictObject({
   ...ReviewStatusBaseShape,
   state: z.literal("review-required"),
@@ -1195,6 +1208,7 @@ export type ReviewStatusResult =
   | z.infer<typeof ReviewStatusRunReviewSchema>
   | z.infer<typeof ReviewStatusPrePublicationSchema>
   | z.infer<typeof ReviewStatusHostedRequestSchema>
+  | z.infer<typeof ReviewStatusContinuationDecisionSchema>
   | z.infer<typeof ReviewStatusHostedAwaitSchema>
   | z.infer<typeof ReviewStatusLocalPrepareSchema>
   | z.infer<typeof ReviewStatusSingletonLocalPrepareSchema>
@@ -1218,6 +1232,7 @@ const ReviewStatusResultSchemaInternal: z.ZodType<ReviewStatusResult> = z.union(
   ReviewStatusRunReviewSchema,
   ReviewStatusPrePublicationSchema,
   ReviewStatusHostedRequestSchema,
+  ReviewStatusContinuationDecisionSchema,
   ReviewStatusHostedAwaitSchema,
   ReviewStatusLocalPrepareSchema,
   ReviewStatusSingletonLocalPrepareSchema,
@@ -1601,6 +1616,10 @@ export async function resolveReviewStatus(
         nextAction: "review-hosted-await",
         action: base.routedObligation.awaitAction,
       };
+    }
+    if ("continuationDecision" in base.routedObligation) {
+      return { ...base, state: "review-required", nextAction: "decide-review-continuation",
+        decision: base.routedObligation.continuationDecision };
     }
     if ("action" in base.routedObligation) {
       return {

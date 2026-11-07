@@ -385,6 +385,17 @@ remote base all name the same exact head. Any tracked change continues through t
    `action` unchanged instead. When neither result carries an `action`, stop and surface both typed results and the
    selected source for diagnosis.
 
+   Status returns `review-required / decide-review-continuation` when the head moved past a converged review by
+   changes no approved response made; request nothing on that result alone.
+
+   > [!IMPORTANT]
+   > `workflow-interlock`: Stop at `decide-review-continuation`. Surface `decision.interactionText`, the change since
+   > `decision.reviewedHeadSha`, and a recommendation; await the Owner's choice before requesting review or stopping.
+
+   On `request-complete-pass`, pass `decision.hostedAction` unchanged to `arc review hosted request -`. On
+   `owner-directed-stop`, present the Owner-directed review stop below. Never substitute the driver result's own
+   `action` for this decision.
+
    For `requested / await` and pending results, apply [code-review's hosted await and
    settlement][code-hosted-await-and-settlement] to the returned exact action.
 

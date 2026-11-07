@@ -480,13 +480,43 @@ describe("Errand review carry across an approved base merge", () => {
     });
   });
 
+  /** A clean-reviewed Errand corrected after its review, then reconciled with a moved base. */
+  async function correctedAfterCleanReview() {
+    const fixture = await reviewedErrand("hosted", "disjoint", {
+      config: "review.standard_sources: [codex-pr, delegated-agent]\n",
+    });
+    await writeFile(join(fixture.root, fixture.paths.branch[0] ?? ""), "corrected after review\n");
+    await git(fixture.root, ["add", "--", ...fixture.paths.branch]);
+    await git(fixture.root, ["-c", "core.hooksPath=/dev/null", "commit", "-m", "correct the change after review"]);
+    await advanceBase({ cwd: fixture.root, paths: fixture.paths.base });
+    return { fixture, reconciled: await fixture.reconcile() };
+  }
+
+  it("asks before another complete hosted pass on a head corrected after a clean review", async () => {
+    const { fixture, reconciled } = await correctedAfterCleanReview();
+    const status = await fixture.status(undefined, reconciled);
+    expect(status, JSON.stringify(status)).toMatchObject({
+      state: "review-required",
+      nextAction: "decide-review-continuation",
+      routedObligation: { state: "review-required", scope: "errand" },
+      decision: {
+        schemaVersion: 1, kind: "errand-review-continuation", reviewedHeadSha: fixture.target.headSha,
+        completePasses: 1, choices: ["request-complete-pass", "owner-directed-stop"],
+        hostedAction: { target: { repository, pullRequest, headSha: reconciled.headSha }, provider: "codex-pr",
+          coverage: "complete" },
+      },
+    });
+    expect(status).not.toHaveProperty("action");
+    expect(status.routedObligation).not.toHaveProperty("action");
+  });
+
   it("does not carry an earlier review that left findings", async () => {
     const fixture = await reviewedErrand("hosted", "disjoint", { outcome: "findings" });
     await advanceBase({ cwd: fixture.root, paths: fixture.paths.base });
     const reconciled = await fixture.reconcile();
-    expect(await fixture.status(undefined, reconciled)).toMatchObject({
-      routedObligation: { state: "review-required" },
-    });
+    const status = await fixture.status(undefined, reconciled);
+    expect(status).toMatchObject({ routedObligation: { state: "review-required" } });
+    expect(status.nextAction).not.toBe("decide-review-continuation");
   });
 
   it("judges base movement since the merge that edits other lines of the reviewed file", async () => {
