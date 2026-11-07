@@ -308,6 +308,11 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
         ? { changeRequestCandidate: { baseRefName: "main", url: "https://github.com/owner/repo/pull/42" } }
         : {}),
     }),
+    /** Read the routed obligation at a later head of the Errand branch. */
+    readStatusAt: (headSha: string, currentBaseOid = base) => readErrandRoutedObligation({
+      cwd: root, exec, rawExec, target: { ...statusTarget, headSha }, pullRequest: 42, currentBaseOid,
+      changeRequestCandidate: { baseRefName: "main", url: "https://github.com/owner/repo/pull/42" },
+    }),
     /** Record a clean CodeRabbit pass over the given correction, with its provider-proven range. */
     recordCorrectionPass: async (correctionScope: IncrementalReviewScope) => {
       const second = handleAt({ headSha: fixedHead, headTree: fixedTree, pass: 2, correctionScope });
@@ -766,6 +771,24 @@ describe("Errand local correction cadence", () => {
       sources: ["codex-pr", "delegated-agent"] });
     await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required", scope: "errand",
       action: { provider: "codex-pr", coverage: "complete" } });
+  });
+  it("asks before another complete hosted pass once a correction and a base merge follow a converged minor fix", async () => {
+    const errand = await fixedErrand({ provider: "codex-pr", severity: "minor", retrigger: "full-final",
+      sources: ["codex-pr", "delegated-agent"] });
+    await writeFile(join(errand.root, "change.txt"), "reviewed change, fixed, then corrected\n", "utf8");
+    await git(errand.root, ["add", "change.txt"]);
+    await git(errand.root, ["commit", "-m", "correct the change after its fix"]);
+    await git(errand.root, ["switch", "main"]);
+    await writeFile(join(errand.root, "base-change.ts"), "export const baseChange = true;\n");
+    await git(errand.root, ["add", "."]); await git(errand.root, ["commit", "-m", "advance base"]);
+    const baseOid = await git(errand.root, ["rev-parse", "HEAD"]);
+    await git(errand.root, ["switch", errand.errand.branch]);
+    await git(errand.root, ["merge", "--no-edit", "main"]);
+    const status = await errand.readStatusAt(await git(errand.root, ["rev-parse", "HEAD"]), baseOid);
+    expect(status, JSON.stringify(status)).toMatchObject({ state: "review-required", scope: "errand",
+      continuationDecision: { kind: "errand-review-continuation", reviewedHeadSha: errand.expectedScope.predecessorHeadSha,
+        hostedAction: { provider: "codex-pr", coverage: "complete" } } });
+    expect(status).not.toHaveProperty("action");
   });
   it("offers the ranked hosted complete successor at a head with a converged fix check", async () => {
     const errand = await fixedErrand({ provider: "codex-pr", retrigger: "full-final", maxPasses: 4,
