@@ -185,4 +185,22 @@ not modified here. Both backends execute the former-Parent prerequisite sequence
 separate aliases and unavailable evidence. The full local merge gate passed all 20 selected checks and all six store
 shards over 431 eligible suites. Hosted CI and the independent fix check follow the committed repair.
 
+## Repair enforcement invariants — 2026-11-07
+
+The approved repairs preserve three existing contracts at their phase boundaries. These guide implementation and
+verification of the current corrections:
+
+- **Selection:** After successful selection, a rename invocation retains the selected owner and operation kind through
+  automatic history retries. Each retry refreshes that owner's evidence; the original operand remains reporting
+  context. A two-store regression introduces a higher-ranked namesake during the history pull and checks which UID
+  changes, while retaining the existing multi-round recovery cases.
+- **Admission:** The primary version and conflict set that justified retirement preparation must still hold at atomic
+  admission. Conflict-only arrival must refuse without retiring the subject; resolution and a fresh confirmed command
+  must then succeed. The regression exercises close and removal on both operational backends through registered CLI
+  dispatch and the existing record-observation boundary.
+- **Planning:** Equivalent complete holdings inventories have equivalent feasibility, deferred groups and effective
+  field edits regardless of enumeration order. Genuine clear → Parent → restore dependencies still govern execution.
+  Unit cases reverse the same inventory, and the native archive regression pins both UID orders and applies every
+  advertised edit. Semantic plans are compared without requiring incidental serialization order.
+
 ---

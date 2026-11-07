@@ -123,6 +123,11 @@ adopted the branch, and which commits are no task's work.
    for new members, its extraction for the origin, and its `--revise` for the members it re-places; and by the cohort
    rename, which rewrites in its one batch the `Cohort` of every member whose path resolves to the renamed cohort alone,
    open or completed, started members included.
+
+   Amended 2026-11-07 by `cohort-identity-verbs` (A5/A6): a cohort rename retains a coupled `Parent`/member group when
+   changing its fields independently would violate Parent consistency, or an unproved companion identity prevents a
+   supported full-path repair. Independently repairable sole holdings still move in the atomic batch. Retained groups
+   name their exact holding owners and the prerequisites for owner-chosen repair.
 2. **The work-item base** — `seam-record-kinds`; `seam-lifecycle` reads lifecycle location and makes promotion's role
    put, `seam-locus` reads the owner and warns of an identity collision, and `seam-status-roadmap` reads the owner.
 3. **The meta's cross-member fields** — `seam-record-kinds`; `seam-lifecycle` renames, discharges edges, and settles how
@@ -138,6 +143,11 @@ adopted the branch, and which commits are no task's work.
    unit's rename rewrites its member heading in the cohort document its own `Cohort` names unless another work item
    holding the old slug as its current or a former name holds that cohort too, counted by resolution as item 7 counts,
    and then reports it. An in-flight or parked dependent's meta still keeps the former slug.
+
+   Amended 2026-11-07 by `cohort-identity-verbs` (A5/A6): cohort holding reports include retained coupled sole holdings.
+   They advertise ordered field edits only where the complete destination is proved. An unproved companion instead
+   leaves its fields unchanged and receives an exact owner row with no executable edit, plus the identity prerequisite
+   that must be resolved before its owner chooses the intended current path.
 4. **Session context** — `seam-record-kinds`, the schema; `seam-locus`'s handoff writes it and session-init reads it,
    `seam-lifecycle`'s archive clears it, and lifecycle, decomposition, delivery's `arc attest`, and locus write
    `Next Action`.
@@ -160,6 +170,11 @@ adopted the branch, and which commits are no task's work.
    its last open member or subcohort archives. Archive, `arc cohort close`, and `arc cohort remove` count a cohort's
    members by resolving each path segment among cohorts, so a record left on a former slug keeps the cohort open.
    Abandon closes no cohort; its result names the close or the removal.
+
+   Amended 2026-11-07 by `cohort-identity-verbs` (A5/A6): this batch follows item 1's coupled-group qualification.
+   Where a full repair is proved, its report includes the complete child-member context and the existing clear open
+   `Cohort` → change `Parent` → restore open membership → update completed membership order. Closed-child restrictions
+   still apply; unresolved companion groups retain their fields and report item 3's prerequisite.
 8. **Parsed prose fields** — `seam-record-kinds`; `seam-status-roadmap`'s purpose read and `design` selector read
    Purpose, `seam-decomposition`'s scaffold copies drafts and specs, and `seam-lifecycle`'s rename sweep rewrites them.
 9. **Entry managed fields** — `seam-locus`, with the entry-field module and the inbound list and Errand description
