@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "frontline-run-findings",
+  "claimId": "ffe6cff091cee4e9cb73b2bb478418b6",
+  "createdAt": "2026-11-07T00:05:35.409Z",
+  "updatedAt": "2026-11-07T00:05:35.409Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Return a frontline run's findings in its own result, marked as untrusted provider text",
+  "branch": "chore/frontline-run-findings",
+  "origin": "inbox",
+  "originEntry": "Let a frontline run's findings be read through a command before the disposition step",
+  "originEntrySourceDigest": "sha256:dd9988d421f0dabe8af00fbbb49a14e4edca9742f10c797f0e843e6e5bacd81d",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
