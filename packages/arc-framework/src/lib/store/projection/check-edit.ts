@@ -37,7 +37,7 @@ export async function checkWriteBackEdit(input: CheckEditInput): Promise<StoreRe
 export async function prepareAdoptedContent(context: WriteBackContext, reference: RecordReference, supplied: string): Promise<{
   content: string; refusals: readonly RefusedMark[];
 }> {
-  const grammar = kinds[reference.kind].entry;
+  const grammar = (context.registry ?? kinds)[reference.kind].entry;
   let content = supplied;
   if (grammar !== undefined) {
     const restored = restoreWriteBackIds({ reference, base: "", content, grammar });
@@ -48,7 +48,7 @@ export async function prepareAdoptedContent(context: WriteBackContext, reference
 
 async function checkParsedHandEdit(context: WriteBackContext, reference: RecordReference, content: string,
   prior: StoreRecord | undefined): Promise<readonly RefusedMark[]> {
-  const definition = kinds[reference.kind];
+  const definition = (context.registry ?? kinds)[reference.kind];
   const parsed = definition.parser?.(content);
   if (parsed?.success === false) return [{ reason: parsed.error,
     remedy: { text: "Repair the merged record so its parser accepts it, then save again." } }];
@@ -64,7 +64,7 @@ async function checkParsedHandEdit(context: WriteBackContext, reference: RecordR
 
 async function mergeCheckCopy(input: CheckEditInput, prior: StoreRecord | undefined): Promise<StoreResult<string>> {
   const { context, request, base } = input;
-  const definition = kinds[request.entry.reference.kind];
+  const definition = (context.registry ?? kinds)[request.entry.reference.kind];
   if (prior === undefined || definition.merge === "single-writer" || base.kind !== "stored" || prior.version === base.version) {
     return { status: "ok", result: input.content };
   }

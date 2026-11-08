@@ -56,7 +56,7 @@ const PersistedSchema = z.strictObject({
 const InProgressSchema = z.strictObject({ replaces: StoredVersionSchema, copy: z.string().min(1).nullable() });
 
 /** The marker origins and notice references belonging to one rendered file's bytes. */
-const FileRenderingSchema = z.strictObject({ markers: MarkersSchema.nullable(), notices: z.array(RecordReferenceSchema) });
+export const FileRenderingSchema = z.strictObject({ markers: MarkersSchema.nullable(), notices: z.array(RecordReferenceSchema) });
 
 /** One aside copy a swap made of the file, while it stays in the aside folder. */
 const AsideCopyRecordSchema = z.strictObject({
@@ -69,7 +69,7 @@ const AsideCopyRecordSchema = z.strictObject({
 });
 
 /** A file bound to a record, including adoption before its first rendering; null `stat` records absence. */
-const RecordEntrySchema = z.strictObject({
+export const RecordEntrySchema = z.strictObject({
   kind: z.literal("record"),
   reference: RecordReferenceSchema,
   stat: FileStatSchema.nullable(),

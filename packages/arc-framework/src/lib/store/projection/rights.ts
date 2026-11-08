@@ -1,6 +1,8 @@
 /** Record-based edit rights shared by persistence, protection, and adoption. */
 import { SlugSchema, WorkUnitStateSchema, type Slug } from "../../kernel/index.js";
 import type { Store } from "../contract.js";
+import type { ProjectionAdmission } from "../projection-admission.js";
+import { readFrozenProjectionClaim } from "./claim-evidence.js";
 import { recordReferences, sameOwner, type RecordReference } from "../identity.js";
 import type { Remedy, StoreResult } from "../refusal.js";
 import { ParsedMetaRecordSchema, type ParsedMetaRecord } from "../../active/meta-schema.js";
@@ -16,6 +18,7 @@ export interface ProjectionEditRightsInput {
   readonly reference: RecordReference;
   readonly identity: Slug;
   readonly checkout: string;
+  readonly local?: ProjectionAdmission["local"];
 }
 
 /** Authorization facts kept separate from the notice or refusal that presents them. */
@@ -81,6 +84,9 @@ function malformedRights(reference: RecordReference, condition: string): StoreRe
 }
 
 async function checkoutRights(input: ProjectionEditRightsInput, owner: Slug): Promise<StoreResult<ProjectionEditRights>> {
+  if (input.local !== undefined) {
+    return frozenCheckoutRights(input, owner, input.local);
+  }
   const warnings: string[] = [];
   const claim = await readClaimedCurrentWorkUnit({ cwd: input.checkout, store: input.store }, warnings);
   if (claim.kind === "absent" && claim.cause !== undefined) {
@@ -97,6 +103,14 @@ async function checkoutRights(input: ProjectionEditRightsInput, owner: Slug): Pr
     text: "Inspect and repair the named checkout ownership evidence, then retry.",
   });
   return claim.kind === "present" && sameOwner(claim.record.reference.owner, input.reference.owner)
+    ? { status: "ok", result: { kind: "editable" } } : protectedRights(input, "checkout", owner);
+}
+
+async function frozenCheckoutRights(input: ProjectionEditRightsInput, owner: Slug,
+  local: NonNullable<ProjectionEditRightsInput["local"]>): Promise<StoreResult<ProjectionEditRights>> {
+  const claim = await readFrozenProjectionClaim(input.store, local);
+  if (claim.status === "refused") return claim;
+  return claim.result?.reference.kind === "work-item/meta" && sameOwner(claim.result.reference.owner, input.reference.owner)
     ? { status: "ok", result: { kind: "editable" } } : protectedRights(input, "checkout", owner);
 }
 

@@ -32,7 +32,7 @@ it.each([false, true])("preserves a newer revert after refused read-back with pr
   const refusal: StoreRefusal = { code: "state-unresolvable", class: "recoverable", reference: entry.reference,
     historyRefs: [], condition: "Read-back unavailable.", remedy: { text: "Repair the read and retry." } };
   const store = overrideEngineStore(h.store, {
-    write: async input => { const result = await h.store.write(input); unavailable = true; return result; },
+    batch: async input => { const result = await h.store.batch(input); unavailable = true; return result; },
     read: input => unavailable ? Promise.resolve({ status: "refused", refusal }) : h.store.read(input),
   });
   const context = { ...h.context, store, memo: createHistoryMemo(store) };
@@ -63,12 +63,13 @@ it.each(["immediate", "history", "read-back"])("uses the accepted entry version 
   const refusal: StoreRefusal = { code: "state-unresolvable", class: "recoverable", reference: h.entry.reference,
     historyRefs: [], condition: "Accepted history unavailable.", remedy: { text: "Restore history and retry." } };
   const store = overrideEngineStore(h.store, {
-    write: async input => {
+    batch: async input => {
       writes++;
-      const result = await h.store.write(input);
-      if (result.status === "ok" && result.result.version !== undefined && writes === 1) {
+      const result = await h.store.batch(input);
+      const accepted = result.status === "ok" ? result.result.writes[0] : undefined;
+      if (accepted?.version !== undefined && writes === 1) {
         landed = success(await h.store.read({ reference: h.entry.reference })).content;
-        success(await h.store.write({ action: "put", reference: h.entry.reference, expected: result.result.version,
+        success(await h.store.write({ action: "put", reference: h.entry.reference, expected: accepted.version,
           content: base, provenance: { verb: "edit", lifecycleAction: "edit" } }));
       }
       return result;
@@ -108,7 +109,7 @@ it("keeps a missing ordinary retained copy pending without a second write, then 
   const refusal: StoreRefusal = { code: "state-unresolvable", class: "recoverable", reference: h.entry.reference,
     historyRefs: [], condition: "Read-back unavailable.", remedy: { text: "Repair the read." } };
   const store = overrideEngineStore(h.store, {
-    write: async input => { const result = await h.store.write(input); unavailable = true; return result; },
+    batch: async input => { const result = await h.store.batch(input); unavailable = true; return result; },
     read: input => unavailable ? Promise.resolve({ status: "refused", refusal }) : h.store.read(input),
   });
   const first = await writeBackFile({ ...h.context, store }, h.index, h.request);
@@ -146,7 +147,7 @@ it("finishes an aside input mapping without installing its read as the live-file
   const refusal: StoreRefusal = { code: "state-unresolvable", class: "recoverable", reference: h.entry.reference,
     historyRefs: [], condition: "Aside read-back unavailable.", remedy: { text: "Repair the read." } };
   const store = overrideEngineStore(h.store, {
-    write: async input => { const result = await h.store.write(input); unavailable = true; return result; },
+    batch: async input => { const result = await h.store.batch(input); unavailable = true; return result; },
     read: input => unavailable ? Promise.resolve({ status: "refused", refusal }) : h.store.read(input),
   });
   const request = { ...h.request, copy, rendering: { markers: null, notices: [] } };

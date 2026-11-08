@@ -1,4 +1,5 @@
 /** Identify editor/system side files and legacy derived views before discovery inspects them. */
+import { MACHINE_LOCAL_PATHS } from "../registry.js";
 import { resolveArcPath } from "../../layout/index.js";
 import { IDENTITY_STATUS_FILENAME } from "../../user-surfaces.js";
 
@@ -12,4 +13,19 @@ export function isExcludedProjectionFile(path: string): boolean {
   if (FOLDER_SIDE_FILES.has(name) || name.startsWith("._") || EDITOR_SIDE_FILE.test(name)) return true;
   return path === ROADMAP_PATH || parts.length === 4 && parts[0] === ".arc" && parts[1] === "user"
     && name === IDENTITY_STATUS_FILENAME;
+}
+
+
+/** Whether a managed path is excluded from projection discovery and content admission. */
+export function isExcludedProjectionPath(path: string): boolean {
+  if (isExcludedProjectionFile(path)) return true;
+  const segments = path.split("/");
+  return MACHINE_LOCAL_PATHS.some(rule => {
+    const prefix = rule.root === "user" ? [".arc", "user"] : rule.root === "checkout" ? [] : null;
+    if (prefix === null) return false;
+    const pattern = [...prefix, ...rule.pattern.replace(/\/\*\*$/u, "").split("/")];
+    return segments.length >= pattern.length && pattern.every((part, index) => (
+      part === "*" || part === "<identity>" || part === segments[index]
+    ));
+  });
 }

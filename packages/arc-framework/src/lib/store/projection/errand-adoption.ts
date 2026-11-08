@@ -3,14 +3,14 @@ import { resolveArcPath, type ArcLayoutAddress } from "../../layout/index.js";
 import { ErrandReadPlacementSchema } from "../placement.js";
 import type { StoreRecord } from "../read.js";
 import type { AdoptionReference } from "./adoption-target.js";
-import type { ProjectionRootState } from "./process-state.js";
+import type { ProjectionSelectionContext } from "./selection-context.js";
 import { readArchivedOwners } from "./archived-owners.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 
 type ErrandAddress = Extract<ArcLayoutAddress, { kind: "errand-description" }>;
 
 /** Completed Errands select by quarter and slug; active descriptions retain their projected location. */
-export async function resolveErrandAdoption(root: ProjectionRootState, path: string, address: ErrandAddress): Promise<AdoptionReference> {
+export async function resolveErrandAdoption(root: ProjectionSelectionContext, path: string, address: ErrandAddress): Promise<AdoptionReference> {
   if (address.placement.kind === "completed") {
     const listed = await readArchivedOwners(root.store, "work-item/record");
     if (listed.kind === "refused") return listed;

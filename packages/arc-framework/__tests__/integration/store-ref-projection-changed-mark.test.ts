@@ -51,7 +51,7 @@ async function changed(location: Parameters<typeof readProjectionIndex>[0], path
 }
 
 async function interruptedUnstamped(advance = true) {
-  const h = await createWriteBackFixture({ kind: "work-item/companion", path: ".arc/active/diagram.txt" });
+  const h = await createWriteBackFixture({ kind: "work-item/companion", path: ".arc/active/current/diagram.txt" });
   onTestFinished(h.dispose);
   const original = success(await h.store.read({ reference: h.entry.reference })).content;
   const stored = advance ? `${original}A stored footer.\n` : original;
@@ -274,7 +274,7 @@ it("does not mark a refresh that only installs another writer's content", async 
 });
 
 it("does not manufacture a changed mark when retrying an unchanged file left pending by an interrupted swap", async () => {
-  const h = await createWriteBackFixture({ path: ".arc/user/andrew/document.md", identity: "andrew" });
+  const h = await createWriteBackFixture({ path: ".arc/user/andrew/scratch/document.md", identity: "andrew" });
   onTestFinished(h.dispose);
   await initializeEngineCheckout(h.checkout);
   const original = await h.file();

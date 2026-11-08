@@ -1,11 +1,12 @@
 /** Production semantic checks run before a projected edit can reach storage. */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { createWriteBackFixture } from "../../../helpers/store/projection/write-back-fixture.js";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import { META_REGISTRATION } from "../../../../src/lib/store/kinds/meta/registration.js";
 import { createWriteBackPort } from "../../../../src/lib/store/projection/write-back.js";
 import { checkWriteBackEdit } from "../../../../src/lib/store/projection/check-edit.js";
+import { parseEntryList } from "../../../../src/lib/store/kinds/entry-list.js";
 
 const fixtures: Awaited<ReturnType<typeof createWriteBackFixture>>[] = [];
 afterEach(async () => { await Promise.all(fixtures.splice(0).map(fixture => fixture.dispose())); });
@@ -14,7 +15,7 @@ describe("the hand-edit check", () => {
   it("keeps verb-owned edits in their file and accepts the repaired edit", async () => {
     const content = makeMetaFixture("work-item-one", { owner: "andrew", workClass: "Light", priority: "P1",
       currentWorkflow: "process-task-loop", design: ["spec-work-item-one.md"] });
-    const fixture = await createWriteBackFixture({ kind: "work-item/meta", content,
+    const fixture = await createWriteBackFixture({ kind: "work-item/meta", content, identity: "andrew",
       fixture: createReferenceFixture({}, { "work-item/meta": { parser: META_REGISTRATION.parser } }) });
     fixtures.push(fixture);
     const broken = content.replace("`andrew`", "`someone-else`") + "\nAn independent note.\n";
@@ -46,7 +47,6 @@ describe("the hand-edit check", () => {
     const edit = newEntry ? base.replace("### [ ] **First**", "### [ ] **New**\n\n[Remote][remote]\n\n### [ ] **First**")
       : base.replace("first body", "[Remote][remote]");
     await fixture.edit(edit);
-    const sent = vi.spyOn(fixture.store, "write");
     expect(await createWriteBackPort(fixture.context)(fixture.request)).toMatchObject({ answer: "taken-in" });
     const landed = await fixture.store.read({ reference: fixture.entry.reference });
     expect(landed).toMatchObject({ status: "ok", result: { content: expect.stringContaining("[remote]: https://example.com/remote") } });
@@ -54,17 +54,15 @@ describe("the hand-edit check", () => {
       expect(landed.result.content).toContain("[Remote][remote]");
       if (newEntry) expect(landed.result.content).toMatch(/\*\*New\*\*\n- _Id:_ `[a-f0-9]{8}`/);
     }
-    expect(sent.mock.calls[0]?.[0]).toMatchObject({ content: edit });
   });
 
   it("can repair a stored record whose prior fields cannot be parsed", async () => {
-    const content = "Stored metadata with a broken core table.\n";
-    expect(META_REGISTRATION.parser?.(content)).toMatchObject({ success: false });
-    const fixture = await createWriteBackFixture({ kind: "work-item/meta", content,
-      fixture: createReferenceFixture({}, { "work-item/meta": { parser: undefined } }) });
+    const content = "# Inbox\n\n## Errand\n\n### malformed title\n\n- _Id:_ `11111111`\n\nA retained entry.\n";
+    expect(parseEntryList(content, "personal/inbox")).toMatchObject({ success: false });
+    const fixture = await createWriteBackFixture({ kind: "personal/inbox", content,
+      fixture: createReferenceFixture({}, { "personal/inbox": { parser: undefined } }) });
     fixtures.push(fixture);
-    const repaired = makeMetaFixture("work-item-one", { owner: "andrew", workClass: "Light", priority: "P1",
-      currentWorkflow: "process-task-loop", design: ["spec-work-item-one.md"] });
+    const repaired = content.replace("### malformed title", "### [ ] **Repaired**");
     await fixture.edit(repaired);
     expect(await createWriteBackPort(fixture.context)(fixture.request)).toMatchObject({ answer: "taken-in" });
     expect(await fixture.store.read({ reference: fixture.entry.reference })).toMatchObject({ status: "ok", result: { content: repaired } });

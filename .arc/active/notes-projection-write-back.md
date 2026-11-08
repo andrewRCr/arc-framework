@@ -10,6 +10,7 @@
 - [Grounding against `storage-ref-hardening`](#grounding-against-storage-ref-hardening)
 - [A1 — Explicit folder ownership](#a1--explicit-folder-ownership)
 - [A3 — Explicit parser exceptions](#a3--explicit-parser-exceptions)
+- [A7 — Fence prepared projection writes](#a7--fence-prepared-projection-writes)
 
 ## Spike evidence
 
@@ -353,3 +354,86 @@ its ambiguity rules and the later unmatchable-edit residual; no new identity inf
 
 This is a review-site amendment: the approved review-fix increment carries the spec, criterion and implementation,
 with full verification closing the detour. No completed task goal or shipped specification is rewritten.
+
+## A7 — Fence prepared projection writes
+
+The superseded § 7.2 premise was: "`observations` — none, `observations: []`: a hand edit is one record's write and
+reads no other record a verb would observe". Its independent one-record `write` and adoption's `expected: null`
+submission omitted a fence for decisions about other records and arriving selection candidates. The replacement
+contract, request fields, local boundary, evidence rules and perturbation inventory are all in § 7.2 of the spec.
+
+At `afc83d00b1`, `prepareWriteBack` and `adoptProjectionFile` finish preparation before their Store writes.
+`readProjectionEditRights` reads the primary's Owner/lifecycle and, for active metadata/tasks, the checkout claim.
+A native prepare/submit probe on both layouts legally hands ownership to another identity between preparation and
+an adopted companion put; fresh rights are protected, yet the original put lands. Unrelated-write controls admit,
+and a new command refuses until ownership is restored. This is a diagnostic of the old behavior, not verification
+of the amendment. The complete read-family audit also includes history, conflicts and every adoption selector.
+
+`BatchInputSchema` currently carries writes, provenance and exact record observations. `WriteCheckInput` has no
+local selector or editing-identity context. `resolveErrandAdoption` selects a completed description by quarter,
+slug and projected path over `readArchivedOwners`; two exact UIDs can match that address without changing the first
+record. `checkRecordObservations` cannot observe the not-yet-known UID. A second pre-send check only moves the gap.
+The new typed data request therefore exposes admission context explicitly rather than hiding a callback in a kind
+registry. The backend identity port binds the editing identity independently of the asserted request value.
+
+The design composes deterministic preparation, exact record observations and the existing serialized admission.
+A Store-wide version fence or whole-list comparison would invalidate unrelated writes; a generic query predicate
+language would add scope. Replaying only rights would leave base/history, resolution and arrival decisions outside
+the contract. Replaying the complete store-dependent planner retains existing algorithms and moves their reads to
+one fresh `before`, with frozen local inputs and no backend filesystem access. The data capsule is ephemeral batch
+input, not another persisted record, receipt log or transport protocol.
+
+### Review-fix work and order
+
+This is a review-site amendment. Its correction is one review-fix increment; no completed task reopens and no new
+executable parent changes the Candidate's lifecycle cursor. The implementation sequence is:
+
+1. Extract the closed local-input schemas and shared store-dependent planner. Audit all preparation readers and
+   selectors against the spec's family table; retain local capture, minting and A6 completion outside the planner.
+2. Extend the shared batch schema, typed projection-admission conflict cause and explicit tracked-backend
+   unsupported case. Wire identity/binding validation and replay into reference atomic admission and native
+   publication, passing the request through every retry.
+3. Convert every ordinary, aside, explicit-resolution, post-mint and adoption content send to the one-mutation
+   batch. Carry exact observations and the ready receipt; re-observe local selector inputs and retain the existing
+   single-write acceptance, recording, reporting and guarded-install continuations. Dispatch the typed admission
+   conflict before base-recovery side effects; preserve genuine missing-base recovery.
+4. Add reference/native conformance and actual engine prepare/submit perturbations for every family, arrival and
+   change, refusal/repair, native internal retry and unused-row controls. Pair a readable-base admission conflict
+   with genuine missing-base recovery, including no same-command resend and later fresh success. Run both types,
+   affected integration/E2E files and the full merge gate; retain hosted qualification at the converged head.
+
+The author checks and separate independent amendment-review choice precede implementation. The later repair fix
+check is a different review decision. Full Pass 4 remains approved and unconsumed while the amendment is open.
+
+### Admission conflict and base recovery
+
+The first written A7 design returned an undifferentiated `version-conflict` and required a later-command retry.
+Retained § 7.8 interpreted that same code on a merge kind as a missing base and required immediate base recovery.
+`decideWriteBackRefusal` currently dispatches only on code/kind/allowance; `sendWriteBack` immediately retries with
+`recoveringBase`, which `selectWriteBackBase` uses before ordinary persisted/stamped-base selection. The explicit
+cause in § 7.2 and § 7.8 separates those continuations; criteria 15 and 16 cover admission and recovery together.
+
+`LocalRefusalSchema` is strict, so the optional cause is part of the shared contract rather than parsed condition
+text. Generic `checkRecordObservations` callers stay unchanged; projection admission marks only its own observation
+and replay mismatches. Genuine unavailable-base reads retain their native refusal and existing bounded recovery.
+The field adds no stored state or retry machinery, and preserves `version-conflict` as the correct failure category.
+
+### Implementation verification
+
+`planProjectionWrite` repeats captured selection, rights and preparation through one read-only view, while
+`checkProjectionAdmission` binds the editing identity, mutation, accepted-input receipt and exact observations inside
+the reference queue and each native publication attempt. `matchesIndexedProjectionAddress` validates kind/key/path
+consistency without rebinding an indexed UID by its public name. Ordinary, aside, resolution, post-mint and adoption
+sends use `submitProjectionBatch`; the tracked backend rejects the request explicitly.
+
+The admission matrix covers Owner/lifecycle/claim changes, subject and conflict-only movement, semantic Parent and
+lookup dependencies, project binding, consumed history, explicit resolution, local selector recapture and native retry.
+The direct container witness adds a newly qualifying nested owner around an exact indexed former container; unused
+owners remain admissible. Address probes reject changed kinds, keys and unmapped paths, then admit their repairs and
+both ordinary and aside renames, including an updated checkout claim. Existing cohort files attach before indexed
+preparation, so exact archived cohort binding remains authoritative rather than being reselected by public name.
+
+Tests now use the projected addresses they exercise: personal documents under `scratch/`, eligible work-item notes for
+selection, numbered completed work-item folders and real claims for current cohort copies. Stampless protection uses a
+companion under another editing identity; Markdown metadata retains the owning-checkout tests. Send interceptors retain
+the full prepared batch, and fixture Git/backend identities agree. No production admission rule is relaxed for a fixture.

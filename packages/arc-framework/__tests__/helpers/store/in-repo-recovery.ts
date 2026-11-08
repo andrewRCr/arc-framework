@@ -6,6 +6,7 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 import { createReferenceFixture } from "./reference-fixture.js";
 import { seed, success, testProvenance, update, mutationOf } from "./suite-tools.js";
 import type { ConformanceFixture, RecoveryCaseId, RecoveryOperation } from "./fixture-contract.js";
+import { newPersonalAdmission } from "./projection/admission-request.js";
 import { produceRemoteRecovery } from "./in-repo-remote-recovery.js";
 type Repairs = Map<string, () => Promise<void>>;
 
@@ -114,6 +115,17 @@ async function crossSubstrate(fixture: ConformanceFixture, repairs: Repairs, cas
 async function selectCapableBackend(fixture: ConformanceFixture, repairs: Repairs, caseId: RecoveryCaseId): Promise<RecoveryOperation> {
   const capable = createReferenceFixture();
   let switched = false;
+  if (caseId === "unsupported:projection-admission") {
+    repairs.set(caseId, async () => { switched = true; });
+    return { run: () => {
+      const selected = switched ? capable : fixture;
+      const reference = selected.reference("personal/working-memory");
+      const content = selected.content(reference);
+      return selected.store.batch({ writes: [{ action: "put", reference, expected: null, content }],
+        provenance: { verb: "write-back", lifecycleAction: "edit" }, observations: [{ reference, expected: null }],
+        projectionAdmission: newPersonalAdmission(reference, content, reference.owner.name) });
+    } };
+  }
   if (caseId === "unsupported:batch-observations") {
     repairs.set(caseId, async () => { switched = true; });
     return { run: () => {

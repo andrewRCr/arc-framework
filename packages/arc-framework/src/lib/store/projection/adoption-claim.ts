@@ -4,17 +4,22 @@ import { CheckoutClaimSchema, type CheckoutClaim } from "../lookup.js";
 import { workUnitCheckoutClaim } from "../work-unit-claim.js";
 import { nativeRefusalReport } from "../native-refusal.js";
 import type { StoreRecord } from "../read.js";
-import type { ProjectionRootState } from "./process-state.js";
+import type { ProjectionSelectionContext } from "./selection-context.js";
+import { readFrozenProjectionClaim } from "./claim-evidence.js";
 import type { RefusedMark } from "./index-schema.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 
 type ClaimOwner = { kind: "owned"; record: StoreRecord } | { kind: "refused"; mark: RefusedMark };
-type ClaimInput = Pick<ProjectionRootState, "checkout" | "store" | "claim"> & {
-  readonly context: Pick<ProjectionRootState["context"], "verb">;
+type ClaimInput = Pick<ProjectionSelectionContext, "checkout" | "store" | "claim" | "local"> & {
+  readonly context: Pick<ProjectionSelectionContext["context"], "verb">;
 };
 
 /** Resolve the generation represented by the same physical claim used to classify the file. */
-export async function readAdoptionClaim(root: ClaimInput): Promise<ClaimOwner> {
+export function readAdoptionClaim(root: ClaimInput): Promise<ClaimOwner> {
+  return root.local === undefined ? readLiveClaim(root) : readCapturedClaim(root, root.local);
+}
+
+async function readLiveClaim(root: ClaimInput): Promise<ClaimOwner> {
   try {
     const marker = await readWorktreeMarker(root.checkout);
     if (marker.kind !== "present") return missingClaim(marker.kind === "malformed" ? marker.message : undefined);
@@ -33,6 +38,12 @@ export async function readAdoptionClaim(root: ClaimInput): Promise<ClaimOwner> {
     return native?.refusal === undefined ? missingClaim(error instanceof Error ? error.message : String(error))
       : { kind: "refused", mark: markStoreRefusal(native.refusal, root.context.verb) };
   }
+}
+
+async function readCapturedClaim(root: ClaimInput, local: NonNullable<ClaimInput["local"]>): Promise<ClaimOwner> {
+  const read = await readFrozenProjectionClaim(root.store, local);
+  if (read.status === "refused") return { kind: "refused", mark: markStoreRefusal(read.refusal, root.context.verb) };
+  return read.result === null ? missingClaim() : { kind: "owned", record: read.result };
 }
 
 async function readClaimOwner(root: ClaimInput, claim: CheckoutClaim, kind: "work-item/meta" | "work-item/record"): Promise<ClaimOwner> {

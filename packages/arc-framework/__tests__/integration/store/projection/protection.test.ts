@@ -26,12 +26,16 @@ import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { success } from "../../../helpers/store/suite-tools.js";
 import { createClashDouble } from "../../../helpers/store/clash-double.js";
+import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { readCheckoutLayoutContext } from "../../../../src/lib/store/checkout-layout.js";
+import { captureProjectionLocal } from "../../../../src/lib/store/projection/local-capture.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
 async function fixture(extension = "md", paused = false) {
   const h = createLifecycleHarness();
+  h.store.environment.identity = "alice";
   let record = await h.seedMeta("subject", { owner: "alice" });
   if (paused) {
     const write = success(await h.store.write({ action: "put", reference: record.reference, expected: record.version, placement: { kind: "active" },
@@ -40,30 +44,41 @@ async function fixture(extension = "md", paused = false) {
       provenance: { verb: "pause", lifecycleAction: "pause" } }));
     record = success(await h.store.read({ reference: write.reference }));
   }
-  const path = `.arc/active/in-flight/subject/meta-subject.${extension}`;
-  const view = await seedProjection({ store: h.store, identity: SlugSchema.parse("alice"), files: [{ reference: record.reference, path }] });
+  const primary = record;
+  const identity = SlugSchema.parse(extension === "txt" ? "bob" : "alice");
+  if (extension === "txt") record = await h.seed(recordReferences["work-item/companion"](primary.reference.owner, "protection.txt"), primary.content);
+  h.store.environment.identity = identity;
+  const path = `.arc/active/in-flight/subject/${extension === "txt" ? "protection.txt" : "meta-subject.md"}`;
+  const view = await seedProjection({ store: h.store, identity, files: [{ reference: record.reference, path }] });
   directories.push(view.checkout);
   const exec = await configureEngineCheckout(view.checkout);
-  await exec("git", ["config", "arc.identity", "alice"], { cwd: view.checkout });
+  await exec("git", ["config", "arc.identity", identity], { cwd: view.checkout });
   await exec("git", ["commit", "--allow-empty", "-m", "Seed protection fixture"], { cwd: view.checkout });
   const holder = join(view.checkout, ".holders", "subject");
   await exec("git", ["worktree", "add", "-b", "feat/subject", holder], { cwd: view.checkout });
   await writeWorktreeMarker(holder, { spawnedByArc: false, spawningIdentity: "alice",
-    createdAt: "2026-10-24T00:00:00Z", createdFor: boundWorkUnitSubject(record) });
+    createdAt: "2026-10-24T00:00:00Z", createdFor: boundWorkUnitSubject(primary) });
   const roster = await scanRegisteredWorktrees((command, args, options) => exec(command, args, { cwd: view.checkout, ...options }));
   if (!roster.ok) throw new Error(`The fixture's native roster failed: ${roster.message}`);
   let nativeHolder: string | undefined;
   for (const row of roster.worktrees) if (await localPathsEqual(row.path, holder)) { nativeHolder = row.path; break; }
   if (nativeHolder === undefined) throw new Error(`The native roster omitted ${holder}; listed ${roster.worktrees.map(row => row.path).join(", ")}`);
   const writer = { pid: process.pid, processScope: "protection-fixture", processInstance: "protection-fixture" };
-  const context = { store: h.store, location: view.location, format: "sha1" as const, actor: "alice@fixture", writer,
-    protection: createProjectionProtection({ store: h.store, checkout: view.checkout, identity: SlugSchema.parse("alice"), exec }) };
+  const context = { store: h.store, location: view.location, format: "sha1" as const, actor: `${identity}@fixture`, writer,
+    captureLocal: async (path: string, source: "file" | "aside") => {
+      const layout = await readCheckoutLayoutContext(view.checkout, { fresh: true });
+      return captureProjectionLocal({ checkout: view.checkout, path, source, location: view.location,
+        settings: { ...view.index.projectedUnder, claim: layout.claim, layoutActive: layout.layoutActive } });
+    },
+    protection: createProjectionProtection({ store: h.store, checkout: view.checkout, identity, exec }) };
   return { ...h, ...view, record, path, holder: nativeHolder, context, exec,
     file: () => readFile(join(view.checkout, path), "utf8") };
 }
 
 async function refresh(h: Awaited<ReturnType<typeof fixture>>) {
-  const entry = h.index.entries[h.path];
+  const disk = await readProjectionIndex(h.location, true);
+  if (disk.kind !== "index") throw new Error("The current projection index is missing");
+  const entry = disk.index.entries[h.path];
   if (entry?.kind !== "record") throw new Error("The seeded entry is missing");
   const renderer = createRecordRenderer(h.context);
   const staged = success(await stageRecordFile({ ...h.context, checkout: h.checkout, path: h.path, record: h.record,
@@ -71,10 +86,12 @@ async function refresh(h: Awaited<ReturnType<typeof fixture>>) {
   const takeIn = createWriteBackPort(h.context);
   const replace = await guardReplacement({ ...h.context, checkout: h.checkout, path: h.path, entry, staged, renderer, takeIn, reference: null });
   if (replace.kind !== "replace") throw new Error("The protection refresh was not admitted");
-  return swapBatch({ ...h.context, checkout: h.checkout, index: h.index, files: [{ path: h.path, replace }], readBack: false, takeIn });
+  return swapBatch({ ...h.context, checkout: h.checkout, index: disk.index, files: [{ path: h.path, replace }], readBack: false, takeIn });
 }
 
 async function saveInHolder(h: Awaited<ReturnType<typeof fixture>>, bytes: string) {
+  h.store.environment.identity = "alice";
+  await h.exec("git", ["config", "arc.identity", "alice"], { cwd: h.holder });
   await seedProjection({ store: h.store, identity: SlugSchema.parse("alice"), checkout: h.holder,
     files: [{ reference: h.record.reference, path: h.path }] });
   await writeFile(join(h.holder, ".gitignore"), ".arc/user/*/\n");
@@ -228,7 +245,7 @@ it("names a present holder for another identity and otherwise names the person o
   expect(mark?.remedy.text).not.toContain("arc materialize");
 });
 
-it("protects a stampless file by mode and live persist refusal without adding a notice", async () => {
+it("protects a stampless companion by owner identity and accepts the edit under its owner", async () => {
   const h = await fixture("txt");
   const installed = await refresh(h);
   expect((await lstat(join(h.checkout, h.path))).mode & 0o222).toBe(0);
@@ -241,7 +258,7 @@ it("protects a stampless file by mode and live persist refusal without adding a 
   expect(success(await h.store.read({ reference: h.record.reference })).content).toBe(h.record.content);
   expect(await h.file()).toBe(content);
   expect(projectionProcessState().diagnostics).toEqual(expect.arrayContaining([
-    expect.objectContaining({ path: h.path, mark: expect.objectContaining({ remedy: { text: expect.stringContaining(h.holder) } }) }),
+    expect.objectContaining({ path: h.path, mark: expect.objectContaining({ reason: expect.stringContaining("alice") }) }),
   ]));
   await saveInHolder(h, content);
   expect(success(await h.store.read({ reference: h.record.reference })).content).toBe(content);

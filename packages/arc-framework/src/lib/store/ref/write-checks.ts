@@ -10,17 +10,19 @@ import type { PreparedRefMutation } from "./write-merge.js";
 import type { RefWriteGroup } from "./write-commits.js";
 import { readBatchObjects, type BatchObject } from "./batch-read.js";
 import { createRefWriteViews } from "./write-views.js";
+import { checkProjectionAdmission, projectionObservationRefusal } from "../projection/admission-check.js";
 import { checkRefObservations } from "./write-observations.js";
 import { refObjectFault } from "./object-fault.js";
 import { missingHistoryRefs } from "./missing-history.js";
+import type { WriteCheckInput } from "../write-check.js";
 
 /** Check every caller mutation in order, retaining the original and final bytes. */
 export async function checkRefWrites(context: RefBackendContext, writes: readonly PreparedRefMutation[],
   groups: ReadonlyMap<string, RefWriteGroup>, tips: ReadonlyMap<string, string>, provenance: BatchInput["provenance"],
-  proposedCreatedOwners: readonly CreatedOwner[], observations: readonly RecordObservation[] = []): Promise<StoreRefusal | undefined> {
+  proposedCreatedOwners: readonly CreatedOwner[], observations: readonly RecordObservation[] = [], projectionInput?: BatchInput): Promise<StoreRefusal | undefined> {
   const { before, after } = createRefWriteViews(context, tips, groups);
-  const observed = await checkRefObservations(context, before, observations);
-  if (observed) return observed;
+  const admission = await checkPreparedAdmission(context, before, observations, projectionInput);
+  if (admission) return admission;
   const units = checkUnits(writes).filter(({ reference }) => context.registry[reference.kind].check !== null);
   if (units.length === 0) return undefined;
   const queries = units.flatMap(({ ref, priorPath, nextPath }) => [priorPath ? groups.get(ref)?.original.get(priorPath)?.oid : undefined,
@@ -42,6 +44,13 @@ export async function checkRefWrites(context: RefBackendContext, writes: readonl
       ...(next ? { next: { content: next.content, fields: next.fields } } : {}) }) });
   }
   return composeWriteCheckRefusal(results);
+}
+
+async function checkPreparedAdmission(context: RefBackendContext, before: WriteCheckInput["before"],
+  observations: readonly RecordObservation[], input?: BatchInput): Promise<StoreRefusal | undefined> {
+  const observed = await checkRefObservations(context, before, observations);
+  if (observed) return projectionObservationRefusal(input, observed);
+  return input ? checkProjectionAdmission(before, input, context.registry, await context.identity()) : undefined;
 }
 
 async function checkRecord(context: RefBackendContext, { reference, ref, oid }: { reference: RecordReference; ref: string; oid: string | undefined },

@@ -9,6 +9,8 @@ import type { AsideWriterInput } from "./aside.js";
 import type { ProjectionLockDependencies } from "./lock.js";
 import type { ProjectionWalkFs } from "./engine-walk.js";
 import type { SwapHooks } from "./swap.js";
+import type { KindDefinition } from "../registry.js";
+import type { KindId } from "../catalog.js";
 
 /** Git, filesystem, process identity, and optional fault injection for a command's engine. */
 export interface ProjectionEnginePorts {
@@ -21,6 +23,7 @@ export interface ProjectionEnginePorts {
   readonly lock?: Partial<ProjectionLockDependencies>;
   readonly maxWaitMs?: number;
   readonly hooks?: SwapHooks;
+  readonly registry?: Readonly<Record<KindId, KindDefinition>>;
 }
 
 /** Bind the native engine without performing I/O; callers resolve it after the capability gate. */

@@ -39,8 +39,8 @@ async function status(h: Awaited<ReturnType<typeof createEngineFixture>>): Promi
 }
 
 it("shows a refused edit and a withheld file, then removes the refusal after a repaired save", async () => {
-  const withheld = ".arc/active/withheld.md";
-  const h = await createEngineFixture(directories, { kind: "work-item/task-list", path: ".arc/active/tasks-example.md",
+  const withheld = ".arc/user/andrew/scratch/withheld.md";
+  const h = await createEngineFixture(directories, { kind: "work-item/task-list", path: ".arc/active/current/tasks-work-item-one.md",
     content: TASK_RULE_CONTENT, extraPaths: [withheld],
     registryOverrides: { "work-item/task-list": createKindRegistry(PRODUCTION_REGISTRATIONS)["work-item/task-list"] } });
   const entry = h.index.entries[withheld];

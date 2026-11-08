@@ -40,7 +40,7 @@ vi.mock("../../src/lib/store/projection/engine-ports.js", async importOriginal =
 });
 
 async function fixture() {
-  const directories: string[] = [], h = await createEngineFixture(directories);
+  const directories: string[] = [], h = await createEngineFixture(directories, { kind: "work-item/notes" });
   onTestFinished(async () => { binding.ports = null; await removeGitBackedDirs(directories); });
   return h;
 }
@@ -130,8 +130,8 @@ it("refuses a lost lease and lists the accepted edit on retry", async () => {
   const h = await fixture();
   await h.edit("Accepted before lease loss.\n");
   let now = Date.now(), replacement: AdvisoryLockHandle | undefined;
-  const store = overrideEngineStore(h.store, { write: async input => {
-    const result = await h.store.write(input);
+  const store = overrideEngineStore(h.store, { batch: async input => {
+    const result = await h.store.batch(input);
     now = Date.now() + ADVISORY_LEASE_DURATION_MS + 1000;
     replacement = await acquireAdvisoryLock(join(h.location.stateDir, PROJECTION_LOCK_FILE), {
       pid: process.pid, processInstance: "replacement", processScope: "replacement-scope", now: () => now,

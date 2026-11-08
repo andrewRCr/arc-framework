@@ -112,7 +112,9 @@ it("refuses the skip switch without sending edits and saves normally once the sw
 });
 
 it("saves a completed-file edit and returns the version after that write", async () => {
-  const h = await createEngineFixture(directories, { path: ".arc/completed/2026-q4/document.md" });
+  const h = await createEngineFixture(directories, { kind: "work-item/notes",
+      path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
   await h.edit("completed edit\n");
   const saved = await save(h);
   expect(saved.result).toMatchObject({ status: "ok", result: { version: success(await h.store.version()) } });
@@ -123,6 +125,7 @@ it("saves a completed-file edit and returns the version after that write", async
 
 async function archivedView(artifact: "meta" | "tasks" | "companion" = "meta", identity = "andrew") {
   const h = createLifecycleHarness();
+  h.store.environment.identity = identity;
   const primary = await h.seedMeta("corrected", { owner: "andrew", state: "Shipped", currentWorkflow: null },
     { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
   const record = artifact === "meta" ? primary : artifact === "tasks"
@@ -221,9 +224,9 @@ it("memoizes the retried historical base of an archived correction and merges it
   const bytes = await h.file();
   const missing = lackingEndedHistory(h.store, h.record.reference.owner);
   let blocked = true;
-  const store = overrideEngineStore(missing, { write: input => blocked ? Promise.resolve({ status: "refused",
+  const store = overrideEngineStore(missing, { batch: input => blocked ? Promise.resolve({ status: "refused",
     refusal: { code: "lock-held", class: "recoverable", lock: "archive", condition: "The archive writer is held.",
-      remedy: { text: "Release the archive writer, then retry arc save.", argv: ["arc", "save"] } } }) : missing.write(input) });
+      remedy: { text: "Release the archive writer, then retry arc save.", argv: ["arc", "save"] } } }) : missing.batch(input) });
   const refused = await save({ store, checkout: h.checkout });
   expect(refused.errors).toContain("The archive writer is held.");
   expect((await h.stored()).content).toBe(h.remote);
@@ -393,6 +396,7 @@ it.each(["meta", "tasks"] as const)("protects another person's archived %s and l
   expect((await h.stored()).content).toBe(h.record.content);
   expect(await h.file()).toBe(bytes);
   await h.exec("git", ["config", "arc.identity", "andrew"], { cwd: h.checkout });
+  h.store.environment.identity = "andrew";
   expect((await save(h)).errors).toBe("");
   expect((await h.stored()).content).toBe(content);
   expect((await h.stored()).placement).toEqual(h.placement);
@@ -413,7 +417,7 @@ it.each(["no-history-named", "namespace-corrupt"] as const)("does not pull an ar
       condition: "The retained archive namespace is malformed.", remedy: { text: "Restore valid archive namespace data locally, then retry." } });
   let blocked = true, pulls = 0;
   const store = overrideEngineStore(h.store, {
-    write: input => blocked ? Promise.resolve({ status: "refused", refusal }) : h.store.write(input),
+    batch: input => blocked ? Promise.resolve({ status: "refused", refusal }) : h.store.batch(input),
     pull: input => { pulls++; return h.store.pull(input); },
   });
   const refused = await save({ store, checkout: h.checkout });
@@ -467,7 +471,7 @@ it("uses the hook's selected Store for the registered save action's result", asy
 });
 
 it("refuses a standing hold's markers, then sends its resolved text against the current version", async () => {
-  const h = await createCheckoutFixture({ path: ".arc/user/andrew/document.txt" });
+  const h = await createCheckoutFixture({ path: ".arc/user/andrew/scratch/document.txt" });
   directories.push(h.checkout);
   await initializeEngineCheckout(h.checkout);
   await h.edit(h.incoming);
@@ -492,7 +496,7 @@ async function conflictedProjection(path: string, unplaced = true) {
   const fixture = createReferenceFixture();
   fixture.identity("andrew");
   const base = await seed(fixture, RecordReferenceSchema.parse({ ...fixture.reference("personal/document"),
-    owner: { type: "person", name: "andrew" } }), "opening\nbase\nclosing\n");
+    owner: { type: "person", name: "andrew" }, key: path.slice(".arc/user/andrew/".length) }), "opening\nbase\nclosing\n");
   for (const content of ["opening\ncurrent\nclosing\n", "opening\nincoming\nclosing\n"]) {
     success(await fixture.store.write({ action: "put", reference: base.reference, expected: base.version, content,
       provenance: { verb: "edit", lifecycleAction: "edit" } }));
@@ -509,7 +513,7 @@ async function conflictedProjection(path: string, unplaced = true) {
 }
 
 it("resolves an unchanged stampless subject using its indexed reference and keeps the store's side", async () => {
-  const h = await conflictedProjection(".arc/user/andrew/document.txt");
+  const h = await conflictedProjection(".arc/user/andrew/scratch/document.txt");
   const before = success(await h.store.read({ reference: h.reference }));
   expect(h.index.entries[h.path]).toMatchObject({ markers: null, unshown: [h.conflict] });
   const saved = await save(h, ["--resolve", formatConflictToken(h.conflict)]);
@@ -523,7 +527,7 @@ it("resolves an unchanged stampless subject using its indexed reference and keep
 });
 
 it("refuses a conflict whose markers stand, then resolves removed markers only once", async () => {
-  const h = await conflictedProjection(".arc/user/andrew/document.md", false);
+  const h = await conflictedProjection(".arc/user/andrew/scratch/document.md", false);
   const token = formatConflictToken(h.conflict);
   const refused = await save(h, ["--resolve", token]);
   expect(refused.result).toMatchObject({ status: "refused", refusal: { condition: expect.stringContaining("markers"),
@@ -541,7 +545,7 @@ it("refuses a conflict whose markers stand, then resolves removed markers only o
 });
 
 it("names an unmapped conflict's owner without resolving it, then resolves from a restored mapping", async () => {
-  const h = await conflictedProjection(".arc/user/andrew/document.txt");
+  const h = await conflictedProjection(".arc/user/andrew/scratch/document.txt");
   await writeProjectionIndex(h.location, { ...h.index, entries: {} });
   const token = formatConflictToken(h.conflict);
   const refused = await save(h, ["--resolve", token]);
@@ -589,7 +593,7 @@ it("names an unprojected in-flight subject's exact owner and resolves only after
 });
 
 it("names an indexed conflict that was already resolved", async () => {
-  const h = await conflictedProjection(".arc/user/andrew/document.txt");
+  const h = await conflictedProjection(".arc/user/andrew/scratch/document.txt");
   const current = success(await h.store.read({ reference: h.reference }));
   success(await h.store.write({ action: "put", reference: h.reference, expected: current.version, content: current.content,
     resolves: [h.conflict], provenance: { verb: "edit", lifecycleAction: "edit" } }));
@@ -626,18 +630,22 @@ it("refuses an unmapped token shared by two owner generations and names both UID
 });
 
 async function cohortResolutionCopies() {
-  const fixture = createReferenceFixture({}, { "cohort/document": { parser: COHORT_REGISTRATION.parser } });
+  const fixture = createReferenceFixture({}, { "cohort/document": { parser: COHORT_REGISTRATION.parser },
+    "work-item/meta": { parser: META_REGISTRATION.parser } });
+  fixture.identity("andrew");
   const content = "# Cohort: cohort-one\n\n**Parent:** [none]\n\n**Purpose:** Coordinate work.\n\nOriginal prose.\n";
   const base = await seed(fixture, fixture.reference("cohort/document"), content);
+  const primary = await seed(fixture, fixture.reference("work-item/meta"), makeMetaFixture("work-item-one", {
+    owner: "andrew", workClass: "Light", priority: "P1", currentWorkflow: "process-task-loop", cohort: "cohort-one" }));
   success(await fixture.store.write(update(fixture, base, content.replace("Original prose.", "Stored prose."))));
   success(await fixture.store.write(update(fixture, base, content.replace("Original prose.", "Competing prose."))));
   const current = success(await fixture.store.read({ reference: base.reference })), conflict = current.conflicts[0];
   if (conflict === undefined) throw new Error("Sync produced no cohort conflict");
   const paths = [resolveArcPath({ kind: "cohort-document", cohort: [SlugSchema.parse("cohort-one")],
     placement: { kind: "planned" } }), ".arc/active/current/cohort-cohort-one.md"];
-  const extraPath = ".arc/user/andrew/extra.md";
+  const extraPath = ".arc/user/andrew/scratch/extra.md";
   const extra = await seed(fixture, RecordReferenceSchema.parse({ kind: "personal/document",
-    owner: { type: "person", name: "andrew" }, key: "extra.md" }), "# Extra\n\nOriginal.\n");
+    owner: { type: "person", name: "andrew" }, key: "scratch/extra.md" }), "# Extra\n\nOriginal.\n");
   const withoutHistory = createHistoryRefusingStore(fixture.store, [current.reference]);
   const projected = await seedProjection({ store: fixture.store, renderer: () => createRecordRenderer({ store: withoutHistory.store }), files: [
     ...paths.map(path => ({ path, reference: current.reference })), { path: extraPath, reference: extra.reference },
@@ -648,6 +656,8 @@ async function cohortResolutionCopies() {
   }
   directories.push(projected.checkout);
   await configureEngineCheckout(projected.checkout);
+  await writeWorktreeMarker(projected.checkout, { spawnedByArc: false, spawningIdentity: "andrew",
+    createdAt: "2026-11-01T00:00:00Z", createdFor: boundWorkUnitSubject(primary) });
   return { ...fixture, ...projected, current, conflict, paths, extra, extraPath };
 }
 
@@ -725,6 +735,7 @@ it("does not bypass a withheld cohort alias and resolves after that alias is rel
 
 async function wholeRecordProjection(change: "removal" | "placement" | "verb-owned" | "content" | "links") {
   const fixture = createReferenceFixture({}, { "work-item/meta": { parser: META_REGISTRATION.parser } });
+  fixture.identity("andrew");
   const content = makeMetaFixture("work-item-one", { owner: "andrew", workClass: "Light", priority: "P1",
     currentWorkflow: "process-task-loop", design: ["spec-work-item-one.md"] });
   const base = await seed(fixture, fixture.reference("work-item/meta"), content, { kind: "active" },
@@ -744,7 +755,7 @@ async function wholeRecordProjection(change: "removal" | "placement" | "verb-own
   const current = success(await fixture.store.read({ reference: base.reference }));
   const conflict = current.conflicts[0];
   if (conflict === undefined) throw new Error("Sync produced no whole-record conflict");
-  const path = ".arc/active/meta-work-item-one.md";
+  const path = ".arc/active/current/meta-work-item-one.md";
   const projected = await seedProjection({ store: fixture.store, files: [{ reference: base.reference, path }] });
   directories.push(projected.checkout);
   await configureEngineCheckout(projected.checkout);
@@ -850,8 +861,8 @@ it("refuses a lost lease with a retry while preserving its accepted edit", async
   await h.edit("accepted before lease loss\n");
   let now = Date.now();
   let replacement: AdvisoryLockHandle | undefined;
-  const store = overrideEngineStore(h.store, { write: async input => {
-    const result = await h.store.write(input);
+  const store = overrideEngineStore(h.store, { batch: async input => {
+    const result = await h.store.batch(input);
     now = Date.now() + ADVISORY_LEASE_DURATION_MS + 1000;
     replacement = await acquireAdvisoryLock(join(h.location.stateDir, PROJECTION_LOCK_FILE), {
       pid: process.pid, processInstance: "replacement", processScope: "replacement-scope", now: () => now,
@@ -888,7 +899,7 @@ it("takes in a late aside edit left by an exited writer", async () => {
 });
 
 it("refuses a malformed set with its repair, then draws the unseen conflict after repair", async () => {
-  const h = await conflictedProjection(".arc/user/andrew/document.md", false);
+  const h = await conflictedProjection(".arc/user/andrew/scratch/document.md", false);
   const prior = success(await h.store.read({ reference: h.reference }));
   for (const tail of ["store tail\n", "incoming tail\n"]) success(await h.store.write({ action: "put", reference: h.reference,
     expected: prior.version, content: prior.content + tail, provenance: { verb: "edit", lifecycleAction: "edit" } }));
@@ -914,6 +925,7 @@ it("refuses a malformed set with its repair, then draws the unseen conflict afte
 
 it("resolves the indexed completed owner's UID even when a live owner has the same name", async () => {
   const fixture = createReferenceFixture({}, { "work-item/meta": { parser: META_REGISTRATION.parser } });
+  fixture.identity("andrew");
   const meta = makeMetaFixture("work-item-one", { owner: "andrew", workClass: "Light", priority: "P1" });
   const primary = await seed(fixture, fixture.reference("work-item/meta"), meta);
   const subject = await seed(fixture, RecordReferenceSchema.parse({ kind: "work-item/notes", owner: primary.reference.owner }),
@@ -931,7 +943,7 @@ it("resolves the indexed completed owner's UID even when a live owner has the sa
   const live = await seed(fixture, fixture.reference("work-item/meta"), meta);
   expect(live.reference.owner).not.toEqual(primary.reference.owner);
   const projected = await seedProjection({ store: fixture.store, files: [{ reference: subject.reference,
-    path: ".arc/completed/2026-q4/notes-work-item-one.txt" }] });
+    path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md" }] });
   directories.push(projected.checkout);
   await configureEngineCheckout(projected.checkout);
   expect((await save({ ...fixture, ...projected }, ["--resolve", formatConflictToken(conflict)])).result.status).toBe("ok");
@@ -940,12 +952,12 @@ it("resolves the indexed completed owner's UID even when a live owner has the sa
 });
 
 it("reports an accepted resolution as successful when its later read-back refuses", async () => {
-  const h = await conflictedProjection(".arc/user/andrew/document.txt");
+  const h = await conflictedProjection(".arc/user/andrew/scratch/document.txt");
   let accepted = false, refusedRead = false;
   const store = overrideEngineStore(h.store, {
-    write: async input => {
-      const result = await h.store.write(input);
-      if (result.status === "ok" && input.resolves?.length) accepted = true;
+    batch: async input => {
+      const result = await h.store.batch(input);
+      if (result.status === "ok" && input.writes[0]?.resolves?.length) accepted = true;
       return result;
     },
     read: async input => {
@@ -995,7 +1007,7 @@ it("names a linked resolution destination and accepts the same token after regul
 });
 
 it.each(["", "not-a-token"])("reports an unknown token %j as whole JSON and accepts a corrected token", async token => {
-  const h = await conflictedProjection(".arc/user/andrew/document.txt");
+  const h = await conflictedProjection(".arc/user/andrew/scratch/document.txt");
   expect((await save(h, ["--resolve", token])).result).toMatchObject({ status: "refused", refusal: {
     condition: expect.stringContaining("Unknown conflict token"), remedy: { text: expect.stringContaining("arc status --conflicts") },
   } });
@@ -1004,7 +1016,7 @@ it.each(["", "not-a-token"])("reports an unknown token %j as whole JSON and acce
 });
 
 it("accepts a requested resolution already fulfilled by the start's aside sweep", async () => {
-  const h = await conflictedProjection(".arc/user/andrew/document.md", false);
+  const h = await conflictedProjection(".arc/user/andrew/scratch/document.md", false);
   await writeFile(join(h.checkout, h.path), await readFile(join(h.checkout, h.path), "utf8") + "\nIndependent note.\n");
   const ports = createProjectionEnginePorts(h.checkout);
   await startProjection({ store: h.store, checkout: h.checkout, ports: () => ({ ...ports,
@@ -1065,8 +1077,8 @@ it("leaves failed archived admission for explicit save after the condition is re
   let blocked = true;
   const refusal = StoreRefusalSchema.parse({ code: "lock-held", class: "recoverable", lock: "work-item",
     condition: "Archived admission is locked.", remedy: { text: "Release the lock and retry save." } });
-  const store = overrideEngineStore(h.f.store, { write: input => blocked && input.reference.kind === "work-item/companion"
-    ? Promise.resolve({ status: "refused", refusal }) : h.f.store.write(input) });
+  const store = overrideEngineStore(h.f.store, { batch: input => blocked && input.writes[0]?.reference.kind === "work-item/companion"
+    ? Promise.resolve({ status: "refused", refusal }) : h.f.store.batch(input) });
   expect((await save({ store, checkout: h.f.root })).errors).toContain(refusal.condition);
   expect(await readProjectionIndex(h.projected.location, true)).toMatchObject({ kind: "index", index: {
     entries: { [path]: { kind: "ownerless" } },

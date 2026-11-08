@@ -18,9 +18,9 @@ import { seedProjection } from "../helpers/store/projection/seeded-projection.js
 
 it.each([".arc/user", ".arc"])("keeps indexed and new personal content behind linked %s opaque until repair", async container => {
   const { f } = await createAdoptionFixture();
-  const reference = RecordReferenceSchema.parse({ kind: "personal/document", owner: { type: "person", name: "andrew" }, key: "document.md" });
+  const reference = RecordReferenceSchema.parse({ kind: "personal/document", owner: { type: "person", name: "andrew" }, key: "scratch/document.md" });
   const record = await seed(f, reference, "accepted content\n");
-  const path = ".arc/user/andrew/document.md", added = ".arc/user/andrew/scratch/new.md";
+  const path = ".arc/user/andrew/scratch/document.md", added = ".arc/user/andrew/scratch/new.md";
   const projected = await seedProjection({ store: f.store, checkout: f.root, files: [{ reference: record.reference, path }] });
   const bytes = await readFile(join(f.root, path), "utf8");
   await mkdir(join(f.root, ".arc/user/andrew/scratch"), { recursive: true });

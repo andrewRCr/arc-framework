@@ -28,7 +28,7 @@ describe("projection store refusals", () => {
     await h.edit("opening\nbase\nincoming closing\n");
     const bytes = await h.file();
     const state = await h.settle();
-    await startProjection({ store: h.store, checkout: h.checkout });
+    await startProjection({ store: h.store, checkout: h.checkout, ports: h.ports });
     expect(await h.settle()).toBe(state);
     expect(await h.file()).toBe(bytes);
     expect((await h.disk()).entries[h.path]).toMatchObject({ refused: { reason: expect.stringContaining("Combined edit is invalid.") } });
@@ -36,7 +36,7 @@ describe("projection store refusals", () => {
       reason: expect.stringContaining("Combined edit is invalid."), remedy: { text: expect.any(String) },
     } }]);
     await h.edit("opening\nbase\nrepaired closing\n");
-    await startProjection({ store: h.store, checkout: h.checkout });
+    await startProjection({ store: h.store, checkout: h.checkout, ports: h.ports });
     expect((await h.stored()).content).toBe("current opening\nbase\nrepaired closing\n");
   });
 
@@ -51,7 +51,7 @@ describe("projection store refusals", () => {
   });
 
   it.each(["md", "txt"])("recovers an invalid carried version when the observed %s save exactly matches the indexed blob", async extension => {
-    const h = await createEngineFixture(directories, { path: `.arc/user/andrew/document.${extension}` });
+    const h = await createEngineFixture(directories, { path: `.arc/user/andrew/scratch/document.${extension}` });
     const entry = { ...h.entry, base: { ...h.entry.base, version: RecordVersionSchema.parse("outside-history") } };
     const takeIn = createWriteBackPort({ store: h.store, location: h.location, format: "sha1", actor: "test-user@fixture" });
     const result = await takeIn({ checkout: h.checkout, path: h.path, copy: null, entry, observedEdit: true,
@@ -83,8 +83,8 @@ describe("projection store refusals", () => {
     const refusal: StoreRefusal = { code: "version-conflict", class: "recoverable", records: [h.record.reference],
       condition: "The expected version is outside readable history.", remedy: { text: "Recover the base and retry." } };
     let rejected = 3;
-    const store = overrideEngineStore(h.store, { write: input => rejected-- > 0
-      ? Promise.resolve({ status: "refused", refusal }) : h.store.write(input) });
+    const store = overrideEngineStore(h.store, { batch: input => rejected-- > 0
+      ? Promise.resolve({ status: "refused", refusal }) : h.store.batch(input) });
     const takeIn = createWriteBackPort({ store, location: h.location, format: "sha1", actor: "test-user@fixture" });
     const request = { checkout: h.checkout, path: h.path, copy: null, entry: h.entry,
       base: { kind: "stamp" as const, stamp: h.entry.base.blob } };
@@ -118,8 +118,8 @@ describe("projection store refusals", () => {
     const refusal: StoreRefusal = { code: "version-conflict", class: "recoverable", records: [h.record.reference],
       condition: "The expected version is outside readable history.", remedy: { text: "Recover the base and retry." } };
     let writes = 0;
-    const store = overrideEngineStore(h.store, { write: input => ++writes === 1 || writes === 3
-      ? Promise.resolve({ status: "refused", refusal }) : h.store.write(input) });
+    const store = overrideEngineStore(h.store, { batch: input => ++writes === 1 || writes === 3
+      ? Promise.resolve({ status: "refused", refusal }) : h.store.batch(input) });
     const native = h.ports();
     await startProjection({ store, checkout: h.checkout, ports: () => ({ ...native,
       writer: async () => ({ ...await native.writer(), processInstance: "first-command" }) }) });
@@ -140,7 +140,7 @@ describe("projection store refusals", () => {
     expect((await h.stored()).content).toBe("opening\nlate edit\nclosing\n");
   });
 
-  for (const operation of ["write", "history"] as const) for (const code of ["state-unresolvable", "namespace-corrupt"] as const) {
+  for (const operation of ["batch", "history"] as const) for (const code of ["state-unresolvable", "namespace-corrupt"] as const) {
     it(`preserves ${operation}'s ${code} remedy without pulling, then lands after repair`, async () => {
       const h = await createEngineFixture(directories);
       const current = success(await h.store.write(update(h, h.record, "current opening\nbase\nclosing\n")));
@@ -152,7 +152,7 @@ describe("projection store refusals", () => {
         : { code, class: "terminal", namespace: "personal", condition: "The stored namespace is corrupt.", remedy };
       let broken = true;
       const store = overrideEngineStore(h.store, {
-        write: input => broken && operation === "write" ? Promise.resolve({ status: "refused", refusal }) : h.store.write(input),
+        batch: input => broken && operation === "batch" ? Promise.resolve({ status: "refused", refusal }) : h.store.batch(input),
         history: input => broken && operation === "history" ? Promise.resolve({ status: "refused", refusal }) : h.store.history(input),
         pull: async () => { throw new Error("An unnamed local fault must never pull history"); },
       });

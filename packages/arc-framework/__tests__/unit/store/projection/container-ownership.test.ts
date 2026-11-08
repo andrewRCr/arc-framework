@@ -10,6 +10,7 @@ import { ArcLayoutAddressSchema } from "../../../../src/lib/layout/index.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { createRefusingStore } from "../../../helpers/store/projection/refusing-store.js";
 import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
+import type { ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
 
 it("uses the sole stored outer container for a nested companion without writing state", async () => {
   const h = createLifecycleHarness();
@@ -53,11 +54,12 @@ it("uses an accepted pending primary receipt when public-name lookup has no bind
   const absent = await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("missing") });
   if (absent.status !== "refused") throw new Error("The missing-name fixture unexpectedly resolves");
   const before = lifecycleSuccess(await h.store.version());
+  const pending: ProjectionIndex["entries"][string] = { kind: "ownerless", stat: null,
+    refused: { reason: "The accepted stub's basis is not yet bound.", remedy: { text: "Retry its exact receipt read." } },
+    minted: { reference: primary.reference, version: primary.version } };
   const result = await resolveBacklogOwnership({ checkout: "/unused", identity: "test-user", path: ".arc/backlog/planned/alpha/note.txt",
     store: { read: input => h.store.read(input), lookup: () => Promise.resolve(absent), list: input => h.store.list(input) }, index: { entries: {
-      ".arc/backlog/planned/alpha/meta-alpha.md": { kind: "ownerless", stat: null,
-        refused: { reason: "The accepted stub's basis is not yet bound.", remedy: { text: "Retry its exact receipt read." } },
-        minted: { reference: primary.reference, version: primary.version } },
+      ".arc/backlog/planned/alpha/meta-alpha.md": pending,
     } } });
   expect(result).toMatchObject({ kind: "owned", record: { reference: primary.reference } });
   if (result.kind !== "owned") throw new Error("Expected the accepted metadata generation's container");

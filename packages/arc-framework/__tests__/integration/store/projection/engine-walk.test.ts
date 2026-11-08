@@ -9,15 +9,32 @@ import { seedProjection } from "../../../helpers/store/projection/seeded-project
 import { seed, success } from "../../../helpers/store/suite-tools.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
+import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
+import { recordReferences } from "../../../../src/lib/store/identity.js";
+import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
+import { META_REGISTRATION } from "../../../../src/lib/store/kinds/meta/registration.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
 describe("the command's projected-root walk", () => {
   it("finds edited files across active, backlog, and personal roots while leaving completed files unsent", async () => {
-    const h = await createEngineFixture(directories);
-    const paths = [".arc/active/one.md", ".arc/backlog/planned/deep/two.md", ".arc/user/andrew/three.md", ".arc/completed/2026-q4/four.md"];
-    const records = await Promise.all(paths.map((_path, i) => seed(h, h.reference("personal/document", `record-${i}`), `original ${i}\n`)));
+    const h = await createEngineFixture(directories, { registryOverrides: { "work-item/meta": { parser: META_REGISTRATION.parser } } });
+    const active = await seed(h, h.reference("work-item/meta", "active"), makeMetaFixture("work-item-active", {
+      state: "Active", owner: "andrew", workClass: "Light", priority: "P1", currentWorkflow: "process-task-loop" }));
+    const backlog = await seed(h, h.reference("work-item/meta", "backlog"), makeMetaFixture("work-item-backlog", {
+      state: "Planning", owner: "andrew", workClass: "Light", priority: "P1", currentWorkflow: "draft-design" }),
+    { kind: "backlog", commitment: "planned" });
+    const completed = await seed(h, h.reference("work-item/meta", "completed"), makeMetaFixture("work-item-completed", {
+      state: "Shipped", owner: "andrew", workClass: "Light", priority: "P1", currentWorkflow: null }),
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+    const paths = [".arc/active/in-flight/work-item-active/notes-work-item-active.md",
+      ".arc/backlog/planned/work-item-backlog/notes-work-item-backlog.md", ".arc/user/andrew/scratch/three.md",
+      ".arc/completed/2026-q4/01_work-item-completed/notes-work-item-completed.md"];
+    const personal = { ...h.reference("personal/document"), key: "scratch/three.md" };
+    const references = [recordReferences["work-item/notes"](active.reference.owner), recordReferences["work-item/notes"](backlog.reference.owner),
+      personal, recordReferences["work-item/notes"](completed.reference.owner)];
+    const records = await Promise.all(references.map((reference, i) => seed(h, reference, `original ${i}\n`)));
     const files = records.map((record, i) => ({ path: paths[i]!, reference: record.reference }));
     const projection = await seedProjection({ store: h.store, files });
     directories.push(projection.checkout);

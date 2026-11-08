@@ -4,7 +4,7 @@ import type { ArcLayoutAddress } from "../../layout/index.js";
 import { readLifecycleMetaFields } from "../lifecycle-write.js";
 import { OwnerIdentitySchema, recordReferences } from "../identity.js";
 import { parseCohortDocument } from "../kinds/cohort/parser.js";
-import type { ProjectionRootState } from "./process-state.js";
+import type { ProjectionSelectionContext } from "./selection-context.js";
 import type { AdoptionReference } from "./adoption-target.js";
 import { readAdoptionClaim } from "./adoption-claim.js";
 import { markStoreRefusal } from "./refusal-mark.js";
@@ -14,7 +14,7 @@ import type { StoreRecord } from "../read.js";
 type CohortAddress = Extract<ArcLayoutAddress, { kind: "cohort-copy" | "cohort-document" }>;
 
 /** Resolve only an existing cohort generation, respecting canonical placement and the current claim's membership. */
-export function resolveCohortAdoption(root: ProjectionRootState, path: string, address: CohortAddress): Promise<AdoptionReference> {
+export function resolveCohortAdoption(root: ProjectionSelectionContext, path: string, address: CohortAddress): Promise<AdoptionReference> {
   if (address.kind === "cohort-copy") return resolveCohortCopyAdoption(root, address);
   const name = address.cohort[1] ?? address.cohort[0];
   return address.placement.kind === "completed" ? resolveArchivedCohort(root, path, name)
@@ -22,7 +22,7 @@ export function resolveCohortAdoption(root: ProjectionRootState, path: string, a
 }
 
 /** A copy establishes no new cohort: its claimed membership and stored Parent must select one live generation. */
-async function resolveCohortCopyAdoption(root: ProjectionRootState,
+async function resolveCohortCopyAdoption(root: ProjectionSelectionContext,
   address: Extract<ArcLayoutAddress, { kind: "cohort-copy" }>): Promise<AdoptionReference> {
   const current = await readAdoptionClaim(root);
   if (current.kind === "refused") return current;
@@ -36,7 +36,7 @@ async function resolveCohortCopyAdoption(root: ProjectionRootState,
   return readLiveCohort(root, address.cohort, names[level - 1] ?? null);
 }
 
-async function readLiveCohort(root: ProjectionRootState, name: string, expectedParent: string | null): Promise<AdoptionReference> {
+async function readLiveCohort(root: ProjectionSelectionContext, name: string, expectedParent: string | null): Promise<AdoptionReference> {
   const reference = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name }));
   const read = await root.store.read({ reference });
   if (read.status === "refused") return read.refusal.code === "not-found" ? missingLiveCohort(name, expectedParent)
@@ -48,7 +48,7 @@ async function readLiveCohort(root: ProjectionRootState, name: string, expectedP
   return { kind: "reference", reference: read.result.reference };
 }
 
-async function resolveArchivedCohort(root: ProjectionRootState, path: string, name: string): Promise<AdoptionReference> {
+async function resolveArchivedCohort(root: ProjectionSelectionContext, path: string, name: string): Promise<AdoptionReference> {
   const listing = await root.store.list({ family: "cohort", kind: "cohort/document", filter: { locations: ["completed"] } });
   if (listing.status === "refused") return { kind: "refused", mark: markStoreRefusal(listing.refusal, root.context.verb) };
   const result = listing.result;

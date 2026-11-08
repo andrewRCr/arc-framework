@@ -150,10 +150,10 @@ it("keeps initial normalization through a hand-edit refusal and retries the same
     currentWorkflow: "process-task-loop" }) + "\nA correction awaiting write repair.\n";
   await writeFile(join(f.root, path), authored);
   let writable = false;
-  const store = overrideEngineStore(f.store, { write: async input => !writable && input.reference.owner.name === "beta"
+  const store = overrideEngineStore(f.store, { batch: async input => !writable && input.writes[0]?.reference.owner.name === "beta"
     && input.provenance.lifecycleAction === "edit" ? { status: "refused", refusal: { code: "record-malformed", class: "recoverable",
-      reference: input.reference, rule: "test.initial-edit", condition: "The initial hand edit is temporarily refused.",
-      remedy: { text: "Repair the hand-edit destination, then retry." } } } : f.store.write(input) });
+      reference: input.writes[0]?.reference, rule: "test.initial-edit", condition: "The initial hand edit is temporarily refused.",
+      remedy: { text: "Repair the hand-edit destination, then retry." } } } : f.store.batch(input) });
   expect((await selection(store, f.root)).exitCode).toBe(0);
   const primary = success(await f.store.read({ reference: success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("beta") })).reference }));
   expect(primary.content).not.toContain("A correction awaiting write repair.");
@@ -184,20 +184,18 @@ it("preserves later lifecycle changes when the initial edit retries after a vers
   }
   const store = overrideEngineStore(f.store, {
     batch: async input => {
+      const mutation = input.writes[0];
+      if (!advancedAgain && accepted.reference !== null && mutation && sameReference(mutation.reference, accepted.reference)
+        && input.provenance.lifecycleAction === "edit") {
+        advancedAgain = true;
+        await setClass(accepted.reference, "Novel");
+      }
       const result = await f.store.batch(input);
       if (result.status === "ok" && input.provenance.verb === "stub") {
         accepted.reference = result.result.writes[0]?.reference ?? null;
         if (accepted.reference !== null) await setClass(accepted.reference, "Heavy");
       }
       return result;
-    },
-    write: async input => {
-      if (!advancedAgain && accepted.reference !== null && sameReference(input.reference, accepted.reference)
-        && input.provenance.lifecycleAction === "edit") {
-        advancedAgain = true;
-        await setClass(accepted.reference, "Novel");
-      }
-      return f.store.write(input);
     },
   });
   const selected = await selection(store, f.root);

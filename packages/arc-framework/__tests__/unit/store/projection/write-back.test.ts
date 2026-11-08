@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
+import { writeBackFixturePath } from "../../../helpers/store/projection/write-back-fixture.js";
 import { makeMetaFixture } from "../../../helpers/meta-fixture.js";
 import type { KindId } from "../../../../src/lib/store/catalog.js";
 import { META_REGISTRATION } from "../../../../src/lib/store/kinds/meta/registration.js";
@@ -19,6 +20,7 @@ import { createWriteBackPort, prepareWriteBack } from "../../../../src/lib/store
 import { MutationSchema } from "../../../../src/lib/store/write.js";
 import { nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
 import { settleAsideCopy } from "../../../../src/lib/store/projection/aside-copies.js";
+import { TransientIdentityRecordSchema } from "../../../../src/lib/errand/identity-record.js";
 
 const writer = { pid: process.pid, processInstance: "write-back-test", processScope: "unit" };
 
@@ -34,7 +36,7 @@ afterEach(async () => { vi.restoreAllMocks(); await rm(checkout, { recursive: tr
 
 function indexFor(path: string, entry: RecordEntry): ProjectionIndex {
   return { format: 1, state: null, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null,
-    projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("andrew"), claim: null, layoutActive: "nested" },
+    projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("test-user"), claim: null, layoutActive: "nested" },
     entries: { [path]: entry } };
 }
 
@@ -46,14 +48,18 @@ async function proseFile(kind: KindId = "personal/document", fixture = createRef
   if (seeded.status !== "ok" || seeded.result.version === undefined) throw new Error("seed refused");
   const base = { blob: gitBlobId(content, "sha1"), version: seeded.result.version };
   const entry: RecordEntry = {
-    kind: "record", reference, stat: null, written: gitBlobId(renderStampedFile({ content, stamp: base.blob }), "sha1"),
+    kind: "record", reference: seeded.result.reference, stat: null, written: gitBlobId(renderStampedFile({ content, stamp: base.blob }), "sha1"),
     base, markers: null, notices: [], unshown: [], protected: false, changed: false, pending: false, withheld: false,
     refused: null, persisted: null, inProgress: null, copies: [],
   };
-  const path = `.arc/${kind.replaceAll("/", "-")}.md`;
+  const path = kind === "work-item/meta" ? `.arc/completed/2026-q4/01_${reference.owner.name}/meta-${reference.owner.name}.md`
+    : writeBackFixturePath(reference);
   const edit = renderStampedFile({ content: "opening\nedited\nclosing\n", stamp: base.blob });
   await mkdir(dirname(join(checkout, path)), { recursive: true });
   await writeFile(join(checkout, path), edit);
+  const disk = await readProjectionIndex(location, true);
+  const prior = disk.kind === "index" ? disk.index : indexFor(path, entry);
+  await writeProjectionIndex(location, { ...prior, entries: { ...prior.entries, [path]: entry } });
   const request = { checkout, path, copy: null, entry, base: { kind: "stamp" as const, stamp: base.blob } };
   return { fixture, request, edit };
 }
@@ -95,7 +101,7 @@ describe("sending a projected edit", () => {
 
   it("carries a primary's current placement without its assigned archive sequence", async () => {
     const fixture = createReferenceFixture(undefined, { "work-item/meta": { parser: META_REGISTRATION.parser ?? null } });
-    const content = makeMetaFixture("alpha", { state: "Shipped" });
+    const content = makeMetaFixture("alpha", { state: "Shipped", owner: "test-user" });
     const { request } = await proseFile("work-item/meta", fixture, content);
     await writeFile(join(checkout, request.path), renderStampedFile({ content: `${content}\nA hand edit.\n`, stamp: request.entry.base.blob }));
     const context = { store: fixture.store, location, format: "sha1" as const, actor: "test-user@fixture-machine" };
@@ -129,9 +135,9 @@ describe("sending a projected edit", () => {
     const reference = await readReference(checkout);
     await mkdir(dirname(join(checkout, takenName)), { recursive: true });
     await writeFile(join(checkout, takenName), renderStampedFile({ content: "saved aside\n", stamp: entry.base.blob }));
-    const write = fixture.store.write.bind(fixture.store);
-    vi.spyOn(fixture.store, "write").mockImplementationOnce(async (input) => {
-      const result = await write(input);
+    const batch = fixture.store.batch.bind(fixture.store);
+    vi.spyOn(fixture.store, "batch").mockImplementationOnce(async (input) => {
+      const result = await batch(input);
       if (result.status !== "ok") throw new Error("write did not land");
       throw new Error("stopped after landing");
     });
@@ -221,7 +227,11 @@ describe("sending a projected edit", () => {
   it("keeps an Errand description's existing entry IDs through a hand edit", async () => {
     const fixture = createReferenceFixture({ "work-item/description": ENTRY_CONFIGS["work-item/description"] });
     const primary = fixture.reference("work-item/record");
-    const seeded = await fixture.store.write({ action: "put", reference: primary, content: fixture.content(primary),
+    const identity = TransientIdentityRecordSchema.parse({ version: 3, kind: "errand", purpose: "errand",
+      slug: primary.owner.name, claimId: "a".repeat(32), owner: "test-user", state: "open", branch: `chore/${primary.owner.name}`,
+      createdAt: "2026-11-01T00:00:00Z", updatedAt: "2026-11-01T00:00:00Z", intent: "A bounded correction",
+      origin: "description", originEntry: null, savedHead: null, changeRequest: null });
+    const seeded = await fixture.store.write({ action: "put", reference: primary, content: JSON.stringify(identity),
       expected: null, placement: { kind: "active" }, provenance: { verb: "errand-open", lifecycleAction: "create" } });
     if (seeded.status !== "ok") throw new Error("primary seed refused");
     const content = "# Errand\n\n## Description\n\n### [ ] **Fix**\n\n- _Id:_ `12345678`\n\nThe concern.\n";

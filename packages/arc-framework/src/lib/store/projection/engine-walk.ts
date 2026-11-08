@@ -2,8 +2,7 @@
 import type { Stats } from "node:fs";
 import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { MACHINE_LOCAL_PATHS } from "../registry.js";
-import { isExcludedProjectionFile } from "./discovery-exclusions.js";
+import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { readProjectionLinkBoundary } from "./discovery-links.js";
 
 /** Filesystem observations used by discovery, native unless a caller needs a fault or scheduling boundary. */
@@ -18,22 +17,9 @@ export interface ProjectionWalkResult {
   readonly links: readonly string[];
 }
 
-function excludedFromDiscovery(path: string): boolean {
-  if (isExcludedProjectionFile(path)) return true;
-  const segments = path.split("/");
-  return MACHINE_LOCAL_PATHS.some(rule => {
-    const prefix = rule.root === "user" ? [".arc", "user"] : rule.root === "checkout" ? [] : null;
-    if (prefix === null) return false;
-    const pattern = [...prefix, ...rule.pattern.replace(/\/\*\*$/u, "").split("/")];
-    return segments.length >= pattern.length && pattern.every((part, index) => (
-      part === "*" || part === "<identity>" || part === segments[index]
-    ));
-  });
-}
-
 /** Walk each root by lstat, returning regular files and unfollowed links in stable order. */
 export async function walkProjectionRoots(checkout: string, roots: readonly string[], fs: ProjectionWalkFs = { lstat, readdir }): Promise<ProjectionWalkResult> {
-  const selected = roots.filter(path => !excludedFromDiscovery(path));
+  const selected = roots.filter(path => !isExcludedProjectionPath(path));
   const boundary = await readProjectionLinkBoundary(checkout, selected, fs);
   const pending = selected.filter(path => boundary(path) === null);
   const files: string[] = [];
@@ -42,7 +28,7 @@ export async function walkProjectionRoots(checkout: string, roots: readonly stri
     return link === null ? [] : [link];
   }))];
   for (let path = pending.pop(); path !== undefined; path = pending.pop()) {
-    if (excludedFromDiscovery(path)) continue;
+    if (isExcludedProjectionPath(path)) continue;
     try {
       const stat = await fs.lstat(join(checkout, path));
       if (stat.isDirectory()) {

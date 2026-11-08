@@ -147,9 +147,9 @@ describe("write-back read-back", () => {
     const current = fixture;
     const incoming = "opening\nhand edit\nclosing\n";
     await fixture.edit(incoming);
-    const write = fixture.store.write.bind(fixture.store);
-    vi.spyOn(fixture.store, "write").mockImplementationOnce(async input => {
-      const result = await write(input);
+    const batch = fixture.store.batch.bind(fixture.store);
+    vi.spyOn(fixture.store, "batch").mockImplementationOnce(async input => {
+      const result = await batch(input);
       if (result.status !== "ok") throw new Error("expected a landed edit");
       await current.produce("namespace-corrupt");
       return result;

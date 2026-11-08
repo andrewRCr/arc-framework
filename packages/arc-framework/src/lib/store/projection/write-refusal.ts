@@ -10,7 +10,12 @@ export async function decideWriteBackRefusal(context: WriteBackContext, request:
   { kind: "recover" } | { kind: "held"; refusal: StoreRefusal }
 > {
   const reference = request.entry.reference;
-  if (refusal.code !== "version-conflict" || KIND_REGISTRY[reference.kind].merge === "single-writer"
+  if (refusal.code === "not-found" && refusal.reference !== undefined && sameReference(refusal.reference, reference)) return { kind: "held", refusal: {
+    ...refusal, condition: `The record projected at ${request.path} was removed; its edit has been preserved.`,
+    remedy: { text: "Copy out anything wanted from this file, then remove it or resolve the removed record before retrying." },
+  } };
+  if (refusal.code !== "version-conflict" || refusal.cause === "projection-admission"
+    || KIND_REGISTRY[reference.kind].merge === "single-writer"
     || context.versionRecoveries?.some(each => sameReference(each, reference))) return { kind: "held", refusal };
   context.versionRecoveries?.push(reference);
   const read = await context.store.read({ reference });

@@ -44,7 +44,7 @@ async function selectBase(
     base: { kind: "stored", version: request.entry.base.version }, stamp: request.entry.base.blob } };
   if (!request.path.endsWith(".md")) return selectStamplessBase({ ...context, memo }, request, content);
   if (context.recoveringBase) return recoverSelectedBase({ ...context, memo }, request, content, stamp);
-  const persisted = await selectPersistedBase({ location: context.location, entry: request.entry, stamp });
+  const persisted = await selectPersistedBase({ location: context.location, entry: request.entry, stamp, readCopy: context.readCopy });
   if (persisted.status === "refused") return persisted;
   if (persisted.result !== null && stamp !== null) return { status: "ok", result: { kind: "selected", base: persisted.result, stamp } };
   if (stamp === request.entry.base.blob) return { status: "ok", result: {
@@ -71,7 +71,7 @@ async function recoverSelectedBase(
   context: BaseSelectionContext & { memo: HistoryMemo }, request: TakeInRequest, content: string, stamp: string | null,
 ): Promise<StoreResult<SelectedWriteBackBase>> {
   const recovered = await recoverBase({ content, entry: request.entry, format: context.format, memo: context.memo,
-    readCopy: name => readRetainedBase(context.location, name), ignoreIndexedMatch: context.recoveringBase });
+    readCopy: name => context.readCopy?.(name) ?? readRetainedBase(context.location, name), ignoreIndexedMatch: context.recoveringBase });
   if (recovered.status === "refused") return recovered;
   if (stamp !== null) return { status: "ok", result: { kind: "selected", base: recovered.result, stamp } };
   const blob = recovered.result.kind === "stored" && recovered.result.version === request.entry.base.version

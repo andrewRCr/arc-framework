@@ -5,15 +5,17 @@ import { gateRead } from "./read-gate.js";
 import { parseStampedFile } from "./stamp.js";
 import { inspectProspectiveStub, stubCreationRemedy, type ProspectiveStub } from "./stub-adoption.js";
 import { ArcLayoutAddressSchema, resolveArcPath, identifyArcFileAddress, type ArcLayoutAddress } from "../../layout/index.js";
+import { SlugSchema } from "../../kernel/index.js";
 import { COHORT_SEGMENT_CAP } from "../../active/cohort-path.js";
 import { readLifecycleMetaFields } from "../lifecycle-write.js";
 import { workItemLayoutPlacement } from "../lifecycle-storage.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import type { Store } from "../contract.js";
-import { sameOwner } from "../identity.js";
+import { sameOwner, type RecordReference } from "../identity.js";
 import { WorkUnitReadPlacementSchema } from "../placement.js";
 import type { StoreRecord } from "../read.js";
-import type { ProjectionIndex, RefusedMark } from "./index-schema.js";
+import type { RefusedMark } from "./index-schema.js";
+import type { ProjectionAdmission } from "../projection-admission.js";
 import { readArchivedOwners } from "./archived-owners.js";
 
 /** Physical coordinates remain separate from the exact record that authorizes writes. */
@@ -24,7 +26,10 @@ export interface BacklogOwnershipInput {
   readonly identity: string;
   readonly path: string;
   readonly store: Pick<Store, "read" | "lookup" | "list">;
-  readonly index: Pick<ProjectionIndex, "entries">;
+  readonly index: { readonly entries: Readonly<Record<string,
+    { readonly kind: "record"; readonly reference: RecordReference }
+    | { readonly kind: "ownerless"; readonly minted?: { readonly reference: RecordReference } }>> };
+  readonly local?: ProjectionAdmission["local"];
 }
 /** Exactly one established container, or a refusal preserving the unadopted file. */
 export type BacklogOwnership = { readonly kind: "owned"; readonly container: WorkItemContainer; readonly record: StoreRecord }
@@ -42,7 +47,7 @@ type ProspectiveProbe = Exclude<BacklogOwnership, { kind: "owned" }> | { kind: "
 /** Acquire all qualifying evidence before choosing the container for one unindexed file. */
 export async function resolveBacklogOwnership(input: BacklogOwnershipInput): Promise<BacklogOwnership> {
   const owners: OwnedContainer[] = [], invalid: RefusedMark[] = [];
-  const containers = candidateContainers(input.path);
+  const containers = projectionCandidateContainers(input.path);
   for (const container of containers) {
     const candidate = await readCandidateOwners(input, container);
     if (candidate.kind === "refused") return candidate;
@@ -155,8 +160,10 @@ async function matchStoredContainer(input: BacklogOwnershipInput, container: Wor
   const fields = readLifecycleMetaFields(record);
   if (fields.status === "refused") return { kind: "refused", mark: markStoreRefusal(fields.refusal) };
   try {
-    const placement = await workItemLayoutPlacement(input.checkout, record.reference.owner.name,
-      WorkUnitReadPlacementSchema.parse(record.placement), fields.result.cohort);
+    const placement = input.local === undefined
+      ? await workItemLayoutPlacement(input.checkout, record.reference.owner.name,
+        WorkUnitReadPlacementSchema.parse(record.placement), fields.result.cohort)
+      : frozenContainerPlacement(input.local, record, fields.result.cohort);
     const canonical: WorkItemContainer = { kind: "work-unit-container", slug: record.reference.owner.name, placement };
     return resolveArcPath(canonical) === resolveArcPath(container) ? { kind: "owned", container, record } : { kind: "absent" };
   } catch (error) {
@@ -167,6 +174,16 @@ async function matchStoredContainer(input: BacklogOwnershipInput, container: Wor
 
 async function readProspectiveOwner(input: BacklogOwnershipInput, container: WorkItemContainer): Promise<ProspectiveProbe> {
   const metaPath = resolveArcPath({ kind: "work-unit-artifact", slug: container.slug, placement: container.placement, artifact: "meta" });
+  if (input.local !== undefined) {
+    const captured = input.local.prospectiveMetadata.find(each => each.path === metaPath);
+    if (captured === undefined) return { kind: "refused", mark: {
+      reason: `No local metadata input was captured for ${metaPath}.`,
+      remedy: { text: "Capture every candidate metadata file and prepare the edit again." } } };
+    if (captured.content === null) return { kind: "absent" };
+    const inspected = inspectProspectiveStub(container, captured.content, input.identity);
+    return inspected.kind === "refused" ? { kind: "invalid", mark: inspected.mark }
+      : { kind: "prospective", container, metaPath, params: inspected.params };
+  }
   try {
     const gate = await gateRead({ path: join(input.checkout, metaPath), markdown: false });
     if (gate.kind === "absent" || gate.kind === "no-edit") return { kind: "absent" };
@@ -182,7 +199,8 @@ async function readProspectiveOwner(input: BacklogOwnershipInput, container: Wor
   }
 }
 
-function candidateContainers(path: string): WorkItemContainer[] {
+/** Enumerate every physical work-item container that can own an unindexed backlog path. */
+export function projectionCandidateContainers(path: string): WorkItemContainer[] {
   const parts = path.split("/");
   if (parts[0] !== ".arc" || parts[1] !== "backlog") return [];
   const candidates: WorkItemContainer[] = [];
@@ -194,4 +212,15 @@ function candidateContainers(path: string): WorkItemContainer[] {
     }
   }
   return candidates;
+}
+
+
+function frozenContainerPlacement(local: ProjectionAdmission["local"], record: StoreRecord,
+  cohort: string | null): WorkItemContainer["placement"] {
+  const placement = WorkUnitReadPlacementSchema.parse(record.placement);
+  if (placement.kind === "backlog") return { ...placement, cohort: (cohort ?? "").split("/").filter(Boolean).map(part => SlugSchema.parse(part)) };
+  if (placement.kind === "completed") return placement;
+  const location = local.claim === record.reference.owner.name
+    ? { kind: "own" as const, claim: local.claim, layoutActive: local.layoutActive } : { kind: "another" as const };
+  return { kind: "active", scope: { kind: "project", location } };
 }

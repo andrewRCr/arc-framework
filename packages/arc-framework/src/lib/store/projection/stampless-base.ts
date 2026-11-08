@@ -48,7 +48,7 @@ async function compareCandidates(
     const prior = base.kind === "stored" ? await readHistoricalBaseContent(context, request.entry, base.version)
       : { status: "ok" as const, result: base.kind === "copy" ? base.content : "" };
     if (prior.status === "refused") return prior;
-    const merged = mergeCandidate(request, base, prior.result, current, content);
+    const merged = mergeCandidate(context, request, base, prior.result, current, content);
     if (merged === null || (agreed !== undefined && agreed !== merged)) {
       return { status: "ok", result: false };
     }
@@ -105,7 +105,7 @@ async function possibleBases(
 
 async function keptCopy(context: BaseSelectionContext, name: string): Promise<CopyBase | HeldBase> {
   try {
-    return { kind: "copy", content: await readRetainedBase(context.location, name) };
+    return { kind: "copy", content: await (context.readCopy?.(name) ?? readRetainedBase(context.location, name)) };
   } catch (error) {
     if (!(error instanceof RetainedBaseUnavailable)) throw error;
     return { kind: "held", mark: error.mark };
@@ -118,8 +118,8 @@ function ambiguousBase(): HeldBase {
   } } };
 }
 
-function mergeCandidate(request: TakeInRequest, base: RecoveredBase, prior: string, current: string, incoming: string): string | null {
-  const grammar = KIND_REGISTRY[request.entry.reference.kind].entry;
+function mergeCandidate(context: BaseSelectionContext, request: TakeInRequest, base: RecoveredBase, prior: string, current: string, incoming: string): string | null {
+  const grammar = (context.registry ?? KIND_REGISTRY)[request.entry.reference.kind].entry;
   if (grammar !== undefined) {
     const restored = restoreWriteBackIds({ reference: request.entry.reference, base: prior, content: incoming, grammar });
     incoming = stampEntryIds(restored.content, grammar, restored.random);

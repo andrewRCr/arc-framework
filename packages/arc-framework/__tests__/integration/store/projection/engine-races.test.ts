@@ -14,6 +14,7 @@ import { createMarkerFixture } from "../../../helpers/store/projection/marker-fi
 import { prepareSwap } from "../../../helpers/store/projection/swap-fixture.js";
 import { createEditorHandles } from "../../../helpers/store/projection/editor-handles.js";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
+import { RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
 import type { ProjectionLocation } from "../../../../src/lib/store/projection/location.js";
 
 const directories: string[] = [];
@@ -46,10 +47,12 @@ describe("editor races across command boundaries", () => {
   });
 
   it("sends a stampless recreated save against the replaced version, retaining an independent stored change", async () => {
-    const h = await prepareSwap({ path: ".arc/backlog/planned/one/one.txt",
+    const h = await prepareSwap({ path: ".arc/user/andrew/scratch/one.txt",
+      reference: RecordReferenceSchema.parse({ kind: "personal/document", owner: { type: "person", name: "andrew" }, key: "scratch/one.txt" }),
       contents: ["opening\nbase\nclosing\n", "opening\nbase\nclosing\nremote note\n"] });
     directories.push(h.seeded.checkout);
     await configureEngineCheckout(h.seeded.checkout);
+    h.fixture.identity("andrew");
     await rm(h.file);
     await h.swap({ hooks: { beforeRebuildLink: async () => { await writeFile(h.file, "opening\nhand edit\nclosing\n"); } } });
     await startProjection({ store: h.fixture.store, checkout: h.seeded.checkout });
@@ -60,7 +63,7 @@ describe("editor races across command boundaries", () => {
   });
 
   it("returns a late aside clash at the end and draws it at the next start", async () => {
-    const h = await createCheckoutFixture({ path: ".arc/user/andrew/document.md" });
+    const h = await createCheckoutFixture({ path: ".arc/user/andrew/scratch/document.md" });
     directories.push(h.checkout);
     await initializeEngineCheckout(h.checkout);
     const current = h.record.content.replace("first edit", "remote edit");
@@ -84,7 +87,7 @@ describe("editor races across command boundaries", () => {
   });
 
   it.each([false, true])("sweeps a failed command's drawing copy, preserving markers and outside deletion %s", async deleted => {
-    const h = await createCheckoutFixture({ path: ".arc/user/andrew/document.md" });
+    const h = await createCheckoutFixture({ path: ".arc/user/andrew/scratch/document.md" });
     directories.push(h.checkout);
     await initializeEngineCheckout(h.checkout);
     await h.store.write({ action: "put", reference: h.entry.reference, expected: h.record.version,
@@ -105,7 +108,7 @@ describe("editor races across command boundaries", () => {
   });
 
   it("returns a resolution in progress from an aside copy byte-for-byte and reports its refusal", async () => {
-    const h = await createMarkerFixture({ path: ".arc/user/andrew/document.md" });
+    const h = await createMarkerFixture({ path: ".arc/user/andrew/scratch/document.md" });
     directories.push(h.checkout);
     await initializeEngineCheckout(h.checkout);
     await h.edit(h.content + "independent note\n");

@@ -10,7 +10,7 @@ import type { SwapMoves } from "../../../../src/lib/store/projection/aside-moves
 
 /** Append beyond the old hunk's file edge, so its read-back truthfully renders a notice. */
 export async function createCopyRenderingFixture() {
-  const source = await createMarkerFixture({ path: ".arc/user/andrew/document.md" });
+  const source = await createMarkerFixture({ path: ".arc/user/andrew/scratch/document.md" });
   await source.edit(source.content + "independent note\n");
   const written = await writeBackFile(source.context, source.index, source.request);
   const entry = written.result.entry;

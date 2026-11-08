@@ -27,9 +27,9 @@ it("holds a missing retained Markdown base, continues another edit, and resumes 
   const f = await createRefFixture(createKindRegistry(PRODUCTION_REGISTRATIONS));
   f.identity("andrew");
   await configureEngineCheckout(f.root);
-  const original = await seed(f, recordReferences["personal/document"](person, "a-held.md"), "opening\nbase\nclosing\n");
-  const healthy = await seed(f, recordReferences["personal/document"](person, "z-healthy.md"), "healthy base\n");
-  const path = ".arc/user/andrew/a-held.md", other = ".arc/user/andrew/z-healthy.md";
+  const original = await seed(f, recordReferences["personal/document"](person, "scratch/a-held.md"), "opening\nbase\nclosing\n");
+  const healthy = await seed(f, recordReferences["personal/document"](person, "scratch/z-healthy.md"), "healthy base\n");
+  const path = ".arc/user/andrew/scratch/a-held.md", other = ".arc/user/andrew/scratch/z-healthy.md";
   const projected = await seedProjection({ store: f.store, checkout: f.root, files: [
     { reference: original.reference, path }, { reference: healthy.reference, path: other },
   ] });
@@ -66,8 +66,8 @@ it("holds a missing retained Markdown base, continues another edit, and resumes 
 
 it("holds an accepted adoption's missing input without resending and completes recording after restoration", async () => {
   const { f, registry, primary, folder, projected: initial } = await createAdoptionFixture();
-  const other = ".arc/user/andrew/healthy.md";
-  const healthy = await seed(f, recordReferences["personal/document"](person, "healthy.md"), "Healthy base\n");
+  const other = ".arc/user/andrew/scratch/healthy.md";
+  const healthy = await seed(f, recordReferences["personal/document"](person, "scratch/healthy.md"), "Healthy base\n");
   const metaPath = Object.keys(initial.index.entries)[0];
   if (metaPath === undefined) throw new Error("Missing initial primary projection");
   await unlink(join(f.root, metaPath));
@@ -81,9 +81,9 @@ it("holds an accepted adoption's missing input without resending and completes r
   await writeFile(join(f.root, path), bytes);
   const home = expandStoredPath(primary.reference, { registry });
   let repair: (() => Promise<void>) | undefined;
-  const write = f.store.write.bind(f.store);
-  vi.spyOn(f.store, "write").mockImplementationOnce(async input => {
-    const result = await write(input);
+  const batch = f.store.batch.bind(f.store);
+  vi.spyOn(f.store, "batch").mockImplementationOnce(async input => {
+    const result = await batch(input);
     if (result.status !== "ok") throw new Error("Expected accepted existing adoption");
     const entries = await capturedEntries(f, home.ref);
     const parent = new TextDecoder().decode((await f.ports.rawExec(["rev-parse", home.ref], { objectAccess: "local-only" })).stdout).trim();

@@ -33,9 +33,9 @@ describe("restoring hand-edited entry IDs", () => {
     expect(new Set(ids).size).toBe(2);
     const repeated = await prepareWriteBack(fixture.context, fixture.request);
     expect(repeated).toMatchObject({ kind: "ready", write: { content: prepared.write.content } });
-    const write = fixture.store.write.bind(fixture.store);
-    vi.spyOn(fixture.store, "write").mockImplementationOnce(async input => {
-      const result = await write(input);
+    const batch = fixture.store.batch.bind(fixture.store);
+    vi.spyOn(fixture.store, "batch").mockImplementationOnce(async input => {
+      const result = await batch(input);
       if (result.status !== "ok") throw new Error("write refused");
       throw new Error("stopped after landing");
     });

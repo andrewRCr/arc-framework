@@ -1,5 +1,6 @@
 /** Commander hooks write back before output and settle after normally returning actions. */
 import { Command } from "commander";
+import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { registerProjectionHooks } from "../../../../src/lib/store/projection/command-hooks.js";
 import { createEngineFixture, initializeEngineCheckout, overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
@@ -22,7 +23,7 @@ afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
 
 describe("projection command hooks", () => {
   it("reports a refused task tick and its remedy before whole JSON output, then accepts a repaired edit", async () => {
-    const h = await createEngineFixture(directories, { kind: "work-item/task-list", path: ".arc/active/tasks-example.md",
+    const h = await createEngineFixture(directories, { kind: "work-item/task-list", path: ".arc/active/current/tasks-work-item-one.md",
       content: TASK_RULE_CONTENT, registryOverrides: { "work-item/task-list": createKindRegistry(PRODUCTION_REGISTRATIONS)["work-item/task-list"] } });
     await h.edit(TASK_RULE_CONTENT.replace("`[ ]`", "`[x]`") + "\nIndependent note.\n");
     const events: { stream: string; text: string }[] = [];
@@ -51,8 +52,8 @@ describe("projection command hooks", () => {
     let saving = true;
     let revision = 1;
     await h.edit(`edit ${revision}\n`);
-    const store = overrideEngineStore(h.store, { write: async input => {
-      const result = await h.store.write(input);
+    const store = overrideEngineStore(h.store, { batch: async input => {
+      const result = await h.store.batch(input);
       if (saving && result.status === "ok") await h.edit(`edit ${++revision}\n`);
       return result;
     } });
@@ -108,7 +109,9 @@ describe("projection command hooks", () => {
   });
 
   it("writes completed roots under save only for the root save command and records its start outcome", async () => {
-    const h = await createEngineFixture(directories, { path: ".arc/completed/2026-q4/document.md" });
+    const h = await createEngineFixture(directories, { kind: "work-item/notes",
+      path: ".arc/completed/2026-q4/01_work-item-one/notes-work-item-one.md",
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
     await h.edit("saved archive edit\n");
     const program = new Command("arc").exitOverride();
     program.command("save").action(() => undefined);
@@ -149,7 +152,7 @@ describe("projection command hooks", () => {
   });
 
   it("records a no-identity save start and continues to the action, then succeeds after identity repair", async () => {
-    const h = await createEngineFixture(directories, { path: ".arc/active/document.md" });
+    const h = await createEngineFixture(directories, { kind: "work-item/notes" });
     await h.edit("saved edit\n");
     await h.exec("git", ["config", "arc.identity", "BAD ID"], { cwd: h.checkout });
     const program = new Command("arc").exitOverride();
@@ -197,7 +200,7 @@ describe("projection command hooks", () => {
 
   it("reports an open conflict a held file cannot show, then reports its accepted marker resolution", async () => {
     const base = "opening\nbase first\nseparation one\nseparation two\nbase tail\nclosing\n";
-    const h = await createMarkerFixture({ path: ".arc/user/andrew/document.md", base,
+    const h = await createMarkerFixture({ path: ".arc/user/andrew/scratch/document.md", base,
       current: base.replace("base first", "stored first"), incoming: base.replace("base first", "incoming first") });
     directories.push(h.checkout);
     await initializeEngineCheckout(h.checkout);
@@ -250,9 +253,9 @@ describe("projection command hooks", () => {
     const h = await createEngineFixture(directories);
     await h.edit("hand edit\n");
     let blocked = true;
-    const store = overrideEngineStore(h.store, { write: input => blocked ? Promise.resolve({ status: "refused",
+    const store = overrideEngineStore(h.store, { batch: input => blocked ? Promise.resolve({ status: "refused",
       refusal: { code: "lock-held", class: "recoverable", lock: "personal", condition: "A backend writer holds the lock.",
-        remedy: { text: "Repair the held lock, then retry.", argv: ["repair-store", "local data"] } } }) : h.store.write(input) });
+        remedy: { text: "Repair the held lock, then retry.", argv: ["repair-store", "local data"] } } }) : h.store.batch(input) });
     const output: string[] = [];
     const program = new Command("arc").exitOverride();
     program.command("probe").action(() => undefined);

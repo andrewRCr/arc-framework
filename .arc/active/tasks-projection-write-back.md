@@ -624,3 +624,14 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   version retained. Changed retries preserve newer edits; immediate and deferred entry-ID recording use the exact
   landed version when needed, unavailable copy/history holds without resend, and repaired recording resumes guarded
   processing with adoption and independent-file controls (A6; criterion 14).
+
+- `[x]` Prepared ordinary, aside, explicit-resolution, initial minted-metadata and adopted writes satisfy the
+  complete admission fence on the reference backend and both native layouts. Every § 7.2 decision-read family has
+  arrival/change and refusal/fresh-retry evidence, including internal admission retries, with unrelated-write and
+  unused-row admission controls, legitimate stale-base merging, final kind checks and retained A6 behavior
+  (A7; criterion 15).
+
+- `[x]` A typed projection-admission conflict with a readable base preserves bytes and the accepted-input basis,
+  reports pending work, spends no recovery allowance, drops no history and triggers no same-command resend. Later
+  fresh preparation succeeds after repair; paired genuine missing-base controls keep bounded recovery on the
+  reference backend and both native layouts, and generic observation refusals stay unchanged (A7; criterion 16).

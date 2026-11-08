@@ -414,15 +414,15 @@ it (§ 17). It is an escape hatch, not what keeps ARC's own machinery checkouts 
   any other command's start, a refusal naming a missing history ref is pulled and retried once (§ 8.4), a lock held past
   its bound, a lease lost, or a missing Git directory refuses with a retry (§ 2.2, `spec-projection-substrate.md`
   § 3.2), and `arc save` refuses `--skip-projection`, since its start is its whole work. Each edited file persists as
-  its own write, so one refused edit blocks no other: D13's "at once" means in one command, not one batch, which D3
-  makes all-or-none. A refusal another file's pending edit would cure clears at the next command, once that edit has
-  landed. Where a write to a completed item, or the `history` read its merge in the checkout makes
-  (`spec-projection-substrate.md` § 3.5), refuses `state-unresolvable` naming its history ref, `arc save` pulls the ref
-  and retries once (§ 8.4). `--resolve <conflict>` resolves a conflict shown without markers, and a held file other than
-  Markdown by the token its index entry names (§ 7.7), and refuses while its subject file is held for a resolution in
-  progress or a malformed set (§ 6.5), and `arc save` reports every resolution it sends. Under its projection lock it
-  then clears the changed mark of every file that holds no edit the store lacks (§ 11.7). `arc save` replaces
-  `arc user save` from the flip; before it, `arc save` refuses `unsupported` naming `arc user save` (§ 1.4).
+  its own one-mutation admission batch (A7; § 7.2), so one refused edit blocks no other: D13's "at once" means one
+  command, not a batch across files, which D3 makes all-or-none. A refusal another file's pending edit would cure clears
+  at the next command, once that edit has landed. Where a write to a completed item, or the `history` read its merge in
+  the checkout makes (`spec-projection-substrate.md` § 3.5), refuses `state-unresolvable` naming its history ref, `arc
+  save` pulls the ref and retries once (§ 8.4). `--resolve <conflict>` resolves a conflict shown without markers, and a
+  held file other than Markdown by the token its index entry names (§ 7.7), and refuses while its subject file is held
+  for a resolution in progress or a malformed set (§ 6.5), and `arc save` reports every resolution it sends. Under its
+  projection lock it then clears the changed mark of every file that holds no edit the store lacks (§ 11.7). `arc save`
+  replaces `arc user save` from the flip; before it, `arc save` refuses `unsupported` naming `arc user save` (§ 1.4).
 - **`arc sync`**, which `projection-worktrees` builds (`spec-projection-worktrees.md` § 2.4), rebuilds deleted projected
   files (D13), as a full materialization (`spec-projection-worktrees.md` § 2.5) run before its network steps, so an
   offline sync still rebuilds; `--dry-run` skips it, and with no identity its existing refusal (`resolveUserIdentity`,
@@ -692,34 +692,34 @@ residual of under 1% (§ Spike 6).
   within the tick of a stat its caller has observed but not yet published still reads as an edit. A worktree with no
   usable index records no aside copy, so takes no such write. The entry write-back returns carries the mark, which its
   caller's own index write keeps.
-- **Send against the base.** Its base is chosen in the order `spec-projection-substrate.md` § 3.5–§ 3.7 gives, as § 16.5
-  amends it for a file other than Markdown: a Markdown file's stamp names it — the index's base, or another stored
-  version found through `history` by its blob id — except that a save carrying the stamp the last persisted write-back
-  read takes what that write-back took in (its § 3.6), and a stamp lost, or naming no stored version, goes to base-stamp
-  recovery (its § 3.5); a file other than Markdown, which carries no stamp, is read against its index entry (its § 3.7)
-  and takes its base by agreement (§ 16.5). Its index holds every version that base can be: the base its take-in carries
-  — its entry's base for the file at its path, and for an aside copy holding a save that landed in it, taken in as a
-  stale save (its § 5.2), the base its name carries (`copyBase`, `lib/store/projection/aside-copies.ts`), since each
-  swap names its copy for the base of the file it moves (`plan`, `lib/store/projection/swap.ts`; `putBack`,
-  `lib/store/projection/aside-copies.ts`), resolved as a stamp is: the index's base, reading no `history`, where it
-  names it, the version a replacement in progress replaces where it names that, a stored version found through `history`
-  by its blob id, and base-stamp recovery where it names none (its § 3.5); at its path, while a replacement is in
-  progress, the version it replaces; and, where the last persisted write-back is recorded, the version that write landed
-  and the copy it kept (its § 3.6). Write-back merges the edit from each onto the store's current version with the
-  library the store's merge uses (§ 7.7), and a candidate whose content it cannot read leaves the file pending and
-  reported, as a stopped replacement's unreadable versions do (its § 3.7). Where all give the same content and file the
-  same clashes — one that finds no edit leaving the store's content as it is, and two clashes the same where they fall
-  at the same place in that content with the same two sides, whatever base each merged from, but a merge from a kept
-  copy, which the store never held, that files any clash counts as differing, since its clash is one found in the
-  checkout (§ 7.7) — the edit is sent against the base its take-in carries; where they differ, nothing is sent and the
-  file is held (§ 7.7). No candidate is chosen by how close the file is to it, and a save whose base no field records
-  stays unknowable (§ 17 item 12). It sends each edited file's content with the record version its base names as the
-  expected version (`spec-projection-substrate.md` § 3.4), under `write-back` provenance (§ 7.4). A kept copy or an
-  empty base, which the store never held, merges in the checkout first (§ 7.7), as does a meta or task list over a newer
-  version, which the store refuses rather than merges; each is sent against the version it merged onto. A primary
-  record's write carries its current placement unchanged, as `MutationSchema` requires (`lib/store/write.ts`) — the read
-  form less its `sequence`, which `WritePlacementSchema` rejects — and never a reference, a changed placement, a former
-  slug, or a link (§ 7.3).
+- **Send against the base (A7).** Each content put is submitted through § 7.2's one-mutation admission batch. Its base
+  is chosen in the order `spec-projection-substrate.md` § 3.5–§ 3.7 gives, as § 16.5 amends it for a file other than
+  Markdown: a Markdown file's stamp names it — the index's base, or another stored version found through `history` by
+  its blob id — except that a save carrying the stamp the last persisted write-back read takes what that write-back took
+  in (its § 3.6), and a stamp lost, or naming no stored version, goes to base-stamp recovery (its § 3.5); a file other
+  than Markdown, which carries no stamp, is read against its index entry (its § 3.7) and takes its base by agreement (§
+  16.5). Its index holds every version that base can be: the base its take-in carries — its entry's base for the file at
+  its path, and for an aside copy holding a save that landed in it, taken in as a stale save (its § 5.2), the base its
+  name carries (`copyBase`, `lib/store/projection/aside-copies.ts`), since each swap names its copy for the base of the
+  file it moves (`plan`, `lib/store/projection/swap.ts`; `putBack`, `lib/store/projection/aside-copies.ts`), resolved as
+  a stamp is: the index's base, reading no `history`, where it names it, the version a replacement in progress replaces
+  where it names that, a stored version found through `history` by its blob id, and base-stamp recovery where it names
+  none (its § 3.5); at its path, while a replacement is in progress, the version it replaces; and, where the last
+  persisted write-back is recorded, the version that write landed and the copy it kept (its § 3.6). Write-back merges
+  the edit from each onto the store's current version with the library the store's merge uses (§ 7.7), and a candidate
+  whose content it cannot read leaves the file pending and reported, as a stopped replacement's unreadable versions do
+  (its § 3.7). Where all give the same content and file the same clashes — one that finds no edit leaving the store's
+  content as it is, and two clashes the same where they fall at the same place in that content with the same two sides,
+  whatever base each merged from, but a merge from a kept copy, which the store never held, that files any clash counts
+  as differing, since its clash is one found in the checkout (§ 7.7) — the edit is sent against the base its take-in
+  carries; where they differ, nothing is sent and the file is held (§ 7.7). No candidate is chosen by how close the file
+  is to it, and a save whose base no field records stays unknowable (§ 17 item 12). It sends each edited file's content
+  with the record version its base names as the expected version (`spec-projection-substrate.md` § 3.4), under
+  `write-back` provenance (§ 7.4). A kept copy or an empty base, which the store never held, merges in the checkout
+  first (§ 7.7), as does a meta or task list over a newer version, which the store refuses rather than merges; each is
+  sent against the version it merged onto. A primary record's write carries its current placement unchanged, as
+  `MutationSchema` requires (`lib/store/write.ts`) — the read form less its `sequence`, which `WritePlacementSchema`
+  rejects — and never a reference, a changed placement, a former slug, or a link (§ 7.3).
 - **The store merges a stored base.** Where the store has moved past that version, the backend merges the base, its
   current version, and the edit by the kind's mechanism — line merge for prose, entry merge for entry lists — keeps its
   current side at each clash, and files each clash as a conflict record in the record's family, each side labelled with
@@ -812,12 +812,192 @@ Write-back persists the merged result only if the kind's write check, registered
   `State` alone never reads as changing it. Write-back sends no removal, since a deleted file is rebuilt (D13), so
   `next` is always present;
 - **two views,** `before` and `after` (§ 7.3), `before` also answering `history`, as the input requires;
-- **`observations`** — none, `observations: []`: a hand edit is one record's write and reads no other record a verb
-  would observe, and it proposes no created owner, so `proposedCreatedOwners` stays absent.
+- **`observations` (A7)** — the exact present records and absences whose values the prepared decision uses, with
+  both version and conflict set for a present record. A one-record mutation can depend on other records. The
+  admission request below re-derives selection and preparation against the landing state's `before`; the same
+  observations accompany that request and reach the kind check. No created owner is proposed, so
+  `proposedCreatedOwners` stays absent.
 
 Write-back reports every rule the check returns. A change to a field only a verb may set is refused by the check, not by
 the parser, which stays content-only (`cohort-storage-seam.md` § Shared contracts, item 11; `spec-seam-record-kinds.md`
 § 3.3).
+
+##### Prepared-write admission (A7)
+
+A prepared projection write may land only where preparing again against the state immediately before publication, with
+the same captured local inputs, produces the same mutation, accepted-input basis and relevant evidence. This applies to
+indexed ordinary files, aside copies, explicit resolution, initial post-mint metadata edits and adoption. Selection,
+edit rights and preparation are one decision for this purpose. A successful check before submission is insufficient: a
+record can arrive or change between that check and atomic admission.
+
+**One shared planner.** Split local capture from store-dependent preparation. A deterministic, read-only planner accepts
+a closed projection request and a `before` view supporting `read`, `list`, `lookup` and `history`. It selects one exact
+subject, derives edit rights, selects and reads the base, interprets conflict markers, restores IDs, prepares content
+and placement, and returns either a ready plan or the existing held/refused/clashed outcome. The caller and both
+off-branch backends use this same planner; admission does not call filesystem readers, acquire a projection lock, draw a
+clash, complete recording, mint a stub or send another write. Existing parsing, ID matching, base agreement, conflict
+and rights rules remain the rules the planner executes. The split changes where their store reads come from, not their
+meaning. The planner receives the backend's kind registry and no backend-specific selector implementation.
+
+**Public request.** Extend `BatchInput` with optional `projectionAdmission`; `WriteInput` remains unchanged. The
+extension is strict, versioned JSON data, with the following closed fields. Its schema and exported types live beside
+the shared write contract; preparation-only schemas contain no index publication or filesystem behavior. Omitted
+optional nested values are normalized to explicit nulls before plan comparison.
+
+| Field             | Type and meaning                                                                                           |
+| ----------------- | ---------------------------------------------------------------------------------------------------------- |
+| `version`         | Literal `1`; unknown versions and extra fields refuse as malformed input.                                  |
+| `mutationIndex`   | Literal `0`; exactly one mutation, a content `put`, is permitted.                                          |
+| `editingIdentity` | A validated identity slug, required to equal the backend's configured identity.                            |
+| `selection`       | Either `{ kind: "indexed", reference }`, with an exact indexed reference, or `{ kind: "unindexed" }`.      |
+| `local`           | The frozen path, layout, checkout ownership and candidate-container inputs defined below.                  |
+| `input`           | The authored file and preparation basis defined below; no store-read result is accepted here as authority. |
+| `prepared`        | The ready plan's accepted-input basis and history evidence, defined below.                                 |
+
+The submitted batch has hand-edit provenance: an existing hand-edit verb and `lifecycleAction: "edit"`. Its one mutation
+is the ready plan's mutation; the request supplies no second mutation. Generation-bearing subjects and record
+observations carry exact UIDs. Invalid cardinality, a removal, a different verb or action, an unsafe path, an inexact
+subject, an inconsistent local capsule or an identity mismatch refuses before publication. The backend resolves identity
+through its configured identity port, not a field in the edited content or the request; missing identity refuses with
+configuration guidance. The identity slug and the provenance actor are distinct: the existing backend actor resolution
+still enriches provenance. A projection request grants no authority to a generic caller; registered writer rules and
+resulting-state checks remain mandatory.
+
+Every nested object is closed; existing data schemas retain their validation. Any embedded stat bigint uses its existing
+decimal-string JSON encoding, never a JavaScript bigint. `local` contains these fields and no other checkout state:
+
+- `path`: the validated repository-relative projected path. It excludes side files, machine-local paths and derived
+  leftovers under § 9. `source` is `file` or `aside`; aside input retains the live logical path and its displaced
+  rendering, and cannot carry explicit resolution. - `layoutActive` and `viewInFlight`: `nested` or `flat`, and the
+  effective setting/pin data recorded by the index under `projectedUnder.view`, respectively. The classifier derives the
+  semantic address from `path` and these values; the request cannot assert a different address or selected UID. -
+  `claim` and `marker`: the configured current claim name or null, and decoded ownership-marker data or null. Marker
+  data retains subject kind, exact UID or claim ID, provisioning and husk state needed by the existing claim rules. It
+  is captured local evidence, never proof that the corresponding store claim still exists. - `indexedMetadata`:
+  path/reference pairs for every indexed or minted primary that can establish a candidate container for this path. The
+  caller captures the complete candidate set, not just the selected container. - `prospectiveMetadata`:
+  path/content-or-absence pairs for the candidate metadata files not established in the store. Capture every candidate
+  position the path permits. An unsettled, unreadable or linked candidate refuses local capture; it is not encoded as
+  absence. Prospective minting completes through the existing verb before a content-write request is prepared, then
+  local capture and selection run again with its exact receipt.
+
+For indexed selection, the exact index reference remains authoritative rather than being rebound by public name. The
+planner nevertheless re-reads all store-dependent rights and preparation evidence. For unindexed selection, it repeats
+the complete established-container or located-adoption decision: all qualifying containers, current claim binding,
+live/former-name precedence, exact archive coordinates, cohort membership and Parent, Errand role and quarter/name
+selection, or project identity, as applicable. A newly arriving qualifying record can therefore make selection different
+or ambiguous even when the old selected record is unchanged. An incomplete or unreadable inventory retains its existing
+refusal; unused healthy rows are not freshness dependencies.
+
+`input` contains these fields and no callbacks, mutable handles or absolute paths:
+
+- `format`: `sha1` or `sha256`; `file`: normalized authored content, its parsed stamp or null, and the captured
+  modification time as a nonnegative decimal nanosecond string. Normalization occurs before store-derived stub
+  normalization, marker interpretation, ID restoration or merging, so admission can repeat those decisions. - `basis`:
+  null for a genuinely new adoption; otherwise the entry's `reference`, `written`, `base`, `markers`, `notices`,
+  `unshown`, `persisted`, `inProgress`, `copies` and `adoption`. These use the corresponding data shapes of
+  `RecordEntrySchema`, with nullable/optional values normalized as above. They are the captured projection basis, not
+  current store records. Operational stat, changed/protected/pending flags and previous refusal prose carry no admission
+  authority and are excluded. An unfinished `persisted.recording` basis holds under § 7.1. - `base`: the take-in's
+  stamp-or-blob choice; `rendering`: its displaced `FileRendering` or null; `resolution`: its stored-reference or
+  checkout-hold selection, or null; `recoveringBase`: the existing recovery-mode boolean. An adopted creation uses null
+  basis/base/rendering/resolution and false recovery; an existing adopted record first attaches and then takes the
+  indexed path. A completed stub receipt yields its existing indexed initial edit, rather than authority to mint through
+  this request. - `retainedBases`: retained-copy name/content pairs for every copy the captured basis can consult. Names
+  stay logical copy identifiers and never become backend filesystem paths. Capture settles and verifies each copy's
+  content against its recorded blob; missing, linked, unreadable or inconsistent required copies hold locally. The
+  planner resolves these names only from this supplied map. A captured rendering and basis must refer only to admitted
+  references and captured copies under the existing index invariants.
+
+`prepared` is the deterministic ready receipt: the selected exact reference; selected base as stored version and content
+blob, retained-copy blob, or empty; the stamp (null for new adoption) and `takenIn` content to record after acceptance;
+any retained conflict notice with its existing reason/remedy; and `historicalInputs`, the canonical
+reference/version/content-blob triples actually used from history. No random generator is serialized. Preparation
+recreates its existing seeded ID stream from reference, selected base and authored bytes on both calls. The receipt
+excludes generated backend versions, commit IDs, archive sequences and backend-assigned IDs; these remain landing
+outputs. Marker and resolution references and the mutation's exact `expected`, `resolves`, placement and content are
+compared separately as part of the mutation. A history query used to choose a base is rerun, not replaced by the
+receipt's asserted chosen version.
+
+**Evidence and atomic admission.** The ready planner emits deduplicated `RecordObservation`s for exact current records
+and exact absences it used in the write or its accepted-input/reporting obligation. Present observations bind both the
+current version and complete conflict-reference set, including the subject even when the mutation's `expected` names an
+older merge base. Reading a list does not observe every listed row: only selected/used records become observations. If
+preparation reads one exact record with incompatible versions, presence or conflict sets, it holds and retries
+preparation later; deduplication never hides inconsistent reads. Absence, precedence, uniqueness and inventory
+completeness are decision rules rerun over fresh `before`; they cannot be replaced by a list of the UIDs that existed
+during preparation. History selection and consumed content are rerun and compared through the ready receipt. A fresh
+ready plan must have the same relevant record evidence and history inputs, not merely coincidentally equal output bytes.
+
+At serialized admission, first check the request's binding and the submitted observations against `before`, then run the
+planner against that same `before`, compare its mutation, receipt and observations with the submitted ones, and run the
+ordinary kind checks over the backend's actual merged `after`. Canonical comparison sorts reference sets and uses
+semantic exact references while retaining content bytes, expected versions, placement and links. Compare the submitted
+mutation before backend ID stamping or other landing enrichment; do not compare freshly prepared unstamped input to
+bytes a backend has already stamped. No writes, observations or reporting obligations may be added silently by
+admission. A fresh held, refused or clashed result, different selection, changed evidence, changed receipt or different
+mutation refuses the entire batch. Extend only the `version-conflict` refusal with optional `cause:
+"projection-admission"`. Both backends set this cause on a submitted projection observation mismatch or a changed replay
+decision, evidence, receipt or mutation, naming the subject and any mismatched observation references, with a remedy to
+prepare again at the next save/command. The projection admission caller adds the cause to its own observation
+mismatches; generic observation batches retain their existing refusal. Planner Store read/history refusals retain their
+native code and remedy, without being relabeled as an admission mismatch. Genuine unavailable merge-base or ordinary
+backend stale-version refusals remain untagged. A malformed request uses `record-malformed` with rule
+`projection.admission`; the tracked backend returns terminal `unsupported` with the new case `projection-admission`. It
+never silently discards the extension.
+
+The reference backend evaluates inside its atomic state queue, and the native ref backend inside its publication
+admission over its bound `before`. Native layout/ref/history retries must rerun this admission against the attempt that
+will publish, including when a new state ref appeared; never cache the verdict across retries or read through an outer
+operation's old memo. Ordinary kind checks still inspect final merged content; planner replay is not a replacement for
+them. Preparing a stale-base edit after another writer has changed the subject remains supported: its strict observation
+describes the current record seen during preparation, while `expected` keeps the older merge basis. Subsequent subject
+movement causes a refusal and fresh preparation, not a global version fence.
+
+**Local boundary and continuation.** Local capture for a send runs under the existing projection lease, with the read
+gate, no-follow ancestor checks and settled retained-copy reads. Immediately before submission the caller re-observes
+the marker, selected configuration, relevant index bindings and candidate metadata inputs; a difference recaptures and
+prepares again before any send. File bytes already captured are the authored input; later editor writes survive through
+the existing read-back replacement guards. The backend fences store state, not arbitrary filesystem edits or hostile
+changes to supplied local evidence. A cooperating ARC process changes protected local evidence only under that lease; no
+backend reads the checkout to pretend this is a cross-filesystem transaction.
+
+A refusal preserves the file or aside bytes and does not record a successful send, consume a resolution, advance the
+accepted-input mapping or clear pending work. A `version-conflict` carrying `cause: "projection-admission"` holds for
+ordinary fresh preparation on a later save/command, with repaired rights or selection where needed. Recognize the cause
+before rereading for lost-base recovery, dropping the history memo, spending that command's recovery allowance or
+selecting `recoveringBase`; none of those effects is justified by this refusal. Genuine missing-base failures keep §
+7.8's existing bounded recovery. No unbounded client resend loop is added. Independent files can progress. An accepted
+batch still has one write result, which feeds the existing A6 recording and guarded read-back paths. Stub minting
+remains a separate verb transaction; this request fences only its subsequent authored content put. A read-only
+feasibility check may capture and plan without acquiring that lease, as § 7.1 permits, but its result is provisional: a
+send recaptures and prepares under its caller's lease rather than using that preview as admission. Protected-rights
+presentation may still consult local holder paths after a refusal; those paths cannot turn a refused planner result into
+an admitted write.
+
+**Decision-read audit and perturbation witnesses.** The implementation maintains one explicit family inventory:
+
+| Decision family                                               | Admission obligation                                                                                     | Perturbation witness                                                                                                       |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Subject, primary role, content, placement and absence         | Re-read and strictly observe current version plus conflicts; retain old merge basis separately.          | Change/remove/create the subject, or change its role/placement; old request refuses, fresh preparation continues.          |
+| Owner and lifecycle rights                                    | Re-read the exact primary and re-derive the existing rights branch.                                      | Handover or change lifecycle after preparation; old request cannot land under newly protected rights.                      |
+| Checkout claim                                                | Re-derive from frozen marker and fresh claim/primary records, observing used records/absences.           | Release, replace or rebind the claim; test matching, foreign and repaired claims.                                          |
+| Work-item folder and lookup precedence                        | Rerun all qualifying container and live/former/archive selection rules.                                  | Change placement/cohort or add a higher-priority or second matching generation without changing the first.                 |
+| Cohort generation, membership and Parent                      | Re-read selected work unit and cohort; rerun live/copy/archive selection.                                | Change membership/Parent, retire authority or add an eligible archive candidate; preserve exact archive binding.           |
+| Errand role and archive selection                             | Re-read primary; rerun quarter/name/path uniqueness over complete inventory.                             | Add a second same-slug/same-quarter UID while the selected primary stays unchanged; refuse ambiguity.                      |
+| Project identity and personal owner                           | Re-derive project binding; compare actual configured editing identity.                                   | Change project binding or identity; preserve allowed fixed personal/project creation after repair.                         |
+| Base, recovery history, retained basis and stub normalization | Rerun selection and required history reads; compare selected base and consumed historical content.       | Alter available matching history or a required history read, and restore it; unfinished A6 recording never becomes a base. |
+| Conflict sets, conflict records and resolution                | Observe conflict sets independently of versions; rerun marker/history interpretation and exact resolves. | Change only the subject's conflict set, resolve/remove/change a conflict, or add an unshown conflict.                      |
+| Parse, merge, IDs and kind rules                              | Replay deterministic preparation and retain final resulting-state checks.                                | Change a semantic dependency; reject stale decision and still admit a legitimate stale-base merge prepared afresh.         |
+| Local path, marker, configuration, index and copies           | Capture/re-observe under the lease; no backend filesystem access.                                        | Change a captured local selector before send; capture again, preserve bytes, retain link refusal and guarded replacement.  |
+| Post-send recording and rendering                             | Outside prepared admission; retain § 7.1's accepted-version recording and replacement guards.            | Admission refusal records no acceptance; accepted ordinary/aside/adopted writes retain A6 refusal/repair behavior.         |
+
+Run arrival and change cases over the reference backend and both native layouts, at the actual prepare/submit seam and
+during a native internal admission retry. Each refusal has a repair/fresh-preparation success witness. Include ordinary
+indexed, aside, explicit resolution, initial minted metadata and allowed adoption paths. Every family also has a
+negative dependency control where applicable: an unrelated healthy record or unused listed row changes after preparation
+and the original request still admits. A whole-store token or complete-list equality fails that control. Record source
+coverage and perturbation results separately: reading all consumers alone proves no fence property.
 
 #### 7.3 The `after` view
 
@@ -847,8 +1027,8 @@ placeholder version and its owner's placement.
   (`spec-storage-ref-backend.md` § 5.1); the parse-back cases test what a write files or resolves (§ 6.4). The commit
   lookup stays outside it, since over those backends `before` answers it as they do by construction.
 
-Each edited file persists as its own `write`, so `after` is the store plus that one write, and one refused edit blocks
-no other (§ 2.4).
+Each edited file persists as its own one-mutation `batch` with the admission request (A7), so `after` is the store
+plus that one write, and one refused edit blocks no other (§ 2.4).
 
 #### 7.4 Provenance
 
@@ -986,11 +1166,15 @@ A refusal lands nothing, so the edit stays in its file and the next command send
 - **`record-malformed`** — from the kind's parser, which a write's stale-base merge also runs over the merged content,
   from the write check the backend runs where the write lands, or from a serialization rule (§ 7.5) — leaves a refused
   edit, reported with its rule and remedy (D13).
-- **`version-conflict` on a merge kind** sends write-back to read the record. A record no longer there takes the removal
-  path's refused edit (`spec-projection-substrate.md` § 5.6), as the reference backend refuses a put to an absent record
-  this way (`stale`, `__tests__/helpers/store/write.ts`). One still there means the expected version is not in its
-  history (`spec-storage-ref-backend.md` § 5.2), so the stamp is treated as lost and the file goes to base-stamp
-  recovery (`spec-projection-substrate.md` § 3.5), at most once per command.
+- **`version-conflict` with `cause: "projection-admission"` (A7)** marks the file pending for the next save/command
+  and reports the refusal's remedy. It preserves the known base and accepted-input mapping, consumes no resolution,
+  and neither spends the base-recovery allowance nor drops history or resends within the command. The same edit
+  takes ordinary fresh preparation later; a still-readable original base remains usable.
+- **Untagged `version-conflict` on a merge kind** sends write-back to read the record. A record no longer there takes
+  the removal path's refused edit (`spec-projection-substrate.md` § 5.6), as the reference backend refuses a put to an
+  absent record this way (`stale`, `__tests__/helpers/store/write.ts`). One still there means the expected version is
+  not in its history (`spec-storage-ref-backend.md` § 5.2), so the stamp is treated as lost and the file goes to
+  base-stamp recovery (`spec-projection-substrate.md` § 3.5), at most once per command.
 - **`lock-held`** marks the file pending for the next command, and is reported with the backend's remedy.
 - **`state-unresolvable` naming a history ref** comes only for an item this clone holds no live ref for, a completed
   one (`missingHistoryRefs`, `lib/store/ref/missing-history.ts`), and is § 8.4's, on a write or on a `history` read;
@@ -1186,6 +1370,13 @@ path or `arc sync` rebuilds deleted files (`spec-projection-worktrees.md` § 2.4
 the name match, is never adopted, as the files above are, but is reported. Each is reported with the remedy of replacing
 it with a regular file, and the removal check and the persist and release steps never refuse over one, since the record
 lives in the store and the link's target outside the projection (`spec-projection-worktrees.md` § 12.2).
+
+**Prepared adoption (A7).** Target resolution, current absence, edit rights, parsing and content preparation feed
+§ 7.2's shared planner and one-mutation admission batch. An `expected: null` put alone fences only the subject's
+creation, not its owner, claim, cohort, archive selection or project binding. A selected existing record takes the
+ordinary indexed path after attachment. A new stub first mints through its verb and exact receipt, then recaptures
+for its initial authored edit; admission never repeats minting. Selection or rights changes preserve unadopted bytes
+and report the existing condition or a fresh-preparation remedy, with the same edit adopting after repair.
 
 ### 10. The `active/` layout
 
@@ -1453,6 +1644,9 @@ A command's cost grows with what changed, never with how much state exists. Read
 `history` is read only where `spec-projection-substrate.md` § 3.5 names, and where accepted-input recording
 needs missing entry IDs restored but read-back no longer names the accepted landed version (§ 7.1; A6). That read
 selects the exact known version from the existing per-record history answer; it does not scan unrelated records.
+Prepared admission (A7; § 7.2) repeats only the history queries its fresh preparation requires, with an attempt-local
+memo. Replay runs only for a ready content send; it adds no history reads or global selector scans to an unchanged
+command.
 
 #### 15.1 What write-back checks
 
@@ -1472,8 +1666,17 @@ specification is edited.
 
 #### 16.1 The storage contract (`spec-storage-contract.md`)
 
-Nine change D13's own wording:
+Ten change D13's own wording:
 
+- **Prepared projection writes (A7).** `BatchInput` gains optional strict, versioned `projectionAdmission` data
+  for one hand-edit content put (§ 7.2). One shared planner repeats the frozen local request against atomic
+  admission's fresh `before` on the reference and native ref backends. Exact observations bind relevant records,
+  absences and conflict sets; replay detects arriving selector participants. Identity/mutation binding, accepted
+  basis comparison, backend retries and final kind checks are mandatory. A projection observation or replay
+  mismatch returns `version-conflict` with the optional cause `projection-admission`, which holds for later fresh
+  preparation without invoking lost-base recovery; genuine missing-base conflicts remain untagged and keep their
+  bounded recovery. Other batches retain their contract; the tracked backend explicitly refuses case
+  `projection-admission` and the projection remains dark there.
 - **The skip switch** (§ 2.3). D13 says there is no setting to turn write-back off. `--skip-projection` is a flag every
   `arc` command accepts that runs that one command without write-back or refresh, its edits left pending for the next,
   so a projection defect cannot lock a person out of `arc`; nothing keeps it on as a mode. The removal check and the
@@ -2039,6 +2242,22 @@ _These considerations cover the design the three members build together; § 1.1 
     repair completes recording and normal guarded processing. Existing mappings, adoption and independent files
     retain their behavior, and the existing ID matcher's ambiguity residual remains.
 
+15. **Prepared decisions hold at landing (A7).** On the reference backend and both native layouts, indexed ordinary,
+    aside, explicit-resolution, initial minted-metadata and adopted content puts cannot land after a relevant
+    preparation decision changes. The § 7.2 audit covers every decision-read family with change/arrival probes,
+    including Owner, claims, cohort authority, competing Errand generations, history/base and conflict-set-only
+    changes. Refusals preserve bytes and acceptance state, and repair plus fresh preparation succeeds. The same
+    fence holds across internal admission retry; unrelated writes and unused healthy listed rows still admit the
+    original request. Legitimate stale-base merging, final kind checks and A6 recording remain supported, malformed
+    or mismatched requests refuse atomically, and the tracked backend explicitly rejects the extension.
+
+16. **Admission conflicts preserve the readable base (A7).** On the reference backend and both native layouts,
+    a projection observation or replay mismatch carries the typed `projection-admission` cause while the original
+    base remains readable. It preserves bytes, base and acceptance mapping, reports pending work and neither spends
+    the recovery allowance, drops history nor resends within that command. A later fresh preparation succeeds after
+    the changed condition is repaired. Paired genuine missing-base controls remain untagged and retain the existing
+    one-per-command base recovery; generic observation batches retain their existing refusal contract.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -2060,5 +2279,8 @@ this design open.
 
 - **A6** — 2026-11-07 — design: finish accepted-input recording before reuse. _Supersedes:_ §7.1 read-back; §15 ¶1.
   _Trigger:_ parse-check-1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A7** — 2026-11-07 — design: fence prepared projection writes. _Supersedes:_ §7.1–7.3; §9.
+  _Trigger:_ prepared-fence review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

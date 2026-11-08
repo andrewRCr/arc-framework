@@ -43,7 +43,7 @@ describe("durable aside marker recovery", () => {
   });
 
   it.each(["linked", "published", "unlinked"] as const)("recovers the old marker mapping when ownership is lost after return is %s", async stop => {
-    const h = await createMarkerFixture({ path: ".arc/user/andrew/document.md" });
+    const h = await createMarkerFixture({ path: ".arc/user/andrew/scratch/document.md" });
     directories.push(h.checkout);
     await initializeEngineCheckout(h.checkout);
     await h.edit(h.content + "independent note\n");

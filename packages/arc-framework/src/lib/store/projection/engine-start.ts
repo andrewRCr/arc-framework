@@ -1,5 +1,6 @@
 /** Initialization performed inside the command's own projection lease. */
 import { readCheckoutLayoutContext } from "../checkout-layout.js";
+import { captureProjectionLocal } from "./local-capture.js";
 import { createHistoryMemo } from "./base-recovery.js";
 import { readProjectionConfiguration, type ProjectionConfiguration } from "./configuration.js";
 import { guardedProjectionRoots } from "./ignore-guard.js";
@@ -110,6 +111,15 @@ async function bindRoot(input: ProjectionCommandInput, ports: ProjectionEnginePo
     await root.checkpoint();
   };
   const context: ReadBackContext = { store: input.store, location, format: config.objectFormat, actor, writer, memo: state.history, versionRecoveries: [],
+    registry: ports.registry,
+    captureLocal: async (path, source) => {
+      const [fresh, selected] = await Promise.all([readProjectionConfiguration(ports.exec, input.checkout),
+        readCheckoutLayoutContext(input.checkout, { fresh: true })]);
+      if (fresh.identity.status !== "identified") return { status: "refused", refusal: { code: "record-malformed",
+        class: "recoverable", rule: "projection.local", condition: "The editing identity is no longer configured.", remedy: fresh.identity.remedy } };
+      return captureProjectionLocal({ checkout: input.checkout, path, source, location, settings: {
+        identity: fresh.identity.identity, claim: selected.claim, layoutActive: selected.layoutActive, view: interpretProjectionView(fresh.view).view } });
+    },
     protection: createProjectionProtection({ store: input.store, checkout: input.checkout, identity: config.identity.identity, exec: ports.exec, verb: input.mode ?? "write-back" }),
     verb: input.mode ?? "write-back", checkpoint, hooks: ports.hooks, takeIn: request => root.takeIn(request), onWrite: () => { root.changed = true; },
     report: diagnostic => {

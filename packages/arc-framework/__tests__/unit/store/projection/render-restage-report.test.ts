@@ -46,17 +46,18 @@ describe("restaging refusal reports", () => {
       }
       return result;
     };
-    const write: Store["write"] = async input => {
+    const batch: Store["batch"] = async input => {
+      const record = success(await fixture.store.read({ reference: fixture.entry.reference }));
+      const result = await fixture.store.batch(input);
       if (++writes === (mode === "read-back" ? 2 : 1)) {
-        const record = success(await fixture.store.read({ reference: fixture.entry.reference }));
         success(await fixture.store.write({ action: "put", reference: fixture.entry.reference, expected: record.version,
           content: record.content.replace("base tail", "racing tail"), provenance: { verb: "edit", lifecycleAction: "edit" } }));
       }
-      return fixture.store.write(input);
+      return result;
     };
     const store = new Proxy(fixture.store, { get(target, key) {
       if (key === "read") return read;
-      if (key === "write") return write;
+      if (key === "batch") return batch;
       const value: unknown = Reflect.get(target, key, target);
       return typeof value === "function" ? value.bind(target) : value;
     } });

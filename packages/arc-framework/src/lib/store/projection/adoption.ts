@@ -10,7 +10,7 @@ import { resolveBacklogOwnership } from "./container-ownership.js";
 import { gateRead } from "./read-gate.js";
 import { parseStampedFile } from "./stamp.js";
 import { gitBlobId } from "./blob-id.js";
-import { prepareAdoptedContent } from "./check-edit.js";
+import { prepareAdoptedProjectionSubmission, submitProjectionBatch } from "./submission.js";
 import { readProjectionProtection } from "./protection.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import { commitProjectionIndex } from "./index-file.js";
@@ -18,6 +18,7 @@ import { recordAdoptionAcceptance } from "./adoption-read-back.js";
 import { resolveLocatedAdoption } from "./adoption-target.js";
 import { mintProjectionMetadata, resumeProjectionStub } from "./stub-mint.js";
 import { attachExistingProjectionFile } from "./adoption-existing.js";
+import { readProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
 
 /** Take in one unindexed path, retaining bytes and a repairable ownerless entry when admission refuses. */
 export async function adoptProjectionFile(root: ProjectionRootState, index: ProjectionIndex, path: string): Promise<ProjectionIndex> {
@@ -40,6 +41,9 @@ export async function adoptProjectionFile(root: ProjectionRootState, index: Proj
   const denied = await readProjectionProtection({ store: root.store, checkout: root.checkout,
     identity: root.identity, exec: root.ports.exec, verb: root.context.verb }, reference);
   if (denied !== null) return refuse(root, index, path, gate.stat, denied);
+  const boundary = await readProjectionLinkBoundary(root.checkout, [path]);
+  const linked = boundary(path);
+  if (linked !== null) return refuse(root, index, path, null, { reason: "not-a-file", remedy: projectionLinkRemedy(linked) });
   const bytes = await readFile(join(root.checkout, path));
   const existing = await root.store.read({ reference });
   if (existing.status === "ok") return attachExistingProjectionFile(root, index, path, existing.result,
@@ -53,19 +57,13 @@ export async function adoptProjectionFile(root: ProjectionRootState, index: Proj
   });
   const text = bytes.toString("utf8");
   const supplied = path.endsWith(".md") ? parseStampedFile(text).content : text.replaceAll("\r\n", "\n");
-  const checked = await prepareAdoptedContent(root.context, reference, supplied);
-  const content = checked.content, broken = checked.refusals;
-  const first = broken[0];
-  if (first !== undefined) {
-    for (const mark of broken.slice(1)) root.context.report?.({ path, copy: null, mark });
-    return refuse(root, index, path, gate.stat, first);
-  }
   await root.context.checkpoint?.();
-  const sent = await root.store.write({ action: "put", reference, content, expected: null,
-    provenance: { verb: root.context.verb ?? "write-back", lifecycleAction: "edit" } });
-  await root.context.checkpoint?.();
+  const submission = await prepareAdoptedProjectionSubmission(root.context, root.checkout, path, { content: supplied,
+    stamp: path.endsWith(".md") ? parseStampedFile(text).stamp : null, mtimeNs: gate.stat.mtimeNs.toString() }, index);
+  if (submission.status === "refused") return refuse(root, index, path, gate.stat, markStoreRefusal(submission.refusal, root.context.verb));
+  const content = submission.result.plan.prepared.takenIn;
+  const sent = await submitProjectionBatch(root.context, submission.result.batch);
   if (sent.status === "refused") return refuse(root, index, path, gate.stat, markStoreRefusal(sent.refusal, root.context.verb));
-  root.context.onWrite?.();
   return recordAdoptionAcceptance(root, index, path, sent.result, content,
     { stat: gate.stat, blob: gitBlobId(bytes, root.context.format) });
 }

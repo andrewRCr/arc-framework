@@ -1,4 +1,6 @@
 /** Prepare a projected edit without writing, then send it through the caller-owned take-in port. */
+import { prepareIndexedProjectionSubmission, submitProjectionBatch } from "./submission.js";
+import type { ProjectionLocalCapture } from "./local-capture.js";
 import { markStoreRefusal } from "./refusal-mark.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -19,7 +21,8 @@ import { readProjectionIndex, writeProjectionIndex } from "./index-file.js";
 import { createHistoryMemo, type HistoryMemo } from "./base-recovery.js";
 import { readStamplessFile } from "./stampless.js";
 import type { StoreRecord } from "../read.js";
-import { createKindRegistry } from "../registry.js";
+import { createKindRegistry, type KindDefinition } from "../registry.js";
+import type { KindId } from "../catalog.js";
 import { recordPendingWriteBack, recordWriteBack } from "./taken-in.js";
 import { restoreWriteBackIds } from "./write-back-ids.js";
 import { selectWriteBackBase } from "./base-selection.js";
@@ -36,6 +39,7 @@ import { explicitResolutionMarkerRefusal } from "./save-markers.js";
 import { normalizeStubEdit } from "./stub-normalization.js";
 import { observeProjectionEdit } from "./edit-observation.js";
 import { completeWriteBackRecording } from "./write-back-recording.js";
+import { readProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
 
 const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
@@ -47,6 +51,9 @@ export interface WriteBackContext {
   readonly location: ProjectionLocation;
   readonly format: ObjectFormat;
   readonly actor: string;
+  readonly captureLocal?: (path: string, source: "file" | "aside") => Promise<StoreResult<ProjectionLocalCapture>>;
+  readonly registry?: Readonly<Record<KindId, KindDefinition>>;
+  readonly readCopy?: (name: string) => Promise<string>;
   readonly now?: () => Date;
   readonly memo?: HistoryMemo;
   readonly verb?: typeof HAND_EDIT_VERBS[number];
@@ -74,7 +81,7 @@ export interface WriteBackResolution {
 /** An edit ready for its own store write, or the reason the file stays where it is. */
 export type PreparedWriteBack =
   | { readonly kind: "ready"; readonly write: Extract<WriteInput, { action: "put" }>; readonly read: TakeInRead;
-      readonly stamp: string; readonly takenIn: string; readonly random?: () => number; readonly retained?: RefusedMark }
+      readonly stamp: string; readonly takenIn: string; readonly selectedBase: RecoveredBase; readonly captured: CapturedWriteBackFile; readonly random?: () => number; readonly retained?: RefusedMark }
   | { readonly kind: "clashed"; readonly drawing: CheckoutDrawing; readonly read: TakeInRead; readonly result: TakeInResult; readonly diagnostic: RefusedMark }
   | { readonly kind: "held"; readonly result: TakeInResult; readonly diagnostic?: RefusedMark;
       readonly diagnostics?: readonly RefusedMark[]; readonly refusal?: StoreRefusal };
@@ -82,8 +89,24 @@ export type PreparedWriteBack =
 /** Read and parse an edit without writing a file, publishing an index, or acquiring a lock. */
 export async function prepareWriteBack(context: WriteBackContext, request: TakeInRequest): Promise<PreparedWriteBack> {
   request = observeProjectionEdit(request);
-  const file = await readNormalizedEdit(context, request);
-  if (file.kind === "held") return file;
+  const file = await captureWriteBackFile(context, request);
+  return file.kind === "held" ? file : prepareCapturedWriteBack(context, request, file);
+}
+
+/** Settled authored bytes retained independently of store-derived normalization and base selection. */
+export interface CapturedWriteBackFile { readonly kind: "read"; readonly content: string; readonly read: TakeInRead; readonly stamp: string | null }
+
+/** Repeat store-dependent preparation from captured bytes without reading a checkout file. */
+export async function prepareCapturedWriteBack(context: WriteBackContext, request: TakeInRequest,
+  supplied: CapturedWriteBackFile): Promise<PreparedWriteBack> {
+  request = observeProjectionEdit(request);
+  if (!request.path.endsWith(".md") && request.copy === null) {
+    const held = await stamplessVerdict(context, request, supplied.content, supplied.read.stat);
+    if (held !== null) return observedHeldRead(request, held, supplied.read.blob);
+  }
+  const normalized = await normalizeStubEdit(context, request.entry, supplied.content);
+  if (normalized.status === "refused") return refusedPreparation(request.entry, normalized.refusal);
+  const file = { ...supplied, content: normalized.result };
   request = observeProjectionEdit(request, file.read.blob);
   const selected = await selectWriteBackBase(context, request, file.content, file.stamp);
   if (selected.status === "refused") return refusedPreparation(request.entry, selected.refusal);
@@ -99,20 +122,26 @@ export async function prepareWriteBack(context: WriteBackContext, request: TakeI
   const markerRefusal = explicitResolutionMarkerRefusal(request, file.content, markers.result);
   if (markerRefusal !== null) return { kind: "held", result: { answer: "refused", mark: markerRefusal,
     entry: { ...request.entry, pending: true, refused: markerRefusal } } };
-  const restored = await restoreIds(context, request, markers.result.content, base);
+  return prepareReadyContent(context, request, file, base, stamp, markers.result, supplied);
+}
+
+async function prepareReadyContent(context: WriteBackContext, request: TakeInRequest, file: CapturedWriteBackFile,
+  base: RecoveredBase, stamp: string, markers: Extract<MarkerParseResult, { kind: "ready" }>,
+  captured: CapturedWriteBackFile): Promise<PreparedWriteBack> {
+  const restored = await restoreIds(context, request, markers.content, base);
   if (restored.status === "refused") return refusedPreparation(request.entry, restored.refusal);
   const { content: takenIn, random } = restored.result;
   const merged = await prepareContent(context, request, base, takenIn, file.read, random);
   if (merged.status === "refused") return refusedPreparation(request.entry, merged.refusal);
-  if (merged.result.drawing !== undefined) return clashedPreparation(request, merged.result.drawing, file.read, markers.result);
+  if (merged.result.drawing !== undefined) return clashedPreparation(request, merged.result.drawing, file.read, markers);
   const { content, version } = merged.result;
   const invalid = await checkContent(context, request, { kind: "stored", version }, content, random);
   if (invalid !== null) return invalid;
   const placement = await currentWritePlacement(context.store, request);
   if (placement.status === "refused") return refusedPreparation(request.entry, placement.refusal);
-  const resolves = resolvingReferences(markers.result.resolves, request.resolution);
-  return { kind: "ready", read: file.read, stamp, takenIn, ...(random === undefined ? {} : { random }),
-    ...(markers.result.retained === undefined ? {} : { retained: markers.result.retained }), write: {
+  const resolves = resolvingReferences(markers.resolves, request.resolution);
+  return { kind: "ready", read: file.read, stamp, takenIn, selectedBase: base, captured, ...(random === undefined ? {} : { random }),
+    ...(markers.retained === undefined ? {} : { retained: markers.retained }), write: {
     action: "put", reference: request.entry.reference, content, expected: version,
     ...(resolves.length === 0 ? {} : { resolves }),
     ...(placement.result === undefined ? {} : { placement: placement.result }),
@@ -130,7 +159,7 @@ type HeldWriteBack = Extract<PreparedWriteBack, { readonly kind: "held" }>;
 type ReadEdit = { readonly kind: "read"; readonly content: string; readonly read: TakeInRead; readonly stamp: string | null } | HeldWriteBack;
 
 async function checkContent(context: WriteBackContext, request: TakeInRequest, base: RecoveredBase, content: string, random?: () => number): Promise<HeldWriteBack | null> {
-  const parser = kinds[request.entry.reference.kind].parser;
+  const parser = (context.registry ?? kinds)[request.entry.reference.kind].parser;
   const parsed = parser?.(content);
   if (parsed?.success === false) {
     const mark: RefusedMark = { reason: parsed.error, remedy: { text: `Repair ${request.path} so its record parser accepts the edit, then save again.` } };
@@ -146,7 +175,7 @@ async function checkContent(context: WriteBackContext, request: TakeInRequest, b
 
 async function prepareMarkers(context: WriteBackContext, request: TakeInRequest, content: string, base: RecoveredBase): Promise<StoreResult<MarkerParseResult>> {
   const entry = request.rendering === undefined ? request.entry : { ...request.entry, ...request.rendering };
-  const grammar = kinds[entry.reference.kind].entry;
+  const grammar = (context.registry ?? kinds)[entry.reference.kind].entry;
   if (grammar === undefined || entry.markers === null) return prepareMarkerContent(context.store, entry, content, context.memo);
   const selected = await readBaseContent(context, request.entry, base);
   if (selected.status === "refused") return selected;
@@ -155,14 +184,14 @@ async function prepareMarkers(context: WriteBackContext, request: TakeInRequest,
 }
 
 async function prepareContent(context: WriteBackContext, request: TakeInRequest, base: RecoveredBase, content: string, read: TakeInRead, random?: () => number): Promise<StoreResult<CheckoutMerge>> {
-  if (base.kind === "stored" && kinds[request.entry.reference.kind].merge !== "single-writer") {
+  if (base.kind === "stored" && (context.registry ?? kinds)[request.entry.reference.kind].merge !== "single-writer") {
     return { status: "ok", result: { content, version: base.version } };
   }
   const original = await readBaseContent(context, request.entry, base);
   if (original.status === "refused") return original;
   return mergeCheckoutBase({ store: context.store, reference: request.entry.reference, base: original.result,
     baseVersion: base.kind === "stored" ? base.version : null, content,
-    grammar: kinds[request.entry.reference.kind].entry, random, actor: context.actor, now: context.now, mtimeNs: read.stat.mtimeNs });
+    grammar: (context.registry ?? kinds)[request.entry.reference.kind].entry, random, actor: context.actor, now: context.now, mtimeNs: read.stat.mtimeNs });
 }
 
 function clashedPreparation(request: TakeInRequest, drawing: CheckoutDrawing, read: TakeInRead,
@@ -192,8 +221,14 @@ async function heldBasePreparation(context: WriteBackContext, request: TakeInReq
   return { kind: "held", result: { answer: "pending", entry: { ...request.entry, pending: true } }, diagnostic: mark };
 }
 
-async function readEdit(context: WriteBackContext, request: TakeInRequest): Promise<ReadEdit> {
-  const path = join(request.checkout, request.copy ?? request.path);
+/** Capture one settled local file without making store-derived preparation decisions. */
+export async function captureWriteBackFile(context: WriteBackContext, request: TakeInRequest): Promise<ReadEdit> {
+  const logical = request.copy ?? request.path;
+  const boundary = await readProjectionLinkBoundary(request.checkout, [logical]);
+  const linked = boundary(logical);
+  if (linked !== null) return { kind: "held", result: { answer: "no-edit", entry: request.entry },
+    diagnostic: { reason: "not-a-file", remedy: projectionLinkRemedy(linked) } };
+  const path = join(request.checkout, logical);
   const gate = await gateRead({ path, markdown: request.path.endsWith(".md") && request.adopting !== true });
   if (gate.kind !== "read") {
     return { kind: "held", result: { answer: gate.kind === "pending" ? "pending" : "no-edit",
@@ -203,21 +238,9 @@ async function readEdit(context: WriteBackContext, request: TakeInRequest): Prom
   const bytes = await readFile(path);
   const blob = gitBlobId(bytes, context.format);
   const text = bytes.toString("utf8");
-  if (!request.path.endsWith(".md") && request.copy === null) {
-    const held = await stamplessVerdict(context, request, text, gate.stat);
-    if (held !== null) return observedHeldRead(request, held, blob);
-  }
   const parsed = request.path.endsWith(".md") ? parseStampedFile(text) : null;
   const stamp = parsed === null ? null : parsed.stamp;
   return { kind: "read", content: parsed?.content ?? text.replaceAll("\r\n", "\n"), stamp, read: { stat: gate.stat, blob } };
-}
-
-async function readNormalizedEdit(context: WriteBackContext, request: TakeInRequest): Promise<ReadEdit> {
-  const observed = await readEdit(context, request);
-  if (observed.kind === "held") return observed;
-  const normalized = await normalizeStubEdit(context, request.entry, observed.content);
-  return normalized.status === "refused" ? refusedPreparation(request.entry, normalized.refusal)
-    : { ...observed, content: normalized.result };
 }
 
 function observedHeldRead(request: TakeInRequest, held: HeldWriteBack, blob: string): HeldWriteBack {
@@ -263,7 +286,7 @@ function refusedPreparation(entry: RecordEntry, refusal: StoreRefusal): HeldWrit
 async function restoreIds(context: WriteBackContext, request: TakeInRequest, content: string, selected: RecoveredBase): Promise<StoreResult<{
   content: string; random?: () => number;
 }>> {
-  const grammar = kinds[request.entry.reference.kind].entry;
+  const grammar = (context.registry ?? kinds)[request.entry.reference.kind].entry;
   if (grammar === undefined) return { status: "ok", result: { content } };
   const base = await readBaseContent(context, request.entry, selected);
   return base.status === "refused" ? base : { status: "ok", result: restoreWriteBackIds({
@@ -339,7 +362,7 @@ function keepStandingHold<T extends TakeInResult>(result: T, prior: RecordEntry)
 }
 
 async function sendAttempt(context: WriteBackContext, request: TakeInRequest): Promise<WriteBackSend | RefusedSend> {
-  const prepared = await prepareWriteBack(context, request);
+  let prepared = await prepareWriteBack(context, request);
   if (prepared.kind === "clashed") {
     context.report?.({ path: request.path, copy: request.copy, mark: prepared.diagnostic });
     return { kind: "clashed", result: prepared.result, drawing: prepared.drawing, read: prepared.read };
@@ -349,7 +372,16 @@ async function sendAttempt(context: WriteBackContext, request: TakeInRequest): P
   }
   request = observeProjectionEdit(request, prepared.read.blob);
   let entry = await markOtherCopies(context, request);
-  const sent = await sendLeasedWrite(context, prepared.write);
+  await context.checkpoint?.();
+  const submission = await prepareIndexedProjectionSubmission(context, request, prepared);
+  if (submission.status === "refused") return { kind: "store-refused", refusal: submission.refusal, entry };
+  const receipt = submission.result.plan.prepared;
+  if (receipt.stamp === null) throw new Error("An indexed content write requires its captured stamp");
+  const original = { ...prepared };
+  delete original.retained;
+  prepared = { ...original, write: { ...submission.result.plan.mutation, provenance: submission.result.batch.provenance },
+    stamp: receipt.stamp, takenIn: receipt.takenIn, ...(receipt.retained === null ? {} : { retained: receipt.retained }) };
+  const sent = await submitProjectionBatch(context, submission.result.batch);
   if (sent.status === "refused") {
     return { kind: "store-refused", refusal: sent.refusal, entry };
   }
@@ -428,14 +460,6 @@ async function markOtherCopies(context: WriteBackContext, request: TakeInRequest
     ...disk.index.entries, [request.path]: recordWriteBackSent(entry, request.copy),
   } }, context.checkpoint);
   return recordWriteBackSent(request.entry, request.copy);
-}
-
-async function sendLeasedWrite(context: WriteBackContext, write: WriteInput): ReturnType<Store["write"]> {
-  await context.checkpoint?.();
-  const sent = await context.store.write(write);
-  if (sent.status === "ok") context.onWrite?.();
-  await context.checkpoint?.();
-  return sent;
 }
 
 function currentUnshown(entry: RecordEntry, open: readonly RecordReference[] | undefined): RecordEntry["unshown"] {

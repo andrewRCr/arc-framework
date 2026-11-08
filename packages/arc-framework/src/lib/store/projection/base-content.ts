@@ -1,4 +1,6 @@
 /** Read the exact content a stored or local projection base names. */
+import type { KindId } from "../catalog.js";
+import type { KindDefinition } from "../registry.js";
 import type { Store } from "../contract.js";
 import type { RecordVersion } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
@@ -14,6 +16,8 @@ export interface BaseSelectionContext {
   readonly format: ObjectFormat;
   readonly memo?: HistoryMemo;
   readonly recoveringBase?: boolean;
+  readonly readCopy?: (name: string) => Promise<string>;
+  readonly registry?: Readonly<Record<KindId, KindDefinition>>;
 }
 
 /** Read the content a selected base names, without substituting a newer version. */

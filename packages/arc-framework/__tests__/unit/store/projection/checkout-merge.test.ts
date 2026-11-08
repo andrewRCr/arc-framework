@@ -18,6 +18,8 @@ import { ENTRY_CONFIGS } from "../../../../src/lib/store/kinds/entry-configs.js"
 import { createMarkerFixture } from "../../../helpers/store/projection/marker-fixture.js";
 import { formatConflictToken } from "../../../../src/lib/status/conflict-token.js";
 import { TASK_LIST_REGISTRATION } from "../../../../src/lib/store/kinds/task-list/registration.js";
+import { writeMetaPause } from "../../../../src/lib/store/kinds/meta/writers.js";
+import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { TASK_RULE_CONTENT } from "../../../helpers/store/task-rule-input.js";
 
 const fixtures: { dispose: () => Promise<void> }[] = [];
@@ -27,7 +29,7 @@ describe("checkout merges", () => {
   it("merges a task-list hand edit over a newer verb write instead of sending its stale version", async () => {
     const base = TASK_RULE_CONTENT + "\nWorking note.\n";
     const fixture = await createWriteBackFixture({ kind: "work-item/task-list", content: base,
-      fixture: createReferenceFixture({}, { "work-item/task-list": { parser: TASK_LIST_REGISTRATION.parser } }) });
+      fixture: createReferenceFixture({}, { "work-item/meta": { parser: META_REGISTRATION.parser }, "work-item/task-list": { parser: TASK_LIST_REGISTRATION.parser } }) });
     fixtures.push(fixture);
     const current = base.replace("Working note.", "Stored note.");
     const remote = await fixture.store.write({ action: "put", reference: fixture.entry.reference,
@@ -175,7 +177,7 @@ describe("checkout merges", () => {
   it("draws an overlapping hand edit to a meta over a verb's newer write and sends only the later resolution", async () => {
     const base = makeMetaFixture("work-item-one", { owner: "andrew", workClass: "Light", priority: "P1",
       currentWorkflow: "process-task-loop", design: ["spec-work-item-one.md"] }) + "\nBase note.\n";
-    const fixture = await createWriteBackFixture({ kind: "work-item/meta", content: base,
+    const fixture = await createWriteBackFixture({ kind: "work-item/meta", content: base, identity: "andrew",
       fixture: createReferenceFixture({}, { "work-item/meta": { parser: META_REGISTRATION.parser } }) });
     fixtures.push(fixture);
     const current = base.replace("Base note.", "Stored note.");
@@ -303,10 +305,11 @@ describe("checkout merges", () => {
   it("keeps a verb's newer state while sending a hand edit, then merges the next stale-buffer save from its take-in", async () => {
     const base = makeMetaFixture("work-item-one", { owner: "andrew", workClass: "Light", priority: "P1",
       currentWorkflow: "process-task-loop", design: ["spec-work-item-one.md"] });
-    const fixture = await createWriteBackFixture({ kind: "work-item/meta", content: base,
+    const fixture = await createWriteBackFixture({ kind: "work-item/meta", content: base, identity: "andrew",
       fixture: createReferenceFixture({}, { "work-item/meta": { parser: META_REGISTRATION.parser } }) });
     fixtures.push(fixture);
-    const current = base.replace("`Active`", "`Paused`");
+    const current = writeMetaPause(base, { pausedBy: SlugSchema.parse("andrew"), since: "2026-11-01T12:00:00Z",
+      reason: "Waiting for review", waitsOn: null, resumeNotes: null, open: false });
     expect(current).not.toBe(base);
     expect(await fixture.store.write({ action: "put", reference: fixture.entry.reference,
       expected: fixture.entry.base.version, content: current, placement: { kind: "active" }, provenance: { verb: "pause", lifecycleAction: "pause" } }))

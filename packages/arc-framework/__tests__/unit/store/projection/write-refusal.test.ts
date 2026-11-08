@@ -2,6 +2,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, expect, it } from "vitest";
+import { decideWriteBackRefusal } from "../../../../src/lib/store/projection/write-refusal.js";
 import { createWriteBackPort } from "../../../../src/lib/store/projection/write-back.js";
 import { createHistoryMemo } from "../../../../src/lib/store/projection/base-recovery.js";
 import { nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
@@ -37,7 +38,7 @@ it("retains pre-send copy marks when recovered preparation is refused, then acce
     condition: "The namespace needs repair.", remedy: { text: "Repair the namespace, then retry." } };
   let sent = false;
   const store = overrideEngineStore(h.store, {
-    write: async () => { sent = true; return { status: "refused", refusal: version }; },
+    batch: async () => { sent = true; return { status: "refused", refusal: version }; },
     history: input => sent ? Promise.resolve({ status: "refused", refusal: corrupt }) : h.store.history(input),
   });
   const held = await createWriteBackPort({ ...h.context, store, memo: createHistoryMemo(store) })({ ...h.request, entry });
@@ -57,7 +58,7 @@ it("leaves an accepted write pending when read-back refuses instead of recoverin
   const refusal: StoreRefusal = { code: "version-conflict", class: "recoverable", records: [h.entry.reference],
     condition: "Read-back is temporarily unavailable.", remedy: { text: "Retry the next command." } };
   const store = overrideEngineStore(h.store, {
-    write: async input => { const result = await h.store.write(input); unreadable = true; return result; },
+    batch: async input => { const result = await h.store.batch(input); unreadable = true; return result; },
     read: async input => {
       if (!unreadable) return h.store.read(input);
       unreadable = false;
@@ -91,7 +92,7 @@ it.each(["lock-held", "version-conflict", "namespace-corrupt"] as const)("retain
         remedy: { text: "Recover its base." } }
       : { code, class: "recoverable", lock: "personal", condition: "The write lock is held.", remedy: { text: "Release the lock." } };
   if (code === "lock-held") await h.hold(entry.reference, true);
-  const store = code === "lock-held" ? h.store : overrideEngineStore(h.store, { write: async () => ({ status: "refused", refusal }) });
+  const store = code === "lock-held" ? h.store : overrideEngineStore(h.store, { batch: async () => ({ status: "refused", refusal }) });
   const pending = await writeBackFile({ ...h.context, store }, settled.index, { ...h.request, entry });
   expect(pending.result).toMatchObject({ answer: code === "namespace-corrupt" ? "refused" : "pending",
     entry: { pending: true, refused: mark } });
@@ -104,4 +105,21 @@ it.each(["lock-held", "version-conflict", "namespace-corrupt"] as const)("retain
   await h.edit(h.record.content);
   const repaired = await writeBackFile(h.context, stale.index, { ...h.request, entry: stale.result.entry });
   expect(repaired.result).toMatchObject({ answer: "taken-in", entry: { refused: null } });
+});
+
+
+it("holds an admission conflict without spending genuine missing-base recovery", async () => {
+  const h = await fixture();
+  const versionRecoveries: typeof h.entry.reference[] = [];
+  const context = { ...h.context, versionRecoveries, memo: createHistoryMemo(h.store) };
+  const refusal = { code: "version-conflict", class: "recoverable", records: [h.entry.reference],
+    cause: "projection-admission", condition: "Prepared evidence changed.", remedy: { text: "Prepare again later." } } as const;
+  expect(await decideWriteBackRefusal(context, h.request, { ...refusal, records: [...refusal.records] }))
+    .toEqual({ kind: "held", refusal });
+  expect(versionRecoveries).toEqual([]);
+  expect(success(await h.store.read({ reference: h.entry.reference })).version).toBe(h.entry.base.version);
+  const missing = { ...refusal, cause: undefined };
+  expect(await decideWriteBackRefusal(context, h.request, { ...missing, records: [...missing.records] }))
+    .toEqual({ kind: "recover" });
+  expect(versionRecoveries).toEqual([h.entry.reference]);
 });

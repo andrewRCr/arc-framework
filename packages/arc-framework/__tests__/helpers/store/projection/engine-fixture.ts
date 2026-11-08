@@ -15,23 +15,35 @@ import { META_REGISTRATION } from "../../../../src/lib/store/kinds/meta/registra
 import { makeMetaFixture } from "../../meta-fixture.js";
 import { writeWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
 import { boundWorkUnitSubject } from "../bound-checkout.js";
+import { createKindRegistry } from "../../../../src/lib/store/registry.js";
+import { PRODUCTION_REGISTRATIONS } from "../../../../src/lib/store/kinds/registrations.js";
+import type { WritePlacement } from "../../../../src/lib/store/placement.js";
+import { writeBackFixturePath } from "./write-back-fixture.js";
 
 export async function createEngineFixture(directories: string[], input: { path?: string; kind?: KindId; content?: string; extraPaths?: readonly string[];
-  registryOverrides?: Parameters<typeof createReferenceFixture>[1] } = {}) {
-  const fixture = createReferenceFixture(undefined, { ...(input.kind === "work-item/task-list"
+  placement?: WritePlacement; registryOverrides?: Parameters<typeof createReferenceFixture>[1] } = {}) {
+  const workItem = input.kind?.startsWith("work-item/") === true;
+  const fixture = createReferenceFixture(undefined, { ...(workItem
     ? { "work-item/meta": { parser: META_REGISTRATION.parser } } : {}), ...input.registryOverrides });
+  const registry = { ...createKindRegistry(PRODUCTION_REGISTRATIONS) };
+  for (const kind of Object.keys(input.registryOverrides ?? {}) as KindId[]) registry[kind] = { ...registry[kind], ...input.registryOverrides?.[kind] };
   const reference = fixture.reference;
   fixture.reference = (kind, suffix) => {
     const selected = reference(kind, suffix);
     return selected.owner.type === "person" ? { ...selected, owner: { ...selected.owner, name: SlugSchema.parse("andrew") } } : selected;
   };
   fixture.identity("andrew");
-  const primary = input.kind === "work-item/task-list" ? await seed(fixture, fixture.reference("work-item/meta"),
-    makeMetaFixture("work-item-one", { owner: "andrew", workClass: "Light", priority: "P1", currentWorkflow: "process-task-loop" })) : null;
-  const record = await seed(fixture, fixture.reference(input.kind ?? "personal/document"), input.content ?? "opening\nbase\nclosing\n");
-  const path = input.path ?? ".arc/user/andrew/document.md";
+  const completed = input.placement?.kind === "completed";
+  const primary = workItem ? await seed(fixture, fixture.reference("work-item/meta"),
+    makeMetaFixture("work-item-one", { owner: "andrew", state: completed ? "Shipped" : "Active", workClass: "Light", priority: "P1",
+      currentWorkflow: completed ? null : "process-task-loop" }), input.placement) : null;
+  const selected = fixture.reference(input.kind ?? "personal/document");
+  const path = input.path ?? writeBackFixturePath(selected);
+  const indexed = selected.kind === "personal/document" && path.startsWith(".arc/user/andrew/scratch/")
+    ? { ...selected, key: path.slice(".arc/user/andrew/".length) } : selected;
+  const record = await seed(fixture, indexed, input.content ?? "opening\nbase\nclosing\n");
   const extra = await Promise.all((input.extraPaths ?? []).map(async (path, i) => ({ path,
-    record: await seed(fixture, fixture.reference("personal/document", `extra-${i}`), "extra base\n") })));
+    record: await seed(fixture, { ...fixture.reference("personal/document", `extra-${i}`), key: path.slice(".arc/user/andrew/".length) }, "extra base\n") })));
   const seeded = await seedProjection({ store: fixture.store, files: [{ reference: record.reference, path },
     ...extra.map(({ path, record }) => ({ path, reference: record.reference }))] });
   directories.push(seeded.checkout);
@@ -41,7 +53,7 @@ export async function createEngineFixture(directories: string[], input: { path?:
   const entry = seeded.index.entries[path];
   if (entry?.kind !== "record") throw new Error("missing seeded record");
   return { ...seeded, ...fixture, path, entry, record, exec, extra,
-    ports: () => createProjectionEnginePorts(seeded.checkout),
+    ports: () => ({ ...createProjectionEnginePorts(seeded.checkout), registry }),
     file: () => readFile(join(seeded.checkout, path), "utf8"),
     stored: async () => success(await fixture.store.read({ reference: record.reference })),
     disk: async (): Promise<ProjectionIndex> => {

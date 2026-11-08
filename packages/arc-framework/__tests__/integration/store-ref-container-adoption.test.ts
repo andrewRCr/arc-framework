@@ -23,6 +23,7 @@ it.each([
   { slug: "beta", cohort: "alpha", key: "note.txt", folder: ".arc/backlog/planned/alpha/beta" },
 ])("adopts the same nested path into the sole established $slug container through command entry", async ({ slug, cohort, key, folder }) => {
   const f = await createRefFixture(createKindRegistry(PRODUCTION_REGISTRATIONS));
+  f.identity("andrew");
   if (cohort !== undefined) await seed(f, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: cohort })),
     `# Cohort: ${cohort}\n\n**Parent:** [none]\n\n**Purpose:** Coordinate work.\n`);
   const primary = await seed(f, RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: slug } }),
@@ -47,6 +48,7 @@ it.each([
 
 it("preserves a file with competing stored and prospective containers, then adopts after evidence repair", async () => {
   const f = await createRefFixture(createKindRegistry(PRODUCTION_REGISTRATIONS));
+  f.identity("andrew");
   const primary = await seed(f, RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } }),
     makeMetaFixture("alpha", { state: "Planning", workClass: "Light", priority: "P1", owner: "andrew", currentWorkflow: "draft-design" }),
     { kind: "backlog", commitment: "planned" });
@@ -83,6 +85,7 @@ it("preserves a file with competing stored and prospective containers, then adop
 
 it("keeps a file ownerless until a stored cohort member establishes its container", async () => {
   const f = await createRefFixture(createKindRegistry(PRODUCTION_REGISTRATIONS));
+  f.identity("andrew");
   const projected = await seedProjection({ store: f.store, checkout: f.root, files: [] });
   await configureEngineCheckout(f.root);
   const path = ".arc/backlog/planned/alpha/beta/note.txt", content = "Unchanged across ownership repair\n";
@@ -113,6 +116,7 @@ it("keeps a file ownerless until a stored cohort member establishes its containe
 
 it("keeps an indexed file's exact reference despite competing surrounding containers", async () => {
   const f = await createRefFixture(createKindRegistry(PRODUCTION_REGISTRATIONS));
+  f.identity("andrew");
   const primary = await seed(f, RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } }),
     makeMetaFixture("alpha", { state: "Planning", owner: "andrew", workClass: "Light", priority: "P1", currentWorkflow: "draft-design" }),
     { kind: "backlog", commitment: "planned" });
@@ -139,6 +143,7 @@ it("keeps an indexed file's exact reference despite competing surrounding contai
 
 it("keeps physical folder spelling separate from renamed record authority and reports a true alias refusal", async () => {
   const f = await createRefFixture(createKindRegistry(PRODUCTION_REGISTRATIONS));
+  f.identity("andrew");
   const fields = { state: "Planning", owner: "andrew", workClass: "Light", priority: "P1", currentWorkflow: "draft-design" } as const;
   const primary = await seed(f, RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } }),
     makeMetaFixture("alpha", fields), { kind: "backlog", commitment: "planned" });
@@ -177,6 +182,7 @@ it("keeps physical folder spelling separate from renamed record authority and re
 
 it("preserves a namespace lookup refusal and adopts the same file after forward metadata repair", async () => {
   const registry = createKindRegistry(PRODUCTION_REGISTRATIONS), f = await createRefFixture(registry);
+  f.identity("andrew");
   const primary = await seed(f, RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "alpha" } }),
     makeMetaFixture("alpha", { state: "Planning", owner: "andrew", workClass: "Light", priority: "P1", currentWorkflow: "draft-design" }),
     { kind: "backlog", commitment: "planned" });

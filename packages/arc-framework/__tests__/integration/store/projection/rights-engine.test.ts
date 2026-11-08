@@ -92,11 +92,12 @@ it("binds rights to refuse another identity's working-memory edit and lands it a
 
 async function taskView() {
   const h = createLifecycleHarness();
+  h.store.environment.identity = "alice";
   const subject = await h.seedMeta("subject", { owner: "alice" });
   const sibling = await h.seedMeta("sibling", { owner: "alice" });
   const original = TASK_RULE_CONTENT.replace("\n---\n", "\nFirst note.\n\nSecond note.\n\n---\n");
   const record = await h.seed(recordReferences["work-item/task-list"](subject.reference.owner), original);
-  const view = await project({ store: h.store, record, identity: "alice", path: ".arc/active/subject/tasks-subject.md" });
+  const view = await project({ store: h.store, record, identity: "alice", path: ".arc/active/current/tasks-subject.md" });
   const claim = (owner: StoreRecord) => writeWorktreeMarker(view.checkout, { spawnedByArc: false,
     spawningIdentity: "alice", createdAt: "2026-10-24T00:00:00Z", createdFor: boundWorkUnitSubject(owner) });
   return { ...view, store: h.store, original, record, subject, sibling, claim,
@@ -155,6 +156,7 @@ it("reports a late aside rights refusal against that copy and retries it after c
 
 it("retains an explicit resolution's rights refusal and resolves the same conflict after identity repair", async () => {
   const h = createReferenceFixture();
+  h.identity("alice");
   const reference = recordReferences["personal/document"](OwnerIdentitySchema.parse({ type: "person", name: "alice" }), "scratch/document.md");
   const base = await seed(h, reference, "opening\nbase\nclosing\n");
   for (const side of ["stored", "incoming"]) success(await h.store.write({ action: "put", reference: base.reference,
@@ -175,7 +177,7 @@ it("retains an explicit resolution's rights refusal and resolves the same confli
 });
 
 it.each(["command-start", "take-in"] as const)("preserves a standing hold token through a %s rights refusal", async boundary => {
-  const h = await createCheckoutFixture({ path: ".arc/user/andrew/document.txt" });
+  const h = await createCheckoutFixture({ path: ".arc/user/andrew/scratch/document.txt" });
   directories.push(h.checkout);
   await initializeEngineCheckout(h.checkout);
   await h.edit(h.incoming);
@@ -221,6 +223,7 @@ it.each(["command-start", "take-in"] as const)("preserves a standing hold token 
 
 it("preserves a Planning backlog inbound edit refused by ownership and lands the same bytes after identity repair", async () => {
   const h = createLifecycleHarness();
+  h.store.environment.identity = "alice";
   const primary = await h.seedMeta("stub", { state: "Planning", owner: "alice", currentWorkflow: "planning" },
     { kind: "backlog", commitment: "planned" });
   const reference = recordReferences["work-item/inbound"](primary.reference.owner);

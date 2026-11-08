@@ -100,11 +100,11 @@ it.each(["companion", "inbound"])("remembers an existing %s's accepted edit thro
   await writeFile(join(f.root, path), bytes);
   const home = expandStoredPath(primary.reference, { registry });
   let accepted: WriteResult | undefined, repair: (() => Promise<void>) | undefined;
-  const write = f.store.write.bind(f.store);
-  vi.spyOn(f.store, "write").mockImplementationOnce(async input => {
-    const result = await write(input);
+  const batch = f.store.batch.bind(f.store);
+  vi.spyOn(f.store, "batch").mockImplementationOnce(async input => {
+    const result = await batch(input);
     if (result.status !== "ok") throw new Error("Expected the hand edit to persist before namespace damage");
-    accepted = result.result;
+    accepted = result.result.writes[0];
     const entries = await capturedEntries(f, home.ref);
     const parent = new TextDecoder().decode((await f.ports.rawExec([...f.gitDir ? [`--git-dir=${f.gitDir}`] : [], "rev-parse", home.ref],
       { objectAccess: "local-only" })).stdout).trim();

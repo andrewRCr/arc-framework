@@ -24,7 +24,7 @@ describe("refused hand edits", () => {
     fixtures.push(fixture);
     const boundary = createRefusingStore(fixture.store);
     const fault = refusal(code, fixture.entry.reference);
-    boundary.refuse("write", fault);
+    boundary.refuse("batch", fault);
     const content = "opening\nhand edit\nclosing\n";
     await fixture.edit(content);
     const context = { ...fixture.context, store: boundary.store, memo: createHistoryMemo(boundary.store) };
@@ -35,7 +35,7 @@ describe("refused hand edits", () => {
     expect(await fixture.store.read({ reference: fixture.entry.reference })).toMatchObject({ status: "ok", result: { version: fixture.entry.base.version } });
     expect(boundary.calls("pull")).toBe(0);
     if (code === "unsupported") return;
-    boundary.refuse("write", null);
+    boundary.refuse("batch", null);
     expect(await createWriteBackPort(context)(fixture.request)).toMatchObject({ answer: "taken-in" });
     expect(await fixture.store.read({ reference: fixture.entry.reference })).toMatchObject({ status: "ok", result: { content } });
   });
@@ -55,6 +55,7 @@ describe("refused hand edits", () => {
     expect(await createWriteBackPort(context())(fixture.request)).toMatchObject({ answer: "refused", mark: { reason: fault.condition, remedy: fault.remedy } });
     expect(boundary.calls("history")).toBe(1);
     expect(boundary.calls("write")).toBe(0);
+    expect(boundary.calls("batch")).toBe(0);
     expect(boundary.calls("pull")).toBe(0);
     expect(await fixture.file()).toContain(content);
     expect(await fixture.store.read({ reference: fixture.entry.reference })).toMatchObject({ status: "ok", result: { content: current } });

@@ -94,7 +94,7 @@ describe("projection command entry", () => {
   });
 
   it("stops immediately after a landed store write loses its lease, without advancing the index or replacing bytes", async () => {
-    const second = ".arc/user/andrew/second.md";
+    const second = ".arc/user/andrew/scratch/second.md";
     const h = await createEngineFixture(directories, { extraPaths: [second] });
     const entry = h.index.entries[second];
     if (entry?.kind !== "record") throw new Error("second entry missing");
@@ -103,8 +103,8 @@ describe("projection command entry", () => {
     const saved = await h.file();
     let now = Date.now();
     let replacement: AdvisoryLockHandle | undefined;
-    const store = overrideEngineStore(h.store, { write: async input => {
-      const result = await h.store.write(input);
+    const store = overrideEngineStore(h.store, { batch: async input => {
+      const result = await h.store.batch(input);
       now = Date.now() + ADVISORY_LEASE_DURATION_MS + 1000;
       replacement = await acquireAdvisoryLock(join(h.location.stateDir, PROJECTION_LOCK_FILE), {
         pid: process.pid, processInstance: "replacement", processScope: "replacement-scope", now: () => now,
@@ -213,7 +213,7 @@ describe("projection command entry", () => {
   });
 
   it("preserves a stampless person's removal after a landing beside an ignore-refused root", async () => {
-    const h = await createEngineFixture(directories, { path: ".arc/user/andrew/document.txt",
+    const h = await createEngineFixture(directories, { path: ".arc/user/andrew/scratch/document.txt",
       content: "opening\nbase\nclosing\nuntouched\nremove me\nend\n" });
     await writeFile(join(h.checkout, ".gitignore"), "");
     await h.edit("opening\nlanded\nclosing\nuntouched\nremove me\nend\n");

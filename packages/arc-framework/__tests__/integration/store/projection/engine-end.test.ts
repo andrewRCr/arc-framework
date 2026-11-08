@@ -39,7 +39,7 @@ describe("projection command end", () => {
   });
 
   it("clears a stampless file's replacement progress when its own aside copy is settled", async () => {
-    const h = await createEngineFixture(directories, { path: ".arc/user/andrew/document.txt" });
+    const h = await createEngineFixture(directories, { path: ".arc/user/andrew/scratch/document.txt" });
     await h.edit("hand edit\n");
     await startProjection({ store: h.store, checkout: h.checkout });
     expect((await h.disk()).entries[h.path]).toMatchObject({ inProgress: { replaces: h.entry.base } });
@@ -85,8 +85,8 @@ describe("projection command end", () => {
     let now = Date.now();
     let replacement: AdvisoryLockHandle | undefined;
     const native = h.ports();
-    const store = overrideEngineStore(h.store, { write: async input => {
-      const result = await h.store.write(input);
+    const store = overrideEngineStore(h.store, { batch: async input => {
+      const result = await h.store.batch(input);
       if (ending) {
         now = Date.now() + ADVISORY_LEASE_DURATION_MS + 1000;
         replacement = await acquireAdvisoryLock(join(h.location.stateDir, PROJECTION_LOCK_FILE), {

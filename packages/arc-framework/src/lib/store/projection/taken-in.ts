@@ -141,6 +141,7 @@ export type PersistedBase =
 
 /** What the base selection reads. */
 export interface PersistedBaseInput {
+  readonly readCopy?: (name: string) => Promise<string>;
   readonly location: ProjectionLocation;
   readonly entry: RecordEntry;
   /** A Markdown file's stamp, null where it was lost or the file carries none. */
@@ -162,7 +163,7 @@ export async function selectPersistedBase(input: PersistedBaseInput): Promise<St
   if (input.stamp === null) return { status: "ok", result: null };
   if (input.stamp !== persisted.stamp) return { status: "ok", result: null };
   if (takenIn.kind === "landed") return { status: "ok", result: { kind: "stored", version: takenIn.version } };
-  return { status: "ok", result: { kind: "copy", content: await readRetainedBase(input.location, takenIn.name) } };
+  return { status: "ok", result: { kind: "copy", content: await (input.readCopy?.(takenIn.name) ?? readRetainedBase(input.location, takenIn.name)) } };
 }
 
 /** How a write-back ended: a landing, which persists, or an outcome that lands nothing. */

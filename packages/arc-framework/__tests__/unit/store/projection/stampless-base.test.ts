@@ -203,7 +203,7 @@ describe("stampless base agreement", () => {
     const request = { ...fixture.request, entry, base: { kind: "blob" as const, blob: entry.base.blob } };
     const held = await writeBackFile(context, index, request);
     expect(held.result).toMatchObject({ answer: "pending", entry: { pending: true, refused: null } });
-    expect([wrapped.calls("write"), wrapped.calls("pull")]).toEqual([0, 0]);
+    expect([wrapped.calls("write"), wrapped.calls("batch"), wrapped.calls("pull")]).toEqual([0, 0, 0]);
     expect(await fixture.file()).toBe(incoming);
     const written = await writeBackFile(fixture.context, held.index, { ...request, entry: held.result.entry });
     expect(written.result.answer).toBe("taken-in");

@@ -21,10 +21,11 @@ it("retains an accepted creation and its latest unsent bytes, then completes rea
   let revision = 1, saving = true;
   await writeFile(absolute, `edit ${revision}\n`);
   const reference = recordReferences["work-item/companion"](primary.reference.owner, "note.md");
-  const store = overrideEngineStore(f.store, { write: async input => {
-    const result = await f.store.write(input);
-    if (saving && result.status === "ok" && input.action === "put") await writeFile(absolute, renderStampedFile({
-      content: `edit ${++revision}\n`, stamp: gitBlobId(input.content, "sha1"),
+  const store = overrideEngineStore(f.store, { batch: async input => {
+    const result = await f.store.batch(input);
+    const mutation = input.writes[0];
+    if (saving && result.status === "ok" && mutation?.action === "put") await writeFile(absolute, renderStampedFile({
+      content: `edit ${++revision}\n`, stamp: gitBlobId(mutation.content, "sha1"),
     }));
     return result;
   } });
