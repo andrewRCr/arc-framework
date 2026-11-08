@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "windows-silent-ref-listing",
+  "claimId": "7448aa5594fa3ea56057b7b2ff8c87bf",
+  "createdAt": "2026-11-08T15:17:25.710Z",
+  "updatedAt": "2026-11-08T15:17:25.710Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Find why the ref store's for-each-ref exits 1 with no output on hosted Windows before changing any retry",
+  "branch": "chore/windows-silent-ref-listing",
+  "origin": "inbox",
+  "originEntry": "Find why the ref store's sync listing exits 1 with no output on hosted Windows",
+  "originEntrySourceDigest": "sha256:2240d4d47f3206305bbee21f2dd0c11e6167f99b99ac176f2b89661a785c75f7",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
