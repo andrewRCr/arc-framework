@@ -27,7 +27,7 @@ interface RenameAdmission {
 export async function checkRenameReferences(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
   if (input.writer.kind !== "verb" || input.writer.verb !== "rename" || input.prior === undefined || input.next === undefined) return [];
   const fail = (condition: string): readonly BrokenRule[] => [brokenRule("rename.references", condition,
-    "Read the current name and membership evidence, prepare the rename again, and retry; no rename mutations were published.")];
+    "Read the current name and membership evidence, prepare the rename from it, and retry; no rename mutations were published.")];
   const prior = await observeRecord(input.before, input.reference), next = await observeRecord(input.after, input.reference);
   if (prior.status !== "known" || next.status !== "known") return fail("Rename identity evidence is unavailable.");
   if (prior.value.reference.owner.name === next.value.reference.owner.name) return [];
@@ -50,7 +50,7 @@ async function participantProblem(context: RenameAdmission, records: readonly St
   if (uncaptured.length === 0) return null;
   if (uncaptured.some(record => sameOwner(record.reference.owner, context.primary.reference.owner)
     && (hasFilenameReference(context, record.content) || hasSelfReference(context, record)))) {
-    return "The rename's required owned-artifact participants changed after preparation.";
+    return "The rename's batch omits owned-artifact participants that current records require.";
   }
   if (context.primary.reference.owner.type === "cohort") {
     const problem = await holdingParticipantsProblem(context, uncaptured);
@@ -67,7 +67,7 @@ async function sharedParticipantsProblem(context: RenameAdmission, records: read
   const resolution = await resolveRenameReferences(context.input.before, context.primary.reference, context.primary.reference.owner.name);
   if (resolution.status === "refused") return resolution.refusal.condition;
   return references && resolution.result !== "other" || selfReferences && resolution.result === "subject"
-    ? "The rename's required reference participants changed after preparation." : null;
+    ? "The rename's batch omits reference participants that current records require." : null;
 }
 
 async function unpreparedParticipants(context: RenameAdmission, records: readonly StoreRecord[]): Promise<RuleObservation<readonly StoreRecord[]>> {
@@ -87,7 +87,7 @@ async function holdingParticipantsProblem(context: RenameAdmission, records: rea
   const participants = holdings.value.flatMap(holding => [holding.candidate.reference,
     ...holding.members.map(member => member.candidate.reference)]);
   return records.some(record => participants.some(reference => sameReference(reference, record.reference)))
-    ? "The cohort rename's required membership participants changed after preparation." : null;
+    ? "The cohort rename's batch omits membership participants that current records require." : null;
 }
 
 function sharedParticipant(context: RenameAdmission, record: StoreRecord): boolean {

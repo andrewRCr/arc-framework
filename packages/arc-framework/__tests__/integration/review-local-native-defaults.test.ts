@@ -171,7 +171,8 @@ it.each(["clean", "findings"] as const)("replays a %s result and approved eviden
   await completedReplay(h.native);
   const renamedReference = RecordReferenceSchema.parse({ ...primary.reference,
     owner: { ...primary.reference.owner, name: "renamed-example" } });
-  lifecycleSuccess(await h.reference.store.write({ ...recordPut(primary), reference: renamedReference,
+  const renamedContent = primary.content.replace("# Metadata: example", "# Metadata: renamed-example");
+  lifecycleSuccess(await h.reference.store.write({ ...recordPut(primary, { content: renamedContent }), reference: renamedReference,
     provenance: { verb: "rename", lifecycleAction: "rename" } }));
   const renamed = lifecycleSuccess(await h.reference.store.read({ reference: renamedReference }));
   expect(renamed.reference.owner).toEqual({ ...primary.reference.owner, name: "renamed-example" });
