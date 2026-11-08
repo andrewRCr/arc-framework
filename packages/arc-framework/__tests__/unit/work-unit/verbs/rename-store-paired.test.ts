@@ -171,7 +171,7 @@ it("renames the root Design while a nested draft-named companion retains its pat
   expect(renamed.fields).toMatchObject({ design: ["draft-target.md"] });
   const retained = lifecycleSuccess(await h.store.read({ reference: companion.reference }));
   expect(retained.reference.key).toBe("sub/draft-source.md");
-  const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "target"));
+  const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext("/project", h.store, "target"));
   expect(acquired.byPath.get(".arc/active/sub/draft-source.md")).toEqual(retained);
   expect((await readLifecycleDesign(h.store, renamed)).content)
     .toBe(lifecycleSuccess(await h.store.read({ reference: draft.reference })).content);

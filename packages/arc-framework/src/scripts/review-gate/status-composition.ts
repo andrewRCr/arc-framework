@@ -348,7 +348,7 @@ export async function readRoutedObligation(
   });
   if (errand !== null) return errand;
   const subject = await resolveReviewSubject({
-    ...invocation,
+    ...invocation, cwd,
     headRef: target.headRef,
     headSha: target.headSha,
     memberLookup,

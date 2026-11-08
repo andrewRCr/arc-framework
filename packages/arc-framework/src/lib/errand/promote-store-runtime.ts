@@ -9,6 +9,7 @@ import { createLocusPorts } from "../locus/lifecycle-ports.js";
 import type { OrdinaryErrandRecord } from "./identity-transitions.js";
 import type { Store } from "../store/contract.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
+import { recordComposedStoreCapability } from "../store/projection/process-state.js";
 import { bindStoreSyncPort } from "../store/operational-sync.js";
 import { consumePull, writePullNotices } from "../store/pull-consumption.js";
 
@@ -41,7 +42,9 @@ async function selectCheckout(options: StoreRuntimeOptions, record: OrdinaryErra
   if (selected.kind !== "ready") return selected;
   const ports = options.locusPorts ?? createLocusPorts({ cwd: selected.checkoutPath, exec: options.exec, store: options.store });
   const exclusive = await ports.checkMarkerExclusivity({ kind: "owner", uid, names: { current: options.name, former: [] }, checkoutPath: selected.checkoutPath });
-  return exclusive.kind === "refused" ? { kind: "refused", reason: "authority-unresolved", message: exclusive.reason } : selected;
+  if (exclusive.kind === "refused") return { kind: "refused", reason: "authority-unresolved", message: exclusive.reason };
+  recordComposedStoreCapability(selected.checkoutPath, options.store.capabilities.stateOffBranch);
+  return selected;
 }
 async function selectTerminalCheckout(options: StoreRuntimeOptions, record: OrdinaryErrandRecord, frame: DerivedLocusFrame): Promise<StorePromotionCheckoutResult> {
   const authority = await authorizeErrandTerminal({

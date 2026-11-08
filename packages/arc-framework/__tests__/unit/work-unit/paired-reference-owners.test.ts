@@ -15,7 +15,7 @@ it("counts a tied work-unit name as a paired owner and reconciles without rewrit
   const store = createClashDouble(h.store, { slug: "clashed", holders: [first.reference, second.reference] });
   const owners = lifecycleSuccess(await readPairedReferenceOwners(store, [notes], new Set()));
   expect(owners.get("spec-clashed-prd.md")).toEqual([{ subject: "clashed", suffix: "-prd" }]);
-  expect(await createStoreReconcilePrepareContext(store, "example")).toMatchObject({ status: "ok",
+  expect(await createStoreReconcilePrepareContext("/project", store, "example")).toMatchObject({ status: "ok",
     result: { context: { additionalReferenceTransitions: [] } } });
   expect(lifecycleSuccess(await store.read({ reference: notes.reference }))).toEqual(notes);
 });

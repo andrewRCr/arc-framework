@@ -3,19 +3,20 @@
 import type { Store, ReadOnlyStore } from "./contract.js";
 import type { StoreConflictInput, StoreConflictResult, StoreMigrateInput, StoreMigrateResult, StoreRemoteInput, StoreRemoteResult } from "./commands.js";
 import type { StorePorts, RefStorePorts } from "./ports.js";
+import { recordComposedStoreCapability } from "./projection/process-state.js";
 
 /** Construct a lazy store without reading configuration, files, or Git topology.
  * @param ports - Explicit file, Git, policy, clock, and write-lock dependencies.
  * @returns The operational state contract over the checkout's current substrates.
  */
 export function createStore(ports: StorePorts): Store {
-  return lazyStore(false, () => import("./in-repo/backend.js")
+  return lazyStore(ports.checkoutRoot, false, () => import("./in-repo/backend.js")
     .then(({ createInRepoBackend }) => createInRepoBackend(ports)));
 }
 
 /** Construct the dark ref backend without consulting any dependency. */
 export function createRefStore(ports: RefStorePorts): Store {
-  return lazyStore(true, () => import("./ref/backend.js")
+  return lazyStore(ports.checkoutRoot, true, () => import("./ref/backend.js")
     .then(({ createRefBackend }) => createRefBackend(ports)));
 }
 
@@ -25,7 +26,8 @@ export function createReadSourceStore(ports: RefStorePorts, remote: string): Rea
     .then(({ createRefReadSourceBackend }) => createRefReadSourceBackend(ports, remote)));
 }
 
-function lazyStore(stateOffBranch: boolean, construct: () => Promise<Store>): Store {
+function lazyStore(checkoutRoot: string, stateOffBranch: boolean, construct: () => Promise<Store>): Store {
+  recordComposedStoreCapability(checkoutRoot, stateOffBranch);
   let backend: Promise<Store> | undefined;
   const get = (): Promise<Store> => backend ??= construct();
   return {

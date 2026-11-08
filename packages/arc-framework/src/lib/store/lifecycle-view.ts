@@ -10,7 +10,7 @@ import { selectStandingLifecycleEntries, type StandingLifecycleSelection } from 
  * @param store - Operational store.
  * @returns The original listing, identity entries, and derived transition view.
  */
-export async function readLifecycleView(store: Pick<Store, "list">): Promise<StoreResult<{
+export async function readLifecycleView(checkoutRoot: string, store: Pick<Store, "list">): Promise<StoreResult<{
   listing: LifecycleIndexOutcome; entries: readonly LifecycleEntry[]; index: LifecycleIndex; standing: StandingLifecycleSelection;
 }>> {
   const outcome = await listLifecycleIndex(store);
@@ -18,13 +18,13 @@ export async function readLifecycleView(store: Pick<Store, "list">): Promise<Sto
   const listing = outcome.result;
   const entries = listing.status === "complete" ? listing.index.entries() : [];
   const standing = selectStandingLifecycleEntries(entries, listing.status === "complete" ? listing.diagnostics : []);
-  const index = buildLifecycleViewIndex(standing.entries);
+  const index = await buildLifecycleViewIndex(checkoutRoot, standing.entries);
   return { status: "ok", result: { listing, entries, index, standing } };
 }
 
 /** Build the slug-keyed transition view from an already selected set of lifecycle entries. */
-export function buildLifecycleViewIndex(entries: readonly LifecycleEntry[]): LifecycleIndex {
-  return buildLifecycleIndexFromRecords(entries.map((entry) => ({ slug: entry.reference.owner.name,
+export async function buildLifecycleViewIndex(checkoutRoot: string, entries: readonly LifecycleEntry[]): Promise<LifecycleIndex> {
+  return buildLifecycleIndexFromRecords(await Promise.all(entries.map(async (entry) => ({ slug: entry.reference.owner.name,
     state: entry.phase, location: entry.location, cohort: entry.fields.cohort, dependsOn: entry.fields.dependsOn,
-    path: lifecycleArtifactPath(entry, "meta") })));
+    path: await lifecycleArtifactPath(checkoutRoot, entry, "meta") }))));
 }

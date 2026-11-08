@@ -264,8 +264,8 @@ it("local review refuses an unbound vehicle and resolves after binding", async (
   const content = renderMetaFile("example", { state: "Active", owner: "test-user", workClass: "Light",
     branch: "feat/example", currentWorkflow: "process-task-loop" });
   lifecycleSuccess(await h.store.write({ ...recordPut(h.live, { content }), provenance: { verb: "fixture", lifecycleAction: "arrange" } }));
-  await mkdir(join(h.path, ".arc/active"), { recursive: true });
-  await writeFile(join(h.path, ".arc/active/meta-example.md"), content);
+  await mkdir(join(h.path, ".arc/active/current"), { recursive: true });
+  await writeFile(join(h.path, ".arc/active/current/meta-example.md"), content);
   await h.exec("git", ["checkout", "feat/example"], { cwd: h.path });
   const read = () => withRepairStore(h.store, () => readLocalReviewLiveContext({ cwd: h.path, exec: h.exec }));
   const dependencies = { readLiveContext: async () => (await read()).context };

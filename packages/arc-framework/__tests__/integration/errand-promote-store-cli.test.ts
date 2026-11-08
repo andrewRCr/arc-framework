@@ -48,9 +48,12 @@ function promoteArgs(slug: string, name: string, floor = "derivation") {
 it.each([false, true])("promotion binds the promoted owner in its marker, isolated=%s", async isolate => {
   const f = await openedFixture("marker-promotion", isolate), name = "bound-promotion";
   const result = await repairCli(f, promoteArgs(f.slug, name));
-  expect(result).toMatchObject({ result: { outcome: "applied", checkoutPath: f.cwd } });
+  expect(result).toMatchObject({ result: { outcome: "applied", checkoutPath: f.cwd, metaPath: `.arc/active/current/meta-${name}.md` } });
   expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present",
     marker: { spawnedByArc: isolate, createdFor: { kind: "work-unit", name, uid: f.uid } } });
+  expect(await repairCli(f, promoteArgs(f.slug, name))).toMatchObject({ result: {
+    outcome: "idempotent", metaPath: `.arc/active/current/meta-${name}.md`,
+  } });
 }, 30_000);
 
 it("keeps an isolated Errand's projection lock on its checkout through promotion to a work unit", async () => {
@@ -280,4 +283,40 @@ it("default-named promotion admits the source Errand's own owner", async () => {
   expect(success(await f.store.read({ reference: f.primary.reference }))).toMatchObject({
     reference: { kind: "work-item/meta", owner: { name: f.slug, uid: f.uid } }, fields: { state: "Planning", workClass: "Light" } });
   expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present", marker: { createdFor: { kind: "work-unit", name: f.slug, uid: f.uid } } });
+}, 30_000);
+
+it("keeps final-path failure in promotion's recoverable occupancy step and succeeds after repair", async () => {
+  const f = await openedFixture("layout-promotion"), name = "grown-layout";
+  const { promoteOrdinaryErrandAtRuntime } = await import("../../src/lib/errand/promote-runtime.js");
+  const { createLocusPorts } = await import("../../src/lib/locus/lifecycle-ports.js");
+  const { runDerivedLocusStateProbe } = await import("../../src/handlers/derived-locus-state-probe.js");
+  const { createExecaGitExec, createExecaGitExecInput } = await import("../../src/lib/git/process-executor.js");
+  const baseExec = createExecaGitExec(), baseInput = createExecaGitExecInput();
+  const exec: typeof f.exec = (command, args, controls) => baseExec(command, args, { cwd: f.cwd, ...controls });
+  const config = join(f.cwd, ".arc", "system", "arc-config.yml"), original = await readFile(config, "utf8");
+  const native = createLocusPorts({ cwd: f.cwd, exec, store: f.store });
+  const writeMarker = native.writeAnchoredMarker.bind(native);
+  let breakLayout = true;
+  const options = { store: f.store, slug: f.slug, name, type: "feat", floor: "derivation" as const,
+    owner: "test-user", identity: "test-user", class: "Light", protection: "full" as const, base: "main",
+    exec, execInput: (...args: Parameters<typeof baseInput>) => baseInput(args[0], args[1], { cwd: f.cwd, ...args[2] }),
+    readFrame: () => runDerivedLocusStateProbe({ cwd: f.cwd, store: f.store, exec, identity: "test-user", baseBranch: "main" }),
+    settleInbox: async () => ({ kind: "idempotent" as const }),
+    locusPorts: { ...native, writeAnchoredMarker: async (...args: Parameters<typeof writeMarker>) => {
+      const result = await writeMarker(...args);
+      if (breakLayout && (result.kind === "created" || result.kind === "replaced")) {
+        await writeFile(config, "branch.protection: invalid\n");
+      }
+      return result;
+    } },
+  };
+  expect(await promoteOrdinaryErrandAtRuntime(options)).toMatchObject({ outcome: "error",
+    error: { code: "locus.errand-promote.occupancy", message: expect.stringContaining("configuration") } });
+  expect(await readWorktreeMarker(f.cwd)).toMatchObject({ kind: "present", marker: { createdFor: { kind: "work-unit", name } } });
+  const promoted = success(await f.store.read({ reference: f.primary.reference }));
+  expect(promoted.reference.kind).toBe("work-item/meta");
+  breakLayout = false;
+  await writeFile(config, original);
+  expect(await promoteOrdinaryErrandAtRuntime(options)).toMatchObject({ outcome: "idempotent", metaPath: `.arc/active/current/meta-${name}.md` });
+  expect(success(await f.store.read({ reference: f.primary.reference }))).toEqual(promoted);
 }, 30_000);

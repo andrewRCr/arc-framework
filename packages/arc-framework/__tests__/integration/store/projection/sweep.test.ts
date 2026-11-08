@@ -19,6 +19,7 @@ import type { SwapHooks } from "../../../../src/lib/store/projection/swap.js";
 import { sweepAsideFolder, type SweepInput } from "../../../../src/lib/store/projection/sweep.js";
 import type { TakeInPort } from "../../../../src/lib/store/projection/take-in-port.js";
 import { RecordReferenceSchema } from "../../../../src/lib/store/identity.js";
+import { createProjectionLinkBoundary } from "../../../../src/lib/store/projection/discovery-links.js";
 
 const directories: string[] = [];
 afterEach(async () => { await removeGitBackedDirs(directories.splice(0)); });
@@ -84,6 +85,35 @@ async function entryOnDisk(location: Parameters<typeof readProjectionIndex>[0], 
 }
 
 describe("the sweep", () => {
+  it.each(["recorded", "unrecorded", "no-index"])("keeps a %s copy outside a linked destination and permits recovery after repair", async mode => {
+    const h = await leftBy("afterMove"), index = await indexOnDisk(h.location);
+    const entry = index.entries[h.path];
+    if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("No stopped swap copy");
+    const copy = entry.copies[0].name, bytes = `${await readFile(join(h.checkout, copy), "utf8")}\nLate saved prose.\n`;
+    await writeFile(join(h.checkout, copy), bytes);
+    const folder = dirname(h.path), backup = join(h.checkout, "authored-folder"), external = join(h.checkout, "external-destination");
+    await rename(join(h.checkout, folder), backup);
+    await mkdir(external);
+    await symlink(external, join(h.checkout, folder), "dir");
+    const target = join(external, h.path.slice(h.path.lastIndexOf("/") + 1));
+    const overrides: Partial<SweepInput> = mode === "no-index" ? { index: null } : mode === "unrecorded"
+      ? { index: { ...index, entries: { ...index.entries, [h.path]: { ...entry, copies: [] } } } } : {};
+    const blocked = await h.sweep(unreached, { ...overrides, blockedByLink: createProjectionLinkBoundary([folder]) });
+    expect(blocked.left).toMatchObject([{ path: h.path, copy, reason: "not-a-file",
+      remedy: { text: expect.stringContaining("regular file") } }]);
+    expect(await readStat(target)).toBeNull();
+    expect(await readFile(join(h.checkout, copy), "utf8")).toBe(bytes);
+    if (mode === "no-index") expect(blocked.withheld).toContain(copy);
+    if (mode === "recorded") expect(blocked.index?.entries[h.path]).toMatchObject({ reference: entry.reference, copies: entry.copies });
+    await rm(join(h.checkout, folder));
+    await rename(backup, join(h.checkout, folder));
+    if (mode === "unrecorded") await rename(join(h.checkout, copy), h.file);
+    const recovered = await h.sweep(unreached, { ...overrides, index: blocked.index, blockedByLink: createProjectionLinkBoundary([]) });
+    expect(recovered.left).toEqual([]);
+    expect(await readFile(h.file, "utf8")).toBe(bytes);
+    expect(await readStat(target)).toBeNull();
+  });
+
   it.each([
     ["landed", false], ["landed", true], ["deferred", false], ["deferred", true],
   ] as const)("keeps the next edited copy after a %s send, with its path absent %s", async (answer, absent) => {
@@ -510,7 +540,7 @@ it("finishes an installed stampless replacement after copy unlink and detects a 
   await writeFile(left.file, "plain: text\n");
   const memo = { read: async () => { throw new Error("unexpected history read"); }, drop: () => {} };
   expect(await readStamplessFile({ entry, text: await readFile(left.file, "utf8"), mtimeNs: 0n, format: "sha1", memo }))
-    .toEqual({ status: "ok", result: { kind: "edit", base: entry.base } });
+    .toEqual({ status: "ok", result: { kind: "edit", base: entry.base, replaces: null } });
 });
 
 it.each(["afterRecheck", "afterMove"] as const)("keeps stampless progress when the original inode remains after %s", async (stop) => {

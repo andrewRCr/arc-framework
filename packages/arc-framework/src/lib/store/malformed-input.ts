@@ -10,9 +10,10 @@ export function malformedStoreInput(input: unknown, error: ZodError, operation: 
   const reference = RecordReferenceSchema.safeParse(field(mutation, "reference"));
   const primary = reference.success && (reference.data.kind === "work-item/meta" || reference.data.kind === "work-item/record");
   const missingPlacement = primary && field(mutation, "action") === "put" && field(mutation, "placement") === undefined;
+  const projection = operation === "batch" && field(input, "projectionAdmission") !== undefined;
   const suffix = operation === "write" ? "" : path.map(part => typeof part === "number" ? `[${part}]` : `.${String(part)}`).join("");
   return { code: "record-malformed", class: "recoverable", ...reference.success ? { reference: reference.data } : {},
-    rule: missingPlacement ? "store.primary-placement" : "store.mutation",
+    rule: projection ? "projection.admission" : missingPlacement ? "store.primary-placement" : "store.mutation",
     condition: `${operation}${suffix}: ${missingPlacement ? "Primary records require placement" : error.message}`,
     remedy: { text: "Correct the named input operand, including any required primary placement, then retry the same operation." } };
 }

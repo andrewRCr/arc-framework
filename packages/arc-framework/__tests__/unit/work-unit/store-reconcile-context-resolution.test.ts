@@ -25,7 +25,7 @@ it("resolves a cut's UID-bearing replacement to its renamed primary", async () =
     reference: { ...member.reference, owner: OwnerIdentitySchema.parse({ ...member.reference.owner, name: "current" }) },
     provenance: { verb: "rename", lifecycleAction: "rename" } }));
   const current = lifecycleSuccess(await h.store.read({ reference: member.reference }));
-  const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "dependent"));
+  const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext("/project", h.store, "dependent"));
   const query = await context.queryDisposition({ origin: "origin", dependentSlug: "dependent" });
   expect(query).toEqual({ status: "unique", disposition: { kind: "replace", replacementTargets: ["member"], references: [target] } });
   if (query.status !== "unique" || query.disposition.kind !== "replace") throw new Error("Expected replacements");
@@ -51,7 +51,7 @@ it("retains the missing UID target's own lineage when its name has been reused",
       content: writeLineageRecord({ schemaVersion: 2, origin: { ...target, name: renamed.reference.owner.name }, kind: "abandon", successors: [], incoming: [] }) },
   ], { verb: "abandon", lifecycleAction: "abandon" }));
   await h.seedMeta("target");
-  const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "dependent"));
+  const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext("/project", h.store, "dependent"));
   expect(await context.resolveDependency?.(target)).toEqual({ kind: "not-found", reference: target });
   const lookup = h.store.lookup.bind(h.store);
   h.store.lookup = async input => input.kind === "lineage" ? { status: "refused", refusal: {
@@ -69,7 +69,7 @@ it("retains one name resolution when the store's next observation changes", asyn
   const h = createLifecycleHarness();
   await h.seedMeta("dependent");
   const target = await h.seedMeta("target");
-  const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "dependent"));
+  const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext("/project", h.store, "dependent"));
   const first = await context.resolveDependency?.("target");
   h.store.lookup = async input => ({ status: "refused", refusal: {
     code: "not-found", class: "recoverable", lookup: input,

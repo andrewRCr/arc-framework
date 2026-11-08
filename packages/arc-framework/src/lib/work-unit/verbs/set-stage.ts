@@ -45,7 +45,7 @@ import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
  */
 export type SetStageContext = Pick<
   ExecuteTransitionContext,
-  "writeCurrentWorkflowField" | "writeSoftFields" | "store"
+  "cwd" | "writeCurrentWorkflowField" | "writeSoftFields" | "store"
 >;
 
 /** The outcome of a {@link runSetStage} run. */
@@ -96,7 +96,7 @@ export async function runSetStage(
     if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
     const pause = await checkAdvancingPause(ctx.store, name, read.result);
     if (pause.status === "rejected") return pause;
-    const metaPath = workUnitMetaPath(read.result);
+    const metaPath = await workUnitMetaPath(ctx.cwd, read.result);
     let content = writeMetaCurrentWorkflow(read.result.content, stage);
     if (advance) content = writeMetaNextAction(content, BEGIN_CURRENT_WORKFLOW_SENTINEL);
     const written = await batchLifecycleWrites(ctx.store, [recordPut(read.result, { content })],

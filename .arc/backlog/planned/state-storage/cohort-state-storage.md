@@ -137,6 +137,23 @@ Amended 2026-10-29 — `storage-ref-backend` amends D2 forward in `spec-storage-
 other path verbatim; and a non-person owner's generation, retained creation receipts included, takes the lowercase UID
 grammar stored names carry (`StoredUidSchema`).
 
+Amended 2026-11-07 — `projection-write-back` extends the shared batch admission contract in
+`spec-projection-write-back.md` § 7.2 and § 16.1 (A7): optional, strict, versioned `projectionAdmission` data binds one
+hand-edit content put to frozen local selection/preparation inputs and the configured editing identity. One shared
+planner re-derives the decision against atomic admission's fresh `before` on the reference and native ref backends,
+with exact record observations and conflict sets, including selector arrivals and internal retries. It compares the
+mutation and accepted-input basis and retains final kind checks; unrelated writes remain admissible. The backend
+reads no checkout files. Projection observation or replay mismatches return `version-conflict` with optional typed
+cause `projection-admission`, holding for later fresh preparation without invoking lost-base recovery; genuine
+missing-base conflicts retain their untagged bounded recovery. The tracked backend explicitly refuses
+`projection-admission`; other batches are unchanged.
+
+Amended 2026-11-07 — `projection-write-back` amends D2 forward in `spec-projection-write-back.md` § 10.1 and
+§ 16.3 (A5): a literal slug-safe root companion filename uses the logical key `./<filename>`, decoded before
+filesystem use and reconstructed by the inverse. Conventional names retain their existing spelling; redundant and
+unsafe encodings and reserved physical paths refuse. Personal-document paths and each backend's supported-key
+boundary remain unchanged.
+
 Amended 2026-10-29 — `storage-ref-backend` amends D3 forward in `spec-storage-ref-backend.md` § 3.1 and § 6.4 (A55): a
 divergent archive-quarter merge whose folder inventories are all valid and empty names its archive ref in the commit
 subject and omits `Arc-Owner`, keeping the fresh batch, actor, and complete-none creation receipt; every other merge
@@ -181,6 +198,12 @@ Amended 2026-10-29 — `storage-ref-backend` amends D14 forward in `spec-storage
 no remote holds the project's registry, the clone asks once whether its code remote is `push` or `off`; on a host
 whose forks copy state refs, a contributor's lone fork remote holding that copy is designated without asking and
 adopts the upstream's ID, a residual the host trial checks.
+
+Amended 2026-11-07 — `projection-write-back` amends accepted-input recording forward in
+`spec-projection-write-back.md` § 7.1, § 15 and § 16.1 (A6): a handled read-back refusal retains unfinished input,
+stamp and landed version until recording completes before reuse. Missing entry IDs use the accepted version,
+reading its history only when needed and read-back names a different version; unavailable evidence holds safely.
+The recording-only continuation preserves the existing guarded installation and ID-matcher ambiguity rules.
 
 ### Soft coordination
 

@@ -25,6 +25,7 @@
  * @module
  */
 
+import type { BatchResult } from "../store/write.js";
 import type { LocusPorts } from "./locus-ports.js";
 import type { RawGitExec } from "../git/exec.js";
 import { posix } from "node:path";
@@ -392,6 +393,8 @@ const LEG_ORDER: readonly EncodingLeg[] = [
 export type TransitionOutcome =
   | {
       status: "ok";
+      /** Exact atomic Store result when the transition persisted operational records. */
+      storeBatch?: BatchResult;
       /** Physical continuation after the records have already persisted. */
       continuation?: LifecycleGitContinuation;
       verb: Verb;

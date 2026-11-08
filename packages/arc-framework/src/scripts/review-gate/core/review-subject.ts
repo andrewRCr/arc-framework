@@ -39,14 +39,15 @@ export function resolveReviewHeadRef(
  * @param input - Exact branch/head coordinates and the delivery reverse lookup
  * @returns Ordinary or delivery ownership, an authoritative miss, or an unavailable read
  */
-export async function resolveReviewSubject(input: Partial<ReviewWorkUnitLookup> & {
+export async function resolveReviewSubject(input: Partial<Omit<ReviewWorkUnitLookup, "cwd">> & {
+  readonly cwd: string;
   readonly headRef: string;
   readonly headSha: string;
   readonly memberLookup: DeliveryMemberLookup;
 }): Promise<ReviewSubjectResolution> {
   const native = input.store?.capabilities.stateOffBranch === true;
   const linked = native && input.store !== undefined
-    ? await readReviewWorkUnitByRef({ store: input.store, projectId: input.projectId }, input.headRef) : null;
+    ? await readReviewWorkUnitByRef({ cwd: input.cwd, store: input.store, projectId: input.projectId }, input.headRef) : null;
   if (linked !== null) return { status: "resolved", workUnitId: linked.name, member: null,
     workItem: linked.record.reference.owner };
   const ordinary = native ? null : branchToWorkUnitSlug(input.headRef);

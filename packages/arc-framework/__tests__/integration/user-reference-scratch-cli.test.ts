@@ -133,7 +133,7 @@ it("applies registered managed-target repairs to the Store while preserving sess
     await dispatchRegisteredCli(["--no-input", "user", "reconcile-references", "--apply", "--json"]);
     expect(lifecycleSuccess(await h.store.read({ reference: inbox.reference })).content).toContain("_WU_Target:_ `current`");
     expect(JSON.parse(output)).toMatchObject({ status: "applied", plan: { edits: [{ path: ".arc/user/andrew/USER-INBOX.md" }],
-      advisories: [expect.objectContaining({ path: ".arc/active/meta-dependent.md", subject: "former" })] } });
+      advisories: [expect.objectContaining({ path: ".arc/active/current/meta-dependent.md", subject: "former" })] } });
     expect(lifecycleSuccess(await h.store.read({ reference: dependent.reference })).content).toBe(metaContent);
     await expect(readFile(join(cwd, ".arc/user/andrew/USER-INBOX.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
     expect((await exec("git", ["rev-parse", "HEAD"])).stdout).toBe(head);

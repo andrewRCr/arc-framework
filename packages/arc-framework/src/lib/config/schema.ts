@@ -307,6 +307,7 @@ export const ARC_CONFIG_FIELDS = [
   booleanField("sync.auto_pull", "false"),
   enumField("archive.cadence", ["with-integration", "manual"], "with-integration"),
   enumField("storage.track_design_docs", ["none", "specs"], "specs"),
+  enumField("layout.active", ["nested", "flat"], "nested"),
   positiveSafeIntegerField("inbox.remind_after_days", "1", 1),
   positiveSafeIntegerField("inbound.retriage_after_entries", "10", 1),
   positiveSafeIntegerField("inbound.retriage_after_days", "30", 1),

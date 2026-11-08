@@ -53,14 +53,15 @@ function requireOriginalSubject(seed: CompactionSeed, recover: RecoveryBasisProb
     throw new Error(`The seed held no work unit, but this checkout now holds '${frame.subject.key}'. Start a fresh ARC session for that work unit, or restore the original checkout context and retry recovery.`);
   }
   const sameWorkUnit = frame.kind === "resolved" && frame.subject.kind === "work-unit" && frame.subject.key === seed.activeWorkUnit;
+  const parent = recover.derivedLocusState?.ok === true ? resolveRecoveryParentContext(recover.derivedLocusState.value, frame) : null;
   const parentMetas = recover.loadSet.ok ? recover.loadSet.value.entries.flatMap(entry => {
+    if (parent !== null && entry.path === parent.metaPath) return [parent.workUnit];
     const artifact = identifyWorkUnitArtifactPath(entry.path);
     return artifact?.artifact === "meta" ? [artifact.slug] : [];
   }) : [];
   if (seed.activeWorkUnit === null && parentMetas.length > 0) {
     throw new Error("The seed held no work unit, but this transient now inherits a work unit. Start a fresh ARC session for that context, or restore the original parent context and retry recovery.");
   }
-  const parent = recover.derivedLocusState?.ok === true ? resolveRecoveryParentContext(recover.derivedLocusState.value, frame) : null;
   const cursorlessParent = frame.kind === "resolved" && frame.subject.kind !== "work-unit" && frame.sessionType === "execution"
     && recover.taskCursor?.ok === true && recover.taskCursor.value.status === "no-open-task";
   if (cursorlessParent && (parent?.workflow !== "verify-work-unit" || parent.taskCursor?.status !== "no-open-task")) {

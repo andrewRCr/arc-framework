@@ -181,7 +181,7 @@ export async function inspectActiveRepositoryDeliveryEntry(
   if (active.status !== "resolved" || active.name === "") throw new Error("Active work unit unavailable");
   let taskListPath: string;
   if (bound.store.capabilities.stateOffBranch) {
-    const stored = unwrapReviewRecordResult(bound.store, await readStoredDeliveryEntryInput(bound.store, active.name, bound.workItem));
+    const stored = unwrapReviewRecordResult(bound.store, await readStoredDeliveryEntryInput(cwd, bound.store, active.name, bound.workItem));
     bound.workItem = stored.primary.reference.owner;
     taskListPath = stored.taskListPath;
   } else {

@@ -233,7 +233,7 @@ async function moveBacklogThroughStore(ctx: BacklogMoveContext, params: BacklogM
     return { status: "rejected", reason: `--class ${params.class} conflicts with recorded Class ${recordedClass}.` };
   }
   const cls = recordedClass === "TBD" ? params.class : recordedClass;
-  const metaPath = workUnitMetaPath(record, { kind: "backlog", commitment: to });
+  const metaPath = await workUnitMetaPath(ctx.executor.cwd, record, { kind: "backlog", commitment: to });
   const outcome = await executeTransition(ctx.executor, { verb, slug: record.reference.owner.name, inputs: {
     class: cls ?? "TBD",
     ...(verb === "promote" && recordedClass === "TBD" && cls !== undefined ? { persistClass: cls } : {}),

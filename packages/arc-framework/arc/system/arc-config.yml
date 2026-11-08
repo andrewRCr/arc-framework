@@ -350,6 +350,14 @@ archive.cadence: with-integration
 #   none  - Keep design documents exclusively in operational storage.
 storage.track_design_docs: specs
 
+# --- Active layout ---
+
+# Lay out the work item held by this checkout when operational state is off branch.
+#   nested - Place its files under .arc/active/current/. (default)
+#   flat   - Place its files directly under .arc/active/.
+# Other work items remain under .arc/active/in-flight/<slug>/.
+layout.active: nested
+
 # --- Inbox ---
 
 # Reminder threshold, in whole days, for flagged USER-INBOX captures. A `_Remind:_`-flagged

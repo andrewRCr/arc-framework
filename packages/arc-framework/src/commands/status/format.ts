@@ -4,15 +4,16 @@
  * JSON emission is not formatter-side — the handler calls `JSON.stringify`
  * on the typed result directly. These builders produce the human-readable
  * Clack note body that pairs with the default (no-`--json`) invocation,
- * rendering three stably-ordered sections (one per probe) plus the identity
+ * rendering independently available sections (one per probe) plus the identity
  * pointer block.
  *
  * Each probe result delegates to its own probe-specific formatter; failed
  * slots render a single-line "unavailable" marker so one probe's failure
- * does not obscure the other two's output.
+ * does not obscure the healthy sections.
  */
 
 import { buildActiveSessionInitSummary, buildActiveStatusSummary } from "../active/format.js";
+import { buildProjectionStatusSummary } from "../../lib/store/projection/status.js";
 import { buildConfigSessionInitSummary, buildConfigStatusSummary } from "../config/format.js";
 import { buildDomainRulesSessionInitSummary } from "../constitution/format.js";
 import {
@@ -63,6 +64,8 @@ export function buildStatusSummary(result: StatusResult): string {
     renderSlot("Config", result.config, buildConfigStatusSummary),
     renderSlot("Active", result.active, buildActiveStatusSummary),
   ];
+  if (!result.projection.ok || result.projection.value.kind !== "disabled")
+    sections.push(renderSlot("Projection", result.projection, buildProjectionStatusSummary));
   return sections.join(`\n${SECTION_SEPARATOR}\n`);
 }
 

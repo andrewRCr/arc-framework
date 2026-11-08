@@ -4,7 +4,7 @@ import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 import { expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { createClashDouble } from "../../../helpers/store/clash-double.js";
-import { createStoreLifecycleStorage, workItemArtifactPath } from "../../../../src/lib/store/lifecycle-storage.js";
+import { createStoreLifecycleStorage, flatWorkItemArtifactPath } from "../../../../src/lib/store/lifecycle-storage.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { recordReferences } from "../../../../src/lib/store/identity.js";
 import { ArchiveQuarterSchema } from "../../../../src/lib/kernel/index.js";
@@ -44,8 +44,8 @@ it("reads archived and live namesakes at their own metadata and companion paths"
   for (const [meta, notes] of [[archived, oldNotes], [live, liveNotes]]) {
     if (meta === undefined || notes === undefined) throw new Error("Expected both holder artifacts");
     const placement = WorkUnitReadPlacementSchema.parse(meta.placement);
-    expect(await snapshot.fs.readFile(workItemArtifactPath("shared", "meta", placement, null))).toBe(meta.content.trimEnd());
-    expect(await snapshot.fs.readFile(workItemArtifactPath("shared", "notes", placement, null))).toBe(notes.content.trimEnd());
+    expect(await snapshot.fs.readFile(flatWorkItemArtifactPath("shared", "meta", placement, null))).toBe(meta.content.trimEnd());
+    expect(await snapshot.fs.readFile(flatWorkItemArtifactPath("shared", "notes", placement, null))).toBe(notes.content.trimEnd());
   }
 });
 

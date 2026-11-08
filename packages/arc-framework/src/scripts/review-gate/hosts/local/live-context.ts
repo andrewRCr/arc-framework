@@ -102,7 +102,7 @@ export async function readLocalReviewLiveContext(input: ReviewInvocationInput): 
 
 async function readStoredLiveContext(input: ReviewInvocationInput & { store: NonNullable<ReviewInvocationInput["store"]> },
   activeIdentity: string | null, branch: string): Promise<ResolvedLocalReviewLiveContext> {
-  const selected = await readReviewWorkUnitByRef({ store: input.store, projectId: input.projectId }, branch);
+  const selected = await readReviewWorkUnitByRef({ cwd: input.cwd, store: input.store, projectId: input.projectId }, branch);
   if (selected !== null) return { context: { activeIdentity,
     workUnit: { identity: selected.name, owner: selected.meta.owner }, errand: null }, meta: selected.meta, workItem: selected.record.reference.owner };
   const selection = await readReviewCheckoutErrandSelection({ cwd: input.cwd, store: input.store });

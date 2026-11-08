@@ -170,7 +170,7 @@ export function deriveScanRoot(paths: string[]): string {
  */
 export async function resolveCohortValidationContext(cwd: string, store: Store): Promise<{ context?: LiveCohortContext; diagnostics: string[] }> {
   if (!store.capabilities.stateOffBranch) return { context: buildLiveCohortContextFromDisk(cwd), diagnostics: [] };
-  const view = await readLifecycleView(store);
+  const view = await readLifecycleView(cwd, store);
   if (view.status === "refused") return { diagnostics: [`${view.refusal.condition} ${view.refusal.remedy.text}`] };
   try { requireCompleteInventory(store, view.result.listing); }
   catch (error) { return { diagnostics: [error instanceof Error ? error.message : String(error)] }; }

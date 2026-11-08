@@ -334,7 +334,7 @@ export function createIntegrationMergeDependencies(options: ReviewInvocationInpu
       ]);
       const snapshot = await lifecycleStorage.readSnapshot();
       if (input.store.capabilities.stateOffBranch) {
-        const observed = await readStoredLifecycleSummary({ store: input.store, workUnit, owner: input.workItem,
+        const observed = await readStoredLifecycleSummary({ cwd: input.cwd, store: input.store, workUnit, owner: input.workItem,
           archiveCadence: cadence, storageVersion: snapshot.version });
         return { actualHead, lifecycleComplete: observed.summary.complete, lifecycleVersion: observed.recordVersion, target };
       }

@@ -33,20 +33,25 @@ export { retryTransientFileSystemRefusal } from "./kernel/fs-retry.js";
  * @param options - `createParents: false` writes only into a folder that exists, failing with `ENOENT` otherwise
  */
 export async function atomicWriteFile(
-  targetPath: string, content: string | Uint8Array, options: { createParents?: boolean } = {},
+  targetPath: string, content: string | Uint8Array, options: { createParents?: boolean; checkpoint?: () => Promise<void> } = {},
 ): Promise<void> {
   const dir = dirname(targetPath);
-  if (options.createParents !== false) await mkdir(dir, { recursive: true });
+  if (options.createParents !== false) {
+    await options.checkpoint?.();
+    await mkdir(dir, { recursive: true });
+  }
   const tmpPath = join(dir, `.${basename(targetPath)}.${randomBytes(8).toString("hex")}.tmp`);
 
   try {
+    await options.checkpoint?.();
     await writeFile(tmpPath, content, typeof content === "string" ? "utf-8" : undefined);
     await retryTransientFileSystemRefusal(async () => {
+      await options.checkpoint?.();
       await rename(tmpPath, targetPath);
     });
   } catch (err) {
     // Clean up temp file if it was created before the failure
-    await unlink(tmpPath).catch(() => {});
+    await (async () => { await options.checkpoint?.(); await unlink(tmpPath); })().catch(() => {});
     throw err;
   }
 }

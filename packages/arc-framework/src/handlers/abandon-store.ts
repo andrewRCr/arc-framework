@@ -16,7 +16,7 @@ export async function handleStoreAbandon(base: VerbBase, executor: ExecuteTransi
   const store = executor.store;
   if (store === undefined) { refuse("Store abandonment requires an operational store."); return; }
   try {
-    const view = await readLifecycleView(store);
+    const view = await readLifecycleView(base.cwd, store);
     if (view.status === "refused") { refuse(view.refusal.condition, view.refusal); return; }
     requireCompleteInventory(store, view.result.listing);
     const read = await readWorkUnit(store, name);

@@ -13,10 +13,10 @@ it.each(["Active", "Shipped"] as const)("refuses an attested %s owner without ch
   const candidate = await h.seedCandidate(primary.reference.owner, candidateFixture());
   const version = lifecycleSuccess(await h.store.version());
   const request = { sourceSlug: "example", targetSlug: "renamed" };
-  expect(await readStoreRenameSubject(h.store, request)).toMatchObject({ status: "refused",
+  expect(await readStoreRenameSubject("/project", h.store, request)).toMatchObject({ status: "refused",
     refusal: { condition: expect.stringContaining("Candidate publication state"), remedy: { text: expect.any(String) } } });
   expect(lifecycleSuccess(await h.store.version())).toBe(version);
   lifecycleSuccess(await h.store.write({ action: "remove", reference: candidate.reference, expected: candidate.version,
     provenance: { verb: "remove-candidate", lifecycleAction: "edit" } }));
-  expect(await readStoreRenameSubject(h.store, request)).toMatchObject({ status: "ok", result: { primary, resuming: false } });
+  expect(await readStoreRenameSubject("/project", h.store, request)).toMatchObject({ status: "ok", result: { primary, resuming: false } });
 });

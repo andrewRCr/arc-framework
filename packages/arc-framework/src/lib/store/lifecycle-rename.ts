@@ -26,9 +26,9 @@ export interface PreparedStoreRename extends PreparedLifecycleWrite { subject: S
  * @param request - Source handle and proposed current name.
  * @returns Selected primary and coordination advisories, or exact store refusal.
  */
-export async function readStoreRenameSubject(store: Store, request: { sourceSlug: string; targetSlug: string }): Promise<StoreResult<StoreRenameSubject>> {
+export async function readStoreRenameSubject(checkoutRoot: string, store: Store, request: { sourceSlug: string; targetSlug: string }): Promise<StoreResult<StoreRenameSubject>> {
   const source = SlugSchema.parse(request.sourceSlug), target = SlugSchema.parse(request.targetSlug);
-  const view = await readLifecycleView(store); if (view.status === "refused") return view;
+  const view = await readLifecycleView(checkoutRoot, store); if (view.status === "refused") return view;
   requireCompleteInventory(store, view.result.listing);
   const read = await readWorkUnit(store, source); if (read.status === "refused") return read;
   const primary = read.result;
@@ -66,35 +66,35 @@ async function renameOrigin(store: Store, primary: StoreRecord, fallback: string
  * @param branch - Optional explicit branch-link replacement.
  * @returns Every acquired version and its proposed writes.
  */
-export async function prepareStoreRename(store: Store, subject: StoreRenameSubject, targetSlug: string,
+export async function prepareStoreRename(checkoutRoot: string, store: Store, subject: StoreRenameSubject, targetSlug: string,
   branch?: { prior: BranchLink; next: BranchLink }): Promise<StoreResult<PreparedStoreRename>> {
-  const groups = await acquireRenameGroups(store, subject.primary); if (groups.status === "refused") return groups;
+  const groups = await acquireRenameGroups(checkoutRoot, store, subject.primary); if (groups.status === "refused") return groups;
   const basis = await revalidateLifecycleRecords(store, [subject.primary]); if (basis.status === "refused") return basis;
   const records = groups.result;
-  const artifactRenames = ownedArtifactRenames(records, subject.primary, targetSlug);
+  const artifactRenames = await ownedArtifactRenames(checkoutRoot, records, subject.primary, targetSlug);
   const ambiguity = await checkSharedPairedReferences(store, records, subject.primary, artifactRenames, subject.originName, targetSlug);
   if (ambiguity !== undefined) return ambiguity;
-  const virtual = renameProjection(records, subject.primary);
+  const virtual = await renameProjection(checkoutRoot, records, subject.primary);
   const sweep = await planRenameReferences({ arcRoot: ".arc", sourceSlug: subject.originName, targetSlug, artifactRenames }, virtual.context);
   await applyRenameReferencePlan(sweep, virtual.context);
   const writes = records.flatMap((record) => renameMutation(record, subject, targetSlug, virtual.contents.get(record), branch, artifactRenames));
   return { status: "ok", result: { subject, records, writes } };
 }
-function ownedArtifactRenames(records: readonly StoreRecord[], primary: StoreRecord, target: string): Map<string, string> {
+async function ownedArtifactRenames(checkoutRoot: string, records: readonly StoreRecord[], primary: StoreRecord, target: string): Promise<Map<string, string>> {
   const renamed = { ...primary, reference: RecordReferenceSchema.parse({ ...primary.reference,
     owner: { ...primary.reference.owner, name: target } }) };
   const names = new Map<string, string>();
   for (const record of records) {
     if (!sameOwner(record.reference.owner, primary.reference.owner)) continue;
-    const from = lifecycleRecordPath(primary, record), to = lifecycleRecordPath(renamed, record);
-    if (from !== null && to !== null) names.set(posix.relative(posix.dirname(workUnitMetaPath(primary)), from), posix.relative(posix.dirname(workUnitMetaPath(renamed)), to));
+    const from = await lifecycleRecordPath(checkoutRoot, primary, record), to = await lifecycleRecordPath(checkoutRoot, renamed, record);
+    if (from !== null && to !== null) names.set(posix.relative(posix.dirname(await workUnitMetaPath(checkoutRoot, primary)), from), posix.relative(posix.dirname(await workUnitMetaPath(checkoutRoot, renamed)), to));
   }
   return names;
 }
-async function acquireRenameGroups(store: Store, primary: StoreRecord): Promise<StoreResult<StoreRecord[]>> {
+async function acquireRenameGroups(checkoutRoot: string, store: Store, primary: StoreRecord): Promise<StoreResult<StoreRecord[]>> {
   const own = await acquireLifecycleRecords(store, primary.reference); if (own.status === "refused") return own;
   const records = [...own.result];
-  const view = await readLifecycleView(store); if (view.status === "refused") return view;
+  const view = await readLifecycleView(checkoutRoot, store); if (view.status === "refused") return view;
   requireCompleteInventory(store, view.result.listing);
   for (const entry of view.result.entries) {
     if (entry.placement.kind !== "backlog" || sameReference(entry.reference, primary.reference)) continue;
@@ -112,14 +112,14 @@ async function acquireRenameGroups(store: Store, primary: StoreRecord): Promise<
 function renameSweepRecords(records: readonly StoreRecord[]): StoreRecord[] {
   return records.filter(record => record.reference.kind !== "work-item/cut-map");
 }
-function renameProjection(records: StoreRecord[], primary: StoreRecord) {
+async function renameProjection(checkoutRoot: string, records: StoreRecord[], primary: StoreRecord) {
   const contents = new Map(records.map((record) => [record, record.content]));
   const paths = new Map<string, StoreRecord>();
   for (const record of renameSweepRecords(records)) {
     const own = record.reference.owner.type !== "person" && primary.reference.owner.type !== "person" && record.reference.owner.uid === primary.reference.owner.uid;
     const groupPrimary = own ? primary : records.find((candidate) => candidate.reference.kind === "work-item/meta" && candidate.reference.owner.type !== "person" && record.reference.owner.type !== "person" && candidate.reference.owner.uid === record.reference.owner.uid);
-    const projected = groupPrimary === undefined ? null : lifecycleRecordPath(groupPrimary, record);
-    const filename = projected === null || groupPrimary === undefined ? `${record.reference.kind.replaceAll("/", "-")}-${record.reference.owner.name}.md` : posix.relative(posix.dirname(workUnitMetaPath(groupPrimary)), projected);
+    const projected = groupPrimary === undefined ? null : await lifecycleRecordPath(checkoutRoot, groupPrimary, record);
+    const filename = projected === null || groupPrimary === undefined ? `${record.reference.kind.replaceAll("/", "-")}-${record.reference.owner.name}.md` : posix.relative(posix.dirname(await workUnitMetaPath(checkoutRoot, groupPrimary)), projected);
     const path = posix.join(".arc", "active", record.reference.owner.name, filename);
     paths.set(path, record);
   }

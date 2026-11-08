@@ -7,6 +7,7 @@ import { isSlugSafe } from "../../kernel/schema/slug.js";
 import type { RefMetadata } from "./metadata.js";
 import type { BatchObject } from "./batch-read.js";
 import { conflictTarget } from "./conflicts-read.js";
+import { companionKeyForFile } from "../../layout/index.js";
 
 /** Resolve the top-level family that owns a ref, including shared subtrees. */
 export function rootFamily(family: FamilyId): FamilyId {
@@ -56,10 +57,7 @@ function lineageEntryOwner(kind: KindDefinition, path: string, metadata: RefMeta
 }
 
 function decodeCompanion(owner: OwnerIdentity, path: string): RecordReference | null {
-  const paired = path === `spec-${owner.name}-prd.md` ? "spec-prd" : path === `spec-${owner.name}-rfc.md` ? "spec-rfc" : null;
-  const suffix = `-${owner.name}.md`;
-  const name = path.endsWith(suffix) ? path.slice(0, -suffix.length) : "";
-  const parsed = RecordReferenceSchema.safeParse({ owner, kind: "work-item/companion", key: paired ?? (isSlugSafe(name) ? name : path) });
+  const parsed = RecordReferenceSchema.safeParse({ owner, kind: "work-item/companion", key: companionKeyForFile(owner.name, path) });
   return parsed.success ? parsed.data : null;
 }
 

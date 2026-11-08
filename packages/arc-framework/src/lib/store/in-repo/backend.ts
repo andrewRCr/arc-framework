@@ -58,6 +58,9 @@ async function dispatchedBatch(context: InRepoContext, input: BatchInput): Promi
   const parsed = BatchInputSchema.safeParse(input);
   if (!parsed.success) return refuse(malformedStoreInput(input, parsed.error, "batch"));
   input = parsed.data;
+  if (input.projectionAdmission !== undefined) return unsupported("projection-admission",
+    "The interim backend cannot replay prepared projection decisions inside atomic admission",
+    "Use an off-branch backend serving prepared projection admission; keep the projection disabled on the interim backend.");
   if ((input.observations?.length ?? 0) > 0) return unsupported("batch-observations",
     "The interim backend cannot admit read observations atomically with a batch",
     "Use a backend serving atomic batch observations; keep using the existing verb before the storage cutover.");

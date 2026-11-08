@@ -57,8 +57,25 @@ describe("store-backed start checkouts", () => {
   }, timeout);
   it("graduates into a detached checkout locked with the projection's reason", async () => {
     const h = await fixture();
-    expect(await runGraduate(h.ctx, h.params)).toMatchObject({ status: "graduated", worktreePath: h.path });
+    expect(await runGraduate(h.ctx, h.params)).toMatchObject({ status: "graduated", worktreePath: h.path, metaPath: ".arc/active/current/meta-demo.md" });
     expect(await readWorktreeLock(h.exec, h.path)).toBe(PROJECTION_LOCK_REASON);
+  }, timeout);
+  it("refuses unreadable destination layout before committing graduation and succeeds after repair", async () => {
+    const h = await fixture();
+    await writeFile(join(h.root, ".git", "info", "exclude"), ".arc/system/arc-config.yml\n");
+    const reconcile = h.ctx.reconcileWorkUnitWorktree;
+    const ctx = { ...h.ctx, reconcileWorkUnitWorktree: async (op: Parameters<typeof reconcile>[0]) => {
+      const result = await reconcile(op);
+      if (result.mutation === "spawn") {
+        const config = join(result.worktreePath, ".arc", "system", "arc-config.yml");
+        await writeFile(config, "branch.protection: invalid\n");
+      }
+      return result;
+    } };
+    expect(await runGraduate(ctx, h.params)).toMatchObject({ status: "rejected", reason: expect.stringContaining("configuration") });
+    expect(lifecycleSuccess(await h.store.read({ reference: h.meta.reference }))).toEqual(h.meta);
+    expect(await stat(h.path).catch(() => null)).toBeNull();
+    expect(await runGraduate(h.ctx, h.params)).toMatchObject({ status: "graduated", metaPath: ".arc/active/current/meta-demo.md" });
   }, timeout);
   it.each([undefined, PROJECTION_LOCK_REASON])("repairs a folderless detached target before graduation, lock=%s", async (lock) => {
     const h = await fixture(); await h.exec("git", ["worktree", "add", "--detach", h.path, "main"]);
@@ -121,7 +138,7 @@ it.each(["start", "materialize", "materialize-without-base-refs"])("activates fr
     await exec("git", ["update-ref", "-d", "refs/heads/main"]);
     await exec("git", ["update-ref", "-d", "refs/remotes/origin/main"]);
   }
-  expect(await runActivate({ ...h.ctx, cwd: h.path, exec, projectId: async () => "repo", currentWuReconcile: buildStoreCurrentWuReconcile(h.store) },
+  expect(await runActivate({ ...h.ctx, cwd: h.path, exec, projectId: async () => "repo", currentWuReconcile: buildStoreCurrentWuReconcile(h.path, h.store) },
     { name: "demo", toBranch: "feat/demo", baseBranch: "main", nextAction: "Begin work" })).toMatchObject({ status: "activated" });
   expect((await exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(refreshed);
   expect(await readFile(join(h.path, "new-base"), "utf8")).toBe("new base content\n");

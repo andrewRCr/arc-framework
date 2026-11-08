@@ -18,7 +18,7 @@ it.each([false, true])("activates with an edge held by a cohort or a cohort/Erra
   const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "errand" }));
   const errand = tied ? await h.seed(reference, transientContent(reference), { kind: "active" }) : undefined;
   const store = errand === undefined ? h.store : createClashDouble(h.store, { slug: "target", holders: [cohort.reference, errand.reference] });
-  const prepared = await buildStoreCurrentWuReconcile(store).prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) });
+  const prepared = await buildStoreCurrentWuReconcile(f.cwd, store).prepare({ slug: "dependent", metaPath: await workUnitMetaPath(f.cwd, dependent) });
   const result = await repairCli(f, ["activate", "dependent", "--type", "feat", "--task", "Implement", "--action", "Continue"], { store });
   expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
   expect(prepared).toMatchObject({ status: "pending", prepared: { edits: [], plan: { dependency: {

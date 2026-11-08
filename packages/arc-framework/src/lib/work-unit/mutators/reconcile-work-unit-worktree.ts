@@ -46,10 +46,12 @@ import { access, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/p
 import { basename, dirname, join } from "node:path";
 
 import type { Store } from "../../store/contract.js";
+import { recordComposedStoreCapability } from "../../store/projection/process-state.js";
 import { usesOffBranchState } from "../../store/lifecycle-write.js";
 import { resolveWorktreeMarkerPath, readWorktreeMarkerGeneration, isWorktreeMarker, decodeWorktreeMarkerOwnership } from "../../git/worktree-marker.js";
 import { createDefaultLocusPorts, requireMarkerExclusivity, type LocusPorts } from "../locus-ports.js";
 import type { GitExec } from "../../git/exec.js";
+import { notifyCheckoutChange } from "../../git/checkout-change.js";
 import {
   nodeEditorDocumentsFs, writeEditorDocumentsOrThrow, type EditorDocumentsWriter,
 } from "../../schema-command/editor-documents.js";
@@ -401,13 +403,17 @@ export async function reconcileWorkUnitWorktree(
   ctx: ReconcileWorkUnitWorktreeContext,
   op: ReconcileWorkUnitWorktreeOp,
 ): Promise<ReconcileWorkUnitWorktreeResult> {
+  let result: ReconcileWorkUnitWorktreeResult;
   if (op.mutation === "spawn" && usesOffBranchState(ctx.store)) {
     const { stdout } = await ctx.exec("git", ["rev-parse", "--show-toplevel"]);
     const serialize = ctx.serializeWorktreeOperation
       ?? (<T>(cwd: string, operation: () => Promise<T>) => withWorktreeOperationLock({ exec: ctx.exec, cwd, operation }));
-    return serialize(stdout.trim(), () => reconcileWorkUnitWorktreeUnlocked(ctx, op));
+    result = await serialize(stdout.trim(), () => reconcileWorkUnitWorktreeUnlocked(ctx, op));
+  } else result = await reconcileWorkUnitWorktreeUnlocked(ctx, op);
+  if (result.mutation === "spawn" && ctx.store !== undefined) {
+    recordComposedStoreCapability(result.worktreePath, ctx.store.capabilities.stateOffBranch);
   }
-  return reconcileWorkUnitWorktreeUnlocked(ctx, op);
+  return result;
 }
 
 async function reconcileWorkUnitWorktreeUnlocked(
@@ -430,6 +436,7 @@ async function reconcileWorkUnitWorktreeUnlocked(
           `Move the worktree from outside the worktree: git worktree move -f -f ${op.from} ${op.to}`,
       };
     }
+    notifyCheckoutChange({ kind: "move", from: op.from, to: op.to });
     if (selfMove) ctx.chdir(op.to);
     return {
       mutation: "move",

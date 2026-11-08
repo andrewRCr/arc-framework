@@ -21,7 +21,7 @@ import { composeProjectReadinessViewResult } from "../../../src/lib/status/proje
 import { runStoreRename } from "../../../src/lib/work-unit/verbs/rename-store.js";
 
 async function project(store: Store) {
-  const view = lifecycleSuccess(await readLifecycleView(store));
+  const view = lifecycleSuccess(await readLifecycleView("/project", store));
   const selected = selectStandingLifecycleEntries(view.entries,
     view.listing.status === "complete" ? view.listing.diagnostics : []);
   const records = await readStoreProjectRecords(store, selected.entries);

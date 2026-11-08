@@ -1,6 +1,9 @@
 /** Intentional concise list summaries for the registered visible command tree. */
 
 export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
+  "selection": "List editable projected Markdown files",
+  "save": "Save pending edits in every projected root",
+  "editor": "Configure checkout editor settings for projected files",
   "agenda": "Compile session initialization steps",
   "store conflict": "Inspect or explicitly discard an exact stored conflict",
   "store migrate": "Move or import state into the ref store",

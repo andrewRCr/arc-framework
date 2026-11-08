@@ -31,7 +31,7 @@ export type MaterializeHeldCheckout = Exclude<HoldingCheckoutResult, { kind: "no
 /** List candidates with one locus query per owned in-flight work unit. */
 export async function listStoreMaterializable(ctx: Bound, identity: string, held = new Map<RecordReference, MaterializeHeldCheckout>(), checkoutPath?: string): Promise<LifecycleEntry[]> {
   if (ctx.store === undefined) throw new Error("Materialize requires its operational store");
-  const view = await readLifecycleView(ctx.store);
+  const view = await readLifecycleView(ctx.cwd, ctx.store);
   if (view.status === "refused") throw new Error(`${view.refusal.condition} ${view.refusal.remedy.text}`);
   requireCompleteInventory(ctx.store, view.result.listing);
   const candidates: LifecycleEntry[] = [];

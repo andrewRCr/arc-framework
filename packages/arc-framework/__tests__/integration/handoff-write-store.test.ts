@@ -20,10 +20,10 @@ import { HandoffWriteResultSchema } from "../../src/lib/handoff/write-schema.js"
 import type { StoreSyncPort } from "../../src/lib/store/operational-sync.js";
 import type { Store } from "../../src/lib/store/contract.js";
 const selected = vi.hoisted(() => ({ store: undefined as Store | undefined }));
-vi.mock("../../src/lib/store/create.js", () => ({ createStore: () => {
-  if (selected.store === undefined) throw new Error("No store selected for this CLI invocation");
-  return selected.store;
-} }));
+vi.mock("../../src/lib/store/create.js", async importOriginal => {
+  const original = await importOriginal<typeof import("../../src/lib/store/create.js")>();
+  return { ...original, createStore: (...args: Parameters<typeof original.createStore>) => selected.store ?? original.createStore(...args) };
+});
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });

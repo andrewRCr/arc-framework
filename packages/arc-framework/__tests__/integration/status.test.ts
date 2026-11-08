@@ -334,6 +334,7 @@ function makeProbes(fixture: Fixture): StatusProbes {
     user: async (identity) => stubUserResult(identity),
     config: () => runConfigStatus({ cwd: fixture.root }),
     active: () => runActiveStatus({ cwd: fixture.root }),
+    projection: async () => ({ kind: "disabled" }),
   };
 }
 
@@ -897,6 +898,7 @@ describe("runStatus — identity missing", () => {
       },
       config: () => runConfigStatus({ cwd: fixture.root }),
       active: () => runActiveStatus({ cwd: fixture.root }),
+      projection: async () => ({ kind: "disabled" }),
     };
     const result = await runStatus({ identity: null, role: null, probes });
 

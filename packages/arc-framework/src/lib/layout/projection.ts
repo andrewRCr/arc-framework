@@ -1,11 +1,13 @@
 /** Pure projection from semantic ARC layout addresses to managed paths. */
 
 import { assertNever, validateManagedPath, type ManagedPath, type Slug } from "../kernel/index.js";
+import { companionStoredName } from "./companion-key.js";
 import { LayoutError } from "./errors.js";
 import {
   ArcLayoutAddressSchema,
   type ArcLayoutAddress,
   type WorkUnitPlacement,
+  type OwnActiveLocation,
 } from "./schema.js";
 
 const EDITOR_DOCUMENT_ROOT = ".arc/system/.internal/schemas";
@@ -23,9 +25,7 @@ function projectPlacementRoot(tier: "active" | "planned" | "provisional" | "comp
 function projectContainer(placement: WorkUnitPlacement, slug: Slug): string {
   switch (placement.kind) {
     case "active":
-      return placement.scope.kind === "project"
-        ? ".arc/active"
-        : `.arc/user/${placement.scope.identity}/active`;
+      return projectActive(placement.scope, slug);
     case "backlog": {
       const cohort = placement.cohort.length === 0 ? "" : `/${placement.cohort.join("/")}`;
       return `.arc/backlog/${placement.commitment}${cohort}/${slug}`;
@@ -35,6 +35,17 @@ function projectContainer(placement: WorkUnitPlacement, slug: Slug): string {
     default:
       return assertNever(placement);
   }
+}
+
+function projectActive(scope: Extract<WorkUnitPlacement, { kind: "active" }>["scope"], slug: Slug): string {
+  if (scope.kind === "contributor") return `.arc/user/${scope.identity}/active`;
+  const location = scope.location;
+  if (location === undefined) return ".arc/active";
+  return location.kind === "another" ? `.arc/active/in-flight/${slug}` : projectOwnActive(location);
+}
+
+function projectOwnActive(location: OwnActiveLocation): string {
+  return location.layoutActive === "nested" ? ".arc/active/current" : ".arc/active";
 }
 
 function projectAddress(address: ArcLayoutAddress): string {
@@ -59,14 +70,31 @@ function projectAddress(address: ArcLayoutAddress): string {
       return projectContainer(address.placement, address.slug);
     case "work-unit-artifact":
       return `${projectContainer(address.placement, address.slug)}/${address.artifact}-${address.slug}.md`;
+    case "work-unit-companion": {
+      const file = companionStoredName(address.slug, address.key);
+      return `${projectContainer(address.placement, address.slug)}/${file}`;
+    }
+    case "work-unit-spec-part":
+      return `${projectContainer(address.placement, address.slug)}/spec-${address.slug}-${address.part}.md`;
+    case "work-unit-inbound":
+      return `${projectContainer(address.placement, address.slug)}/inbound-${address.slug}.md`;
+    case "errand-description": {
+      const directory = address.placement.kind === "completed" ? `.arc/completed/${address.placement.quarter}`
+        : projectActive(address.placement.scope, address.slug);
+      return `${directory}/errand-${address.slug}.md`;
+    }
     case "cohort-document":
       return projectCohort(address);
+    case "cohort-copy":
+      return `${projectOwnActive(address.location)}/cohort-${address.cohort}.md`;
     case "procedure-root":
       return `.arc/system/${address.family}`;
     case "project-document":
       return ".arc/backlog/ROADMAP.md";
     case "user-root":
       return `.arc/user/${address.identity}`;
+    case "scratch-document":
+      return `.arc/user/${address.identity}/${address.key}`;
     case "user-document":
       return projectUserDocument(address);
     default:

@@ -109,7 +109,7 @@ it("shows paused work held at its unbound checkout with bind and release exits",
   lifecycleSuccess(await h.store.write({ ...recordPut(h.live, { content: writeMetaPause(h.live.content, {
     pausedBy: SlugSchema.parse("test-user"), since: "2026-10-24T00:00:00Z", reason: "Awaiting review", waitsOn: null, resumeNotes: null, open: false }) }),
     provenance: { verb: "pause", lifecycleAction: "pause" } }));
-  const result = await runPausedWork({ store: h.store, identity: "test-user", reviewAfterDays: 14, now: new Date("2026-10-24T00:00:00Z"), findHoldingCheckout: h.ports.findHoldingCheckout });
+  const result = await runPausedWork({ cwd: "/project", store: h.store, identity: "test-user", reviewAfterDays: 14, now: new Date("2026-10-24T00:00:00Z"), findHoldingCheckout: h.ports.findHoldingCheckout });
   expect(result.items).toMatchObject([{ slug: "demo", actions: [
     { argv: ["arc", "materialize", "demo", "--here"], checkout: h.livePath },
     { argv: ["arc", "locus", "release"], checkout: h.livePath }] }]);
