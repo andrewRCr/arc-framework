@@ -155,7 +155,7 @@ describe("write-back read-back", () => {
       return result;
     });
     const held = await writeBackFile(fixture.context, fixture.index, fixture.request);
-    expect(held.result).toMatchObject({ answer: "pending", entry: { pending: true, persisted: null } });
+    expect(held.result).toMatchObject({ answer: "pending", entry: { pending: true, persisted: { recording: true, takenIn: { kind: "copy" } } } });
     expect(await fixture.file()).toContain("hand edit");
     expect(fixture.reports).toMatchObject([{ mark: { reason: expect.stringContaining("edit landed, but read-back failed") } }]);
     await fixture.repair("namespace-corrupt");

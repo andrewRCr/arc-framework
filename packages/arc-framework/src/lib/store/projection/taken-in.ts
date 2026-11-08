@@ -16,6 +16,7 @@ import { gitBlobId, type ObjectFormat } from "./blob-id.js";
 import { type HistoryMemo } from "./base-recovery.js";
 import type { RecordEntry, RefusedMark } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
+import { unfinishedRecordingRefusal } from "./recording-state.js";
 
 /** The folder under `arc-projection/` that keeps copies of content a persisted write-back took in. */
 export const TAKEN_IN_FOLDER = "taken-in";
@@ -153,6 +154,8 @@ export interface PersistedBaseInput {
  * @returns The matching persisted base, or null where the stamp does not select one.
  */
 export async function selectPersistedBase(input: PersistedBaseInput): Promise<StoreResult<PersistedBase | null>> {
+  const unfinished = unfinishedRecordingRefusal(input.entry);
+  if (unfinished !== null) return { status: "refused", refusal: unfinished };
   const persisted = input.entry.persisted;
   if (persisted === null) return { status: "ok", result: null };
   const { takenIn } = persisted;
@@ -188,7 +191,7 @@ export interface WriteBackRecording {
 /** Keep the accepted input until read-back can restore its stored entry IDs and complete the take-in mapping. */
 export async function recordPendingWriteBack(input: Pick<WriteBackRecording, "location" | "entry" | "stamp" | "takenIn" | "format" | "checkpoint">
   & { readonly version: RecordVersion }): Promise<RecordEntry> {
-  return { ...input.entry, persisted: { stamp: input.stamp, takenIn: { kind: "copy", version: input.version,
+  return { ...input.entry, persisted: { stamp: input.stamp, recording: true, takenIn: { kind: "copy", version: input.version,
     ...await keepCopy(input.location, input.takenIn, input.format, input.checkpoint) } } };
 }
 
@@ -197,19 +200,39 @@ export async function recordPendingWriteBack(input: Pick<WriteBackRecording, "lo
  * @param input - What the read-back hands over.
  * @returns The entry to write, and the names of copies to remove once the index holding it is written.
  */
-export async function recordWriteBack(input: WriteBackRecording): Promise<{ entry: RecordEntry; released: string[] }> {
+export async function recordWriteBack(input: WriteBackRecording): Promise<{ entry: RecordEntry; released: string[]; mark?: RefusedMark }> {
   const { outcome, readBack, grammar } = input;
   if (outcome.kind !== "landed") return { entry: input.entry, released: [] };
   if (readBack === null) throw new Error("A landed write-back's recording needs the record read back");
-  const takenIn = grammar === undefined ? input.takenIn : restoreEntryIds(input.takenIn, readBack.content, grammar);
-  // The read-back puts the version just written in the file, which no earlier answer holds.
+  // A landed write invalidates cached history before an exact-version identity lookup.
   input.memo.drop(input.entry.reference);
+  const reference = await acceptedIdReference(input, readBack, outcome.version);
+  if (reference.status === "refused") {
+    const entry = input.entry.persisted?.recording === true ? input.entry
+      : await recordPendingWriteBack({ ...input, version: outcome.version });
+    return { entry, released: [], mark: { reason: reference.refusal.condition, remedy: reference.refusal.remedy } };
+  }
+  const takenIn = grammar === undefined ? input.takenIn : restoreEntryIds(input.takenIn, reference.result, grammar);
   const kept = input.entry.persisted?.takenIn;
   const released = kept?.kind === "copy" ? [kept.name] : [];
   const record = readBack.version === outcome.version && sameApartFromStampedIds(readBack.content, takenIn, grammar)
     ? { kind: "landed" as const, version: outcome.version }
     : { kind: "copy" as const, version: outcome.version, ...await keepCopy(input.location, takenIn, input.format, input.checkpoint) };
   return { entry: { ...input.entry, persisted: { stamp: input.stamp, takenIn: record } }, released };
+}
+
+async function acceptedIdReference(input: WriteBackRecording, readBack: NonNullable<WriteBackRecording["readBack"]>,
+  version: RecordVersion): Promise<StoreResult<string>> {
+  const grammar = input.grammar;
+  const needsIds = grammar !== undefined && entriesOf(splitEntryList(input.takenIn, grammar)).some(entry => entry.id === undefined);
+  if (!needsIds || readBack.version === version) return { status: "ok", result: readBack.content };
+  const history = await input.memo.read(input.entry.reference);
+  if (history.status === "refused") return history;
+  const landed = history.result.find(entry => entry.version === version && entry.content !== null);
+  return landed?.content !== undefined && landed.content !== null ? { status: "ok", result: landed.content }
+    : { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", reference: input.entry.reference,
+      historyRefs: [], condition: "The accepted record version is unavailable for entry-ID recording.",
+      remedy: { text: "Restore the accepted version's history content, then retry; keep the file and retained input." } } };
 }
 
 /**

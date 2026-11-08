@@ -65,7 +65,7 @@ it("leaves an accepted write pending when read-back refuses instead of recoverin
     },
   });
   const held = await createWriteBackPort({ ...h.context, store, memo: createHistoryMemo(store) })(h.request);
-  expect(held).toMatchObject({ answer: "pending", entry: { base: h.entry.base, persisted: null } });
+  expect(held).toMatchObject({ answer: "pending", entry: { base: h.entry.base, persisted: { recording: true, takenIn: { kind: "copy" } } } });
   expect(success(await h.store.history({ reference: h.entry.reference }))).toHaveLength(2);
   expect(success(await h.store.read({ reference: h.entry.reference })).content).toBe("opening\nhand edit\nclosing\n");
   expect(h.reports).toMatchObject([{ mark: { reason: expect.stringContaining("edit landed"), remedy: refusal.remedy } }]);

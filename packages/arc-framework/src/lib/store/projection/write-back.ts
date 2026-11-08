@@ -35,6 +35,7 @@ import { decideWriteBackRefusal } from "./write-refusal.js";
 import { explicitResolutionMarkerRefusal } from "./save-markers.js";
 import { normalizeStubEdit } from "./stub-normalization.js";
 import { observeProjectionEdit } from "./edit-observation.js";
+import { completeWriteBackRecording } from "./write-back-recording.js";
 
 const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
@@ -192,12 +193,6 @@ async function heldBasePreparation(context: WriteBackContext, request: TakeInReq
 }
 
 async function readEdit(context: WriteBackContext, request: TakeInRequest): Promise<ReadEdit> {
-  if (request.entry.adoption?.kind === "read-back" && request.entry.adoption.recording) {
-    return { kind: "held", result: { answer: "pending", entry: request.entry }, diagnostic: {
-      reason: "The accepted adoption is still waiting for read-back to complete its take-in record.",
-      remedy: { text: "Repair the reported read-back condition and retry the command before saving further edits." },
-    } };
-  }
   const path = join(request.checkout, request.copy ?? request.path);
   const gate = await gateRead({ path, markdown: request.path.endsWith(".md") && request.adopting !== true });
   if (gate.kind !== "read") {
@@ -312,7 +307,13 @@ type RefusedSend = { kind: "store-refused"; refusal: StoreRefusal; entry: Record
 export async function sendWriteBack(context: WriteBackContext, request: TakeInRequest): Promise<WriteBackSend> {
   request = observeProjectionEdit(request);
   const bound = { ...context, memo: context.memo ?? createHistoryMemo(context.store), versionRecoveries: context.versionRecoveries ?? [] };
-  let current = request;
+  const completion = await completeWriteBackRecording(bound, request.entry);
+  if (completion.mark !== undefined) {
+    context.report?.({ path: request.path, copy: request.copy, mark: completion.mark });
+    return { kind: "read-back-refused", result: { answer: "pending",
+      entry: { ...completion.entry, pending: true, refused: completion.mark } } };
+  }
+  let current = { ...request, entry: completion.entry };
   for (const recoveringBase of [false, true]) {
     const attempt = await sendAttempt({ ...bound, recoveringBase }, current);
     if (attempt.kind !== "store-refused") return attempt.kind === "held"
@@ -362,13 +363,15 @@ async function sendAttempt(context: WriteBackContext, request: TakeInRequest): P
   if (read.status === "refused") {
     const mark = { reason: `The edit landed, but read-back failed: ${read.refusal.condition}`, remedy: read.refusal.remedy };
     context.report?.({ path: request.path, copy: request.copy, mark });
-    entry = await pendingAdoptionRecording(context, request, prepared, entry, sent.result.version);
+    entry = await pendingAcceptedRecording(context, request, prepared, entry, sent.result.version);
     return { kind: "read-back-refused", result: { answer: "pending", entry: { ...entry, pending: true, refused: mark } } };
   }
   const recorded = await recordWriteBack({ location: context.location, checkpoint: context.checkpoint, entry, stamp: prepared.stamp,
     takenIn: prepared.takenIn, outcome: { kind: "landed", version: sent.result.version }, readBack: read.result,
     grammar: kinds[entry.reference.kind].entry, format: context.format,
     memo: context.memo ?? createHistoryMemo(context.store) });
+  if (recorded.mark !== undefined) return pendingRecordingResult(context, request,
+    adoptionReadBackEntry(request, prepared, recorded.entry), recorded.mark);
   if (prepared.retained !== undefined) {
     const unshown = unshownConflicts(recorded.entry, read.result.conflicts);
     for (const mark of [prepared.retained, ...heldConflictMarks(unshown, prepared.retained)]) {
@@ -387,13 +390,23 @@ function isAdopting(request: TakeInRequest): boolean {
   return request.adopting === true || request.entry.adoption !== undefined;
 }
 
-async function pendingAdoptionRecording(context: WriteBackContext, request: TakeInRequest,
+async function pendingAcceptedRecording(context: WriteBackContext, request: TakeInRequest,
   prepared: Extract<PreparedWriteBack, { kind: "ready" }>, entry: RecordEntry, version: RecordVersion): Promise<RecordEntry> {
-  if (!isAdopting(request)) return entry;
   const recorded = await recordPendingWriteBack({ location: context.location, checkpoint: context.checkpoint, entry,
     stamp: prepared.stamp, takenIn: prepared.takenIn, version, format: context.format });
-  return { ...recorded, adoption: { kind: "read-back", read: prepared.read, recording: true,
+  return adoptionReadBackEntry(request, prepared, recorded);
+}
+
+function adoptionReadBackEntry(request: TakeInRequest, prepared: Extract<PreparedWriteBack, { kind: "ready" }>,
+  entry: RecordEntry): RecordEntry {
+  return !isAdopting(request) ? entry : { ...entry, adoption: { kind: "read-back", read: prepared.read,
     ...(prepared.retained === undefined ? {} : { retained: prepared.retained }) } };
+}
+
+function pendingRecordingResult(context: WriteBackContext, request: TakeInRequest, entry: RecordEntry,
+  mark: RefusedMark): WriteBackSend {
+  context.report?.({ path: request.path, copy: request.copy, mark });
+  return { kind: "read-back-refused", result: { answer: "pending", entry: { ...entry, pending: true, refused: mark } } };
 }
 
 function heldPreparation(context: WriteBackContext, request: TakeInRequest, prepared: HeldWriteBack): WriteBackSend | RefusedSend {

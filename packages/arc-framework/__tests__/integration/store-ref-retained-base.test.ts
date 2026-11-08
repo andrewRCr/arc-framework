@@ -98,7 +98,7 @@ it("holds an accepted adoption's missing input without resending and completes r
   const interrupted = await readProjectionIndex(projected.location, true);
   if (interrupted.kind !== "index") throw new Error("Missing accepted index");
   const entry = interrupted.index.entries[path];
-  if (entry?.kind !== "record" || entry.adoption?.kind !== "read-back" || !entry.adoption.recording
+  if (entry?.kind !== "record" || entry.adoption?.kind !== "read-back" || !entry.persisted?.recording
     || entry.persisted?.takenIn.kind !== "copy") throw new Error("Missing accepted input recording");
   await repair();
   const accepted = success(await f.store.read({ reference }));

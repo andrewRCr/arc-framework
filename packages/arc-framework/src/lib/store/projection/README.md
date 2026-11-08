@@ -125,8 +125,13 @@ own, else of the one sharing its heading or complete field-header paragraph, and
 same way goes to neither. Where the record read back is at the write's version and holds that content apart from the IDs
 the store stamped, the version is the content taken in; otherwise the content is kept as a copy under
 `arc-projection/taken-in/` until a later landing releases it. A Markdown save carrying the recorded stamp takes that
-content as its base. For a file without a stamp, the take-in records its carried base blob id and retains both the
-landed version and any kept copy as candidates, independently of later refreshes.
+content as its base. An accepted input whose read-back or required identity reference is unavailable keeps a raw copy
+with `persisted.recording: true`. `write-back-recording.ts` completes that mapping before another send, without
+installing a file; `recording-state.ts` refuses raw-basis consumption. Missing IDs use the accepted version, consulting
+per-record history only when needed and read-back names a newer version. Accepted adoption retains its own guarded
+installation continuation. Unavailable copies or history stay pending until repaired. For a file without a stamp, the
+take-in records its carried base blob id and retains both the landed version and any kept copy as candidates,
+independently of later refreshes.
 
 `stampless.ts` reads a file other than Markdown, which carries no stamp, against its entry: the entry's version is its
 base, so a file restored to an older version is an edit, and an empty file is read only once its modification time is

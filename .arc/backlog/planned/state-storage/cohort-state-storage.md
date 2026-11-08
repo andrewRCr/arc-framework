@@ -188,6 +188,12 @@ no remote holds the project's registry, the clone asks once whether its code rem
 whose forks copy state refs, a contributor's lone fork remote holding that copy is designated without asking and
 adopts the upstream's ID, a residual the host trial checks.
 
+Amended 2026-11-07 — `projection-write-back` amends accepted-input recording forward in
+`spec-projection-write-back.md` § 7.1, § 15 and § 16.1 (A6): a handled read-back refusal retains unfinished input,
+stamp and landed version until recording completes before reuse. Missing entry IDs use the accepted version,
+reading its history only when needed and read-back names a different version; unavailable evidence holds safely.
+The recording-only continuation preserves the existing guarded installation and ID-matcher ambiguity rules.
+
 ### Soft coordination
 
 - **Landing.** Every program work unit lands single-branch with chunked review until the program completes. A work

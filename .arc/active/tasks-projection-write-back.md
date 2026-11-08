@@ -619,3 +619,8 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
   explicit resolution remains available, with unchanged-entry controls (A4; criterion 12).
 - `[x]` Literal root and conventional companion names adopt distinctly and retain their identities through reopen,
   reprojection and rename, with supported-key repair and both ref layouts covered (A5; criterion 13).
+
+- `[x]` An accepted ordinary or aside write survives handled read-back refusal with its input, stamp and landed
+  version retained. Changed retries preserve newer edits; immediate and deferred entry-ID recording use the exact
+  landed version when needed, unavailable copy/history holds without resend, and repaired recording resumes guarded
+  processing with adoption and independent-file controls (A6; criterion 14).

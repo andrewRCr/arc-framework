@@ -65,6 +65,16 @@ describe("the projection index", () => {
     expect(decoded.success && decoded.data).toEqual(index);
   });
 
+  it("round-trips unfinished accepted input but refuses an unfinished mapping without a copy", () => {
+    const index = fullIndex(), path = ".arc/active/current/meta-alpha.md";
+    const entry = index.entries[path];
+    if (entry?.kind !== "record" || entry.persisted === null) throw new Error("Record fixture missing");
+    entry.persisted.recording = true;
+    expect(decodeProjectionIndex(JSON.parse(encodeProjectionIndex(index)))).toMatchObject({ success: true, data: index });
+    entry.persisted.takenIn = { kind: "landed", version: RecordVersionSchema.parse("v3") };
+    expect(() => encodeProjectionIndex(index)).toThrow();
+  });
+
   it("refuses a cached guard without worktree proof while leaving recovery entries intact", () => {
     const json = JSON.parse(encodeProjectionIndex(fullIndex())) as Record<string, unknown>;
     const guard = json["ignoreGuard"] as Record<string, unknown>;

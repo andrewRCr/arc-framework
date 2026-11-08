@@ -18,10 +18,14 @@ type CopyBase = Extract<RecoveredBase, { kind: "copy" }>;
 type BaseContext = BaseSelectionContext & { readonly memo: HistoryMemo };
 const LABEL = { actor: "checkout", time: new Date(0).toISOString() };
 
+import { unfinishedRecordingRefusal } from "./recording-state.js";
+
 /** Select the carried base only where every possible base gives the same merge without a clash. */
 export async function selectStamplessBase(
   context: BaseContext, request: TakeInRequest, content: string,
 ): Promise<StoreResult<WriteBackBaseDecision>> {
+  const unfinished = unfinishedRecordingRefusal(request.entry);
+  if (unfinished !== null) return { status: "refused", refusal: unfinished };
   const blob = request.base.kind === "blob" ? request.base.blob : request.entry.base.blob;
   const carried = await resolveCarriedBase(context, request, content, blob);
   if (carried.status === "refused" || carried.result.kind === "held") return carried;

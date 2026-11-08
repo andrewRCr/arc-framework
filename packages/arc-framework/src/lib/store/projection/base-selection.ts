@@ -9,6 +9,8 @@ import { selectStamplessBase } from "./stampless-base.js";
 import { readRetainedBase, RetainedBaseUnavailable, selectPersistedBase } from "./taken-in.js";
 import type { TakeInRequest } from "./take-in-port.js";
 
+import { unfinishedRecordingRefusal } from "./recording-state.js";
+
 /** A resolved base and the stamp recorded for this take-in. */
 export interface SelectedWriteBackBase {
   readonly kind: "selected";
@@ -23,6 +25,8 @@ export type WriteBackBaseDecision = SelectedWriteBackBase | { readonly kind: "he
 export async function selectWriteBackBase(
   context: BaseSelectionContext, request: TakeInRequest, content: string, stamp: string | null,
 ): Promise<StoreResult<WriteBackBaseDecision>> {
+  const unfinished = unfinishedRecordingRefusal(request.entry);
+  if (unfinished !== null) return { status: "refused", refusal: unfinished };
   try {
     return await selectBase(context, request, content, stamp);
   } catch (error) {

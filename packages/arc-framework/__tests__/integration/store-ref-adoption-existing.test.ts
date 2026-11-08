@@ -126,7 +126,7 @@ it.each(["companion", "inbound"])("remembers an existing %s's accepted edit thro
   expect(success(await f.store.read({ reference })).version).toBe(accepted.version);
   const beforeRetry = success(await f.store.version());
   const pendingEntry = held.index.entries[path];
-  if (pendingEntry?.kind !== "record" || pendingEntry.adoption?.kind !== "read-back" || !pendingEntry.adoption.recording
+  if (pendingEntry?.kind !== "record" || pendingEntry.adoption?.kind !== "read-back" || !pendingEntry.persisted?.recording
     || pendingEntry.persisted?.takenIn.kind !== "copy") throw new Error("The accepted edit has no unfinished take-in record");
   const payload = join(projected.location.stateDir, TAKEN_IN_FOLDER, pendingEntry.persisted.takenIn.name);
   const payloadBytes = await readFile(payload);

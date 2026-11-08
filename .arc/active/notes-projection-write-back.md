@@ -331,3 +331,25 @@ extensions and nested paths retain their existing keys. Decoding precedes physic
 reservation checks. Inverse decoding retains the literal key across listing, reopen and rename, so rename changes
 only conventional filenames. Existing in-repo support remains conventional-only with an explicit unsupported refusal.
 The shared D2 decision is recorded forward here and in the cohort; the shipped member's spec is unchanged.
+
+## A6 — Finish accepted-input recording before reuse
+
+The superseded § 15 restriction was: "`history` is read only where `spec-projection-substrate.md` § 3.5 names."
+The superseded § 7.1 read-back description records accepted input only after read-back; it defines no unfinished
+mapping or recording-only continuation for a handled refusal. The process-stop residual remains distinct.
+
+At the reviewed head `a9b9f3787b`, `sendAttempt` retained failed read-back input only through
+`pendingAdoptionRecording`; ordinary requests returned their old entry. `recordWriteBack` restored IDs from
+`readBack.content` before comparing its version with the accepted version. `selectPersistedBase`, `recoverBase` and
+`selectStamplessBase` consume retained bases, so exposing raw input as a completed mapping would make unstamped entries
+unsafe. The new unfinished mark belongs to the persisted mapping, rather than giving ordinary or aside writes adoption's
+installation semantics.
+
+Existing `recordPendingWriteBack`, `readRetainedBase`, the per-record `HistoryMemo`, `restoreEntryIds`, index
+publication and end cleanup provide the mechanisms. The amendment adds the explicit unfinished state and its safe
+completion ordering, and authorizes history only when the accepted entry-ID reference is needed and immediate
+read-back names another version. The latest read-back remains the rendering input. The existing matcher retains
+its ambiguity rules and the later unmatchable-edit residual; no new identity inference or store interface is added.
+
+This is a review-site amendment: the approved review-fix increment carries the spec, criterion and implementation,
+with full verification closing the detour. No completed task goal or shipped specification is rewritten.

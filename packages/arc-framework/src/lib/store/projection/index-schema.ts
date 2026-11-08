@@ -45,11 +45,12 @@ const MarkersSchema = z.strictObject({
 /** What the last persisted write-back read: its Markdown stamp or stampless take-in base blob, and content taken in. */
 const PersistedSchema = z.strictObject({
   stamp: BlobIdSchema,
+  recording: z.literal(true).optional(),
   takenIn: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("landed"), version: RecordVersionSchema }),
     z.strictObject({ kind: z.literal("copy"), name: z.string().min(1), blob: BlobIdSchema, version: RecordVersionSchema }),
   ]),
-});
+}).refine(value => value.recording !== true || value.takenIn.kind === "copy", "Unfinished recording requires an input copy");
 
 /** A replacement in progress of a file other than Markdown: the version it replaces and the copy its batch makes. */
 const InProgressSchema = z.strictObject({ replaces: StoredVersionSchema, copy: z.string().min(1).nullable() });
@@ -88,7 +89,7 @@ const RecordEntrySchema = z.strictObject({
   adoption: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("write-back"), stub: z.literal(true).optional() }),
     z.strictObject({ kind: z.literal("read-back"), read: z.strictObject({ stat: FileStatSchema, blob: BlobIdSchema }),
-      recording: z.literal(true).optional(), retained: RefusedMarkSchema.optional() }),
+      retained: RefusedMarkSchema.optional() }),
   ]).optional(),
 });
 

@@ -741,6 +741,34 @@ residual of under 1% (§ Spike 6).
   place the base blob id its take-in carried: its entry's `base.blob` for the file at its path — which write-back reads
   from the entry at the command's start, and the guard's re-check hands it (`baseOf`,
   `lib/store/projection/replace-guard.ts`) — and the blob an aside copy's name carries for a copy (§ 16.5).
+- **Finish accepted-input recording (A6).** Every accepted content put retains the input after parse-back, its
+  stamp (or stampless base blob), and the returned landed version even when immediate read-back refuses. Until ID
+  restoration and recording finish, the entry's `persisted` mapping carries `recording: true` and a `takenIn` copy
+  holding that accepted input; only a copy can carry the unfinished mark. A handled refusal publishes this mapping
+  under the caller's projection lease, preserves the file, and reports the condition and its repair route. A later
+  accepted send cannot replace an unfinished mapping, and no base-selection or recovery consumer can use its raw
+  input as a completed merge base. Preparation remains read-only: it reports an unfinished mapping as held; the
+  command's send/recovery path completes recording outside preparation, under its caller's lease, then retries
+  preparation against the completed entry before sending anything else. Independent files may still progress.
+  Recording completes through the existing retained-copy and `recordWriteBack` path, with the unfinished mark
+  removed only when the caller publishes the completed entry. The previous copy remains retained until the index
+  no longer names it; ordinary end cleanup may then remove it.
+
+  Where accepted input needs missing entry IDs restored, the reference is the version returned by the accepted put,
+  not whichever version the following read happens to return. An equal-version read-back supplies that reference;
+  otherwise the existing per-record history interface supplies the content at that exact landed version, with its
+  ordinary refusal handling. This conditional history read is an additional permitted trigger (§ 15). Prose and
+  inputs needing no missing-ID restoration make no such lookup. The existing matcher and its ambiguity rules stay:
+  completion means applying it to the right version, not inferring an identity it cannot establish (§ 17 item 9).
+  Apply this rule to immediate recording and deferred completion alike. If the retained copy or required landed
+  content is unavailable, retain the unfinished mapping and file, report the repair, and hold further consumption
+  and sends until repair succeeds; never fall back to an older base or a different history version.
+
+  Completion records input only. It does not install a stored record or reuse an aside copy's read as the live
+  file's replacement baseline. After recording, ordinary and aside processing resume with the existing fresh reads
+  and replacement guards, preserving edits made meanwhile. Accepted creation keeps its separate adoption/read-back
+  continuation; ordinary and aside writes acquire no adoption state. A newer read-back may still supply the latest
+  record to render, independently of the accepted-version content used for ID restoration.
 - **Entries typed by hand.** Before sending, and before any merge in the checkout, once parse-back's rule for a
   duplicated `_Id:_` (below) has run, write-back gives an entry with no `_Id:_` the ID its base carries for the same
   entry, through the one entry-ID matcher `projection-substrate` builds (`spec-projection-substrate.md` § 3.6), from the
@@ -1393,9 +1421,9 @@ the fixer — and reads the files they cover from this member's selection (Owner
   projection lock on every file except one still holding an edit the store lacks — left refused, failing to parse,
   pending, withheld (`spec-projection-worktrees.md` § 2.5), or held for a resolution (§ 6.4) — and a verb write racing
   it can only over-include. The mark follows its record when the path moves, and an index rebuilt with no usable index
-  marks every file until the next save, both set by `projection-worktrees` (`spec-projection-worktrees.md` § 11.7). How
-  often the save anchor moves is `storage-cutover`'s workflow rewrite to decide, so until a workflow saves per
-  increment, the set spans the work since the last save.
+  marks every file it found on disk until the next save, both set by `projection-worktrees`
+  (`spec-projection-worktrees.md` § 11.7). How often the save anchor moves is `storage-cutover`'s workflow rewrite to
+  decide, so until a workflow saves per increment, the set spans the work since the last save.
 - **The connection.** `projected-markdown-checks` reads the selection only through
   `readProjectedSelection(root, { changed })` (`lib/checks/projected-selection.ts`), which returns an empty list until
   connected, so this member replaces its body (`spec-projected-markdown-checks.md` § 4.6): inside an `arc` command whose
@@ -1422,7 +1450,9 @@ verification dispatches (D13):
 ### 15. Refresh and performance
 
 A command's cost grows with what changed, never with how much state exists. Reads take only a ref's tip (D10), and
-`history` is read only where `spec-projection-substrate.md` § 3.5 names.
+`history` is read only where `spec-projection-substrate.md` § 3.5 names, and where accepted-input recording
+needs missing entry IDs restored but read-back no longer names the accepted landed version (§ 7.1; A6). That read
+selects the exact known version from the existing per-record history answer; it does not scan unrelated records.
 
 #### 15.1 What write-back checks
 
@@ -1454,7 +1484,11 @@ Nine change D13's own wording:
   defines the record of what a persisted write-back took in, keeps its copy, selects that content as the base of a save
   carrying the stamp the write-back read (`spec-projection-substrate.md` § 3.6), and reads it in base-stamp recovery
   (`spec-projection-substrate.md` § 3.5); this member fills the record and sends that base or merges from the copy in
-  the checkout (§ 7.1, § 7.7).
+  the checkout (§ 7.1, § 7.7). Under A6, this member also retains unfinished accepted-input recording in the
+  worktree index: a raw retained copy, its stamp and landed version, and `recording: true`, which no merge-base
+  consumer may use until recording finishes. Its recording-only continuation preserves the existing guarded
+  installation contract. Entry-ID restoration uses accepted-version content, with the conditional history lookup
+  § 7.1 defines; these state and history rules amend the shipped substrate forward here.
 - **A paused work unit replaces the parked one** (§ 8.3). D13 keeps a parked work unit's backlog placement and has its
   protected notice name `arc resume`, since no checkout owns it. From the flip a pause is a section of the work unit's
   meta and changes neither `State` nor placement, so a paused work unit projects as any in-flight one does, its notice
@@ -1749,8 +1783,9 @@ entries come first.
     - reprojects what a changed `layout.active` value, view setting, identity, or checkout claim governs, against the
       values the index records (§ 10.3, § 10.4 here; its § 10.3, § 10.4), so until it lands nothing reprojects;
     - sets the changed mark a verb's write leaves through its fan-out, carries it with its record when a refresh moves
-      the path, and sets it on every file at a rebuild with no usable index, so until it lands `--changed` holds hand
-      edits alone (§ 11.7 here).
+      the path, and sets it on every file a rebuild with no usable index found on disk; files newly written where
+      none stood stay unmarked, so a fresh worktree's materialization marks nothing. Until it lands `--changed` holds
+      hand edits alone (§ 11.7 here).
 - **`seam-lifecycle`** (`spec-seam-lifecycle.md`, shipped):
     - pause replacing park (§ 8.1), `arc materialize` widened (§ 8.4), `Owner` verb-owned and changed by `arc handover`
       (§ 8.5), and no verb reopening an archived work unit (§ 8.7);
@@ -1996,6 +2031,14 @@ _These considerations cover the design the three members build together; § 1.1 
     basename fixed and the conventional basename updated. Both ref layouts preserve this distinction; unsupported
     backends and unsafe, redundant, or reserved keys refuse with repair guidance and allow a supported retry.
 
+14. **Handled read-back refusal keeps the accepted basis (A6).** An ordinary or aside write that lands before
+    read-back refuses retains its accepted input, stamp and returned version. A changed retry, including a revert
+    toward the old base, preserves that newer edit. Missing entry IDs are restored against the known landed version
+    in immediate and deferred recording, including when a newer read-back changed or removed the accepted entry.
+    Unavailable retained input or required history leaves a reported, repairable hold with no resend or base reuse;
+    repair completes recording and normal guarded processing. Existing mappings, adoption and independent files
+    retain their behavior, and the existing ID matcher's ambiguity residual remains.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -2014,5 +2057,8 @@ this design open.
   _Trigger:_ conflicts-2 review. _Work:_ 1.4.R. _Revalidated:_ 1.4.R.c.
 - **A5** — 2026-11-07 — design: distinguish literal companion keys. _Supersedes:_ §10.1 ¶2; §16.3 ¶1.
   _Trigger:_ layout-core-1 review. _Work:_ 2.4.K. _Revalidated:_ 2.4.K.c.
+
+- **A6** — 2026-11-07 — design: finish accepted-input recording before reuse. _Supersedes:_ §7.1 read-back; §15 ¶1.
+  _Trigger:_ parse-check-1 review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

@@ -6,14 +6,10 @@ import type { TakeInRead } from "./take-in-port.js";
 import { gitBlobId } from "./blob-id.js";
 import { commitProjectionIndex } from "./index-file.js";
 import { installWriteBack } from "./read-back.js";
-import { readRetainedBase, RetainedBaseUnavailable, recordWriteBack } from "./taken-in.js";
-import { createHistoryMemo } from "./base-recovery.js";
-import { createKindRegistry } from "../registry.js";
-import { PRODUCTION_REGISTRATIONS } from "../kinds/registrations.js";
+import { recordPendingWriteBack } from "./taken-in.js";
+import { completeWriteBackRecording } from "./write-back-recording.js";
 import type { StoreRecord } from "../read.js";
 import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
-
-const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 
 /** Record the returned creation basis with prepared content before attempting read-back. */
 export async function recordAdoptionAcceptance(root: ProjectionRootState, index: ProjectionIndex, path: string,
@@ -23,9 +19,11 @@ export async function recordAdoptionAcceptance(root: ProjectionRootState, index:
     base: { blob: gitBlobId(content, root.context.format), version: accepted.version }, markers: null, notices: [],
     unshown: accepted.conflicts, protected: false, changed: true, pending: true, withheld: false, refused: null,
     persisted: null, inProgress: null, copies: [], adoption: { kind: "read-back", read } };
+  const pending = await recordPendingWriteBack({ ...root.context, entry, stamp: entry.base.blob,
+    takenIn: content, version: accepted.version });
   const recorded = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: { ...index, entries: { ...index.entries, [path]: entry } }, checkpoint: root.context.checkpoint });
-  return resumeAdoptionReadBack(root, recorded, path, entry);
+    index: { ...index, entries: { ...index.entries, [path]: pending } }, checkpoint: root.context.checkpoint });
+  return resumeAdoptionReadBack(root, recorded, path, pending);
 }
 
 /** Finish an accepted creation without sending another expected-absent write or rebinding its owner by name. */
@@ -41,7 +39,7 @@ export async function resumeAdoptionReadBack(root: ProjectionRootState, index: P
   index = await completeAdoptionRecording(root, index, path, entry, read.result);
   const recorded = index.entries[path];
   if (recorded?.kind !== "record") throw new Error("Accepted adoption lost its record entry");
-  if (recorded.adoption?.kind === "read-back" && recorded.adoption.recording) return index;
+  if (recorded.persisted?.recording === true) return index;
   if (recorded.adoption === undefined) return index;
   entry = recorded;
   if (!root.writable(path)) return index;
@@ -57,20 +55,9 @@ export async function resumeAdoptionReadBack(root: ProjectionRootState, index: P
 async function completeAdoptionRecording(root: ProjectionRootState, index: ProjectionIndex, path: string,
   entry: RecordEntry, record: StoreRecord): Promise<ProjectionIndex> {
   const adoption = entry.adoption;
-  if (adoption?.kind !== "read-back" || !adoption.recording) return index;
-  const persisted = entry.persisted;
-  if (persisted?.takenIn.kind !== "copy") throw new Error("Unfinished adoption recording needs its accepted input copy");
-  let takenIn: string;
-  try {
-    takenIn = await readRetainedBase(root.location, persisted.takenIn.name);
-  } catch (error) {
-    if (!(error instanceof RetainedBaseUnavailable)) throw error;
-    return holdReadBack(root, index, path, entry, error.mark);
-  }
-  const recorded = await recordWriteBack({ location: root.location, checkpoint: root.context.checkpoint, entry,
-    stamp: persisted.stamp, takenIn, outcome: { kind: "landed", version: persisted.takenIn.version }, readBack: record,
-    grammar: kinds[entry.reference.kind].entry, format: root.context.format,
-    memo: root.context.memo ?? createHistoryMemo(root.store) });
+  if (adoption?.kind !== "read-back" || entry.persisted?.recording !== true) return index;
+  const recorded = await completeWriteBackRecording(root.context, entry, record);
+  if (recorded.mark !== undefined) return holdReadBack(root, index, path, recorded.entry, recorded.mark);
   const retained = adoption.retained;
   const updated: RecordEntry = { ...recorded.entry, refused: retained ?? null,
     adoption: retained === undefined ? { kind: "read-back", read: adoption.read } : undefined,
