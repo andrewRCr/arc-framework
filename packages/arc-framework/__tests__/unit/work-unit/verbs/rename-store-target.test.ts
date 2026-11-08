@@ -3,8 +3,8 @@ import { expect, it } from "vitest";
 import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
-import { prepareStoreRename, readStoreRenameSubject } from "../../../../src/lib/store/lifecycle-rename.js";
-import { applyPreparedLifecycleWrite } from "../../../../src/lib/work-unit/prepared-lifecycle-write.js";
+import { fixtureRenameProvenance } from "../../../helpers/store/suite-tools.js";
+import { prepareStoreRename, readStoreRenameSubject, submitStoreRename } from "../../../../src/lib/store/lifecycle-rename.js";
 import { runCohortRename } from "../../../../src/lib/store/cohort-rename.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { checkCreationAdmission } from "../../../../src/lib/store/creation-admission.js";
@@ -25,13 +25,13 @@ it.each(["cohort", "errand"] as const)("refuses a completed %s arriving at a pre
         origin: "description", originEntry: null, state: "open", savedHead: null, changeRequest: null }), completed);
   expect(await checkCreationAdmission(h.store, "target")).toMatchObject({ kind: "refused", cause: "completed-holder" });
   const version = lifecycleSuccess(await h.store.version());
-  expect(await applyPreparedLifecycleWrite(h.store, prepared, { verb: "rename", lifecycleAction: "rename" }))
-    .toMatchObject({ status: "refused", refusal: { code: "record-malformed", rule: "rename.target" } });
+  expect(await submitStoreRename(h.store, prepared))
+    .toMatchObject({ status: "refused", refusal: { code: "record-malformed", rule: "rename.preparation" } });
   expect(lifecycleSuccess(await h.store.version())).toBe(version);
   for (const record of [primary, holder]) expect(lifecycleSuccess(await h.store.read({ reference: record.reference }))).toEqual(record);
   const freshSubject = lifecycleSuccess(await readStoreRenameSubject(h.store, { primary, operand: "origin", targetSlug: "available" }));
   const retry = lifecycleSuccess(await prepareStoreRename(h.store, freshSubject, "available"));
-  expect(await applyPreparedLifecycleWrite(h.store, retry, { verb: "rename", lifecycleAction: "rename" })).toMatchObject({ status: "ok" });
+  expect(await submitStoreRename(h.store, retry)).toMatchObject({ status: "ok" });
   expect(lifecycleSuccess(await h.store.read({ reference: primary.reference })).reference.owner.name).toBe("available");
 });
 
@@ -48,7 +48,7 @@ it.each(["current-work-unit", "former-work-unit", "current-cohort"] as const)("r
       if (kind === "former-work-unit") {
         lifecycleSuccess(await h.store.write({ ...recordPut(holder, { content: holder.content.replaceAll("target", "elsewhere") }),
           reference: { ...holder.reference, owner: { ...holder.reference.owner, name: SlugSchema.parse("elsewhere") } },
-          provenance: { verb: "rename", lifecycleAction: "rename" } }));
+          provenance: fixtureRenameProvenance }));
         holder = lifecycleSuccess(await h.store.read({ reference: holder.reference }));
       }
       version = lifecycleSuccess(await h.store.version());
@@ -56,7 +56,7 @@ it.each(["current-work-unit", "former-work-unit", "current-cohort"] as const)("r
     return batch(input);
   };
   expect(await runCohortRename(h.store, primary, { operand: "origin", targetSlug: "target" }))
-    .toMatchObject({ status: "rejected", refusal: { code: "record-malformed", rule: "rename.target" } });
+    .toMatchObject({ status: "rejected", refusal: { code: "record-malformed", rule: "rename.preparation" } });
   expect(version).toBeDefined();
   expect(lifecycleSuccess(await h.store.version())).toBe(version);
   expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toEqual(primary);

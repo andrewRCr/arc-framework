@@ -3,8 +3,7 @@ import { boundHolderLookup } from "../../../helpers/store/bound-checkout.js";
 import { createClashDouble } from "../../../helpers/store/clash-double.js";
 import { expect, it } from "vitest";
 import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store.js";
-import { prepareStoreRename, readStoreRenameSubject } from "../../../../src/lib/store/lifecycle-rename.js";
-import { applyPreparedLifecycleWrite } from "../../../../src/lib/work-unit/prepared-lifecycle-write.js";
+import { prepareStoreRename, readStoreRenameSubject, submitStoreRename } from "../../../../src/lib/store/lifecycle-rename.js";
 import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { recordReferences, OwnerIdentitySchema, sameReference } from "../../../../src/lib/store/identity.js";
@@ -65,7 +64,7 @@ it("refuses a changed parent observation before applying a nested member rename"
   lifecycleSuccess(await h.store.write({ ...recordPut(h.parent, { content: h.parent.content + "\nParent edit.\n" }),
     provenance: { verb: "edit", lifecycleAction: "edit" } }));
   const parent = lifecycleSuccess(await h.store.read({ reference: h.parent.reference })), before = lifecycleSuccess(await h.store.version());
-  expect(await applyPreparedLifecycleWrite(h.store, prepared, { verb: "rename", lifecycleAction: "rename" }))
+  expect(await submitStoreRename(h.store, prepared))
     .toMatchObject({ status: "refused", refusal: { code: "version-conflict", records: [h.parent.reference] } });
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
   expect(lifecycleSuccess(await h.store.read({ reference: h.primary.reference }))).toEqual(h.primary);
@@ -85,15 +84,17 @@ it.each([null, "other-group"])("refuses stale heading authority when a namesake 
   lifecycleSuccess(await h.store.write({ ...recordPut(other, { content: writeMetaCohort(other.content, "group") }),
     provenance: { verb: "edit", lifecycleAction: "edit" } }));
   const changed = lifecycleSuccess(await h.store.read({ reference: other.reference })), before = lifecycleSuccess(await h.store.version());
-  expect(await applyPreparedLifecycleWrite(store, prepared, { verb: "rename", lifecycleAction: "rename" }))
+  expect(await submitStoreRename(store, prepared))
     .toMatchObject({ status: "refused", refusal: { code: "version-conflict" } });
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
   expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toEqual(primary);
   expect(lifecycleSuccess(await h.store.read({ reference: cohort.reference }))).toEqual(cohort);
   const fresh = lifecycleSuccess(await prepareStoreRename(store, subject, "target"));
   expect(fresh.report.memberHeadings).toEqual([{ document: cohort.reference, line: 7, replacement: "### `target`" }]);
-  expect(await applyPreparedLifecycleWrite(store, fresh, { verb: "rename", lifecycleAction: "rename" })).toMatchObject({ status: "ok" });
-  expect(lifecycleSuccess(await h.store.read({ reference: cohort.reference })).content).toBe(cohort.content);
+  // The double ties the name for the verb's reads only. Admission re-plans over the store itself, which holds no
+  // namesake, so it refuses the batch the tie produced; the native arriving-namesake case lands one from a real tie.
+  expect(await submitStoreRename(store, fresh)).toMatchObject({ status: "refused", refusal: { rule: "rename.preparation" } });
+  expect(lifecycleSuccess(await h.store.read({ reference: cohort.reference }))).toEqual(cohort);
   expect(lifecycleSuccess(await h.store.read({ reference: other.reference }))).toEqual(changed);
 });
 it("guards the cohort resolution used by another heading candidate", async () => {
@@ -109,7 +110,7 @@ it("guards the cohort resolution used by another heading candidate", async () =>
   lifecycleSuccess(await h.store.write({ ...recordPut(provider, { content: provider.content + "\nNew context.\n" }),
     provenance: { verb: "edit", lifecycleAction: "edit" } }));
   const before = lifecycleSuccess(await h.store.version());
-  expect(await applyPreparedLifecycleWrite(store, prepared, { verb: "rename", lifecycleAction: "rename" }))
+  expect(await submitStoreRename(store, prepared))
     .toMatchObject({ status: "refused", refusal: { code: "version-conflict" } });
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
   expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toEqual(primary);

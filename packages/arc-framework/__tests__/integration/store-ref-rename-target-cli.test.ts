@@ -161,7 +161,7 @@ describe.each(["reference", "ref"] as const)("work-item rename participant arriv
         const value: unknown = Reflect.get(target, key);
         return typeof value === "function" ? value.bind(target) : value;
       } }));
-      expect(refused).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { rule: "rename.references" } } });
+      expect(refused).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { rule: "rename.preparation" } } });
       expect(success(await f.store.version())).toBe(version);
       expect(success(await f.store.read({ reference: source.reference }))).toEqual(source);
       if (arrival === undefined) throw new Error("Expected concurrent arrival");
@@ -245,7 +245,7 @@ describe.each(["reference", "ref"] as const)("owned participant resolution over 
         const value: unknown = Reflect.get(target, key);
         return typeof value === "function" ? value.bind(target) : value;
       } }));
-      expect(refused, JSON.stringify(refused)).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { rule: "rename.references" } } });
+      expect(refused, JSON.stringify(refused)).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { rule: "rename.preparation" } } });
       expect(success(await f.store.version())).toBe(version);
       for (const record of [source, shared, namesake, ...arrivals]) {
         if (record !== undefined) expect(success(await f.store.read({ reference: record.reference }))).toEqual(record);
@@ -321,7 +321,7 @@ describe.each(["reference", "ref"] as const)("self-reference participant admissi
         }
         version = success(await f.store.version());
       }));
-      expect(refused, JSON.stringify(refused)).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { rule: "rename.references" } } });
+      expect(refused, JSON.stringify(refused)).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { rule: "rename.preparation" } } });
       expect(success(await f.store.version())).toBe(version);
       for (const record of [source, namesake, ...arrivals]) {
         if (record !== undefined) expect(success(await f.store.read({ reference: record.reference }))).toEqual(record);
@@ -363,7 +363,7 @@ describe.each(["reference", "ref"] as const)("self-reference participant admissi
         version = success(await f.store.version());
       }));
       if (resolution === "subject") {
-        expect(result, JSON.stringify(result)).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { rule: "rename.references" } } });
+        expect(result, JSON.stringify(result)).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { rule: "rename.preparation" } } });
         expect(success(await f.store.version())).toBe(version);
         for (const record of [source, holder, ...arrivals]) expect(success(await f.store.read({ reference: record.reference }))).toEqual(record);
         const retried = await f.invoke(argv);
@@ -400,7 +400,7 @@ describe.each(["reference", "ref"] as const)("self-reference participant admissi
           { kind: "backlog", commitment: "planned" });
         version = success(await f.store.version());
       }));
-      expect(refused, JSON.stringify(refused)).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { rule: "rename.references" } } });
+      expect(refused, JSON.stringify(refused)).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { rule: "rename.preparation" } } });
       expect(success(await f.store.version())).toBe(version);
       for (const record of [source, holder, namesake, ...shared]) {
         if (record !== undefined) expect(success(await f.store.read({ reference: record.reference }))).toEqual(record);

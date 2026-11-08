@@ -10,7 +10,7 @@ import { createRefFixture } from "../helpers/store/ref-fixture.js";
 import { plantRefPrimary } from "../helpers/store/ref-primary-plant.js";
 import { repairCliFixture, repairCli } from "../helpers/repair-cli.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
-import { seed, success } from "../helpers/store/suite-tools.js";
+import { seed, success, fixtureRenameProvenance } from "../helpers/store/suite-tools.js";
 import { TransientIdentityRecordV3Schema, serializeTransientIdentityRecord } from "../../src/lib/errand/identity-record.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { resolveWorktreeMarkerPath, writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
@@ -125,7 +125,7 @@ it.each(["none", "holder", "cohort"] as const)("handles a missing foreign cohort
           provenance: { verb: "edit", lifecycleAction: "edit" } }));
         else success(await store.batch({ writes: [{ ...recordPut(cohort, { content: rewriteCohortHeading(cohort.content, "missing") }),
           reference: RecordReferenceSchema.parse({ ...cohort.reference, owner: { ...cohort.reference.owner, name: "missing" } }) }],
-        observations: observeRecords([cohort, selected, other]), provenance: { verb: "rename", lifecycleAction: "rename" } }));
+        observations: observeRecords([cohort, selected, other]), provenance: fixtureRenameProvenance }));
         if (race === "cohort") {
           const observed = success(await store.read({ reference: cohort.reference }));
           expect(observed.reference.owner.name).toBe("missing");
@@ -213,13 +213,13 @@ it.each(["current", "former", "ended", "former-cohort", "unrelated-cohort"] as c
     const prior = success(await f.store.read({ reference: other }));
     other = RecordReferenceSchema.parse({ ...other, owner: { ...other.owner, name: "earlier" } });
     success(await f.store.write({ ...recordPut(prior, { content: writeMetaTitle(prior.content, SlugSchema.parse("earlier")) }),
-      reference: other, provenance: { verb: "rename", lifecycleAction: "rename" } }));
+      reference: other, provenance: fixtureRenameProvenance }));
   }
   if (mode === "former-cohort") {
     const reference = RecordReferenceSchema.parse({ ...cohort.reference, owner: { ...cohort.reference.owner, name: "current-group" } });
     success(await f.store.batch({ writes: [{ ...recordPut(cohort, { content: rewriteCohortHeading(cohort.content, "current-group") }), reference }],
     observations: observeRecords([cohort, success(await f.store.read({ reference: other }))]),
-    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    provenance: fixtureRenameProvenance }));
     cohort = success(await f.store.read({ reference }));
   }
   const selected = await plantRefPrimary(f, { kind: "work-item/meta", name: "shared", uid,
@@ -310,7 +310,7 @@ it.each([false, true])("refuses stale shared-reference authority after archived-
     };
     return wrapped;
   });
-  expect(result).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { code: "record-malformed", rule: "rename.references" } } });
+  expect(result).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { code: "record-malformed", rule: "rename.preparation" } } });
   expect(racedVersion).toBeDefined();
   expect(success(await f.store.version())).toBe(racedVersion);
   expect(success(await f.store.read({ reference: source.reference }))).toEqual(source);
@@ -358,7 +358,7 @@ it.each(["prd", "rfc"].flatMap(half => [false, true].flatMap(generic => [false, 
     };
     return wrapped;
   });
-  expect(result).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { code: "record-malformed", rule: "rename.references" } } });
+  expect(result).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { code: "record-malformed", rule: "rename.preparation" } } });
   expect(racedVersion).toBeDefined();
   expect(success(await f.store.version())).toBe(racedVersion);
   for (const record of [source, waiting, citation, ...(paired === undefined ? [] : [paired])]) {
@@ -604,7 +604,7 @@ it("refuses a completed cohort arriving at a work-unit destination and retries a
     };
     return wrapped;
   });
-  expect(result, JSON.stringify(result)).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { code: "record-malformed", rule: "rename.target" } } });
+  expect(result, JSON.stringify(result)).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { code: "record-malformed", rule: "rename.preparation" } } });
   expect(version).toBeDefined();
   expect(success(await f.store.version())).toBe(version);
   expect(success(await f.store.read({ reference: primary.reference }))).toEqual(primary);

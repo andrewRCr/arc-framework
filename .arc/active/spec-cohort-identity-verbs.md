@@ -855,18 +855,21 @@ the same writes from the same evidence.
   and paired-filename owners. Whether the branch link moves follows from the store's link lookup and one fact the store
   does not hold, whether the subject's checkout is on this machine, which the batch's link change carries.
 - **Evidence.** Preparation returns its evidence: the records, and the exact references read as absent, whose presence,
-  version or conflict set feeds a write, a report row or an advisory. The batch observes its evidence. A record
-  preparation lists whose state feeds none of these is not evidence, so a write to it does not refuse the rename. A
-  refusal is not evidence: admission re-derives it.
+  version or conflict set feeds a write, a report row or an advisory. The batch observes its evidence and the records it
+  writes, whose conflict sets a write's expected version does not bind. A record preparation lists whose state feeds
+  none of these is not evidence, so a write to it does not refuse the rename. A refusal is not evidence: admission
+  re-derives it.
 - **Admission.** One write check admits the rename's batch, on its primary — the subject's meta or cohort document —
   once per batch. It rebuilds the request from the batch: the subject from the primary's prior record, the target from
-  its next name, the branch move from the primary's link change. It runs the same preparation over its `before` view
-  and admits only when that preparation succeeds, every write it makes is in `after` with the same content, placement
-  and links, and its evidence names no record the batch neither observes nor writes at an expected version; the backend
-  checks those versions and conflict sets. A write the batch makes beyond the fresh preparation stays under its own
-  kind's checks. A refused fresh preparation refuses the batch with that refusal's condition and a remedy naming the
-  subject by UID. Nothing is written, and the rename's retry and continuation paths stay as they are. Inside the check
-  the off-branch capability holds, and an incomplete lifecycle inventory refuses rather than throws.
+  its next name, the branch move from the primary's link change. It runs the same preparation over its `before` view and
+  admits only when that preparation succeeds, every record it acquires lands in `after` as it writes it — the same
+  content, placement and links — or unchanged where it writes nothing, and its evidence names no present record the
+  batch neither observes nor writes at an expected version; the backend checks those versions and conflict sets. An
+  absence needs no observation here, since the same preparation refuses when the record is present. A write the batch
+  makes outside the fresh preparation's records stays under its own kind's checks. A refused fresh preparation refuses
+  the batch with that refusal's condition and a remedy naming the subject by UID. Nothing is written, and the rename's
+  retry and continuation paths stay as they are. Inside the check the off-branch capability holds, and an incomplete
+  lifecycle inventory refuses rather than throws.
 - **What it replaces.** The rename-specific admission predicates go: participant completeness, holding participants,
   shared-reference authority, and the paired-filename and member-heading rechecks (`checkRenameReferences`,
   `lib/store/rename-reference-admission.ts`), and the target recheck (`checkRenameTarget`,

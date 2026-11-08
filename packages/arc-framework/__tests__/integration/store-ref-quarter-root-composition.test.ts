@@ -5,7 +5,7 @@ import { HistoryRefSchema, RecordReferenceSchema, type StoreRecord } from "../..
 import { refSyncFixture, type RefSyncFixture } from "../helpers/store/ref-sync.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { observeRecords } from "../../src/lib/store/record-observations.js";
-import { success } from "../helpers/store/suite-tools.js";
+import { success, fixtureRenameProvenance } from "../helpers/store/suite-tools.js";
 
 const quarter = ArchiveQuarterSchema.parse("2026-q4"), archive = `refs/arc/archive/${quarter}`;
 const provenance = { verb: "archive", lifecycleAction: "archive" };
@@ -92,7 +92,7 @@ async function rename(side: Checkout, reference: StoreRecord["reference"], name:
   const members = success(await side.store.list({ family: "work-item", kind: "work-item/meta" }));
   if (members.status !== "complete" || members.missed || members.diagnostics.length > 0) throw new Error("Expected fixture membership");
   success(await side.store.batch({ writes: [{ action: "put", reference: renamed, expected: current.version, content: current.content }],
-    observations: observeRecords([current, ...members.records]), provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    observations: observeRecords([current, ...members.records]), provenance: fixtureRenameProvenance }));
   return success(await side.store.read({ reference: renamed }));
 }
 async function refs(side: Checkout): Promise<string> {

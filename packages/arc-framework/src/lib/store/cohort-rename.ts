@@ -2,44 +2,46 @@
 import type { Store } from "./contract.js";
 import type { StoreRecord } from "./read.js";
 import type { StoreResult, StoreRefusal } from "./refusal.js";
-import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences, sameReference, sameOwner } from "./identity.js";
+import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences, sameReference, sameOwner, type RecordReference } from "./identity.js";
 import { batchLifecycleWrites, recordPut, recordWritePlacement, readLifecycleMetaFields } from "./lifecycle-write.js";
 import { observeRecords } from "./record-observations.js";
 import { checkCohortRenameTarget } from "./rename-target-admission.js";
 import { rewriteCohortHeading, writeCohortParent, parseCohortDocument, rewriteCohortFilenameReferences } from "./kinds/cohort/index.js";
-import { observeRenameFormerName, resolveRenameReferences } from "./rename-reference-resolution.js";
+import { observeRenameFormerName, readRenameResolution } from "./rename-reference-resolution.js";
 import { emptyRenameReport, type RenameReport, type RenameReportRecord } from "../work-unit/rename-report.js";
 import type { RunRenameResult } from "../work-unit/verbs/rename.js";
 import { observeAllHoldings, cohortHoldingRepairs, type CohortHolding, type CohortHoldingSegment } from "./kinds/cohort/check-support.js";
 import { writeMetaCohort } from "./kinds/meta/writers.js";
 import type { StoreView } from "./write-check.js";
-import type { Mutation } from "./write.js";
+import type { Mutation, RecordObservation } from "./write.js";
 import { acquireLifecycleRecords } from "../work-unit/prepared-lifecycle-write.js";
 interface CohortRenameWrites { writes: Mutation[]; report: RenameReport; advisories: string[] }
+interface CohortRenameEvidence { evidence: RecordReference[] }
+/** A cohort rename's complete batch and the records its preparation read. */
+export interface PreparedCohortRename extends CohortRenameWrites { records: StoreRecord[]; observations: RecordObservation[] }
 interface CohortRenamePlan { primary: StoreRecord; target: string; records: StoreRecord[]; contents: Map<StoreRecord, string> }
 
 /** Rename the UID-selected cohort without any code-branch or checkout operation. */
 export async function runCohortRename(store: Store, primary: StoreRecord,
   request: { operand: string; targetSlug: string }): Promise<RunRenameResult> {
-  if (primary.placement?.kind === "completed") return rejected({ code: "unsupported", class: "terminal", case: "rename",
-    condition: `Cohort ${primary.reference.owner.name} is already completed; a closed cohort cannot be renamed.`,
-    remedy: { text: "Keep this closed cohort's name." } });
-  const collision = await checkCohortRenameTarget(store, primary, request.targetSlug);
-  if (collision?.status === "refused") return rejected(collision.refusal);
+  const closed = closedCohortRefusal(primary);
+  if (closed !== undefined) return rejected(closed);
   const resuming = primary.reference.owner.name === request.targetSlug;
+  if (resuming) {
+    const collision = await checkCohortRenameTarget(store, primary, request.targetSlug);
+    if (collision?.status === "refused") return rejected(collision.refusal);
+  }
   const source = resuming ? await priorCohortName(store, primary) : { status: "ok" as const, result: primary.reference.owner.name };
   if (source.status === "refused") return rejected(source.refusal);
   if (source.result === request.targetSlug) return { status: "rejected", reason: "Rename needs distinct source and target names." };
   const reference = RecordReferenceSchema.parse({ ...primary.reference, owner: { ...primary.reference.owner, name: request.targetSlug } });
   let report = emptyRenameReport(), advisories: string[] = [];
   if (!resuming) {
-    const prepared = await prepareDocument(store, primary, request.targetSlug);
+    const prepared = await prepareCohortRenameBatch(store, primary, request.targetSlug);
     if (prepared.status === "refused") return rejected(prepared.refusal);
-    const membership = await prepareMembershipWrites(store, primary, request.targetSlug, prepared.result);
-    if (membership.status === "refused") return rejected(membership.refusal);
-    const landed = await batchLifecycleWrites(store, membership.result.writes, { verb: "rename", lifecycleAction: "rename" }, observeRecords(prepared.result.records));
+    const landed = await batchLifecycleWrites(store, prepared.result.writes, { verb: "rename", lifecycleAction: "rename" }, prepared.result.observations);
     if (landed.status === "refused") return rejected(landed.refusal);
-    report = membership.result.report; advisories = membership.result.advisories;
+    report = prepared.result.report; advisories = prepared.result.advisories;
   }
   const former = await observeRenameFormerName(store, source.result);
   return { status: "renamed", shape: "cohort", reference, sourceSlug: source.result, targetSlug: request.targetSlug,
@@ -48,8 +50,46 @@ export async function runCohortRename(store: Store, primary: StoreRecord,
     report: { ...report, formerSlugTies: former.ties } };
 }
 
-async function prepareMembershipWrites(store: Store, primary: StoreRecord, target: string,
-  document: { content: string; records: StoreRecord[] }): Promise<StoreResult<CohortRenameWrites>> {
+/** Prepare a cohort rename's batch from a store view alone, as the verb and its admission both do.
+ * @param store - The store reads preparation makes.
+ * @param primary - The cohort document being renamed.
+ * @param target - The proposed name.
+ * @returns The batch, its report and advisories, and every record preparation read, or its refusal.
+ */
+export async function prepareCohortRenameBatch(store: StoreView, primary: StoreRecord, target: string): Promise<StoreResult<PreparedCohortRename>> {
+  const closed = closedCohortRefusal(primary);
+  if (closed !== undefined) return { status: "refused", refusal: closed };
+  const collision = await checkCohortRenameTarget(store, primary, target);
+  if (collision?.status === "refused") return collision;
+  const document = await prepareDocument(store, primary, target);
+  if (document.status === "refused") return document;
+  const read = [...document.result.records];
+  const membership = await prepareMembershipWrites(store, primary, target, document.result);
+  if (membership.status === "refused") return membership;
+  const { evidence, ...prepared } = membership.result;
+  const feeds = (record: StoreRecord): boolean => read.some(item => sameReference(item.reference, record.reference))
+    || [...evidence, ...prepared.writes.map(write => write.reference)].some(reference => sameReference(reference, record.reference));
+  return { status: "ok", result: { ...prepared, records: document.result.records,
+    observations: observeRecords(document.result.records.filter(feeds)) } };
+}
+
+/** The records a holding's rewrite, retention, report row or advisory rests on. */
+function holdingEvidence(holdings: readonly CohortHolding[]): RecordReference[] {
+  const segments = (candidate: { segments: readonly CohortHoldingSegment[]; parent?: CohortHoldingSegment }) =>
+    [...candidate.segments, ...(candidate.parent === undefined ? [] : [candidate.parent])]
+      .flatMap(segment => segment.status === "known" ? [segment.reference] : []);
+  return holdings.flatMap(holding => [holding.candidate.reference, ...segments(holding),
+    ...holding.members.flatMap(member => [member.candidate.reference, ...segments(member)])]);
+}
+
+function closedCohortRefusal(primary: StoreRecord): StoreRefusal | undefined {
+  return primary.placement?.kind !== "completed" ? undefined : { code: "unsupported", class: "terminal", case: "rename",
+    condition: `Cohort ${primary.reference.owner.name} is already completed; a closed cohort cannot be renamed.`,
+    remedy: { text: "Keep this closed cohort's name." } };
+}
+
+async function prepareMembershipWrites(store: StoreView, primary: StoreRecord, target: string,
+  document: { content: string; records: StoreRecord[] }): Promise<StoreResult<CohortRenameWrites & CohortRenameEvidence>> {
   const view = capturedView(store, document.records), holdings = await observeAllHoldings(view, primary.reference);
   if (holdings.status !== "known") return malformed(primary, holdings.status === "unavailable" ? holdings.condition : "Cohort holdings are unavailable.");
   const retainedParents = coupledRetainedParents(holdings.value);
@@ -62,7 +102,8 @@ async function prepareMembershipWrites(store: Store, primary: StoreRecord, targe
   if (retained.status === "refused") return retained;
   const filenames = await prepareFilenameReferences(view, plan, retained.result.report);
   if (filenames.status === "refused") return filenames;
-  return { status: "ok", result: { ...retained.result, report: filenames.result,
+  return { status: "ok", result: { ...retained.result, report: filenames.result.report,
+    evidence: [...holdingEvidence(holdings.value), ...filenames.result.evidence],
     writes: cohortRenameMutations(document.records, plan.contents, primary, target) } };
 }
 
@@ -88,10 +129,12 @@ function prepareSoleHoldings(plan: CohortRenamePlan, holdings: readonly CohortHo
   return { status: "ok", result: true };
 }
 
-async function prepareFilenameReferences(view: StoreView, plan: CohortRenamePlan, report: RenameReport): Promise<StoreResult<RenameReport>> {
-  const resolution = await resolveRenameReferences(view, plan.primary.reference, plan.primary.reference.owner.name);
-  if (resolution.status === "refused") return resolution;
-  if (resolution.result === "other") return { status: "ok", result: report };
+async function prepareFilenameReferences(view: StoreView, plan: CohortRenamePlan,
+  report: RenameReport): Promise<StoreResult<{ report: RenameReport } & CohortRenameEvidence>> {
+  const resolved = await readRenameResolution(view, plan.primary.reference, plan.primary.reference.owner.name);
+  if (resolved.status === "refused") return resolved;
+  const resolution = { result: resolved.result.resolution }, evidence = resolved.result.evidence.map(item => item.reference);
+  if (resolution.result === "other") return { status: "ok", result: { report, evidence } };
   const eligible = await filenameRecords(view, plan.records);
   if (eligible.status === "refused") return eligible;
   const references = [...report.references];
@@ -109,7 +152,7 @@ async function prepareFilenameReferences(view: StoreView, plan: CohortRenamePlan
       edits: rewritten.split(/\r?\n/u).flatMap((replacement, index) => replacement === lines[index] ? []
         : [{ kind: "text" as const, document, line: index + 1, replacement }]) });
   }
-  return { status: "ok", result: { ...report, references } };
+  return { status: "ok", result: { report: { ...report, references }, evidence } };
 }
 
 async function filenameRecords(view: StoreView, records: StoreRecord[]): Promise<StoreResult<readonly StoreRecord[]>> {
@@ -221,7 +264,7 @@ function capturedView(store: StoreView, records: StoreRecord[]): StoreView {
   };
 }
 
-async function prepareDocument(store: Store, primary: StoreRecord, target: string): Promise<StoreResult<{ content: string; records: StoreRecord[] }>> {
+async function prepareDocument(store: StoreView, primary: StoreRecord, target: string): Promise<StoreResult<{ content: string; records: StoreRecord[] }>> {
   const parsed = parseCohortDocument(primary.content), records = [primary];
   if (!parsed.success) return malformed(primary, parsed.error);
   let content = rewriteCohortHeading(primary.content, target);

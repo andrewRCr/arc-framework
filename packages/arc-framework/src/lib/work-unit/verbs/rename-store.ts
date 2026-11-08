@@ -1,10 +1,9 @@
 /** Record-based work-unit rename with recoverable physical identity steps. */
-import { readStoreRenameSubject, prepareStoreRename, type StoreRenameSubject } from "../../store/lifecycle-rename.js";
+import { readStoreRenameSubject, prepareStoreRename, submitStoreRename, type StoreRenameSubject, type RenameBranchPlan } from "../../store/lifecycle-rename.js";
 import { usesOffBranchState, batchLifecycleWrites, recordPut, mergeLifecycleLinks } from "../../store/lifecycle-write.js";
 import { observeRecords } from "../../store/record-observations.js";
 import { pullHistoryForRetry } from "../../store/pull-consumption.js";
 import { selectWorkBranchLink, workBranchName } from "../../store/lifecycle-branch.js";
-import { applyPreparedLifecycleWrite } from "../prepared-lifecycle-write.js";
 import { readBranchTracking, restoreClearedBranchTracking, type BranchTracking } from "../rename-branch-tracking.js";
 import { sequenceLifecycleWrite, type LifecycleWriteSequence } from "../sequence-lifecycle-write.js";
 import { readWorkUnitCheckout } from "./unshared-work.js";
@@ -37,7 +36,7 @@ export interface StoreRenameContext {
   writeNotice?: (line: string) => void;
 }
 interface BranchRename {
-  prior: BranchLink; next: BranchLink; oldBranch: string; newBranch: string; oldRemoteOid: string | null;
+  prior: BranchLink; next: BranchLink; oldBranch: string; newBranch: string; oldRemoteOid: string | null; checkoutHere: boolean;
   local: boolean; catchUp: boolean; kept?: RenameKeptBranch; remotePolicy: { keepOld: boolean; kept?: RenameKeptBranch };
 }
 interface RenameInvocation { selected?: RecordReference }
@@ -126,13 +125,15 @@ interface RenameRuntime { cwd: string; checkout?: StoreRenameCheckoutReceipt; re
 async function persistRename(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string, holder: string | null,
   branch: BranchRename | undefined, state: RenameRuntime): Promise<Extract<RunRenameResult, { status: "rejected" }> | undefined> {
   if (subject.resuming) return branch?.catchUp ? persistCatchUp(ctx, subject, branch, state) : undefined;
-  const prepared = await prepareStoreRename(ctx.store, subject, target, branch?.local ? branch : undefined);
+  const prepared = await prepareStoreRename(ctx.store, subject, target,
+    branch === undefined ? undefined : { prior: branch.prior, next: branch.next, checkoutHere: branch.checkoutHere });
   if (prepared.status === "refused") return { status: "rejected", reason: prepared.refusal.condition, refusal: prepared.refusal };
+  if (branch !== undefined && prepared.result.branch !== undefined) settleBranchRename(branch, subject, target, prepared.result.branch);
   const steps = renameSteps(ctx, subject, target, holder, branch, (receipt) => {
     state.checkout = receipt; state.cwd = receipt.repositoryCwd ?? state.cwd;
   }, () => { state.cwd = ctx.cwd; });
   const written = await sequenceLifecycleWrite({ side: "before", steps,
-    write: () => applyPreparedLifecycleWrite(ctx.store, prepared.result, { verb: "rename", lifecycleAction: "rename" }) });
+    write: () => submitStoreRename(ctx.store, prepared.result) });
   const failure = persistenceFailure(written);
   if (failure !== undefined) return failure;
   state.recordBatch = "applied";
@@ -160,15 +161,18 @@ async function branchRename(ctx: StoreRenameContext, subject: StoreRenameSubject
   const repository = await ctx.projectId?.();
   const coordinates = await selectBranchCoordinates(ctx, subject, target, holder, repository);
   if (coordinates === undefined) return undefined;
-  const { prior, oldBranch } = coordinates;
-  const ownership = subject.resuming ? undefined : await ctx.store.lookup({ kind: "ref", repository: prior.repository, ref: prior.ref });
-  const local = ownership === undefined || ownership.status === "ok" && sameOwner(ownership.result.reference.owner, subject.primary.reference.owner)
-    || await holderBranch(ctx, holder) === oldBranch;
-  const kept = local ? undefined : keptLocalBranch(subject, prior, ownership, target);
+  const { oldBranch } = coordinates;
+  const checkoutHere = await holderBranch(ctx, holder) === oldBranch;
   const remote = await ctx.exec("git", ["remote"], { cwd: ctx.cwd });
   const oldRemoteOid = remote.stdout.split(/\s+/u).includes("origin") ? await readRemoteBranchOid(ctx.exec, "origin", oldBranch) : null;
-  const remotePolicy = await branchRemotePolicy(ctx.store, subject, prior, ownership, oldBranch);
-  return { ...coordinates, oldRemoteOid, local, remotePolicy, kept };
+  // A continuation keeps the old remote; a fresh rename settles locality and remote policy from preparation's holders.
+  return { ...coordinates, oldRemoteOid, checkoutHere, local: subject.resuming || checkoutHere,
+    remotePolicy: { keepOld: true, kept: { branch: oldBranch, reason: "continuation" } } };
+}
+function settleBranchRename(branch: BranchRename, subject: StoreRenameSubject, target: string, plan: RenameBranchPlan): void {
+  branch.local = plan.local;
+  branch.kept = plan.local ? undefined : keptLocalBranch(subject, branch.prior, plan.ownership, target);
+  branch.remotePolicy = branchRemotePolicy(subject, branch.prior, plan, branch.oldBranch);
 }
 async function selectBranchCoordinates(ctx: StoreRenameContext, subject: StoreRenameSubject, target: string, holder: string | null,
   repository: string | undefined): Promise<BranchCoordinates | undefined> {
@@ -201,23 +205,17 @@ async function catchUpCoordinates(ctx: StoreRenameContext, subject: StoreRenameS
   return { prior: selected.link, next: { ...selected.link, ref: `${selected.link.ref.slice(0, selected.link.ref.lastIndexOf("/") + 1)}${target}` },
     oldBranch: current, newBranch: `${prefix}/${target}`, catchUp: true };
 }
-async function branchRemotePolicy(store: Store, subject: StoreRenameSubject, prior: BranchLink,
-  ownership: StoreResult<LookupResult> | undefined, oldBranch: string): Promise<BranchRename["remotePolicy"]> {
-  if (subject.resuming) return { keepOld: true, kept: { branch: oldBranch, reason: "continuation" } };
-  const own = ownership?.status === "ok" && sameOwner(ownership.result.reference.owner, subject.primary.reference.owner);
+function branchRemotePolicy(subject: StoreRenameSubject, prior: BranchLink, plan: RenameBranchPlan,
+  oldBranch: string): BranchRename["remotePolicy"] {
+  const ownership = plan.ownership;
+  const own = ownership.status === "ok" && sameOwner(ownership.result.reference.owner, subject.primary.reference.owner);
   if (prior.linkedAs === "adopted") return { keepOld: true, kept: { branch: oldBranch, reason: "adopted",
     ...(own ? { manualDelete: { text: "Owner decision: delete it only if no longer needed.",
       argv: ["git", "push", "origin", "--delete", oldBranch] } } : {}),
   } };
-  if (await mayDeleteCreatedRemote(store, ownership, own)) return { keepOld: false };
+  const created = own || ownership.status === "refused" && ownership.refusal.code === "not-found" || plan.holderCompleted;
+  if (created) return { keepOld: false };
   return { keepOld: true, kept: { branch: oldBranch, reason: branchOwnershipReason(ownership) } };
-}
-async function mayDeleteCreatedRemote(store: Store, ownership: StoreResult<LookupResult> | undefined, own: boolean): Promise<boolean> {
-  if (ownership === undefined) return false;
-  if (own) return true;
-  if (ownership.status === "refused") return ownership.refusal.code === "not-found";
-  const holder = await store.read({ reference: ownership.result.reference });
-  return holder.status === "ok" && holder.result.placement?.kind === "completed";
 }
 async function holderBranch(ctx: StoreRenameContext, holder: string | null): Promise<string | null> {
   if (holder === null) return null;

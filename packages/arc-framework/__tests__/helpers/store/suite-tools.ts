@@ -94,6 +94,9 @@ export function validateUsedAssertionExclusions(registration: ConformanceRegistr
 }
 /** Stable caller provenance used by setup writes; behavior tests override it where relevant. */
 export const testProvenance = { verb: "merge", lifecycleAction: "test", codeHead: "a".repeat(40) };
+/** Provenance for a fixture that renames a record directly to build a state the rename verb cannot reach, such as a former
+ * name still cited elsewhere. The verb's own batches are admitted only where preparing them again yields the same batch. */
+export const fixtureRenameProvenance = { verb: "fixture", lifecycleAction: "rename" } as const;
 
 /** Assert success at the public operation boundary and unwrap its contract result.
  * @param envelope - Backend operation result.

@@ -681,25 +681,40 @@ old name refuses naming the current one.
   from the same evidence, and archive's closeout binds each cohort it completes, so no record arriving, changing or
   gaining a conflict between preparation and submission goes unaccounted for.
 
-    - `[ ]` **5.R.a Arrivals refuse — failing first**
+    - `[x]` **5.R.a Arrivals refuse — failing first**
 
         - A boundary harness on both backends, where the state can form, injects one store change between preparation
           and batch per read family: a quiet owned companion, a second retired lineage, a Candidate, a branch-link
           holder, name resolution changing either way, an Integrating dependent, a missing segment's cohort, a namesake
           taking over a former name, and a conflict on a cohort archive completes; plus an unrelated write. Each arrival
           case fails against the current admission.
+        - _Outcome:_ `store-prepared-write-admission.test.ts` injects at the batch boundary on both backends: the
+          unrelated write, Candidate, quiet owned companion, departing and arriving namesakes, Integrating dependent
+          and branch-link holder. Against `a0c41a9c4b` the seven seeded cases fail on behavior; the arriving namesake
+          and Integrating dependent were already refused there and fail only on the new rule. 5.R.d seeds the archive
+          case. The existing cohort arrival suites cover the missing segment's cohort and namesake
+          takeover. A second retired lineage cannot form locally, since `work-item.slug-edges` refuses the second
+          generation while the stub's edge names the first; the batch-differs comparison that catches it is exercised
+          by the arriving namesake.
 
-    - `[ ]` **5.R.b Preparation as a function of a store view, with its evidence**
+    - `[x]` **5.R.b Preparation as a function of a store view, with its evidence**
 
         - Both rename preparations take every store-derived decision themselves, including Candidate presence, lineage
           settlement and the branch link's holders, and return their evidence: the records and exact absences that feed
           a write, a report row or an advisory.
+        - _Outcome:_ `planStoreRename` and `prepareCohortRenameBatch` read through a store view. The subject read
+          returns the Candidate absence and Integrating dependents; preparation adds resolution ties and the branch
+          link's holders, decides whether the link moves, and observes the records it writes. The blanket observation
+          and the verb's no-op puts are gone: the verb submits exactly the prepared writes (`submitStoreRename`).
 
-    - `[ ]` **5.R.c Admission re-plans**
+    - `[x]` **5.R.c Admission re-plans**
 
         - One check per batch, on the primary, rebuilds the request from the batch, runs preparation over `before`, and
           admits only on success, with every fresh write in `after` and its evidence observed or written by the batch.
           The rename admission predicates and the target recheck are removed.
+        - _Outcome:_ `checkPreparedRename` (`rename.preparation`) replaces both checks. Each acquired record must land
+          as the fresh preparation writes it or unchanged, which also refuses a write the fresh plan withholds; § 12.1
+          now says so. Fixtures that build states the verb cannot reach rename under `fixtureRenameProvenance`.
 
     - `[ ]` **5.R.d Archive's closeout observes the cohorts it completes**
 

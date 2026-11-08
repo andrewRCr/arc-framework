@@ -8,6 +8,7 @@ import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lif
 import { runArchive } from "../../../../src/lib/work-unit/verbs/archive.js";
 import { createMemoryRemote } from "../../../helpers/store/sync.js";
 import { observeRecords } from "../../../../src/lib/store/record-observations.js";
+import { fixtureRenameProvenance } from "../../../helpers/store/suite-tools.js";
 
 const cohortContent = (name: string, parent?: string) => `# Cohort: \`${name}\`\n\n**Purpose:** Deliver the group.\n${parent === undefined ? "" : `\n**Parent:** \`${parent}\`\n`}`;
 function archive(store: Store, name: string) {
@@ -23,7 +24,7 @@ async function fixture(nested = false) {
   const held = await h.seedMeta("straggler", { state: "Planning", currentWorkflow: null, cohort: "former" }, { kind: "backlog", commitment: "planned" });
   const renamed = RecordReferenceSchema.parse({ ...group.reference, owner: { ...group.reference.owner, name: "current" } });
   lifecycleSuccess(await batchLifecycleWrites(h.store, [{ ...recordPut(group, { content: cohortContent("current") }), reference: renamed }],
-    { verb: "rename", lifecycleAction: "rename" }, observeRecords([group, held])));
+    fixtureRenameProvenance, observeRecords([group, held])));
   const child = nested ? await h.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "leaf" })),
     cohortContent("leaf", "current")) : undefined;
   const subject = await h.seedMeta("subject", { cohort: nested ? "current/leaf" : "current" });

@@ -8,7 +8,7 @@ import type { Store } from "../../src/lib/store/contract.js";
 import { createRefFixture } from "../helpers/store/ref-fixture.js";
 import { createReferenceFixture } from "../helpers/store/reference-fixture.js";
 import { repairCliFixture, repairCli } from "../helpers/repair-cli.js";
-import { seed, success } from "../helpers/store/suite-tools.js";
+import { seed, success, fixtureRenameProvenance } from "../helpers/store/suite-tools.js";
 import { expandStoredPath } from "../../src/lib/store/stored-path.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { observeRecords } from "../../src/lib/store/record-observations.js";
@@ -66,7 +66,7 @@ async function seedFormerName(store: Store, record: StoreRecord, name: string, c
   }
   success(await store.batch({ writes: [{ ...recordPut(record, { content }),
     reference: RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name } }) }],
-  observations: observeRecords(records), provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  observations: observeRecords(records), provenance: fixtureRenameProvenance }));
 }
 
 describe.each(["reference", "ref"] as const)("cohort rename over %s", backend => {
@@ -142,7 +142,7 @@ describe.each(["reference", "ref"] as const)("cohort rename over %s", backend =>
       ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "backlog", commitment: "planned" });
     if (!completed) success(await f.store.write({ ...recordPut(holder, { content: makeMetaFixture("current-holder", { state: "Planning", currentWorkflow: null }) }),
       reference: RecordReferenceSchema.parse({ ...holder.reference, owner: { ...holder.reference.owner, name: "current-holder" } }),
-      provenance: { verb: "rename", lifecycleAction: "rename" } }));
+      provenance: fixtureRenameProvenance }));
     const retained = success(await f.store.read({ reference: holder.reference }));
     const result = await f.invoke(["rename", cohortRef.owner.name, targetRef.owner.name, "--json"]);
     expect(result.exitCode).toBe(1);
@@ -282,9 +282,9 @@ describe.each(["reference", "ref"] as const)("cohort rename over %s", backend =>
     for (const other of events) expect(other).toMatchObject({ batchId: event.batchId });
   }, 60_000);
 
-  it("binds unchanged nonholding evidence and retries after a concurrent edit", async () => {
+  it("admits a concurrent edit to a record its preparation read but does not rest on", async () => {
     const f = await fixture(backend), cohortRef = f.reference("cohort/document", "before");
-    const cohort = await seed(f, cohortRef, document(cohortRef.owner.name));
+    await seed(f, cohortRef, document(cohortRef.owner.name));
     const memberRef = f.reference("work-item/meta", "member"), untouchedRef = f.reference("work-item/meta", "untouched");
     const member = await seed(f, memberRef, makeMetaFixture(memberRef.owner.name,
       { state: "Planning", currentWorkflow: null, cohort: cohortRef.owner.name }), { kind: "backlog", commitment: "planned" });
@@ -302,15 +302,9 @@ describe.each(["reference", "ref"] as const)("cohort rename over %s", backend =>
       };
       return store;
     });
-    expect(result.exitCode).toBe(1);
-    expect(result.result).toMatchObject({ refusal: { code: "version-conflict" } });
-    for (const record of [cohort, member]) expect(success(await f.store.read({ reference: record.reference }))).toEqual(record);
-    const concurrent = success(await f.store.read({ reference: untouched.reference }));
-    expect(concurrent.content).toBe(content);
-    const retry = await f.invoke(["rename", cohortRef.owner.name, "after", "--json"]);
-    expect(retry.exitCode ?? 0, retry.stdout + retry.stderr).toBe(0);
+    expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
     expect(success(await f.store.read({ reference: member.reference })).fields).toMatchObject({ cohort: "after" });
-    expect(success(await f.store.read({ reference: untouched.reference }))).toEqual(concurrent);
+    expect(success(await f.store.read({ reference: untouched.reference })).content).toBe(content);
   }, 60_000);
 
   it("uses cohort-family authority when a work item shares the cohort's slug", async () => {
@@ -541,7 +535,7 @@ it.each(["filename", "membership"] as const)("refuses a stale cohort %s rewrite 
     };
     return wrapped;
   });
-  expect(result).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { code: "record-malformed", rule: "rename.references" } } });
+  expect(result).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { code: "record-malformed", rule: "rename.preparation" } } });
   expect(racedVersion).toBeDefined();
   expect(success(await f.store.version())).toBe(racedVersion);
   expect(success(await f.store.read({ reference: parent.reference }))).toEqual(parent);
@@ -577,7 +571,7 @@ it("retains a sole Parent with ambiguous open and completed member paths, then e
   const path = `${shared}/${childRef.owner.name}`;
   success(await f.store.batch({ writes: [recordPut(child, { content: document(childRef.owner.name, shared) }),
     ...members.map(member => recordPut(member, { content: writeMetaCohort(member.content, path) }))],
-  provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  provenance: fixtureRenameProvenance }));
   if (child.reference.owner.type !== "cohort" || child.reference.owner.uid === undefined) throw new Error("Expected child UID");
   await plantRefPrimary(f.native, { kind: "cohort/document", name: childRef.owner.name, uid: child.reference.owner.uid,
     content: document(childRef.owner.name, oldRef.owner.name) });
@@ -848,7 +842,7 @@ it("refuses a completed work unit arriving at a cohort destination and retries a
     };
     return wrapped;
   });
-  expect(result).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { code: "record-malformed", rule: "rename.target" } } });
+  expect(result).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { code: "record-malformed", rule: "rename.preparation" } } });
   expect(version).toBeDefined();
   expect(success(await f.store.version())).toBe(version);
   expect(success(await f.store.read({ reference: primary.reference }))).toEqual(primary);
@@ -942,7 +936,7 @@ describe.each(["reference", "ref"] as const)("cohort rename participant arrival 
         return typeof value === "function" ? value.bind(target) : value;
       } }));
       expect(refused).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: {
-        rule: kind === "descendant" ? "cohort.parent" : "rename.references",
+        rule: kind === "descendant" ? "cohort.parent" : "rename.preparation",
       } } });
       expect(success(await f.store.version())).toBe(version);
       expect(success(await f.store.read({ reference: parent.reference }))).toEqual(parent);

@@ -256,8 +256,15 @@ the write check closes it with the code that made the decisions, instead of a pa
 
 Evidence excludes refusals because the lifecycle inventory refuses on any conflicted meta. Counting every meta as
 evidence would make any unrelated edit refuse a rename, while re-deriving refusals keeps preparation's behavior.
-Admission checks completeness only: a write check sees `before`, `after` and the observations, not the batch's write
-list. The finding class is omission, and any extra write remains under its own kind's checks.
+A write check sees `before`, `after` and the observations, not the batch's write list, but `after` is the whole
+batch's state. So each record fresh preparation acquires must land as it writes it, or unchanged where it writes
+nothing: a write the fresh plan now withholds also refuses. Exact-reference evidence cannot catch that narrowing, for
+instance a second retired lineage turning a settlement into none. A write outside the acquired records stays under its
+own kind's checks. Absences need no batch observation at admission, since the same preparation refuses when the record
+is present; the verb still observes them and the records it writes, whose conflict sets a write's version omits.
+
+Every rename-provenance batch is accountable to fresh preparation, so a test fixture that builds a state the verb
+cannot reach, such as a former name still cited elsewhere, renames under a fixture provenance instead.
 
 A store-version precondition on the batch was considered: preparation's `store.version()` would bind the whole state.
 It changes the store contract on every backend and refuses on any unrelated write, so A7 keeps the change inside this
@@ -274,6 +281,7 @@ evidence that admission re-derives.
 
 Verification injects a store change between preparation and submission on both backends where the state can form. It
 seeds one case per read family from the audits' scenarios and adds an unrelated write that must admit. Each seeded case
-must fail against the predicate admission before the change.
+must fail against the predicate admission before the change. A second retired lineage cannot form locally:
+`work-item.slug-edges` refuses the second generation while a stub's edge still names the first.
 
 ---

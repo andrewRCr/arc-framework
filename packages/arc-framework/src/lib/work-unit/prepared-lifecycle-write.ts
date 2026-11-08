@@ -52,7 +52,7 @@ function incomplete(reference: RecordReference, condition: string): StoreRefusal
 }
 
 /** Validate every acquired input even when the prepared plan contains no edits. */
-export async function revalidateLifecycleRecords(store: Store, records: readonly StoreRecord[]): Promise<StoreResult<true>> {
+export async function revalidateLifecycleRecords(store: Pick<Store, "read">, records: readonly StoreRecord[]): Promise<StoreResult<true>> {
   for (const record of records) {
     const fresh = await store.read({ reference: record.reference });
     if (fresh.status === "refused") return fresh;

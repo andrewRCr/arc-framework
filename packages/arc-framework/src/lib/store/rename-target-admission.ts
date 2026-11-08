@@ -1,11 +1,10 @@
-/** Preserve each rename's destination policy in the atomic admission view. */
+/** A cohort rename's destination policy, which its preparation applies. */
 import { SlugSchema } from "../kernel/index.js";
 import { sameReference, type RecordReference } from "./identity.js";
 import type { StoreRecord } from "./read.js";
-import type { StoreResult, Remedy } from "./refusal.js";
-import type { BrokenRule, StoreView, WriteCheckInput } from "./write-check.js";
-import { observeRecord } from "./kinds/rule-support.js";
-import { checkCreationAdmission, renderCreationAdmissionRefusal, holderCondition } from "./creation-admission.js";
+import type { StoreResult } from "./refusal.js";
+import type { StoreView } from "./write-check.js";
+import { holderCondition } from "./creation-admission.js";
 
 /** Refuse any other current or former holder of a cohort's proposed name. */
 export async function checkCohortRenameTarget(store: Pick<StoreView, "lookup">, primary: StoreRecord,
@@ -25,24 +24,4 @@ export async function checkCohortRenameTarget(store: Pick<StoreView, "lookup">, 
   return collision.status === "refused" ? { ...collision, refusal: { ...collision.refusal, condition, remedy } }
     : { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: primary.reference,
       rule: "lifecycle.rename", condition, remedy } };
-}
-
-/** Recheck destination eligibility only when a rename changes a primary's current name. */
-export async function checkRenameTarget(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
-  if (input.writer.kind !== "verb" || input.writer.verb !== "rename" || input.prior === undefined || input.next === undefined) return [];
-  const fail = (condition: string, remedy: Remedy = {
-    text: "Restore readable destination evidence, prepare the rename again, and retry; no rename mutations were published.",
-  }): readonly BrokenRule[] => [{ rule: "rename.target", condition, remedy }];
-  const prior = await observeRecord(input.before, input.reference), next = await observeRecord(input.after, input.reference);
-  if (prior.status !== "known" || next.status !== "known") return fail("Rename identity evidence is unavailable.");
-  const primary = prior.value, target = next.value.reference.owner.name;
-  if (primary.reference.owner.name === target) return [];
-  if (primary.reference.kind === "cohort/document") {
-    const collision = await checkCohortRenameTarget(input.before, primary, target);
-    return collision?.status === "refused" ? fail(collision.refusal.condition, collision.refusal.remedy) : [];
-  }
-  const admission = await checkCreationAdmission(input.before, target, [primary.reference.owner]);
-  if (admission.kind === "free") return [];
-  const rendered = renderCreationAdmissionRefusal(target, admission);
-  return fail(rendered.condition, { ...rendered.remedy, text: rendered.remedy.text.replaceAll("retry creation", "retry rename") });
 }
