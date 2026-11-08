@@ -15,9 +15,10 @@
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** `projection-write-back` must land on `main` first (`Depends On`)
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Once `projection-write-back` lands: merge `main`, run Task 1.1's grounding re-check
+  (`notes-projection-worktrees.md` § Grounding basis), then activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
