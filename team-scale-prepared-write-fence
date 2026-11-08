@@ -3,14 +3,20 @@
   "slug": "team-scale-prepared-write-fence",
   "claimId": "11d59ee2f48bde898302020cac137e48",
   "createdAt": "2026-11-08T01:55:03.477Z",
-  "updatedAt": "2026-11-08T01:55:03.477Z",
+  "updatedAt": "2026-11-08T02:10:16.894Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Record in projection-team-scale's draft that its prepared store writes state their fence by the approved prepared-write pattern",
   "branch": "chore/team-scale-prepared-write-fence",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/team-scale-prepared-write-fence",
+    "headSha": "71cc53d59b24f47c7073033b9fa04dc07c42ab7d"
+  }
 }
