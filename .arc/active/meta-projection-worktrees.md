@@ -9,7 +9,7 @@
 
 - **Origin:** [internal] — the `storage-projection` cut (2026-10-30)
 - **Design:** `spec-projection-worktrees.md`
-- **Task List:** [none]
+- **Task List:** `tasks-projection-worktrees.md`
 - **Review Rubric:** [none]
 
 - **Current Workflow:** `generate-tasks`
@@ -17,7 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]
