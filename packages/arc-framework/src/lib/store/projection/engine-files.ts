@@ -20,7 +20,7 @@ export async function writeBackProjectionFiles(root: ProjectionRootState, initia
   const pending: string[] = [];
   const target = projectionProcessState().resolution;
   const selected = target?.refusal === null ? target.target?.path : undefined;
-  const walked = [...new Set([...files, ...adoptionRetries(initial)])].sort();
+  const walked = [...new Set([...files, ...adoptionRetries(root, initial)])].sort();
   const paths = selected === undefined || target?.accepted ? walked : [...new Set([...walked, selected])].sort();
   for (const path of paths.filter(path => root.blockedByLink(path) === null)) {
     const checked = await checkFileAtPath(root, index, path, reference);
@@ -37,10 +37,12 @@ export async function writeBackProjectionFiles(root: ProjectionRootState, initia
   return index;
 }
 
-function adoptionRetries(index: ProjectionIndex): string[] {
+function adoptionRetries(root: ProjectionRootState, index: ProjectionIndex): string[] {
   return Object.keys(index.entries).filter(path => {
     const entry = index.entries[path];
-    return entry?.kind === "ownerless" || entry?.kind === "record" && entry.adoption !== undefined;
+    const selected = root.context.verb === "save" || !path.startsWith(".arc/completed/");
+    return entry?.kind === "record" && entry.adoption?.kind === "read-back"
+      || selected && (entry?.kind === "ownerless" || entry?.kind === "record" && entry.adoption !== undefined);
   });
 }
 

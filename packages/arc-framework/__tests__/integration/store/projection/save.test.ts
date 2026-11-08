@@ -32,8 +32,8 @@ import { createReferenceFixture } from "../../../helpers/store/reference-fixture
 import { seedProjection } from "../../../helpers/store/projection/seeded-projection.js";
 import { configureEngineCheckout } from "../../../helpers/store/projection/engine-fixture.js";
 import { formatConflictToken } from "../../../../src/lib/status/conflict-token.js";
-import { chmod, lstat, readFile, rename, symlink, unlink, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { chmod, lstat, mkdir, readFile, rename, symlink, unlink, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
@@ -1022,4 +1022,62 @@ it("accepts a requested resolution already fulfilled by the start's aside sweep"
   expect(saved.result.status).toBe("ok");
   expect(success(await h.store.read({ reference: h.reference })).conflicts).toEqual([]);
   expect(success(await h.store.history({ reference: h.conflict })).filter(each => each.content === null)).toHaveLength(1);
+});
+
+
+it("keeps a stopped archived swap outside a linked parent and recovers after directory repair", async () => {
+  const h = await archivedView("companion");
+  const native = createProjectionEnginePorts(h.checkout);
+  const ports = (instance: string) => ({ ...native, writer: async () => ({ ...await native.writer(), processInstance: instance }) });
+  await writeFile(join(h.checkout, h.path), "archived hand edit\n");
+  await expect(startProjection({ store: h.store, checkout: h.checkout, mode: "save", ports: () => ({
+    ...ports("interrupted-archive-command"), hooks: { afterMove: async () => { throw new Error("stopped archive swap"); } },
+  }) })).rejects.toThrow("stopped archive swap");
+  const stopped = await readProjectionIndex(h.location, true);
+  if (stopped.kind !== "index") throw new Error("Stopped index missing");
+  const entry = stopped.index.entries[h.path];
+  if (entry?.kind !== "record" || entry.copies.length === 0) throw new Error("Stopped copy missing");
+  const folder = dirname(join(h.checkout, h.path)), external = join(h.checkout, "outside-projection");
+  await rename(folder, `${folder}-original`);
+  await mkdir(external);
+  await symlink(external, folder, "dir");
+  expect(await startProjection({ store: h.store, checkout: h.checkout, ports: () => ports("blocked-archive-command") }))
+    .toMatchObject({ kind: "ready", discovered: [] });
+  await expect(readFile(join(external, basename(h.path)), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  for (const copy of entry.copies) expect(await readFile(join(h.checkout, copy.name), "utf8")).toBe("archived hand edit\n");
+  expect(projectionProcessState().diagnostics).toContainEqual(expect.objectContaining({ path: h.path,
+    mark: expect.objectContaining({ remedy: { text: expect.stringContaining("symbolic link") } }) }));
+  await unlink(folder);
+  await rename(`${folder}-original`, folder);
+  expect(await startProjection({ store: h.store, checkout: h.checkout, ports: () => ports("repaired-archive-command") }))
+    .toMatchObject({ kind: "ready" });
+  expect(await h.file()).toBe("archived hand edit\n");
+  expect((await readProjectionIndex(h.location, true))).toMatchObject({ kind: "index", index: {
+    entries: { [h.path]: { copies: [] } },
+  } });
+});
+
+it("leaves failed archived admission for explicit save after the condition is repaired", async () => {
+  const h = await createAdoptionFixture({ placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } });
+  directories.push(h.f.root);
+  const path = `${h.folder}/extra.txt`, reference = recordReferences["work-item/companion"](h.primary.reference.owner, "extra.txt");
+  await writeFile(join(h.f.root, path), "archived new companion\n");
+  let blocked = true;
+  const refusal = StoreRefusalSchema.parse({ code: "lock-held", class: "recoverable", lock: "work-item",
+    condition: "Archived admission is locked.", remedy: { text: "Release the lock and retry save." } });
+  const store = overrideEngineStore(h.f.store, { write: input => blocked && input.reference.kind === "work-item/companion"
+    ? Promise.resolve({ status: "refused", refusal }) : h.f.store.write(input) });
+  expect((await save({ store, checkout: h.f.root })).errors).toContain(refusal.condition);
+  expect(await readProjectionIndex(h.projected.location, true)).toMatchObject({ kind: "index", index: {
+    entries: { [path]: { kind: "ownerless" } },
+  } });
+  blocked = false;
+  expect(await startProjection({ store, checkout: h.f.root })).toMatchObject({ kind: "ready", discovered: [] });
+  expect(await h.f.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  expect(await readProjectionIndex(h.projected.location, true)).toMatchObject({ kind: "index", index: {
+    entries: { [path]: { kind: "ownerless" } },
+  } });
+  expect((await save({ store, checkout: h.f.root })).errors).toBe("");
+  expect(success(await h.f.store.read({ reference })).content).toBe("archived new companion\n");
+  expect(success(await h.f.store.history({ reference }))[0]?.provenance).toMatchObject({ verb: "save", lifecycleAction: "edit" });
 });

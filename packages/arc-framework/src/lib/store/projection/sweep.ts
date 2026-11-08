@@ -21,7 +21,7 @@ import { notAFileRemedy, type ReadGateDependencies } from "./read-gate.js";
 import type { Remedy } from "../refusal.js";
 import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
 import type { TakeInPort } from "./take-in-port.js";
-import { projectionLinkRemedy, type ProjectionLinkBoundary } from "./discovery-links.js";
+import { readProjectionLinkBoundary, projectionLinkRemedy, type ProjectionLinkBoundary } from "./discovery-links.js";
 
 /** What the sweep reads, run under the worktree's projection lock; its moves are the system's unless a test injects its own. */
 export interface SweepInput extends SwapMoves {
@@ -91,8 +91,14 @@ export async function sweepAsideFolder(input: SweepInput): Promise<SweepResult> 
   const writable = writableUnder(ignores, guarded);
   // A refusal of the aside folder, as a failed call refuses every root, leaves the sweep nothing it may write.
   if (!writable(`${PROJECTION_ASIDE_ROOT}/`)) return { ignores, index: input.index, swept: [], left: [], withheld: [], copies: [] };
-  const judges: SweepJudges = { writerOf: judgeWriters(input), writable, blockedByLink: input.blockedByLink ?? (() => null) };
   const found = await listAsideFolder(input.checkout);
+  const destinations = [
+    ...Object.entries(input.index?.entries ?? {}).flatMap(([path, entry]) => entry.kind === "record" && entry.copies.length > 0 ? [path] : []),
+    ...found.flatMap(copy => { const named = parseAsideFile(copy); return named?.role === "aside" ? [named.path] : []; }),
+  ];
+  const observed = await readProjectionLinkBoundary(input.checkout, destinations.filter(writable));
+  const judges: SweepJudges = { writerOf: judgeWriters(input), writable,
+    blockedByLink: path => input.blockedByLink?.(path) ?? observed(path) };
   if (input.index === null) return { ignores, ...await sweepWithoutIndex(input, found, judges) };
   const recorded = await takeOverRecorded(input, input.index, judges);
   const unrecorded = await takeOverUnrecorded(input, recorded.index, found, judges);
