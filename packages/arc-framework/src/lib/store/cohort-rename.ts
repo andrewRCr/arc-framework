@@ -100,7 +100,9 @@ async function prepareMembershipWrites(store: StoreView, primary: StoreRecord, t
   const retainedHoldings = holdings.value.filter(holding => holding.resolution === "ambiguous" || retainedParents.includes(holding) || holding.segments.some(segment => segment.status !== "known"));
   const retained = reportAmbiguousHoldings(plan, retainedHoldings, closed);
   if (retained.status === "refused") return retained;
-  const filenames = await prepareFilenameReferences(view, plan, retained.result.report);
+  const disagreeing = reportDisagreeingPaths(plan, holdings.value, retained.result.report);
+  if (disagreeing.status === "refused") return disagreeing;
+  const filenames = await prepareFilenameReferences(view, plan, disagreeing.result);
   if (filenames.status === "refused") return filenames;
   return { status: "ok", result: { ...retained.result, report: filenames.result.report,
     evidence: [...holdingEvidence(holdings.value), ...filenames.result.evidence],
@@ -115,10 +117,39 @@ function coupledRetainedParents(holdings: readonly CohortHolding[]): CohortHoldi
           && sameReference(candidate.candidate.reference, member.candidate.reference))))));
 }
 
+/** A member path whose first segment is not its leaf's current Parent has no consistent rewrite (A8): the batch keeps
+ * it, and the report names the edit to the leaf's current path. Undefined for every path that agrees.
+ */
+function consistentLeafPath(holding: CohortHolding, plan: CohortRenamePlan): string | undefined {
+  const leaf = holding.segments.at(-1);
+  if (holding.candidate.field !== "cohort" || leaf?.status !== "known" || holding.segments.some(segment => segment.status !== "known")) return undefined;
+  const parent = holding.parent, first = holding.segments.length === 2 ? holding.segments[0] : undefined;
+  if (parent !== undefined && parent.status !== "known") return undefined;
+  const agrees = parent === undefined ? first === undefined
+    : first?.status === "known" && sameReference(first.reference, parent.reference);
+  if (agrees) return undefined;
+  const current = (segment: Extract<CohortHoldingSegment, { status: "known" }>): string =>
+    sameReference(segment.reference, plan.primary.reference) ? plan.target : segment.currentSlug;
+  return parent === undefined ? current(leaf) : `${current(parent)}/${current(leaf)}`;
+}
+
+function reportDisagreeingPaths(plan: CohortRenamePlan, holdings: readonly CohortHolding[], report: RenameReport): StoreResult<RenameReport> {
+  const references = [...report.references];
+  for (const holding of holdings) {
+    const to = holding.resolution === "sole" ? consistentLeafPath(holding, plan) : undefined;
+    if (to === undefined) continue;
+    const record = holdingReportRecord(holding.candidate.reference);
+    if (record === null) return malformed(plan.primary, "A retained holding has no exact owner identity.");
+    references.push({ record, edits: [{ kind: "field", field: "cohort", from: holding.candidate.path, to }] });
+  }
+  return { status: "ok", result: { ...report, references } };
+}
+
 function prepareSoleHoldings(plan: CohortRenamePlan, holdings: readonly CohortHolding[], retainedParents: readonly CohortHolding[]): StoreResult<true> {
   const kept = retainedParents.flatMap(holding => [holding.candidate, ...holding.members.map(member => member.candidate)]);
   for (const holding of holdings) {
     if (holding.resolution !== "sole" || kept.some(candidate => sameReference(candidate.reference, holding.candidate.reference))) continue;
+    if (consistentLeafPath(holding, plan) !== undefined) continue;
     const record = plan.records.find(item => sameReference(item.reference, holding.candidate.reference));
     if (record === undefined) return malformed(plan.primary, "A cohort holding has no captured record.");
     const path = currentHoldingPath(holding, plan.primary, plan.target);

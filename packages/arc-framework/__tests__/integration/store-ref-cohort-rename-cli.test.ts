@@ -985,3 +985,32 @@ describe.each(["reference", "ref"] as const)("cohort rename participant arrival 
     expect(result.result).toMatchObject({ report: { references: [] } });
   }, 60_000);
 });
+
+describe.each(["reference", "ref"] as const)("cohort rename of a disagreeing member path over %s", backend => {
+  const uidOf = (record: StoreRecord): string => {
+    const owner = record.reference.owner;
+    if (owner.type === "person" || owner.uid === undefined) throw new Error("Expected a UID");
+    return owner.uid;
+  };
+  it.each(["leaf", "first segment"] as const)("retains and reports a completed member whose path disagrees with its leaf's Parent, renaming the %s",
+    async renamed => {
+      const f = await fixture(backend);
+      const pRef = f.reference("cohort/document", "p"), qRef = f.reference("cohort/document", "q"), lRef = f.reference("cohort/document", "l");
+      const p = await seed(f, pRef, document(pRef.owner.name));
+      await seed(f, qRef, document(qRef.owner.name));
+      const l = await seed(f, lRef, document(lRef.owner.name, pRef.owner.name));
+      const memberRef = f.reference("work-item/meta", "member"), path = `${pRef.owner.name}/${lRef.owner.name}`;
+      const member = await seed(f, memberRef, makeMetaFixture(memberRef.owner.name, { state: "Shipped", currentWorkflow: null,
+        completed: "2026-10-01", prUrl: "https://example.test/pull/1", cohort: path }),
+      { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+      success(await f.store.write({ ...recordPut(l, { content: document(lRef.owner.name, qRef.owner.name) }),
+        provenance: { verb: "write-back", lifecycleAction: "edit" } }));
+      const result = await f.invoke(["rename", uidOf(renamed === "leaf" ? l : p), "renamed", "--json"]);
+      expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+      expect(success(await f.store.read({ reference: member.reference }))).toEqual(member);
+      const consistent = `${qRef.owner.name}/${renamed === "leaf" ? "renamed" : lRef.owner.name}`;
+      expect(result.result).toMatchObject({ report: { references: expect.arrayContaining([{
+        record: { type: "work-unit", name: memberRef.owner.name, uid: uidOf(member) },
+        edits: [{ kind: "field", field: "cohort", from: path, to: consistent }] }]) } });
+    }, 60_000);
+});

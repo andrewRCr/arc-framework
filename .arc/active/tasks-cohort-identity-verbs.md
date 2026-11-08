@@ -742,24 +742,33 @@ old name refuses naming the current one.
           rename and staged-archive E2E files, with both type checks and the increment gate. Hosted CI runs once at
           convergence.
 
-### `[ ]` **5.R2 Retain a holding whose path disagrees with its leaf's Parent — § 5.1 (A8)**
+### `[x]` **5.R2 Retain a holding whose path disagrees with its leaf's Parent — § 5.1 (A8)**
 
 - _Goal:_ Under A8, a cohort rename leaves a `Cohort` path whose first segment is not its leaf's current `Parent`
   unchanged and reports the edit to the leaf's current path, so such a holding no longer refuses the rename.
 
-    - `[ ]` **5.R2.a Disagreeing paths are retained — failing first**
+- _Outcome:_ Cohort rename preparation keeps a disagreeing `Cohort` path and reports its edit to the leaf's current
+  path; renaming the leaf or the stale first segment lands on both backends.
+
+    - `[x]` **5.R2.a Disagreeing paths are retained — failing first**
 
         - A completed member holds `p/l` after `l` moves under `q`. Renaming `l`, and renaming `p`, each land with that
           `Cohort` unchanged and its repair edit reported; both cases fail against the current rewrite.
+        - _Outcome:_ Four cases in `store-ref-cohort-rename-cli.test.ts`, leaf and first segment on both backends,
+          refused through `meta.cohort` at `7407473e6e`.
 
-    - `[ ]` **5.R2.b Retain and report**
+    - `[x]` **5.R2.b Retain and report**
 
         - Cohort rename preparation treats a holding whose path disagrees with its leaf's current `Parent` as
           retained: no write, and a § 4 report row whose edit is the leaf's current path.
+        - _Outcome:_ `consistentLeafPath` compares the path's first segment with the leaf's resolved `Parent` by
+          identity, so a former-slug segment still agrees and is rewritten; admission re-plans the same decision.
 
-    - `[ ]` **5.R2.c Revalidate**
+    - `[x]` **5.R2.c Revalidate**
 
         - Criterion 22 holds on both backends where the state forms; the 5.6 segment scenario still holds.
+        - _Outcome:_ Locally, 192 rename, archive, cohort and fixture-rename files (2,104 tests) pass, with both type
+          checks and the increment gate.
 
 ### `[x]` **5.6 A cohort renamed end to end** — validate exit criterion at segment scope
 
