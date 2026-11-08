@@ -484,9 +484,11 @@ alike, so the verb resolves once per family before its batch:
   `lib/store/kinds/cohort/check-support.ts`). The report names the edits in that order. A closed subcohort is reported
   and stays with the holder that keeps the slug. **Unproved companions (A6):** if a member’s companion segment is
   ambiguous or otherwise unresolved, retain the whole coupled group and report each exact holding owner with the
-  prerequisite identity repair. The parent’s UID rename still lands. These report rows carry no unsupported field
-  edit; existing advisories name the unresolved segment and its available repair. After the companion clash is resolved,
-  owners choose the intended child by UID and apply clear → its current `Parent` → restore at the current full path.
+  prerequisite identity repair. The parent’s UID rename still lands, except over a closed subcohort's open member the
+  batch cannot settle, which refuses it and names the member's exits (§ 5.1, A9). These report rows carry no
+  unsupported field edit; existing advisories name the unresolved segment and its available repair. After the companion
+  clash is resolved, owners choose the intended child by UID and apply clear → its current `Parent` → restore at the
+  current full path.
 - **The slug names another holder** — an ended subject whose slug a live item has reused, which the lookup ranks above
   it: those references are the live holder's, and the rename leaves them unreported.
 
@@ -523,7 +525,18 @@ version-checked batch:
   `Parent`. Report every retained holding, including sole ones, through § 4’s ordered clear → `Parent` → restore edits
   where every companion identity is proved; otherwise retain the group and report § 4’s prerequisite instead (A6).
   All-sole groups still move in the batch; completed members alone do not prevent a `Parent` update when its members’
-  destination paths are proved, and closed-child retention and restoration restrictions remain in force.
+  destination paths are proved. **Closed subcohorts (A9):** where the renamed cohort is a closed subcohort's sole
+  `Parent`, every open member whose `Cohort` names the subcohort must land at `<new slug>/<subcohort>` in the batch:
+  `cohort.parent` compares that `Parent` with its open members' paths by text, and a member left on another path could
+  not rejoin the closed subcohort. Where the batch cannot settle one — a tied or unresolved first segment or leaf, a
+  path disagreeing with the subcohort's `Parent`, or a retained group — the rename refuses before the batch with
+  nothing written, naming each such member and its exits: its owner's `Cohort` clear, after which it cannot rejoin the
+  closed subcohort, and, where its first segment is tied between live cohorts holding it as their current name, the
+  other holder's UID rename, which leaves that name the renamed cohort's alone. No rename settles a tied leaf, since
+  any live holder of a name outranks the closed subcohort under either name, nor a former-name tie, since former names
+  persist. After an exit the rename lands. A tied path whose closed leaf's `Parent` resolves to another cohort is that
+  cohort's member, so renaming a co-holder of its first segment leaves it unreported. Other retained closed groups are
+  reported by owner with the closed-subcohort advisory and no planned field edit.
 - **References to the document's filename,** `` `cohort-<old>.md` ``, in stubs and open cohort documents — a parent
   cites its subcohorts' documents by filename — rewritten by the cohort arm itself where the old slug names the cohort
   alone (§ 4). The work-item sweep cannot serve: it leaves every `cohort-` reference unchanged
@@ -832,10 +845,12 @@ to land whole returns to the Owner.
 
 This change alters four of the storage seam's shared decisions and one of the storage program's, recorded beside each
 item in the cohort documents' § Shared contracts, dated and stating the decision as it now stands: in
-`cohort-storage-seam.md`, the writers of `Cohort` (item 1), the rename's rewrites only where a slug resolves to its
-subject (item 3), the cohort document's writers and counting (item 7), and the write check's current-slug and
-open-members rules (item 11); in `cohort-state-storage.md`, D14's clash refusals and what their remedies name. The
-status warning's text, decomposition's remedies, and the rename's branch handling stay in this spec alone.
+`cohort-storage-seam.md`, the writers of `Cohort` and the holdings a cohort rename retains or refuses over (item 1, with
+A5, A6, A8 and A9), the rename's rewrites only where a slug resolves to its subject, and its holding reports (item 3),
+the cohort document's writers and counting (item 7), and the write check's current-slug, open-members,
+rename-preparation and removal-holdings rules (item 11, with A7); in `cohort-state-storage.md`, D14's clash refusals
+and what their remedies name, a branch-link tie's among them (A2, A4). The status warning's text, decomposition's
+remedies, and the rename's branch handling stay in this spec alone.
 
 ### 12. Admission re-derives each prepared store write (A7)
 
@@ -1123,6 +1138,13 @@ Over the ref backend and, where it can form the state, the reference backend, fr
 22. **Disagreeing member paths are retained (A8).** Renaming the leaf cohort, or the stale first segment, of a completed
     member's `Cohort` path whose first segment is no longer the leaf's `Parent` lands; that `Cohort` stays unchanged and
     the report names the edit to the leaf's current path.
+23. **A closed subcohort's unsettled open member refuses its parent's rename (A9).** Renaming a parent that is a closed
+    subcohort's `Parent`, while an open member of that subcohort has a tied first segment, a tied leaf, or a path
+    disagreeing with the subcohort's `Parent`, refuses with nothing written. The refusal names the member owner's
+    `Cohort` clear and, for a first segment tied between live cohorts holding it as their current name, the other
+    holder's UID rename, which lands. After either exit the parent's rename lands, with the subcohort's `Parent` at the
+    new slug. An open subcohort whose member's path disagrees with its `Parent` still lets the rename land, retaining
+    both.
 
 ## Open Questions
 
@@ -1153,5 +1175,9 @@ None.
 
 - **A8** — 2026-11-07 — design: a rename retains a holding whose path disagrees with its leaf's Parent.
   _Supersedes:_ § 5.1 ¶3. _Trigger:_ D2 review. _Work:_ 5.R2. _Revalidated:_ 6.1.
+
+- **A9** — 2026-11-08 — design: a parent's rename refuses a closed subcohort's unsettled open member, naming its exits.
+  _Supersedes:_ § 4 A6 "The parent's UID rename still lands" for closed subcohorts; § 5.1 ¶3 (A5). _Trigger:_ pass-18
+  review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

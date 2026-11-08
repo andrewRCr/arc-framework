@@ -29,7 +29,7 @@ export const COMMAND_SUMMARIES: Readonly<Record<string, string>> = {
   "start": "Start work in an isolated worktree",
   "stub": "Create a backlog work-unit stub",
   "decompose": "Manage a work-unit decomposition",
-  "rename": "Rename a work unit by slug or UID",
+  "rename": "Rename a work unit or cohort by slug or UID",
   "cohort": "Manage cohorts by slug or UID",
   "cohort close": "Close a cohort by slug or UID",
   "cohort remove": "Remove an empty cohort by slug or UID",

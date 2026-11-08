@@ -136,7 +136,7 @@ function isLifecycleTierFile(path: string): boolean {
 }
 
 /** Apply only the conventional artifact's supported self-title and planning-operand rewrites. */
-export function rewriteArtifactSelfReferences(
+function rewriteArtifactSelfReferences(
   relativePath: string,
   content: string,
   sourceSlug: string,

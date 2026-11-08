@@ -45,7 +45,8 @@ describe.each(["reference", "ref"] as const)("cohort input refusal over %s", bac
       for (const json of [false, true]) {
         const result = await f.invoke(["cohort", operation, operand, "--yes", ...(json ? ["--json"] : [])]);
         expect(result.exitCode).toBe(1);
-        if (json) expect(result.result).toMatchObject({ status: "rejected", remedy: { argv: ["arc", "cohort", operation, "--help"] } });
+        if (json) expect(result.result).toMatchObject({ status: "refused", refusal: { code: "record-malformed", rule: `cohort.${operation}-input`,
+          remedy: { argv: ["arc", "cohort", operation, "--help"] } } });
         else expect(result.stdout + result.stderr).toContain(`arc cohort ${operation} --help`);
         expect(success(await f.store.version())).toBe(before);
         expect(success(await f.store.read({ reference: group.reference }))).toEqual(group);

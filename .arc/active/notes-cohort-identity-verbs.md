@@ -17,6 +17,7 @@
     - [Rename participant completeness — 2026-11-07](#rename-participant-completeness--2026-11-07)
 - [Prepared-write admission — A7](#prepared-write-admission--a7)
 - [Disagreeing member paths — A8](#disagreeing-member-paths--a8)
+- [A closed subcohort's unsettled open member — A9](#a-closed-subcohorts-unsettled-open-member--a9)
 
 ## Catch-up publication recovery
 
@@ -310,5 +311,39 @@ The superseded rule in § 5.1 ¶3 was:
 > renamed cohort's segment, so a record left on a former slug in either segment is rewritten whole.
 
 It still holds for every path that agrees with its leaf's `Parent`.
+
+## A closed subcohort's unsettled open member — A9
+
+Pass 18 of the pre-publication review found a parent cohort's UID rename refusing through `cohort.parent` when its
+closed subcohort held an open member the batch could not settle, with a remedy the renaming person cannot carry out.
+Probes on 2026-11-08 confirmed two causes: the member's first segment tied with another live cohort, and its leaf tied
+with a live namesake. A path disagreeing with the subcohort's `Parent` takes the same route; ordinary writes cannot form
+it, since `meta.cohort` refuses it, but sync can. Coupled retention (A5) covered open subcohorts only, and the repair
+planner's closed-subcohort refusal had replaced the retention advisory for the leaf tie.
+
+Retaining the closed subcohort's `Parent` was rejected: `meta.cohort` compares a path's first segment with the leaf's
+`Parent` by text, so a `Parent` left on what becomes a former slug strands the member, and no later edit of either
+record alone admits. The Owner chose on 2026-11-08 to refuse before the batch, naming the exits.
+
+Which exits exist was settled during the fix. The store ranks a name's holders live and current, live and former,
+completed and current, then completed and former. Renaming the other holder of a first segment both hold as their
+current name leaves that name the renamed cohort's alone, so it is an exit. A leaf tie has none: any live holder of the
+name outranks the closed subcohort under either name, and a probe showed the retry refusing again after renaming the
+namesake. A former-name tie has none either, since former names persist. The member owner's `Cohort` clear always
+settles it, though the member cannot then rejoin the closed subcohort. The Owner approved naming only exits that land on
+2026-11-08. Making the first-segment exit land also required the other holder's rename to leave the member alone: its
+closed leaf's `Parent` names the parent, so it is the parent's member. The repair planner had refused that rename
+through its closed-leaf check; such paths and retained closed groups now stay out of the planner.
+
+The superseded rules were § 4's
+
+> The parent’s UID rename still lands.
+
+for a closed subcohort, and § 5.1's
+
+> closed-child retention and restoration restrictions remain in force.
+
+as the only treatment of a closed subcohort's open members. An open subcohort's coupled group is unchanged: one whose
+member's path disagrees with its `Parent` is retained with it, which a native case now covers.
 
 ---

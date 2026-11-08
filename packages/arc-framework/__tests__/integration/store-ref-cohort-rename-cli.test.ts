@@ -986,6 +986,45 @@ describe.each(["reference", "ref"] as const)("cohort rename participant arrival 
   }, 60_000);
 });
 
+it("refuses a citing stub companion arriving under a tied name, then reports its citation on retry", async () => {
+  const f = await fixture("ref");
+  if (f.native === undefined) throw new Error("Expected native store");
+  const reference = f.reference("cohort/document", "source");
+  const primary = await seed(f, reference, document(reference.owner.name));
+  await plantRefPrimary(f.native, { kind: "cohort/document", name: reference.owner.name,
+    uid: "00000000-0000-4000-8000-000000000099", content: document(reference.owner.name) });
+  const stubRef = f.reference("work-item/meta", "stub");
+  const stub = await seed(f, stubRef, makeMetaFixture(stubRef.owner.name, { state: "Planning", currentWorkflow: null }),
+    { kind: "backlog", commitment: "planned" });
+  const companionRef = RecordReferenceSchema.parse({ kind: "work-item/companion", owner: stub.reference.owner, key: "research" });
+  const citation = `See \`cohort-${reference.owner.name}.md\`.`;
+  const owner = primary.reference.owner;
+  if (owner.type !== "cohort" || owner.uid === undefined) throw new Error("Expected cohort UID");
+  const argv = ["rename", owner.uid, "renamed", "--json"];
+  let arrival: StoreRecord | undefined, version: unknown;
+  const refused = await f.invoke(argv, store => new Proxy(store, { get(target, key) {
+    if (key === "batch") return async (input: Parameters<Store["batch"]>[0]) => {
+      if (arrival === undefined) {
+        arrival = await seed(f, companionRef, `# Detail\n\n${citation}\n`);
+        version = success(await f.store.version());
+      }
+      return store.batch(input);
+    };
+    const value: unknown = Reflect.get(target, key);
+    return typeof value === "function" ? value.bind(target) : value;
+  } }));
+  expect(refused).toMatchObject({ exitCode: 1, result: { status: "rejected", refusal: { rule: "rename.preparation" } } });
+  expect(success(await f.store.version())).toBe(version);
+  expect(success(await f.store.read({ reference: primary.reference }))).toEqual(primary);
+  if (arrival === undefined) throw new Error("Expected concurrent arrival");
+  const retried = await f.invoke(argv);
+  expect(retried.exitCode ?? 0, retried.stdout + retried.stderr).toBe(0);
+  expect(success(await f.store.read({ reference: arrival.reference }))).toEqual(arrival);
+  expect(filenameReport.parse(retried.result).report.references).toContainEqual({
+    record: { type: "work-unit", name: stub.reference.owner.name, uid: stub.reference.owner.type === "person" ? undefined : stub.reference.owner.uid },
+    edits: [{ kind: "text", document: arrival.reference, line: 3, replacement: "See `cohort-renamed.md`." }] });
+}, 60_000);
+
 describe.each(["reference", "ref"] as const)("cohort rename of a disagreeing member path over %s", backend => {
   const uidOf = (record: StoreRecord): string => {
     const owner = record.reference.owner;
@@ -1013,4 +1052,73 @@ describe.each(["reference", "ref"] as const)("cohort rename of a disagreeing mem
         record: { type: "work-unit", name: memberRef.owner.name, uid: uidOf(member) },
         edits: [{ kind: "field", field: "cohort", from: path, to: consistent }] }]) } });
     }, 60_000);
+});
+
+describe("cohort rename over a closed subcohort's open member", () => {
+  const uidOf = (reference: StoreRecord["reference"]): string => {
+    if (reference.owner.type === "person" || reference.owner.uid === undefined) throw new Error("Expected a UID");
+    return reference.owner.uid;
+  };
+  const edit = { verb: "write-back", lifecycleAction: "edit" } as const;
+  async function stragglerFixture(variant: "first segment" | "leaf" | "disagreeing path" | "open child") {
+    const f = await fixture("ref");
+    if (f.native === undefined) throw new Error("Expected native store");
+    const parentRef = f.reference("cohort/document", "old-parent"), childRef = f.reference("cohort/document", "child");
+    const elsewhereRef = f.reference("cohort/document", "elsewhere"), shared = f.reference("cohort/document", "shared").owner.name;
+    const parent = await seed(f, parentRef, document(parentRef.owner.name));
+    const child = await seed(f, childRef, document(childRef.owner.name, parentRef.owner.name));
+    if (variant !== "open child") success(await f.store.write({ ...recordPut(child, { placement: arrivalCompleted }),
+      provenance: { verb: "cohort-close", lifecycleAction: "close" } }));
+    await seedFormerName(f.store, parent, shared, document(shared));
+    const disagrees = variant === "disagreeing path" || variant === "open child";
+    if (disagrees) await seed(f, elsewhereRef, document(elsewhereRef.owner.name));
+    const path = `${disagrees ? elsewhereRef.owner.name : shared}/${childRef.owner.name}`;
+    const tie = variant === "first segment" || variant === "leaf" ? await plantRefPrimary(f.native, { kind: "cohort/document",
+      name: variant === "leaf" ? childRef.owner.name : shared, uid: "00000000-0000-4000-8000-000000000066",
+      content: document(variant === "leaf" ? childRef.owner.name : shared) }) : undefined;
+    const memberRef = await plantRefPrimary(f.native, { kind: "work-item/meta", name: "work-item-late-member",
+      uid: "00000000-0000-4000-8000-000000000071", placement: { kind: "backlog", commitment: "planned" },
+      content: makeMetaFixture("work-item-late-member", { state: "Planning", currentWorkflow: null, cohort: path }) });
+    return { f, parent: success(await f.store.read({ reference: parent.reference })), child: success(await f.store.read({ reference: child.reference })),
+      member: success(await f.store.read({ reference: memberRef })), path, tie };
+  }
+
+  it.each(["first segment", "leaf", "disagreeing path"] as const)("refuses with nothing written when its %s leaves the member unsettled, then lands after an exit", async variant => {
+    const { f, parent, child, member, path, tie } = await stragglerFixture(variant);
+    expect(member.fields).toMatchObject({ cohort: path });
+    const version = success(await f.store.version());
+    const refused = await f.invoke(["rename", uidOf(parent.reference), "after", "--json"]);
+    expect(refused.exitCode, refused.stdout + refused.stderr).toBe(1);
+    expect(refused.result).toMatchObject({ status: "rejected", refusal: { code: "record-malformed", rule: "lifecycle.rename", reference: child.reference } });
+    expect(success(await f.store.version())).toBe(version);
+    const remedy = z.object({ refusal: z.object({ remedy: z.object({ text: z.string() }) }) }).parse(refused.result).refusal.remedy.text;
+    expect(remedy).toContain(`work unit ${member.reference.owner.name} (UID ${uidOf(member.reference)})`);
+    expect(remedy).toContain("clear its Cohort");
+    if (variant === "first segment" && tie !== undefined) {
+      expect(remedy).toContain(`\`arc rename ${uidOf(tie)} <new-slug>\``);
+      const moved = await f.invoke(["rename", uidOf(tie), "moved-shared", "--json"]);
+      expect(moved.exitCode ?? 0, moved.stdout + moved.stderr).toBe(0);
+      expect(holdingReport.parse(moved.result).report.references.map(row => row.record.uid)).not.toContain(uidOf(member.reference));
+      expect(success(await f.store.read({ reference: member.reference }))).toEqual(member);
+    } else {
+      expect(remedy).not.toContain("arc rename");
+      success(await f.store.write({ ...recordPut(member, { content: writeMetaCohort(member.content, null) }), provenance: edit }));
+    }
+    const landed = await f.invoke(["rename", uidOf(parent.reference), "after", "--json"]);
+    expect(landed.exitCode ?? 0, landed.stdout + landed.stderr).toBe(0);
+    const renamedChild = success(await f.store.read({ reference: child.reference }));
+    expect(renamedChild.fields).toMatchObject({ parent: "after" });
+    expect(renamedChild.placement).toEqual(child.placement);
+    expect(success(await f.store.read({ reference: member.reference })).fields)
+      .toMatchObject({ cohort: variant === "first segment" ? `after/${child.reference.owner.name}` : null });
+  }, 60_000);
+
+  it("retains an open subcohort's Parent with a member whose path disagrees with it", async () => {
+    const { f, parent, child, member } = await stragglerFixture("open child");
+    const renamed = await f.invoke(["rename", uidOf(parent.reference), "after", "--json"]);
+    expect(renamed.exitCode ?? 0, renamed.stdout + renamed.stderr).toBe(0);
+    for (const record of [child, member]) expect(success(await f.store.read({ reference: record.reference }))).toEqual(record);
+    expect(holdingReport.parse(renamed.result).report.references.map(row => row.record.uid))
+      .toEqual(expect.arrayContaining([uidOf(child.reference), uidOf(member.reference)]));
+  }, 60_000);
 });

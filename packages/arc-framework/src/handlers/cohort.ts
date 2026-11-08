@@ -6,7 +6,7 @@ import { createStore } from "../lib/store/create.js";
 import { createDefaultStorePorts } from "../lib/store/default-ports.js";
 import { createGitExec } from "../lib/io-context.js";
 import { requireArcProjectRoot } from "./shared.js";
-import { parseLifecycleCommand } from "./lifecycle-shared.js";
+import { z } from "zod";
 import { CohortCloseInputSchema, CohortRemoveInputSchema } from "./store-command-input.js";
 
 interface CohortOptions { yes?: boolean; json?: boolean }
@@ -26,11 +26,18 @@ async function handleCohort(operation: "close" | "remove", cohort: string, optio
   if (cwd === null) return;
   const store = createStore(createDefaultStorePorts({ checkoutRoot: cwd, exec: createGitExec(context?.subprocess) }));
   const schema = operation === "close" ? CohortCloseInputSchema : CohortRemoveInputSchema;
-  if (store.capabilities.stateOffBranch && parseLifecycleCommand(schema, { cohort, json: options.json },
-    ["cohort", operation], options.json === true) === null) return;
+  const parsed = store.capabilities.stateOffBranch ? schema.safeParse({ cohort, json: options.json }) : undefined;
+  if (parsed?.success === false) { renderCohort(inputRefusal(operation, z.prettifyError(parsed.error)), options.json === true); return; }
   const input = { operand: cohort, confirmed: options.yes === true };
   const result = operation === "close" ? await runCohortClose(store, input) : await runCohortRemove(store, input);
   renderCohort(result, options.json === true);
+}
+
+/** Malformed input refuses in the same envelope as every other cohort refusal. */
+function inputRefusal(operation: "close" | "remove", condition: string): Extract<CohortCommandResult, { status: "refused" }> {
+  const help = ["arc", "cohort", operation, "--help"];
+  return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", rule: `cohort.${operation}-input`, condition,
+    remedy: { text: `Command input must satisfy its registered schema; review \`${help.join(" ")}\`, then retry.`, argv: help } } };
 }
 
 function renderCohort(result: CohortCommandResult, json: boolean): void {

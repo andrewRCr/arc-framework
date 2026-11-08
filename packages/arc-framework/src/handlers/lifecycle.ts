@@ -678,7 +678,7 @@ export async function handleStub(
   reportOutcome("Stubbed", [`Work unit: ${parsed.data.name}`, `Meta:      ${result.metaPath}`], result.outcome);
 }
 
-/** `arc rename <slug> <new-slug>` — atomically rename a work unit and its applicable identities. */
+/** `arc rename <slug> <new-slug>` — atomically rename a work unit or cohort and its applicable identities. */
 export async function handleRename(
   sourceSlug: string,
   targetSlug: string,

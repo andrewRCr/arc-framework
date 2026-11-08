@@ -128,6 +128,12 @@ adopted the branch, and which commits are no task's work.
    changing its fields independently would violate Parent consistency, or an unproved companion identity prevents a
    supported full-path repair. Independently repairable sole holdings still move in the atomic batch. Retained groups
    name their exact holding owners and the prerequisites for owner-chosen repair.
+
+   Amended 2026-11-08 by `cohort-identity-verbs` (A8/A9): the cohort rename also leaves unchanged a sole holding whose
+   `Cohort` path's first segment is not, by identity, its leaf's current `Parent`. Where the renamed cohort is a closed
+   subcohort's sole `Parent`, it refuses before its batch, writing nothing, while any open member naming that subcohort
+   would be left off `<new-slug>/<subcohort>`; the refusal names the member owner's `Cohort` clear and, for a first
+   segment tied between live cohorts holding it as their current name, the other holder's UID rename.
 2. **The work-item base** — `seam-record-kinds`; `seam-lifecycle` reads lifecycle location and makes promotion's role
    put, `seam-locus` reads the owner and warns of an identity collision, and `seam-status-roadmap` reads the owner.
 3. **The meta's cross-member fields** — `seam-record-kinds`; `seam-lifecycle` renames, discharges edges, and settles how
@@ -148,6 +154,12 @@ adopted the branch, and which commits are no task's work.
    They advertise ordered field edits only where the complete destination is proved. An unproved companion instead
    leaves its fields unchanged and receives an exact owner row with no executable edit, plus the identity prerequisite
    that must be resolved before its owner chooses the intended current path.
+
+   Amended 2026-11-08 by `cohort-identity-verbs` (A8/A9): a holding whose path disagrees with its leaf's `Parent` is
+   reported with the edit to the leaf's current path. A closed subcohort's unsettled open member is not reported but
+   refuses the rename (item 1), and a tied path whose closed leaf's `Parent` resolves to another cohort is that cohort's
+   member, which a co-holder's rename leaves unreported. Retained closed groups are reported by owner with no field
+   edit.
 4. **Session context** — `seam-record-kinds`, the schema; `seam-locus`'s handoff writes it and session-init reads it,
    `seam-lifecycle`'s archive clears it, and lifecycle, decomposition, delivery's `arc attest`, and locus write
    `Next Action`.
@@ -175,6 +187,10 @@ adopted the branch, and which commits are no task's work.
    Where a full repair is proved, its report includes the complete child-member context and the existing clear open
    `Cohort` → change `Parent` → restore open membership → update completed membership order. Closed-child restrictions
    still apply; unresolved companion groups retain their fields and report item 3's prerequisite.
+
+   Amended 2026-11-08 by `cohort-identity-verbs` (A8/A9): the batch leaves a disagreeing path unchanged, and rewrites a
+   closed subcohort's `Parent` only with every open member naming that subcohort settled at its new path in the same
+   batch; otherwise the rename refuses before writing (item 1).
 8. **Parsed prose fields** — `seam-record-kinds`; `seam-status-roadmap`'s purpose read and `design` selector read
    Purpose, `seam-decomposition`'s scaffold copies drafts and specs, and `seam-lifecycle`'s rename sweep rewrites them.
 9. **Entry managed fields** — `seam-locus`, with the entry-field module and the inbound list and Errand description
@@ -192,6 +208,12 @@ adopted the branch, and which commits are no task's work.
     where its prior `Cohort` named that same cohort, re-pointing it. `cohort.open-members` and archive's closeout rule
     (`checkCohortArchiveCloseout`) count a cohort's holders by resolving each path segment among cohorts rather than by
     text, an ambiguous segment counting where the cohort is among its candidates.
+
+    Amended 2026-11-08 by `cohort-identity-verbs` (A7): two rules join. `rename.preparation`, run for the meta and
+    cohort kinds, prepares a rename batch again over the state it lands on, and admits it only where each record that
+    preparation acquired lands as it writes it or unchanged, and the batch observes or writes every present record it
+    read. `cohort.remove-holdings` keeps a cohort's document through `arc cohort remove` while any record, open or
+    completed, holds the cohort.
 12. **Prepared writes** — `seam-lifecycle`, the protocol; `seam-decomposition` and `seam-locus` follow it for their
     reconciling writers.
 13. **The completed-item refusal** — `storage-ref-backend`, settled at its draft close (Owner, 2026-10-10). On a clone

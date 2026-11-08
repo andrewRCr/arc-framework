@@ -5,7 +5,8 @@ import type { StoreResult, StoreRefusal } from "./refusal.js";
 import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences, sameReference, sameOwner, type RecordReference } from "./identity.js";
 import { batchLifecycleWrites, recordPut, recordWritePlacement, readLifecycleMetaFields } from "./lifecycle-write.js";
 import { observeRecords } from "./record-observations.js";
-import { checkCohortRenameTarget } from "./rename-target-admission.js";
+import { SlugSchema } from "../kernel/index.js";
+import { holderCondition } from "./creation-admission.js";
 import { rewriteCohortHeading, writeCohortParent, parseCohortDocument, rewriteCohortFilenameReferences } from "./kinds/cohort/index.js";
 import { observeRenameFormerName, readRenameResolution } from "./rename-reference-resolution.js";
 import { emptyRenameReport, type RenameReport, type RenameReportRecord } from "../work-unit/rename-report.js";
@@ -14,12 +15,19 @@ import { observeAllHoldings, cohortHoldingRepairs, type CohortHolding, type Coho
 import { writeMetaCohort } from "./kinds/meta/writers.js";
 import type { StoreView } from "./write-check.js";
 import type { Mutation, RecordObservation } from "./write.js";
+import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
+import { observeNamedRecord } from "./kinds/rule-support.js";
 import { acquireLifecycleRecords } from "../work-unit/prepared-lifecycle-write.js";
 interface CohortRenameWrites { writes: Mutation[]; report: RenameReport; advisories: string[] }
 interface CohortRenameEvidence { evidence: RecordReference[] }
 /** A cohort rename's complete batch and the records its preparation read. */
 export interface PreparedCohortRename extends CohortRenameWrites { records: StoreRecord[]; observations: RecordObservation[] }
-interface CohortRenamePlan { primary: StoreRecord; target: string; records: StoreRecord[]; contents: Map<StoreRecord, string> }
+interface CohortRenamePlan {
+  primary: StoreRecord; target: string; records: StoreRecord[]; contents: Map<StoreRecord, string>;
+  /** Each member Cohort path the batch writes. */
+  paths: Map<StoreRecord, string>;
+}
+interface ClosedStraggler { child: RecordReference; record: StoreRecord; path: string }
 
 /** Rename the UID-selected cohort without any code-branch or checkout operation. */
 export async function runCohortRename(store: Store, primary: StoreRecord,
@@ -82,6 +90,26 @@ function holdingEvidence(holdings: readonly CohortHolding[]): RecordReference[] 
     ...holding.members.flatMap(member => [member.candidate.reference, ...segments(member)])]);
 }
 
+/** Refuse any other current or former holder of a cohort's proposed name. */
+async function checkCohortRenameTarget(store: Pick<StoreView, "lookup">, primary: StoreRecord,
+  target: string): Promise<StoreResult<never> | undefined> {
+  const collision = await store.lookup({ kind: "slug", slug: SlugSchema.parse(target) });
+  let references: RecordReference[];
+  if (collision.status === "ok") {
+    if (sameReference(collision.result.reference, primary.reference)) return undefined;
+    references = [collision.result.reference];
+  } else {
+    if (collision.refusal.code !== "ambiguous-match") return collision.refusal.code === "not-found" ? undefined : collision;
+    references = collision.refusal.candidates;
+  }
+  const condition = holderCondition(target, { kind: "refused", cause: "lookup", ambiguous: references.length > 1,
+    holders: references.map(reference => ({ reference, name: reference.owner.name === target ? "current" : "former" })) });
+  const remedy = { text: "Choose another slug." };
+  return collision.status === "refused" ? { ...collision, refusal: { ...collision.refusal, condition, remedy } }
+    : { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: primary.reference,
+      rule: "lifecycle.rename", condition, remedy } };
+}
+
 function closedCohortRefusal(primary: StoreRecord): StoreRefusal | undefined {
   return primary.placement?.kind !== "completed" ? undefined : { code: "unsupported", class: "terminal", case: "rename",
     condition: `Cohort ${primary.reference.owner.name} is already completed; a closed cohort cannot be renamed.`,
@@ -94,9 +122,11 @@ async function prepareMembershipWrites(store: StoreView, primary: StoreRecord, t
   if (holdings.status !== "known") return malformed(primary, holdings.status === "unavailable" ? holdings.condition : "Cohort holdings are unavailable.");
   const retainedParents = coupledRetainedParents(holdings.value);
   const closed = retainedParents.filter(holding => holding.candidate.completed);
-  const plan: CohortRenamePlan = { primary, target, records: document.records, contents: new Map([[primary, document.content]]) };
+  const plan: CohortRenamePlan = { primary, target, records: document.records, contents: new Map([[primary, document.content]]), paths: new Map() };
   const membership = prepareSoleHoldings(plan, holdings.value, retainedParents);
   if (membership.status === "refused") return membership;
+  const stragglers = await refuseClosedStragglers(view, plan, holdings.value);
+  if (stragglers.status === "refused") return stragglers;
   const retainedHoldings = holdings.value.filter(holding => holding.resolution === "ambiguous" || retainedParents.includes(holding) || holding.segments.some(segment => segment.status !== "known"));
   const retained = reportAmbiguousHoldings(plan, retainedHoldings, closed);
   if (retained.status === "refused") return retained;
@@ -155,9 +185,69 @@ function prepareSoleHoldings(plan: CohortRenamePlan, holdings: readonly CohortHo
     const path = currentHoldingPath(holding, plan.primary, plan.target);
     if (path === null) continue;
     const content = plan.contents.get(record) ?? record.content;
+    if (holding.candidate.field === "cohort") plan.paths.set(record, path);
     plan.contents.set(record, holding.candidate.field === "cohort" ? writeMetaCohort(content, path) : writeCohortParent(content, path) ?? content);
   }
   return { status: "ok", result: true };
+}
+
+/** A closed subcohort whose Parent this rename rewrites can keep no open member the batch leaves on another path, which
+ * the Parent check would refuse and which could not rejoin it later (A9). The refusal names each exit: a tied name's
+ * other open holder's rename, or the member owner's Cohort clear.
+ */
+async function refuseClosedStragglers(view: StoreView, plan: CohortRenamePlan, holdings: readonly CohortHolding[]): Promise<StoreResult<true>> {
+  const stragglers = closedStragglers(plan, holdings);
+  const first = stragglers[0];
+  if (first === undefined) return { status: "ok", result: true };
+  const exits: string[] = [];
+  for (const straggler of stragglers) {
+    const holders = await tiedHolders(view, plan, straggler);
+    if (holders.status === "refused") return holders;
+    const renames = holders.result.map(holder => `rename cohort ${holder.owner.name} with \`arc rename ${ownerUid(holder)} <new-slug>\``);
+    exits.push(`For ${describeOwner(straggler.record.reference)}: ${[...renames, "have its owner clear its Cohort, after which it cannot rejoin"
+      + ` closed subcohort ${straggler.child.owner.name}`].join(", or ")}.`);
+  }
+  return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: first.child, rule: "lifecycle.rename",
+    condition: "A closed subcohort's Parent names this cohort, so the rename rewrites it, but its open members would keep other paths: "
+      + `${stragglers.map(item => `${describeOwner(item.record.reference)} at ${JSON.stringify(item.path)} under ${describeOwner(item.child)}`).join("; ")}.`,
+    remedy: { text: `${exits.join(" ")} Then retry the rename.` } } };
+}
+
+/** Every open member the Parent check would compare with a rewritten closed Parent, kept off its settled path. */
+function closedStragglers(plan: CohortRenamePlan, holdings: readonly CohortHolding[]): ClosedStraggler[] {
+  const children = holdings.filter(holding => holding.candidate.field === "parent" && holding.candidate.completed
+    && holding.resolution === "sole" && holding.candidate.path !== plan.target);
+  return children.flatMap(holding => {
+    const child = holding.candidate.reference, settled = `${plan.target}/${child.owner.name}`;
+    return plan.records.flatMap(record => {
+      if (record.reference.kind !== "work-item/meta" || record.placement?.kind === "completed") return [];
+      const fields = ParsedMetaRecordSchema.safeParse(record.fields);
+      const path = plan.paths.get(record) ?? (fields.success ? fields.data.cohort : null);
+      return path === null || path === settled || !path.split("/").includes(child.owner.name) ? [] : [{ child, record, path }];
+    });
+  });
+}
+
+/** The other holders of a live current-name tie on a straggler's first segment: renaming one leaves it a former holder,
+ * which the renamed cohort's current name outranks. No rename settles a leaf, since any live holder of the name outranks
+ * the closed subcohort, nor a former-name tie, since former names persist.
+ */
+async function tiedHolders(view: StoreView, plan: CohortRenamePlan, straggler: ClosedStraggler): Promise<StoreResult<RecordReference[]>> {
+  const parts = straggler.path.split("/"), name = parts[0], primary = plan.primary.reference.owner;
+  if (parts.length !== 2 || name === undefined || name === straggler.child.owner.name) return { status: "ok", result: [] };
+  const observed = await observeNamedRecord(view, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name })));
+  if (observed.status === "unavailable") return malformed(plan.primary, observed.condition);
+  const tied = observed.status === "ambiguous" && observed.tie?.liveness === "live" && observed.tie.name === "current"
+    && observed.candidates.some(candidate => sameOwner(candidate.owner, primary));
+  return { status: "ok", result: tied ? observed.candidates.filter(candidate => !sameOwner(candidate.owner, primary)) : [] };
+}
+
+function describeOwner(reference: RecordReference): string {
+  return `${reference.kind === "cohort/document" ? "cohort" : "work unit"} ${reference.owner.name} (UID ${ownerUid(reference)})`;
+}
+
+function ownerUid(reference: RecordReference): string {
+  return reference.owner.type === "person" ? "unavailable" : reference.owner.uid ?? "unavailable";
 }
 
 async function prepareFilenameReferences(view: StoreView, plan: CohortRenamePlan,
@@ -174,6 +264,7 @@ async function prepareFilenameReferences(view: StoreView, plan: CohortRenamePlan
     const rewritten = rewriteCohortFilenameReferences(content, plan.primary.reference.owner.name, plan.target);
     if (content === rewritten) continue;
     if (resolution.result === "subject") { plan.contents.set(record, rewritten); continue; }
+    evidence.push(record.reference);
     const owner = holdingReportRecord(record.reference);
     if (owner === null) return malformed(plan.primary, "A filename reference has no exact holding owner identity.");
     const own = sameReference(record.reference, plan.primary.reference);
@@ -215,7 +306,10 @@ function cohortRenameMutations(records: readonly StoreRecord[], contents: Readon
 function reportAmbiguousHoldings(plan: CohortRenamePlan, holdings: readonly CohortHolding[],
   closed: readonly CohortHolding[]): StoreResult<Pick<CohortRenameWrites, "report" | "advisories">> {
   const { primary, target } = plan;
-  const edits = cohortHoldingRepairs(postBatchHoldings(holdings, plan), target);
+  const kept = closed.flatMap(holding => [holding.candidate, ...holding.members.map(member => member.candidate)]);
+  const planned = holdings.filter(holding => !kept.some(candidate => sameReference(candidate.reference, holding.candidate.reference))
+    && !othersClosedMember(holding, primary));
+  const edits = cohortHoldingRepairs(postBatchHoldings(planned, plan), target);
   if (edits.status !== "known") return malformed(primary, edits.status === "unavailable" ? edits.condition : "Holding edits are unavailable.");
   const references: Array<RenameReport["references"][number]> = edits.value.edits.map(({ record, ...edit }) => ({ record, edits: [{ kind: "field", ...edit }] }));
   const advisories: string[] = edits.value.deferred.map(group => group.condition
@@ -231,6 +325,14 @@ function reportAmbiguousHoldings(plan: CohortRenamePlan, holdings: readonly Coho
     if (added.status === "refused") return added;
   }
   return { status: "ok", result: { report: { ...emptyRenameReport(), references }, advisories } };
+}
+
+/** A tied path whose closed leaf's Parent resolves to another cohort is that cohort's member: this rename has no edit for it. */
+function othersClosedMember(holding: CohortHolding, primary: StoreRecord): boolean {
+  const leaf = holding.segments.at(-1);
+  return holding.candidate.field === "cohort" && holding.resolution === "ambiguous" && leaf?.status === "known"
+    && leaf.resolutionRecord.placement?.kind === "completed" && holding.parent?.status === "known"
+    && !sameReference(holding.parent.reference, primary.reference);
 }
 
 function appendReportHolders(references: Array<RenameReport["references"][number]>, candidates: readonly StoreRecord["reference"][],

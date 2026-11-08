@@ -151,7 +151,7 @@ export async function prepareStoreRename(store: RenamePlanView, subject: StoreRe
   const written = records.filter(record => writes.some(write => sameReference(write.reference, record.reference)));
   const observations = mergeRenameObservations([...observeRecords(written), ...subject.evidence, ...groups.result.observations,
     ...heading.value.observations, ...settlement.observations, ...own.result.observations, ...resolution.result.evidence,
-    ...(holders?.result.evidence ?? []), ...workUnitRenameReportObservations({ records, entries: groups.result.entries }, report)],
+    ...(holders?.result.evidence ?? []), ...workUnitRenameReportObservations({ records, entries: groups.result.entries, written }, report)],
   subject, targetSlug);
   if (observations.status === "refused") return observations;
   return { status: "ok", result: { subject, records, writes, observations: observations.result, report,

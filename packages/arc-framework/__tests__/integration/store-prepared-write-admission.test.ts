@@ -154,6 +154,31 @@ describe("work-unit rename name resolution at admission over ref", () => {
     expect(retried.exitCode ?? 0, retried.stdout + retried.stderr).toBe(0);
     expect(success(await f.store.read({ reference: waiting.reference })).fields).toMatchObject({ dependsOn: [name] });
   }, 60_000);
+
+  it("refuses a batch when a citing stub arrives under a tied name, then reports it on retry", async () => {
+    const f = await fixture("ref"), source = await f.stub("example"), name = source.reference.owner.name;
+    await f.namesake(name);
+    const citing = f.reference("work-item/meta", "citing"), citation = `See \`spec-${name}.md\`.`;
+    const content = `${makeMetaFixture(citing.owner.name, { state: "Planning", currentWorkflow: null })}\n${citation}\n`;
+    let arrived: StoreRecord | undefined, version: unknown;
+    const argv = ["rename", uid(source), "renamed", "--json"];
+    const refused = await f.invoke(argv, beforeBatch(async () => {
+      arrived = await seed(f, citing, content, planned);
+      version = success(await f.store.version());
+    }));
+    expect(refused.exitCode, JSON.stringify(refused.result)).toBe(1);
+    expect(refused.result).toMatchObject({ refusal: { rule: "rename.preparation" } });
+    expect(success(await f.store.version())).toBe(version);
+    if (arrived === undefined) throw new Error("Expected arrival");
+    await expectUnchanged(f, [source, arrived]);
+    const retried = await f.invoke(argv);
+    expect(retried.exitCode ?? 0, retried.stdout + retried.stderr).toBe(0);
+    await expectUnchanged(f, [arrived]);
+    expect(retried.result).toMatchObject({ report: { references: expect.arrayContaining([{
+      record: { type: "work-unit", name: arrived.reference.owner.name, uid: uid(arrived) },
+      edits: [{ kind: "text", document: arrived.reference, line: content.split("\n").indexOf(citation) + 1,
+        replacement: "See `spec-renamed.md`." }] }]) } });
+  }, 60_000);
 });
 
 describe.each(["reference", "ref"] as const)("work-unit rename advisory and branch evidence at admission over %s", backend => {

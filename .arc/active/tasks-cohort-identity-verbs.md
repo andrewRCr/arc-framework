@@ -144,6 +144,10 @@ former slug naming the current one and admit a completed meta's rewrite onto a c
 
         - _Amended in:_ review-fix (A3).
 
+- _Review correction:_ A malformed `arc cohort close` or `remove` operand refuses in the cohort commands' own refusal
+  envelope, `status: "refused"` with a `cohort.<operation>-input` rule and the help argv, like every other cohort
+  refusal, rather than the lifecycle verbs' `rejected` shape.
+
 ## **Phase 2:** Selecting a subject by UID, and the Errand exits
 
 _Purpose:_ Build the subject operand every new verb shares — an exact UID scanned across the primary kinds a verb names,
@@ -496,6 +500,11 @@ its history refs, discharging the edges naming it.
   a name are both swept rather than one silently skipped while its dependency row is still reported. Native CLI
   dispatch covers two namesake stubs citing the subject.
 
+- _Review correction:_ Under an ambiguous name, the batch observes each acquired record it leaves unwritten that yields
+  a report row, at its read version and conflict set. A Planning stub citing the subject that arrives before the batch
+  now refuses it through `rename.preparation`, and the retry reports the stub; the native case landed without the row
+  before the change.
+
     - _Amended in:_ 5.R (A7).
 
 ### `[x]` **4.6 Pull history refs round after round — § 2.6**
@@ -628,8 +637,17 @@ old name refuses naming the current one.
   omitted; refusal preserves all rename state and fresh preparation includes them. Coupled retention and existing
   closed-child restrictions remain enforced; unrelated arrivals do not invalidate a prepared rename.
 
+- _Review correction:_ A parent's rename refuses before its batch, with nothing written, while a closed subcohort whose
+  `Parent` names it holds an open member the batch cannot settle: a tied first segment or leaf, or a path disagreeing
+  with the subcohort's `Parent`. The refusal names the member owner's `Cohort` clear and, for a first segment tied
+  between live cohorts holding it as their current name, the other holder's UID rename; that rename no longer refuses
+  over a tied path whose closed leaf's `Parent` names another cohort, and retained closed groups stay out of the repair
+  planner. Native CLI cases for the three causes refuse through `cohort.parent` before the change, then refuse naming
+  their exits and land after one; an open subcohort with a disagreeing member still lands with both retained.
+
     - _Amended in:_ 5.R (A7).
     - _Amended in:_ 5.R2 (A8).
+    - _Amended in:_ review-fix (A9).
 
 ### `[x]` **5.2.R Keep cohort repair planning reachable — A6**
 
@@ -664,6 +682,10 @@ old name refuses naming the current one.
 - _Outcome:_ The cohort kind rewrites exact filename citations in open documents and whole Planning stub groups,
   excluding cut maps, while preserving work-item edges and started or closed prose. Ambiguous citations carry exact
   document, companion key, line, and replacement in text and JSON; all acquired group records join the batch observations.
+
+- _Review correction:_ Each record yielding an ambiguous filename row joins the preparation's evidence, so a citing stub
+  companion arriving before the batch refuses it through `rename.preparation`, and the retry reports the citation's
+  edit. The native case landed without the row before the change.
 
 ### `[x]` **5.4 Refuse a closed cohort and a taken target — § 5.1, § 5.4, § 5.5**
 
@@ -916,6 +938,13 @@ Over the ref backend and, where it can form the state, the reference backend, fr
 - `[x]` Renaming the leaf cohort, or the stale first segment, of a completed member's `Cohort` path whose first segment
   is no longer the leaf's `Parent` lands, leaves that `Cohort` unchanged, and reports the edit to the leaf's current
   path.
+
+- `[x]` Renaming a parent that is a closed subcohort's `Parent`, while an open member of that subcohort has a tied first
+  segment, a tied leaf, or a path disagreeing with the subcohort's `Parent`, refuses with nothing written, naming the
+  member owner's `Cohort` clear and, for a first segment tied between live cohorts holding it as their current name,
+  the other holder's UID rename, which lands; after either exit the parent's rename lands with the subcohort's `Parent`
+  at the new slug. An open subcohort whose member's path disagrees with its `Parent` still lets the rename land,
+  retaining both.
 
 **Deviation (criterion 16, A3):** Ordinary same-name rename input checks follow backend selection; outside an ARC project,
 the missing-project refusal takes precedence. Admitted in-repo commands retain distinct-name rejection.

@@ -1,4 +1,4 @@
-/** Text refusals preserve every holder and apply ranked repairs only when ranking facts exist. */
+/** Text refusals name every holder and print the refusal's own remedy, ties included, never a rebuilt ranked repair. */
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { refuse, refuseWithRemedy } from "../../../src/handlers/lifecycle-shared.js";
 import { StoreRefusalSchema } from "../../../src/lib/store/refusal.js";
@@ -14,7 +14,7 @@ beforeEach(() => {
 });
 afterEach(() => { vi.restoreAllMocks(); process.exitCode = priorExitCode; });
 it.each([false, true].flatMap(ranked => [false, true].map(wrapped => ({ ranked, wrapped }))))(
-  "prints typed holders and the applicable recovery, ranked=$ranked wrapped=$wrapped", ({ ranked, wrapped }) => {
+  "prints typed holders and the refusal's own remedy, ranked=$ranked wrapped=$wrapped", ({ ranked, wrapped }) => {
     const refusal = StoreRefusalSchema.parse({ code: "ambiguous-match", class: "recoverable",
       condition: "More than one holder matches.", remedy: { text: "Repair the recorded links.", argv: ["arc", "status", "--json"] },
       candidates: [recordReferences["work-item/meta"](OwnerIdentitySchema.parse({ type: "work-item", name: "example", uid: uidA })),
