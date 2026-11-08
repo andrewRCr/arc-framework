@@ -1,4 +1,5 @@
 import { removeGitBackedDirs } from "../helpers/temp-repo.js";
+import { killOwnedProcesses } from "../helpers/owned-processes.js";
 import { execFile } from "node:child_process";
 import { access, chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -18,17 +19,26 @@ import { GitBatchReadScope } from "../../src/lib/git/batch-reader.js";
 const execFileAsync = promisify(execFile);
 const exec = createExecaGitExec();
 const roots: string[] = [];
-const children = new Set<number>();
+/** PIDs the tests started, each with the check its command line must still pass before cleanup kills it. */
+const children = new Map<number, (command: string) => boolean>();
+/** Owner check for a PID known only from a file the test's own script wrote, in cases that never run on Windows. */
+const anyCommand = (): boolean => true;
 
 afterEach(async () => {
   vi.unstubAllEnvs();
-  for (const pid of children) kill(pid);
-  children.clear();
+  await stopChildren();
   await removeGitBackedDirs(roots.splice(0));
 });
 
 function kill(pid: number): void {
   try { process.kill(pid, "SIGKILL"); } catch { /* Already exited. */ }
+}
+
+/** Kill the recorded children still running what they ran when recorded, and forget them all. */
+async function stopChildren(): Promise<void> {
+  const owned = new Map(children);
+  children.clear();
+  await killOwnedProcesses(owned, processes);
 }
 
 let processLister: Promise<string> | undefined;
@@ -63,7 +73,7 @@ async function waitForProcess(token: string): Promise<number> {
   for (let attempt = 0; attempt < 300; attempt += 1) {
     const child = (await processes()).find((row) => row.command.includes(token) && runsGit(row.command));
     if (child) {
-      children.add(child.pid);
+      children.set(child.pid, (command) => command === child.command);
       return child.pid;
     }
     await delay(10);
@@ -112,7 +122,7 @@ describe("Git process cancellation", () => {
       await canceledWithin(pending, controller);
     } finally {
       controller.abort();
-      for (const pid of children) kill(pid);
+      await stopChildren();
       await pending.catch(() => undefined);
     }
   });
@@ -130,7 +140,10 @@ async function rememberTree(pid: number): Promise<number[]> {
   for (let index = 0; index < tree.length; index += 1) {
     for (const row of rows.filter((row) => row.parent === tree[index])) tree.push(row.pid);
   }
-  for (const child of tree) children.add(child);
+  for (const child of tree) {
+    const recorded = rows.find((row) => row.pid === child)?.command;
+    children.set(child, (command) => command === recorded);
+  }
   return tree;
 }
 
@@ -165,7 +178,7 @@ async function unsettledProcessUtility(root: string, inherited: boolean) {
   const pids = async () => readFile(marker, "utf8").then(value => value.trim().split(/\s+/u).map(Number), () => [] as number[]);
   return { pids, restore: async () => {
     await writeFile(recovered, "ready");
-    for (const pid of await pids()) { children.add(pid); kill(pid); }
+    for (const pid of await pids()) { children.set(pid, anyCommand); kill(pid); }
     vi.stubEnv("PATH", previous);
   } };
 }
@@ -203,7 +216,7 @@ describe("Git descendant cancellation", () => {
       await expectEnded(tree);
     } finally {
       controller.abort();
-      for (const pid of children) kill(pid);
+      await stopChildren();
       for (const socket of sockets) socket.destroy();
       await new Promise<void>((resolve) => server.close(() => resolve()));
       await pending.catch(() => undefined);
@@ -238,12 +251,12 @@ describe("Git descendant cancellation", () => {
         await delay(10);
       }
       expect(hookPids).toHaveLength(2);
-      for (const pid of hookPids) children.add(pid);
+      for (const pid of hookPids) children.set(pid, anyCommand);
       await canceledWithin(pending, controller);
       await expectEnded(hookPids);
     } finally {
       controller.abort();
-      for (const pid of children) kill(pid);
+      await stopChildren();
       await pending.catch(() => undefined);
     }
   });
@@ -277,7 +290,7 @@ describe("Git descendant cancellation", () => {
       await expectEnded(tree);
     } finally {
       controller.abort();
-      for (const pid of children) kill(pid);
+      await stopChildren();
       await pending.catch(() => undefined);
     }
   });
@@ -307,7 +320,7 @@ describe("Git cancellation after direct-child exit", () => {
         await delay(10);
       }
       expect(holder).toBeGreaterThan(0);
-      children.add(holder);
+      children.set(holder, anyCommand);
       await writeFile(release, "exit");
       await expectEnded([direct]);
       const alive = async () => (await processes()).some(({ pid, command }) => pid === holder && !command.includes("<defunct>"));
@@ -320,7 +333,7 @@ describe("Git cancellation after direct-child exit", () => {
       expect(await alive()).toBe(true);
     } finally {
       controller.abort();
-      for (const pid of children) kill(pid);
+      await stopChildren();
       await pending.catch(() => undefined);
     }
   }, 20_000);
@@ -349,7 +362,7 @@ describe("Git cancellation utility settlement", () => {
         await delay(10);
       }
       expect(holder).toBeGreaterThan(0);
-      children.add(holder);
+      children.set(holder, anyCommand);
       await writeFile(release, "exit");
       await expectReaped(direct);
       await settlesWithUnconfirmedDescendants(pending, controller);
@@ -361,7 +374,7 @@ describe("Git cancellation utility settlement", () => {
     } finally {
       controller.abort();
       await utility.restore();
-      for (const pid of children) kill(pid);
+      await stopChildren();
       await pending.catch(() => undefined);
     }
   }, 20_000);
