@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "review-recurring-cause-stop",
+  "claimId": "b39e08edf07d7d9ff9f5d46f6ac14c20",
+  "createdAt": "2026-11-08T01:48:17.190Z",
+  "updatedAt": "2026-11-08T01:48:17.190Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Let a review stop for the Owner's design decision when one cause keeps producing material findings, and count an unstated contract as a shared cause",
+  "branch": "chore/review-recurring-cause-stop",
+  "origin": "inbox",
+  "originEntry": "Stop for a class analysis when complete passes keep finding new majors",
+  "originEntrySourceDigest": "sha256:7a752031a9fc80151042a20e7c6f919dacb55a37208401baf70d181fee049927",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
