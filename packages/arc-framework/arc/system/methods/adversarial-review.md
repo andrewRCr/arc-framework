@@ -326,8 +326,10 @@ rather than reviewing it: each look reviews design the previous one wrote, so an
 instead of closing it. That is a floor-raising derivation signal at any pass count: offer the re-entry valve with a
 recommendation, and offer [assess-boundary-fit][assess-boundary-fit] as well when the design written in folds spans
 concerns that could stand apart. Material findings whose fixes are local corrections do not raise it, whatever their
-origin. Name the signal in the primary-facing report apart from the stop reason, so a stop at the cap never reads as
-the cap running out. A declined offer that lets the stage advance is an Owner-accepted risk with the signal named,
+origin, unless they are instances of one cause that [review-model § Trend][review-model-trend] reads as recurring
+across three looks: per-site repairs have not closed it, so the design question it raises goes to the Owner before
+another round. Name the signal in the primary-facing report apart from the stop reason, so a stop at the cap never reads
+as the cap running out. A declined offer that lets the stage advance is an Owner-accepted risk with the signal named,
 never the design holding. The re-entry and boundary offers in this gate belong to planning stages: in an amendment,
 [amend-design][amend-design] routes the same signals through its own depth read and its ceiling, never a
 planning-workflow re-entry.
