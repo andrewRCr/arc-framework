@@ -75,6 +75,18 @@ fix at the cause: every implementation of the rule, or one implementation in pla
 outside the reviewed change is named for the approver and routed as discovered work. Where no cause is shared, this
 adds nothing.
 
+A shared cause can also be a contract the design never states: findings whose repairs each patch a different
+participant of one property no rule defines, such as which records a prepared write guards against changing before it
+lands. Repairs one participant at a time cannot close that set, since nothing says where it ends. The fix at the cause
+is stating the contract, which is new design: propose it as those findings' disposition and put it to the Owner as a
+design question, not another per-site repair. Code review asks whether the spec needs `amend-design`; planning review
+folds the contract into the design.
+
+Run this look over every verified finding the lane has dispositioned, not only the latest look's. One or two findings
+a look rarely form a set on their own, and an earlier conclusion that nothing was shared holds only for the findings
+it saw. For each candidate cause, ask whether fixing it would have prevented the earlier findings; those it would have
+prevented are its instances, whichever look found them.
+
 ### Convergence and permission
 
 **Completeness** means every finding has an approved disposition, including unsupported findings. **Convergence**
@@ -103,7 +115,8 @@ the complete pass missed elsewhere. The last complete pass's own critical and ma
 as in inspection re-review criteria and capture-recapture estimates: a pass that found many likely missed more. Read the
 complete passes' counts in sequence for what the next may find. A falling series expects little; a high or flat one says
 the defects come from the change itself, so apply § Shared causes and say whether splitting the change or reworking its
-design would serve better than another pass.
+design would serve better than another pass. Complete coverage shows that a pass read the whole subject, not that the
+subject holds; only what the pass found speaks to that.
 
 Recommend on engineering grounds first, beside the last complete pass's critical and major count, then name any cost,
 time, or ceiling constraint separately for the Owner to weigh. Use your own judgment within this default: you may
@@ -154,11 +167,15 @@ signals inform the reading and stay out of the report. Each reading points to a 
   and its fix checks converged. This expects the next complete pass to find little, and supports stopping once one finds
   no critical or major finding.
 - **`discovering`** — a complete pass finds new material defect classes in code or text earlier looks already read,
-  rather than in folds, or a first complete pass finds many. This supports another complete pass after fix checks,
-  however they converge. It takes precedence over `converging` wherever both readings fit.
+  rather than in folds, or a first complete pass finds many. A new instance of a cause § Shared causes has already named
+  is not a new class. This supports another complete pass after fix checks, however they converge. It takes precedence
+  over `converging` wherever both readings fit.
 - **`sustained non-convergence`** — most material findings originate in earlier new-design folds and need new design
-  again. Stop for the Owner's decision: planning review offers the stage's re-entry or shaping route; code review asks
-  whether the spec needs `amend-design`. Another round must not silently become design authoring.
+  again, or one cause § Shared causes names has produced material findings in three looks. Stop for the Owner's
+  decision: planning review offers the stage's re-entry or shaping route; code review asks whether the spec needs
+  `amend-design`. Another round must not silently become design authoring, nor another per-site repair stand in for
+  that decision. The three looks must share a named cause, not merely a count of findings, and the stop composes with
+  any review stop the Owner has set: whichever is reached first applies. It takes precedence over `discovering`.
 
 A fix check reads its repairs, so a clean round shows those repairs hold, not that a rule repaired at one site holds at
 its others. Material findings that are siblings an earlier repair missed show the repair fixed a site rather than its
