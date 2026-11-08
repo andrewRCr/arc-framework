@@ -550,13 +550,15 @@ its path until the person resolves it (spec § 7.8; `spec-projection-substrate.m
 
 ### `[x]` **3.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Quality gates:_ Required local gates passed, including lint, both type checks, build, the complete unit tier and
-  six store shards. Full non-diagnostic CI 42375263422 at `8e8706a989` passed with the Windows/macOS pair and full
-  portability store coverage after one captured timing-job retry. Related selection did not reach unit setup;
-  the complete unit tier covered it.
-- _Success criteria:_ All eleven met, with the approved A3 parser exceptions recorded as a deviation. Five complete
-  independent criteria passes finished; the last found one minor inverse gap, corrected and verified. Approved
-  corrections retain their checks and explicit fix-check declines. Reference/native behavior is verified within
+- _Quality gates:_ Required local merge checks passed: 20 passed, including lint, build, both type checks,
+  the complete unit tier and six store shards (450 of 452 suites). Affected regressions passed 857 cases in
+  86 files, native-refusal checks 12 cases, and affected E2E 47 cases. Full non-diagnostic CI 42517854005 at
+  `a5d6e9f337` passed on attempt 1 with the portability pair and full Windows/macOS store coverage; no rerun.
+- _Success criteria:_ All sixteen met in the refreshed author walk, with the approved A3 parser exceptions
+  recorded as a deviation. Independent criteria Pass 6 found three major issues; its approved repairs and
+  required witnesses passed local checks and repair rounds with one then zero major findings. The Owner
+  skipped independent criteria Pass 7 unless standard Pass 4 produces substantial code changes. Standard
+  Pass 4 remains a separate approved pre-publication review. Reference/native behavior is verified within
   the specification's boundary; cutover and worktree follow-ons remain with their named owners.
 
 ---

@@ -11,7 +11,7 @@
 - **Design:** `spec-projection-write-back.md`
 - **Task List:** `tasks-projection-write-back.md`
 - **Review Rubric:** [none]
-- **Candidate:** `sha256:e1b48319b9f3330d2b15d93c25e17e9955eb185d30d4bf2a1591e09997e7210c`
+- **Candidate:** `sha256:45720436a2e55dbe870ded6980c642f67e87605e07dfd17b1b961af58e0de4a6`
 
 - **Current Workflow:** `prepare-work-unit`
 - **Last Completed:** Task 3.1 — Complete verification
