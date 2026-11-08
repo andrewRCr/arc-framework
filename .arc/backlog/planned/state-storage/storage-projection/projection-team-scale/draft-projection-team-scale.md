@@ -59,6 +59,11 @@ operation continuing. The cases known now:
   reprojection.
 - **D:** `arc unlock`, the edit, and the re-lock, across a concurrent change to the same archived record; and the
   archive pickup now that `arc save` no longer scans the archive.
+- **Prepared store writes:** a write this design prepares from store reads and submits as one batch, such as
+  `arc unlock` amending a file under `completed/`, states its fence by the pattern approved for prepared writes on
+  2026-11-07 (`cohort-identity-verbs`' design amendment A7): it re-derives its decision in a write check over `before`,
+  or observes everything that decision read. Its perturbation test injects a store change between preparation and the
+  batch for each kind of read the preparation makes.
 
 ## Held design text — C and D
 
