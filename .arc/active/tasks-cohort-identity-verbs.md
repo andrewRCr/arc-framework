@@ -675,11 +675,14 @@ old name refuses naming the current one.
   completed-member repairs use the exact planned Parent content and execute after the batch, retaining captured
   ownership evidence and the original observations; retained closed ambiguous subtrees stay unchanged.
 
-### `[ ]` **5.R Re-derive each prepared store write at admission — § 12 (A7)**
+### `[x]` **5.R Re-derive each prepared store write at admission — § 12 (A7)**
 
 - _Goal:_ Under A7, a rename's batch lands only where preparing it against the state it lands on yields the same writes
   from the same evidence, and archive's closeout binds each cohort it completes, so no record arriving, changing or
   gaining a conflict between preparation and submission goes unaccounted for.
+
+- _Outcome:_ Both renames re-plan at admission under `rename.preparation`, and archive's closeout binds each cohort it
+  completes. Every seeded arrival refuses with nothing written and lands on a fresh retry; unrelated writes admit.
 
     - `[x]` **5.R.a Arrivals refuse — failing first**
 
@@ -689,10 +692,10 @@ old name refuses naming the current one.
           taking over a former name, and a conflict on a cohort archive completes; plus an unrelated write. Each arrival
           case fails against the current admission.
         - _Outcome:_ `store-prepared-write-admission.test.ts` injects at the batch boundary on both backends: the
-          unrelated write, Candidate, quiet owned companion, departing and arriving namesakes, Integrating dependent
-          and branch-link holder. Against `a0c41a9c4b` the seven seeded cases fail on behavior; the arriving namesake
-          and Integrating dependent were already refused there and fail only on the new rule. 5.R.d seeds the archive
-          case. The existing cohort arrival suites cover the missing segment's cohort and namesake
+          unrelated write, Candidate, quiet owned companion, departing and arriving namesakes, Integrating dependent,
+          branch-link holder and archive's cohort conflict. Against `a0c41a9c4b` the seven seeded cases and the archive
+          conflict fail on behavior; the arriving namesake and Integrating dependent were already refused there and
+          fail only on the new rule. The existing cohort arrival suites cover the missing segment's cohort and namesake
           takeover. A second retired lineage cannot form locally, since `work-item.slug-edges` refuses the second
           generation while the stub's edge names the first; the batch-differs comparison that catches it is exercised
           by the arriving namesake.
@@ -716,15 +719,20 @@ old name refuses naming the current one.
           as the fresh preparation writes it or unchanged, which also refuses a write the fresh plan withholds; § 12.1
           now says so. Fixtures that build states the verb cannot reach rename under `fixtureRenameProvenance`.
 
-    - `[ ]` **5.R.d Archive's closeout observes the cohorts it completes**
+    - `[x]` **5.R.d Archive's closeout observes the cohorts it completes**
 
         - The transition batch and the stored closeout observe every cohort document they complete, so a conflict
           arriving on one refuses archive and leaves the cohort open.
+        - _Outcome:_ Both batches observe each cohort document they complete; a conflict arriving on the closing
+          cohort refuses archive with nothing written.
 
-    - `[ ]` **5.R.e Revalidate**
+    - `[x]` **5.R.e Revalidate**
 
         - Every 5.R.a arrival refuses with nothing written and lands on a fresh retry, or admits equal to fresh
           preparation; the unrelated write admits. The segment scenarios of 3.8, 4.12 and 5.6 still hold.
+        - _Outcome:_ Locally, 192 rename, archive, cohort and fixture-rename files (2,101 tests) pass, including the
+          rename and staged-archive E2E files, with both type checks and the increment gate. Hosted CI runs once at
+          convergence.
 
 ### `[x]` **5.6 A cohort renamed end to end** — validate exit criterion at segment scope
 

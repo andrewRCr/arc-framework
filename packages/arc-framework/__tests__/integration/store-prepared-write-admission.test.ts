@@ -12,6 +12,7 @@ import { candidateRecordFixture } from "../fixtures/review-candidate.js";
 import { serializeCandidateManagedRecord } from "../../src/lib/work-unit/candidate-attestation.js";
 import { prepareStoreRename, readStoreRenameSubject, submitStoreRename } from "../../src/lib/store/lifecycle-rename.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
+import { seedStatusConflict } from "../helpers/store/status-conflicts.js";
 import { resolveRenameReferences } from "../../src/lib/store/rename-reference-resolution.js";
 import type { Store } from "../../src/lib/store/contract.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
@@ -195,5 +196,23 @@ describe.each(["reference", "ref"] as const)("work-unit rename advisory and bran
     const renamed = success(await f.store.read({ reference: primary.reference }));
     expect(renamed.reference.owner.name).toBe("renamed");
     expect(renamed.links?.branches).toEqual([link]);
+  }, 60_000);
+});
+
+describe("archive closeout over reference", () => {
+  it("refuses an archive batch when the cohort it completes gains a conflict, leaving both open", async () => {
+    const f = await fixture("reference"), groupRef = f.reference("cohort/document", "group");
+    const group = await seed(f, groupRef, `# Cohort: \`${groupRef.owner.name}\`\n\n**Parent:** [none]\n\n**Purpose:** Deliver the group.\n`);
+    const subjectRef = f.reference("work-item/meta", "subject");
+    const subject = await seed(f, subjectRef, makeMetaFixture(subjectRef.owner.name, { cohort: groupRef.owner.name }));
+    let version: unknown;
+    const refused = await f.invoke(["archive", subjectRef.owner.name], beforeBatch(async () => {
+      await seedStatusConflict(f, RecordReferenceSchema.parse({ kind: "cohort/conflict-record", owner: group.reference.owner, key: "arrived" }));
+      version = success(await f.store.version());
+    }));
+    expect(refused.exitCode, refused.stdout + refused.stderr).toBe(1);
+    expect(success(await f.store.version())).toBe(version);
+    expect(success(await f.store.read({ reference: group.reference })).placement?.kind).not.toBe("completed");
+    expect(success(await f.store.read({ reference: subject.reference })).placement?.kind).not.toBe("completed");
   }, 60_000);
 });

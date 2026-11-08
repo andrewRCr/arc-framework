@@ -10,6 +10,7 @@ import type { WritePlacement } from "../../store/placement.js";
 import { OwnerIdentitySchema, recordReferences, sameReference } from "../../store/identity.js";
 import { identityKey, type LifecycleEntry } from "../../store/lifecycle-index.js";
 import { readWorkUnit, recordPut, workUnitMetaPath, batchLifecycleWrites } from "../../store/lifecycle-write.js";
+import { observeRecords } from "../../store/record-observations.js";
 import { completedCohortPath } from "../../store/lifecycle-record-path.js";
 import { readLifecycleView } from "../../store/lifecycle-view.js";
 import { requireCompleteInventory } from "../../store/lifecycle-storage.js";
@@ -56,7 +57,8 @@ export async function runStoreArchive(ctx: ArchiveContext & { executor: ArchiveC
   const { writes } = cohorts;
   const content = writeMetaSessionType(writeMetaCommitAtHandoff(writeMetaStateAtHandoff(writeMetaSessionContext(primary.content, null), null), null), null);
   const outcome = await executeTransition(ctx.executor, { verb: "archive", slug: params.name, inputs: {
-    suggestion: params.suggestion, storeTransition: { primary, content, placement: { kind: "completed", quarter }, additionalWrites: writes, preparedRecords: cohorts.records },
+    suggestion: params.suggestion, storeTransition: { primary, content, placement: { kind: "completed", quarter }, additionalWrites: writes, preparedRecords: cohorts.records,
+      observations: observeRecords(cohorts.completed) },
   } });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message,
     ...("refusal" in outcome && outcome.refusal !== undefined ? { refusal: outcome.refusal } : {}),
@@ -88,7 +90,7 @@ async function settleStoredArchiveSteps(store: Store, primary: StoreRecord, outc
 }
 
 async function prepareStoredCloseout(store: Store, primary: StoreRecord): Promise<
-  { status: "ready"; primary: StoreRecord; cohort: string | null; writes: Mutation[]; records: StoreRecord[]; notices: string[] }
+  { status: "ready"; primary: StoreRecord; cohort: string | null; writes: Mutation[]; records: StoreRecord[]; completed: StoreRecord[]; notices: string[] }
   | Extract<ArchiveResult, { status: "rejected" }>> {
   const name = primary.reference.owner.name;
   const current = await store.read({ reference: primary.reference });
@@ -113,12 +115,12 @@ function archiveMemberCandidates(entries: readonly LifecycleEntry[], completing?
   return candidates;
 }
 
-async function publishCohortCloseout(store: Store, name: string, cohorts: { writes: Mutation[]; records: StoreRecord[] },
+async function publishCohortCloseout(store: Store, name: string, cohorts: { writes: Mutation[]; records: StoreRecord[]; completed: StoreRecord[] },
   notices: string[]): Promise<Extract<ArchiveResult, { status: "rejected" }> | undefined> {
   if (cohorts.writes.length === 0) return undefined;
   const valid = await revalidateLifecycleRecords(store, cohorts.records);
   if (valid.status === "refused") return reportFailure(name, valid.refusal);
-  const closed = await batchLifecycleWrites(store, cohorts.writes, { verb: "archive", lifecycleAction: "archive" });
+  const closed = await batchLifecycleWrites(store, cohorts.writes, { verb: "archive", lifecycleAction: "archive" }, observeRecords(cohorts.completed));
   return closed.status === "refused" ? reportFailure(name, closed.refusal) : publishArchive(store, name, notices);
 }
 
@@ -193,10 +195,10 @@ async function reportStoredArchive(store: Store, primary: StoreRecord, outcome: 
 
 async function prepareArchiveCohorts(store: Store, member: StoreRecord, prospective: readonly CohortHoldingCandidate[],
   quarter: Extract<WritePlacement, { kind: "completed" }>["quarter"], protectOpen = true): Promise<
-  { status: "ready"; writes: Mutation[]; records: StoreRecord[]; notices: string[] } | Extract<ArchiveResult, { status: "rejected" }>> {
+  { status: "ready"; writes: Mutation[]; records: StoreRecord[]; completed: StoreRecord[]; notices: string[] } | Extract<ArchiveResult, { status: "rejected" }>> {
   const cohort = ParsedMetaRecordSchema.parse(member.fields).cohort;
   const cohortPaths = cohort === null ? [] : [cohort, ...(cohort.includes("/") ? [cohort.split("/")[0] ?? ""] : [])];
-  if (cohortPaths.length === 0) return { status: "ready", writes: [], records: [], notices: [] };
+  if (cohortPaths.length === 0) return { status: "ready", writes: [], records: [], completed: [], notices: [] };
   const open = await observeOpenCohorts(store);
   if (open.status !== "known") return { status: "rejected", reason: open.status === "unavailable" ? open.condition : "Open cohort inventory is unavailable.",
     remedy: { text: "Repair the cohort inventory, then retry archive." } };
@@ -210,7 +212,7 @@ interface ArchiveCohortSnapshot {
 }
 
 async function prepareObservedCohorts(store: Store, cohortPaths: readonly string[], snapshot: ArchiveCohortSnapshot): Promise<
-  { status: "ready"; writes: Mutation[]; records: StoreRecord[]; notices: string[] } | Extract<ArchiveResult, { status: "rejected" }>> {
+  { status: "ready"; writes: Mutation[]; records: StoreRecord[]; completed: StoreRecord[]; notices: string[] } | Extract<ArchiveResult, { status: "rejected" }>> {
   const writes: Mutation[] = [], records: StoreRecord[] = [], notices: string[] = [];
   const completing = new Set<string>();
   for (const path of cohortPaths) {
@@ -233,7 +235,13 @@ async function prepareObservedCohorts(store: Store, cohortPaths: readonly string
     records.push(cohort.result);
     writes.push(recordPut(cohort.result, closing ? { placement: { kind: "completed", quarter: snapshot.quarter } } : {}));
   }
-  return { status: "ready", writes, records, notices };
+  return { status: "ready", writes, records, completed: completedCohorts(records, writes), notices };
+}
+
+/** The cohort documents a closeout completes: a conflict arriving by pull leaves a version unchanged, so each is observed. */
+function completedCohorts(records: readonly StoreRecord[], writes: readonly Mutation[]): StoreRecord[] {
+  return writes.flatMap(write => write.action !== "put" || write.placement?.kind !== "completed" ? []
+    : records.filter(record => record.reference.kind === "cohort/document" && sameReference(record.reference, write.reference)).slice(0, 1));
 }
 
 async function observeArchiveHoldings(store: Store, cohort: RecordReference, snapshot: ArchiveCohortSnapshot, completing: ReadonlySet<string>): Promise<
