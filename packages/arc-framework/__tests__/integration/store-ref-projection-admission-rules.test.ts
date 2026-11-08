@@ -72,3 +72,41 @@ for (const backend of ["reference", "default", "separate"] as const) for (const 
       } finally { await h.dispose(); }
     });
   }
+
+
+for (const backend of ["reference", "default", "separate"] as const)
+  for (const participant of ["open-member", "open-cohort", "completed-member"] as const) {
+    it(`binds validated Parent inventory rows: ${backend}/${participant}`, async () => {
+      const f = backend === "reference" ? createReferenceFixture(ENTRY_CONFIGS, registry) : await createRefFixture(registry, backend);
+      const cohort = (name: string) => recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name }));
+      await seed(f, cohort("parent"), cohortDoc("parent").content);
+      const content = "# Cohort: `cohort-one`\n\n**Parent:** [none]\n\n**Purpose:** Coordinate the work.\n\n---\n";
+      const h = await createWriteBackFixture({ fixture: f, kind: "cohort/document", content });
+      try {
+        const completed = participant === "completed-member";
+        const observed = participant === "open-cohort"
+          ? await seed(f, cohort("other"), cohortDoc("other").content)
+          : await seed(f, f.reference("work-item/meta", "observed"), makeMetaFixture("work-item-observed", {
+            owner: "test-user", state: completed ? "Shipped" : "Active", workClass: "Light", priority: "P1",
+            currentWorkflow: completed ? null : "process-task-loop" }),
+          completed ? { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } : { kind: "active" });
+        const text = content.replace("**Parent:** [none]", "**Parent:** `parent`") + "\nAuthored nesting note.\n";
+        await h.edit(text);
+        const prepare = async () => {
+          const ready = await prepareWriteBack(h.context, h.request);
+          if (ready.kind !== "ready") throw new Error(JSON.stringify(ready));
+          return success(await prepareIndexedProjectionSubmission(h.context, h.request, ready));
+        };
+        const prepared = await prepare(), base = success(await f.store.read({ reference: h.entry.reference })), bytes = await h.file();
+        success(await f.store.write(update(f, observed, observed.content + "\nConcurrent prose note.\n")));
+        const result = await f.store.batch(prepared.batch);
+        if (!completed) {
+          expect(result).toMatchObject({ status: "refused", refusal: { code: "version-conflict", cause: "projection-admission" } });
+          expect(success(await f.store.read({ reference: h.entry.reference }))).toEqual(base);
+          expect(await h.file()).toBe(bytes);
+          success(await f.store.batch((await prepare()).batch));
+        } else expect(result.status).toBe("ok");
+        expect(success(await f.store.read({ reference: h.entry.reference })).content).toBe(text);
+      } finally { await h.dispose(); }
+    });
+  }

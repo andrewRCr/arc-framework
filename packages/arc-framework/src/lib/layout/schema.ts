@@ -38,10 +38,10 @@ export function companionFileKey(key: string, slug: Slug): string | null {
 }
 
 function hasDistinctCompanionKey({ key, slug, placement }: { key: string; slug: Slug; placement: WorkUnitPlacement }): boolean {
-  if (placement.kind === "active" && placement.scope.kind === "project" && placement.scope.location?.kind === "own"
-    && placement.scope.location.layoutActive === "flat" && key.startsWith("in-flight/")) return false;
   let file: string;
   try { file = companionStoredName(slug, key); } catch { return false; }
+  if (placement.kind === "active" && placement.scope.kind === "project" && placement.scope.location?.kind === "own"
+    && placement.scope.location.layoutActive === "flat" && (file === "in-flight" || file.startsWith("in-flight/"))) return false;
   return companionFileKey(file, slug) === key;
 }
 

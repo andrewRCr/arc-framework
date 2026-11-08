@@ -2,7 +2,7 @@
 import { formatConflictToken } from "../../status/conflict-token.js";
 import { sameReference, type RecordReference } from "../identity.js";
 import type { Store } from "../contract.js";
-import { ConflictRecordSchema } from "../conflict.js";
+import { checkStoredResolution } from "./stored-resolution.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { TakeInResolution } from "./take-in-port.js";
 import { closedResolution, unmappedResolutionRefusal } from "./save-lookup.js";
@@ -79,18 +79,12 @@ export async function recheckProjectionResolution(root: ProjectionRootState, ind
   if (target.resolution.kind === "hold") {
     intent.refusal = holdResolutionRefusal(entry, intent.token) ?? await aliasResolutionRefusal(root, index, target); return;
   }
-  const read = await store.read({ reference: target.resolution.reference });
+  const read = await checkStoredResolution(store, target.subject, target.resolution.reference);
   if (read.status === "refused") {
     intent.refusal = read.refusal.code === "not-found" ? closedResolution(intent.token)
       : { reason: read.refusal.condition, remedy: read.refusal.remedy }; return;
   }
-  let value: unknown;
-  try { value = JSON.parse(read.result.content); } catch { value = null; }
-  const conflict = ConflictRecordSchema.safeParse(value);
-  intent.refusal = !conflict.success || !sameReference(conflict.data.record, target.subject)
-    ? { reason: `The indexed conflict ${intent.token} does not identify a readable conflict on this subject.`,
-      remedy: { text: "Repair the conflict record or restore its correct projection mapping, then retry." } } : null;
-  if (intent.refusal === null) intent.refusal = await aliasResolutionRefusal(root, index, target);
+  intent.refusal = await aliasResolutionRefusal(root, index, target);
   // The subject's submitted content passes the ordinary hand-edit checks; discarded alternatives grant no authority.
 }
 

@@ -10,7 +10,7 @@ import type { ProjectionAdmission } from "../projection-admission.js";
 import { recordReferences, type RecordReference } from "../identity.js";
 import { RecordEntrySchema } from "./index-schema.js";
 import { readProjectionEditRights } from "./rights.js";
-import { createProjectionPreparationView, projectionAdmissionConflict } from "./preparation-view.js";
+import { createProjectionPreparationView, projectionAdmissionConflict, type ProjectionPreparationView } from "./preparation-view.js";
 import { selectProjectionAdmissionSubject, type ProjectionPreparationRequest } from "./admission-selection.js";
 import { prepareCapturedWriteBack, type WriteBackContext } from "./write-back.js";
 import { prepareAdoptedContent } from "./check-edit.js";
@@ -27,8 +27,20 @@ export interface ProjectionWritePlan {
 
 /** Derive one content put entirely from frozen local data and the supplied before view. */
 export async function planProjectionWrite(before: WriteCheckInput["before"], request: ProjectionPreparationRequest,
-  registry: Readonly<Record<KindId, KindDefinition>>): Promise<StoreResult<ProjectionWritePlan>> {
+  registry: Readonly<Record<KindId, KindDefinition>>): Promise<StoreResult<ProjectionWritePlan> & { readonly nativeRefusal?: true }> {
   const view = createProjectionPreparationView(before, request.input.format);
+  const planned = await planFromView(view, request, registry);
+  const native = view.nativeFailure();
+  if (native) return { status: "refused", refusal: native, nativeRefusal: true };
+  const failure = view.failure();
+  if (failure) return { status: "refused", refusal: failure };
+  if (planned.status === "refused") return planned;
+  return { status: "ok", result: { ...planned.result,
+    prepared: { ...planned.result.prepared, historicalInputs: view.historicalInputs() }, observations: view.observations() } };
+}
+
+async function planFromView(view: ProjectionPreparationView, request: ProjectionPreparationRequest,
+  registry: Readonly<Record<KindId, KindDefinition>>): Promise<StoreResult<PlanBody>> {
   let selected: Awaited<ReturnType<typeof selectProjectionAdmissionSubject>>;
   try { selected = await selectProjectionAdmissionSubject(selectorStore(view.store), request); }
   catch (error) { if (error instanceof StoreRefusalError) return { status: "refused", refusal: error.refusal }; throw error; }
@@ -43,12 +55,8 @@ export async function planProjectionWrite(before: WriteCheckInput["before"], req
     if (project.status === "refused") return project;
   }
   const context = preparationContext(view.store, request, registry);
-  const planned = request.selection.kind === "unindexed" ? await planAdoption(context, request, reference)
+  return request.selection.kind === "unindexed" ? await planAdoption(context, request, reference)
     : await planIndexed(context, request);
-  if (planned.status === "refused") return planned;
-  const failure = view.failure();
-  return failure ? { status: "refused", refusal: failure } : { status: "ok", result: { ...planned.result,
-    prepared: { ...planned.result.prepared, historicalInputs: view.historicalInputs() }, observations: view.observations() } };
 }
 
 function preparationContext(store: WriteBackContext["store"], request: ProjectionPreparationRequest,
@@ -71,11 +79,12 @@ async function planAdoption(context: WriteBackContext, request: ProjectionPrepar
   if (["work-item/meta", "work-item/record", "cohort/document"].includes(reference.kind)) return { status: "refused", refusal: projectionAdmissionConflict(reference,
     "A content adoption cannot mint a primary or cohort owner.") };
   const checked = await prepareAdoptedContent(context, reference, request.input.file.content);
-  const invalid = checked.refusals[0];
+  if (checked.status === "refused") return checked;
+  const invalid = checked.result.refusals[0];
   if (invalid) return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference,
     rule: "projection.content", condition: invalid.reason, remedy: invalid.remedy } };
-  return { status: "ok", result: { mutation: { action: "put", reference, expected: null, content: checked.content },
-    prepared: { reference, selectedBase: { kind: "empty" }, stamp: null, takenIn: checked.content, retained: null, historicalInputs: [] } } };
+  return { status: "ok", result: { mutation: { action: "put", reference, expected: null, content: checked.result.content },
+    prepared: { reference, selectedBase: { kind: "empty" }, stamp: null, takenIn: checked.result.content, retained: null, historicalInputs: [] } } };
 }
 
 async function planIndexed(context: WriteBackContext, input: ProjectionPreparationRequest): Promise<StoreResult<PlanBody>> {

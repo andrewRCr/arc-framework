@@ -1,6 +1,6 @@
 /** Literal and conventional root companions adopt and reproject without aliasing. */
 import { afterEach, expect, it } from "vitest";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createAdoptionFixture } from "../helpers/store/projection/adoption-fixture.js";
 import { seedProjection } from "../helpers/store/projection/seeded-projection.js";
@@ -43,4 +43,24 @@ it.each(["default", "separate"] as const)("adopts both root filenames and reproj
     const { rm } = await import("node:fs/promises");
     await rm(reprojection.checkout, { recursive: true, force: true });
   }
+});
+
+
+it.each(["default", "separate"] as const)("preserves the reserved flat filename and adopts after renaming in %s", async layout => {
+  const { f, primary, folder, projected } = await createAdoptionFixture({ layout, placement: { kind: "active" }, ownLayout: "flat" });
+  const path = `${folder}/in-flight`, content = "Authored literal prose awaiting a usable filename.\n";
+  await writeFile(join(f.root, path), content);
+  await startProjection({ store: f.store, checkout: f.root });
+  const reserved = recordReferences["work-item/companion"](primary.reference.owner, "./in-flight");
+  expect(await f.store.read({ reference: reserved })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  expect(await readFile(join(f.root, path), "utf8")).toBe(content);
+  const disk = await readProjectionIndex(projected.location, true);
+  if (disk.kind !== "index") throw new Error("Missing projection index");
+  expect(disk.index.entries[path]?.kind).not.toBe("record");
+  const repaired = `${folder}/in-flight-alpha.md`;
+  await rename(join(f.root, path), join(f.root, repaired));
+  await startProjection({ store: f.store, checkout: f.root });
+  expect(success(await f.store.read({ reference: recordReferences["work-item/companion"](primary.reference.owner, "in-flight") })).content)
+    .toBe(content);
+  expect(await readFile(join(f.root, repaired), "utf8")).toContain(content);
 });

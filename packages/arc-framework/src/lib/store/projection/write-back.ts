@@ -30,6 +30,7 @@ import { readBaseContent } from "./base-content.js";
 import type { RecoveredBase } from "./base-recovery.js";
 import { checkWriteBackEdit } from "./check-edit.js";
 import { prepareMarkerContent } from "./marker-preparation.js";
+import { checkStoredResolution } from "./stored-resolution.js";
 import type { MarkerParseResult } from "./marker-parse.js";
 import { sameReference, type RecordReference, type RecordVersion } from "../identity.js";
 import { heldConflictMarks, unshownConflicts } from "./held-conflicts.js";
@@ -100,6 +101,10 @@ export interface CapturedWriteBackFile { readonly kind: "read"; readonly content
 export async function prepareCapturedWriteBack(context: WriteBackContext, request: TakeInRequest,
   supplied: CapturedWriteBackFile): Promise<PreparedWriteBack> {
   request = observeProjectionEdit(request);
+  if (request.resolution?.kind === "stored") {
+    const checked = await checkStoredResolution(context.store, request.entry.reference, request.resolution.reference);
+    if (checked.status === "refused") return refusedPreparation(request.entry, checked.refusal);
+  }
   if (!request.path.endsWith(".md") && request.copy === null) {
     const held = await stamplessVerdict(context, request, supplied.content, supplied.read.stat);
     if (held !== null) return observedHeldRead(request, held, supplied.read.blob);

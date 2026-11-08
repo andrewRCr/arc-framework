@@ -15,6 +15,8 @@ import { writeMetaState, writeMetaCurrentWorkflow } from "../../src/lib/store/ki
 import { afterEach } from "vitest";
 import type { Store } from "../../src/lib/store/contract.js";
 import { dispatchRegisteredCli } from "../helpers/registered-cli.js";
+import { createReferenceFixture } from "../helpers/store/reference-fixture.js";
+import { ENTRY_CONFIGS } from "../../src/lib/store/kinds/entry-configs.js";
 import { createAdoptionFixture } from "../helpers/store/projection/adoption-fixture.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { success } from "../helpers/store/suite-tools.js";
@@ -168,8 +170,14 @@ it("keeps initial normalization through a hand-edit refusal and retries the same
   expect(JSON.parse(repaired.output)).toEqual({ paths: [path] });
 });
 
-it("preserves later lifecycle changes when the initial edit retries after a version conflict", async () => {
-  const { f } = await createAdoptionFixture();
+it.each(["reference", "default", "separate"] as const)("preserves later lifecycle changes across initial-mint admission in %s", async backend => {
+  const source = await createAdoptionFixture({ layout: backend === "reference" ? "default" : backend });
+  const memory = backend === "reference" ? createReferenceFixture(ENTRY_CONFIGS, source.registry) : null;
+  if (memory !== null) {
+    memory.identity("andrew");
+    await seed(memory, source.primary.reference, source.primary.content, { kind: "backlog", commitment: "planned" });
+  }
+  const f = memory === null ? source.f : { ...source.f, store: memory.store };
   const path = ".arc/backlog/planned/beta/meta-beta.md";
   await mkdir(join(f.root, ".arc/backlog/planned/beta"), { recursive: true });
   await writeFile(join(f.root, path), makeMetaFixture("beta", { state: "Active", owner: "andrew", workClass: "Light", priority: "P1",

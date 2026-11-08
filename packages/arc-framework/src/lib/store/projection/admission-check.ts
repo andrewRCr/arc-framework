@@ -27,7 +27,7 @@ export async function checkProjectionAdmission(before: WriteCheckInput["before"]
   const observed = await checkRecordObservations(before, input.observations ?? []);
   if (observed.status === "refused") return projectionObservationRefusal(input, observed.refusal);
   const fresh = await planProjectionWrite(before, request, registry);
-  if (fresh.status === "refused") return fresh.refusal.code === "record-malformed" && fresh.refusal.rule.startsWith("projection.")
+  if (fresh.status === "refused") return !fresh.nativeRefusal && fresh.refusal.code === "record-malformed" && fresh.refusal.rule.startsWith("projection.")
     ? projectionAdmissionConflict(mutation.reference, fresh.refusal.condition) : fresh.refusal;
   if (stable(mutationEvidence(fresh.result.mutation)) !== stable(mutationEvidence(mutation))
     || stable(receiptEvidence(fresh.result.prepared)) !== stable(receiptEvidence(request.prepared))

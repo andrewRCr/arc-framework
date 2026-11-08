@@ -1,7 +1,7 @@
 /** Parsed cohort changes and complete proposed membership observations. */
 import { ParsedMetaRecordSchema } from "../../../active/meta-schema.js";
 import { describeRecordConflicts } from "../../conflict-diagnostics.js";
-import { observeRecords, type RuleObservation } from "../rule-support.js";
+import { observeRecord, observeRecords, type RuleObservation } from "../rule-support.js";
 import { parseCohortDocument, type ParsedCohortDocument } from "./parser.js";
 import type { StoreRecord } from "../../read.js";
 import type { StoreView, WriteCheckInput } from "../../write-check.js";
@@ -35,8 +35,11 @@ export async function observeOpenCohorts(view: StoreView): Promise<RuleObservati
   const listed = await observeRecords(view, { family: "cohort", kind: "cohort/document" });
   if (listed.status !== "known") return listed;
   const result: OpenCohort[] = [];
-  for (const record of listed.value) {
-    if (record.placement?.kind === "completed") continue;
+  for (const listedRecord of listed.value) {
+    if (listedRecord.placement?.kind === "completed") continue;
+    const observed = await observeRecord(view, listedRecord.reference);
+    if (observed.status !== "known") return observed;
+    const record = observed.value;
     if (record.conflicts.length > 0) return disputed(record, "Parent");
     const parsed = parseCohortDocument(record.content);
     if (!parsed.success) return { status: "unavailable", condition: `${record.reference.owner.name}: ${parsed.error}` };
@@ -52,8 +55,11 @@ export async function observeOpenMembers(view: StoreView): Promise<RuleObservati
   const listed = await observeRecords(view, { family: "work-item", kind: "work-item/meta" });
   if (listed.status !== "known") return listed;
   const result: OpenMember[] = [];
-  for (const record of listed.value) {
-    if (record.placement?.kind === "completed") continue;
+  for (const listedRecord of listed.value) {
+    if (listedRecord.placement?.kind === "completed") continue;
+    const observed = await observeRecord(view, listedRecord.reference);
+    if (observed.status !== "known") return observed;
+    const record = observed.value;
     if (record.conflicts.length > 0) return disputed(record, "cohort membership");
     const parsed = ParsedMetaRecordSchema.safeParse(record.fields);
     if (!parsed.success) return { status: "unavailable", condition: `${record.reference.owner.name}: membership fields are unavailable.` };

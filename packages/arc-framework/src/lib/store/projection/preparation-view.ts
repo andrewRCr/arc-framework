@@ -2,7 +2,7 @@
 import type { Store, HistoryEntry } from "../contract.js";
 import type { WriteCheckInput } from "../write-check.js";
 import type { RecordObservation } from "../write.js";
-import type { StoreRefusal } from "../refusal.js";
+import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { sameReference, type RecordReference } from "../identity.js";
 import { canonicalRecordObservations } from "../record-observations.js";
 import type { ProjectionAdmission } from "../projection-admission.js";
@@ -16,6 +16,7 @@ export interface ProjectionPreparationView {
   observations(): RecordObservation[];
   historicalInputs(): HistoryInput[];
   failure(): StoreRefusal | undefined;
+  nativeFailure(): StoreRefusal | undefined;
 }
 
 /** Preserve an exact prepared-decision conflict without invoking merge-base recovery. */
@@ -31,6 +32,11 @@ export function createProjectionPreparationView(before: WriteCheckInput["before"
   const observations: RecordObservation[] = [];
   const histories: HistoryInput[] = [];
   let failure: StoreRefusal | undefined;
+  let nativeFailure: StoreRefusal | undefined;
+  const retainFailure = <T>(result: StoreResult<T>): StoreResult<T> => {
+    if (result.status === "refused" && result.refusal.code !== "not-found") nativeFailure ??= result.refusal;
+    return result;
+  };
   const remember = (observation: RecordObservation): void => {
     const existing = observations.find(each => sameReference(each.reference, observation.reference));
     if (existing === undefined) observations.push(observation);
@@ -39,7 +45,7 @@ export function createProjectionPreparationView(before: WriteCheckInput["before"
     }
   };
   const read: Store["read"] = async input => {
-    const result = await before.read(input);
+    const result = retainFailure(await before.read(input));
     if (input.asOf === undefined) {
       if (result.status === "ok") remember({ reference: result.result.reference,
         expected: { version: result.result.version, conflicts: [...result.result.conflicts] } });
@@ -48,20 +54,20 @@ export function createProjectionPreparationView(before: WriteCheckInput["before"
     return failure ? { status: "refused", refusal: failure } : result;
   };
   const history: Store["history"] = async input => {
-    const result = await before.history(input);
+    const result = retainFailure(await before.history(input));
     return result.status === "refused" ? result : { status: "ok", result: result.result.map(entry =>
       observedHistory(entry, format, histories)) };
   };
   const unavailable = (): Promise<never> => Promise.reject(new Error("Preparation cannot mutate state or query a live state anchor"));
   const store: Store = { capabilities: { stateOffBranch: true }, read, history,
-    list: input => before.list(input), lookup: async input => {
-      const found = await before.lookup(input);
+    list: async input => retainFailure(await before.list(input)), lookup: async input => {
+      const found = retainFailure(await before.lookup(input));
       if (found.status === "refused") return found;
       const selected = await read({ reference: found.result.reference });
       return selected.status === "refused" ? selected : found;
     }, write: unavailable, batch: unavailable, version: unavailable, changes: unavailable,
     pull: unavailable, push: unavailable, maintain: unavailable };
-  return { store, observations: () => canonicalRecordObservations(observations), failure: () => failure,
+  return { store, observations: () => canonicalRecordObservations(observations), failure: () => failure, nativeFailure: () => nativeFailure,
     historicalInputs: () => [...histories].sort((a, b) => Buffer.compare(Buffer.from(JSON.stringify(a)), Buffer.from(JSON.stringify(b)))) };
 }
 

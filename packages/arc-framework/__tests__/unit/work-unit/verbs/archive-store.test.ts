@@ -1,7 +1,7 @@
 /** Backend-assigned archive numbers and session/cohort closeout share one checked batch. */
 import { describe, expect, it } from "vitest";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
-import { recordReferences, OwnerIdentitySchema, StateVersionSchema } from "../../../../src/lib/store/identity.js";
+import { recordReferences, sameReference, OwnerIdentitySchema, StateVersionSchema } from "../../../../src/lib/store/identity.js";
 import { ParsedMetaRecordSchema } from "../../../../src/lib/active/meta-schema.js";
 import { runArchive } from "../../../../src/lib/work-unit/verbs/archive.js";
 import type { ExecuteTransitionContext } from "../../../../src/lib/work-unit/lifecycle-executor.js";
@@ -284,7 +284,9 @@ it("refuses a cohort preparation whose version changed and succeeds after re-pre
   const store: Store = new Proxy(h.store, { get(target, key) {
     if (key === "read") return async (input: Parameters<Store["read"]>[0]) => {
       const result = await target.read(input);
-      if (inject && input.reference.kind === "cohort/document" && result.status === "ok") {
+      // The name-only read captures the selected cohort after the exact inventory reads.
+      if (inject && input.reference.kind === "cohort/document" && input.reference.owner.type !== "person"
+        && input.reference.owner.uid === undefined && result.status === "ok") {
         inject = false;
         lifecycleSuccess(await target.write({ ...recordPut(result.result), provenance: { verb: "edit", lifecycleAction: "edit" } }));
       }
@@ -430,9 +432,10 @@ it("refuses a changed empty-child observation before archiving and succeeds afte
     "# Cohort: empty\n\n**Purpose:** Await future work.\n\n**Parent:** `group`\n");
   let inject = true;
   const store: Store = new Proxy(h.store, { get(target, key) {
-    if (key === "list") return async (input: Parameters<Store["list"]>[0]) => {
-      const result = await target.list(input);
-      if (inject && input.family === "cohort") {
+    if (key === "read") return async (input: Parameters<Store["read"]>[0]) => {
+      const result = await target.read(input);
+      // Change the exact child after its preparation read, before archive revalidation.
+      if (inject && sameReference(input.reference, child.reference) && result.status === "ok") {
         inject = false;
         lifecycleSuccess(await target.write({ ...recordPut(child), provenance: { verb: "edit", lifecycleAction: "edit" } }));
       }
