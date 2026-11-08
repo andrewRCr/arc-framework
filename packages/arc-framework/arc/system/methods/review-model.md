@@ -80,8 +80,8 @@ participant of one property no rule defines, such as which records a prepared wr
 lands. Repairs one participant at a time cannot close that set, since nothing says where it ends. The fix at the cause
 is stating the contract and enforcing it where it is decided, which is new design: propose that as those findings'
 disposition and put it to the Owner as a design question, not another per-site repair. Code review asks whether the spec
-needs `amend-design`, and its findings stay open until the code enforces the amended contract; planning review folds the
-contract into the design.
+needs `amend-design`, and its findings stay open until the code enforces the contract the Owner approves; planning
+review folds the contract into the design.
 
 Run this look over every verified finding the lane has dispositioned, not only the latest look's. One or two findings
 a look rarely form a set on their own, and an earlier conclusion that nothing was shared holds only for the findings
