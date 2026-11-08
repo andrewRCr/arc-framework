@@ -783,12 +783,16 @@ old name refuses naming the current one.
 
 ### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Quality gates:_ Full merge gate passed all 20 selected checks, including six store shards. Focused regressions,
-  related unit feedback, and both type checks passed. Hosted CI run `42226728050` passed without diagnostic inputs at
-  `d16d659fc92ef768dd1eff9620eb64204b3165b6`: build, lint, unit, integration, store, E2E, and Linux portability.
-- _Success criteria:_ 22 criteria: 21 met, one superseded by A4; criterion 16 carries the approved A3 deviation.
-  Complete criteria Pass 4 used three scoped reviewers and a fresh seam-and-aggregate reviewer, with no findings;
-  the latest independent fix check also returned no findings. Store behavior is exercised through command fixtures;
+- _Quality gates:_ Re-verified for the new Candidate root after A7 and A8. The full merge gate passed all 20 selected
+  checks at `9ac6a36c01`, including six store shards; 192 rename, archive, cohort and fixture files (2,104 tests) and
+  both type checks passed locally. Hosted CI run `42441219857` passed at `b39a7122a6`: build, lint, unit, integration,
+  store, E2E, and Linux portability; `9ac6a36c01` adds only the author check's refactor. The first root's hosted CI
+  run `42226728050` passed at `d16d659fc92ef768dd1eff9620eb64204b3165b6`.
+- _Success criteria:_ 26 criteria: 23 met, three superseded (criterion 10 by A5, 20 by A4, 23 by A6); criterion 16
+  carries the approved A3 deviation. Criteria 25 and 26 carry A7's and A8's spec criteria. The re-root walk carried
+  earlier evidence where the change since `3d536c05d0` leaves a criterion untouched and refreshed it where it does;
+  the independent companion was offered and declined. The first root's criteria Pass 4, three scoped reviewers and a
+  fresh seam-and-aggregate reviewer, returned no findings. Store behavior is exercised through command fixtures;
   production activation remains with the storage flip.
 
 ---
@@ -903,6 +907,15 @@ Over the ref backend and, where it can form the state, the reference backend, fr
   unproved field edit. After child UID disambiguation, owner-chosen clear → Parent → restore edits at the selected
   child’s current path all land. Fully proved groups and closed-child restrictions remain intact; child retirement
   with a former-name Parent reports its complete admissible prerequisite sequence.
+
+- `[x]` A record arriving, changing, gaining a conflict, or leaving between a rename's preparation and its batch, where
+  it would change the rename's writes, evidence, or report, refuses the batch with nothing written, and a fresh retry
+  lands with it accounted for; a conflict reaching a cohort that archive, close, or remove completes refuses the same
+  way; a write to an unrelated record admits the batch.
+
+- `[x]` Renaming the leaf cohort, or the stale first segment, of a completed member's `Cohort` path whose first segment
+  is no longer the leaf's `Parent` lands, leaves that `Cohort` unchanged, and reports the edit to the leaf's current
+  path.
 
 **Deviation (criterion 16, A3):** Ordinary same-name rename input checks follow backend selection; outside an ARC project,
 the missing-project refusal takes precedence. Admitted in-repo commands retain distinct-name rejection.

@@ -12,6 +12,9 @@
 - [Captured branch-link facts](#captured-branch-link-facts)
     - [Superseded shape-only remedy rule](#superseded-shape-only-remedy-rule)
 - [Coupled cohort holdings — A5](#coupled-cohort-holdings--a5)
+- [Deferred companion repairs — A6](#deferred-companion-repairs--a6)
+- [Repair enforcement invariants — 2026-11-07](#repair-enforcement-invariants--2026-11-07)
+    - [Rename participant completeness — 2026-11-07](#rename-participant-completeness--2026-11-07)
 - [Prepared-write admission — A7](#prepared-write-admission--a7)
 - [Disagreeing member paths — A8](#disagreeing-member-paths--a8)
 
@@ -280,9 +283,9 @@ The superseded admission rule, recorded with the review corrections, was:
 § 2.3's settler previously said it "binds the records it read as the batch's observations"; it now returns them as
 evidence that admission re-derives.
 
-Verification injects a store change between preparation and submission on both backends where the state can form. It
-seeds one case per read family from the audits' scenarios and adds an unrelated write that must admit. Each seeded case
-must fail against the predicate admission before the change. A second retired lineage cannot form locally:
+Verification injected a store change between preparation and submission on both backends where the state can form,
+one case per read family from the audits' scenarios plus an unrelated write that admits. Each seeded case failed
+against the predicate admission before the change. A second retired lineage cannot form locally:
 `work-item.slug-edges` refuses the second generation while a stub's edge still names the first.
 
 ---

@@ -1149,9 +1149,9 @@ None.
   _Trigger:_ nested-cohort-clash review. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 - **A7** — 2026-11-07 — design: admission re-derives each prepared store write. _Supersedes:_ § 2.3 ¶2 binding.
-  _Trigger:_ door. _Work:_ 5.R. _Revalidated:_ pending → verify-work-unit.
+  _Trigger:_ door. _Work:_ 5.R. _Revalidated:_ 6.1.
 
 - **A8** — 2026-11-07 — design: a rename retains a holding whose path disagrees with its leaf's Parent.
-  _Supersedes:_ § 5.1 ¶3. _Trigger:_ D2 review. _Work:_ 5.R2. _Revalidated:_ pending → verify-work-unit.
+  _Supersedes:_ § 5.1 ¶3. _Trigger:_ D2 review. _Work:_ 5.R2. _Revalidated:_ 6.1.
 
 ---
