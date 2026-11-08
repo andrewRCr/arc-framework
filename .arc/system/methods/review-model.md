@@ -78,9 +78,10 @@ adds nothing.
 A shared cause can also be a contract the design never states: findings whose repairs each patch a different
 participant of one property no rule defines, such as which records a prepared write guards against changing before it
 lands. Repairs one participant at a time cannot close that set, since nothing says where it ends. The fix at the cause
-is stating the contract, which is new design: propose it as those findings' disposition and put it to the Owner as a
-design question, not another per-site repair. Code review asks whether the spec needs `amend-design`; planning review
-folds the contract into the design.
+is stating the contract and enforcing it where it is decided, which is new design: propose that as those findings'
+disposition and put it to the Owner as a design question, not another per-site repair. Code review asks whether the spec
+needs `amend-design`, and its findings stay open until the code enforces the amended contract; planning review folds the
+contract into the design.
 
 Run this look over every verified finding the lane has dispositioned, not only the latest look's. One or two findings
 a look rarely form a set on their own, and an earlier conclusion that nothing was shared holds only for the findings
@@ -175,7 +176,8 @@ signals inform the reading and stay out of the report. Each reading points to a 
   decision: planning review offers the stage's re-entry or shaping route; code review asks whether the spec needs
   `amend-design`. Another round must not silently become design authoring, nor another per-site repair stand in for
   that decision. The three looks must share a named cause, not merely a count of findings, and the stop composes with
-  any review stop the Owner has set: whichever is reached first applies. It takes precedence over `discovering`.
+  any review stop the Owner has set: whichever is reached first applies. Once the Owner decides on a cause, count its
+  looks afresh from that decision. It takes precedence over `discovering`.
 
 A fix check reads its repairs, so a clean round shows those repairs hold, not that a rule repaired at one site holds at
 its others. Material findings that are siblings an earlier repair missed show the repair fixed a site rather than its
