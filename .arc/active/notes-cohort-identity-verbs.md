@@ -18,6 +18,7 @@
 - [Prepared-write admission — A7](#prepared-write-admission--a7)
 - [Disagreeing member paths — A8](#disagreeing-member-paths--a8)
 - [A closed subcohort's unsettled open member — A9](#a-closed-subcohorts-unsettled-open-member--a9)
+- [Refusing where the Parent check would — A10](#refusing-where-the-parent-check-would--a10)
 
 ## Catch-up publication recovery
 
@@ -345,5 +346,46 @@ for a closed subcohort, and § 5.1's
 
 as the only treatment of a closed subcohort's open members. An open subcohort's coupled group is unchanged: one whose
 member's path disagrees with its `Parent` is retained with it, which a native case now covers.
+
+## Refusing where the Parent check would — A10
+
+The fix check after pass 18 found A9's repair incomplete at two sibling paths and imprecise in its exits; probes
+reproduced each on 2026-11-08. `cohort.parent` compares a moved `Parent` by text with every open cohort's `Parent` as
+well as with its open members' paths, and A9's pre-check copied only the member clause. A live namesake of a closed
+subcohort with an open subcohort of its own therefore still refused the parent's rename at admission, with a remedy
+nobody could carry out, although renaming the namesake landed. Separately, a path whose first segment two live cohorts
+hold, running to a closed subcohort whose `Parent` is null or names no one cohort, still failed the whole preparation in
+the repair planner's closed-leaf check, so both holders' renames, the clash's own repair, refused. And A9's refusal
+counted a live namesake's agreeing member as the closed subcohort's, naming only the clear, which loses membership,
+though the namesake's rename lands; it omitted the edit to the subcohort's current path, which keeps membership, too.
+
+The shared cause is text comparison where the store resolves names by tier, copied clause by clause into the rename.
+Every complete pass since pass 4 had found one or two majors in this region, each needing a design fold, so the round
+stopped for the Owner, who chose on 2026-11-08 to compute the comparisons once and classify exits by resolution, over
+changing the check to compare by identity, which would alter what every cohort write admits, or deferring the majors.
+`cohortParentConflicts` now serves both the check and the rename's pre-check, so the two cannot drift. The pre-check
+covers every `Parent` the batch moves, open subcohorts included: an open subcohort whose name a live cohort also holds
+refused at the same clause, and its own rename is the exit. A closed subcohort whose group the batch retains still
+counts as moved, since leaving its `Parent` on a former slug strands its open members.
+
+Each exit was confirmed to land before it was named. Renaming a namesake moves its own agreeing member and its
+subcohort's `Parent`, but not a path that disagrees with the namesake's `Parent`, which A8 keeps. Renaming an open
+subcohort removes every text collision with its name; a closed cohort cannot be renamed. A member's edit to the
+subcohort's current path is admitted only where that path's first segment is its parent's current slug and the leaf is
+the subcohort itself, so it is named only then. The clear always lands.
+
+The Owner also directed, through the project manager, an enumeration matrix over the states the rename can meet before
+the next look — name ties, open and closed subcohorts, agreeing and disagreeing paths, namesakes with and without
+subcohorts — asserting that each refusal writes nothing and every exit it names lands. If a later look still finds a
+major about which exits a refusal names, it returns to the Owner as a scope call rather than another amendment.
+
+The superseded rules were § 5.1 A9's
+
+> naming each such member and its exits: its owner's `Cohort` clear, after which it cannot rejoin the closed subcohort,
+> and, where its first segment is tied between live cohorts holding it as their current name, the other holder's UID
+> rename, which leaves that name the renamed cohort's alone. No rename settles a tied leaf, since any live holder of a
+> name outranks the closed subcohort under either name, nor a former-name tie, since former names persist.
+
+and criterion 23's list of exits, which criterion 24 replaces.
 
 ---

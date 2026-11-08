@@ -134,12 +134,18 @@ adopted the branch, and which commits are no task's work.
    subcohort's sole `Parent`, it refuses before its batch, writing nothing, while any open member naming that subcohort
    would be left off `<new-slug>/<subcohort>`; the refusal names the member owner's `Cohort` clear and, for a first
    segment tied between live cohorts holding it as their current name, the other holder's UID rename.
-2. **The work-item base** — `seam-record-kinds`; `seam-lifecycle` reads lifecycle location and makes promotion's role
-   put, `seam-locus` reads the owner and warns of an identity collision, and `seam-status-roadmap` reads the owner.
-3. **The meta's cross-member fields** — `seam-record-kinds`; `seam-lifecycle` renames, discharges edges, and settles how
-   `arc start --from` takes a seed, `seam-decomposition` redistributes edges and sets new members' `Cohort`,
-   `seam-locus` derives what is in flight and loads the cohort document, `seam-status-roadmap` renders edges and groups
-   by `Cohort`, and `seam-delivery-review` reads `Design` and the Completion Notes.
+
+   Amended 2026-11-08 by `cohort-identity-verbs` (A10): the cohort rename refuses before its batch, writing nothing,
+   wherever the Parent check would refuse a `Parent` it moves, open subcohorts' included, computing the check's
+   comparisons with the check's own function over its planned state. The refusal names each conflicting record's exits
+   that land: a live namesake's UID rename for its own agreeing member or subcohort, a tied first segment's other
+   holder's UID rename, an open subcohort's own UID rename, the member's edit to the subcohort's current path, then the
+   clear. 2. **The work-item base** — `seam-record-kinds`; `seam-lifecycle` reads lifecycle location and makes
+   promotion's role put, `seam-locus` reads the owner and warns of an identity collision, and `seam-status-roadmap`
+   reads the owner. 3. **The meta's cross-member fields** — `seam-record-kinds`; `seam-lifecycle` renames, discharges
+   edges, and settles how `arc start --from` takes a seed, `seam-decomposition` redistributes edges and sets new
+   members' `Cohort`, `seam-locus` derives what is in flight and loads the cohort document, `seam-status-roadmap`
+   renders edges and groups by `Cohort`, and `seam-delivery-review` reads `Design` and the Completion Notes.
 
    Changed 2026-10-30 by `cohort-identity-verbs`: from the flip, a rename rewrites another record's reference to its old
    slug — a stub's `Depends On` edge or `waits-on`, a member's `Cohort`, a subcohort's `Parent`, or a backticked
@@ -160,6 +166,9 @@ adopted the branch, and which commits are no task's work.
    refuses the rename (item 1), and a tied path whose closed leaf's `Parent` resolves to another cohort is that cohort's
    member, which a co-holder's rename leaves unreported. Retained closed groups are reported by owner with no field
    edit.
+
+   Amended 2026-11-08 by `cohort-identity-verbs` (A10): any other tied path over a closed leaf disagrees with the leaf's
+   `Parent` and is reported as a sole one is, with the edit to a top-level leaf's own slug, or else its owner alone.
 4. **Session context** — `seam-record-kinds`, the schema; `seam-locus`'s handoff writes it and session-init reads it,
    `seam-lifecycle`'s archive clears it, and lifecycle, decomposition, delivery's `arc attest`, and locus write
    `Next Action`.
@@ -191,6 +200,9 @@ adopted the branch, and which commits are no task's work.
    Amended 2026-11-08 by `cohort-identity-verbs` (A8/A9): the batch leaves a disagreeing path unchanged, and rewrites a
    closed subcohort's `Parent` only with every open member naming that subcohort settled at its new path in the same
    batch; otherwise the rename refuses before writing (item 1).
+
+   Amended 2026-11-08 by `cohort-identity-verbs` (A10): the batch moves any subcohort's `Parent` only where the Parent
+   check admits it over every open member and cohort; otherwise the rename refuses before writing (item 1).
 8. **Parsed prose fields** — `seam-record-kinds`; `seam-status-roadmap`'s purpose read and `design` selector read
    Purpose, `seam-decomposition`'s scaffold copies drafts and specs, and `seam-lifecycle`'s rename sweep rewrites them.
 9. **Entry managed fields** — `seam-locus`, with the entry-field module and the inbound list and Errand description

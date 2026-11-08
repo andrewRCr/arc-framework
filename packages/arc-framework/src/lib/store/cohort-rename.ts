@@ -15,8 +15,7 @@ import { observeAllHoldings, cohortHoldingRepairs, type CohortHolding, type Coho
 import { writeMetaCohort } from "./kinds/meta/writers.js";
 import type { StoreView } from "./write-check.js";
 import type { Mutation, RecordObservation } from "./write.js";
-import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
-import { observeNamedRecord } from "./kinds/rule-support.js";
+import { refuseParentConflicts } from "./cohort-rename-parent-conflicts.js";
 import { acquireLifecycleRecords } from "../work-unit/prepared-lifecycle-write.js";
 interface CohortRenameWrites { writes: Mutation[]; report: RenameReport; advisories: string[] }
 interface CohortRenameEvidence { evidence: RecordReference[] }
@@ -27,7 +26,6 @@ interface CohortRenamePlan {
   /** Each member Cohort path the batch writes. */
   paths: Map<StoreRecord, string>;
 }
-interface ClosedStraggler { child: RecordReference; record: StoreRecord; path: string }
 
 /** Rename the UID-selected cohort without any code-branch or checkout operation. */
 export async function runCohortRename(store: Store, primary: StoreRecord,
@@ -125,8 +123,8 @@ async function prepareMembershipWrites(store: StoreView, primary: StoreRecord, t
   const plan: CohortRenamePlan = { primary, target, records: document.records, contents: new Map([[primary, document.content]]), paths: new Map() };
   const membership = prepareSoleHoldings(plan, holdings.value, retainedParents);
   if (membership.status === "refused") return membership;
-  const stragglers = await refuseClosedStragglers(view, plan, holdings.value);
-  if (stragglers.status === "refused") return stragglers;
+  const conflicts = await refuseParentConflicts(view, plan, holdings.value);
+  if (conflicts.status === "refused") return conflicts;
   const retainedHoldings = holdings.value.filter(holding => holding.resolution === "ambiguous" || retainedParents.includes(holding) || holding.segments.some(segment => segment.status !== "known"));
   const retained = reportAmbiguousHoldings(plan, retainedHoldings, closed);
   if (retained.status === "refused") return retained;
@@ -191,65 +189,6 @@ function prepareSoleHoldings(plan: CohortRenamePlan, holdings: readonly CohortHo
   return { status: "ok", result: true };
 }
 
-/** A closed subcohort whose Parent this rename rewrites can keep no open member the batch leaves on another path, which
- * the Parent check would refuse and which could not rejoin it later (A9). The refusal names each exit: a tied name's
- * other open holder's rename, or the member owner's Cohort clear.
- */
-async function refuseClosedStragglers(view: StoreView, plan: CohortRenamePlan, holdings: readonly CohortHolding[]): Promise<StoreResult<true>> {
-  const stragglers = closedStragglers(plan, holdings);
-  const first = stragglers[0];
-  if (first === undefined) return { status: "ok", result: true };
-  const exits: string[] = [];
-  for (const straggler of stragglers) {
-    const holders = await tiedHolders(view, plan, straggler);
-    if (holders.status === "refused") return holders;
-    const renames = holders.result.map(holder => `rename cohort ${holder.owner.name} with \`arc rename ${ownerUid(holder)} <new-slug>\``);
-    exits.push(`For ${describeOwner(straggler.record.reference)}: ${[...renames, "have its owner clear its Cohort, after which it cannot rejoin"
-      + ` closed subcohort ${straggler.child.owner.name}`].join(", or ")}.`);
-  }
-  return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: first.child, rule: "lifecycle.rename",
-    condition: "A closed subcohort's Parent names this cohort, so the rename rewrites it, but its open members would keep other paths: "
-      + `${stragglers.map(item => `${describeOwner(item.record.reference)} at ${JSON.stringify(item.path)} under ${describeOwner(item.child)}`).join("; ")}.`,
-    remedy: { text: `${exits.join(" ")} Then retry the rename.` } } };
-}
-
-/** Every open member the Parent check would compare with a rewritten closed Parent, kept off its settled path. */
-function closedStragglers(plan: CohortRenamePlan, holdings: readonly CohortHolding[]): ClosedStraggler[] {
-  const children = holdings.filter(holding => holding.candidate.field === "parent" && holding.candidate.completed
-    && holding.resolution === "sole" && holding.candidate.path !== plan.target);
-  return children.flatMap(holding => {
-    const child = holding.candidate.reference, settled = `${plan.target}/${child.owner.name}`;
-    return plan.records.flatMap(record => {
-      if (record.reference.kind !== "work-item/meta" || record.placement?.kind === "completed") return [];
-      const fields = ParsedMetaRecordSchema.safeParse(record.fields);
-      const path = plan.paths.get(record) ?? (fields.success ? fields.data.cohort : null);
-      return path === null || path === settled || !path.split("/").includes(child.owner.name) ? [] : [{ child, record, path }];
-    });
-  });
-}
-
-/** The other holders of a live current-name tie on a straggler's first segment: renaming one leaves it a former holder,
- * which the renamed cohort's current name outranks. No rename settles a leaf, since any live holder of the name outranks
- * the closed subcohort, nor a former-name tie, since former names persist.
- */
-async function tiedHolders(view: StoreView, plan: CohortRenamePlan, straggler: ClosedStraggler): Promise<StoreResult<RecordReference[]>> {
-  const parts = straggler.path.split("/"), name = parts[0], primary = plan.primary.reference.owner;
-  if (parts.length !== 2 || name === undefined || name === straggler.child.owner.name) return { status: "ok", result: [] };
-  const observed = await observeNamedRecord(view, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name })));
-  if (observed.status === "unavailable") return malformed(plan.primary, observed.condition);
-  const tied = observed.status === "ambiguous" && observed.tie?.liveness === "live" && observed.tie.name === "current"
-    && observed.candidates.some(candidate => sameOwner(candidate.owner, primary));
-  return { status: "ok", result: tied ? observed.candidates.filter(candidate => !sameOwner(candidate.owner, primary)) : [] };
-}
-
-function describeOwner(reference: RecordReference): string {
-  return `${reference.kind === "cohort/document" ? "cohort" : "work unit"} ${reference.owner.name} (UID ${ownerUid(reference)})`;
-}
-
-function ownerUid(reference: RecordReference): string {
-  return reference.owner.type === "person" ? "unavailable" : reference.owner.uid ?? "unavailable";
-}
-
 async function prepareFilenameReferences(view: StoreView, plan: CohortRenamePlan,
   report: RenameReport): Promise<StoreResult<{ report: RenameReport } & CohortRenameEvidence>> {
   const resolved = await readRenameResolution(view, plan.primary.reference, plan.primary.reference.owner.name);
@@ -307,8 +246,8 @@ function reportAmbiguousHoldings(plan: CohortRenamePlan, holdings: readonly Coho
   closed: readonly CohortHolding[]): StoreResult<Pick<CohortRenameWrites, "report" | "advisories">> {
   const { primary, target } = plan;
   const kept = closed.flatMap(holding => [holding.candidate, ...holding.members.map(member => member.candidate)]);
-  const planned = holdings.filter(holding => !kept.some(candidate => sameReference(candidate.reference, holding.candidate.reference))
-    && !othersClosedMember(holding, primary));
+  const open = holdings.filter(holding => !kept.some(candidate => sameReference(candidate.reference, holding.candidate.reference)));
+  const planned = open.filter(holding => tiedClosedLeaf(holding, primary) === "plan");
   const edits = cohortHoldingRepairs(postBatchHoldings(planned, plan), target);
   if (edits.status !== "known") return malformed(primary, edits.status === "unavailable" ? edits.condition : "Holding edits are unavailable.");
   const references: Array<RenameReport["references"][number]> = edits.value.edits.map(({ record, ...edit }) => ({ record, edits: [{ kind: "field", ...edit }] }));
@@ -318,6 +257,8 @@ function reportAmbiguousHoldings(plan: CohortRenamePlan, holdings: readonly Coho
     const added = appendReportHolders(references, group.candidates.map(candidate => candidate.reference), primary);
     if (added.status === "refused") return added;
   }
+  const tied = reportTiedClosedLeaves(open.filter(holding => tiedClosedLeaf(holding, primary) === "disagrees"), primary, references, advisories);
+  if (tied.status === "refused") return tied;
   for (const holding of closed) {
     advisories.push(closedHoldingAdvisory(holding));
     const added = appendReportHolders(references, [holding.candidate, ...holding.members.map(member => member.candidate)]
@@ -327,12 +268,35 @@ function reportAmbiguousHoldings(plan: CohortRenamePlan, holdings: readonly Coho
   return { status: "ok", result: { report: { ...emptyRenameReport(), references }, advisories } };
 }
 
-/** A tied path whose closed leaf's Parent resolves to another cohort is that cohort's member: this rename has no edit for it. */
-function othersClosedMember(holding: CohortHolding, primary: StoreRecord): boolean {
-  const leaf = holding.segments.at(-1);
-  return holding.candidate.field === "cohort" && holding.resolution === "ambiguous" && leaf?.status === "known"
-    && leaf.resolutionRecord.placement?.kind === "completed" && holding.parent?.status === "known"
-    && !sameReference(holding.parent.reference, primary.reference);
+/** How the planner treats a tied path over a closed leaf. It plans the path only where the leaf's Parent is the renamed
+ * cohort or names the tied segment itself. A leaf whose Parent resolves to another cohort is that cohort's member, with no
+ * edit here (A9); any other path disagrees with its leaf's Parent, so it is kept and reported as a sole one is (A8, A10).
+ */
+function tiedClosedLeaf(holding: CohortHolding, primary: StoreRecord): "plan" | "other" | "disagrees" {
+  const leaf = holding.segments.at(-1), parent = holding.parent;
+  if (holding.candidate.field !== "cohort" || holding.resolution !== "ambiguous" || leaf?.status !== "known"
+    || leaf.resolutionRecord.placement?.kind !== "completed") return "plan";
+  if (parent?.status === "known") return sameReference(parent.reference, primary.reference) ? "plan" : "other";
+  return parent !== undefined && holding.segments.length === 2 && holding.segments[0]?.name === parent.name ? "plan" : "disagrees";
+}
+
+/** Report each kept tied path over a closed leaf: the edit to a top-level leaf's own slug, else its owner alone. */
+function reportTiedClosedLeaves(holdings: readonly CohortHolding[], primary: StoreRecord,
+  references: Array<RenameReport["references"][number]>, advisories: string[]): StoreResult<true> {
+  for (const holding of holdings) {
+    const leaf = holding.segments.at(-1), record = holdingReportRecord(holding.candidate.reference);
+    if (record === null) return malformed(primary, "A retained holding has no exact owner identity.");
+    if (holding.parent === undefined && leaf?.status === "known") {
+      references.push({ record, edits: [{ kind: "field", field: "cohort", from: holding.candidate.path, to: leaf.currentSlug }] });
+      continue;
+    }
+    advisories.push(`The path ${JSON.stringify(holding.candidate.path)} runs through a name this rename shares to closed cohort `
+      + `${leaf?.name ?? ""}, whose Parent ${JSON.stringify(holding.parent?.name ?? null)} names no one cohort; its Cohort was kept `
+      + "unchanged for its owner to choose the intended current path.");
+    const added = appendReportHolders(references, [holding.candidate.reference], primary);
+    if (added.status === "refused") return added;
+  }
+  return { status: "ok", result: true };
 }
 
 function appendReportHolders(references: Array<RenameReport["references"][number]>, candidates: readonly StoreRecord["reference"][],

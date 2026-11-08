@@ -645,9 +645,20 @@ old name refuses naming the current one.
   planner. Native CLI cases for the three causes refuse through `cohort.parent` before the change, then refuse naming
   their exits and land after one; an open subcohort with a disagreeing member still lands with both retained.
 
+- _Review correction:_ The rename makes the Parent check's comparisons over its planned batch with the check's own
+  function, for every cohort whose `Parent` it moves and for a closed one whose group it retains, and refuses before the
+  batch wherever the check would, naming each conflicting record's exits by resolution: a live namesake's UID rename
+  for its own agreeing member or subcohort, a tied first segment's other holder's UID rename, an open subcohort's own
+  UID rename, the member's edit to the subcohort's current path, then the clear. A tied path over a closed leaf whose
+  `Parent` is not the renamed cohort stays out of the repair planner and is reported, with the edit to a top-level
+  leaf's own slug. Native CLI cases and an enumeration matrix over name ties, open and closed subcohorts, agreeing and
+  disagreeing paths, and namesakes with and without subcohorts assert that each refusal writes nothing and that every
+  exit it names lands.
+
     - _Amended in:_ 5.R (A7).
     - _Amended in:_ 5.R2 (A8).
     - _Amended in:_ review-fix (A9).
+    - _Amended in:_ review-fix (A10).
 
 ### `[x]` **5.2.R Keep cohort repair planning reachable — A6**
 
@@ -939,12 +950,21 @@ Over the ref backend and, where it can form the state, the reference backend, fr
   is no longer the leaf's `Parent` lands, leaves that `Cohort` unchanged, and reports the edit to the leaf's current
   path.
 
-- `[x]` Renaming a parent that is a closed subcohort's `Parent`, while an open member of that subcohort has a tied first
+- `[~]` Renaming a parent that is a closed subcohort's `Parent`, while an open member of that subcohort has a tied first
   segment, a tied leaf, or a path disagreeing with the subcohort's `Parent`, refuses with nothing written, naming the
   member owner's `Cohort` clear and, for a first segment tied between live cohorts holding it as their current name,
   the other holder's UID rename, which lands; after either exit the parent's rename lands with the subcohort's `Parent`
   at the new slug. An open subcohort whose member's path disagrees with its `Parent` still lets the rename land,
   retaining both.
+
+- `[x]` Renaming a parent refuses with nothing written while a cohort whose `Parent` the batch moves would fail the
+  Parent check over an open record it leaves in place — a live namesake's own member or subcohort, a member with a tied
+  first segment, an open subcohort's colliding records under a live tie of its name, a member whose path disagrees with
+  the subcohort's current `Parent`, or a retained closed group's member — naming each record's exits in order: the
+  namesake's UID rename, the other tied holder's UID rename, the open subcohort's UID rename, the member's edit to the
+  subcohort's current path, then the clear; after any one named exit the parent's rename lands. Renaming either live
+  holder of a name tied on the first segment of a path over a closed subcohort whose `Parent` is not that holder lands,
+  reporting the member with the edit to a top-level leaf's own slug.
 
 **Deviation (criterion 16, A3):** Ordinary same-name rename input checks follow backend selection; outside an ARC project,
 the missing-project refusal takes precedence. Admitted in-repo commands retain distinct-name rejection.
@@ -957,3 +977,8 @@ Parent/member groups and executable ordered repairs, retaining the original batc
 
 **Superseded in A6 (criterion 23):** Criterion 24 qualifies exact ordered edits to proved companion identities;
 otherwise the retained owners and prerequisite repairs are reported. Original text and earlier verification stay preserved.
+
+**Superseded in A9 and A10 (criteria 8 and 27):** Criteria 27 and 28 qualify criterion 8's landing of a parent's rename
+over a closed subcohort's pulled open stub, which lands where the batch settles that stub and otherwise refuses naming
+its exits; criterion 28 replaces criterion 27's list of exits and adds the retained group to its causes. Original text
+and earlier verification stay preserved.

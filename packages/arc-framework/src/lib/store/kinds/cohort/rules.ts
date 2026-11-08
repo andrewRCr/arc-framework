@@ -2,8 +2,9 @@
 import { OwnerIdentitySchema, recordReferences } from "../../identity.js";
 import type { Remedy } from "../../refusal.js";
 import { brokenRule, observeRecord, observeNamedRecord, type RuleObservation } from "../rule-support.js";
-import { changedCohortFields, observeOpenCohorts, observeOpenMembers, observeOpenHoldings, observeAllHoldings, describeCohortHoldings, describeCohortHoldingOwners, type CohortEvidence, type CohortMemberEvidence } from "./check-support.js";
+import { changedCohortFields, observeOpenCohorts, observeOpenMembers, observeOpenHoldings, observeAllHoldings, describeCohortHoldings, describeCohortHoldingOwners } from "./check-support.js";
 import { parseCohortDocument } from "./parser.js";
+import { cohortParentConflicts } from "./parent-conflicts.js";
 import type { BrokenRule, StoreView, WriteCheckInput } from "../../write-check.js";
 /** Require an authored Purpose on creation or a proved Purpose change.
  * @param input - Proposed cohort write.
@@ -32,12 +33,9 @@ export async function checkCohortParent(input: WriteCheckInput): Promise<readonl
   const [cohorts, members] = await Promise.all([observeOpenCohorts(input.after), observeOpenMembers(input.after)]);
   if (cohorts.status !== "known") return fail(cohorts.status === "unavailable" ? cohorts.condition : "Open cohort evidence is unavailable.");
   if (members.status !== "known") return fail(members.status === "unavailable" ? members.condition : "Open membership evidence is unavailable.");
-  const name = input.reference.owner.name;
-  if (next.parent !== null && cohorts.value.some(({ fields }) => fields.parent === name)) {
-    return fail("Nesting this cohort would put its own open subcohorts below the one-level limit.");
-  }
-  const disagreeing = members.value.filter((member) => !memberAgrees(member, name, next.parent, cohorts.value));
-  return disagreeing.length === 0 ? [] : fail(`Open member Cohort paths disagree with Parent: ${disagreeing.map(({ record }) => record.reference.owner.name).join(", ")}.`);
+  const conflicts = cohortParentConflicts(input.reference.owner.name, next.parent, cohorts.value, members.value);
+  if (conflicts.nesting.length > 0) return fail("Nesting this cohort would put its own open subcohorts below the one-level limit.");
+  return conflicts.members.length === 0 ? [] : fail(`Open member Cohort paths disagree with Parent: ${conflicts.members.map(({ record }) => record.reference.owner.name).join(", ")}.`);
 }
 /** Keep a cohort document until every proposed open member and subcohort has left.
  * @param input - Proposed document removal or placement change.
@@ -90,14 +88,6 @@ async function parentProblem(view: StoreView, name: string): Promise<{ condition
   const parsed = parseCohortDocument(parent.value.content);
   return !parsed.success ? { condition: parsed.error } : parsed.data.parent !== null
     ? { condition: "The named parent is already nested below another cohort." } : undefined;
-}
-
-function memberAgrees(member: CohortMemberEvidence, name: string, parent: string | null, cohorts: readonly CohortEvidence[]): boolean {
-  const parts = member.cohort?.split("/") ?? [];
-  if (!parts.includes(name)) return true;
-  if (parent !== null) return member.cohort === `${parent}/${name}`;
-  return parts.length === 1 || (parts.length === 2 && parts[0] === name
-    && cohorts.some(({ record, fields }) => record.reference.owner.name === parts[1] && fields.parent === name));
 }
 
 async function observeRetirement(input: WriteCheckInput): Promise<RuleObservation<boolean>> {
