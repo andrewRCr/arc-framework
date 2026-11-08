@@ -3,14 +3,20 @@
   "slug": "sync-projection-worktrees-chunks",
   "claimId": "9c8c5e55a52ac9599e43359c06e77b9e",
   "createdAt": "2026-11-08T00:08:59.567Z",
-  "updatedAt": "2026-11-08T00:08:59.567Z",
+  "updatedAt": "2026-11-08T00:33:09.619Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Sync the storage-projection cohort's review chunks and size record to projection-worktrees' committed specification, and correct the team-scale draft's index-seams summary",
   "branch": "chore/sync-projection-worktrees-chunks",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/sync-projection-worktrees-chunks",
+    "headSha": "dbc5ef945afd3aa9db051b93ec886d263ac11908"
+  }
 }
