@@ -3,8 +3,7 @@ import { OwnerIdentitySchema, recordReferences } from "../../identity.js";
 import type { Remedy } from "../../refusal.js";
 import { brokenRule, observeRecord, observeNamedRecord, type RuleObservation } from "../rule-support.js";
 import { changedCohortFields, observeOpenCohorts, observeOpenMembers, observeOpenHoldings, observeAllHoldings, describeCohortHoldings, describeCohortHoldingOwners } from "./check-support.js";
-import { parseCohortDocument } from "./parser.js";
-import { cohortParentConflicts } from "./parent-conflicts.js";
+import { cohortParentConflicts, namedParentProblem } from "./parent-conflicts.js";
 import type { BrokenRule, StoreView, WriteCheckInput } from "../../write-check.js";
 /** Require an authored Purpose on creation or a proved Purpose change.
  * @param input - Proposed cohort write.
@@ -84,10 +83,10 @@ async function parentProblem(view: StoreView, name: string): Promise<{ condition
   if (parent.status === "ambiguous") return { condition: parent.condition, remedy: parent.remedy };
   if (parent.status !== "known") return { condition: parent.status === "unavailable" ? parent.condition : "The named parent cohort is absent." };
   if (parent.value.reference.owner.name !== name) return { condition: `The parent cohort '${name}' is now named '${parent.value.reference.owner.name}'.` };
-  if (parent.value.placement?.kind === "completed") return { condition: "The named parent cohort is completed." };
-  const parsed = parseCohortDocument(parent.value.content);
-  return !parsed.success ? { condition: parsed.error } : parsed.data.parent !== null
-    ? { condition: "The named parent is already nested below another cohort." } : undefined;
+  const problem = namedParentProblem(parent.value);
+  if (problem === undefined) return undefined;
+  return { condition: problem.kind === "completed" ? "The named parent cohort is completed."
+    : problem.kind === "nested" ? "The named parent is already nested below another cohort." : problem.error };
 }
 
 async function observeRetirement(input: WriteCheckInput): Promise<RuleObservation<boolean>> {

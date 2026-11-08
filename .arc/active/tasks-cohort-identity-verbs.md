@@ -655,10 +655,20 @@ old name refuses naming the current one.
   disagreeing paths, and namesakes with and without subcohorts assert that each refusal writes nothing and that every
   exit it names lands.
 
+- _Review correction:_ The rename also evaluates the Parent check's conditions on the cohort each moved `Parent` names,
+  with the check's own function over its planned batch: the renamed cohort as planned for a subcohort's `Parent` moved
+  to the new slug, or the cohort its own re-pointed `Parent` names. Where that cohort is completed or nested it refuses
+  before the batch, naming the renamed cohort's un-nesting. The clear's closed-subcohort note follows the member's
+  resolved leaf. The enumeration matrix adds a renamed cohort nested by a checked write over a closed subcohort, nested
+  over an open subcohort, and re-pointing its own `Parent` onto a completed or a nested cohort, each refusing with
+  nothing written and landing after the named exit, one combined with a member conflict, and a nested cohort with no
+  subcohort, which lands.
+
     - _Amended in:_ 5.R (A7).
     - _Amended in:_ 5.R2 (A8).
     - _Amended in:_ review-fix (A9).
     - _Amended in:_ review-fix (A10).
+    - _Amended in:_ review-fix (A11).
 
 ### `[x]` **5.2.R Keep cohort repair planning reachable — A6**
 
@@ -966,6 +976,12 @@ Over the ref backend and, where it can form the state, the reference backend, fr
   holder of a name tied on the first segment of a path over a closed subcohort whose `Parent` is not that holder lands,
   reporting the member with the edit to a top-level leaf's own slug.
 
+- `[x]` Renaming a cohort that is itself nested, while the batch moves a subcohort's `Parent`, open or closed, to the
+  new slug, or renaming one whose own `Parent` the batch re-points onto a completed or nested cohort, refuses with
+  nothing written, naming the renamed cohort's un-nesting; after it the rename lands. A nested cohort no subcohort names
+  still renames. A member's clear carries the closed-subcohort note only where its leaf resolves to that closed
+  subcohort.
+
 **Deviation (criterion 16, A3):** Ordinary same-name rename input checks follow backend selection; outside an ARC project,
 the missing-project refusal takes precedence. Admitted in-repo commands retain distinct-name rejection.
 
@@ -982,3 +998,9 @@ otherwise the retained owners and prerequisite repairs are reported. Original te
 over a closed subcohort's pulled open stub, which lands where the batch settles that stub and otherwise refuses naming
 its exits; criterion 28 replaces criterion 27's list of exits and adds the retained group to its causes. Original text
 and earlier verification stay preserved.
+
+**Superseded in A11 (criterion 28):** Criterion 29 adds the named parent's conditions to criterion 28's causes.
+Criterion 28's "after any one named exit the parent's rename lands" holds in states ordinary writes form. In states only
+a sync forms — two-level open nesting, or a live tie on a namesake's `Parent` — an exit named before the clear can
+itself refuse while the clear lands; those states are recorded as source-inferred. Original text and earlier
+verification stay preserved.

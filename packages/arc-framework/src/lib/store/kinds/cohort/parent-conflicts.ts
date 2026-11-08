@@ -1,5 +1,22 @@
-/** The open records a cohort's Parent conflicts with under the Parent check's text comparisons. */
+/** The Parent check's conditions on a proposed Parent: the cohort it names, and the open records it conflicts with. */
+import type { StoreRecord } from "../../read.js";
 import type { CohortEvidence, CohortMemberEvidence } from "./check-support.js";
+import { parseCohortDocument } from "./parser.js";
+
+/** Why the Parent check refuses the cohort a Parent names as a parent, once the name resolves to it. */
+export type NamedParentProblem = { readonly kind: "completed" } | { readonly kind: "nested"; readonly parent: string }
+  | { readonly kind: "malformed"; readonly error: string };
+
+/** Hold the cohort a Parent names to the Parent check's own conditions on a parent: open, and top-level.
+ * @param parent - The named cohort as it stands in the proposed state.
+ * @returns The condition it fails, or undefined where the Parent check admits it as a parent.
+ */
+export function namedParentProblem(parent: Pick<StoreRecord, "placement" | "content">): NamedParentProblem | undefined {
+  if (parent.placement?.kind === "completed") return { kind: "completed" };
+  const parsed = parseCohortDocument(parent.content);
+  if (!parsed.success) return { kind: "malformed", error: parsed.error };
+  return parsed.data.parent === null ? undefined : { kind: "nested", parent: parsed.data.parent };
+}
 
 /** The open records that keep a cohort's proposed Parent from passing the Parent check. */
 export interface CohortParentConflicts {

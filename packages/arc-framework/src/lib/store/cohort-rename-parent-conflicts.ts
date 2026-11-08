@@ -3,9 +3,9 @@ import type { StoreRecord } from "./read.js";
 import type { StoreResult } from "./refusal.js";
 import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences, sameReference, sameOwner, type RecordReference } from "./identity.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
-import { observeNamedRecord } from "./kinds/rule-support.js";
+import { observeNamedRecord, type NamedRecordObservation } from "./kinds/rule-support.js";
 import { parseCohortDocument } from "./kinds/cohort/index.js";
-import { cohortParentConflicts } from "./kinds/cohort/parent-conflicts.js";
+import { cohortParentConflicts, namedParentProblem, type NamedParentProblem } from "./kinds/cohort/parent-conflicts.js";
 import type { CohortEvidence, CohortHolding, CohortMemberEvidence } from "./kinds/cohort/check-support.js";
 import type { StoreView } from "./write-check.js";
 
@@ -18,12 +18,15 @@ export interface PlannedCohortRename {
 }
 interface MovedParent { child: StoreRecord; name: string; parent: string | null }
 interface ParentConflict { moved: MovedParent; record: StoreRecord; field: "cohort" | "parent"; path: string }
+interface NamedParentConflict { moved: MovedParent; problem: Exclude<NamedParentProblem, { kind: "malformed" }> }
 const OK: StoreResult<true> = { status: "ok", result: true };
+const UN_NEST = "have its owner clear its open members' Cohort and then its Parent";
 
-/** Refuse the rename, writing nothing, where a cohort whose Parent it moves would fail the Parent check over open records
- * the batch leaves in place. A closed subcohort whose sole Parent is the renamed cohort counts as moved even where the
- * batch keeps its Parent for a retained group, since a Parent left on what becomes a former slug would strand its open
- * members. Each conflicting record's exits are named by resolution, those keeping membership first.
+/** Refuse the rename, writing nothing, where a Parent it moves would fail the Parent check: the cohort it would name is
+ * completed or nested, or open records the batch leaves in place conflict with it. A closed subcohort whose sole Parent is
+ * the renamed cohort counts as moved even where the batch keeps its Parent for a retained group, since a Parent left on
+ * what becomes a former slug would strand its open members. A named parent the check refuses is settled by un-nesting the
+ * renamed cohort; each conflicting record's exits are named by resolution, those keeping membership first.
  * @param view - The rename's captured store view.
  * @param plan - The planned batch.
  * @param holdings - Every holding of the renamed cohort.
@@ -32,24 +35,53 @@ const OK: StoreResult<true> = { status: "ok", result: true };
 export async function refuseParentConflicts(view: StoreView, plan: PlannedCohortRename, holdings: readonly CohortHolding[]): Promise<StoreResult<true>> {
   const moved = movedParents(plan, holdings);
   if (moved.length === 0) return OK;
+  const named = await namedParentConflicts(view, plan, moved);
+  if (named.status === "refused") return named;
   const { cohorts, members } = plannedOpenState(plan);
   const conflicts = moved.flatMap((item): ParentConflict[] => {
     const found = cohortParentConflicts(item.name, item.parent, cohorts, members);
     return [...found.members.map(member => ({ moved: item, record: member.record, field: "cohort" as const, path: member.cohort ?? "" })),
       ...found.nesting.map(cohort => ({ moved: item, record: cohort.record, field: "parent" as const, path: cohort.fields.parent ?? "" }))];
   });
-  const first = conflicts[0];
+  const first = named.result[0]?.moved ?? conflicts[0]?.moved;
   if (first === undefined) return OK;
-  const remedies = new Set<string>();
+  const remedies = new Set<string>(named.result.length > 0 ? [`For ${describeOwner(plan.primary.reference)}: ${UN_NEST}.`] : []);
   for (const conflict of conflicts) {
     const exits = await conflictExits(view, plan, conflict);
     if (exits.status === "refused") return exits;
     remedies.add(`For ${describeOwner(conflict.record.reference)}: ${exits.result.join(", or ")}.`);
   }
-  return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: first.moved.child.reference,
-    rule: "lifecycle.rename", condition: "A cohort whose Parent names this cohort must name the new slug, but the Parent check "
-      + `would refuse that over open records the batch cannot settle: ${conflicts.map(describeConflict).join("; ")}.`,
+  const condition = [named.result.length === 0 ? undefined : "A Parent this rename moves would name a cohort the Parent check "
+    + `refuses as a parent: ${named.result.map(describeNamedConflict).join("; ")}.`,
+  conflicts.length === 0 ? undefined : "A cohort whose Parent names this cohort must name the new slug, but the Parent check "
+    + `would refuse that over open records the batch cannot settle: ${conflicts.map(describeConflict).join("; ")}.`];
+  return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: first.child.reference,
+    rule: "lifecycle.rename", condition: condition.filter(part => part !== undefined).join(" "),
     remedy: { text: `${[...remedies].join(" ")} Then retry the rename.` } } };
+}
+
+/** The moved Parents whose named cohort the Parent check would refuse as a parent: the renamed cohort as planned, for a
+ * subcohort's Parent moved to the new slug, or the cohort the renamed cohort's own re-pointed Parent names. A malformed
+ * document is left to the check's own refusal, which names its repair. */
+async function namedParentConflicts(view: StoreView, plan: PlannedCohortRename, moved: readonly MovedParent[]): Promise<StoreResult<NamedParentConflict[]>> {
+  const conflicts: NamedParentConflict[] = [];
+  for (const item of moved) {
+    if (item.parent === null) continue;
+    const named = await plannedNamedCohort(view, plan, item.parent);
+    if (named.status === "refused") return named;
+    const problem = named.result === undefined ? undefined : namedParentProblem(named.result);
+    if (problem !== undefined && problem.kind !== "malformed") conflicts.push({ moved: item, problem });
+  }
+  return { status: "ok", result: conflicts };
+}
+
+/** The cohort a moved Parent names as the batch leaves it: the renamed cohort as planned for the new slug, else the
+ * cohort holding that name as its current one, or none where the name resolves to no single current holder. */
+async function plannedNamedCohort(view: StoreView, plan: PlannedCohortRename, name: string): Promise<StoreResult<Pick<StoreRecord, "placement" | "content"> | undefined>> {
+  if (name === plan.target) return { status: "ok", result: { placement: plan.primary.placement, content: plan.contents.get(plan.primary) ?? plan.primary.content } };
+  const named = await observeNamedRecord(view, cohortReference(name));
+  if (named.status === "unavailable") return unavailable(plan, named.condition);
+  return { status: "ok", result: named.status === "known" && named.value.reference.owner.name === name ? named.value : undefined };
 }
 
 function movedParents(plan: PlannedCohortRename, holdings: readonly CohortHolding[]): MovedParent[] {
@@ -104,9 +136,17 @@ async function conflictExits(view: StoreView, plan: PlannedCohortRename, conflic
     if (current.status === "refused") return current;
     if (current.result !== undefined && current.result !== path) exits.push(`have its owner set its Cohort to ${JSON.stringify(current.result)}`);
   }
-  exits.push(field === "parent" ? "have its owner clear its open members' Cohort and then its Parent"
-    : `have its owner clear its Cohort${ownMember && child.placement?.kind === "completed" ? `, after which it cannot rejoin closed subcohort ${name}` : ""}`);
+  exits.push(field === "parent" ? UN_NEST : `have its owner clear its Cohort${ownMember && child.placement?.kind === "completed"
+    && leafIsClosedChild(named, child) ? `, after which it cannot rejoin closed subcohort ${name}` : ""}`);
   return { status: "ok", result: exits };
+}
+
+/** Whether a member's leaf resolves to the closed subcohort, alone or tied among closed holders of its name, so that a
+ * clear leaves it no way back; a leaf resolving to a live namesake makes the member that cohort's. */
+function leafIsClosedChild(named: NamedRecordObservation, child: StoreRecord): boolean {
+  if (named.status === "known") return sameReference(named.value.reference, child.reference);
+  return named.status === "ambiguous" && named.tie?.liveness !== "live"
+    && named.candidates.some(candidate => sameReference(candidate, child.reference));
 }
 
 /** The renames that move a record off the name: a live namesake's own, the other holders' of a tied first segment, and
@@ -177,6 +217,11 @@ function own(plan: PlannedCohortRename, record: StoreRecord): boolean {
 
 function renameExit(reference: RecordReference): string {
   return `rename cohort ${reference.owner.name} with \`arc rename ${ownerUid(reference)} <new-slug>\``;
+}
+
+function describeNamedConflict({ moved, problem }: NamedParentConflict): string {
+  return `${describeOwner(moved.child.reference)} with Parent ${JSON.stringify(moved.parent)}, which `
+    + (problem.kind === "completed" ? "is completed" : `is nested below ${JSON.stringify(problem.parent)}`);
 }
 
 function describeConflict(conflict: ParentConflict): string {

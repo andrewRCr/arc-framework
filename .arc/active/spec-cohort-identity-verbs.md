@@ -92,14 +92,16 @@ refusals").
 2. **One command renames any namespace holder.** `arc rename <slug|uid> <new-slug>` renames a work unit or a cohort,
    selected by slug or by exact UID, and lands under a clash of its own slug. A cohort rename instead refuses, writing
    nothing and naming the exits that land, where a cohort whose `Parent` it moves would fail the Parent check over an
-   open record the batch cannot settle (A9, A10).
+   open record the batch cannot settle (A9, A10), or where a `Parent` it moves would name a completed or nested cohort,
+   naming the renamed cohort's un-nesting (A11).
 3. **A rename changes only what names its subject.** It rewrites another record's reference to the old slug only where
    that slug, resolved within the family the reference names, names the subject alone, and reports every reference to
    the subject that rule leaves with the edit that re-points it. When a companion identity is unproved, report the
    retained owner and the prerequisite repair instead of an unsupported field edit (A6).
 4. **A cohort rename is one write the store's checks admit,** whatever its members' states, on a clone missing their
-   history refs. Where a cohort whose `Parent` it moves would fail the Parent check over an open record the batch
-   cannot settle, it refuses before that write, naming the exits that land (A9, A10).
+   history refs. Where a cohort whose `Parent` it moves would fail the Parent check over an open record the batch cannot
+   settle, it refuses before that write, naming the exits that land (A9, A10). Where a `Parent` it moves would name a
+   completed or nested cohort, it refuses so too, naming the renamed cohort's un-nesting (A11).
 5. **A cohort can always be retired.** `arc cohort close` and `arc cohort remove` retire a cohort nothing else will,
    close refusing while an open record in its view holds it and remove while any record does, so no open record they or
    archive see is left in a closed cohort and no record names a removed one. A record another machine writes meanwhile
@@ -489,9 +491,10 @@ alike, so the verb resolves once per family before its batch:
   ambiguous or otherwise unresolved, retain the whole coupled group and report each exact holding owner with the
   prerequisite identity repair. The parent’s UID rename still lands, except where a cohort whose `Parent` it moves would
   fail the Parent check over an open record the batch cannot settle, which refuses it and names that record's exits
-  (§ 5.1, A9, A10). These report rows carry no unsupported field edit; existing advisories name the unresolved segment
-  and its available repair. After the companion clash is resolved, owners choose the intended child by UID and apply
-  clear → its current `Parent` → restore at the current full path.
+  (§ 5.1, A9, A10), or where a `Parent` it moves would name a completed or nested cohort, which refuses it naming the
+  renamed cohort's un-nesting (A11). These report rows carry no unsupported field edit; existing advisories name the
+  unresolved segment and its available repair. After the companion clash is resolved, owners choose the intended child
+  by UID and apply clear → its current `Parent` → restore at the current full path.
 - **The slug names another holder** — an ended subject whose slug a live item has reused, which the lookup ranks above
   it: those references are the live holder's, and the rename leaves them unreported.
 
@@ -528,10 +531,10 @@ version-checked batch:
   `Parent`. Report every retained holding, including sole ones, through § 4’s ordered clear → `Parent` → restore edits
   where every companion identity is proved; otherwise retain the group and report § 4’s prerequisite instead (A6).
   All-sole groups still move in the batch; completed members alone do not prevent a `Parent` update when its members’
-  destination paths are proved. **Moved Parents (A9, A10):** where the batch moves a cohort's `Parent` to the new slug —
-  a subcohort, open or closed, whose `Parent` names the renamed cohort alone, or a closed one whose group it retains,
-  since a `Parent` left on what becomes a former slug would strand its open members — `cohort.parent` compares that
-  `Parent` by text with its open members' paths and with every open cohort's `Parent`. Before the batch, the rename
+  destination paths are proved. **Moved Parents (A9, A10, A11):** where the batch moves a cohort's `Parent` to the new
+  slug — a subcohort, open or closed, whose `Parent` names the renamed cohort alone, or a closed one whose group it
+  retains, since a `Parent` left on what becomes a former slug would strand its open members — `cohort.parent` compares
+  that `Parent` by text with its open members' paths and with every open cohort's `Parent`. Before the batch, the rename
   makes those comparisons over its planned state with the check's own function, and where an open record would conflict
   it refuses with nothing written, naming each such record and the exits that land, classified by resolution: a live
   namesake's UID rename for the namesake's own agreeing member or subcohort; for a first segment tied between live
@@ -544,7 +547,15 @@ version-checked batch:
   the renamed cohort or names the tied segment itself: a leaf whose `Parent` resolves to another cohort is that cohort's
   member and stays unreported, and any other tied path disagrees with its leaf's `Parent`, so it is kept and reported as
   A8 reports a sole one, with the edit to a top-level leaf's own slug, or else its owner and an advisory. Other retained
-  closed groups are reported by owner with the closed-subcohort advisory and no planned field edit.
+  closed groups are reported by owner with the closed-subcohort advisory and no planned field edit. The check also holds
+  the cohort each moved `Parent` names to its own conditions on a parent, open and top-level: the renamed cohort as
+  planned, for a subcohort's `Parent` moved to the new slug, or the cohort the renamed cohort's own re-pointed `Parent`
+  names. Before the batch the rename evaluates them with the check's own function, and where that cohort is completed or
+  nested it refuses with nothing written, naming the renamed cohort's un-nesting: its owner's clear of its open members'
+  `Cohort`, every open record whose path names it, and then its `Parent` (A11). Ordinary writes reach only a nested
+  cohort over a closed subcohort, since the nesting rule counts open subcohorts. In states only a sync forms — two-level
+  open nesting, or a live tie on a namesake's `Parent` — an exit named before the clear can itself refuse; the clear
+  still lands (A11).
 - **References to the document's filename,** `` `cohort-<old>.md` ``, in stubs and open cohort documents — a parent
   cites its subcohorts' documents by filename — rewritten by the cohort arm itself where the old slug names the cohort
   alone (§ 4). The work-item sweep cannot serve: it leaves every `cohort-` reference unchanged
@@ -622,7 +633,8 @@ cohort only where its prior `Cohort` named that same cohort, its leaf segment in
 to the owner the new leaf names in the view after it: the write re-points a holding rather than joining a cohort.
 `cohort.parent` admits the closed subcohort's own `Parent` rewrite (`checkCohortParent`): the renamed parent is open
 and top-level, and the subcohort's open members — only § 8.4's straggler, a record another machine wrote meanwhile —
-take the rewritten path in the same batch, which that admission lets `meta.cohort` pass.
+take the rewritten path in the same batch, which that admission lets `meta.cohort` pass. A renamed parent that is itself
+nested refuses before the batch instead, naming its un-nesting (§ 5.1, A11).
 
 ### 7. Counting a cohort's holders by resolution
 
@@ -854,8 +866,8 @@ to land whole returns to the Owner.
 This change alters four of the storage seam's shared decisions and one of the storage program's, recorded beside each
 item in the cohort documents' § Shared contracts, dated and stating the decision as it now stands: in
 `cohort-storage-seam.md`, the writers of `Cohort` and the holdings a cohort rename retains or refuses over (item 1, with
-A5, A6, A8, A9 and A10), the rename's rewrites only where a slug resolves to its subject, and its holding reports (item
-3), the cohort document's writers and counting (item 7), and the write check's current-slug, open-members,
+A5, A6, A8, A9, A10 and A11), the rename's rewrites only where a slug resolves to its subject, and its holding reports
+(item 3), the cohort document's writers and counting (item 7), and the write check's current-slug, open-members,
 rename-preparation and removal-holdings rules (item 11, with A7); in `cohort-state-storage.md`, D14's clash refusals and
 what their remedies name, a branch-link tie's among them (A2, A4). The status warning's text, decomposition's remedies,
 and the rename's branch handling stay in this spec alone.
@@ -1162,10 +1174,20 @@ Over the ref backend and, where it can form the state, the reference backend, fr
     subcohort's current path, then the clear — and after any one named exit the parent's rename lands. Renaming either
     live holder of a name tied on the first segment of a path over a closed subcohort whose `Parent` is not that holder
     lands, reporting the member with the edit to a top-level leaf's own slug.
+25. **A nested renamed cohort refuses before its batch, naming its un-nesting (A11).** Renaming a cohort that is itself
+    nested, while the batch moves a subcohort's `Parent`, open or closed, to the new slug, or renaming one whose own
+    `Parent` the batch re-points onto a completed or nested cohort, refuses with nothing written, naming the renamed
+    cohort's un-nesting: its open members' `Cohort` cleared, then its `Parent`. After it the rename lands. A nested
+    cohort no subcohort names still renames.
 
 **Superseded (A9, A10):** Criteria 23 and 24 qualify criterion 8's landing of a parent's rename over a closed
 subcohort's pulled open stub: it lands where the batch settles that stub at `<new-slug>/<subcohort>`, and otherwise
 refuses naming its exits. Criterion 24 replaces criterion 23's list of exits and adds the retained group to its causes.
+
+**Superseded (A11):** Criterion 25 adds the named parent's conditions to criterion 24's causes. Criterion 24's "after
+any one named exit the parent's rename lands" holds in states ordinary writes form; in states only a sync forms —
+two-level open nesting, or a live tie on a namesake's `Parent` — an exit named before the clear can itself refuse, while
+the clear lands.
 
 ## Open Questions
 
@@ -1204,5 +1226,10 @@ None.
 - **A10** — 2026-11-08 — design: a cohort rename refuses before its batch wherever the Parent check would refuse a
   `Parent` it moves, naming the exits that land. _Supersedes:_ § 5.1 A9's exits and "No rename settles a tied leaf";
   criterion 23. _Trigger:_ fix check after pass 18. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A11** — 2026-11-08 — design: a cohort rename refuses before its batch wherever the Parent check's named-parent
+  conditions would refuse a `Parent` it moves, naming the renamed cohort's un-nesting. _Supersedes:_ Goals 2 and 4 (A9,
+  A10); § 4 A9's qualification; § 6.2's "the renamed parent is open and top-level"; criterion 24. _Trigger:_ second fix
+  check after pass 18. _Work:_ review-fix. _Revalidated:_ review-fix.
 
 ---

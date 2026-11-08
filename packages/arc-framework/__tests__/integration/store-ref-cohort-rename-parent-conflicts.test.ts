@@ -1,6 +1,7 @@
-/** A parent cohort's rename over every combination of name tie, subcohort state, member path, and namesake: each refusal
- * writes nothing, names exactly the expected exits, and every exit it names lets the rename land once taken. States that
- * ordinary writes cannot form are planted as a pull would deliver them. */
+/** A parent cohort's rename over every combination of name tie, subcohort state, member path, and namesake, and over a
+ * renamed cohort that is itself nested or whose own Parent the rename re-points: each refusal writes nothing, names exactly
+ * the expected exits, and every exit it names lets the rename land once taken. States that ordinary writes cannot form are
+ * planted as a pull would deliver them. */
 import { describe, expect, it } from "vitest";
 import type { StoreRecord } from "../../src/lib/store/read.js";
 import { createKindRegistry, RecordReferenceSchema } from "../../src/lib/store/index.js";
@@ -23,7 +24,7 @@ const document = (name: string, parent?: string | null) =>
   `# Cohort: \`${name}\`\n\n**Purpose:** Coordinate.\n${parent === undefined || parent === null ? "" : `\n**Parent:** \`${parent}\`\n`}`;
 const uid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const UID = { parent: uid(101), other: uid(102), child: uid(103), elsewhere: uid(104), namesake: uid(105), x: uid(106),
-  member: uid(107), xMember: uid(108), twin: uid(109), alpha: uid(110), alphaTwin: uid(111) };
+  member: uid(107), xMember: uid(108), twin: uid(109), alpha: uid(110), alphaTwin: uid(111), g: uid(112), h: uid(113) };
 const TARGET = "cohort-after";
 
 type Fixture = Awaited<ReturnType<typeof createRefFixture>>;
@@ -34,7 +35,8 @@ interface State {
   /** The subcohort's Parent, where it is not the renamed cohort: top-level, unresolved, or tied under another name. */
   leafParent?: "none" | "unresolved" | "tied";
 }
-type Exit = { kind: "rename"; name: string; uid: string } | { kind: "set"; path: string } | { kind: "clear" } | { kind: "un-nest" };
+type Exit = { kind: "rename"; name: string; uid: string } | { kind: "set"; path: string } | { kind: "clear"; closed?: string }
+  | { kind: "un-nest" };
 interface Named { name: string; uid: string; exits: Exit[] }
 
 async function build(state: State): Promise<Fixture> {
@@ -90,14 +92,14 @@ async function close(f: Fixture, id: string): Promise<void> {
   success(await f.store.write({ ...recordPut(await read(f, id), { placement: completed }), provenance: { verb: "cohort-close", lifecycleAction: "close" } }));
 }
 
-async function renameByFixture(f: Fixture, id: string, name: string): Promise<void> {
+async function renameByFixture(f: Fixture, id: string, name: string, parent: string | null = null): Promise<void> {
   const records: StoreRecord[] = [];
   for (const family of ["cohort", "work-item"] as const) {
     const listing = success(await f.store.list({ family }));
     if (listing.status === "complete") records.push(...listing.records);
   }
   const record = await read(f, id);
-  success(await f.store.batch({ writes: [{ ...recordPut(record, { content: document(name) }),
+  success(await f.store.batch({ writes: [{ ...recordPut(record, { content: document(name, parent) }),
     reference: RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name } }) }],
   observations: observeRecords(records), provenance: fixtureRenameProvenance }));
 }
@@ -119,12 +121,14 @@ function parseExit(text: string): Exit {
   if (renamed !== null) return { kind: "rename", name: renamed[1] ?? "", uid: renamed[2] ?? "" };
   const set = /^have its owner set its Cohort to "(.+)"$/u.exec(text);
   if (set !== null) return { kind: "set", path: set[1] ?? "" };
-  if (/^have its owner clear its Cohort(, after which it cannot rejoin closed subcohort \S+)?$/u.test(text)) return { kind: "clear" };
+  const clear = /^have its owner clear its Cohort(?:, after which it cannot rejoin closed subcohort (\S+))?$/u.exec(text);
+  if (clear !== null) return clear[1] === undefined ? { kind: "clear" } : { kind: "clear", closed: clear[1] };
   if (text === "have its owner clear its open members' Cohort and then its Parent") return { kind: "un-nest" };
   throw new Error(`Unrecognized exit: ${text}`);
 }
 
 function exitLabel(exit: Exit): string {
+  if (exit.kind === "clear") return exit.closed === undefined ? "clear" : `clear, closed ${exit.closed}`;
   return exit.kind === "rename" ? `rename ${exit.name}` : exit.kind === "set" ? `set ${exit.path}` : exit.kind;
 }
 
@@ -135,10 +139,11 @@ async function take(f: Fixture, named: Named, exit: Exit): Promise<void> {
     return;
   }
   if (exit.kind === "un-nest") {
+    // Its open members are every open record whose Cohort path names it, as the Parent check reads them.
     const subcohort = await read(f, named.uid);
     for (const record of await openMetas(f)) {
       const cohort = ParsedMetaRecordSchema.parse(record.fields).cohort;
-      if (cohort?.split("/").at(-1) === subcohort.reference.owner.name) await setCohort(f, record, null);
+      if (cohort?.split("/").includes(subcohort.reference.owner.name) === true) await setCohort(f, record, null);
     }
     success(await f.store.write({ ...recordPut(subcohort, { content: document(subcohort.reference.owner.name) }), provenance: edit }));
     return;
@@ -169,8 +174,8 @@ async function expectRefusal(f: Fixture): Promise<Named[]> {
 
 /** Take one exit, then confirm the record it names is settled and the rename lands once every other record's own
  * named exit is also taken. */
-async function expectExitLands(state: State, recordUid: string, index: number): Promise<void> {
-  const f = await build(state);
+async function expectExitLands(make: () => Promise<Fixture>, recordUid: string, index: number): Promise<void> {
+  const f = await make();
   const named = (await expectRefusal(f)).find(item => item.uid === recordUid);
   const exit = named?.exits[index];
   if (named === undefined || exit === undefined) throw new Error("Expected the exit");
@@ -191,11 +196,11 @@ async function expectExitLands(state: State, recordUid: string, index: number): 
 interface RefusingCase { state: State; exits: Record<string, string[]> }
 const refusing: Array<[string, RefusingCase]> = [
   ["no tie, closed subcohort, disagreeing member", { state: { tie: "none", child: "closed", path: "disagrees" },
-    exits: { [UID.member]: ["set cohort-p/cohort-child", "clear"] } }],
+    exits: { [UID.member]: ["set cohort-p/cohort-child", "clear, closed cohort-child"] } }],
   ["first segment tied, closed subcohort, agreeing member", { state: { tie: "first segment", child: "closed", path: "agrees" },
-    exits: { [UID.member]: ["rename cohort-shared", "clear"] } }],
+    exits: { [UID.member]: ["rename cohort-shared", "clear, closed cohort-child"] } }],
   ["first segment tied, closed subcohort, disagreeing member", { state: { tie: "first segment", child: "closed", path: "disagrees" },
-    exits: { [UID.member]: ["clear"] } }],
+    exits: { [UID.member]: ["clear, closed cohort-child"] } }],
   ["leaf tied, closed subcohort, agreeing member", { state: { tie: "leaf", child: "closed", path: "agrees" },
     exits: { [UID.member]: ["clear"] } }],
   ["leaf tied, closed subcohort, disagreeing member", { state: { tie: "leaf", child: "closed", path: "disagrees" },
@@ -213,7 +218,7 @@ const refusing: Array<[string, RefusingCase]> = [
   ["namesake with a subcohort, open subcohort, no other member", { state: { tie: "leaf with subcohort", child: "open", path: "none" },
     exits: { [UID.xMember]: ["rename cohort-child", "clear"], [UID.x]: ["rename cohort-child", "un-nest"] } }],
   ["two closed subcohorts share the name, agreeing member", { state: { tie: "twin closed leaf", child: "closed", path: "agrees" },
-    exits: { [UID.member]: ["clear"] } }],
+    exits: { [UID.member]: ["clear, closed cohort-child"] } }],
 ];
 
 interface LandingCase { state: State; check?: (f: Fixture) => Promise<void> }
@@ -247,7 +252,7 @@ describe("cohort rename over a moved Parent's conflicts", () => {
   it.each(refusing.flatMap(([label, { state, exits }]) => Object.entries(exits).flatMap(([recordUid, labels]) =>
     labels.map((exit, index) => [`${label}: ${exit} for ${recordUid.slice(-3)}`, state, recordUid, index] as const))))(
     "%s lets the rename land", async (_label, state, recordUid, index) => {
-      await expectExitLands(state, recordUid, index);
+      await expectExitLands(() => build(state), recordUid, index);
     }, 120_000);
 
   it.each(landing)("%s: lands", async (_label, { state, check }) => {
@@ -272,4 +277,63 @@ describe("renaming either holder of a tied first segment over a closed subcohort
       expect(row?.edits ?? null).toEqual(leafParent === "none" ? [{ kind: "field", field: "cohort", from: "cohort-shared/cohort-child", to: "cohort-child" }] : []);
       if (leafParent !== "none") expect(renamed.advisories.join(" ")).toContain("cohort-shared/cohort-child");
     }, 60_000);
+});
+
+type NestedState = "closed subcohort" | "closed subcohort, disagreeing member" | "open subcohort" | "no subcohort"
+  | "own Parent on a completed cohort" | "own Parent on a nested cohort";
+
+/** A renamed cohort nested below cohort-g, or whose own Parent names a former slug of a completed or nested cohort. A
+ * nested cohort over a closed subcohort is formed by a checked write, since the nesting rule counts open subcohorts; the
+ * others are planted as a pull would deliver them. */
+async function buildNested(state: NestedState): Promise<Fixture> {
+  const f = await createRefFixture(production);
+  const plant = (kind: "cohort/document" | "work-item/meta", name: string, id: string, content: string) =>
+    plantRefPrimary(f, { kind, name, uid: id, content, ...(kind === "work-item/meta" ? { placement: { kind: "backlog", commitment: "planned" } as const } : {}) });
+  if (state === "own Parent on a completed cohort" || state === "own Parent on a nested cohort") {
+    const above = state === "own Parent on a nested cohort" ? "cohort-h" : null;
+    if (above !== null) await plant("cohort/document", above, UID.h, document(above));
+    await plant("cohort/document", "cohort-g", UID.g, document("cohort-g", above));
+    await renameByFixture(f, UID.g, "cohort-g-new", above);
+    if (above === null) await close(f, UID.g);
+    await plant("cohort/document", "cohort-p", UID.parent, document("cohort-p", "cohort-g"));
+    return f;
+  }
+  await plant("cohort/document", "cohort-g", UID.g, document("cohort-g"));
+  await plant("cohort/document", "cohort-p", UID.parent, document("cohort-p", state === "open subcohort" ? "cohort-g" : null));
+  if (state !== "no subcohort") await plant("cohort/document", "cohort-child", UID.child, document("cohort-child", "cohort-p"));
+  if (state.startsWith("closed subcohort")) await close(f, UID.child);
+  if (state === "closed subcohort, disagreeing member") {
+    await plant("cohort/document", "cohort-elsewhere", UID.elsewhere, document("cohort-elsewhere"));
+    await plant("work-item/meta", "work-item-member", UID.member, meta("work-item-member", "cohort-elsewhere/cohort-child"));
+  }
+  if (state !== "open subcohort") success(await f.store.write({ ...recordPut(await read(f, UID.parent), { content: document("cohort-p", "cohort-g") }), provenance: edit }));
+  return f;
+}
+
+describe("renaming a nested cohort, or one whose own Parent the rename re-points", () => {
+  const refusingNested: Array<[NestedState, Record<string, string[]>]> = [
+    ["closed subcohort", { [UID.parent]: ["un-nest"] }],
+    ["open subcohort", { [UID.parent]: ["un-nest"] }],
+    ["own Parent on a completed cohort", { [UID.parent]: ["un-nest"] }],
+    ["own Parent on a nested cohort", { [UID.parent]: ["un-nest"] }],
+    ["closed subcohort, disagreeing member", { [UID.parent]: ["un-nest"], [UID.member]: ["set cohort-p/cohort-child", "clear, closed cohort-child"] }],
+  ];
+
+  it.each(refusingNested)("%s: refuses with nothing written, naming exactly its exits", async (state, exits) => {
+    const named = await expectRefusal(await buildNested(state));
+    expect(Object.fromEntries(named.map(item => [item.uid, item.exits.map(exitLabel)]))).toEqual(exits);
+  }, 60_000);
+
+  it.each(refusingNested.flatMap(([state, exits]) => Object.entries(exits).flatMap(([recordUid, labels]) =>
+    labels.map((exit, index) => [`${state}: ${exit} for ${recordUid.slice(-3)}`, state, recordUid, index] as const))))(
+    "%s lets the rename land", async (_label, state, recordUid, index) => {
+      await expectExitLands(() => buildNested(state), recordUid, index);
+    }, 120_000);
+
+  it("no subcohort: lands with the cohort still nested", async () => {
+    const f = await buildNested("no subcohort");
+    const renamed = await rename(f, UID.parent, TARGET);
+    expect(renamed.status, JSON.stringify(renamed)).toBe("renamed");
+    expect((await read(f, UID.parent)).fields).toMatchObject({ parent: "cohort-g" });
+  }, 60_000);
 });

@@ -19,6 +19,7 @@
 - [Disagreeing member paths — A8](#disagreeing-member-paths--a8)
 - [A closed subcohort's unsettled open member — A9](#a-closed-subcohorts-unsettled-open-member--a9)
 - [Refusing where the Parent check would — A10](#refusing-where-the-parent-check-would--a10)
+- [The named parent's conditions — A11](#the-named-parents-conditions--a11)
 
 ## Catch-up publication recovery
 
@@ -374,6 +375,13 @@ subcohort removes every text collision with its name; a closed cohort cannot be 
 subcohort's current path is admitted only where that path's first segment is its parent's current slug and the leaf is
 the subcohort itself, so it is named only then. The clear always lands.
 
+Amended 2026-11-08 (A11): the next fix check found two exits named before the clear refusing in states only a sync
+forms. Under two-level open nesting, an open subcohort's own rename carries its colliding references with it and refuses
+at the named parent's conditions besides; under a live tie on a namesake's `Parent`, the namesake's rename refuses on
+that tie. The clear lands in both. The Owner chose to record these states as source-inferred rather than gate those
+exits on resolution. The clear's closed-subcohort note now follows the member's resolved leaf, so a live namesake's
+member no longer reads as the closed subcohort's.
+
 The Owner also directed, through the project manager, an enumeration matrix over the states the rename can meet before
 the next look — name ties, open and closed subcohorts, agreeing and disagreeing paths, namesakes with and without
 subcohorts — asserting that each refusal writes nothing and every exit it names lands. If a later look still finds a
@@ -387,5 +395,32 @@ The superseded rules were § 5.1 A9's
 > name outranks the closed subcohort under either name, nor a former-name tie, since former names persist.
 
 and criterion 23's list of exits, which criterion 24 replaces.
+
+## The named parent's conditions — A11
+
+The second fix check after pass 18 found the A10 pre-check still short of the Parent check. Before its nesting and
+member-path comparisons, `cohort.parent` holds the cohort a new `Parent` names to its own conditions on a parent: open,
+and not nested below another cohort. The pre-check mirrored only the comparisons. A cohort nested below another, once a
+subcohort of its own had closed, therefore refused its own rename at admission with the check's generic remedy, writing
+nothing, and un-nesting it let the same rename land. The nesting rule counts open subcohorts only, so ordinary checked
+writes form this state. Both reviewers' probes and the author's re-run reproduced it on 2026-11-08.
+
+Under the project manager's standing direction, a major about which exits a refusal names, found after the matrix,
+returned to the Owner as a scope call. Of three directions — mirror the remaining conditions, record a residual, or
+change the shipped check to count closed subcohorts — the Owner chose on 2026-11-08 to mirror them, since they are the
+last conditions of `cohort.parent` a moved `Parent` can meet. `namedParentProblem` now serves both the check and the
+rename's pre-check. For a subcohort's `Parent` moved to the new slug the named cohort is the renamed cohort as planned,
+whose nesting alone can fail, since the new slug's sole holder is the open renamed cohort. For the renamed cohort's own
+`Parent`, re-pointed from a former slug, the read that resolves it already refuses an absent or ambiguous parent,
+leaving a completed or nested one, which only a sync forms. Either way the exit is the renamed cohort's un-nesting,
+whose open members are every open record whose path names it, as the check reads them. A malformed named document is
+left to the check's own refusal, which names its repair.
+
+The superseded premise was § 6.2's
+
+> the renamed parent is open and top-level
+
+which holds only for a parent with no `Parent` of its own. Criterion 25 adds the nested case, and criterion 24's landing
+after any one named exit is qualified for states only a sync forms.
 
 ---
