@@ -305,6 +305,8 @@ nothing without `--yes`; and a member a pull lands naming a removed cohort refus
   from the final persisted closeout plan with no writes, including publication recovery and nested reruns. Registered
   CLI tests can construct dependencies after the module reset, keeping real Git error identities coherent.
 
+    - _Amended in:_ 5.R (A7).
+
 ### `[x]` **3.4 Close a cohort — § 8.1, § 8.5**
 
 - _Goal:_ `arc cohort close <cohort>` places a cohort completed once no open record holds it, writing only with `--yes`.
@@ -487,6 +489,8 @@ its history refs, discharging the edges naming it.
   cover title-only and operand-only refusal/retry, other-holder preservation, unsupported forms and non-Planning prose;
   native coverage includes ambiguous shared-name resolution.
 
+    - _Amended in:_ 5.R (A7).
+
 ### `[x]` **4.6 Pull history refs round after round — § 2.6**
 
 - _Goal:_ A rename batch that writes completed records lands on a clone lacking their history refs, pulling each round
@@ -617,6 +621,8 @@ old name refuses naming the current one.
   omitted; refusal preserves all rename state and fresh preparation includes them. Coupled retention and existing
   closed-child restrictions remain enforced; unrelated arrivals do not invalidate a prepared rename.
 
+    - _Amended in:_ 5.R (A7).
+
 ### `[x]` **5.2.R Keep cohort repair planning reachable — A6**
 
 - _Goal:_ Under A6, a parent UID rename retains unresolved companion groups and reports their prerequisite identity
@@ -668,6 +674,42 @@ old name refuses naming the current one.
   holdings' required histories in both layouts. Late open members re-point without changing placement. Ambiguous
   completed-member repairs use the exact planned Parent content and execute after the batch, retaining captured
   ownership evidence and the original observations; retained closed ambiguous subtrees stay unchanged.
+
+### `[ ]` **5.R Re-derive each prepared store write at admission — § 12 (A7)**
+
+- _Goal:_ Under A7, a rename's batch lands only where preparing it against the state it lands on yields the same writes
+  from the same evidence, and archive's closeout binds each cohort it completes, so no record arriving, changing or
+  gaining a conflict between preparation and submission goes unaccounted for.
+
+    - `[ ]` **5.R.a Arrivals refuse — failing first**
+
+        - A boundary harness on both backends, where the state can form, injects one store change between preparation
+          and batch per read family: a quiet owned companion, a second retired lineage, a Candidate, a branch-link
+          holder, name resolution changing either way, an Integrating dependent, a missing segment's cohort, a namesake
+          taking over a former name, and a conflict on a cohort archive completes; plus an unrelated write. Each arrival
+          case fails against the current admission.
+
+    - `[ ]` **5.R.b Preparation as a function of a store view, with its evidence**
+
+        - Both rename preparations take every store-derived decision themselves, including Candidate presence, lineage
+          settlement and the branch link's holders, and return their evidence: the records and exact absences that feed
+          a write, a report row or an advisory.
+
+    - `[ ]` **5.R.c Admission re-plans**
+
+        - One check per batch, on the primary, rebuilds the request from the batch, runs preparation over `before`, and
+          admits only on success, with every fresh write in `after` and its evidence observed or written by the batch.
+          The rename admission predicates and the target recheck are removed.
+
+    - `[ ]` **5.R.d Archive's closeout observes the cohorts it completes**
+
+        - The transition batch and the stored closeout observe every cohort document they complete, so a conflict
+          arriving on one refuses archive and leaves the cohort open.
+
+    - `[ ]` **5.R.e Revalidate**
+
+        - Every 5.R.a arrival refuses with nothing written and lands on a fresh retry, or admits equal to fresh
+          preparation; the unrelated write admits. The segment scenarios of 3.8, 4.12 and 5.6 still hold.
 
 ### `[x]` **5.6 A cohort renamed end to end** — validate exit criterion at segment scope
 

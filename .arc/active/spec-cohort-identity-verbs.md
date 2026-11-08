@@ -223,11 +223,11 @@ A rename onto a reused slug settles in its batch the edges naming that slug that
 
 - **Stubs' edges** through `settleCreationSlugEdges` with the subject as writing owner: an edge on shipped work
   discharges, and an edge on a retired origin takes its lineage disposition. The settler leaves the writing owner's own
-  records to its caller and binds the records it read as the batch's observations. Each stub takes one put: the
-  rename's sweep (§ 4) runs over the settler's output. A stub whose edges name both the subject's current slug and the
-  target refuses the batch through `work-item.slug-edges`, since after the sweep its one edge on the target names the
-  subject and the rule reads it as the prior holder's (`survivingEdge`); the rule's remedy lets anyone edit a stub's
-  edge, and settling or dropping the stub's edge on the target lets the rename land.
+  records to its caller and returns the records it read as evidence, which admission re-derives (§ 12, A7). Each stub
+  takes one put: the rename's sweep (§ 4) runs over the settler's output. A stub whose edges name both the subject's
+  current slug and the target refuses the batch through `work-item.slug-edges`, since after the sweep its one edge on
+  the target names the subject and the rule reads it as the prior holder's (`survivingEdge`); the rule's remedy lets
+  anyone edit a stub's edge, and settling or dropping the stub's edge on the target lets the rename land.
 - **The subject's own edge** naming the target, in the subject's own meta write: discharged where the slug's prior
   holder shipped, and replaced or dropped by the retired origin's lineage disposition otherwise, through the same
   resolver and slot replacement (`resolveRetiredEdge`, `lib/store/retired-edge.ts`; `replaceDependencySlot`,
@@ -834,6 +834,57 @@ subject (item 3), the cohort document's writers and counting (item 7), and the w
 open-members rules (item 11); in `cohort-state-storage.md`, D14's clash refusals and what their remedies name. The
 status warning's text, decomposition's remedies, and the rename's branch handling stay in this spec alone.
 
+### 12. Admission re-derives each prepared store write (A7)
+
+Each verb here reads the store to prepare its batch and submits the batch later: the rename after its history rounds and
+checkout steps, the cohort verbs after confirmation. The ref backend publishes every batch, sync merge and withdrawal
+under one store-wide lock (`commitRefStep`, `lib/store/ref/commit-step.ts`) and retries a batch whose state refs moved
+after it was submitted (`refAdmissionBasisChanged`, `lib/store/ref/write-admission.ts`), so a write check reads exactly
+the state the batch lands on. Nothing holds between preparation and submission: another clone's records arrive by pull,
+and another process writes. A prepared write lands only where preparing it against the state it lands on would produce
+the same writes from the same evidence.
+
+#### 12.1 The renames re-plan at admission
+
+- **Preparation is a function of a store view.** The work-unit rename's preparation (`prepareStoreRename`,
+  `lib/store/lifecycle-rename.ts`) and the cohort rename's (`prepareDocument` and `prepareMembershipWrites`,
+  `lib/store/cohort-rename.ts`) read only through `read`, `list`, `lookup` and `history`, and take every store-derived
+  decision themselves: Candidate presence (`checkRenamePublication`), the retired-lineage settlement of stub edges and
+  of the subject's own edge (`settleCreationSlugEdges`, `settleOwnRenameEdge`), the branch link's other holders, name
+  resolution (`resolveRenameReferences`), the member heading (`planRenameMemberHeading`), holdings and their retention,
+  and paired-filename owners. Whether the branch link moves follows from the store's link lookup and one fact the store
+  does not hold, whether the subject's checkout is on this machine, which the batch's link change carries.
+- **Evidence.** Preparation returns its evidence: the records, and the exact references read as absent, whose presence,
+  version or conflict set feeds a write, a report row or an advisory. The batch observes its evidence. A record
+  preparation lists whose state feeds none of these is not evidence, so a write to it does not refuse the rename. A
+  refusal is not evidence: admission re-derives it.
+- **Admission.** One write check admits the rename's batch, on its primary — the subject's meta or cohort document —
+  once per batch. It rebuilds the request from the batch: the subject from the primary's prior record, the target from
+  its next name, the branch move from the primary's link change. It runs the same preparation over its `before` view
+  and admits only when that preparation succeeds, every write it makes is in `after` with the same content, placement
+  and links, and its evidence names no record the batch neither observes nor writes at an expected version; the backend
+  checks those versions and conflict sets. A write the batch makes beyond the fresh preparation stays under its own
+  kind's checks. A refused fresh preparation refuses the batch with that refusal's condition and a remedy naming the
+  subject by UID. Nothing is written, and the rename's retry and continuation paths stay as they are. Inside the check
+  the off-branch capability holds, and an incomplete lifecycle inventory refuses rather than throws.
+- **What it replaces.** The rename-specific admission predicates go: participant completeness, holding participants,
+  shared-reference authority, and the paired-filename and member-heading rechecks (`checkRenameReferences`,
+  `lib/store/rename-reference-admission.ts`), and the target recheck (`checkRenameTarget`,
+  `lib/store/rename-target-admission.ts`). Re-running preparation decides each of them with the same code. Rules over
+  the resulting state stay, among them `work-item.slug-edges`, `meta.cohort`, `cohort.parent` and `meta.depends-on`.
+- **Cost.** The check runs inside the store-wide lock, so a rename holds publication for one more preparation: a
+  lifecycle listing and the Planning stubs' groups for a work unit, the cohort and meta listings for a cohort.
+
+#### 12.2 The retirements observe the cohort they complete
+
+`arc cohort close`, `arc cohort remove` and archive's in-batch closeout decide from membership that rules over the
+resulting state re-derive (`cohort.open-members`, `cohort.remove-holdings` and `cohort.archive-closeout`,
+`lib/store/kinds/cohort/rules.ts`). Their batch must also bind the cohort itself, its version and its conflict set,
+since a conflict arriving by pull leaves the version unchanged. Close and remove observe the selected cohort
+(`runCohortClose`, `runCohortRemove`, `commands/cohort.ts`). Archive's transition batch and its stored closeout
+(`publishCohortCloseout`, `lib/work-unit/verbs/archive-store.ts`) observe every cohort document they complete, so a
+cohort that gained a conflict after preparation refuses the archive batch and stays open.
+
 ## Alternatives & Rationale
 
 - **Splitting this change.** Rejected: rename by UID, the cohort rename, close and removal, and the Errand verbs' UID
@@ -1059,6 +1110,11 @@ Over the ref backend and, where it can form the state, the reference backend, fr
 
 **Superseded (A6):** Criterion 20 qualifies criterion 19’s exact-edit prescription only for unproved companions.
 
+21. **Admission re-derives prepared writes (A7).** Between a rename's preparation and its batch, a record arriving,
+    changing, gaining a conflict or leaving that would change the rename's writes, evidence or report refuses the batch
+    with nothing written, and fresh preparation then lands with it accounted for; the same holds for a conflict reaching
+    a cohort that archive, close or remove completes. A write to a record that feeds none of them admits the batch.
+
 ## Open Questions
 
 None.
@@ -1082,5 +1138,8 @@ None.
 
 - **A6** — 2026-11-06 — design: defer unproved path edits. _Supersedes:_ Goal 3; § 4; § 5.1; criterion 19.
   _Trigger:_ nested-cohort-clash review. _Work:_ review-fix. _Revalidated:_ review-fix.
+
+- **A7** — 2026-11-07 — design: admission re-derives each prepared store write. _Supersedes:_ § 2.3 ¶2 binding.
+  _Trigger:_ door. _Work:_ 5.R. _Revalidated:_ pending → verify-work-unit.
 
 ---

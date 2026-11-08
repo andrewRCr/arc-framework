@@ -12,6 +12,7 @@
 - [Captured branch-link facts](#captured-branch-link-facts)
     - [Superseded shape-only remedy rule](#superseded-shape-only-remedy-rule)
 - [Coupled cohort holdings — A5](#coupled-cohort-holdings--a5)
+- [Prepared-write admission — A7](#prepared-write-admission--a7)
 
 ## Catch-up publication recovery
 
@@ -235,5 +236,44 @@ shared research/analysis companions require capture only when the source names t
 other-holder self-reference remains untouched and unreported. A shared self-reference edit prepared before name
 resolution changes refuses at admission and succeeds on fresh retry with that reference preserved. Unsupported titles,
 plain operands, nonconventional companion filenames and started/completed shared groups retain their existing behavior.
+
+## Prepared-write admission — A7
+
+Eleven review findings across nine rounds shared one shape: a rename or cohort retirement prepared its batch from store
+reads, and a record arriving, changing or gaining a conflict before submission went unchecked because admission did not
+re-derive that part of the plan. Each correction added a predicate that re-implemented one participant class of the
+planner. Two independent read-only audits on 2026-11-07, one per arm, enumerated every store read preparation makes
+against what admission covers. They found further unmirrored reads in the work-unit rename: a quiet owned companion
+cited by an observed record, a second retired lineage for the target, a Candidate appearing after its check, the
+branch link's holders, and name resolution changing from ambiguous to subject, plus stale report rows. For cohorts,
+archive's in-batch closeout observed nothing, so a conflict arriving on a cohort it completes went through, because
+`observeCohorts` skips completed cohorts before testing conflicts. Close and remove were covered.
+
+The audits also established what the backend already guarantees. `commitRefStep` serializes every publication,
+including sync merges, under one store-wide lock, and `refAdmissionBasisChanged` retries a batch whose state refs moved
+after submission. The open span is therefore each verb's own, from preparation to submission. Re-running preparation in
+the write check closes it with the code that made the decisions, instead of a parallel copy of them.
+
+Evidence excludes refusals because the lifecycle inventory refuses on any conflicted meta. Counting every meta as
+evidence would make any unrelated edit refuse a rename, while re-deriving refusals keeps preparation's behavior.
+Admission checks completeness only: a write check sees `before`, `after` and the observations, not the batch's write
+list. The finding class is omission, and any extra write remains under its own kind's checks.
+
+A store-version precondition on the batch was considered: preparation's `store.version()` would bind the whole state.
+It changes the store contract on every backend and refuses on any unrelated write, so A7 keeps the change inside this
+unit's write checks.
+
+The superseded admission rule, recorded with the review corrections, was:
+
+> At atomic admission, the shared rename check compares fresh holdings and supported references with preparation's
+> record observations. A newly visible required participant refuses the whole batch and names fresh preparation as the
+> retry.
+
+§ 2.3's settler previously said it "binds the records it read as the batch's observations"; it now returns them as
+evidence that admission re-derives.
+
+Verification injects a store change between preparation and submission on both backends where the state can form. It
+seeds one case per read family from the audits' scenarios and adds an unrelated write that must admit. Each seeded case
+must fail against the predicate admission before the change.
 
 ---
