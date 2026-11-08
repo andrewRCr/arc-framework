@@ -38,8 +38,14 @@ const COMMANDS = {
 const BOT_USER_ID = "136622811";
 const APP_OWNER_ID = "132028505";
 const APP_ID = "347564";
-const COMPLETE_REPLY = /^[ \t]*Full review finished\.[ \t]*$/imu;
-const INCREMENTAL_REPLY = /^[ \t]*Review finished\.[ \t]*$/imu;
+/**
+ * Completion wording in CodeRabbit's tagged reply to a review command. The match is loose, since its layout, icons and
+ * punctuation change; a full review's wording names the full review, and an incremental one's does not.
+ */
+const COMPLETE_REPLY = /\bfull review (?:finished|completed?)\b/iu;
+const INCREMENTAL_REPLY = /(?<!\bfull )\breview (?:finished|completed?)\b/iu;
+/** Wording of a tagged reply CodeRabbit has not yet edited to report the review's result. */
+const IN_PROGRESS_REPLY = /\breview (?:triggered|started|queued|in progress)\b/iu;
 const COMMAND_INVOCATION_MARKER = /<!--\s*CodeRabbit review command invocation:\s*[^>]+-->/giu;
 const RESOLVED_THREAD_REPLY_FOOTER = new RegExp(
   String.raw`(?:^|\r?\n)✅ Review thread resolved\.\s*`
@@ -99,8 +105,37 @@ function commandReplyCompleted(
       : COMPLETE_REPLY.test(comment.body) || INCREMENTAL_REPLY.test(comment.body);
   return comment.createdAt >= requestedAt
     && commandInvocationMarkerCount(comment.body) > 0
-    && /<summary>\s*✅\s*Action performed\s*<\/summary>/iu.test(comment.body)
     && completionMatches;
+}
+
+/**
+ * Decide whether a commented review is the request's final result: null when it is, otherwise what to report.
+ *
+ * CodeRabbit may post several reviews for one request and edits its tagged reply to the request once they are all
+ * posted, so a commented review is final only when a reply edited at or after it reports the requested review
+ * finished. A reply edited then that reports neither that, a refusal, nor a review still running stops, naming the
+ * review and head for a manual read, rather than leaving a finished review to wait.
+ */
+function commentedReviewSettlement(
+  providerComments: readonly HostedGitHubIssueComment[],
+  review: HostedGitHubReview,
+  target: HostedTarget,
+  request: { requestedAt: string; coverage: HostedReviewCoverage; boundary: string | null },
+): HostedObservation | null {
+  const replies = providerComments.filter((comment) =>
+    comment.createdAt >= request.requestedAt
+    && commandInvocationMarkerCount(comment.body) > 0
+    && comment.updatedAt >= review.submittedAt
+    && precedesBoundary(comment.updatedAt, request.boundary));
+  if (replies.some((comment) => commandReplyCompleted(comment, request.requestedAt, request.coverage))) return null;
+  const unrecognized = replies.some((comment) =>
+    !IN_PROGRESS_REPLY.test(comment.body) && refusalReason(comment.body) === null);
+  return unrecognized
+    ? {
+      kind: "terminal-failure",
+      reason: diagnostic("provider-completion-reply-unrecognized", { review: review.url, head: target.headSha }),
+    }
+    : { kind: "pending" };
 }
 
 function commandInvocationMarkerCount(body: string): number {
@@ -462,11 +497,9 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
         return { kind: "pending" };
       }
       if (coverage !== null && review.state === "commented") {
-        const completedReply = providerComments.some((comment) =>
-          commandReplyCompleted(comment, requestedAt, coverage)
-          && comment.updatedAt >= review.submittedAt
-          && precedesBoundary(comment.updatedAt, requestBoundary));
-        if (!completedReply) return { kind: "pending" };
+        const settlement = commentedReviewSettlement(providerComments, review, target,
+          { requestedAt, coverage, boundary: requestBoundary });
+        if (settlement !== null) return settlement;
       }
       const terminalFindings: UnorderedFinding[] = [];
       for (const terminalReview of orderedReviews) {
@@ -513,6 +546,7 @@ export class CodeRabbitHostedAdapter implements HostedReviewAdapter, HostedRevie
               inline: findings.length,
               outsideDiff: parsedBody.supplementalCounts["outside-diff"],
               nitpick: parsedBody.supplementalCounts.nitpick,
+              other: parsedBody.supplementalCounts.other,
             }),
           };
         }

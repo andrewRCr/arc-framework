@@ -1544,7 +1544,7 @@ line 12: _🩺 Stability & Availability_ | _🟡 Minor_
       review: review({ state: "changes-requested", body: "**Actionable comments posted: 2**" }),
       threads: [findingThread("_🟠 Major_ broken boundary")],
       reason: "provider-actionable-finding-count-mismatch: "
-        + "{\"advertised\":2,\"inline\":1,\"outsideDiff\":0,\"nitpick\":0}",
+        + "{\"advertised\":2,\"inline\":1,\"outsideDiff\":0,\"nitpick\":0,\"other\":0}",
     },
     {
       name: "review-body count",

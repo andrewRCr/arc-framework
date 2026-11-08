@@ -117,6 +117,32 @@ function newestReview(reviews: HostedGitHubReview[]): HostedGitHubReview | undef
   return [...reviews].sort((left, right) => right.submittedAt.localeCompare(left.submittedAt))[0];
 }
 
+/**
+ * Keep waiting, unless the request has a result this reader cannot read: a provider review on the head that yields
+ * neither a finding nor a clean result, or a provider comment under the review heading that is neither a clean result
+ * nor a known failure. Either stops, named for a manual read. Without a request handle nothing binds a result to a
+ * request, so the wait continues.
+ */
+function pendingUnlessUnreadable(
+  handle: HostedRequestHandle | undefined,
+  reviews: HostedGitHubReview[],
+  comments: readonly HostedGitHubIssueComment[],
+  target: HostedTarget,
+): HostedObservation {
+  if (handle === undefined) return { kind: "pending" };
+  const review = newestReview(reviews);
+  if (review !== undefined) {
+    return { kind: "terminal-failure", reason:
+      `Codex posted a review this reader found no finding in. Review: ${review.url}. `
+      + `Read it manually; clean review is not established for ${target.headSha}.` };
+  }
+  const comment = comments.find((candidate) => REVIEW_HEADING.test(candidate.body)
+    && !reportsCleanCompletion(candidate) && !connectedAccountFailure(candidate));
+  return comment === undefined ? { kind: "pending" } : { kind: "terminal-failure", reason:
+    `Codex posted a review result this reader does not recognize. Comment: ${comment.url}. `
+    + `Read it manually; clean review is not established for ${target.headSha}.` };
+}
+
 /** Codex request and exact-head observation through the common GitHub port. */
 export class CodexHostedAdapter implements HostedReviewAdapter, HostedReviewObserver {
   readonly id = CODEX_HOSTED_REGISTRATION.id;
@@ -176,8 +202,9 @@ export class CodexHostedAdapter implements HostedReviewAdapter, HostedReviewObse
   ): Promise<HostedObservation> {
     const requestedAt = handle?.artifact.createdAt ?? "1970-01-01T00:00:00.000Z";
     try {
-      const [reviews, threads, comments] = await Promise.all([
-        this.github.readReviews(target, options),
+      // Reviews are read first so that every review seen here has its threads in the read that follows.
+      const reviews = await this.github.readReviews(target, options);
+      const [threads, comments] = await Promise.all([
         this.github.readThreads(target, options),
         this.github.readIssueComments(target, options),
       ]);
@@ -216,7 +243,7 @@ export class CodexHostedAdapter implements HostedReviewAdapter, HostedReviewObse
         left.submittedAt.localeCompare(right.submittedAt) || left.id.localeCompare(right.id))) {
         const parsed = parseCodexReviewBody(candidate, target);
         if (parsed.kind === "malformed") {
-          return { kind: "terminal-failure", reason: "malformed-provider-finding" };
+          return { kind: "terminal-failure", reason: `malformed-provider-finding: ${candidate.url}` };
         }
         bodyFindings.push(...parsed.findings.map((item, index) => ({
           ...item, sourceOrdinal: findings.length + bodyFindings.length + index + 1,
@@ -233,7 +260,7 @@ export class CodexHostedAdapter implements HostedReviewAdapter, HostedReviewObse
           `Codex completed review without identifying the reviewed commit. Receipt: ${unbound.url}. `
           + `Clean review is not established for ${target.headSha}.` };
       }
-      return { kind: "pending" };
+      return pendingUnlessUnreadable(handle, providerReviews, providerComments, target);
     } catch (error) {
       // A retryable read failure is left to the waiting caller, which keeps polling; only a terminal one ends it.
       if (error instanceof HostedGitHubReadError && error.kind === "terminal-failure") {
