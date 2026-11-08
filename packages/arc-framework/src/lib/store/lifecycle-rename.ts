@@ -250,7 +250,8 @@ function renameProjection(records: StoreRecord[], primary: StoreRecord, seeds: r
   for (const record of renameSweepRecords(records)) {
     if (!rewriteShared && !sameOwner(record.reference.owner, primary.reference.owner)) continue;
     const filename = renameSweepFilename(records, primary, record);
-    const path = posix.join(".arc", "active", record.reference.owner.name, filename);
+    // The sweep reads only the tier and the filename; the owner's UID keeps two stubs that share a name apart.
+    const path = posix.join(".arc", "active", sweepDirectory(record.reference.owner), filename);
     paths.set(path, record);
   }
   return { contents, context: {
@@ -258,6 +259,9 @@ function renameProjection(records: StoreRecord[], primary: StoreRecord, seeds: r
     readFile: (path: string) => { const record = paths.get(path); if (record === undefined) throw new Error(`Unacquired rename path ${path}`); return Promise.resolve(contents.get(record) ?? record.content); },
     writeFile: (path: string, content: string) => { const record = paths.get(path); if (record === undefined) throw new Error(`Unacquired rename path ${path}`); contents.set(record, content); return Promise.resolve(); },
   } };
+}
+function sweepDirectory(owner: StoreRecord["reference"]["owner"]): string {
+  return owner.type === "person" || owner.uid === undefined ? owner.name : `${owner.name}~${owner.uid}`;
 }
 function renameMutation(record: StoreRecord, subject: StoreRenameSubject, targetSlug: string, proposed: string | undefined,
   branch: { prior: BranchLink; next: BranchLink } | undefined, artifactRenames: ReadonlyMap<string, string>, authority: { shared: boolean; memberHeading: boolean }) {

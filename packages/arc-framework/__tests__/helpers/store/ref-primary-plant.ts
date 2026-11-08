@@ -8,6 +8,8 @@ import { RecordReferenceSchema } from "../../../src/lib/store/identity.js";
 export async function plantRefPrimary(f: RefConformanceFixture, input: {
   kind: "work-item/meta" | "work-item/record" | "cohort/document";
   uid: string; name: string; content?: string;
+  /** A work-item primary's placement; active unless the planted writer filed a stub. */
+  placement?: { kind: "active" } | { kind: "backlog"; commitment: "planned" | "provisional" };
 }) {
   const cohort = input.kind === "cohort/document";
   const reference = RecordReferenceSchema.parse({ kind: input.kind,
@@ -16,7 +18,7 @@ export async function plantRefPrimary(f: RefConformanceFixture, input: {
   if (registry === undefined) throw new Error("Missing fixture registry");
   const home = expandStoredPath(reference, { registry });
   const metadata = { formatVersion: 1, formats: {}, slug: input.name, formerSlugs: [],
-    ...(cohort ? {} : { primary: { role: input.kind, placement: { kind: "active" } } }) };
+    ...(cohort ? {} : { primary: { role: input.kind, placement: input.placement ?? { kind: "active" } } }) };
   await plantRef(f.root, home.ref, [
     { path: `metadata-${input.uid}.json`, content: JSON.stringify(metadata) },
     { path: home.path, content: input.content ?? f.content(reference) },

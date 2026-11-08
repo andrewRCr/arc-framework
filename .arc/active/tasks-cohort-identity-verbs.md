@@ -489,6 +489,10 @@ its history refs, discharging the edges naming it.
   cover title-only and operand-only refusal/retry, other-holder preservation, unsupported forms and non-Planning prose;
   native coverage includes ambiguous shared-name resolution.
 
+- _Review correction:_ The reference sweep keys each owner's virtual directory by UID, so two Planning stubs sharing
+  a name are both swept rather than one silently skipped while its dependency row is still reported. Native CLI
+  dispatch covers two namesake stubs citing the subject.
+
     - _Amended in:_ 5.R (A7).
 
 ### `[x]` **4.6 Pull history refs round after round — § 2.6**
