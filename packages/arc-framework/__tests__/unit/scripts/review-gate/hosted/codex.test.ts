@@ -375,7 +375,7 @@ describe("Codex hosted adapter", () => {
       const adapter = new CodexHostedAdapter(port({ readReviews: () => Promise.resolve([review]) }));
 
       await expect(adapter.observeHandle(target)).resolves.toEqual({
-        kind: "terminal-failure", reason: "malformed-provider-finding",
+        kind: "terminal-failure", reason: `malformed-provider-finding: ${review.url}`,
       });
     },
   );
@@ -395,7 +395,7 @@ describe("Codex hosted adapter", () => {
       )]),
     }));
     await expect(adapter.observeHandle(target)).resolves.toEqual({
-      kind: "terminal-failure", reason: "malformed-provider-finding",
+      kind: "terminal-failure", reason: `malformed-provider-finding: ${codexReview().url}`,
     });
   });
 
@@ -418,10 +418,24 @@ describe("Codex hosted adapter", () => {
     await expect(adapter.observe(handle)).resolves.toEqual({ kind: "pending" });
   });
 
-  it("does not promote an unmarked review body to a finding or clean result", async () => {
+  it.each([
+    ["a priority badge", bodyReview("2", "").body],
+    ["a link into the head", bodyReview().body.replace(/^\*\*<sub>.*$/mu, "**Preserve target facts**")],
+  ])("refuses an unmarked review body that still carries %s", async (_name, body) => {
     const adapter = new CodexHostedAdapter(port({
       readReviews: () => Promise.resolve([{
-        ...bodyReview(), body: bodyReview().body.replace("<!-- codex-code-review-finding:v1 -->", ""),
+        ...codexReview(), body: body.replace("<!-- codex-code-review-finding:v1 -->", ""),
+      }]),
+    }));
+    await expect(adapter.observeHandle(target)).resolves.toEqual({
+      kind: "terminal-failure", reason: `malformed-provider-finding: ${codexReview().url}`,
+    });
+  });
+
+  it("does not promote an unmarked review body without a finding's shape to a finding or clean result", async () => {
+    const adapter = new CodexHostedAdapter(port({
+      readReviews: () => Promise.resolve([{
+        ...codexReview(), body: "### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.",
       }]),
     }));
     await expect(adapter.observeHandle(target)).resolves.toEqual({ kind: "pending" });
@@ -588,5 +602,77 @@ Reviewed commit: \`${HEAD.slice(0, 12)}\``,
       kind: "findings",
       findings: [{ severity: "major", locus: "src/a.ts:7" }],
     });
+  });
+});
+
+describe("Codex results the reader cannot read", () => {
+  const introReview = (): HostedGitHubReview => ({
+    ...codexReview(), body: "### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.",
+  });
+
+  it("stops naming a review for the request that yields no finding and no clean result", async () => {
+    const adapter = new CodexHostedAdapter(port({
+      readReviews: () => Promise.resolve([introReview()]),
+      readIssueComments: () => Promise.resolve([requestComment()]),
+    }));
+    const result = await adapter.observe(requestedCodexHandle());
+
+    expect(result).toMatchObject({ kind: "terminal-failure" });
+    if (result.kind !== "terminal-failure") throw new Error("expected a stop");
+    expect(result.reason).toContain(introReview().url);
+    expect(result.reason).toContain(HEAD);
+  });
+
+  it("records clean when an exact-head clean result accompanies a review without findings", async () => {
+    const adapter = new CodexHostedAdapter(port({
+      readReviews: () => Promise.resolve([introReview()]),
+      readIssueComments: () => Promise.resolve([requestComment(), cleanComment(
+        `Codex Review: Didn't find any major issues.\n\nReviewed commit: \`${HEAD}\``,
+      )]),
+    }));
+
+    await expect(adapter.observe(requestedCodexHandle())).resolves.toMatchObject({ kind: "clean" });
+  });
+
+  it("stops naming a provider result under the review heading in wording it does not recognize", async () => {
+    const comment = cleanComment("**Codex Review:** Something went wrong. Try again later.");
+    const adapter = new CodexHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([requestComment(), comment]),
+    }));
+    const result = await adapter.observe(requestedCodexHandle());
+
+    expect(result).toMatchObject({ kind: "terminal-failure" });
+    if (result.kind !== "terminal-failure") throw new Error("expected a stop");
+    expect(result.reason).toContain(comment.url);
+    expect(result.reason).toContain(HEAD);
+  });
+
+  it("keeps a clean result for another head pending for the request", async () => {
+    const adapter = new CodexHostedAdapter(port({
+      readIssueComments: () => Promise.resolve([requestComment(), cleanComment(
+        `Codex Review: Didn't find any major issues.\n\nReviewed commit: \`${"b".repeat(10)}\``,
+      )]),
+    }));
+
+    await expect(adapter.observe(requestedCodexHandle())).resolves.toEqual({ kind: "pending" });
+  });
+
+  it("reads review threads only after the reviews they belong to", async () => {
+    let reviewsRead = false;
+    let threadsReadAfterReviews: boolean | undefined;
+    const adapter = new CodexHostedAdapter(port({
+      readReviews: async () => {
+        await Promise.resolve();
+        reviewsRead = true;
+        return [codexReview()];
+      },
+      readThreads: () => {
+        threadsReadAfterReviews = reviewsRead;
+        return Promise.resolve([findingThread()]);
+      },
+    }));
+
+    await expect(adapter.observe(requestedCodexHandle())).resolves.toMatchObject({ kind: "findings" });
+    expect(threadsReadAfterReviews).toBe(true);
   });
 });
