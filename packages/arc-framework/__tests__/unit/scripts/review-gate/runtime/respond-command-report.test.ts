@@ -36,7 +36,7 @@ it("renders caller judgments beside computed facts without changing or storing t
   expect(response.state).toBe("awaiting-approval");
   if (response.state !== "awaiting-approval") throw new Error("expected a proposed report");
   const text = response.payload.dispositionReportText;
-  expect(text.startsWith("**Standard complete pass 1 of 2** · 🟠 1 major\n\n### F1 — Repair the branch\n\n"
+  expect(text.startsWith("**Standard code review — pass 1, delegated agent (local)** · 🟠 1 major\n\n### F1 — Repair the branch\n\n"
     + "🟠 major · FIX (new design) · fails Correctness and failure behavior\n")).toBe(true);
   expect(text.match(/\*\*Decisions\*\*/gu)).toHaveLength(1);
   expect(text).toContain("Correct this branch.\n\n**Detail:** The source confirms the boundary failure.\n\n---\n\n**Decisions**");

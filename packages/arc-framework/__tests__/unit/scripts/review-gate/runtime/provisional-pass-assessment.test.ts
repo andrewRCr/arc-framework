@@ -11,7 +11,8 @@ const assessment = {
   proposedSignal: { confirmedFindingCount: 1, maxConfirmedSeverity: "major", materialFix: false },
   capPosition: "at-ceiling", fixConsequence: { kind: "no-fix" }, potentialStopReason: null,
   nextPassAuthority: "none", summaryText: "Complete pass count remains two after three fix checks.",
-  positionText: "Standard fix check, round 3 since pass 2", nextActivityText: null,
+  positionText: "Standard code review — fix check, round 3 since pass 2 (limit reached), Codex (hosted)",
+  nextActivityText: null,
 };
 
 describe("provisional ceiling facts", () => {
@@ -57,13 +58,25 @@ it.each((["complete", "incremental"] as const).flatMap(coverage =>
         coverage: "fix-check", outcome: "findings" })) }) });
   expect(projected).toMatchObject({ admittedLogicalPass: logicalPass, ceilingPassCount: 2,
     capPosition: chainAdequate ? "at-ceiling" : "below-ceiling" });
-  expect(projected.summaryText).toContain(coverage === "complete"
-    ? `Standard complete pass 2 of ${ceiling}` : "Standard fix check, round 4 since pass 2");
-  expect(projected.summaryText).not.toContain(`pass ${logicalPass} of`);
-  expect(projected.summaryText).toContain(!chainAdequate ? "needs standard complete pass 3 of 3"
+  const position = `Standard code review — ${coverage === "complete" ? "pass 2"
+    : "fix check, round 4 since pass 2"}${chainAdequate ? " (limit reached)" : ""}, Codex (hosted)`;
+  expect(projected.summaryText).toContain(`${position}. `);
+  expect(projected.summaryText).not.toContain(`pass ${logicalPass}`);
+  expect(projected.summaryText).toContain(!chainAdequate ? "needs standard complete pass 3"
     : coverage === "complete" ? "needs a fix check, round 1 since pass 2" : "needs a fix check, round 5 since pass 2");
-  expect(projected.positionText).toBe(`${coverage === "complete" ? `Standard complete pass 2 of ${ceiling}`
-    : "Standard fix check, round 4 since pass 2"}${chainAdequate ? " (limit reached)" : ""}`);
-  expect(projected.nextActivityText).toBe(!chainAdequate ? "standard complete pass 3 of 3"
+  expect(projected.positionText).toBe(position);
+  expect(projected.nextActivityText).toBe(!chainAdequate ? "standard complete pass 3"
     : `fix check, round ${coverage === "complete" ? 1 : 5} since pass 2, where its chain is proven`);
+});
+
+it("marks a pass past the configured limit as over it without naming the limit", () => {
+  const result = findingsHostedResult(["major"]);
+  const approved = approvedRecord(result, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
+  const proposal = proposeDispositionSet(approved.approvedDispositionLineage[0]!.approvedDisposition.dispositionSet);
+  const projected = projectProvisionalPassAssessment({ proposal, result, lane: "standard",
+    admittedLogicalPass: result.admission.logicalPass, configuredMaxPasses: 2,
+    standardFacts: provisionalPassFactsFixture({ completePasses: 3, ceiling: 2 }) });
+  expect(projected.capPosition).toBe("above-ceiling");
+  expect(projected.positionText).toBe("Standard code review — pass 3 (over limit), Codex (hosted)");
+  expect(projected.summaryText).not.toMatch(/ of \d|limit 2/u);
 });

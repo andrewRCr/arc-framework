@@ -84,7 +84,7 @@ it("renders each fact with the decision it informs and asks for an advisory reco
   expect(text).toContain("Fix checks since the last complete pass: 1");
   expect(text).toContain("Fix range: 5 changed lines in 1 file; target: 100 changed lines in 10 files");
   expect(text).toContain("Correction chain: proven");
-  expect(text).toContain("Critical and major findings: Pass 1 of 4: 2 → 1.");
+  expect(text).toContain("Critical and major findings: Standard pass 1: 2 → 1.");
   expect(text.indexOf("local fix check")).toBeLessThan(text.indexOf("Complete passes:"));
   expect(text).toContain("Change signals after fixes: after fix check, round 1 since pass 1, the fixes changed paths "
     + "outside the cited loci and added files; no signal fired after 1 other fix round.");
@@ -117,9 +117,10 @@ it("groups the offered critical and major counts by complete pass, not by look",
   const text = fullFinalConsiderations({ ...facts, completePasses: 2, fixChecksSinceLastComplete: [check],
     materialTrend: [...facts.materialTrend, { ...facts.materialTrend[1]!, producerId: "fix-check-2", logicalPass: 3 },
       complete, check, { ...check, provisional: true }] }).join("\n");
-  expect(text).toContain("Critical and major findings: Pass 1 of 4: 2 → 1 → 1; Pass 2 of 4: 1 → 0 (this look).");
+  expect(text).toContain("Critical and major findings: Standard pass 1: 2 → 1 → 1; Standard pass 2: 1 → 0 "
+    + "(this look).");
   expect(text).toContain("Fix checks since the last complete pass: 1 (round 1: clean)");
-  expect(text).not.toContain("Pass 4");
+  expect(text).not.toContain("pass 4");
 });
 
 it("keeps another complete pass the default when fix checks converge after a high-yield complete pass", () => {
@@ -128,7 +129,8 @@ it("keeps another complete pass the default when fix checks converge after a hig
   const text = fullFinalConsiderations({ ...facts, materialTrend: [{ ...complete!, materialCount: 12 },
     { ...check!, materialCount: 2 }, { ...check!, producerId: "fix-check-2", logicalPass: 3, materialCount: 0,
       provisional: true }] }).join("\n");
-  expect(text).toContain("Critical and major findings: Pass 1 of 4: 12 → 2 → 0 (this look). Complete pass 1 found 12.");
+  expect(text).toContain("Critical and major findings: Standard pass 1: 12 → 2 → 0 (this look). "
+    + "Complete pass 1 found 12.");
   expect(text).toContain("until a complete pass finds no critical or major finding, another complete pass after fix "
     + "checks converge is the default. Recommending a stop before then needs a reason specific to this change. "
     + "An Owner's decision on where review stops ends this default.");
