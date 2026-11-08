@@ -2665,7 +2665,7 @@
       "count": 2
     },
     "sonarjs/cognitive-complexity": {
-      "count": 3
+      "count": 1
     }
   },
   "src/scripts/review-gate/hosted/coderabbit.ts": {
