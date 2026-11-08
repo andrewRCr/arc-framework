@@ -40,13 +40,6 @@ export async function readRenameResolution(store: Pick<Store, "read">, subject: 
     resolution: read.refusal.candidates.some(candidate => sameOwner(candidate.owner, subject.owner)) ? "ambiguous" : "other" } };
 }
 
-/** Resolve a name once within its declared owner family, retaining unavailable evidence as a refusal. */
-export async function resolveRenameReferences(store: Pick<Store, "read">, subject: RecordReference,
-  name: string): Promise<StoreResult<RenameReferenceResolution>> {
-  const resolved = await readRenameResolution(store, subject, name);
-  return resolved.status === "refused" ? resolved : { status: "ok", result: resolved.result.resolution };
-}
-
 /** Observe ties left by a landed rename without turning a diagnostic failure into another mutation attempt. */
 export async function observeRenameFormerName(store: Pick<Store, "lookup">, source: string): Promise<{
   ties: RenameReport["formerSlugTies"]; advisories: string[];

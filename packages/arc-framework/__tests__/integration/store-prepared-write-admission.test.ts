@@ -13,7 +13,7 @@ import { serializeCandidateManagedRecord } from "../../src/lib/work-unit/candida
 import { prepareStoreRename, readStoreRenameSubject, submitStoreRename } from "../../src/lib/store/lifecycle-rename.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { seedStatusConflict } from "../helpers/store/status-conflicts.js";
-import { resolveRenameReferences } from "../../src/lib/store/rename-reference-resolution.js";
+import { readRenameResolution } from "../../src/lib/store/rename-reference-resolution.js";
 import type { Store } from "../../src/lib/store/contract.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
 
@@ -120,7 +120,7 @@ describe("work-unit rename name resolution at admission over ref", () => {
   it("refuses a batch whose shared rewrites a departing namesake would change, then rewrites on retry", async () => {
     const f = await fixture("ref"), source = await f.stub("example"), name = source.reference.owner.name;
     const waiting = await f.stub("waiting", [name]), namesake = await f.namesake(name);
-    expect(await resolveRenameReferences(f.store, source.reference, name)).toEqual({ status: "ok", result: "ambiguous" });
+    expect(await readRenameResolution(f.store, source.reference, name)).toMatchObject({ status: "ok", result: { resolution: "ambiguous" } });
     let version: unknown;
     const argv = ["rename", uid(source), "renamed", "--json"];
     const refused = await f.invoke(argv, beforeBatch(async () => {

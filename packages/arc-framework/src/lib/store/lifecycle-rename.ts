@@ -48,7 +48,8 @@ export interface PreparedStoreRename extends PreparedLifecycleWrite {
 /** Read a complete inventory, admit the target by creation rules, and recover a prior rename's original name.
  * @param store - Operational state contract.
  * @param request - Selected primary, original operand, and proposed current name.
- * @returns Selected primary and coordination advisories, or exact store refusal.
+ * @returns Selected primary, coordination advisories, and the Candidate absence and Integrating dependents it read, or
+ *   exact store refusal.
  */
 export async function readStoreRenameSubject(store: RenamePlanView, request: { primary: StoreRecord; operand: string; targetSlug: string }): Promise<StoreResult<StoreRenameSubject>> {
   const target = SlugSchema.parse(request.targetSlug), primary = request.primary;

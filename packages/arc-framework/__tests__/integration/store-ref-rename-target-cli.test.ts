@@ -12,7 +12,7 @@ import { repairCliFixture, repairCli } from "../helpers/repair-cli.js";
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import type { Store } from "../../src/lib/store/contract.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
-import { resolveRenameReferences } from "../../src/lib/store/rename-reference-resolution.js";
+import { readRenameResolution } from "../../src/lib/store/rename-reference-resolution.js";
 import { writeMetaPause, writeMetaDependsOn } from "../../src/lib/store/kinds/meta/writers.js";
 
 const production = createKindRegistry(PRODUCTION_REGISTRATIONS);
@@ -220,7 +220,7 @@ describe.each(["reference", "ref"] as const)("owned participant resolution over 
       const namesake = resolution === "subject" ? undefined : resolution === "ambiguous"
         ? await f.concurrentWorkUnit(sourceRef.owner.name) : await seed(f, sourceRef,
           makeMetaFixture(sourceRef.owner.name, { state: "Planning", currentWorkflow: null }), { kind: "backlog", commitment: "planned" });
-      expect(await resolveRenameReferences(f.store, source.reference, source.reference.owner.name)).toEqual({ status: "ok", result: resolution });
+      expect(await readRenameResolution(f.store, source.reference, source.reference.owner.name)).toMatchObject({ status: "ok", result: { resolution } });
       if (source.reference.owner.type !== "work-item" || source.reference.owner.uid === undefined) throw new Error("Expected source UID");
       const citation = `See \`meta-${source.reference.owner.name}.md\`.\n`;
       const sharedRef = f.reference("work-item/meta", "waiting");
@@ -310,7 +310,7 @@ describe.each(["reference", "ref"] as const)("self-reference participant admissi
       const namesake = resolution === "subject" ? undefined : resolution === "ambiguous"
         ? await f.concurrentWorkUnit(ref.owner.name) : await seed(f, ref,
           makeMetaFixture(ref.owner.name, { state: "Planning", currentWorkflow: null }), { kind: "backlog", commitment: "planned" });
-      expect(await resolveRenameReferences(f.store, source.reference, ref.owner.name)).toEqual({ status: "ok", result: resolution });
+      expect(await readRenameResolution(f.store, source.reference, ref.owner.name)).toMatchObject({ status: "ok", result: { resolution } });
       const arrivals: StoreRecord[] = [];
       let version: unknown;
       const argv = ["rename", renameUid(source), "renamed", "--json"];
@@ -351,7 +351,7 @@ describe.each(["reference", "ref"] as const)("self-reference participant admissi
       const holderRef = f.reference("work-item/meta", "holder");
       const holder = await seed(f, holderRef, makeMetaFixture(holderRef.owner.name, { state: "Planning", currentWorkflow: null }),
         { kind: "backlog", commitment: "planned" });
-      expect(await resolveRenameReferences(f.store, source.reference, ref.owner.name)).toEqual({ status: "ok", result: resolution });
+      expect(await readRenameResolution(f.store, source.reference, ref.owner.name)).toMatchObject({ status: "ok", result: { resolution } });
       const arrivals: StoreRecord[] = [];
       let version: unknown;
       const argv = ["rename", renameUid(source), "renamed", "--json"];
