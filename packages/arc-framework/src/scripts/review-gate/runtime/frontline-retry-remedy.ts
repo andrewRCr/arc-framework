@@ -1,5 +1,6 @@
-/** Fresh-admission continuation for an exact frontline retry refused over its old admission. */
+/** Recoverable continuations for frontline base validation and exact admission retries. */
 
+import { LocalTargetDerivationError } from "../hosts/local/repository-target.js";
 import type { NativeReviewFactPorts } from "../core/ports.js";
 import { readStoredFrontlineRetryCeilingOverride } from "./native-frontline-retry-authority.js";
 import { spineRemedy, type SpineRemedy } from "../../integration/spine-refusal.js";
@@ -10,6 +11,16 @@ import type { LaneProgressState } from "../core/operation-state-schema.js";
 import { FrontlineRunRequestSchema } from "../core/frontline-run-command-schema.js";
 import { FrontlineResolveRequestSchema } from "../policy/frontline-command-schema.js";
 import { FrontlineOperationRetryError } from "../policy/frontline-operation.js";
+
+/** Carry the unchanged resolve request after the local base branch has been fast-forwarded. */
+export function frontlineResolveRemedy(error: unknown, submittedRequest: unknown): SpineRemedy | undefined {
+  if (!(error instanceof LocalTargetDerivationError) || error.reason !== "diff-base-mismatch") return undefined;
+  const request = FrontlineResolveRequestSchema.parse(submittedRequest);
+  return spineRemedy(error.message,
+    `Fast-forward the local base branch '${request.target.baseRef}' from its upstream in its owning checkout, `
+      + "then retry frontline resolution",
+    ["arc", "review", "frontline", "resolve", "-"], request);
+}
 
 /**
  * Compose safe resolver guidance without reusing admitted facts across different targets.

@@ -290,4 +290,130 @@ This member leaves in place every module the old machine imports, and moves thei
 - _Approach:_ delete both with the in-repo arms, after the seam's members have moved their own callers off the
   resolver.
 
+### `[ ]` **Delete the pre-flip guard, the quiesce check, the in-repo override and the unimported-repository refusal**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-06).
+
+- _Shapes:_ its deletion set for the in-repo store implementation and its arms.
+
+- _Observation:_ `cutover-flip` adds two pieces that are dead once the in-repo implementation goes
+  (`draft-cutover-flip.md` § The quiesce, and the check that it holds; Owner, 2026-11-05): the sealing guard, landing
+  on `main` as an Errand ahead of the rehearsal, which makes the in-repo implementation's writes and every notes write
+  refuse once `refs/arc/project/registry` exists; and the quiesce check, a script in `cutover-flip`'s change that the
+  rehearsal and the window run before the import. Planning review added two more to `cutover-flip`'s change
+  (`draft-cutover-flip.md` § The flip change, "The flip's own checkout, and an unimported repository"; Owner,
+  2026-11-06): an environment override under which `createStore` builds the in-repo implementation, which the flip's
+  own checkout sets until the import, and the flip build's refusal to open a ref store in a repository that still
+  tracks ARC state and holds no registry ref.
+
+- _Approach:_ delete all four with the in-repo implementation, and the guard's notes-write arm with notes sync if
+  `cutover-notes-removal` lands first.
+
+- _Captured during:_ `cutover-flip` draft-design, 2026-11-05 (Owner-approved; the target has no session).
+
+### `[ ]` **Drop #3 from this unit: the flip untracks the `.internal/` records and takes the transition-record test**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-06).
+
+- _Shapes:_ its inbound entry #3 ("Retire the live transition-record test when lineage moves to the store") and its
+  planning state's open question on whether the flip untracks the `.arc/system/.internal/` records.
+
+- _Observation:_ the Owner decided on 2026-11-05 that `cutover-flip` untracks the Candidate and transition records
+  under `.arc/system/.internal/` (`candidates/` and `transitions/`) at the flip, data only, because stale copies of
+  authority-bearing records would mislead and a missed in-repo reader should fail loudly rather than read them. The
+  in-repo code that reads and writes them stays for this unit's deletion pass. With the folders gone, #3's
+  `live-transition-records.test.ts` and its ARC contract tier selection (`src/lib/local-vitest-runner.ts` and its unit
+  test) move into the flip change (`draft-cutover-flip.md` § Direction).
+
+- _Approach:_ remove inbound entry #3 from this unit's draft, and resolve the open question in its planning state as
+  answered by the flip.
+
+- _Captured during:_ `cutover-flip` draft-design, 2026-11-05 (Owner-approved; the target has no session).
+
+### `[ ]` **Remove `seam-delivery-review`'s retired review-gate arms, and keep the review copy's classification arm**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-06).
+
+- _Shapes:_ its deletion set for the in-repo arms the seam members left, and its removal of lifecycle classification
+  (`path-treatment.ts`, `lifecycle-contribution.ts`).
+
+- _Observation:_ `cutover-flip`'s inbound #23, from `spec-seam-delivery-review.md` § 12.6 and § 14.3, leaves the
+  deletion pass three things no follow-on draft holds:
+    - the arms that spec retires from the flip, among them the frontline skip marker's kind and names and the per-clone
+      repository ID record (`identity/repository-identity.json`), which the review gate stops reading once it takes
+      the project ID;
+    - the narrow arm for a work unit's own spec review copy under `.arc/specs/<slug>/`, which the storage-coupling
+      register's lifecycle-classification row (`cohort-state-storage.md`) keeps past the cutover, so deleting the copy
+      before merge never reopens review. This unit's draft removes `path-treatment.ts` with "the evidence-neutral and
+      regenerable arms" and does not name the exception;
+    - how the `lifecycle-contribution.ts` path group treats the copy in a stacked delivery, an open question routed to
+      `delivery-observe-attest`; if its answer lands first, carry it through the group's removal.
+
+- _Approach:_ add the retired arms to the deletion set, keep the review-copy arm in `classifyPathTreatment`, and check
+  `delivery-observe-attest` before removing the group. `.git/arc/review-gate/operations/` is already this unit's #35.
+
+- _Captured during:_ `cutover-flip` draft-design, the Owner's planning pass, 2026-11-06 (Owner-approved; the target has
+  no session).
+
+### `[ ]` **Remove the CODEOWNERS auto-merge block and its shipped template with the planning-lane classifier**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-06).
+
+- _Shapes:_ the per-check sort's CI planning classifier bullet, and the register's planning-lane row.
+
+- _Observation:_ the storage-coupling register's row for the lane-attestation workflow, `arc review planning-lane`, the
+  planning-grooming command, and "the CODEOWNERS auto-merge block with the shipped merge-gate CODEOWNERS template"
+  (owner `storage-cutover`) says "Removed at cutover", and `planning-lane-relief` retires with it. This unit's draft
+  names the classifier and the lane-attestation workflow but neither CODEOWNERS file. The block (`.github/CODEOWNERS`,
+  "Auto-merge lane: per-WU / per-cohort planning artifacts (UNOWNED)") and its template
+  (`arc/reference/templates/arc/merge-gate/CODEOWNERS`, both copies) match nothing once planning artifacts are
+  untracked, so they go inert at the flip and follow it. `cutover-flip` takes the workflow and setup prose that arms
+  the lane.
+
+- _Approach:_ remove both blocks with the classifier, and retire `planning-lane-relief` with them.
+
+- _Captured during:_ `cutover-flip` draft-design, planning review's expected-contract sweep, 2026-11-06
+  (Owner-approved; the target has no session).
+
+### `[ ]` **Remove `verify-integrity.sh`'s meta-shape check once the store's write check replaces it**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-06).
+
+- _Shapes:_ the in-repo arms this unit removes.
+
+- _Observation:_ the storage contract's consumer map gives `scripts/verify-integrity.sh` the end state "Meta shape check
+  becomes record-family validation at write; … tree walk becomes `list`". Its § 7 Meta-file shape walks meta files on
+  disk; from the flip the meta kind's write check validates a meta at every write and save, so the script's check is
+  redundant, and over the projected layout it may find none. It goes inert rather than failing, so it follows the flip.
+  `cutover-flip` removes only the script's ROADMAP presence test.
+
+- _Approach:_ remove § 7 from both copies of the script, or point it at the store's listing if a whole-tree check is
+  still wanted.
+
+- _Captured during:_ `cutover-flip` draft-design, planning review's expected-contract sweep, 2026-11-06
+  (Owner-approved; the target has no session).
+
+### `[ ]` **Keep `archive.cadence` past the flip: seam-locus reads both arms from it**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-06).
+
+- _Shapes:_ its inbound item 24, "Retire `archive.cadence` at the flip, with its readers", and that item's open
+  question, "integration archiving at merge, or leaving it to a later `arc archive`"; its draft's retired-keys line,
+  which lists `archive.cadence`; and `cohort-storage-cutover.md`'s `cutover-tracked-state-removal` _Exposes:_ line,
+  which names "the retired `archive.cadence`" among the keys gone.
+
+- _Observation:_ this unit's draft says that after the flip the key "selects no behavior", and proposes retiring it
+  with no successor. `spec-seam-locus.md` § 2.1 (A26), shipped, keeps both arms from the flip: under
+  `with-integration` archival precedes the merge and the landing writes the landing-commit link, and under `manual` it
+  follows the merge, each a store write, and the completed-primary frame reads the cadence to choose between them.
+  `cutover-flip`'s workflow rewrite now keeps `integrate-work-unit.md`'s step-8 dispatch with both arms on that basis
+  (planning review, 2026-11-06), so the open question is settled there, and the key's readers that derive frames stay.
+
+- _Approach:_ drop the key's retirement and the open question, or, if retiring it is still wanted, take it as an
+  amendment to seam-locus A26 that says which arm survives; prune only the readers that serve the archive commit the
+  flip removes.
+
+- _Captured during:_ `cutover-flip` draft-design, planning review's first independent pass, 2026-11-06
+  (Owner-approved; the target has no session).
+
 ---

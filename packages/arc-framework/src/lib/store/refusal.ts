@@ -58,6 +58,7 @@ export const LocalRefusalSchema = z.discriminatedUnion("code", [
   z.strictObject({ code: z.literal("lock-held"), ...recoverable, lock: z.string().min(1) }),
   z.strictObject({ code: z.literal("namespace-corrupt"), ...terminal, namespace: z.string().min(1) }),
   z.strictObject({ code: z.literal("checkout-not-writable"), ...recoverable, checkout: z.string().min(1) }),
+  z.strictObject({ code: z.literal("store-imported"), ...recoverable }),
   z.strictObject({ code: z.literal("unsupported"), ...common, class: z.enum(["recoverable", "terminal"]), case: z.enum(Object.keys(UNSUPPORTED_CASES) as [UnsupportedCase, ...UnsupportedCase[]]) })
     .refine((value) => value.class === UNSUPPORTED_CASES[value.case], "Class must match the unsupported case"),
 ]);

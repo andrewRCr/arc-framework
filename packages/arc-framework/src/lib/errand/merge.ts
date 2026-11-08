@@ -32,6 +32,7 @@ import {
 import type { GitExec } from "../git/exec.js";
 import { isGitObjectId } from "../git/object-id.js";
 import { reconcileIdentityObjects } from "./identity-object-reconcile.js";
+import { storeImportedHere, StoreImportedError } from "../store/store-imported.js";
 
 /** The temp tracking ref a remote errand ref is fetched into before merging. */
 export function incomingErrandRef(ref: string): string {
@@ -90,6 +91,7 @@ class RemoteReconcileError extends Error {
  * @returns The push outcome.
  */
 export async function reconcileErrandPush(io: ErrandRecordIO): Promise<ErrandPushOutcome> {
+  if (await storeImportedHere(io.exec)) return { kind: "failed", error: new StoreImportedError() };
   const ref = errandsRef(io.identity);
   try { if ((await readMutatingTip(io.exec, ref)) === null) return { kind: "noop" }; }
   catch (error) { return { kind: "failed", error: error instanceof Error ? error : new Error(String(error), { cause: error }) }; }

@@ -27,23 +27,14 @@ export const HostedSettleEnvelopeSchema = z.strictObject({
   disposition: HostedSettleDispositionSchema,
   reply: z.string().min(1),
 }).superRefine((request, context) => {
-  if (request.disposition !== "fix") {
-    if (request.fixTarget !== null) {
+  if (request.fixTarget === null) {
+    if (request.disposition === "fix") {
       context.addIssue({
         code: "custom",
         path: ["fixTarget"],
-        message: "fixTarget must be null unless disposition is fix",
+        message: "fixTarget is required when disposition is fix",
       });
     }
-    return;
-  }
-
-  if (request.fixTarget === null) {
-    context.addIssue({
-      code: "custom",
-      path: ["fixTarget"],
-      message: "fixTarget is required when disposition is fix",
-    });
     return;
   }
   if (
@@ -115,6 +106,16 @@ export const HostedSettleResultSchema = z.union([
     nextAction: z.literal("retry"),
     observedHeadSha: HostedTargetSchema.shape.headSha,
     expectedHeadSha: HostedTargetSchema.shape.headSha,
+    remedy: z.strictObject({
+      text: z.string().min(1),
+      argv: z.tuple([z.literal("arc"), z.literal("review"), z.literal("hosted"), z.literal("settle"), z.literal("-")]),
+      stdin: HostedSettleEnvelopeSchema,
+    }),
+  }),
+  z.strictObject({
+    ...HostedSettleResultBaseShape,
+    state: z.literal("stale-target"),
+    nextAction: z.literal("retry"),
     remedy: z.strictObject({
       text: z.string().min(1),
       argv: z.tuple([z.literal("arc"), z.literal("review"), z.literal("hosted"), z.literal("settle"), z.literal("-")]),
@@ -201,13 +202,44 @@ async function canonicalReply(
     : { kind: "ambiguous" };
 }
 
+/**
+ * Offer a deferred or rejected settlement refused as stale its retry at the response's verified fix head.
+ *
+ * A thread missed before the approved fix changed the head can no longer settle against its originating head; once
+ * the response records the head its fix produced, the same request settles there.
+ *
+ * @param result - The settlement result for `request`.
+ * @param request - The validated settlement request.
+ * @param producedHeadSha - The head the approved response recorded for this disposition set, when recorded.
+ * @returns The stale stop with an exact retry at that head, or `result` unchanged when no such retry applies.
+ */
+export function withVerifiedFixHeadRetry(
+  result: HostedSettleResult,
+  request: HostedSettleEnvelope,
+  producedHeadSha: string | undefined,
+): HostedSettleResult {
+  if (result.state !== "stale-target" || result.nextAction !== "stop" || request.disposition === "fix"
+    || request.fixTarget !== null || producedHeadSha === undefined || producedHeadSha === request.target.headSha) {
+    return result;
+  }
+  return {
+    ...resultBase(request),
+    state: "stale-target",
+    nextAction: "retry",
+    remedy: {
+      text: "The pull request moved past this thread's originating head when the approved fix was pushed. Settle it "
+        + "at the response's verified fix head.",
+      argv: ["arc", "review", "hosted", "settle", "-"],
+      stdin: { ...request, fixTarget: { ...request.target, headSha: producedHeadSha } },
+    },
+  };
+}
+
 async function targetIsCurrent(
   request: HostedSettleEnvelope,
   port: HostedSettlementPort,
 ): Promise<boolean> {
-  const expectedTarget = request.disposition === "fix" && request.fixTarget !== null
-    ? request.fixTarget
-    : request.target;
+  const expectedTarget = request.fixTarget ?? request.target;
   return await port.readHead(expectedTarget) === expectedTarget.headSha;
 }
 
@@ -216,7 +248,7 @@ async function initialHeadRefusal(
   dependencies: { port: HostedSettlementPort; headRegistration?: HostedSettlementHeadRegistration },
 ): Promise<HostedSettleResult | null> {
   const base = resultBase(request);
-  if (request.disposition !== "fix" || request.fixTarget === null) {
+  if (request.fixTarget === null) {
     return await targetIsCurrent(request, dependencies.port) ? null : { ...base, state: "stale-target", nextAction: "stop" };
   }
   const observation = await observeHostedFixHead(request.fixTarget, dependencies.port, dependencies.headRegistration);
@@ -256,7 +288,7 @@ export async function settleHostedFinding(
     if (replyMatch.kind !== "unique") {
       return { ...base, state: "ambiguous", nextAction: "stop" };
     }
-    if (request.disposition === "fix" && !await targetIsCurrent(request, dependencies.port)) {
+    if (request.fixTarget !== null && !await targetIsCurrent(request, dependencies.port)) {
       return { ...base, state: "stale-target", nextAction: "stop" };
     }
     return {

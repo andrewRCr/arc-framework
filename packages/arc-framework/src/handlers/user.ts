@@ -858,7 +858,7 @@ export async function handleUserFetch(
   const spinner = output.spinner();
   spinner.start("Fetching user notes...");
 
-  const result = await runUserFetch({ io, identity });
+  const result = await runUserFetch({ cwd: resolveArcRoot(process.cwd()) ?? process.cwd(), io, identity });
   if (!isUserFetchSuccess(result)) {
     spinner.stop(result.kind === "remote-unavailable" ? "Fetch failed." : "Fetch skipped.");
     reportUserFetchOutcome(result, identity, "fetch");

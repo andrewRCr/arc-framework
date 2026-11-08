@@ -40,3 +40,10 @@ it("refuses capture before approval and continues after that approval is recorde
   await publishNativeReviewApproval(approvalInput);
   expect((await publishNativeConditionalPass(input)).value.decidedBy).toBe(input.capture.authorizedBy);
 });
+
+it("refuses capture for an approval that approves no fix, recording no decision", async () => {
+  const { input, approval } = await conditionalCapture("local", true, undefined, undefined, "defer");
+  if (approval === null) throw new Error("Expected a recorded approval");
+  await expect(publishNativeConditionalPass(input)).rejects.toThrow("only for the current approved fix response");
+  expect(await input.decisions.list()).toEqual({ status: "complete", records: [] });
+});

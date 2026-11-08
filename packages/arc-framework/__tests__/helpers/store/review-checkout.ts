@@ -24,6 +24,12 @@ export async function createReviewCheckout<T extends ReturnType<typeof createLif
     { match: ["status", "--porcelain=v1", "--untracked-files=normal"], responses: [{ stdout: "" }] },
     { match: ["rev-parse", "--abbrev-ref", "HEAD"], responses: [() => ({ stdout: branch ?? "HEAD" })] },
     { match: ["config", "--null", "--get", "arc.identity"], responses: [{ stdout: `${identity}\0` }] },
+    { match: ["config", "--get", "arc.commitInterlock"], responses: [
+      { failure: { exitCode: 1, stdout: "", stderr: "" } },
+    ] },
+    { match: ["config", "--get", "arc.pushInterlock"], responses: [
+      { failure: { exitCode: 1, stdout: "", stderr: "" } },
+    ] },
   ]);
   return { ...harness, cwd, commonDir, ...scripted, identity,
     occupy: async (nextBranch: string | null, createdFor: Extract<WorktreeSubject, { kind: "work-unit" }> | TransientWorktreeSubject) => {
