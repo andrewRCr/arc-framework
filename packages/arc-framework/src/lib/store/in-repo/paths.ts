@@ -9,7 +9,7 @@ import type { ListingDiagnostic } from "../read.js";
 import { discoverDirectory } from "./discovery.js";
 import { selectMeta, type MetaSource } from "./meta.js";
 import { notFound, unsupported } from "./refusals.js";
-import { companionStoredName } from "../companion-name.js";
+import { companionArtifactName } from "../companion-name.js";
 
 const conventionalRoles = {
   meta: "work-item/meta", tasks: "work-item/task-list", draft: "work-item/draft", spec: "work-item/spec",
@@ -53,7 +53,7 @@ async function companionPath(context: InRepoContext, reference: RecordReference,
     return unsupported("unhomed-kind", `The companion name ${key} belongs to the registered ${kind} role.`,
       `Address this file through its registered ${kind} role, then retry.`);
   }
-  const file = companionStoredName(reference.owner.name, key);
+  const file = companionArtifactName(reference.owner.name, key);
   const { artifactMatcher } = await import("../../work-unit/mutators/relocate-artifacts.js");
   if (key !== "spec-prd" && key !== "spec-rfc" && !artifactMatcher(reference.owner.name).test(file)) {
     return unsupported("unhomed-kind", `The companion name ${key} is outside this layout's discoverable artifact names.`,
