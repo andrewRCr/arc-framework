@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "coderabbit-reader-format-tolerance",
+  "claimId": "208454aebb5ad83f5df8a0d8c2feba81",
+  "createdAt": "2026-11-08T20:02:14.737Z",
+  "updatedAt": "2026-11-08T20:02:14.737Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Make the CodeRabbit pull-request reader settle on the host's own review record and read finding sections by their shape, so wording changes on CodeRabbit's side stop stalling hosted review",
+  "branch": "chore/coderabbit-reader-format-tolerance",
+  "origin": "inbox",
+  "originEntry": "Stop the CodeRabbit pull-request reader from waiting forever on a format it does not recognize",
+  "originEntrySourceDigest": "sha256:bae4fd9de69b580b7efc9bf6608bf245ae6ec5a7d0122c8db0ab225f73d62b4d",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
