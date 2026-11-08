@@ -62,6 +62,13 @@ each sits at its marks rather than well past them, its task list holds only the 
 specification's growth past them is the terms and sibling contracts a member needs to stand alone, not added scope, so
 one review of each member's change set can hold it.
 
+`projection-worktrees` passed all three marks at its own task generation: its specification ran about 1,750 lines and
+its task list about 1,470, and its change set is forecast at about 15,000 lines with its tests. The one cut its design
+suggests, the removal slots and the release step, consumes contracts shaped around it, so that part could be built only
+on a branch stacked on this member, landing after it either way. The Owner kept the member whole (2026-11-07), its
+change set reviewed in the four chunks below, each in one pass, with a review of the seams between them
+(`spec-projection-worktrees.md` § 1.1).
+
 ### Why a fourth
 
 A Windows scale assessment on 2026-11-07 (`~/dev/arc-evidence/projection-worktrees/SCALE-SUMMARY.md`) led the Owner to
@@ -100,13 +107,22 @@ numbers are its own specification's:
        (§ 2.3, § 11.4), and the selection and its reader (§ 11.7); the isolation test and reprojection are the third
        member's.
 - **`projection-worktrees`** (`spec-projection-worktrees.md` § 1.3):
-    1. **Refresh, fan-out, materialization, and the tripwires** (§ 2.5, § 15), the start's refresh of what the store
-       changed and the fan-out among them (§ 2.2, § 15.2), with the `createStore` wrapper, the changed mark a verb's
-       fan-out sets (§ 11.7), reprojection on a changed view setting, identity, claim, or `layout.active` (§ 10.3,
-       § 10.4), the isolation test (§ 10.5), the multi-process lane (§ 1.5), and the `.worktreeinclude` copy's
-       regression test (§ 11.6).
-    2. **The removal slots and the release step** (§ 12.2, § 12.3), with the multi-process lane's saves into a persist
-       step (§ 1.5), the user surfaces in every worktree (§ 12.8), and scratch (§ 12.9).
+    1. **The engine's state in any worktree** — which checkouts hold a projection (§ 2.5), the index's header and
+       partitions (§ 3.1) with § 16.2's amendment of the index and § 16.3's of edit rights and of the start's index
+       read, and the binder for any worktree (§ 2.1, § 14).
+    2. **Refresh, materialization, and fan-out** (§ 2.2, § 2.5, § 15.2) — the start's refresh of what the store
+       changed, over the index the start holds from its sweep (§ 15.3), protection read once per round (§ 15.5) with
+       § 16.3's amendment of a refresh's protection, a full materialization and the rebuild with the checkout's
+       scratch folder (§ 12.9), the `createStore` wrapper and the fan-out, the changed mark a verb's fan-out sets
+       (§ 11.7), reprojection on a changed view setting, identity, claim, or `layout.active` (§ 10.3, § 10.4),
+       `arc sync`'s rebuild (§ 2.4), the isolation test (§ 10.5), and the `.worktreeinclude` copy's regression test
+       (§ 11.6).
+    3. **The budget and the tripwires** (§ 15.3, § 15.4, § 15.5), with the start's order, § 16.2's amendment of the
+       lease steps' confirmation and § 16.3's of the end's lock, the tripwire suite, and the multi-process lane's
+       bursts (§ 1.5).
+    4. **The removal slots and the release step** (§ 12.2, § 12.3), with the fan-out's skip of a checkout they mark
+       retiring (§ 2.2), the multi-process lane's saves into a persist step (§ 1.5), the user surfaces in every
+       worktree (§ 12.8), and the machine-local paths (§ 12.9).
 - **`projection-team-scale`**: its specification, when written, sets its chunks and their order.
 
 ### Closeout criteria

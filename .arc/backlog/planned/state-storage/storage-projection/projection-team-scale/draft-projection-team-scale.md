@@ -194,11 +194,13 @@ so re-read the committed text before relying on it here.
 - **§ 3.1 "The index's parts":** the header and partitions. One root group per root and per `completed/` quarter, loose
   `completed/` files their own group; SHA-1 blob-id names; the header as the commit point; reads load only the
   partitions holding touched entries; lock-free readers; a racy reference per written partition; a plain-JSON codec;
-  and separate header and partition schemas. The header also marks each partition holding an unsettled entry
-  (ownerless; aside or kept copy; adoption; pending, withheld, changed, or in-progress; refusal; unshown conflict):
-  passes over every entry read the walked partitions and the marked ones, `arc save` reads every partition, and the
-  selection every one outside `completed/`; a partition mismatch found after the start deletes that partition, never
-  the header.
+  and separate header and partition schemas. The header also marks each partition holding an unsettled entry: one
+  ownerless, or a record naming an aside or kept taken-in copy, carrying an adoption, a pending or withheld mark, or a
+  refusal, or holding a conflict notice it has not shown. A changed or in-progress mark leaves a partition unmarked,
+  since a rebuild sets the changed mark on every file it finds. Passes over every entry read the walked partitions and
+  the marked ones, `arc save` reads every partition, and the selection every one outside `completed/`. A partition
+  mismatch a command finds in its own worktree after its start's read deletes that partition, never the header; a
+  fan-out's visit, and the end in another worktree the fan-out visited, delete nothing.
 - **§ 3.1 "The partitions' seams":** the fixed-seams statement, quoted below.
 - **§ 15.3 "The index read, and what is left on Windows":** a command reads its walked roots' partitions, and an
   archive quarter's only where it lays, removes or sweeps a file there, so the archive's size costs a command nothing.
