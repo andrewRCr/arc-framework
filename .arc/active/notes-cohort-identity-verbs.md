@@ -416,6 +416,13 @@ leaving a completed or nested one, which only a sync forms. Either way the exit 
 whose open members are every open record whose path names it, as the check reads them. A malformed named document is
 left to the check's own refusal, which names its repair.
 
+The fix check after A11 found a sync-only sibling outside the pre-check. Where the batch retains an open subcohort's
+group under a renamed cohort that is itself nested, the repair planner's own Parent-target check finds the renamed
+cohort nested and refuses the rename with "Repair the cohort document and retry rename.", though no document is
+malformed; un-nesting the renamed cohort lets it land. Forming it takes a nested cohort over an open subcohort, and a
+name tie or an open member whose path disagrees, which only a sync forms. The Owner chose on 2026-11-08 to record it as
+a sync-only limit, as for the exit limits, rather than extend the pre-check.
+
 The superseded premise was § 6.2's
 
 > the renamed parent is open and top-level

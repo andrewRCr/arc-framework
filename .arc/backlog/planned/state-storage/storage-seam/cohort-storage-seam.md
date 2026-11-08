@@ -175,6 +175,10 @@ adopted the branch, and which commits are no task's work.
 
    Amended 2026-11-08 by `cohort-identity-verbs` (A10): any other tied path over a closed leaf disagrees with the leaf's
    `Parent` and is reported as a sole one is, with the edit to a top-level leaf's own slug, or else its owner alone.
+
+   Amended 2026-11-08 by `cohort-identity-verbs` (A11): in a state only a sync forms, a retained open group under a
+   renamed cohort that is itself nested gets no owner row; the rename refuses instead, and lands once that cohort is
+   un-nested.
 4. **Session context** — `seam-record-kinds`, the schema; `seam-locus`'s handoff writes it and session-init reads it,
    `seam-lifecycle`'s archive clears it, and lifecycle, decomposition, delivery's `arc attest`, and locus write
    `Next Action`.

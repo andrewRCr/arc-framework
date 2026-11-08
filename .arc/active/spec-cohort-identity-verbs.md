@@ -492,9 +492,12 @@ alike, so the verb resolves once per family before its batch:
   prerequisite identity repair. The parent’s UID rename still lands, except where a cohort whose `Parent` it moves would
   fail the Parent check over an open record the batch cannot settle, which refuses it and names that record's exits
   (§ 5.1, A9, A10), or where a `Parent` it moves would name a completed or nested cohort, which refuses it naming the
-  renamed cohort's un-nesting (A11). These report rows carry no unsupported field edit; existing advisories name the
-  unresolved segment and its available repair. After the companion clash is resolved, owners choose the intended child
-  by UID and apply clear → its current `Parent` → restore at the current full path.
+  renamed cohort's un-nesting (A11). In a state only a sync forms — an open subcohort whose group the batch retains
+  under a renamed cohort that is itself nested — the repair planner instead refuses the rename with its own condition
+  and a document-repair remedy, though no document is malformed; un-nesting the renamed cohort lets it land (A11). These
+  report rows carry no unsupported field edit; existing advisories name the unresolved segment and its available repair.
+  After the companion clash is resolved, owners choose the intended child by UID and apply clear → its current `Parent`
+  → restore at the current full path.
 - **The slug names another holder** — an ended subject whose slug a live item has reused, which the lookup ranks above
   it: those references are the live holder's, and the rename leaves them unreported.
 
@@ -555,7 +558,9 @@ version-checked batch:
   `Cohort`, every open record whose path names it, and then its `Parent` (A11). Ordinary writes reach only a nested
   cohort over a closed subcohort, since the nesting rule counts open subcohorts. In states only a sync forms — two-level
   open nesting, or a live tie on a namesake's `Parent` — an exit named before the clear can itself refuse; the clear
-  still lands (A11).
+  still lands (A11). Likewise, where the batch retains an open subcohort's group under a renamed cohort that is itself
+  nested, a state only a sync forms, the repair planner refuses the rename with its own condition rather than naming the
+  un-nesting, which still lets it land (A11).
 - **References to the document's filename,** `` `cohort-<old>.md` ``, in stubs and open cohort documents — a parent
   cites its subcohorts' documents by filename — rewritten by the cohort arm itself where the old slug names the cohort
   alone (§ 4). The work-item sweep cannot serve: it leaves every `cohort-` reference unchanged
