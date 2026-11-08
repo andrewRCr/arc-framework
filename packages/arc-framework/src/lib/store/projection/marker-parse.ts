@@ -70,7 +70,7 @@ function partialEntries(input: MarkerInput, malformed: readonly { start: number;
   }
   const ranges = malformedEntries(input.content, input.entries.grammar, malformed, controls, identities);
   if (ranges === null) return { kind: "held", mark };
-  const content = restoreMalformedEntries(input.content, input.entries.base, input.entries.grammar, ranges);
+  const content = restoreMalformedEntries(input.content, input.entries.base, input.entries.grammar, ranges, input.markers.length);
   const ready = parseMarkerContent({ ...input, content, entries: undefined });
   if (ready.kind === "held") return ready;
   const blocked = input.conflicts.filter(conflict => {

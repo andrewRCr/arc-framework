@@ -91,6 +91,32 @@ describe("marker parse-back", () => {
     expect((await writeBackFile(fixture.context, result.index, { ...fixture.request, entry: result.result.entry })).result.answer).toBe("taken-in");
   });
 
+  it.each(entryCases)("contains a broken first set without consuming the next opening in $kind", async input => {
+    const third = input.kind === "personal/inbox" ? "\n### [ ] **Third**\n\n- _Id:_ `33333333`\n\nbase third\n"
+      : "\n**Third:**\n_Remove when:_ done\n_Id:_ `33333333`\n\nbase third\n";
+    const base = input.base + third;
+    const current = base.replace("base first", "stored first").replace("base second", "stored second");
+    const incoming = base.replace("base first", "incoming first").replace("base second", "incoming second");
+    const fixture = await createMarkerFixture({ kind: input.kind, base, current, incoming });
+    fixtures.push(fixture);
+    expect(fixture.conflicts).toHaveLength(2);
+    const repaired = fixture.content.replace("base third", "edited third");
+    const damaged = repaired.replace(/^>>>>>>>[^\n]*\n?/mu, "");
+    await fixture.edit(damaged);
+    const result = await writeBackFile(fixture.context, fixture.index, fixture.request);
+    expect(result.result.answer).toBe("refused");
+    expect(await fixture.file()).toContain(damaged);
+    expect(await fixture.store.read({ reference: fixture.entry.reference })).toMatchObject({ status: "ok", result: {
+      content: current.replace("base third", "edited third"), conflicts: fixture.record.conflicts,
+    } });
+    await fixture.edit(repaired);
+    const retry = await writeBackFile(fixture.context, result.index, { ...fixture.request, entry: result.result.entry });
+    expect(retry.result.answer).toBe("taken-in");
+    expect(await fixture.store.read({ reference: fixture.entry.reference })).toMatchObject({ status: "ok", result: {
+      content: current.replace("base third", "edited third"), conflicts: fixture.record.conflicts,
+    } });
+  });
+
   it("returns a malformed aside copy unchanged before its own path can partially land", async () => {
     const input = entryCases[0];
     if (input === undefined) throw new Error("Entry fixture missing");

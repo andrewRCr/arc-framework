@@ -3,7 +3,7 @@ import { splitEntryList, type EntryListConfig, type ListEntry } from "../concurr
 import { entrySection, retainEntrySections } from "../concurrency/entry-sections.js";
 import { entryFrame } from "../concurrency/entry-frame.js";
 import { orderEntries } from "../concurrency/entry-order.js";
-import type { MalformedMarkerSpan } from "./marker-scan.js";
+import { scanMarkers, type MalformedMarkerSpan } from "./marker-scan.js";
 
 interface EntrySpan { start: number; end: number; entry: ListEntry }
 /** A malformed raw range and the stable entry identity whose edit it withholds. */
@@ -29,7 +29,9 @@ export function malformedEntries(content: string, grammar: EntryListConfig, malf
     const next = entries.find(entry => entry.start > first.start && (span.complete ? entry.start >= span.end
       : identity === undefined || entry.entry.id !== identity));
     const section = entrySection(view, first.entry.section);
-    const end = Math.min(next?.start ?? content.length, section?.end ?? content.length);
+    const boundary = next === undefined ? undefined : controls.find(control => control.start >= span.end
+      && control.end <= next.start && content[control.start] === "<");
+    const end = Math.min(boundary?.start ?? next?.start ?? content.length, section?.end ?? content.length);
     const start = Math.min(span.start, first.start);
     ranges.push({ start, end, id: identity });
   }
@@ -37,7 +39,7 @@ export function malformedEntries(content: string, grammar: EntryListConfig, malf
 }
 
 /** Remove only refused raw ranges, then restore their base entries by section and surviving identity anchors. */
-export function restoreMalformedEntries(content: string, base: string, grammar: EntryListConfig, ranges: readonly RefusedEntrySpan[]): string {
+export function restoreMalformedEntries(content: string, base: string, grammar: EntryListConfig, ranges: readonly RefusedEntrySpan[], markerLength: number): string {
   let result = content;
   for (const range of [...ranges].reverse()) result = result.slice(0, range.start) + result.slice(range.end);
   const original = entrySpans(base, grammar).map(span => span.entry);
@@ -45,12 +47,12 @@ export function restoreMalformedEntries(content: string, base: string, grammar: 
   if (restore.length === 0) return result;
   const frame = entryFrame(base, grammar);
   result = retainEntrySections(result, new Map(restore.map(entry => [entry.id ?? "", entry])), [frame]);
-  for (const entry of restore) result = insertBaseEntry(result, original, entry, grammar);
+  for (const entry of restore) result = insertBaseEntry(result, original, entry, grammar, markerLength);
   return result;
 }
 
-function insertBaseEntry(content: string, base: readonly ListEntry[], entry: ListEntry, grammar: EntryListConfig): string {
-  const incoming = entrySpans(content, grammar);
+function insertBaseEntry(content: string, base: readonly ListEntry[], entry: ListEntry, grammar: EntryListConfig, markerLength: number): string {
+  const incoming = insertionAnchors(content, grammar, markerLength);
   const selected = new Map([...incoming.map(span => span.entry), entry].flatMap(value => value.id === undefined ? [] : [[value.id, value] as const]));
   const order = orderEntries(base, base, incoming.map(span => span.entry), selected, entry.section);
   const position = order.indexOf(entry.id ?? "");
@@ -60,6 +62,21 @@ function insertBaseEntry(content: string, base: readonly ListEntry[], entry: Lis
   const prefix = content.slice(0, offset);
   const boundary = prefix.endsWith("\n\n") ? "" : prefix.endsWith("\n") ? "\n" : "\n\n";
   return prefix + boundary + entry.bytes + (entry.separator || "\n\n") + content.slice(offset);
+}
+
+function insertionAnchors(content: string, grammar: EntryListConfig, markerLength: number): EntrySpan[] {
+  const scan = scanMarkers(content, markerLength);
+  const masked = [...scan.controls, ...scan.sets.map(set => ({
+    start: content.indexOf("\n", set.start) + 1 + set.current.length, end: set.end,
+  }))];
+  let view = content;
+  for (const range of masked.sort((a, b) => b.start - a.start)) {
+    view = view.slice(0, range.start) + view.slice(range.start, range.end).replace(/[^\n]/gu, " ") + view.slice(range.end);
+  }
+  return entrySpans(view, grammar).map(entry => {
+    const set = scan.sets.find(set => set.start <= entry.start && entry.start < set.end);
+    return set === undefined ? entry : { ...entry, start: set.start, end: Math.max(entry.end, set.end) };
+  });
 }
 
 function entrySpans(content: string, grammar: EntryListConfig): EntrySpan[] {
