@@ -332,6 +332,9 @@ nothing without `--yes`; and a member a pull lands naming a removed cohort refus
   newly arrived conflict despite its unchanged primary version, retain the document, then remove it after resolution
   and a fresh confirmed retry.
 
+- _Review correction:_ Close and remove previews name the previewed cohort's UID in their `--yes` remedy, so a slug
+  rebound between preview and confirmation cannot redirect it to another cohort. Both backends assert the remedy.
+
 ### `[x]` **3.6 Report a cohort left with nothing open from abandon, close, and remove — § 8.3, § 7.2**
 
 - _Goal:_ Wherever a verb's batch leaves a cohort with no open holder, its result names the command that retires it, and

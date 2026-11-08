@@ -160,6 +160,7 @@ describe.each(["reference", "ref"] as const)("cohort close over %s", backend => 
     const preview = await f.invoke(["cohort", "close", ref.owner.name, "--json"]);
     expect(preview).toMatchObject({ exitCode: 1, result: { status: "refused", plan: { operation: "close", reference: group.reference,
       placement: { kind: "completed", quarter: expect.stringMatching(/^\d{4}-q[1-4]$/u) } } } });
+    expect(preview.result).toMatchObject({ refusal: { remedy: { argv: ["arc", "cohort", "close", uidOf(group), "--yes"] } } });
     expect(success(await f.store.version())).toBe(before);
     expect(success(await f.store.read({ reference: group.reference }))).toEqual(group);
     const textPlan = await f.invoke(["cohort", "close", ref.owner.name]);
@@ -303,12 +304,20 @@ it("closes an unrelated cohort while a member names two other cohorts sharing a 
   for (const reference of shared) expect(success(await f.store.read({ reference })).placement?.kind).not.toBe("completed");
 }, 60_000);
 
+/** The confirmation remedy reruns by the previewed cohort's UID, so a slug rebound before --yes cannot redirect it. */
+function uidOf(record: StoreRecord): string {
+  const owner = record.reference.owner;
+  if (owner.type === "person" || owner.uid === undefined) throw new Error("Expected a cohort UID");
+  return owner.uid;
+}
+
 describe.each(["reference", "ref"] as const)("cohort remove over %s", backend => {
   it("previews without mutation and removes an unheld cohort only with explicit confirmation", async () => {
     const f = await fixture(backend), ref = f.reference("cohort/document", "unused");
     const group = await seed(f, ref, content(ref.owner.name)), before = success(await f.store.version());
     const plan = await f.invoke(["cohort", "remove", ref.owner.name, "--json"]);
     expect(plan).toMatchObject({ exitCode: 1, result: { status: "refused", plan: { operation: "remove", reference: group.reference } } });
+    expect(plan.result).toMatchObject({ refusal: { remedy: { argv: ["arc", "cohort", "remove", uidOf(group), "--yes"] } } });
     expect(success(await f.store.version())).toBe(before);
     expect(success(await f.store.read({ reference: group.reference }))).toEqual(group);
     const text = await f.invoke(["cohort", "remove", ref.owner.name]);

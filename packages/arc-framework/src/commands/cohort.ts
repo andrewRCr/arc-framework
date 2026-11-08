@@ -38,7 +38,7 @@ export async function runCohortClose(store: Store, input: { operand: string; con
   const primary = selected.primary, date = clock();
   const plan: CohortClosePlan = { operation: "close", reference: primary.reference, placement: { kind: "completed",
     quarter: ArchiveQuarterSchema.parse(`${date.getFullYear()}-q${Math.floor(date.getMonth() / 3) + 1}`) } };
-  if (!input.confirmed) return confirmationRequired(plan, input.operand);
+  if (!input.confirmed) return confirmationRequired(plan);
   const written = await batchLifecycleWrites(store, [recordPut(primary, { placement: plan.placement })],
     { verb: "cohort-close", lifecycleAction: "close" }, observeRecords([primary]));
   if (written.status === "refused") return written;
@@ -63,7 +63,7 @@ async function removeSelectedCohort(store: Store, primary: StoreRecord, input: {
   const prepared = await prepareRemoveSubject(store, primary);
   if (prepared.status === "refused") return prepared;
   const plan: CohortRemovePlan = { operation: "remove", reference: primary.reference };
-  if (!input.confirmed) return confirmationRequired(plan, input.operand);
+  if (!input.confirmed) return confirmationRequired(plan);
   const written = await batchLifecycleWrites(store, [{ action: "remove", reference: primary.reference, expected: primary.version }],
     { verb: "cohort-remove", lifecycleAction: "remove" }, observeRecords([primary]));
   if (written.status === "refused") return written;
@@ -71,7 +71,9 @@ async function removeSelectedCohort(store: Store, primary: StoreRecord, input: {
   return { status: "removed", reference: primary.reference, placement: null, parents: retirement.cohorts, notices: retirement.notices };
 }
 
-function confirmationRequired(plan: CohortClosePlan | CohortRemovePlan, operand: string): Extract<CohortCommandResult, { status: "refused" }> {
+/** The remedy reruns by the previewed cohort's UID, so a slug rebound before --yes cannot redirect the confirmation. */
+function confirmationRequired(plan: CohortClosePlan | CohortRemovePlan): Extract<CohortCommandResult, { status: "refused" }> {
+  const owner = plan.reference.owner, operand = owner.type === "person" ? owner.name : owner.uid ?? owner.name;
   return { status: "refused", plan, refusal: { code: "record-malformed", class: "recoverable", reference: plan.reference,
     rule: `cohort.${plan.operation}-confirmation`, condition: `Refusing to ${plan.operation} ${plan.reference.owner.name} without --yes.`,
     remedy: { text: `Review the ${plan.operation} plan, then repeat with --yes.`, argv: ["arc", "cohort", plan.operation, operand, "--yes"] } } };
