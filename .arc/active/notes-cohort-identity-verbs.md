@@ -13,6 +13,7 @@
     - [Superseded shape-only remedy rule](#superseded-shape-only-remedy-rule)
 - [Coupled cohort holdings — A5](#coupled-cohort-holdings--a5)
 - [Prepared-write admission — A7](#prepared-write-admission--a7)
+- [Disagreeing member paths — A8](#disagreeing-member-paths--a8)
 
 ## Catch-up publication recovery
 
@@ -283,5 +284,28 @@ Verification injects a store change between preparation and submission on both b
 seeds one case per read family from the audits' scenarios and adds an unrelated write that must admit. Each seeded case
 must fail against the predicate admission before the change. A second retired lineage cannot form locally:
 `work-item.slug-edges` refuses the second generation while a stub's edge still names the first.
+
+---
+
+## Disagreeing member paths — A8
+
+The A7 audits found that a cohort rename refuses through `meta.cohort` when a member's `Cohort` path no longer agrees
+with its leaf's `Parent`. Confirmed on 2026-11-07: a completed member holds `p/l`, then `l` moves under `q`.
+`cohort.parent` checks only open members' paths, so the move lands. Renaming `l` to `t` then refuses on `p/t`, and
+renaming `p` to `t` refuses on `t/l`; nothing is written. Sync can bring the same disagreement to an open member.
+
+Such a path has no consistent rewrite: every candidate either keeps a first segment that is not the leaf's `Parent`
+or changes which parent the member names. Retaining it and reporting the edit to the leaf's current path follows A5
+and A6, which retain what the batch cannot change consistently and report the exact repair. Rewriting it to the
+leaf's actual path was rejected: the rename would change an archived record's membership from inferred intent.
+Refusing with a clearer message was rejected because it leaves the rename blocked until someone edits archived
+history.
+
+The superseded rule in § 5.1 ¶3 was:
+
+> Each `Cohort` is rewritten to the current path of the cohorts its segments resolve to, with the new slug in the
+> renamed cohort's segment, so a record left on a former slug in either segment is rewritten whole.
+
+It still holds for every path that agrees with its leaf's `Parent`.
 
 ---

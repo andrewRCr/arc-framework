@@ -629,6 +629,7 @@ old name refuses naming the current one.
   closed-child restrictions remain enforced; unrelated arrivals do not invalidate a prepared rename.
 
     - _Amended in:_ 5.R (A7).
+    - _Amended in:_ 5.R2 (A8).
 
 ### `[x]` **5.2.R Keep cohort repair planning reachable — A6**
 
@@ -740,6 +741,25 @@ old name refuses naming the current one.
         - _Outcome:_ Locally, 192 rename, archive, cohort and fixture-rename files (2,101 tests) pass, including the
           rename and staged-archive E2E files, with both type checks and the increment gate. Hosted CI runs once at
           convergence.
+
+### `[ ]` **5.R2 Retain a holding whose path disagrees with its leaf's Parent — § 5.1 (A8)**
+
+- _Goal:_ Under A8, a cohort rename leaves a `Cohort` path whose first segment is not its leaf's current `Parent`
+  unchanged and reports the edit to the leaf's current path, so such a holding no longer refuses the rename.
+
+    - `[ ]` **5.R2.a Disagreeing paths are retained — failing first**
+
+        - A completed member holds `p/l` after `l` moves under `q`. Renaming `l`, and renaming `p`, each land with that
+          `Cohort` unchanged and its repair edit reported; both cases fail against the current rewrite.
+
+    - `[ ]` **5.R2.b Retain and report**
+
+        - Cohort rename preparation treats a holding whose path disagrees with its leaf's current `Parent` as
+          retained: no write, and a § 4 report row whose edit is the leaf's current path.
+
+    - `[ ]` **5.R2.c Revalidate**
+
+        - Criterion 22 holds on both backends where the state forms; the 5.6 segment scenario still holds.
 
 ### `[x]` **5.6 A cohort renamed end to end** — validate exit criterion at segment scope
 

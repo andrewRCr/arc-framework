@@ -514,13 +514,16 @@ version-checked batch:
   segments resolve to, with the new slug in the renamed cohort's segment, so a record left on a former slug in either
   segment is rewritten whole: renaming a subcohort `s` of `p` to `t` turns its members' `p/s` into `p/t`, and renaming
   `p` to `q` turns them into `q/s`. A `Parent` takes the new slug. An ambiguous holding is not rewritten; § 4 reports
-  it. **Coupled groups (A5):** retain an open child's `Parent` and its member paths when a retained member prevents
-  changing that `Parent` consistently, including when the `Parent` alone resolves solely to the renamed cohort.
-  Likewise retain member paths behind an ambiguous `Parent`. Report every retained holding, including sole ones,
-  through § 4’s ordered clear → `Parent` → restore edits where every companion identity is proved; otherwise retain
-  the group and report § 4’s prerequisite instead (A6). All-sole groups still move in the batch; completed members
-  alone do not prevent a `Parent` update when its members’ destination paths are proved, and closed-child retention
-  and restoration restrictions remain in force.
+  it. **Disagreeing paths (A8):** a `Cohort` path has no consistent rewrite when its first segment resolves to a cohort
+  other than its leaf's current `Parent`, or its single segment names a leaf that has a `Parent`. The rename leaves it
+  unchanged for an open or a completed member, and § 4 reports the record with the edit to the leaf's current path:
+  `<Parent>/<new slug>` when the leaf is renamed, `<Parent>/<leaf>` otherwise. **Coupled groups (A5):** retain an open
+  child's `Parent` and its member paths when a retained member prevents changing that `Parent` consistently, including
+  when the `Parent` alone resolves solely to the renamed cohort. Likewise retain member paths behind an ambiguous
+  `Parent`. Report every retained holding, including sole ones, through § 4’s ordered clear → `Parent` → restore edits
+  where every companion identity is proved; otherwise retain the group and report § 4’s prerequisite instead (A6).
+  All-sole groups still move in the batch; completed members alone do not prevent a `Parent` update when its members’
+  destination paths are proved, and closed-child retention and restoration restrictions remain in force.
 - **References to the document's filename,** `` `cohort-<old>.md` ``, in stubs and open cohort documents — a parent
   cites its subcohorts' documents by filename — rewritten by the cohort arm itself where the old slug names the cohort
   alone (§ 4). The work-item sweep cannot serve: it leaves every `cohort-` reference unchanged
@@ -1117,6 +1120,9 @@ Over the ref backend and, where it can form the state, the reference backend, fr
     changing, gaining a conflict or leaving that would change the rename's writes, evidence or report refuses the batch
     with nothing written, and fresh preparation then lands with it accounted for; the same holds for a conflict reaching
     a cohort that archive, close or remove completes. A write to a record that feeds none of them admits the batch.
+22. **Disagreeing member paths are retained (A8).** Renaming the leaf cohort, or the stale first segment, of a completed
+    member's `Cohort` path whose first segment is no longer the leaf's `Parent` lands; that `Cohort` stays unchanged and
+    the report names the edit to the leaf's current path.
 
 ## Open Questions
 
@@ -1144,5 +1150,8 @@ None.
 
 - **A7** — 2026-11-07 — design: admission re-derives each prepared store write. _Supersedes:_ § 2.3 ¶2 binding.
   _Trigger:_ door. _Work:_ 5.R. _Revalidated:_ pending → verify-work-unit.
+
+- **A8** — 2026-11-07 — design: a rename retains a holding whose path disagrees with its leaf's Parent.
+  _Supersedes:_ § 5.1 ¶3. _Trigger:_ D2 review. _Work:_ 5.R2. _Revalidated:_ pending → verify-work-unit.
 
 ---
