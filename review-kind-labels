@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "review-kind-labels",
+  "claimId": "31bbee62062e33821d33fc9937fab16c",
+  "createdAt": "2026-11-08T22:12:21.649Z",
+  "updatedAt": "2026-11-08T22:12:21.649Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Name the review kind in every review report's position and trend lines",
+  "branch": "chore/review-kind-labels",
+  "origin": "inbox",
+  "originEntry": "Name the review kind in every review report's position and trend lines",
+  "originEntrySourceDigest": "sha256:63ded424ddde160c381d7abe9a5ed6115dad7d1f8d19f1d4872b7f594fe56d6c",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
