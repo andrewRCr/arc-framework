@@ -1011,4 +1011,11 @@ verification stay preserved.
 
 **Numbering (review correction):** The criterion-8 references in the A5 and A9/A10 supersession notes above, and in
 criterion 23's text, cite the spec's numbering, in which criterion 8 is this list's criterion 10, the mixed-state cohort
-rename. Every other criterion reference in this list counts in its own order.
+rename. Task 5.R2.c's "Criterion 22" also cites the spec's numbering, in which it is this list's criterion 26, the
+disagreeing member paths. Every other criterion reference in this list counts in its own order.
+
+**Known limit (review, follow-up):** The repair advice that `arc cohort close`, `arc cohort remove` and archive's
+former-holding notices give checks a former-slug path against its leaf's `Parent` only where the leaf is a completed
+cohort. Where the leaf is an open subcohort whose `Parent` names another cohort, the advised edit disagrees with that
+`Parent` and the membership check refuses it, explaining why. The state is inferred from source and likely forms only
+through a sync. These advice paths run only from the flip, so the fix is held as a follow-up Errand landing before it.

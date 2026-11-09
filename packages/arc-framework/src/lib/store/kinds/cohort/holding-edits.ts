@@ -158,7 +158,7 @@ function parentTargetEligibility(segment: CohortHoldingSegment | undefined): Rul
 
 function directEdit(holding: ResolvedCohortCandidate, changed: ReadonlySet<number>, slug: string,
   subjectParent: string | null | undefined): EditObservation<CohortHoldingEdit | null> {
-  const parts = tiedLeafNamesSubject(holding, changed, subjectParent) ? (subjectParent === null ? [slug] : [subjectParent, slug])
+  const parts = tiedLeafNamesSubject(holding, changed, slug, subjectParent) ? (subjectParent === null ? [slug] : [subjectParent, slug])
     : holding.segments.map((segment, index) => changed.has(index) ? slug : segment.status === "known" ? segment.currentSlug : segment.name);
   const to = parts.join("/");
   if (to === holding.candidate.path) return { status: "known", value: null };
@@ -170,11 +170,13 @@ function directEdit(holding: ResolvedCohortCandidate, changed: ReadonlySet<numbe
   return fieldEdit(holding.candidate, holding.candidate.path, to);
 }
 
-/** An edit that resolves a tied leaf to the subject names the subject, whose Parent the path must then agree with. */
-function tiedLeafNamesSubject(holding: ResolvedCohortCandidate, changed: ReadonlySet<number>,
+/** An edit that moves a tied leaf off the tied name names the subject, whose Parent the path must then agree with. A leaf
+ * already on the subject's own slug stays tied, so no edit leaves the tie and none is given. */
+function tiedLeafNamesSubject(holding: ResolvedCohortCandidate, changed: ReadonlySet<number>, slug: string,
   subjectParent: string | null | undefined): subjectParent is string | null {
-  const last = holding.segments.length - 1;
-  return subjectParent !== undefined && holding.candidate.field === "cohort" && changed.has(last) && holding.segments[last]?.status === "ambiguous";
+  const leaf = holding.segments.at(-1);
+  return subjectParent !== undefined && holding.candidate.field === "cohort" && changed.has(holding.segments.length - 1)
+    && leaf?.status === "ambiguous" && leaf.name !== slug;
 }
 
 /** A cohort document's Parent, `null` when top-level, or undefined when the document does not parse. */
