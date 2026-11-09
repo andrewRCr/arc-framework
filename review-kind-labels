@@ -3,7 +3,7 @@
   "slug": "review-kind-labels",
   "claimId": "31bbee62062e33821d33fc9937fab16c",
   "createdAt": "2026-11-08T22:12:21.649Z",
-  "updatedAt": "2026-11-08T22:12:21.649Z",
+  "updatedAt": "2026-11-09T01:19:15.810Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Name the review kind in every review report's position and trend lines",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Name the review kind in every review report's position and trend lines",
   "originEntrySourceDigest": "sha256:63ded424ddde160c381d7abe9a5ed6115dad7d1f8d19f1d4872b7f594fe56d6c",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/review-kind-labels",
+    "headSha": "65a777a823e052bfae0eeed06d4a678251be31ba"
+  }
 }
