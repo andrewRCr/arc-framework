@@ -18,7 +18,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume publication at the idempotent push, then resolve or open the change request.
+- **Next Action:** integrate-work-unit Step 9 — resolve the pushed candidate's change set and applicability, then Step
+  10's base reconcile; draft PR #1309 conflicts with `main`.
 
 - **PR URL:** [none]
 - **Completed:** [none]
