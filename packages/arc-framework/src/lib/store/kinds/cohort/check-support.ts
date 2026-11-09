@@ -10,7 +10,7 @@ import { observeCohortHoldings, type CohortHolding, type CohortHoldingCandidate 
 import { cohortHoldingRepairs } from "./holding-edits.js";
 export { observeCohortHoldings, type CohortHoldingCandidate, type CohortHoldingSegment,
   type ResolvedCohortCandidate, type CohortHolding } from "./holdings.js";
-export { cohortHoldingRepairs, type CohortHoldingEdit, type CohortHoldingRepairPlan } from "./holding-edits.js";
+export { cohortHoldingRepairs, cohortDocumentParent, type CohortHoldingEdit, type CohortHoldingRepairPlan } from "./holding-edits.js";
 /** A document with proved parsed nesting fields and its observed placement. */
 export interface CohortEvidence { readonly record: StoreRecord; readonly fields: ParsedCohortDocument }
 /** A work unit with its proved membership field and observed placement. */
@@ -109,9 +109,9 @@ export function describeCohortHoldingOwners(holdings: readonly CohortHolding[]):
   return `The cohort is held by: ${holders.join(", ")}.`;
 }
 
-/** Name exact holders and the ordered field repairs supported by their resolved paths. */
-export function describeCohortHoldings(holdings: readonly CohortHolding[], slug: string): string {
-  const names = describeCohortHoldingOwners(holdings), edits = cohortHoldingRepairs(holdings, slug);
+/** Name exact holders and the ordered field repairs supported by their resolved paths, given the cohort's own Parent. */
+export function describeCohortHoldings(holdings: readonly CohortHolding[], slug: string, parent?: string | null): string {
+  const names = describeCohortHoldingOwners(holdings), edits = cohortHoldingRepairs(holdings, slug, parent);
   if (edits.status !== "known") return `${names} ${edits.status === "unavailable" ? edits.condition : "Holding edits are unavailable."}`;
   const repair = edits.value.edits.map(edit => `${edit.record.type} ${edit.record.name} (UID ${edit.record.uid}): `
     + `${edit.field === "cohort" ? "Cohort" : "Parent"} ${JSON.stringify(edit.from)} -> ${JSON.stringify(edit.to)}.`).join(" ");

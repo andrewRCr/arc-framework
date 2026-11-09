@@ -89,11 +89,13 @@ export async function readRemoteBranchOid(
   return matches[0][0];
 }
 
-/** Result of converging the remote branch identity. */
+/** Result of converging the remote branch identity. `retained` keeps the old branch beside the pushed new name; `kept`
+ * leaves a published branch in place with no new name pushed, because the rename did not move the link. */
 export type RenameRemoteBranchResult =
   | { status: "unpublished" }
   | { status: "renamed"; oldOid: string }
   | { status: "retained"; oldBranch: string; newBranch: string; oldOid: string }
+  | { status: "kept"; oldBranch: string; oldOid: string }
   | { status: "stale"; expectedOid: string; actualOid: string | null };
 
 /** Parameters captured across preflight and the remote rename leg. */

@@ -21,7 +21,7 @@ import type { StoreRefusal, Remedy } from "../../store/refusal.js";
 import type { TransitionOutcome } from "../lifecycle-executor.js";
 import { executeTransition } from "../lifecycle-executor.js";
 import { revalidateLifecycleRecords } from "../prepared-lifecycle-write.js";
-import { observeOpenCohorts, observeCohortHoldings, describeCohortHoldings,
+import { observeOpenCohorts, observeCohortHoldings, describeCohortHoldings, cohortDocumentParent,
   type CohortEvidence, type CohortHoldingCandidate, type CohortHolding } from "../../store/kinds/cohort/check-support.js";
 import { consumePull, pullOutcomeNotices, renderExplained } from "../../store/pull-consumption.js";
 import { memberCohortReadRefusal } from "../../store/cohort-membership-refusal.js";
@@ -229,7 +229,7 @@ async function prepareObservedCohorts(store: Store, cohortPaths: readonly string
     const closing = held.holdings.length === 0;
     if (closing) completing.add(identityKey(cohort.result.reference.owner));
     if (!snapshot.protectOpen && !closing) {
-      notices.push(...formerHoldingNotices(held.holdings, cohort.result.reference.owner.name));
+      notices.push(...formerHoldingNotices(held.holdings, cohort.result));
       continue;
     }
     records.push(cohort.result);
@@ -256,10 +256,11 @@ async function observeArchiveHoldings(store: Store, cohort: RecordReference, sna
     children: snapshot.open.filter(child => children.has(identityKey(child.record.reference.owner))).map(child => child.record) };
 }
 
-function formerHoldingNotices(holdings: readonly CohortHolding[], slug: string): string[] {
+function formerHoldingNotices(holdings: readonly CohortHolding[], cohort: StoreRecord): string[] {
+  const slug = cohort.reference.owner.name;
   const former = holdings.filter(holding => holding.segments[holding.segment]?.name !== slug
     || holding.segments.some(segment => segment.status === "known" && segment.name !== segment.currentSlug));
-  return former.length === 0 ? [] : [`Cohort ${slug} remains open. ${describeCohortHoldings(holdings, slug)}`];
+  return former.length === 0 ? [] : [`Cohort ${slug} remains open. ${describeCohortHoldings(holdings, slug, cohortDocumentParent(cohort.content))}`];
 }
 
 function cohortReferencesFor(cohort: string | null): RecordReference[] {

@@ -2,14 +2,15 @@
 import type { z } from "zod";
 import { ArchiveQuarterSchema, type ArchiveQuarter } from "../lib/kernel/index.js";
 import type { Store } from "../lib/store/contract.js";
-import type { RecordReference } from "../lib/store/identity.js";
+import { sameOwner, type RecordReference } from "../lib/store/identity.js";
 import type { StoreRefusal } from "../lib/store/refusal.js";
 import type { StoreRecord } from "../lib/store/read.js";
 import { recordConflictRefusal } from "../lib/store/conflict-diagnostics.js";
 import { observeRecords } from "../lib/store/record-observations.js";
 import { pullHistoryForRetry } from "../lib/store/pull-consumption.js";
 import { reportEmptyCohorts, type EmptyCohortReport } from "../lib/store/cohort-retirement.js";
-import { observeOpenHoldings, observeAllHoldings, describeCohortHoldings, describeCohortHoldingOwners, type CohortHolding } from "../lib/store/kinds/cohort/check-support.js";
+import { observeOpenHoldings, observeAllHoldings, describeCohortHoldings, describeCohortHoldingOwners, cohortDocumentParent,
+  type CohortHolding } from "../lib/store/kinds/cohort/check-support.js";
 import { CohortReadPlacementSchema } from "../lib/store/placement.js";
 import { resolveSubjectOperand } from "../lib/store/subject-operand.js";
 import { usesOffBranchState, recordPut, batchLifecycleWrites } from "../lib/store/lifecycle-write.js";
@@ -118,10 +119,54 @@ async function prepareCloseSubject(store: Store, operand: string): Promise<
   if (held.status !== "known") return { status: "refused", refusal: { code: "record-malformed", class: "recoverable",
     reference: primary.reference, rule: "cohort.open-members", condition: held.status === "unavailable" ? held.condition : "Open holding evidence is unavailable.",
     remedy: { text: "Restore readable cohort and membership evidence, then retry close." } } };
-  if (held.value.length > 0) return { status: "refused", refusal: { code: "record-malformed", class: "recoverable",
-    reference: primary.reference, rule: "cohort.open-members", condition: describeCohortHoldings(held.value, primary.reference.owner.name),
-    remedy: { text: closeHoldingRemedies(held.value) } } };
+  if (held.value.length > 0) {
+    const clash = ownSlugClash(held.value, primary), others = held.value.filter(holding => !clash.holdings.includes(holding));
+    return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: primary.reference, rule: "cohort.open-members",
+      condition: [describeCohortHoldings(held.value, primary.reference.owner.name, cohortDocumentParent(primary.content)), clashCondition(primary, clash)]
+        .filter(Boolean).join(" "),
+      remedy: { text: [clashRemedy(primary, clash, "close"), others.length > 0 ? closeHoldingRemedies(others) : ""].filter(Boolean).join(" ") } } };
+  }
   return { status: "ready", primary };
+}
+
+/** Holdings that name the selected cohort's own current slug while another cohort holds it too, and those cohorts. */
+interface OwnSlugClash { holdings: readonly CohortHolding[]; cohorts: readonly RecordReference[] }
+
+function ownSlugClash(holdings: readonly CohortHolding[], primary: StoreRecord): OwnSlugClash {
+  const name = primary.reference.owner.name, clashed: CohortHolding[] = [], cohorts: RecordReference[] = [];
+  for (const holding of holdings) {
+    const segment = holding.segments[holding.segment];
+    if (holding.resolution !== "ambiguous" || segment?.status !== "ambiguous" || segment.name !== name) continue;
+    clashed.push(holding);
+    for (const candidate of segment.candidates) {
+      if (candidate.kind !== "cohort/document" || sameOwner(candidate.owner, primary.reference.owner)
+        || cohorts.some(cohort => sameOwner(cohort.owner, candidate.owner))) continue;
+      cohorts.push(candidate);
+    }
+  }
+  return { holdings: clashed, cohorts };
+}
+
+function ownerOperand(reference: RecordReference): string {
+  const owner = reference.owner;
+  return owner.type === "person" ? owner.name : owner.uid ?? owner.name;
+}
+
+function clashCondition(primary: StoreRecord, clash: OwnSlugClash): string {
+  if (clash.holdings.length === 0) return "";
+  const others = clash.cohorts.map(cohort => `cohort ${cohort.owner.name} (UID ${ownerOperand(cohort)})`).join(", ");
+  return `Cohort ${primary.reference.owner.name} (UID ${ownerOperand(primary.reference)}) shares its slug with ${others || "another holder"}, `
+    + `so each record naming \`${primary.reference.owner.name}\` holds both.`;
+}
+
+/** Lead with the UID rename that ends the clash: renaming this cohort leaves the slug's records with the other
+ * holder, after which this retirement lands; renaming the other leaves them with this cohort. */
+function clashRemedy(primary: StoreRecord, clash: OwnSlugClash, operation: "close" | "remove"): string {
+  if (clash.holdings.length === 0) return "";
+  const name = primary.reference.owner.name, self = `\`arc rename ${ownerOperand(primary.reference)} <new-slug>\``;
+  const others = clash.cohorts.map(cohort => `\`arc rename ${ownerOperand(cohort)} <new-slug>\``).join(" or ");
+  return `Rename a holder of the slug by UID. Renaming this cohort with ${self} leaves the records naming \`${name}\` with the other `
+    + `holder, after which this ${operation} lands${others === "" ? "." : `; renaming the other with ${others} leaves them with this cohort.`}`;
 }
 
 function closeHoldingRemedies(holdings: readonly CohortHolding[]): string {
@@ -139,8 +184,13 @@ async function prepareRemoveSubject(store: Store, primary: StoreRecord): Promise
   if (held.status !== "known") return { status: "refused", refusal: { code: "record-malformed", class: "recoverable",
     reference: primary.reference, rule: "cohort.remove-holdings", condition: held.status === "unavailable" ? held.condition : "All-record holding evidence is unavailable.",
     remedy: { text: "Restore complete cohort and membership evidence, then retry removal." } } };
-  if (held.value.length > 0) return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: primary.reference,
-    rule: "cohort.remove-holdings", condition: describeCohortHoldingOwners(held.value), remedy: removalHoldingRemedy(primary) } };
+  if (held.value.length > 0) {
+    const clash = ownSlugClash(held.value, primary), others = held.value.filter(holding => !clash.holdings.includes(holding));
+    const retained = removalHoldingRemedy(primary), lead = clashRemedy(primary, clash, "remove");
+    return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", reference: primary.reference,
+      rule: "cohort.remove-holdings", condition: [describeCohortHoldingOwners(held.value), clashCondition(primary, clash)].filter(Boolean).join(" "),
+      remedy: lead === "" ? retained : { text: others.length > 0 ? `${lead} ${retained.text}` : lead } } };
+  }
   return { status: "ready", primary };
 }
 

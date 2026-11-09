@@ -14,7 +14,9 @@ import { prepareStoreRename, readStoreRenameSubject, submitStoreRename } from ".
 import { recordPut } from "../../src/lib/store/lifecycle-write.js";
 import { seedStatusConflict } from "../helpers/store/status-conflicts.js";
 import { readRenameResolution } from "../../src/lib/store/rename-reference-resolution.js";
+import { mergeLineText } from "../../src/lib/store/concurrency/index.js";
 import type { Store } from "../../src/lib/store/contract.js";
+import type { RecordReference } from "../../src/lib/store/identity.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
 
 const production = createKindRegistry(PRODUCTION_REGISTRATIONS);
@@ -67,6 +69,27 @@ async function expectUnchanged(f: Awaited<ReturnType<typeof fixture>>, records: 
   for (const record of records) expect(success(await f.store.read({ reference: record.reference }))).toEqual(record);
 }
 
+/** Store a sync's line conflict on a record, which leaves that record's version unchanged. */
+async function gainConflict(f: Awaited<ReturnType<typeof fixture>>, target: StoreRecord): Promise<RecordReference> {
+  const label = { actor: "test-user", time: new Date(0).toISOString() };
+  const data = mergeLineText({ record: target.reference, baseVersion: target.version,
+    base: target.content.replace("Status: local.", "Status: base."), current: target.content,
+    incoming: target.content.replace("Status: local.", "Status: remote."), currentLabel: label, incomingLabel: label }).conflicts[0];
+  if (data === undefined) throw new Error("Expected a line conflict");
+  const conflict = RecordReferenceSchema.parse({ owner: target.reference.owner,
+    kind: `${target.reference.kind.split("/")[0] ?? ""}/conflict-record`, key: "00000000-0000-4000-8000-000000000099" });
+  success(await f.store.write({ action: "put", expected: null, reference: conflict, content: JSON.stringify(data),
+    provenance: { verb: "sync", lifecycleAction: "reconcile" } }));
+  return conflict;
+}
+
+/** Expect a refused batch to have left the conflicted record's content and version, then resolve its conflict. */
+async function resolveGained(f: Awaited<ReturnType<typeof fixture>>, before: StoreRecord, conflict: RecordReference): Promise<void> {
+  const disputed = success(await f.store.read({ reference: before.reference }));
+  expect(disputed).toMatchObject({ version: before.version, content: before.content, conflicts: [conflict] });
+  success(await f.store.write({ ...update(f, disputed, disputed.content), resolves: disputed.conflicts }));
+}
+
 describe.each(["reference", "ref"] as const)("work-unit rename preparation at admission over %s", backend => {
   it("admits a batch when an unrelated stub's artifact changes after preparation", async () => {
     const f = await fixture(backend), source = await f.stub("example"), other = await f.stub("unrelated");
@@ -113,6 +136,57 @@ describe.each(["reference", "ref"] as const)("work-unit rename preparation at ad
     const retried = await f.invoke(argv);
     expect(retried.exitCode ?? 0, retried.stdout + retried.stderr).toBe(0);
     expect(success(await f.store.read({ reference: spec.reference })).content).toContain("`api-research-renamed.md`");
+  }, 60_000);
+
+  it("refuses a batch when a record it writes gains a conflict, then lands after the conflict is resolved", async () => {
+    const f = await fixture(backend), source = await f.stub("example"), name = source.reference.owner.name;
+    await seed(f, RecordReferenceSchema.parse({ kind: "work-item/companion", owner: source.reference.owner, key: "api-research" }),
+      "# API notes\n\nBody.\n");
+    const spec = await seed(f, RecordReferenceSchema.parse({ kind: "work-item/spec", owner: source.reference.owner }),
+      `# Spec (\`brief\`): ${name}\n\nStatus: local.\n\nSee \`api-research-${name}.md\`.\n`);
+    let conflict: RecordReference | undefined, version: unknown;
+    const argv = ["rename", uid(source), "renamed", "--json"];
+    const refused = await f.invoke(argv, beforeBatch(async () => {
+      conflict = await gainConflict(f, spec);
+      version = success(await f.store.version());
+    }));
+    expect(refused.exitCode, JSON.stringify(refused.result)).toBe(1);
+    expect(refused.result).toMatchObject({ refusal: { code: "version-conflict", records: [spec.reference] } });
+    expect(success(await f.store.version())).toBe(version);
+    await expectUnchanged(f, [source]);
+    if (conflict === undefined) throw new Error("Expected the conflict to arrive");
+    await resolveGained(f, spec, conflict);
+    const retried = await f.invoke(argv);
+    expect(retried.exitCode ?? 0, retried.stdout + retried.stderr).toBe(0);
+    expect(success(await f.store.read({ reference: spec.reference }))).toMatchObject({ conflicts: [],
+      content: expect.stringContaining("`api-research-renamed.md`") });
+  }, 60_000);
+});
+
+describe.each(["reference", "ref"] as const)("cohort rename preparation at admission over %s", backend => {
+  it("refuses a batch when a stub companion it rewrites gains a conflict, then lands after the conflict is resolved", async () => {
+    const f = await fixture(backend), groupRef = f.reference("cohort/document", "group"), name = groupRef.owner.name;
+    const group = await seed(f, groupRef, `# Cohort: \`${name}\`\n\n**Parent:** [none]\n\n**Purpose:** Deliver the group.\n`);
+    const stub = await f.stub("member");
+    const draft = await seed(f, RecordReferenceSchema.parse({ kind: "work-item/draft", owner: stub.reference.owner }),
+      `# Draft: member\n\nStatus: local.\n\nCoordinates through \`cohort-${name}.md\`.\n`);
+    let conflict: RecordReference | undefined, version: unknown;
+    const argv = ["rename", uid(group), "renamed", "--json"];
+    const refused = await f.invoke(argv, beforeBatch(async () => {
+      conflict = await gainConflict(f, draft);
+      version = success(await f.store.version());
+    }));
+    expect(refused.exitCode, JSON.stringify(refused.result)).toBe(1);
+    expect(refused.result).toMatchObject({ refusal: { code: "version-conflict", records: [draft.reference] } });
+    expect(success(await f.store.version())).toBe(version);
+    await expectUnchanged(f, [group, stub]);
+    if (conflict === undefined) throw new Error("Expected the conflict to arrive");
+    await resolveGained(f, draft, conflict);
+    const retried = await f.invoke(argv);
+    expect(retried.exitCode ?? 0, retried.stdout + retried.stderr).toBe(0);
+    expect(success(await f.store.read({ reference: group.reference })).reference.owner.name).toBe("renamed");
+    expect(success(await f.store.read({ reference: draft.reference }))).toMatchObject({ conflicts: [],
+      content: expect.stringContaining("`cohort-renamed.md`") });
   }, 60_000);
 });
 

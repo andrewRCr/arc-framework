@@ -69,6 +69,18 @@ async function seedFormerName(store: Store, record: StoreRecord, name: string, c
   observations: observeRecords(records), provenance: fixtureRenameProvenance }));
 }
 
+async function applyReportedEdits(store: Store, report: z.infer<typeof holdingReport>["report"]): Promise<void> {
+  for (const row of report.references) for (const edit of row.edits) {
+    const reference = RecordReferenceSchema.parse({ kind: edit.field === "cohort" ? "work-item/meta" : "cohort/document",
+      owner: { type: row.record.type === "cohort" ? "cohort" : "work-item", name: row.record.name, uid: row.record.uid } });
+    const current = success(await store.read({ reference }));
+    const content = edit.field === "cohort" ? writeMetaCohort(current.content, edit.to)
+      : edit.to === null ? null : writeCohortParent(current.content, edit.to);
+    if (content === null) throw new Error("Expected writable field");
+    success(await store.write({ ...recordPut(current, { content }), provenance: { verb: "write-back", lifecycleAction: "edit" } }));
+  }
+}
+
 describe.each(["reference", "ref"] as const)("cohort rename over %s", backend => {
   it("renames a mixed-state parent and every sole holding in one batch, then rejects the former path", async () => {
     const f = await fixture(backend), parentRef = f.reference("cohort/document", "parent");
@@ -684,6 +696,52 @@ it.each([{ closed: false, former: false }, { closed: true, former: false }, { cl
   expect(success(await f.store.read({ reference: completed.reference })).fields).toMatchObject({ cohort: closed ? path : `after/${childRef.owner.name}` });
   expect(success(await f.store.read({ reference: direct.reference })).fields).toMatchObject({ cohort: "after" });
   expect(success(await f.store.read({ reference: other })).reference).toEqual(other);
+}, 60_000);
+
+it.each([false, true])("reports a tied leaf's edit at the renamed cohort's own path, renamed nested=%s, and every edit lands", async nested => {
+  const f = await fixture("ref");
+  if (f.native === undefined) throw new Error("Expected native store");
+  const outer = await seed(f, f.reference("cohort/document", "outer"), document(f.reference("cohort/document", "outer").owner.name));
+  const outerName = outer.reference.owner.name, name = f.reference("cohort/document", "tied").owner.name;
+  const renamedUid = "00000000-0000-4000-8000-000000000071", otherUid = "00000000-0000-4000-8000-000000000072";
+  await plantRefPrimary(f.native, { kind: "cohort/document", name, uid: renamedUid, content: document(name, nested ? outerName : undefined) });
+  const other = await plantRefPrimary(f.native, { kind: "cohort/document", name, uid: otherUid, content: document(name, nested ? undefined : outerName) });
+  for (const [member, uid, path] of [["nested-member", "81", `${outerName}/${name}`], ["top-member", "82", name]] as const) {
+    await plantRefPrimary(f.native, { kind: "work-item/meta", name: member, uid: `00000000-0000-4000-8000-0000000000${uid}`,
+      content: makeMetaFixture(member, { cohort: path }) });
+  }
+  const result = await f.invoke(["rename", renamedUid, "after", "--json"]);
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  const report = holdingReport.parse(result.result).report, edits = report.references.flatMap(row => row.edits);
+  expect(edits).toHaveLength(2);
+  for (const edit of edits) expect(edit).toMatchObject({ field: "cohort", to: nested ? `${outerName}/after` : "after" });
+  await applyReportedEdits(f.store, report);
+  expect(success(await f.store.read({ reference: other })).reference).toEqual(other);
+}, 60_000);
+
+it("leaves unreported a completed member whose tied first segment's leaf has another Parent", async () => {
+  const f = await fixture("ref");
+  if (f.native === undefined) throw new Error("Expected native store");
+  const renamed = await seed(f, f.reference("cohort/document", "tied"), document(f.reference("cohort/document", "tied").owner.name));
+  const name = renamed.reference.owner.name, moved = f.reference("cohort/document", "moved"), other = f.reference("cohort/document", "other");
+  const child = await seed(f, f.reference("cohort/document", "leaf"), document(f.reference("cohort/document", "leaf").owner.name, name));
+  const memberRef = f.reference("work-item/meta", "member"), path = `${name}/${child.reference.owner.name}`;
+  const member = await seed(f, memberRef, makeMetaFixture(memberRef.owner.name, { state: "Shipped", currentWorkflow: null, cohort: path }),
+    { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
+  await seed(f, moved, document(moved.owner.name));
+  success(await f.store.write({ ...recordPut(child, { content: document(child.reference.owner.name, moved.owner.name) }),
+    provenance: { verb: "write-back", lifecycleAction: "edit" } }));
+  await seed(f, other, document(other.owner.name));
+  await plantRefPrimary(f.native, { kind: "cohort/document", name, uid: "00000000-0000-4000-8000-000000000092", content: document(name) });
+  const owner = renamed.reference.owner;
+  if (owner.type !== "cohort" || owner.uid === undefined) throw new Error("Expected renamed UID");
+  const result = await f.invoke(["rename", owner.uid, "after", "--json"]);
+  expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
+  const report = holdingReport.parse(result.result).report, memberOwner = member.reference.owner;
+  if (memberOwner.type !== "work-item") throw new Error("Expected member UID");
+  expect(report.references.filter(row => row.record.uid === memberOwner.uid).flatMap(row => row.edits)).toEqual([]);
+  await applyReportedEdits(f.store, report);
+  expect(success(await f.store.read({ reference: member.reference })).fields).toMatchObject({ cohort: path });
 }, 60_000);
 
 it.each([false, true])("reports every eligible ambiguous filename citation without rewriting it, json=%s", async json => {

@@ -103,6 +103,10 @@ former slug naming the current one and admit a completed meta's rewrite onto a c
   Parent writes apply the same rule. Absent first-segment documents retain the prior comparison, while unavailable
   observations refuse the write. Flattened the path check to keep the canonical-name and Parent checks separate.
 
+- _Review correction:_ A path whose first segment names no cohort document now refuses as "parent cohort document is
+  absent" rather than keeping the prior comparison. A child can arrive after another writer removed its parent, and
+  matching `Parent` text alone then admitted a path naming no cohort; restoring the parent lets the write land.
+
 ### `[x]` **1.7 Let a completed meta, and an open meta re-pointing its holding, name a completed cohort — § 6.2**
 
 - _Goal:_ A cohort rename can rewrite a closed subcohort's completed members and its open straggler, while an open meta
@@ -1004,3 +1008,7 @@ Criterion 28's "after any one named exit the parent's rename lands" holds in sta
 a sync forms — two-level open nesting, or a live tie on a namesake's `Parent` — an exit named before the clear can
 itself refuse while the clear lands; those states are recorded as source-inferred. Original text and earlier
 verification stay preserved.
+
+**Numbering (review correction):** The criterion-8 references in the A5 and A9/A10 supersession notes above, and in
+criterion 23's text, cite the spec's numbering, in which criterion 8 is this list's criterion 10, the mixed-state cohort
+rename. Every other criterion reference in this list counts in its own order.

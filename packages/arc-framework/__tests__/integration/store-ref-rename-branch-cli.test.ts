@@ -323,8 +323,9 @@ it.each([
   expect(result.exitCode ?? 0, result.stdout + result.stderr).toBe(0);
   const text = result.stdout + result.stderr;
   if (json) {
-    expect(result.result).toMatchObject({ remote: { status: "retained", oldBranch: "feat/shared", oldOid: oid },
-      report: { keptBranches: [{ branch: "feat/shared" }] } });
+    expect(result.result).toMatchObject({ remote: own ? { status: "retained", oldBranch: "feat/shared", newBranch: "feat/renamed", oldOid: oid }
+      : { status: "kept", oldBranch: "feat/shared", oldOid: oid }, report: { keptBranches: [{ branch: "feat/shared" }] } });
+    if (!own) expect(result.result).not.toHaveProperty("remote.newBranch");
     expect(text).not.toContain("manualDelete");
   } else { expect(text).toContain("kept feat/shared"); expect(text).not.toContain("unpublished"); }
   expect(text).not.toContain("--delete");

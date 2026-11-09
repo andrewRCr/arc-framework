@@ -57,11 +57,13 @@ async function invoke(f: Fixture, cwd: string, args: readonly string[]) {
     return { stdout, stderr, exitCode: process.exitCode, result: stdout.trim().startsWith("{") ? JSON.parse(stdout) as unknown : null };
   } finally { binding.store = null; out.mockRestore(); err.mockRestore(); process.chdir(previous); process.exitCode = exit; }
 }
-async function errand(f: Fixture, uid: string, prefix = "chore", checkout = true, slug = "shared") {
+async function errand(f: Fixture, uid: string, prefix = "chore", checkout = true, slug = "shared", awaitingHead?: string) {
   const claimId = (uid === uidA ? "a" : "b").repeat(32), branch = `${prefix}/${slug}`;
+  const state = awaitingHead === undefined ? { state: "open", savedHead: null, changeRequest: null } : { state: "awaiting-merge", savedHead: null,
+    changeRequest: { repositoryRef: "owner/repo", hostRef: "github.com", baseRef: "main", headRef: branch, headSha: awaitingHead } };
   const record = TransientIdentityRecordV3Schema.parse({ version: 3, kind: "errand", purpose: "errand", slug, claimId,
     intent: "Retain the exact owner", owner: "test-user", branch, createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-16T00:00:00Z",
-    origin: "description", originEntry: null, state: "open", savedHead: null, changeRequest: null });
+    origin: "description", originEntry: null, ...state });
   const reference = await plantRefPrimary(f, { kind: "work-item/record", uid, name: slug, content: serializeTransientIdentityRecord(record) });
   const registry = f.ports.registry;
   if (registry === undefined) throw new Error("Expected registry");
@@ -123,6 +125,26 @@ it("refuses a clashed branch on the machine holding only the other Errand checko
   expect(success(await f.store.read({ reference: other.reference })).placement?.kind).toBe("active");
 }, 60_000);
 
+it("names the other holder's exit when a left Errand's UID close meets a branch-link tie, and passes the guard after it", async () => {
+  const f = await fixture(), head = (await f.exec("git", ["rev-parse", "main"])).stdout.trim();
+  const selected = await errand(f, uidA, "chore", false, "shared", head), other = await errand(f, uidB);
+  const before = success(await f.store.version());
+  const refused = await invoke(f, f.root, ["errand", "close", uidA, "--json"]);
+  expect(refused, JSON.stringify(refused)).toMatchObject({ exitCode: 1, result: { outcome: "refused", reason: "identity-conflict",
+    recommendedPromptText: expect.stringContaining("left awaiting merge") } });
+  const text = JSON.stringify(refused.result);
+  expect(text).toContain(`arc errand abandon ${uidB}`);
+  expect(text).not.toContain(`arc errand close ${uidA}`);
+  expect(text).not.toMatch(/machine holding the selected Errand/iu);
+  expect(success(await f.store.version())).toBe(before);
+  const exit = await invoke(f, other.holder, ["errand", "abandon", uidB, "--json"]);
+  expect(exit, JSON.stringify(exit)).toMatchObject({ result: { outcome: "applied" } });
+  const retried = await invoke(f, f.root, ["errand", "close", uidA, "--json"]);
+  expect(retried.result, JSON.stringify(retried)).not.toMatchObject({ reason: "identity-conflict" });
+  expect(retried.result, JSON.stringify(retried)).toMatchObject({ reason: "change-request-unverifiable" });
+  expect(success(await f.store.read({ reference: selected.reference })).placement?.kind).toBe("active");
+}, 60_000);
+
 it("abandons only its UID owner and returns its own entries while retaining the other same-slug holder's capture", async () => {
   const f = await fixture(), selected = await errand(f, uidA, "fix"), other = await errand(f, uidB);
   const person = OwnerIdentitySchema.parse({ type: "person", name: "test-user" });
@@ -171,6 +193,20 @@ it("closes an unambiguous slug without a local checkout through foreign confirma
     recommendedPromptText: `Retry with: arc errand close shared --confirm-foreign-generation errand-v1/shared/${selected.claimId}` } });
   const next = await invoke(f, f.root, ["errand", "close", "shared", "--confirm-foreign-generation", `errand-v1/shared/${selected.claimId}`, "--json"]);
   expect(next, JSON.stringify(next)).toMatchObject({ result: { outcome: "applied" } });
+}, 60_000);
+
+it.each(["close", "abandon"] as const)("repeats the UID in the foreign confirmation %s prints under a slug clash, and the printed retry lands", async verb => {
+  const f = await fixture(), selected = await errand(f, uidA, "fix"), other = await errand(f, uidB);
+  await f.exec("git", ["worktree", "remove", selected.holder]);
+  const otherBefore = success(await f.store.read({ reference: other.reference }));
+  const first = await invoke(f, f.root, ["errand", verb, uidA, "--json"]);
+  const prompt = `Retry with: arc errand ${verb} ${uidA} --confirm-foreign-generation errand-v1/shared/${selected.claimId}`;
+  expect(first, JSON.stringify(first)).toMatchObject({ result: { outcome: "confirmation-required", recommendedPromptText: prompt } });
+  const retry = prompt.slice("Retry with: arc ".length).split(" ");
+  const next = await invoke(f, f.root, [...retry, "--json"]);
+  expect(next, JSON.stringify(next)).toMatchObject({ result: { outcome: "applied" } });
+  expect(success(await f.store.read({ reference: selected.reference })).placement?.kind).toBe("completed");
+  expect(success(await f.store.read({ reference: other.reference }))).toEqual(otherBefore);
 }, 60_000);
 
 it("a finalized UID retry clears its own HEAD receipt and preserves the other same-slug Errand's lock", async () => {

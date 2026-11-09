@@ -287,6 +287,31 @@ it("counts ambiguous own-name holdings before confirming a UID-selected close", 
   expect(success(await f.store.read({ reference: second })).placement?.kind).not.toBe("completed");
 }, 60_000);
 
+it.each(["close", "remove"] as const)("names the own-slug clash and its UID rename when %s meets it, and lands after that rename", async operation => {
+  const f = await fixture("ref");
+  if (f.ref === undefined) throw new Error("Expected real refs");
+  const uid = "00000000-0000-4000-8000-000000000001", otherUid = "00000000-0000-4000-8000-000000000002";
+  const first = await plantRefPrimary(f.ref, { kind: "cohort/document", name: "shared", uid, content: content("shared") });
+  await plantRefPrimary(f.ref, { kind: "cohort/document", name: "shared", uid: otherUid, content: content("shared") });
+  const member = await plantRefPrimary(f.ref, { kind: "work-item/meta", name: "held", uid: "00000000-0000-4000-8000-000000000003",
+    content: makeMetaFixture("held", { cohort: "shared" }) });
+  const held = success(await f.store.read({ reference: member })), before = success(await f.store.version());
+  const refused = await f.invoke(["cohort", operation, uid, "--json"]);
+  expect(refused).toMatchObject({ exitCode: 1, result: { status: "refused", refusal: {
+    condition: expect.stringContaining(`shares its slug with cohort shared (UID ${otherUid})`),
+    remedy: { text: expect.stringContaining(`\`arc rename ${uid} <new-slug>\``) } } } });
+  const remedy = (refused.result as { refusal: { remedy: { text: string; argv?: string[] } } }).refusal.remedy;
+  expect(remedy.text).toContain(`\`arc rename ${otherUid} <new-slug>\``);
+  expect(remedy.argv).toBeUndefined();
+  expect(success(await f.store.version())).toBe(before);
+  const renamed = await f.invoke(["rename", uid, "retired", "--json"]);
+  expect(renamed.exitCode ?? 0, renamed.stdout + renamed.stderr).toBe(0);
+  expect(await f.invoke(["cohort", operation, uid, "--yes", "--json"]))
+    .toMatchObject({ result: { status: operation === "close" ? "closed" : "removed",
+      reference: { ...first, owner: { ...first.owner, name: "retired" } } } });
+  expect(success(await f.store.read({ reference: member }))).toEqual(held);
+}, 60_000);
+
 it("closes an unrelated cohort while a member names two other cohorts sharing a slug", async () => {
   const f = await fixture("ref");
   if (f.ref === undefined) throw new Error("Expected real refs");

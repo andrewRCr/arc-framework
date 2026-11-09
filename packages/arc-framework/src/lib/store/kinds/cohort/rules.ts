@@ -2,7 +2,8 @@
 import { OwnerIdentitySchema, recordReferences } from "../../identity.js";
 import type { Remedy } from "../../refusal.js";
 import { brokenRule, observeRecord, observeNamedRecord, type RuleObservation } from "../rule-support.js";
-import { changedCohortFields, observeOpenCohorts, observeOpenMembers, observeOpenHoldings, observeAllHoldings, describeCohortHoldings, describeCohortHoldingOwners } from "./check-support.js";
+import { changedCohortFields, observeOpenCohorts, observeOpenMembers, observeOpenHoldings, observeAllHoldings, describeCohortHoldings, describeCohortHoldingOwners,
+  cohortDocumentParent } from "./check-support.js";
 import { cohortParentConflicts, namedParentProblem } from "./parent-conflicts.js";
 import type { BrokenRule, StoreView, WriteCheckInput } from "../../write-check.js";
 /** Require an authored Purpose on creation or a proved Purpose change.
@@ -48,7 +49,9 @@ export async function checkCohortOpenMembers(input: WriteCheckInput): Promise<re
   if (!retirement.value) return [];
   const held = await observeOpenHoldings(input.after, input.before, input.reference);
   if (held.status !== "known") return fail(held.status === "unavailable" ? held.condition : "Open holding evidence is unavailable.");
-  return held.value.length === 0 ? [] : fail(describeCohortHoldings(held.value, input.reference.owner.name));
+  const content = input.next?.content ?? input.prior?.content;
+  return held.value.length === 0 ? [] : fail(describeCohortHoldings(held.value, input.reference.owner.name,
+    content === undefined ? undefined : cohortDocumentParent(content)));
 }
 /** Keep every holder's document during explicit removal, including completed records. */
 export async function checkCohortRemoveHoldings(input: WriteCheckInput): Promise<readonly BrokenRule[]> {

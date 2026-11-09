@@ -894,9 +894,10 @@ the same writes from the same evidence.
   `lib/store/cohort-rename.ts`) read only through `read`, `list`, `lookup` and `history`, and take every store-derived
   decision themselves: Candidate presence (`checkRenamePublication`), the retired-lineage settlement of stub edges and
   of the subject's own edge (`settleCreationSlugEdges`, `settleOwnRenameEdge`), the branch link's other holders, name
-  resolution (`resolveRenameReferences`), the member heading (`planRenameMemberHeading`), holdings and their retention,
-  and paired-filename owners. Whether the branch link moves follows from the store's link lookup and one fact the store
-  does not hold, whether the subject's checkout is on this machine, which the batch's link change carries.
+  resolution (`resolveRenameReferences`; now `readRenameResolution`, `lib/store/rename-reference-resolution.ts`), the
+  member heading (`planRenameMemberHeading`), holdings and their retention, and paired-filename owners. Whether the
+  branch link moves follows from the store's link lookup and one fact the store does not hold, whether the subject's
+  checkout is on this machine, which the batch's link change carries.
 - **Evidence.** Preparation returns its evidence: the records, and the exact references read as absent, whose presence,
   version or conflict set feeds a write, a report row or an advisory. The batch observes its evidence and the records it
   writes, whose conflict sets a write's expected version does not bind. A record preparation lists whose state feeds

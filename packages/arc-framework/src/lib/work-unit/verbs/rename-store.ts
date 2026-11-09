@@ -272,7 +272,7 @@ function localBranchStep(ctx: StoreRenameContext, branch: BranchRename, retryCom
 async function finishRename(ctx: StoreRenameContext, branch: BranchRename | undefined,
   request: { operand: string; targetSlug: string }): Promise<{ status: "complete"; remote: RenameRemoteBranchResult } | Omit<Extract<RunRenameResult, { status: "partial" }>, "report">> {
   try {
-    const remote = branch === undefined ? { status: "unpublished" as const } : !branch.local ? retainedRemote(branch)
+    const remote = branch === undefined ? { status: "unpublished" as const } : !branch.local ? keptRemote(branch)
       : await reconcileRenameRemoteBranch(ctx, { ...branch, remote: "origin", keepOld: branch.remotePolicy.keepOld,
         preservationRemedy: storePreservationRemedy(branch) });
     if (remote.status === "stale") throw new Error(`Old remote head moved from ${remote.expectedOid} to ${remote.actualOid ?? "[absent]"}.`);
@@ -290,7 +290,7 @@ function storePreservationRemedy(branch: BranchRename): string {
     + `merge refs/remotes/origin/${branch.oldBranch} into ${branch.newBranch}, then delete ${branch.oldBranch} after preserving them. `
     + "If the branch belongs to another holder, leave it in place. Retry the rename to finish while keeping the old remote branch.";
 }
-function retainedRemote(branch: BranchRename): RenameRemoteBranchResult {
+function keptRemote(branch: BranchRename): RenameRemoteBranchResult {
   return branch.oldRemoteOid === null ? { status: "unpublished" }
-    : { status: "retained", oldBranch: branch.oldBranch, newBranch: branch.newBranch, oldOid: branch.oldRemoteOid };
+    : { status: "kept", oldBranch: branch.oldBranch, oldOid: branch.oldRemoteOid };
 }

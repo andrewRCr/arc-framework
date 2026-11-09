@@ -177,3 +177,16 @@ it("withholds child holdings when its separate Parent alias cannot be observed",
   expect(await observeCohortHoldings([candidate(held, "cohort", "parent/child")], resolve, child.reference))
     .toMatchObject({ status: "unavailable", condition: "The Parent alias is unreadable." });
 });
+
+it.each([[null, "renamed"], ["root", "root/renamed"]] as const)("re-points a tied leaf to the subject's own path under Parent %s", async (parent, to) => {
+  const subject = cohortDoc("child", parent), other = ruleRecord("cohort/document", "child", "00000000-0000-4000-8000-000000000099",
+    cohortDoc("child", "parent").content, cohortDoc("child", "parent").fields);
+  const held = member("held", "parent/child", 7), outer = cohortDoc("parent"), root = cohortDoc("root");
+  const holdings = await observeCohortHoldings([candidate(held, "cohort", "parent/child")], ruleView([subject, other, held, outer, root]), subject.reference);
+  if (holdings.status !== "known") throw new Error("Expected cohort holdings");
+  expect(holdings.value).toMatchObject([{ resolution: "ambiguous", segment: 1 }]);
+  expect(cohortHoldingRepairs(holdings.value, "renamed", parent)).toMatchObject({ status: "known", value: { edits: [
+    { record: { name: "held" }, field: "cohort", from: "parent/child", to },
+  ] } });
+  expect(cohortHoldingRepairs(holdings.value, "renamed")).toMatchObject({ status: "known", value: { edits: [{ to: "parent/renamed" }] } });
+});

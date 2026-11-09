@@ -11,7 +11,7 @@ import { rewriteCohortHeading, writeCohortParent, parseCohortDocument, rewriteCo
 import { observeRenameFormerName, readRenameResolution } from "./rename-reference-resolution.js";
 import { emptyRenameReport, type RenameReport, type RenameReportRecord } from "../work-unit/rename-report.js";
 import type { RunRenameResult } from "../work-unit/verbs/rename.js";
-import { observeAllHoldings, cohortHoldingRepairs, type CohortHolding, type CohortHoldingSegment } from "./kinds/cohort/check-support.js";
+import { observeAllHoldings, cohortHoldingRepairs, cohortDocumentParent, type CohortHolding, type CohortHoldingSegment } from "./kinds/cohort/check-support.js";
 import { writeMetaCohort } from "./kinds/meta/writers.js";
 import type { StoreView } from "./write-check.js";
 import type { Mutation, RecordObservation } from "./write.js";
@@ -247,8 +247,10 @@ function reportAmbiguousHoldings(plan: CohortRenamePlan, holdings: readonly Coho
   const { primary, target } = plan;
   const kept = closed.flatMap(holding => [holding.candidate, ...holding.members.map(member => member.candidate)]);
   const open = holdings.filter(holding => !kept.some(candidate => sameReference(candidate.reference, holding.candidate.reference)));
-  const planned = open.filter(holding => tiedClosedLeaf(holding, primary) === "plan");
-  const edits = cohortHoldingRepairs(postBatchHoldings(planned, plan), target);
+  const planned = open.filter(holding => tiedLeaf(holding, primary) === "plan");
+  const parent = cohortDocumentParent(plan.contents.get(primary) ?? primary.content);
+  if (parent === undefined) return malformed(primary, "The renamed cohort's planned document does not parse.");
+  const edits = cohortHoldingRepairs(postBatchHoldings(planned, plan), target, parent);
   if (edits.status !== "known") return malformed(primary, edits.status === "unavailable" ? edits.condition : "Holding edits are unavailable.");
   const references: Array<RenameReport["references"][number]> = edits.value.edits.map(({ record, ...edit }) => ({ record, edits: [{ kind: "field", ...edit }] }));
   const advisories: string[] = edits.value.deferred.map(group => group.condition
@@ -257,7 +259,7 @@ function reportAmbiguousHoldings(plan: CohortRenamePlan, holdings: readonly Coho
     const added = appendReportHolders(references, group.candidates.map(candidate => candidate.reference), primary);
     if (added.status === "refused") return added;
   }
-  const tied = reportTiedClosedLeaves(open.filter(holding => tiedClosedLeaf(holding, primary) === "disagrees"), primary, references, advisories);
+  const tied = reportTiedLeaves(open.filter(holding => tiedLeaf(holding, primary) === "disagrees"), primary, references, advisories);
   if (tied.status === "refused") return tied;
   for (const holding of closed) {
     advisories.push(closedHoldingAdvisory(holding));
@@ -268,20 +270,20 @@ function reportAmbiguousHoldings(plan: CohortRenamePlan, holdings: readonly Coho
   return { status: "ok", result: { report: { ...emptyRenameReport(), references }, advisories } };
 }
 
-/** How the planner treats a tied path over a closed leaf. It plans the path only where the leaf's Parent is the renamed
- * cohort or names the tied segment itself. A leaf whose Parent resolves to another cohort is that cohort's member, with no
- * edit here (A9); any other path disagrees with its leaf's Parent, so it is kept and reported as a sole one is (A8, A10).
+/** How the planner treats a path whose first segment is tied over a resolved leaf, open or closed. It plans the path
+ * only where the leaf's Parent is the renamed cohort or names the tied segment itself. A leaf whose Parent resolves to
+ * another cohort is that cohort's member, with no edit here; any other path disagrees with its leaf's Parent, so it is
+ * kept and reported as a sole one is.
  */
-function tiedClosedLeaf(holding: CohortHolding, primary: StoreRecord): "plan" | "other" | "disagrees" {
+function tiedLeaf(holding: CohortHolding, primary: StoreRecord): "plan" | "other" | "disagrees" {
   const leaf = holding.segments.at(-1), parent = holding.parent;
-  if (holding.candidate.field !== "cohort" || holding.resolution !== "ambiguous" || leaf?.status !== "known"
-    || leaf.resolutionRecord.placement?.kind !== "completed") return "plan";
+  if (holding.candidate.field !== "cohort" || holding.resolution !== "ambiguous" || leaf?.status !== "known") return "plan";
   if (parent?.status === "known") return sameReference(parent.reference, primary.reference) ? "plan" : "other";
   return parent !== undefined && holding.segments.length === 2 && holding.segments[0]?.name === parent.name ? "plan" : "disagrees";
 }
 
-/** Report each kept tied path over a closed leaf: the edit to a top-level leaf's own slug, else its owner alone. */
-function reportTiedClosedLeaves(holdings: readonly CohortHolding[], primary: StoreRecord,
+/** Report each kept tied path over a resolved leaf: the edit to a top-level leaf's own slug, else its owner alone. */
+function reportTiedLeaves(holdings: readonly CohortHolding[], primary: StoreRecord,
   references: Array<RenameReport["references"][number]>, advisories: string[]): StoreResult<true> {
   for (const holding of holdings) {
     const leaf = holding.segments.at(-1), record = holdingReportRecord(holding.candidate.reference);
@@ -290,7 +292,8 @@ function reportTiedClosedLeaves(holdings: readonly CohortHolding[], primary: Sto
       references.push({ record, edits: [{ kind: "field", field: "cohort", from: holding.candidate.path, to: leaf.currentSlug }] });
       continue;
     }
-    advisories.push(`The path ${JSON.stringify(holding.candidate.path)} runs through a name this rename shares to closed cohort `
+    const closed = leaf?.status === "known" && leaf.resolutionRecord.placement?.kind === "completed" ? "closed " : "";
+    advisories.push(`The path ${JSON.stringify(holding.candidate.path)} runs through a name this rename shares to ${closed}cohort `
       + `${leaf?.name ?? ""}, whose Parent ${JSON.stringify(holding.parent?.name ?? null)} names no one cohort; its Cohort was kept `
       + "unchanged for its owner to choose the intended current path.");
     const added = appendReportHolders(references, [holding.candidate.reference], primary);

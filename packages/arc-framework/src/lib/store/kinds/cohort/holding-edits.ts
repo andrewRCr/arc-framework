@@ -24,15 +24,19 @@ type EditObservation<T> = RuleObservation<T> | DeferredRepair;
 interface ParentRepair { holding: CohortHolding; target: string }
 interface ParentPrerequisite { child: RecordReference; repair: RuleObservation<ParentRepair> }
 
-/** Plan admissible field edits separately from unresolved identity prerequisites. */
-export function cohortHoldingRepairs(holdings: readonly CohortHolding[], slug: string): RuleObservation<CohortHoldingRepairPlan> {
+/** Plan admissible field edits separately from unresolved identity prerequisites. With the subject cohort's Parent
+ * (`null` when top-level), a tied leaf segment re-points to the subject's own path under that Parent, the only path the
+ * Parent check admits for it.
+ */
+export function cohortHoldingRepairs(holdings: readonly CohortHolding[], slug: string,
+  subjectParent?: string | null): RuleObservation<CohortHoldingRepairPlan> {
   const parents = prepareParents(holdings, slug);
   if (parents.status !== "known") return parents;
   const { plan, handled } = parents.value;
   for (const holding of holdings) {
     if (handled.has(holding.candidate)) continue;
     const segments = new Set(holdings.filter(item => item.candidate === holding.candidate).map(item => item.segment));
-    const edit = directEdit(holding, segments, slug);
+    const edit = directEdit(holding, segments, slug, subjectParent);
     if (edit.status === "deferred") plan.deferred.push({ candidates: [holding.candidate], condition: edit.condition });
     else if (edit.status !== "known") return edit;
     else if (edit.value !== null) plan.edits.push(edit.value);
@@ -152,9 +156,10 @@ function parentTargetEligibility(segment: CohortHoldingSegment | undefined): Rul
   return parsed.data.parent === null ? { status: "known", value: true } : fail("The parent is already nested; a changed Parent must name a top-level cohort.");
 }
 
-function directEdit(holding: ResolvedCohortCandidate, changed: ReadonlySet<number>, slug: string): EditObservation<CohortHoldingEdit | null> {
-  const parts = holding.segments.map((segment, index) => changed.has(index) ? slug
-    : segment.status === "known" ? segment.currentSlug : segment.name);
+function directEdit(holding: ResolvedCohortCandidate, changed: ReadonlySet<number>, slug: string,
+  subjectParent: string | null | undefined): EditObservation<CohortHoldingEdit | null> {
+  const parts = tiedLeafNamesSubject(holding, changed, subjectParent) ? (subjectParent === null ? [slug] : [subjectParent, slug])
+    : holding.segments.map((segment, index) => changed.has(index) ? slug : segment.status === "known" ? segment.currentSlug : segment.name);
   const to = parts.join("/");
   if (to === holding.candidate.path) return { status: "known", value: null };
   for (const [index, segment] of holding.segments.entries()) {
@@ -163,6 +168,19 @@ function directEdit(holding: ResolvedCohortCandidate, changed: ReadonlySet<numbe
   const closed = closedLeafDisposition(holding, parts, changed);
   if (closed !== null) return closed;
   return fieldEdit(holding.candidate, holding.candidate.path, to);
+}
+
+/** An edit that resolves a tied leaf to the subject names the subject, whose Parent the path must then agree with. */
+function tiedLeafNamesSubject(holding: ResolvedCohortCandidate, changed: ReadonlySet<number>,
+  subjectParent: string | null | undefined): subjectParent is string | null {
+  const last = holding.segments.length - 1;
+  return subjectParent !== undefined && holding.candidate.field === "cohort" && changed.has(last) && holding.segments[last]?.status === "ambiguous";
+}
+
+/** A cohort document's Parent, `null` when top-level, or undefined when the document does not parse. */
+export function cohortDocumentParent(content: string): string | null | undefined {
+  const parsed = parseCohortDocument(content);
+  return parsed.success ? parsed.data.parent : undefined;
 }
 
 function closedLeafDisposition(holding: ResolvedCohortCandidate, parts: readonly string[], changed: ReadonlySet<number>): RuleObservation<null> | null {
