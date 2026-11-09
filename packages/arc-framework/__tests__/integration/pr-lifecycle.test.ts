@@ -467,7 +467,7 @@ describe("PR lifecycle and review contracts", () => {
       expect(normalized).toContain("never raises its verified severity");
       expect(normalized).toContain("follow-up observation in the converged completion report");
 
-      expect(method).toContain("`Pass N of M`");
+      expect(method).toContain("`pass N`, adding `(limit reached)` at the cap and `(over limit)`");
       expect(normalized).toContain("converged, `cap-exhausted`, suspended, re-entered, or owner-accepted");
       expect(normalized).toContain("stop before another evaluator invocation");
       expect(normalized).toContain("same turn as the complete disposition report");
