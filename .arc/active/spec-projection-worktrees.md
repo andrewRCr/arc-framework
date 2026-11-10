@@ -570,12 +570,14 @@ the old header named; a second miss takes the reader's own answer to an unusable
 skipping the worktree, the removal check answering `unobservable`, and the others answering as they answer an unreadable
 index. Every partition a write writes takes that write's reference for racy stats (`smudgeRacyEntries`,
 `lib/store/projection/change-detection.ts`); one it leaves keeps what its own write smudged, which stays correct against
-a later reference. The codec is plain JSON: the schema (`ProjectionIndexSchema`,
-`lib/store/projection/index-schema.ts`), split into the header's and a partition's, stays the writer's contract and the
-tests' check, which hold every header and partition a write writes against it, and neither a read nor a write runs an
-entry through it, since the blob ids and the format version already refuse what a stopped write or another build left;
-the schema's decode and encode are about three quarters of the codec's cost on Linux (`notes-projection-worktrees.md`
-§ Spike 4).
+a later reference. Every racy stat in a written partition is smudged, including a staged file awaiting installation
+(A1): its next command hashes once rather than allowing a later reference advance to conceal a same-tick save. A
+copy-mark-only publication smudges its changed partition against the existing reference without advancing that
+reference. The codec is plain JSON: the schema (`ProjectionIndexSchema`, `lib/store/projection/index-schema.ts`), split
+into the header's and a partition's, stays the writer's contract and the tests' check, which hold every header and
+partition a write writes against it, and neither a read nor a write runs an entry through it, since the blob ids and the
+format version already refuse what a stopped write or another build left; the schema's decode and encode are about three
+quarters of the codec's cost on Linux (`notes-projection-worktrees.md` § Spike 4).
 
 **The partitions' seams.** The root groups — one per root, `completed/` one per quarter — and the header as the commit
 point are the index's fixed seams. A change to which of `backlog/`'s or `completed/`'s records a worktree projects, or
@@ -1202,7 +1204,10 @@ One changes how § 3.2 finds a lost lease, and one the index's form (§ 3.1, § 
   that holds one gets the full materialization one it gives a projection gets, and where the removal check or the
   persist or release step cannot use a partition that does not hash to its name, the remedy is `arc save` run from that
   checkout rather than the removal or release. Each partition a write writes takes that write's reference for racy stats
-  (§ 3.3). The format version moves, so an index an earlier build wrote reads as another format version, and its
+  (§ 3.3). The staged-file exemption in that section is superseded (A1): partition publication smudges every racy
+  stat, including a file awaiting installation, since an unwritten partition must remain safe after another
+  partition advances the shared reference. Copy-mark-only writes apply that rule without advancing the reference.
+  The format version moves, so an index an earlier build wrote reads as another format version, and its
   worktree gets § 2.5's full materialization here, as any such index does; no reader of the old form is kept.
 
 #### 16.3 Write-back (`spec-projection-write-back.md`)
@@ -1569,12 +1574,20 @@ _These considerations cover the design the three members build together; § 1.1 
    `.arc/system/.local/`.
 8. **The quality gates pass** at every gate the project declares.
 
+9. **An installing file stays detectable across reference advances (A1).** A same-size save in the staged file's
+   timestamp tick is detected after another partition advances the shared reference, while the saved file's own
+   partition is neither loaded nor rewritten by that unrelated write. A later clean, value-equal publication writes
+   no partition.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
 this design open.
 
 ## Amendments
+
+- **A1** — 2026-11-10 — design: smudge installing entries. _Supersedes:_ § 16.2 ¶3.
+  _Trigger:_ 1.2 must-stop. _Work:_ 1.2.R. _Revalidated:_ pending → 1.14.
 
 - **Amended 2026-11-06, at task generation (Owner-approved).** Grounding the task list against `projection-substrate`
   and `storage-ref-hardening` as shipped (#1247, #1271) and `projection-write-back` at its branch head corrected this

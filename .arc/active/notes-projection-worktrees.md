@@ -322,3 +322,27 @@ production composition set `projectionRemovalSlots` then, so every path ran the 
     - `removePrimaryTransientOccupancy` (`lib/git/worktree-marker.ts`), through `terminal-occupancy.ts`'s
       `removePrimary`, which clears a primary Errand's claim with no slot, and in `promote-runtime.ts`'s
       `settlePromotedOccupancy` on the in-repo path, which no projection meets.
+
+## A1 — installed stats and shared reference advances
+
+The inherited § 3.3 rule states: "Only a staged file's stat awaiting installation after that index write is exempt:
+a save to that file necessarily follows the new reference." `smudgeRacyEntries` implements that exemption through
+its `installing` set. A whole-index `commitProjectionIndex` smudged the entry again before every reference advance;
+a partition left unchanged by value does not get that second write.
+
+The controlled-timestamp case in `smudging.test.ts` publishes an installing entry, saves different same-size bytes
+in the entry's timestamp tick, then advances the reference through another root's partition. The first group's
+partition stays unread and unchanged; `checkChange` reports clean rather than changed. Command-skip coverage also
+exposed the case on Linux, where the same-size write retained the original timestamp and the sweep's publication
+advanced the reference before change detection.
+
+A1 removes the exemption at partition publication, retaining the comparison by value before smudging. Every racy
+stat a partition publishes is smudged once, so later reference advances need no scan of untouched groups. A newly
+installed racy file pays one initial hash; a later clean observation records its stat normally. Copy-mark-only
+writes through `markOtherCopies` apply the same protection without advancing the reference. Per-partition clocks
+or scanning every group would add mechanism and cost beyond this correction.
+
+The propagation footprint is § 3.1 and § 16.2, the added criterion, Task 1.2.R, `smudgeRacyEntries`,
+`commitProjectionIndex`, `markOtherCopies`, and the staging callers (`swapBatch`, `seedProjection`). The existing
+performance bounds remain unchanged; Task 1.14 validates the full segment against them and closes A1. The historical
+substrate specification remains unchanged.

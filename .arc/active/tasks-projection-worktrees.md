@@ -154,6 +154,20 @@ that chunk.
           partition it writes is smudged (`spec-projection-substrate.md` § 3.3)
         - every header and partition the writer writes passes its schema, its bigints read back equal
 
+### `[ ]` **1.2.R Preserve racy installed stats across partition publications — A1**
+
+- _Goal:_ Implement A1 so a same-tick save to a staged file remains detectable after an unrelated partition advances
+  the shared reference, without reading or rewriting the saved file's partition.
+
+    - Remove the staged-file exemption from partition publication and its callers; `smudgeRacyEntries` applies the
+      ordinary racy rule to every stat in a written partition. Copy-mark-only writes smudge against the existing
+      reference without advancing it.
+    - Keep the controlled-timestamp regression in `smudging.test.ts`: publish an installing file, save in its timestamp
+      tick, then advance the reference by changing only another group. Assert the untouched group stays unloaded and
+      unchanged, and the save is detected; preserve the later clean, value-equal no-rewrite case.
+    - Re-run the affected change-detection, copy-mark, command-skip, and partition-publication coverage. Task 1.14
+      closes the amendment at segment scope.
+
 ### `[ ]` **1.3 Bind a projection root for any worktree, reading through one source — § 2.1, § 14**
 
 - _Goal:_ Refresh, fan-out, materialization, and the persist and release steps each act on a worktree through one root
@@ -1593,5 +1607,9 @@ No production composition sets the slots today, so every caller runs `passingPro
 - `[ ]` The `.worktreeinclude` copy copies nothing under the projected roots or `.arc/system/.local/`.
 
 - `[ ]` All quality gates pass (tests, linting, type checking)
+
+- `[ ]` An installing file's same-tick save remains detectable after another partition advances the reference,
+        without loading or rewriting the saved file's partition; a later clean, value-equal publication writes no
+        partition (A1).
 
 - `[ ]` Ready for integration
