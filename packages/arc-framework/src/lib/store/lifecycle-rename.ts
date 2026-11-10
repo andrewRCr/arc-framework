@@ -269,7 +269,7 @@ function renameMutation(record: StoreRecord, subject: StoreRenameSubject, target
   let content = proposed ?? record.content;
   const own = record.reference.owner.type !== "person" && subject.primary.reference.owner.type !== "person" && record.reference.owner.uid === subject.primary.reference.owner.uid;
   if (record.reference.kind === "cohort/document" && authority.memberHeading) content = rewriteCohortMemberHeading(content, subject.originName, targetSlug);
-  if (record.reference.kind === "work-item/meta" && (own || authority.shared)) content = renameMeta(content, subject.originName, targetSlug, own, artifactRenames);
+  if (record.reference.kind === "work-item/meta" && (own || authority.shared)) content = renameMeta(content, record.content, subject.originName, targetSlug, own, artifactRenames);
   if (!own && content === record.content) return [];
   const put = recordPut(record, { content });
   if (own) put.reference = RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name: targetSlug } });
@@ -278,15 +278,17 @@ function renameMutation(record: StoreRecord, subject: StoreRenameSubject, target
   }
   return [put];
 }
-function renameMeta(content: string, source: string, target: string, own: boolean, artifactRenames: ReadonlyMap<string, string>): string {
+function renameMeta(content: string, original: string, source: string, target: string, own: boolean, artifactRenames: ReadonlyMap<string, string>): string {
   const fields = parseMetaRecord(content);
   let result = content;
   if (own) {
+    // The sweep has already rewritten references in content; derive owned filenames from the unswept fields.
+    const originalFields = parseMetaRecord(original);
     result = writeMetaTitle(result, SlugSchema.parse(target));
     const rewrite = (value: string): string => artifactRenames.get(value)
       ?? (value.endsWith(`-${source}.md`) ? `${value.slice(0, -source.length - 3)}${target}.md` : value);
-    result = writeMetaDesign(result, fields.design.map(rewrite));
-    result = writeMetaTaskList(result, fields.taskList === null ? null : rewrite(fields.taskList));
+    result = writeMetaDesign(result, originalFields.design.map(rewrite));
+    result = writeMetaTaskList(result, originalFields.taskList === null ? null : rewrite(originalFields.taskList));
   }
   if (fields.pause?.waitsOn?.kind === "work-unit" && fields.pause.waitsOn.slug === source) {
     result = writeMetaPause(result, { ...MetaPauseSchema.parse(fields.pause), waitsOn: { kind: "work-unit", slug: SlugSchema.parse(target) } });

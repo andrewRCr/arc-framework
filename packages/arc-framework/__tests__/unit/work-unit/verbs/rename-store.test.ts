@@ -197,7 +197,7 @@ it("refuses a conflicted current-name continuation and completes after the holde
   expect(await runStoreRename(ctx, { operand: "target", targetSlug: "target" })).toMatchObject({ status: "renamed", recordBatch: "existing" });
   expect(lifecycleSuccess(await h.store.read({ reference: primary.reference }))).toEqual(current); expect(git.calls).toEqual([]);
 });
-it("renames a paused work unit's group and shared stubs in one batch while in-flight dependents keep the old alias", async () => {
+it.each(["target", "renamed-source"])("renames a paused work unit's group once while in-flight dependents keep the old alias (%s)", async target => {
   const h = createLifecycleHarness();
   const original = await h.seedMeta("source", { taskList: "tasks-source.md" });
   lifecycleSuccess(await h.store.write({ action: "put", reference: original.reference, expected: original.version, placement: { kind: "active" },
@@ -208,14 +208,14 @@ it("renames a paused work unit's group and shared stubs in one batch while in-fl
   const live = await h.seedMeta("live", { dependsOn: ["source"] });
   const integrating = await h.seedMeta("integrating", { state: "Integrating", currentWorkflow: "integrate-work-unit", dependsOn: ["source"] });
   const git = scriptGitExec([]);
-  const result = await runStoreRename({ store: h.store, cwd: "/repo", exec: git.exec, baseBranch: "main", locusPorts }, { operand: "source", targetSlug: "target" });
+  const result = await runStoreRename({ store: h.store, cwd: "/repo", exec: git.exec, baseBranch: "main", locusPorts }, { operand: "source", targetSlug: target });
   expect(result).toMatchObject({ status: "renamed", shape: "in-place", pendingIntegration: false, advisories: [expect.stringContaining("integrating")] });
   const renamed = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
-  expect(renamed.reference.owner.name).toBe("target"); expect(renamed.fields).toMatchObject({ taskList: "tasks-target.md", pause: expect.objectContaining({ reason: "Wait." }) });
+  expect(renamed.reference.owner.name).toBe(target); expect(renamed.fields).toMatchObject({ taskList: `tasks-${target}.md`, pause: expect.objectContaining({ reason: "Wait." }) });
   expect(lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("source") })).reference).toEqual(renamed.reference);
-  expect(lifecycleSuccess(await h.store.read({ reference: tasks.reference })).content).toContain("# Task List: target");
-  expect(lifecycleSuccess(await h.store.read({ reference: tasks.reference })).content).toContain("`spec-target.md`");
-  expect(lifecycleSuccess(await h.store.read({ reference: stub.reference })).fields).toMatchObject({ dependsOn: ["target"] });
+  expect(lifecycleSuccess(await h.store.read({ reference: tasks.reference })).content).toContain(`# Task List: ${target}`);
+  expect(lifecycleSuccess(await h.store.read({ reference: tasks.reference })).content).toContain(`\`spec-${target}.md\``);
+  expect(lifecycleSuccess(await h.store.read({ reference: stub.reference })).fields).toMatchObject({ dependsOn: [target] });
   expect(lifecycleSuccess(await h.store.read({ reference: live.reference }))).toEqual(live);
   expect(lifecycleSuccess(await h.store.read({ reference: integrating.reference }))).toEqual(integrating);
   const latest = lifecycleSuccess(await h.store.history({ reference: renamed.reference }))[0];

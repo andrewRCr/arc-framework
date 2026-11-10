@@ -157,7 +157,7 @@ it("sweeps both nested companions that share a basename", async () => {
   }
 });
 
-it("renames the root Design while a nested draft-named companion retains its path", async () => {
+it.each(["target", "renamed-source"])("renames the root Design once while a nested companion retains its path (%s)", async target => {
   const h = createLifecycleHarness();
   const primary = await h.seedMeta("source", { state: "Planning", currentWorkflow: "create-spec", design: ["draft-source.md"] });
   const draft = await h.seed(recordReferences["work-item/draft"](primary.reference.owner),
@@ -168,12 +168,12 @@ it("renames the root Design while a nested draft-named companion retains its pat
     checkMarkerExclusivity: async () => ({ kind: "clear" as const }), findHoldingCheckout: async () => ({ kind: "none" as const }),
     writeAnchoredMarker: async () => ({ kind: "unadmitted" as const }),
   } };
-  expect(await runStoreRename(ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  expect(await runStoreRename(ctx, { operand: "source", targetSlug: target })).toMatchObject({ status: "renamed" });
   const renamed = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
-  expect(renamed.fields).toMatchObject({ design: ["draft-target.md"] });
+  expect(renamed.fields).toMatchObject({ design: [`draft-${target}.md`] });
   const retained = lifecycleSuccess(await h.store.read({ reference: companion.reference }));
   expect(retained.reference.key).toBe("sub/draft-source.md");
-  const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext("/project", h.store, "target"));
+  const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext("/project", h.store, target));
   expect(acquired.byPath.get(".arc/active/sub/draft-source.md")).toEqual(retained);
   expect((await readLifecycleDesign(h.store, renamed)).content)
     .toBe(lifecycleSuccess(await h.store.read({ reference: draft.reference })).content);
