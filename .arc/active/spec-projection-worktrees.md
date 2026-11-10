@@ -316,7 +316,9 @@ The `MACHINE_LOCAL_PATHS` entries (§ 12.9) are data no code acts on before the 
   removals, and a checkout's persist step — need a store several processes share, which the in-memory reference backend
   is not. This member builds the lane over the ref backend, gated and run as that backend's own bursts are (§ 18),
   its processes lined up at the engine's step hooks across process boundaries, and a run whose processes never reached
-  each hook fails.
+  each hook fails. A save that meets another process's landing between its preparation and its admission is refused
+  as a `version-conflict` carrying `cause: "projection-admission"` and left pending (`spec-projection-write-back.md`
+  § 7.8), which the lane counts as pending, its edit kept for the next command, never as lost.
 - **No CLI process runs over either backend before the flip,** since `createStore` builds the in-repo implementation
   alone until then: the engine's entry points, `arc save`'s handler, and the removal slots take the store they run over,
   and the integration tier drives them over the reference backend, while end-to-end tests cover the dark path and the
@@ -399,8 +401,10 @@ at its next command.
   copies the command's end still checks, and the comparisons below use the command's values whatever read bound it. The
   persist and release steps hold no root of their own, so the end never checks a checkout they retire and neither
   replaces a root the command holds; a copy either leaves, on a refusal or from its last check, is settled by the
-  target's next sweep or the retry's takeover (§ 12.2, § 12.3). It skips a sibling where they, or the command's view
-  setting and identity, differ from what its index records it was projected under
+  target's next sweep or the retry's takeover (§ 12.2, § 12.3). A checkout the command moves while it holds a root there
+  — `arc rename` moving a holder's folder, which it may run from any checkout — has that root re-keyed to its new path,
+  so the end checks its copies there and a later round finds the root it holds. It skips a sibling where they, or the
+  command's view setting and identity, differ from what its index records it was projected under
   (`ProjectionIndexSchema.projectedUnder`), or where its index records no guard pass, or one under another ignore
   configuration than the command's (`ProjectionIndexSchema.ignoreGuard`), deciding this before any guard runs there, so
   no file is laid from a recorded claim and no guard runs on another worktree's basis; that worktree's own next command
@@ -418,6 +422,19 @@ at its next command.
   the store (`spec-projection-write-back.md` § 7.1). So a fault fanning out into one worktree — a marker or
   configuration it cannot read, a refresh that throws — is reported for that worktree and skips it, the fan-out going
   on, and the write it follows, which has landed, returns the store's result unchanged.
+- **What a fan-out fences.** This member prepares no store write of its own: a fan-out, a full materialization, and a
+  rebuild read the store and write only a worktree's files and index, and the store writes they cause are an edit's
+  take-in, which write-back sends through its own prepared admission (`spec-projection-write-back.md` § 7.2), so a
+  record landing between write-back's preparation and its admission is fenced there. Each local write is fenced by the
+  worktree's projection lock and its state version: a round reads `version()` before its `changes` and listings, each
+  worktree's index records that version, and under each worktree's lock the fan-out reads the index again and skips the
+  worktree whose state version changed since, so a record landing after the round's reads is laid by its own writer's
+  fan-out or by that worktree's next refresh, at worst laid twice, never lost. The index's own commit is its header,
+  written last (§ 3.1). A take-in a refresh makes is handed the entry the refresh's swap built for that file
+  (`TakeInRequest.entry`, `lib/store/projection/take-in-port.ts`), so a record landing for that file between the round's
+  `version()` read and the take-in must be neither overwritten nor taken as the edit's base: the edit merges with it, or
+  is held pending or in conflict, and the file then holds what the take-in left, never the round's version of the
+  record.
 
 #### 2.3 The skip switch
 
@@ -704,9 +721,13 @@ answers:
   (`spec-projection-write-back.md` § 7.6), an aside copy whose edit is refused or clashes in the checkout, or that holds
   an edit once its path has moved on (`spec-projection-substrate.md` § 5.2), a file or aside copy withheld at an index
   rebuild (§ 2.5, `spec-projection-substrate.md` § 5.4), or not yet settled (`spec-projection-substrate.md` § 4), or
-  held pending by write-back's read path for any other cause but a store read's refusal, which is `unobservable` below,
-  or, for a checkout § 2.5 gives a projection or that holds an index, a configuration that yields no identity (§ 2.5) —
-  which the check reports as `persist-would-refuse`;
+  held pending by write-back's read path for any other cause but a store read's refusal, which is `unobservable` below —
+  a retained base it cannot read, for any format, among them — or holding an accepted-input recording write-back has not
+  finished (`spec-projection-write-back.md` § 7.1), classified by its mark, since its refusal is made locally rather
+  than by a store read, or refused by the send's preparation (below) — a local capture it refuses, a content check, or
+  a `version-conflict` carrying `cause: "projection-admission"` (`spec-projection-write-back.md` § 7.2, § 7.8) — or, for
+  a checkout § 2.5 gives a projection or that holds an index, a configuration that yields no identity (§ 2.5) — which
+  the check reports as `persist-would-refuse`;
 - `unobservable` with its detail, when a read it needs fails — the store, the index, a projected file, or the target's
   configuration or marker — which the check reports as it reports its Git part's failed read, so a failed read never
   reads as `persist-would-refuse`. Branch-gone recovery keeps a `persist-would-refuse` checkout as a switch target, a
@@ -720,21 +741,28 @@ projected root, `completed/` included, and in every other identity's personal ro
 changed identity leaves (§ 10.4), and over each settled aside copy in the target's aside folder, which the persist step
 would take over: the settle rule, the edit rights (`spec-projection-write-back.md` § 8), the kind's parser where it has
 one, the store's merge run in the checkout, the kind's write check over the merged content with
-`spec-projection-write-back.md` § 7.3's views, and `checkSerializationRules` (`spec-projection-write-back.md` § 7.5). An
+`spec-projection-write-back.md` § 7.3's views, and `checkSerializationRules` (`spec-projection-write-back.md` § 7.5),
+and, where that path is ready, the send's own preparation without its submission: the capture of the target's local
+state and retained bases and the shared planner, the read-only feasibility check `spec-projection-write-back.md` § 7.2
+permits, whose answer is provisional, since the persist step captures and prepares again under the target's lock. An
 edit made since the last command and a refusal since reverted both read true, and the aside copies read as
 `spec-projection-substrate.md` § 5.2 states, as the persist step's takeover reads them: in the order their swaps were
 made (`spec-projection-substrate.md` § 3.1), each read with the record that a write-back has been sent since its swap
 set wherever an earlier copy of its path would be taken in. For a file the index does not hold it reads adoption's whole
-verdict without minting — the record's protection, an existing record, the meta's parse, the `Owner` rule, `arc stub`'s
-own checks of the parameters the meta supplies, established folder ownership, and cohort-generation authority
-(`spec-projection-write-back.md` § 9) — through one read-only verdict this member extracts from adoption
-(`adoptProjectionFile`, `lib/store/projection/adoption.ts`), which adoption itself calls before it writes, so the check
-and adoption cannot disagree; a refusal only the verb's executor returns reaches the persist step, which refuses with
-the verb's remedy. In another identity's personal root an edit is one the edit rights refuse, and a file the index does
+verdict without minting (`spec-projection-write-back.md` § 9), in two parts: the checks adoption still makes inline as
+it writes — the target's resolution through established folder ownership and cohort-generation authority, with
+`arc stub`'s own checks of the parameters the meta supplies where the owner is prospective, the record's protection, a
+path through a symbolic link, an existing record, and metadata that must come through `arc stub` — which this member
+extracts from adoption (`adoptProjectionFile`, `lib/store/projection/adoption.ts`) and adoption itself calls before it
+writes, so the check and adoption cannot disagree; and the shared planner adoption's send runs, which re-selects the
+target from the captured local evidence, re-runs the edit rights, and runs the kind's content checks, run without its
+submission. A refusal only the verb's executor returns reaches the persist step, which refuses with the verb's
+remedy. In another identity's personal root an edit is one the edit rights refuse, and a file the index does
 not hold one adoption refuses, each for the identity and naming that identity's remedy (`spec-projection-write-back.md`
 § 8), since rights answer for the target's identity alone; an unchanged file there passes. Its cost is the stat walk,
-about 3 ms on Linux and 27 ms on Windows at 1,000 files (§ Spike 2), plus the read of each changed file and one
-configuration read in the target, one Git call (§ 15.3). The third answer is `seam-lifecycle`'s, as shipped (§ 18).
+about 3 ms on Linux and 27 ms on Windows at 1,000 files (§ Spike 2), plus the read of each changed file, one
+configuration read in the target, one Git call (§ 15.3), and two more for each changed file whose read path is ready,
+its preparation's two captures (§ 13). The third answer is `seam-lifecycle`'s, as shipped (§ 18).
 
 **`persist(checkout)`** — the persist step, run by the function after the check and before it unlocks and removes the
 checkout:
@@ -745,14 +773,17 @@ checkout:
    (`spec-projection-substrate.md` § 3.2), it refuses with a retry; and with no identity (§ 2.5) it refuses naming the
    remedy that sets `arc.identity`.
 2. It writes back every edit there under `write-back` (`spec-projection-write-back.md` § 7.4), every projected root
-   included and every other identity's personal root present, read as the check reads it, each file as its own write,
-   waiting through the settle rule's tries for a file not yet settled (`spec-projection-substrate.md` § 4). If any file
-   then stays unadopted, held by a conflict, failing to parse, holding a refused edit, withheld at an index rebuild
-   (§ 2.5), not yet settled, or pending for any other cause — a `lock-held` refusal or a `version-conflict` its recovery
-   did not clear (`spec-projection-write-back.md` § 7.8), a retained base write-back cannot read for a file other than
-   Markdown, or an adoption's read-back still owed among them — the step refuses with that file's remedy, and the file
-   keeps its content; a file write-back leaves pending refuses with the remedy write-back reports for it, or a retry
-   where it reports none. A symbolic link is never adopted and refuses nothing (`spec-projection-write-back.md` § 9).
+   included and every other identity's personal root present, read as the check reads it, each file as its own
+   one-mutation admission batch (`spec-projection-write-back.md` § 7.2), waiting through the settle rule's tries for a
+   file not yet settled (`spec-projection-substrate.md` § 4). Each send first finishes an accepted-input recording an
+   earlier command left unfinished (`spec-projection-write-back.md` § 7.1). If any file then stays unadopted, held by a
+   conflict, failing to parse, holding a refused edit, withheld at an index rebuild (§ 2.5), not yet settled, or pending
+   for any other cause — a `lock-held` refusal, a `version-conflict` its recovery did not clear, or one carrying
+   `cause: "projection-admission"`, which takes no recovery (`spec-projection-write-back.md` § 7.8), a retained base
+   write-back cannot read, for any format, or a recording its send could not finish among them — the step refuses with
+   that file's remedy, and the file keeps its content; a file write-back leaves pending refuses with the remedy
+   write-back reports for it, or a retry where it reports none. A symbolic link is never adopted and refuses nothing
+   (`spec-projection-write-back.md` § 9).
 3. It takes over every aside copy there, in the order their swaps were made (`spec-projection-substrate.md` § 3.1), its
    writer live or not, as `spec-projection-substrate.md` § 5.2 states: once a copy has settled
    (`spec-projection-substrate.md` § 4), it takes in an edit the copy holds while its path has not moved on, and deletes
@@ -860,9 +891,11 @@ verification dispatches (D13):
 - **Git calls.** The projection makes two Git calls per command, both issued before its folder walk, which runs while
   they do — the store read, and one `git config --get-regexp` reading the `arc.*` keys and the object format (§ 15.3) —
   and the exclude writer and the guard make one each, the guard only when an ignore file may have changed
-  (`spec-projection-substrate.md` § 11.1, § 11.2). A full materialization reads through the store's `list`, which the
-  ref backend batches through `git cat-file --batch` (`spec-storage-ref-backend.md` § 11.6), so the projection reads no
-  blob from Git itself (§ 15.5).
+  (`spec-projection-substrate.md` § 11.1, § 11.2). A command that sends an edit adds, for each file it sends, two
+  reads of the sending checkout's configuration, one Git call each, as write-back's preparation captures the checkout's
+  local state before and after it plans (`spec-projection-write-back.md` § 7.2). A full materialization reads through
+  the store's `list`, which the ref backend batches through `git cat-file --batch` (`spec-storage-ref-backend.md`
+  § 11.6), so the projection reads no blob from Git itself (§ 15.5).
 
 ### 14. More than one source
 
@@ -885,7 +918,10 @@ one as a refused edit; the `.arc/system/` paths it projects added to the exclude
 ### 15. Refresh and performance
 
 A command's cost grows with what changed, never with how much state exists. Reads take only a ref's tip (D10), and
-`history` is read only where `spec-projection-substrate.md` § 3.5 names.
+`history` is read only where `spec-projection-substrate.md` § 3.5 names, and where accepted-input recording needs
+missing entry IDs restored but read-back no longer names the accepted landed version (`spec-projection-write-back.md`
+§ 7.1). Prepared admission repeats only the history queries its fresh preparation requires
+(`spec-projection-write-back.md` § 7.2, § 15).
 
 #### 15.2 Store-driven refresh
 
@@ -902,9 +938,13 @@ index's reference (`spec-projection-substrate.md` § 3.3, § 11.2).
   reports a rename or an archive only as the meta's entry, so this is what moves the rest. A cohort document is an owner
   primary too, its slug and placement covered by its record version (`spec-storage-ref-backend.md` § 3.4): its entry
   re-lays every path it projects to, its folder's copy and each `current/` copy, and a meta's entry adds or removes its
-  `current/` copy of each cohort document its `Cohort` field names, which `list` by the work unit never returns. An
-  archive, an abandon, or an owner leaving the in-flight view is a re-lay with nothing left to project here, which
-  removes the files.
+  `current/` copy of each cohort document its `Cohort` field names, which `list` by the work unit never returns. The
+  copy is named by the field's text, a former slug a renamed cohort keeps included. A read of that cohort by name that
+  refuses `not-found`, as for a member naming a removed cohort, lays no copy and removes any the meta's earlier text
+  left; one that refuses `ambiguous-match`, two cohorts clashing on the name, leaves the copy as it stands. Either is
+  reported and neither refuses the command, since a clash's repair, `arc rename` with the cohort's UID, runs from a
+  member's checkout. An archive, an abandon, or an owner leaving the in-flight view is a re-lay with nothing left to
+  project here, which removes the files.
 - **A conflict-record entry** refreshes the file of the record it names, or, for a removed conflict, whose entry carries
   no content, the file the index maps it to — by its marker set, its notice line, or, for a conflict the file does not
   show, the file's entry (`spec-projection-substrate.md` § 3.1). Neither reduction needs a contract change.
@@ -1010,15 +1050,15 @@ crosses its bound, never on one measurement, since host stalls reached 1.4–1.6
 The fan-out tripwire times the whole fan-out, a write's or a pull's, store reads included: today's heaviest, ten files
 into 20 worktrees, reaches its bound on Windows once those reads count, while a one-file write of a record that is not a
 primary sits far below it. A primary entry's re-lay adds a `list` whose Windows budget alone equals the bound (§ 15.5),
-so a meta write's fan-out there can cross it with few files; the median, not one write, decides, and the responses stay
-the same. Past it, the first response is writing files in parallel on Windows, then the one-copy reserve (Alternatives &
-Rationale); past the materialization bound, parallel writes on Windows. Materialization runs at spawn and at `arc sync`,
-not per command, so its bound is the looser one. On Windows each bound assumes a Git call costs about 42 ms, as
-§ Spike 2 measured, and a one-file fan-out makes about seven, one after another (§ 15.5): the tripwire suite reports one
-Git call's median and two calls' run at once on its host, each timed path's Git calls, and the time of the work beneath
-them, the start's index read, walk, and stats run alone; Success Criterion 4 reads each Windows median less the amount
-by which those calls' host time exceeds the longer of 42 ms a call and that work. A tripwire's notice shows the median
-as measured.
+so a meta write's fan-out there can cross it with few files, and a cohort rename, one batch writing every member's meta,
+adds a listing per member; the median, not one write, decides, and the responses stay the same. Past it, the first
+response is writing files in parallel on Windows, then the one-copy reserve (Alternatives & Rationale); past the
+materialization bound, parallel writes on Windows. Materialization runs at spawn and at `arc sync`, not per command, so
+its bound is the looser one. On Windows each bound assumes a Git call costs about 42 ms, as § Spike 2 measured, and a
+one-file fan-out makes about seven, one after another (§ 15.5): the tripwire suite reports one Git call's median and two
+calls' run at once on its host, each timed path's Git calls, and the time of the work beneath them, the start's index
+read, walk, and stats run alone; Success Criterion 4 reads each Windows median less the amount by which those calls'
+host time exceeds the longer of 42 ms a call and that work. A tripwire's notice shows the median as measured.
 
 #### 15.5 Fan-out and full materialization
 
@@ -1033,30 +1073,31 @@ too those the header marks as holding an unsettled entry (§ 3.1), and the refre
 (`spec-projection-substrate.md` § 3.3) rewrites only those. The spike read the store once and did not time it. Each
 round of a fan-out adds one `version()` call, three Git calls on the ref backend where the manifest is new, which after
 a write or a pull it is (`spec-storage-ref-backend.md` § 4.2), and one `changes` call per distinct state version among
-the worktrees, normally one, at least one Git call there, each Git call about 2 ms on Linux and 41 ms on Windows
-(§ Spike 2). Each record its refreshes lay is read once in the round, shared by every worktree, a `read` on the ref
-backend costing at least one Git call. It also lists the worktrees, one Git call (`scanRegisteredWorktrees`), and reads
-each one's index header, and, for each primary entry among the changes, re-lays through one `list` by owner shared by
-every worktree — four Git calls on the ref backend, six where it writes a new manifest, budgeted at 600 ms on Windows,
-where a `read` is budgeted at 300 ms (`spec-storage-ref-backend.md` § 11.6, § 11.7) — so a meta write's fan-out costs
-more than a companion's. A primary entry's re-lay also selects the in-flight view (`selectProjectionView`,
+the worktrees, normally one, at least one Git call there, each Git call about 2 ms on Linux and 41 ms on Windows (§
+Spike 2). Each record its refreshes lay is read once in the round, shared by every worktree, a `read` on the ref backend
+costing at least one Git call. It also lists the worktrees, one Git call (`scanRegisteredWorktrees`), and reads each
+one's index header, and, for each primary entry among the changes, re-lays through one `list` by owner shared by every
+worktree — four Git calls on the ref backend, six where it writes a new manifest, budgeted at 600 ms on Windows, where a
+`read` is budgeted at 300 ms (`spec-storage-ref-backend.md` § 11.6, § 11.7) — so a meta write's fan-out costs more than
+a companion's. A primary entry's re-lay also selects the in-flight view (`selectProjectionView`,
 `lib/store/projection/view-selection.ts`: a `version()` and two listings) once per round through the memo, and a refresh
 selects it nowhere else; a laid record's conflicts are read once each in the round (`readConflicts`,
-`lib/store/projection/record-render.ts`). Each file a refresh lays takes its protection from the round's evidence
-(§ 16.3): its owner's meta through the memo, read once per owner in the round where the changes did not already return
-it; its owner's claim, a `lookup` whose `read` is that same meta, only in a worktree whose marker names that owner, the
+`lib/store/projection/record-render.ts`). Each file a refresh lays takes its protection from the round's evidence (§
+16.3): its owner's meta through the memo, read once per owner in the round where the changes did not already return it;
+its owner's claim, a `lookup` whose `read` is that same meta, only in a worktree whose marker names that owner, the
 owner's own checkout among them where it is the writer's; and the holder and markerless searches from the round's own
 listing of the worktrees, the markerless search's project identity through the memo. A one-file write of a record that
 is not a primary so adds at most its owner's meta `read` and the claim's `lookup` to its round however many worktrees it
 visits, where protection observed in each worktree's render cost about 108 Git calls into 22 worktrees
 (`notes-projection-worktrees.md` § Spike 3). Each worktree it visits is bound with the command's own configuration read
 and actor — the read § 2.5 names as the command's — or re-read into the root the command already holds for it (§ 2.2),
-adding no Git call per worktree: `git config` reads the same values in every worktree of a clone unless a worktree's own
-`config.worktree` or a conditional include (`includeIf`) differs, and a sibling whose recorded view setting, identity,
-or ignore configuration then differs, or whose index records no guard pass, is skipped before any guard runs there
-(§ 2.2), its next command reading its own and reprojecting (§ 10.4). A pull's merges fan out as a write does (§ 2.2):
-with the index in partitions, a day's merges cost about 0.4 s on Windows across this repository's five worktrees and,
-for a 50-person team, about 2.8 s across 20 worktrees, 0.4 s on Linux, past the fan-out tripwire on both
+adding no Git call per worktree where its refresh sends nothing; a take-in there captures that worktree's own state, two
+configuration reads per file sent (§ 13). `git config` reads the same values in every worktree of a clone unless a
+worktree's own `config.worktree` or a conditional include (`includeIf`) differs, and a sibling whose recorded view
+setting, identity, or ignore configuration then differs, or whose index records no guard pass, is skipped before any
+guard runs there (§ 2.2), its next command reading its own and reprojecting (§ 10.4). A pull's merges fan out as a write
+does (§ 2.2): with the index in partitions, a day's merges cost about 0.4 s on Windows across this repository's five
+worktrees and, for a 50-person team, about 2.8 s across 20 worktrees, 0.4 s on Linux, past the fan-out tripwire on both
 (`notes-projection-worktrees.md` § Spike 4). Leaving the other worktrees to catch up at their next command would not
 remove that cost: a later write's fan-out brings each worktree up from its own state version, so the first write after a
 pull would lay the merges into every worktree not yet caught up. A command whose writes land outside a projection lock
@@ -1155,7 +1196,11 @@ One changes § 2.2's end, two edit rights and protected files (its § 8), and on
   `lib/locus/lifecycle-ports.ts`) — answers protected with no claim read, and only a marker naming the file's own work
   unit reads that unit's claim. A checkout whose own claim cannot be read, or whose unbound marker names another work
   unit, so protects another work unit's meta or task list rather than refusing `checkout-not-writable`; its own still
-  refuse as before.
+  refuse as before. The same rule holds in the second branch, which write-back's shared admission planner takes with a
+  send's captured local evidence (`frozenCheckoutRights`, `lib/store/projection/rights.ts`, over
+  `readFrozenProjectionClaim`, `lib/store/projection/claim-evidence.ts`; `spec-projection-write-back.md` § 7.2): a
+  captured marker naming another work unit answers protected with no claim lookup, so admission reads, and observes,
+  only the file's own unit's claim.
 - **A refresh's renders observe protection through its own evidence** (§ 2.2, § 15.5). § 8.2 lays a protected file
   read-only with its notice, and the root's protection (`createProjectionProtection`,
   `lib/store/projection/protection.ts`, bound once per root) re-observes rights, the owner's meta, and the holding
@@ -1175,8 +1220,10 @@ One changes § 2.2's end, two edit rights and protected files (its § 8), and on
 - **The start reads the index's header and its walked partitions** (§ 3.1 here, § 15.3). `startUnderLease` reads the
   whole index (`readProjectionIndex`, `engine-start.ts`). Here it reads the header, the partitions of the roots it walks
   and those the header marks as holding an unsettled entry, and any other partition holding a path its sweep or refresh
-  touches; `arc save`'s walk of `completed/` (the `mode === "save"` filter, `engine-start.ts:39`) reads that root's
-  partitions.
+  touches; `arc save`'s walk of `completed/` (the `mode === "save"` filter, `engine-start.ts:40`) reads that root's
+  partitions. A send's capture of its checkout's local state, which reads the published index itself
+  (`captureProjectionLocal`, `lib/store/projection/local-capture.ts`; `spec-projection-write-back.md` § 7.2), reads the
+  partition of the path's own root group, which holds every candidate container primary it scans.
 
 ### 17. Residuals the design accepts
 
@@ -1254,8 +1301,8 @@ This design consumes behavior other changes build. The three it depended on — 
 `storage-ref-backend` — have shipped, as have `seam-decomposition`, `seam-status-roadmap`, and
 `projected-markdown-checks`; the members whose work observes `storage-ref-hardening`'s fixes wait for it (§ 1.1). Each
 other is an expected contract, available when its change lands, and what holds until then is stated with it.
-`projection-substrate` and `projection-write-back` are on base when this member starts, by its `Depends On` chain; their
-entries come first.
+`projection-substrate` and `projection-write-back` have shipped, and this member depends on both; their entries come
+first.
 
 - **`projection-substrate`** (`spec-projection-substrate.md`, shipped, PR #1247; this member depends on it through
   `projection-write-back`): the engine's state and the files it writes, which refresh, fan-out, materialization, and the
@@ -1281,8 +1328,7 @@ entries come first.
       § 2.5, § 15.2 here); and the `checkout` root it adds to `MACHINE_LOCAL_PATHS`, under which this member registers
       the `.arc/system/.internal/` entries (its § 12.9; § 12.9 here);
     - the one configuration read and the identity it resolves (its § 15.3; § 2.5 here).
-- **`projection-write-back`** (`spec-projection-write-back.md`, planned; this member depends on it, so it is on base
-  when this member starts):
+- **`projection-write-back`** (`spec-projection-write-back.md`, shipped, PR #1305; this member depends on it):
     - the command's start, end, and report from the root hooks, with the start's refresh, the fan-out of the start's
       write-backs, and materialization as optional slots on the command's own root that this member fills
       (`ProjectionRootState`, `lib/store/projection/process-state.ts`); the root binding, which binds the command's own
@@ -1295,9 +1341,16 @@ entries come first.
       refusal naming a missing history ref pulled and retried once, which `arc save`'s start applies
       (`retryEndedItemHistory`) and the persist and release steps apply by wrapping their own store and reading
       `history` through a memo of their own over it (its § 6, § 7, § 8.4);
+    - each content send's one-mutation admission batch, its preparation — the capture of the sending checkout's local
+      state and retained bases and the shared planner (`prepareIndexedProjectionSubmission`,
+      `lib/store/projection/submission.ts`; `planProjectionWrite`, `lib/store/projection/admission-planner.ts`) — which
+      the removal check runs without its submission as a provisional feasibility check, and the accepted-input recording
+      a send finishes before it prepares, which the persist and release steps' sends finish under the target's lock (its
+      § 7.1, § 7.2, § 7.8);
     - edit rights and protected files (its § 8), whose claim reads and renders this member amends (§ 16.3 here), and
-      adoption, which decides its verdict inline as it writes and mints, so this member extracts that verdict for the
-      removal check to read without minting (its § 9; § 12.2 here);
+      adoption, which decides part of its verdict inline as it writes and mints and the rest in the shared planner, so
+      this member extracts the inline part and runs the planner without its submission for the removal check to read
+      without minting (its § 9; § 12.2 here);
     - the checkout-rooted work-item path and each root's claim and effective `layout.active`, which this member's
       refresh, fan-out, persist and release steps, and materialization read fresh under the worktree's projection lock
       and reseed, so no file is laid from a cached claim (its § 10.1, § 10.2);
@@ -1336,10 +1389,9 @@ entries come first.
     - a write to a completed item refusing `state-unresolvable` where this clone lacks the item's history ref, and
       `pull({ history })` fetching that ref by name (§ 7.3, § 4.5), which `arc save` and the persist and release steps
       run and retry once through the shared history-retry helper (`pullHistoryForRetry`,
-      `lib/store/pull-consumption.ts`) where the refusal names a history ref, as `runStoreRename` does
-      (`lib/work-unit/verbs/rename-store.ts`; `spec-projection-write-back.md` § 8.4); a write refusing
-      `state-unresolvable` with no history ref — an unreadable captured object, or an anchor naming a state version this
-      clone cannot resolve — takes no pull (`spec-projection-write-back.md` § 7.8);
+      `lib/store/pull-consumption.ts`) where the refusal names a history ref (`spec-projection-write-back.md` § 8.4); a
+      write refusing `state-unresolvable` with no history ref — an unreadable captured object, or an anchor naming a
+      state version this clone cannot resolve — takes no pull (`spec-projection-write-back.md` § 7.8);
     - `pull` and `push` replacing `sync` (§ 2.1), a pull's merges landing with no `write` (§ 6.4), which the fan-out
       wraps (§ 2.2 here), and `version()` costing one Git call, three where the manifest is new (§ 4.2);
     - `list` batching its blob reads, at four Git calls, six where it writes a new manifest, within a 600 ms budget on
@@ -1738,6 +1790,30 @@ this design open.
     - § 2.5: the materialization runs the guard through the ignore check a command's start runs and records that check's
       result, where it read "The index it writes records the guard's pass and the ignore files as a command's start
       records them".
+- **Amended 2026-11-10, regrounded on the shipped `projection-write-back` and `cohort-identity-verbs`
+  (Owner-approved).** Write-back shipped with each content send prepared and admitted as one batch, an unreadable
+  retained base held for any format, and accepted-input recording; a cohort rename may now move a worktree the command
+  holds. The spec's text changes to match:
+    - § 1.5: the multi-process lane counts a `projection-admission` version conflict as pending, where it named none.
+    - § 2.2: a new bullet states what a fan-out fences, and a checkout the command moves has its held root re-keyed,
+      where neither was stated.
+    - § 12.2: the check's `would-refuse` states add an unfinished recording, a preparation's refusal, and a retained
+      base unreadable for any format; it runs the send's preparation without its submission; adoption's verdict is read
+      in two parts; and the persist step sends each file as its own admission batch, finishing an unfinished recording
+      first. It read "held pending by write-back's read path for any other cause but a store read's refusal", "through
+      one read-only verdict this member extracts from adoption", "each file as its own write", and "a retained base
+      write-back cannot read for a file other than Markdown, or an adoption's read-back still owed".
+    - § 13 and § 15.5: a send adds two configuration reads in its checkout, where the Git calls were stated for a
+      command that sends nothing.
+    - § 15: `history` is read also for an accepted-input recording, and prepared admission repeats only the queries its
+      preparation requires, where it read "only where `spec-projection-substrate.md` § 3.5 names".
+    - § 15.2: a `current/` cohort copy is named by the `Cohort` field's text, and a refused cohort read never refuses
+      the command, where neither was stated. § 15.4 adds a cohort rename's listings to the fan-out tripwire's note.
+    - § 16.3: the rights rule covers the admission planner's branch, and a send's capture reads its own root group,
+      where neither was stated; the start's filter is cited at `engine-start.ts:40`, where it read `:39`.
+    - § 18: `projection-write-back` reads shipped, its admission and recording are listed, and adoption's verdict is
+      split, where it read "planned" and "decides its verdict inline as it writes and mints"; the comparison with
+      `runStoreRename`, which now pulls in rounds, is dropped.
 - **Amended 2026-11-06 — `storage-cutover` was cut into the subcohort `state-storage/storage-cutover` (2026-11-03).**
   Each mention of `storage-cutover` reads as the member that now owns the work: the flip, its first full
   materialization, the quiesce, the live rehearsal, the workflow rewrite, and the installer's projected-root and

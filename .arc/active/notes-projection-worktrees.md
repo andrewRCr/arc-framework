@@ -281,54 +281,12 @@ re-reads and hashes each aside copy, and deletes it. 4 KB files, 20 writes per c
 
 ## Grounding basis
 
-The task list names code as task generation found it on 2026-11-06. `projection-substrate` and `storage-ref-hardening`
-were on `main` (#1247, #1271), and this branch carried that `main` (`86d8e18dcd`). `projection-write-back` was in
-verification, so its code was read at its branch head, `feat/projection-write-back` at `6b82b6f671`. These are what the
-list takes from it — every symbol it names that this branch's base lacks, and the uses it makes of base symbols such as
-the history retry — any of which can move in its review:
-
-- the start and its root binding: `startUnderLease` and the private `bindRoot` (`engine-start.ts`),
-  `initializeProjection`, `endProjection`, and `recordProjectionLockSkip` (`engine.ts`), `finishProjectionRoot`
-  (`engine-end.ts`), and the command's configuration read, `observeProjectionConfiguration`
-  (`command-configuration.ts`);
-- the start's walk and per-file check, `walkProjectionRoots` and `ProjectionWalkFs` (`engine-walk.ts`) and
-  `writeBackProjectionFiles` with the private `checkFileAtPath`, `sendFile`, and `adoptionRetries` (`engine-files.ts`),
-  a send's kept copy, `recordPendingWriteBack` (`taken-in.ts`), the sweep's commit of returned copies,
-  `commitReturnedCopies` (`returned-copies.ts`), and the links the walk finds, `reconcileProjectionLinks`,
-  `readProjectionLinkBoundary`, and `ProjectionLinkFs` (`discovery-links.ts`);
-- the process state, `projectionProcessState` and `ProjectionProcessState`: `ProjectionRootState` with its mutable
-  `claim` and `layoutActive` and its `refresh`, `fanOut`, and `materialize` slots, `fanOutRounds`, the `history` memo,
-  `lockHeld`, and `recordComposedStoreCapability` (`process-state.ts`), which `lazyStore` calls in `create.ts`;
-- the engine ports' `actor` (`createProjectionEnginePorts`, `engine-ports.ts`), which resolves the machine id through
-  `getOrCreateMachineId` in `lib/user-sync/sync-state.ts`;
-- the root hook, `registerProjectionHooks` (`command-hooks.ts`), which binds `mint` alone, to `mintProjectionStub`
-  (`handlers/projection-stub.ts`);
-- the checkout's claim and layout, `readCheckoutLayoutContext` and the private `readFreshCheckoutLayoutContext`
-  (`lib/store/checkout-layout.ts`), the `ActiveLayoutContext` they return (`lib/layout/identification.ts`), and the
-  own-folder identification that spreads it into a strict schema, the private `activeContainer`
-  (`lib/layout/file-identification.ts`) and `OwnActiveLocationSchema` (`lib/layout/schema.ts`); a conflicted file's
-  refresh, `prepareConflictedRefresh` (`conflicted-refresh.ts`); and the files adoption never takes,
-  `isExcludedProjectionFile` (`discovery-exclusions.ts`);
-- write-back's read path, `prepareWriteBack` (`write-back.ts`), which runs a kind's parser only where one is registered
-  (its amendment A3), its held and pending answers (`heldPreparation`, `pendingRead`) and its send (`sendWriteBack`),
-  the check's views (`checkWriteBackEdit`, `createWriteBackAfterView`), and a stampless file's base
-  (`selectStamplessBase`, `stampless-base.ts`);
-- the edit rights and protection (`readProjectionEditRights`, `checkoutRights`, `readProjectionProtection`,
-  `createProjectionProtection`, `workItemProtection`, `protectedMark`), the renderer (`createRecordRenderer`,
-  `readConflicts`, `record-render.ts`), the view selection (`selectProjectionView`, `view-selection.ts`), the markerless
-  search (`findNativeMarkerlessWorkUnitCheckouts`, `lib/locus/markerless-native.ts`), the root protection's other
-  readers (`rights-binding.ts`, `stub-mint.ts`, `read-back.ts`, `checkout-drawing.ts`), base-stamp recovery's selection
-  (`recoverSelectedBase`, `base-selection.ts`), and adoption (`adoptProjectionFile`, `resolveBacklogOwnership`,
-  `readIndexedOwners`, `resolveCohortAdoption`, `validateStubParameters`), including its amendments A1 and A2;
-- the changed mark's clearing (`saveProjectionChanges`, `clearAcceptedMarks`), `--resolve`'s selection
-  (`selectProjectionResolution`), the selection (`selectProjectedMarkdown`, `projectionSelectionResult`), the overlap
-  advisory's index read (`readOverlapIndex`, `lib/errand/overlap-index.ts`), the report (`createProjectionReporter`),
-  status (`readProjectionStatus`), the skip switch (`ProjectionSkip`), `arc save`'s handler (`handleSave`,
-  `projectionCommandBinding`), the history retry it applies (`retryEndedItemHistory`), and the refusing test store
-  (`createRefusingStore`).
-
-At activation, once `projection-write-back` has landed, check each against `main` and correct the tasks naming any that
-moved, before Phase 1 starts.
+The task list names code as it stands at `c7b14659e3`, this branch with `main` merged (`6a8ba934cf`) on 2026-11-10,
+which carries `projection-write-back` (#1305) and `cohort-identity-verbs` as shipped, so every symbol it names is on
+base. Task generation first grounded it on 2026-11-06, against `86d8e18dcd` and `projection-write-back`'s branch head
+`6b82b6f671`. The re-check at `c7b14659e3` read each cited file that changed since against every statement naming it,
+and checked the spec's citations of `spec-projection-write-back.md` against that spec as shipped; the spec's amendment
+of 2026-11-10 records what moved.
 
 ## Removal callers
 
