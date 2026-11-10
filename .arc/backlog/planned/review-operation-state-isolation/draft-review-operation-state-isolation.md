@@ -75,4 +75,50 @@
   status resolution and a fail-closed refusal that needs a typed reason — this stub's own recorded blocker —
   rather than request-shape derivation. It also sits adjacent to the chain instead of behind three of its links.
 
+### `[ ]` **Isolate review continuations from unrelated malformed operation records**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Keep unrelated review-operation schema skew from blocking exact-target status" — the same failure, seen
+  through a review continuation.
+
+- _Observation:_ `LocalReviewOperationStateStore.readOperationSnapshot` validates the entire shared Git-common
+  operation namespace and returns an incomplete snapshot on the first malformed record.
+  `LocalReviewResultReader.readResult` requires that whole snapshot before resolving a specific producer. A damaged
+  or reader-incompatible review in one worktree can therefore block a valid continuation in another worktree.
+
+- _Evidence:_ During `storage-contract` Standard Pass 3 at `eaac1e444`, local attestation succeeded, but the exact `arc
+  review reduce -` continuation refused `corrupt-state / operation snapshot is incomplete: malformed-operation-state`.
+  Read-only validation checked 168 operation records: storage-contract's operation was valid; the sole record rejected
+  by that checkout's decoder belonged to `spec-reader-standard` (PR #790, head `c40d5bf3c`). Its singleton hosted handle
+  carried a force invocation admitted by the updated schema from merged PR #791. The older decoder required a
+  delivery-member vehicle and rejected it; the updated CLI accepts the same record. This incident is reader/writer
+  version skew, not damaged state. Update the CLI reader and retry the retained reduce request without editing the
+  record. Evidence is retained in storage-contract's private prepublication `pass-3-native-continuation-blocker.json`
+  and `pass-3-operation-schema-check.json`; the old- and new-reader comparison probes ran locally and were not kept.
+  This capture addresses the cross-worktree failure propagation independently.
+
+- _Approach:_ Resolve and validate the relevant producer, owning lane and required linked records without making
+  their continuation depend on unrelated operation bodies being valid. Preserve legitimate shared review state
+  across worktrees. Keep strict, actionable refusal for damaged required records and ambiguous or duplicate producer
+  bindings. Surface unrelated corruption through a separate diagnostic/recovery path; never erase it or invent a
+  clean review. Re-triage before implementation if safe scope discovery requires a new routing/index contract.
+
+- _Verification:_ Exercise the public attest → reduce → findings-response continuation with two worktrees sharing
+  one Git-common directory. A malformed unrelated operation must not obstruct the valid lane or alter its exact
+  target, receipt, authorization or pass count. A malformed required operation and ambiguous relevant linkage must
+  still refuse with a useful diagnostic. Include malformed JSON and schema-invalid records, plus normal shared-lane
+  continuation, so isolation does not weaken legitimate coordination.
+
+- _Files:_ `hosts/local/operation-state-store.ts`, `hosts/local/review-result-reader.ts` and `core/ports.ts` under
+  `packages/arc-framework/src/scripts/review-gate/`; the operation-store integration tests, result-reader unit tests
+  and reduce-command unit tests.
+
+- _Scope:_ One review-infrastructure failure-containment concern, captured as an Errand for later re-triage. Use the
+  reviewed lane. Do not fold it into storage-contract or spec-reader-standard, rewrite native state manually, or
+  implement a future storage backend. The immediate version-skew remedy is an updated reader, with the shared
+  review record preserved.
+
+- _Captured during:_ `storage-contract` Standard Pass 3 continuation, 2026-10-03; Owner requested a separate capture.
+
 ---

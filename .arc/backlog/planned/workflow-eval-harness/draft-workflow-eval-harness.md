@@ -138,6 +138,31 @@
 - _Captured during:_ read-only evaluation of the paper for ARC applicability, 2026-10-11; capture requested by the
   Owner.
 
+### `[ ]` **Take the ADR-disposition readiness criterion and the ADR reader check as eval fixtures**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Proposed Direction — which behaviors become eval fixtures, beside "Take the spec reader standard as a
+  behavioral eval fixture".
+
+- _Observation:_ `adr-accept-timing` adds a fourth `assess-draft-readiness` criterion: every settled decision carries
+  an ADR disposition: a new ADR the work unit delivers, an amendment to a named ADR, "covered by" a named ADR that
+  records it (one the work unit delivers or amends, or a Proposed or Accepted one already on the base branch that
+  records the decision unchanged), or `none`, naming the § When to Write an ADR "Don't write an ADR for" category the
+  decision falls in or stating that it meets none of the five criteria, which are any-of. It also has ADR bodies meet
+  `spec-review`'s reader-independence check. Both are judgment prose, and no static check shows that an executing
+  agent applies them, so the work unit retains that runtime-adherence gap.
+
+- _Approach:_ Exercise fresh draft-close contexts at each Class and depth, the `low` path's determinacy confirmation
+  included: a decision meeting a § When to Write criterion with no disposition (expect a `needs-detail` gap), a
+  tactical decision correctly dispositioned `none`, an amendment to an existing ADR, a related decision correctly
+  dispositioned "covered by" the work unit's ADR, decisions that apply an Accepted ADR and a base-branch Proposed ADR
+  unchanged, each correctly dispositioned "covered by" it, and a "covered by" naming a number that names no ADR on
+  the base branch and none the work unit delivers, or a Superseded ADR (expect a `needs-detail` gap). For the reader
+  check, compare an ADR body whose Context leans on a work-unit name with one using ARC terms as its subject matter.
+
+- _Captured during:_ `adr-accept-timing`'s draft-design, 2026-11-04 (Owner-approved capture).
+
 ---
 
 ## Problem
