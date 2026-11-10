@@ -17,6 +17,7 @@ export interface ProjectionIndexBacking {
   readonly sources: Map<string, { entries: ProjectionEntries }>;
 }
 const backings = new WeakMap<object, ProjectionIndexBacking>();
+const emptyEntries: ProjectionEntries = Object.freeze(Object.create(null) as ProjectionEntries);
 
 /** A named partition was missing, unreadable, malformed, or no longer matched its content address. */
 export class ProjectionPartitionMismatch extends Error {
@@ -68,8 +69,8 @@ export function partitionedProjectionEntries(backing: ProjectionIndexBacking): P
 function loadGroup(backing: ProjectionIndexBacking, group: string): ProjectionEntries {
   const loaded = backing.loaded.get(group);
   if (loaded !== undefined) return loaded;
-  const descriptor = backing.groups[group];
-  if (descriptor === undefined) return {};
+  const descriptor = Object.hasOwn(backing.groups, group) ? backing.groups[group] : undefined;
+  if (descriptor === undefined) return emptyEntries;
   let source = backing.sources.get(group);
   if (source === undefined) {
     try {

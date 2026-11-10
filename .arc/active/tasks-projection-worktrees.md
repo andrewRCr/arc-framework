@@ -63,7 +63,7 @@ that chunk.
 - _Outcome:_ The format-2 header commits content-addressed root partitions with lazy path reads and independent
   updates. Scans load their explicit groups, lock-free readers retry a moved header, and late mismatches invalidate
   only the command's own partition under its lease. Interrupted publications retain the old header; later writes
-  collect obsolete partitions, including a previously held file.
+  collect obsolete partitions, including a previously held file. Path lookups ignore inherited descriptor names.
 
 ### `[x]` **1.3 Bind a projection root for any worktree, reading through one source — § 2.1, § 14**
 

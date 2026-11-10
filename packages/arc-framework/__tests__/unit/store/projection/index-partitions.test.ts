@@ -123,3 +123,13 @@ it("throws a named mismatch on late access and reads a missing partition as unre
   await rm(join(location.stateDir, name));
   expect(await readProjectionIndex(location, true)).toEqual({ kind: "unusable", cause: "unreadable" });
 });
+
+it("treats inherited property names as absent paths without reading a fabricated partition", async () => {
+  await writeProjectionIndex(location, index());
+  const read = await disk();
+  for (const path of ["constructor", "toString", "__proto__"]) {
+    expect(read.entries[path]).toBeUndefined();
+    expect(path in read.entries).toBe(false);
+    expect(Object.getOwnPropertyDescriptor(read.entries, path)).toBeUndefined();
+  }
+});
