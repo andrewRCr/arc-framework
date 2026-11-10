@@ -122,6 +122,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | work-item-relations             | P1       | andrew | cutover-flip                  | —                          |
 | wu-lifecycle-state-model        | P1       | andrew | cutover-flip                  | —                          |
 | unit-scoped-review              | P2       | andrew | commit-increments             | approval-flow-refinement   |
+| projection-narrowed-views       | P2       | andrew | projection-worktrees          | storage-projection         |
 | errand-promotion-concurrency    | P2       | andrew | cutover-flip                  | —                          |
 | framework-core-from-package     | P2       | andrew | cutover-flip                  | —                          |
 | ghost-mode                      | P2       | andrew | cutover-flip                  | —                          |
