@@ -1,0 +1,1021 @@
+# Task List: Cohort Identity Verbs
+
+- **Design:** `spec-cohort-identity-verbs.md`
+
+---
+
+## **Phase 1:** Clash repairs, cohort path rules, and the command surface before the flip
+
+_Purpose:_ Land every part of the design that observes none of the ref-backend hardening's surfaces: the repair each
+clash refusal carries, the rules that hold a cohort path to its current slug, the cohort writers, and the new commands
+and operand forms, which change nothing a verb does before the flip.
+
+_Mode:_ `layer` — closes on the store-side repairs, path rules, and writers, and the registered command surface,
+settled.
+
+_Exit criterion:_ Over both backends, every clash refusal the lookup, a read or write by name, the branch-link lookup,
+and the three write rules raise carries the repair for its holders and tie; `meta.cohort` and `cohort.parent` refuse a
+former slug naming the current one and admit a completed meta's rewrite onto a completed cohort; and before the flip
+`arc cohort close` and `arc cohort remove` refuse `unsupported` while every in-repo arm's existing tests pass unchanged.
+
+### `[x]` **1.1 Build a branch link's repair beside the clash repair — § 3.3**
+
+- _Goal:_ A live branch-link tie names, per holder, the move that takes its link off the branch, and a completed one
+  says no lifecycle repair is available, naming each holder's UID.
+
+- _Outcome:_ Added `branchLinkRepair` with per-holder rename, catch-up, and Errand-close instructions on the holding
+  machine; completed holders retain the UID-bearing no-repair result.
+
+    - _Amended in:_ review-fix (A2).
+
+    - _Amended in:_ review-fix (A4).
+
+### `[x]` **1.2 Give each lookup arm's ambiguity its repair in both backends — § 3.1, § 3.3**
+
+- _Goal:_ Every reader that meets a clash through the lookup prints a repair that names a command which ends it: the slug
+  arm's `clashRepair`, the branch-link arm's `branchLinkRepair`, and the lineage, commit, and claim arms' narrowed text.
+
+    - `[x]` **1.2.a The ref backend**
+
+        - Lookup ambiguities use slug-tier repairs, branch-link repairs, or the UID-only instruction by lookup arm.
+
+    - `[x]` **1.2.b The reference backend**
+
+        - The reference lookup carries the same remedies and ranking facts over every supported holder pair.
+
+    - `[x]` **1.2.c The readers that print it**
+
+        - Lifecycle and paused-work renderers preserve the supplied remedy; view adds projected-file guidance only for
+          completed ties. Clash fixtures now carry the store's own recovery instruction.
+
+- _Outcome:_ Both backends give every lookup arm its applicable recovery; orphan, missing-worktree, and teardown reports
+  preserve the branch-link instructions, including catch-up moves for renamed holders.
+
+### `[x]` **1.3 Carry the tie and its repair on a refusal of a name — § 3.2, § 3.7**
+
+- _Goal:_ A typed read or write naming its record by slug alone refuses under a clash with the tie its ranking tier
+  gives and `clashRepair`'s remedy for it, so each reader that binds a name within one family names the repair.
+
+    - `[x]` **1.3.a Binding a reference by name**
+
+        - Name-binding refusals carry their preferred tier and derive the repair from each owner's recorded primary
+          role, preserving requested secondary kinds on the candidates.
+
+    - `[x]` **1.3.b Resolving a write's owner**
+
+        - Lineage owner ties name the intended origin by UID; other owner ties use the live-current clash repair.
+
+- _Outcome:_ Name-bound reads and writes preserve ranked recovery through session frames, archive, and rename;
+  cross-family clashes remain isolated to their own typed reads.
+
+### `[x]` **1.4 Observe an ambiguous record, and pass its remedy through the cohort, parent, and edge rules — § 3.5**
+
+- _Goal:_ An edit naming a clashed cohort or slug in `Cohort`, `Parent`, or `Depends On` refuses with the clash's
+  repair, while every rule reading through `observeRecord` behaves as today.
+
+    - `[x]` **1.4.a The observation**
+
+        - Added `observeNamedRecord` with explicit ambiguity evidence while preserving `observeRecord`'s existing type
+          and behavior for other rules.
+
+    - `[x]` **1.4.b The three rules**
+
+        - Cohort, Parent, and dependency checks preserve an ambiguous reference's remedy and argv; multiple dependency
+          problems combine their repairs under the status observation command. Other failures retain their fixed text.
+
+- _Outcome:_ Ref-store writes naming ambiguous cohort or dependency holders now report the applicable repair rather
+  than replacing it with generic field-edit instructions.
+
+### `[x]` **1.5 Name the repair in the standing clash reports — § 3.6**
+
+- _Goal:_ Status's `slug-clash` warning for two live work units, and Start readiness withholding a target under a clash
+  the standing selection reports, name `arc rename <uid> <new-slug>` for each holder.
+
+- _Outcome:_ Standing status warnings preserve each holder's UID, owner, and location and name both rename commands;
+  Start readiness carries the same repair when a former-name target resolves to a clashed current name.
+
+### `[x]` **1.6 Admit a cohort path segment only by its current slug — § 6.1**
+
+- _Goal:_ `meta.cohort` and `cohort.parent` refuse a path segment that resolves through a cohort's former slug, naming
+  the current one, so no text-matching membership reader misses a member edited back onto an old name.
+
+- _Outcome:_ Cohort membership checks resolve both path segments and reject former names with the current slug;
+  Parent writes apply the same rule. Absent first-segment documents retain the prior comparison, while unavailable
+  observations refuse the write. Flattened the path check to keep the canonical-name and Parent checks separate.
+
+- _Review correction:_ A path whose first segment names no cohort document now refuses as "parent cohort document is
+  absent" rather than keeping the prior comparison. A child can arrive after another writer removed its parent, and
+  matching `Parent` text alone then admitted a path naming no cohort; restoring the parent lets the write land.
+
+### `[x]` **1.7 Let a completed meta, and an open meta re-pointing its holding, name a completed cohort — § 6.2**
+
+- _Goal:_ A cohort rename can rewrite a closed subcohort's completed members and its open straggler, while an open meta
+  still cannot join a completed cohort.
+
+- _Outcome:_ Completed metas may name completed cohorts; open metas may only re-point an existing holding proved by
+  the prior leaf's resolved owner. Closed-subcohort Parent and open-straggler path rewrites land together, while new
+  joins and malformed prior holdings refuse.
+
+### `[x]` **1.8 Add the cohort heading and `Parent` writers — § 5.2**
+
+- _Goal:_ The cohort rename can rewrite a document's `# Cohort:` heading and its `**Parent:**` field through the kind's
+  own writers, every other line unchanged.
+
+- _Outcome:_ Exported exact heading and Parent writers through the cohort kind; both retain all unrelated bytes and
+  line endings. Parent writes return null when the document has no Parent field.
+
+### `[x]` **1.9 Register the cohort verbs and the UID operand forms, keeping every pre-flip arm as today — § 1.1, § 10**
+
+- _Goal:_ The new commands and operand forms exist, and before the flip every verb behaves as today but for one refusal
+  order: `arc cohort close` and `arc cohort remove` refuse `unsupported` naming what serves, and every operand is a slug.
+
+    - `[x]` **1.9.a The `arc cohort` group**
+
+        - Registered close/remove with distinct schemas, protected `--yes`, machine-readable output, input policies,
+          and no-input coverage. Completed the lazy-loading and help inventories; both dormant arms name tracked
+          cohort file edits and archive's sidecar sweep.
+
+    - `[x]` **1.9.b The operand schemas**
+
+        - Rename and Errand close/abandon accept slug or full UUID subjects, including upper case; rename's destination
+          remains slug-only. Help describes UID selection while existing operand labels remain stable.
+
+    - `[x]` **1.9.c The in-repo arms parse a slug once the store is open**
+
+        - In-repo subjects retain slug validation after store opening and existing stdin admission, through the same
+          input refusal paths. Earlier project-root refusals precede UUID rejection; lower-case UUIDs remain slugs.
+          Shared the Errand terminal store boundary without growing the existing handlers.
+
+        - _Amended in:_ review-fix (A3).
+
+- _Review correction:_ A malformed `arc cohort close` or `remove` operand refuses in the cohort commands' own refusal
+  envelope, `status: "refused"` with a `cohort.<operation>-input` rule and the help argv, like every other cohort
+  refusal, rather than the lifecycle verbs' `rejected` shape.
+
+## **Phase 2:** Selecting a subject by UID, and the Errand exits
+
+_Purpose:_ Build the subject operand every new verb shares — an exact UID scanned across the primary kinds a verb names,
+or a slug through the lookup — and prove it on its thinnest consumer, the Errand close and abandon that end a clash of
+two Errands.
+
+_Mode:_ `slice` — closes on a clash of two Errands ended by UID, end to end.
+
+_Exit criterion:_ Over the ref backend, with two live Errands holding one slug, the clash refusal names
+`arc errand close <uid>`; `arc errand close <uid>` closes the named Errand, clearing only its own finalized head locks,
+after which the slug resolves to the other; `arc errand abandon <uid>` lands the same way; a retry either prints repeats
+the UID given; closing one on the machine holding only the other's checkout refuses naming where to run it; and
+`arc errand promote <slug>` refuses naming the close, then lands on the remaining Errand.
+
+_Design decisions:_ This phase and every later one read through listings, history refs, or pull consumption, so they
+implement after `storage-ref-hardening` lands whole, with its listing scope, fault classes, and pull consumption as
+`spec-cohort-identity-verbs.md` § 11.1 expects them; should they be ready while more than about a week of it remains,
+that ordering returns to the Owner. The resolver built here serves Phases 3–5.
+
+### `[x]` **2.1 Scan the primary kinds a verb names for an exact UID — § 1.2**
+
+- _Goal:_ One scan selects an owner by exact UID across the primary kinds its caller names, a cohort among them, and
+  refuses a UID that selects more than one owner, naming each.
+
+- _Outcome:_ UID scans accept caller-selected primary kinds and list each in its own family, retaining the two work-item
+  defaults. Cross-family ties name each kind; incomplete listings preserve their own or their diagnostics' repairs.
+
+### `[x]` **2.2 Resolve a subject operand by UID or slug under each verb's type rule — § 1.1, § 1.2, § 1.3**
+
+- _Goal:_ Rename, the cohort verbs, and the Errand verbs share one operand rule from the flip: an operand `z.uuid()`
+  accepts selects that exact owner by its lowercased UID, any other is a slug through the lookup, and each verb applies
+  its own type rule to what is selected.
+
+- _Outcome:_ Added `resolveSubjectOperand` with exact UID scans, optional slug lookup, primary re-reads, and the three
+  verb type rules. Results retain the original operand, whole store refusals, or actionable unselected evidence; Errand
+  slug operands pass unchanged to their runtime.
+
+### `[x]` **2.3 Close and abandon an Errand by UID, the selected record replacing the slug — § 9.1, § 9.2**
+
+- _Goal:_ `arc errand close <uid>` and `arc errand abandon <uid>` end the named one of two clashed Errands, every step
+  that used the operand as the Errand's slug reading the selected record instead.
+
+    - `[x]` **2.3.a Resolving before the protection branch**
+
+        - Close and abandon select off-branch UID operands before protection dispatch. Missing or refused evidence renders
+          under `identity-conflict` with its condition and repair; thrown listing reads use `identity-read`.
+
+    - `[x]` **2.3.b Close**
+
+        - Close carries the selected primary through its initial read, slug checks, and finalized fallback. Its target guard
+          requires the exact local subject or a sole branch link before reading branch evidence.
+
+    - `[x]` **2.3.c Abandon**
+
+        - Abandon carries the selected primary through store reads and transitions. Its return plan keeps the original
+          operand and compares the holding Errand by owner UID, retaining another same-slug owner’s entries.
+
+    - `[x]` **2.3.d Retries repeat the operand given**
+
+        - Terminal authority keeps the original operand in confirmation and off-branch retries, defaulting to the slug for
+          callers that supply none.
+
+- _Outcome:_ Exact UID-selected exits work under same-slug clashes without changing pull order. Marker corroboration
+  now resolves a complete inventory’s overwritten slug entry through its full claim, preserving both checkout identities
+  and the original discovery evidence. Real-ref command scenarios cover isolated retirement, held-entry retention,
+  wrong-machine refusal and repair, and the unambiguous slug’s foreign-confirmation continuation.
+
+### `[x]` **2.4 Clear only the selected Errand's finalized head locks — § 9.2**
+
+- _Goal:_ Closing one of two clashed Errands never clears the head locks guarding the other's branch deletion.
+
+- _Outcome:_ Finalized lock recovery accepts an optional claim and matches it beside the slug and checkout receipt.
+  UID-selected close passes its validated claim; slug and in-repo recovery retain their existing slug-only match.
+  A real-ref UID retry clears its own persisted HEAD receipt while preserving the other live Errand’s exact receipt.
+
+### `[x]` **2.5 Pass the repair through promote's refusal, and recover by the promoted meta's receipt — § 9.3**
+
+- _Goal:_ Under a two-Errand clash `arc errand promote <slug>` names `arc errand close <uid>`, and a promotion under
+  `--name` that stops after its role write resumes when rerun by its new name.
+
+    - `[x]` **2.5.a The refusal**
+
+        - `readPrimary` retains each lookup or read refusal’s condition and remedy text in the reason promotion renders.
+          The two-Errand clash therefore names its close-by-UID repair.
+
+    - `[x]` **2.5.b The recovery**
+
+        - Promotion history matches the meta’s exact `promotionReceipt`, retaining owner, target, branch-link, provenance,
+          and recorded-cut checks independently of the retry operand.
+
+- _Outcome:_ Closing the named UID repairs a two-Errand clash and lets promotion take the remaining slug. After a role
+  write leaves a former-name tie, a retry by the promoted name settles the original Errand claim without changing the
+  role-written meta or its recorded cut.
+
+### `[x]` **2.6 A clashed Errand's exit end to end** — validate exit criterion at segment scope
+
+- _Goal:_ The segment's exit criterion holds end to end: a clash of two Errands names its repair, the repair runs by
+  UID on either verb, and the slug then resolves to the remaining Errand, which promote then takes.
+
+- _Outcome:_ The real-ref registered-command scenario passed: UID close and abandon retire only the selected owner,
+  retain the other holder and its locks or entries, and leave its slug selectable. Retries retain the UID; the
+  wrong-machine stop repairs from the selected checkout; promotion names the close and takes the remaining Errand.
+
+## **Phase 3:** Counting a cohort's holders by resolution, and retiring a cohort
+
+_Purpose:_ Count a cohort's holders by resolving each path segment rather than matching its text, on every retiring path
+and at the store's backstop, and give a cohort nothing else will retire its explicit close and removal.
+
+_Mode:_ `slice` — closes on a cohort closed and removed end to end, never under a record that holds it.
+
+_Exit criterion:_ Over both backends, `arc cohort close` refuses a cohort an open stub names by a former slug, naming
+what settles it, and closes it once the stub leaves the cohort; archive of that cohort's last current-path member lands,
+leaves the cohort open, and reports the stub; over the ref backend, a clash between two other cohorts blocks neither
+close nor archive's in-batch close; an abandon leaving a cohort with nothing open names `arc cohort close`, which then
+closes it; `arc cohort remove` removes a cohort nothing ever named and refuses one an archived member names; each writes
+nothing without `--yes`; and a member a pull lands naming a removed cohort refuses archive naming the edit to its
+`Cohort`, then archives after it.
+
+### `[x]` **3.1 Resolve each holding of a cohort once per view — § 7.1**
+
+- _Goal:_ One helper says which records hold a cohort — a member's `Cohort` through each segment, a subcohort's
+  `Parent` through its one — whether alone or ambiguously, and one builder says how to re-point a holding, so every
+  retiring path and both renames count and repair holdings alike.
+
+    - `[x]` **3.1.a The helper**
+
+        - Added `observeCohortHoldings` with cached typed segment resolution, UID-based sole and ambiguous holdings,
+          current path evidence, and child members retained from the caller's candidate view. Unavailable reads fail closed.
+
+    - `[x]` **3.1.b The edit builder**
+
+        - Added structured UID-bearing field edits with open-member clears before Parent and restorations afterward.
+          Ambiguous child paths require repair first; closed subtrees stay with an ambiguous name's keeper, and unsafe
+          clear/restore recipes onto a completed child are withheld.
+
+### `[x]` **3.2 Count holders by resolution in the open-members rule and archive's closeout rule — § 7.2**
+
+- _Goal:_ No close the store admits — archive's in-batch close, `arc cohort close`, or `arc cohort remove` — leaves an
+  open record that holds the cohort, a record on a former slug included, and none admits on evidence it cannot read.
+
+    - `[x]` **3.2.a `cohort.open-members`**
+
+        - Lists open candidates after the batch and resolves before it, retaining former and relevant ambiguous
+          holdings. Refusals name exact holders and ordered repairs; closed-child advice uses retained resolution-view
+          Parent evidence without adding closed candidates to the open count.
+
+    - `[x]` **3.2.b Archive's closeout rule**
+
+        - Counts resolved holdings in each view and admits retaining a cohort still held through a former name.
+          Removed the text-only observer; unavailable segment evidence refuses both rules.
+
+### `[x]` **3.3 Leave a held cohort open at archive, and report the record on a former slug — § 7.2**
+
+- _Goal:_ Archiving a cohort's last current-path member lands the member and leaves the cohort open where a record on a
+  former slug still holds it, reporting that record with its edit, rather than refusing or closing the cohort under it.
+
+- _Outcome:_ Archive uses identity-bearing lifecycle candidates and resolved Parent holdings, excluding the completing
+  subject and subcohorts already closing in the batch. Former-name holders keep the cohort open and are reported only
+  from the final persisted closeout plan with no writes, including publication recovery and nested reruns. Registered
+  CLI tests can construct dependencies after the module reset, keeping real Git error identities coherent.
+
+    - _Amended in:_ 5.R (A7).
+
+### `[x]` **3.4 Close a cohort — § 8.1, § 8.5**
+
+- _Goal:_ `arc cohort close <cohort>` places a cohort completed once no open record holds it, writing only with `--yes`.
+
+- _Outcome:_ Added off-branch close with shared slug/UID selection, conflict and completed-state refusal, resolved open
+  holder diagnostics, and ordered field repairs. Confirmation gates one version-bound batch without publication; JSON
+  and text report the assigned placement, while failed result reads retain the persisted close. The in-repo arm keeps
+  its unsupported result.
+
+- _Review correction:_ Close carries the selected version and conflict set into atomic admission. A conflict-only
+  arrival now refuses without retirement; resolution and a fresh confirmed command succeed on both backends.
+
+### `[x]` **3.5 Remove a cohort — § 8.2, § 8.5**
+
+- _Goal:_ `arc cohort remove <cohort>` removes a cohort no record has ever held, so no record names a removed one.
+
+- _Outcome:_ `runCohortRemove` selects the cohort once, checks conflicts and every resolved holder, and removes the
+  unheld document in one confirmed `cohort-remove` batch without publication. Close and remove share plan and result
+  rendering; completed members and closed subcohorts retain the document. A named-history retry re-reads the selected
+  UID and repeats the complete holding check with a fresh version, preserving a live cohort that reuses its slug.
+
+- _Review correction:_ Removal also binds the selected primary's conflict set at admission. Both backends reject a
+  newly arrived conflict despite its unchanged primary version, retain the document, then remove it after resolution
+  and a fresh confirmed retry.
+
+- _Review correction:_ Close and remove previews name the previewed cohort's UID in their `--yes` remedy, so a slug
+  rebound between preview and confirmation cannot redirect it to another cohort. Both backends assert the remedy.
+
+### `[x]` **3.6 Report a cohort left with nothing open from abandon, close, and remove — § 8.3, § 7.2**
+
+- _Goal:_ Wherever a verb's batch leaves a cohort with no open holder, its result names the command that retires it, and
+  that command never refuses on a holder the report missed.
+
+- _Outcome:_ `reportEmptyCohorts` evaluates each resolved cohort after the batch, using open and all-record holdings
+  to recommend close or remove without retiring it automatically. Abandon appends the commands to its notices;
+  close and remove carry structured parent reports in JSON and render them in text. Unreadable evidence remains an
+  advisory beside the landed operation. Tied and UUID-shaped names use the intended owner's UID.
+
+### `[x]` **3.7 Refuse a member's cohort read on a removed cohort, naming the edit to its `Cohort` — § 8.4**
+
+- _Goal:_ A member a pull lands naming a removed cohort is told how to repair it, where the store's not-found remedy
+  names a pull that cannot.
+
+- _Outcome:_ Archive and rename contextualize a missing cohort with the member's identity, full `Cohort` path, and
+  the edit that clears or re-points it. Other refusals retain their original recovery. Two-store pulls cover missing
+  leaves and parents; each command completes after the field edit. Session context still treats the missing document
+  as none.
+
+### `[x]` **3.8 A cohort retired end to end** — validate exit criterion at segment scope
+
+- _Goal:_ The segment's exit criterion holds end to end: every retiring path refuses or stays open while a record holds
+  the cohort, and each report names a command that then lands.
+
+- _Outcome:_ The registered-command scenarios passed over both backends: former-name stubs block close until cleared,
+  archive retains and reports them, and unrelated cohort clashes block neither close nor archive closeout. Reported
+  retirement commands execute; archived holders prevent removal; confirmation previews write nothing; and a pulled
+  member naming a removed cohort archives after its field repair. Closeout letters still follow stored `Parent` text.
+
+## **Phase 4:** The work-unit rename under a clash
+
+_Purpose:_ Let `arc rename` select a work unit by UID or slug and land under a clash of its own slug, changing only what
+names its subject: the target through the shared admission check, the edges a reused slug settles, the references that
+resolve to the subject alone, its own checkout found by UID, and each branch step decided from who links the branch.
+
+_Mode:_ `slice` — closes on a clash of two work units repaired by renaming one by UID, end to end.
+
+_Exit criterion:_ Over the ref backend, with two live work units holding one slug, the clash refusal names
+`arc rename <uid> <new-slug>`; the rename by UID lands, rewrites no other record naming the slug, reports each with its
+edit, and leaves the slug resolving to the other holder; with both linking one branch, the rename moves only the
+subject's checkout and keeps the old remote branch, and the catch-up run moves a branch the first run left; renaming the
+second holder away reports the former-slug tie; and a rename onto an archived work unit's slug lands, on a clone lacking
+its history refs, discharging the edges naming it.
+
+### `[x]` **4.1 Select the rename's subject inside the rename, and repeat the operand in retries — § 1.3, § 2.1**
+
+- _Goal:_ `arc rename <slug|uid> <new-slug>` starts from the record Task 2.2's resolver selects, never reads its subject
+  by name again, and repeats the operand the person gave in every retry and continuation it prints.
+
+    - _Amended in:_ 4.11.R (A1)
+
+    - `[x]` **4.1.a The entry contract**
+
+        - Rename resolves its operand inside each retry, dispatches an Errand to its exit remedy and a cohort to the
+          temporary unsupported arm, and passes the selected primary to `readStoreRenameSubject`. Results retain the
+          exact subject reference; ordinary same-name requests refuse unless history identifies a prior rename.
+        - _Retired in:_ Phase 5
+
+    - `[x]` **4.1.b The retry and the continuation**
+
+        - Rollback recovery and partial-push continuations retain the exact supplied operand. Backend-dependent
+          admission lets a current-name continuation reach the store while preserving the in-repo same-name refusal.
+
+- _Outcome:_ A real rejected push retains the uppercase UID in its remedy; retries by the current name retain that
+  invocation's operand and complete without changing the record, marker, or HEAD. Fresh same-name requests refuse;
+  archived renames retain their placement. Physical steps use the historical origin independently of the operand.
+  Integrating advisories retain their text-based origin-name matching.
+
+### `[x]` **4.2 Give the rename's result one report, and `--json` — § 4, § 2.5, § 2.7**
+
+- _Goal:_ Everything a rename leaves to the person — references, a member heading, a former-slug tie, a kept branch —
+  reaches them in one typed report, in text and in `arc rename --json`, a failed push included.
+
+    - `[x]` **4.2.a The report**
+
+        - `RenameReport` preserves ordered per-record edits, exact document identities and heading repairs, former-slug
+          remedies, and retained branches with reasons and catch-up guidance. Both landed result arms carry it; failed
+          remote completion retains the report, untouched links have their own reason, and in-repo results carry an
+          empty one. Text document labels include keyed companions' keys.
+
+    - `[x]` **4.2.b `--json`**
+
+        - The registered machine-mode option and schema emit one typed landed result with its report and reference,
+          including a partial result's reason and remedy. Refusals use the shared lifecycle envelope and status fallback.
+          In-repo results carry a null reference and empty report; their text output is preserved.
+
+- _Outcome:_ A real rejected push keeps the report and original UID retry in either presentation; repairing it and
+  rerunning by current name completes with unchanged records and marker. Before the flip, a rejecting commit hook
+  yields a JSON refusal and the repaired attempt returns an empty report.
+
+### `[x]` **4.3 Admit the target through the creation check — § 2.2**
+
+- _Goal:_ A rename may take a slug a completed work unit holds, as creation may, and refuses any slug a live holder or a
+  refusing completed holder has, naming each holder and telling the person to choose another slug.
+
+- _Outcome:_ Work-unit targets use shared creation admission with the exact writing owner. An archived current-name work
+  unit's slug is reusable; refused targets name each holder and carry rename-specific guidance instead of clash repairs.
+  Current-name continuations and a return to the owner's former name land; a conflicted continuation waits for repair.
+  The cohort's strict namespace lookup is retained separately.
+
+### `[x]` **4.4 Settle the edges naming a reused slug in the rename's batch — § 2.3**
+
+- _Goal:_ A rename onto a reused slug leaves no edge naming the subject itself or the slug's prior holder unsettled where
+  the rename may write it, and refuses where only a dependent's owner can settle one.
+
+    - `[x]` **4.4.a The batch carries observations**
+
+        - Prepared writes carry read-only observations into their atomic batch. Versions, conflict sets, and absences
+          remain backend-checked without writing the observed records; refreshed or restored evidence permits retry.
+
+    - `[x]` **4.4.b Stubs' edges**
+
+        - Stub settlements seed the rename sweep, sharing one put per stub. Original versions and provider observations
+          bind the batch. A newly observed stub outside the acquired groups forces a retry; started dependents and stubs
+          naming both slugs retain the dependency refusal until their edges are repaired.
+
+    - `[x]` **4.4.c The subject's own edge**
+
+        - The subject's target dependency takes its proven prior-provider disposition before the sweep; unproven edges
+          refuse with explicit repair and retry. Compatible shared observations coalesce, contradictory observations
+          refuse, and every resolved provider remains read-only evidence checked by the batch.
+
+### `[x]` **4.5 Rewrite only the references that resolve to the subject, and report the rest — § 4**
+
+- _Goal:_ A work unit's rename changes another record's reference to its old slug only where that slug, resolved among
+  work items, names the subject alone, and reports every reference to the subject it leaves.
+
+    - `[x]` **4.5.a Resolving once**
+
+        - Family-scoped resolution gates shared stub and selected-cohort reference rewrites. Ambiguous references remain
+          with field and text repairs; other holders' references stay unreported. Started work keeps its authored edges
+          and prose, and publication failures retain the reference report from the landed batch.
+
+    - `[x]` **4.5.b The member heading**
+
+        - Another current or former name holder in the same resolved cohort keeps the heading unchanged and produces its
+          exact document-line repair, including completed holders and former cohort paths. Unavailable holding evidence
+          refuses with the original retry; repair permits continuation, and a distinct cohort permits the heading rewrite.
+
+- _Review correction:_ Shared admission refuses a newly visible required reference participant before publishing any
+  rename mutations. Preparation binds acquired records and report-only dependency and waits-on owners separately, so
+  fresh retry includes shared and owned artifact rewrites or repair rows without changing started content. Both backends
+  exercise the boundary through CLI dispatch; unrelated started/completed prose and plain mentions remain allowed.
+
+- _Fix-check correction:_ Required citations in arriving owned artifacts fence admission independently of shared-name
+  resolution. Archived UID rename with live name reuse refuses without publishing, then fresh preparation rewrites
+  owned drafts, specs, task lists, notes and keyed companions while preserving the live holder and its shared references.
+  Both backends cover subject/other resolution; native CLI dispatch also covers a concurrent ambiguous name read, which
+  the memory fixture's identity-index read does not model.
+
+- _Self-reference correction:_ Admission uses preparation's existing self-title and backticked `--plan` transformation
+  over the same group-relative filenames. Arriving owned conventional artifacts always fence; shared research/analysis
+  companions fence only under subject resolution. Prepared shared edits recheck current name authority. Both backends
+  cover title-only and operand-only refusal/retry, other-holder preservation, unsupported forms and non-Planning prose;
+  native coverage includes ambiguous shared-name resolution.
+
+- _Review correction:_ The reference sweep keys each owner's virtual directory by UID, so two Planning stubs sharing
+  a name are both swept rather than one silently skipped while its dependency row is still reported. Native CLI
+  dispatch covers two namesake stubs citing the subject.
+
+- _Review correction:_ Under an ambiguous name, the batch observes each acquired record it leaves unwritten that yields
+  a report row, at its read version and conflict set. A Planning stub citing the subject that arrives before the batch
+  now refuses it through `rename.preparation`, and the retry reports the stub; the native case landed without the row
+  before the change.
+
+    - _Amended in:_ 5.R (A7).
+
+### `[x]` **4.6 Pull history refs round after round — § 2.6**
+
+- _Goal:_ A rename batch that writes completed records lands on a clone lacking their history refs, pulling each round
+  only the refs the backend names.
+
+- _Outcome:_ Empty or already attempted ref sets return the latest refusal; stopped pulls preserve their notices, and
+  every retry keeps the original operand and recovery guard. Archived subjects and closed-cohort headings now land
+  together after their required histories are restored, while unrelated histories remain unfetched.
+
+- _Review correction:_ Successful selection pins the owner and record kind through every recovery round. Both native
+  layouts now retain the archived work unit when its history pull also imports a higher-ranked live namesake cohort;
+  the cohort remains unchanged and the original operand stays available for reporting and recovery.
+
+### `[x]` **4.7 Report a former-slug tie the batch leaves — § 2.7**
+
+- _Goal:_ Renaming the second holder of a repaired clash away from the slug reports the former-slug tie it leaves and its
+  repair.
+
+- _Outcome:_ The post-batch lookup reports former-name ties with the store's condition and repair, on first runs and
+  continuations. Unavailable or throwing lookups remain visible diagnostics while publication follows its existing path,
+  and resumed runs preserve the landed record batch.
+
+### `[x]` **4.8 Pin the subject's checkout by UID, and type the unbound-marker refusal — § 2.4**
+
+- _Goal:_ Under a clash the rename never takes the other holder's checkout, and an unbound marker naming the slug refuses
+  before the batch with the holders and the exits that recover each checkout, in text and `--json`.
+
+- _Outcome:_ Rename retains the shared lookup's typed unbound result and renders its checkout-scoped exits in text and
+  JSON before branch or record changes. Multiple-marker diagnostics remain intact; release permits rename and exact
+  re-materialization of each holder, while bound checkouts follow only the selected UID.
+
+### `[x]` **4.9 Decide the first run's branch steps from the branch's link lookup — § 2.5**
+
+- _Goal:_ Where two holders link one branch, a first run moves only its own subject's branch and checkout, never
+  deletes a remote branch another live holder links, and reports each branch it keeps with its reason.
+
+    - `[x]` **4.9.a The local branch**
+
+        - First-run branch lookup and the UID-selected checkout's actual branch govern local movement and its link.
+          Shared branches stay unchanged elsewhere with a UID-specific catch-up command; sole holders retain the missing
+          local-branch refusal and can retry after restoration.
+
+    - `[x]` **4.9.b The remote branches**
+
+        - Published moved links push their new name; created old refs require permitted ownership and publication
+          preservation before deletion. Kept published refs report retention, and conditional manual-delete remedies
+          require the lookup to select the subject, independently of adoption.
+
+- _Outcome:_ Checkout authority can permit a local move without granting remote deletion authority. The same captured
+  branch lookup governs each first-run decision, preserving shared or unobservable remote ownership and reporting the
+  remaining branch and its applicable action.
+
+### `[x]` **4.10 Keep the old remote branch on every continuation — § 2.5**
+
+- _Goal:_ A rerun after a failed push or a refused delete completes the rename without deleting the old remote branch,
+  and the preservation refusal tells the person how to settle the branch whichever holder's it is.
+
+    - _Amended in:_ 4.11.R (A1)
+
+- _Outcome:_ Continuations publish the remaining new ref and report the old remote kept, without repeating record or
+  checkout changes. Store preservation refusals distinguish this work unit's commits from another holder's branch;
+  their retry keeps either safely, while tracked renames retain the existing default remedy.
+
+### `[x]` **4.11 Move a branch the first run left through the catch-up run — § 2.5, § 3.3**
+
+- _Goal:_ Rerunning the rename with the subject's current slug on the machine holding its checkout renames the branch a
+  first run left and moves its link, ending the branch-link tie.
+
+- _Outcome:_ Catch-up selects the UID-held branch across retained aliases and lands only its observed primary link.
+  Refused batches restore the branch and upstream while markers and folders stay fixed. Shared branch ownership
+  resolves singly afterward; a failed push follows A1’s exact Git action without changing the landed records.
+
+### `[x]` **4.11.R Preserve the pending push after catch-up publication fails**
+
+- _Goal:_ A catch-up whose link-only batch lands but publication fails retains its selected reference and report and
+  returns the exact repository-scoped Git push that finishes publication without further store or checkout changes (A1).
+
+### `[x]` **4.12 A work-unit clash repaired by rename end to end** — validate exit criterion at segment scope
+
+- _Goal:_ The segment's exit criterion holds end to end: a clash of two work units refuses naming the rename, the rename
+  by UID lands changing only what names its subject, and the slug then resolves to the other holder.
+
+- _Outcome:_ Registered commands carry the clash refusal through UID repair and exact omitted-reference reports,
+  preserve the other checkout and shared remote, catch up the selected branch, and report the former-name tie. A cold
+  clone reuses an archived target and discharges edges in the same batch through successive history rounds in both
+  layouts. A1's exact pending push publishes the actual new branch without another record or checkout change.
+
+## **Phase 5:** The cohort rename
+
+_Purpose:_ Rename an open cohort as one version-checked batch the store's checks admit — its document, heading, and own
+`Parent`, every record holding it alone, and the references to its filename — whatever its members' states, on a clone
+missing their history refs.
+
+_Mode:_ `slice` — closes on a parent cohort with members in every state renamed in one batch, end to end.
+
+_Exit criterion:_ Over both backends, renaming a parent cohort with a started member, a completed member, an open
+subcohort, and a closed subcohort with a completed member lands in one batch, and over the ref backend on a clone
+lacking the completed records' history refs, after which every one of them names the new slug and the document's
+heading, the subcohorts' `Parent`, and the stubs' and open documents' filename references name it; over the ref
+backend, renaming one of two cohorts sharing a slug rewrites none of the other's members and reports a subcohort naming
+the slug with the edits that re-point it, in order, which then land; and an edit putting a member's `Cohort` back on the
+old name refuses naming the current one.
+
+### `[x]` **5.1 Write a cohort's document, heading, and own `Parent` under its new name, in one batch — § 5.1, § 5.2**
+
+- _Goal:_ `arc rename <cohort> <new-slug>` renames an open cohort's document, recording its former slug, with its
+  heading and its own `Parent` rewritten so its members' rewritten paths agree with it, in one version-checked batch
+  that writes only what changes.
+
+    - `[x]` **5.1.a The arm and its batch**
+
+        - `runCohortRename` writes the selected UID's heading and canonical Parent once, observing its unchanged parent.
+          Concurrent parent changes refuse atomically. Cohort results retain source, target, reference, and report in text
+          and JSON; a history-proven rerun changes no records or history.
+
+### `[x]` **5.2 Rewrite every record holding the cohort alone, and report the ambiguous ones — § 5.1, § 4**
+
+- _Goal:_ Every member and subcohort that holds the cohort alone names its new slug after the batch, whatever its state,
+  and none of another cohort's records sharing the slug is touched.
+
+- _Outcome:_ Cohort-family resolution composes current and former member paths and open or closed Parent fields into
+  one batch, preserving completed placement and started prose. Every unchanged read is observed. Ambiguous holdings
+  carry ordered edits that land; closed ambiguous subtrees retain their Parent and member paths, including members
+  on unique former aliases, with exact identity rows and an explanatory advisory.
+
+- _Review correction:_ Atomic admission re-derives all relevant holdings and supported citations against captured
+  participants. Direct/completed membership, descendants, Parent owners and new filename participants cannot be
+  omitted; refusal preserves all rename state and fresh preparation includes them. Coupled retention and existing
+  closed-child restrictions remain enforced; unrelated arrivals do not invalidate a prepared rename.
+
+- _Review correction:_ A parent's rename refuses before its batch, with nothing written, while a closed subcohort whose
+  `Parent` names it holds an open member the batch cannot settle: a tied first segment or leaf, or a path disagreeing
+  with the subcohort's `Parent`. The refusal names the member owner's `Cohort` clear and, for a first segment tied
+  between live cohorts holding it as their current name, the other holder's UID rename; that rename no longer refuses
+  over a tied path whose closed leaf's `Parent` names another cohort, and retained closed groups stay out of the repair
+  planner. Native CLI cases for the three causes refuse through `cohort.parent` before the change, then refuse naming
+  their exits and land after one; an open subcohort with a disagreeing member still lands with both retained.
+
+- _Review correction:_ The rename makes the Parent check's comparisons over its planned batch with the check's own
+  function, for every cohort whose `Parent` it moves and for a closed one whose group it retains, and refuses before the
+  batch wherever the check would, naming each conflicting record's exits by resolution: a live namesake's UID rename
+  for its own agreeing member or subcohort, a tied first segment's other holder's UID rename, an open subcohort's own
+  UID rename, the member's edit to the subcohort's current path, then the clear. A tied path over a closed leaf whose
+  `Parent` is not the renamed cohort stays out of the repair planner and is reported, with the edit to a top-level
+  leaf's own slug. Native CLI cases and an enumeration matrix over name ties, open and closed subcohorts, agreeing and
+  disagreeing paths, and namesakes with and without subcohorts assert that each refusal writes nothing and that every
+  exit it names lands.
+
+- _Review correction:_ The rename also evaluates the Parent check's conditions on the cohort each moved `Parent` names,
+  with the check's own function over its planned batch: the renamed cohort as planned for a subcohort's `Parent` moved
+  to the new slug, or the cohort its own re-pointed `Parent` names. Where that cohort is completed or nested it refuses
+  before the batch, naming the renamed cohort's un-nesting. The clear's closed-subcohort note follows the member's
+  resolved leaf. The enumeration matrix adds a renamed cohort nested by a checked write over a closed subcohort, nested
+  over an open subcohort, and re-pointing its own `Parent` onto a completed or a nested cohort, each refusing with
+  nothing written and landing after the named exit, one combined with a member conflict, and a nested cohort with no
+  subcohort, which lands.
+
+    - _Amended in:_ 5.R (A7).
+    - _Amended in:_ 5.R2 (A8).
+    - _Amended in:_ review-fix (A9).
+    - _Amended in:_ review-fix (A10).
+    - _Amended in:_ review-fix (A11).
+
+### `[x]` **5.2.R Keep cohort repair planning reachable — A6**
+
+- _Goal:_ Under A6, a parent UID rename retains unresolved companion groups and reports their prerequisite identity
+  repairs; fully proved field repairs include every Parent prerequisite and execute in order.
+- _Work:_ Add failing nested-clash and former-Parent regressions, correct the shared planner and every consumer, then
+  execute the full repair sequences. Cover current/former and sole/ambiguous segments, open/completed members and
+  closed-child restrictions on both operational backends where they can form the state, including native CLI coverage.
+- _Outcome:_ Native parent UID rename lands under simultaneous parent/child clashes while every unresolved field stays
+  unchanged; its report names all retained owners and the companion prerequisite. Owner-chosen clear → Parent → restore
+  continuation lands for open and completed members. Both backends execute the former-Parent repair sequence; shared
+  planner cases cover separate aliases, unavailable evidence and completed-parent refusal. Original closed-child and
+  mixed-state/history cases remain covered. Full merge verification passed 20 checks, including all six store shards
+  and the full run of 431 eligible suites; increment, related feedback and both type checks passed.
+- _Review:_ The independent fix check found one minor archive reporting omission: selecting former-name holders before
+  repair planning dropped a current-prefix sibling needed for Parent changes. Archive now uses that selection only to
+  trigger the notice and plans over all holdings. A native CLI regression failed with three advertised edits, then
+  passed with five; it applies every edit through the production store and successfully retries archive. The approved
+  correction uses focused verification; no further independent fix check was selected for this minor repair.
+- _Follow-up:_ Hosted CI exposed an order-dependent prerequisite check in the shared planner. Complete discovery now
+  finds every provable Parent group before rejecting other-prefix members. Reversing the same open or completed
+  holdings preserves semantic repairs, and both pinned native UID orders apply every advertised edit and retry archive.
+  The three transition regressions and their affected suites pass all 75 cases. Full verification passed all 20 selected
+  merge checks, including all six store shards over 431 eligible suites.
+
+### `[x]` **5.3 Rewrite references to the document's filename where the old slug names the cohort alone — § 5.1, § 4**
+
+- _Goal:_ Stubs and open cohort documents citing `` `cohort-<old>.md` `` name the new file after the batch where the old
+  slug names the cohort alone, each such reference is reported where it is ambiguous, and no work-item reference sharing
+  the text changes.
+
+- _Outcome:_ The cohort kind rewrites exact filename citations in open documents and whole Planning stub groups,
+  excluding cut maps, while preserving work-item edges and started or closed prose. Ambiguous citations carry exact
+  document, companion key, line, and replacement in text and JSON; all acquired group records join the batch observations.
+
+- _Review correction:_ Each record yielding an ambiguous filename row joins the preparation's evidence, so a citing stub
+  companion arriving before the batch refuses it through `rename.preparation`, and the retry reports the citation's
+  edit. The native case landed without the row before the change.
+
+### `[x]` **5.4 Refuse a closed cohort and a taken target — § 5.1, § 5.4, § 5.5**
+
+- _Goal:_ A cohort is never renamed once closed, and never onto a slug any holder's name resolves through.
+
+- _Outcome:_ Closed subjects refuse without writes; strict target lookup names current, former, completed, and tied
+  holders, preserves lookup evidence, and offers another slug. Text-only ambiguity remedies render as JSON. A cut's map
+  stays unchanged by rename; revising to a fresh cohort placement moves its stubs and lets finish retire the origin.
+
+### `[x]` **5.5 Land the mixed-state batch through the history rounds — § 5.3**
+
+- _Goal:_ The cohort rename's batch, whose completed members and closed subcohorts Task 5.2 writes in place, lands
+  whatever its holders' states, on a clone missing their history refs.
+
+- _Outcome:_ Mixed-state parents rename in one batch on both backends; cold native clones fetch only the completed
+  holdings' required histories in both layouts. Late open members re-point without changing placement. Ambiguous
+  completed-member repairs use the exact planned Parent content and execute after the batch, retaining captured
+  ownership evidence and the original observations; retained closed ambiguous subtrees stay unchanged.
+
+### `[x]` **5.R Re-derive each prepared store write at admission — § 12 (A7)**
+
+- _Goal:_ Under A7, a rename's batch lands only where preparing it against the state it lands on yields the same writes
+  from the same evidence, and archive's closeout binds each cohort it completes, so no record arriving, changing or
+  gaining a conflict between preparation and submission goes unaccounted for.
+
+- _Outcome:_ Both renames re-plan at admission under `rename.preparation`, and archive's closeout binds each cohort it
+  completes. Every seeded arrival refuses with nothing written and lands on a fresh retry; unrelated writes admit.
+
+    - `[x]` **5.R.a Arrivals refuse — failing first**
+
+        - A boundary harness on both backends, where the state can form, injects one store change between preparation
+          and batch per read family: a quiet owned companion, a second retired lineage, a Candidate, a branch-link
+          holder, name resolution changing either way, an Integrating dependent, a missing segment's cohort, a namesake
+          taking over a former name, and a conflict on a cohort archive completes; plus an unrelated write. Each arrival
+          case fails against the current admission.
+        - _Outcome:_ `store-prepared-write-admission.test.ts` injects at the batch boundary on both backends: the
+          unrelated write, Candidate, quiet owned companion, departing and arriving namesakes, Integrating dependent,
+          branch-link holder and archive's cohort conflict. Against `a0c41a9c4b` the seven seeded cases and the archive
+          conflict fail on behavior; the arriving namesake and Integrating dependent were already refused there and
+          fail only on the new rule. The existing cohort arrival suites cover the missing segment's cohort and namesake
+          takeover. A second retired lineage cannot form locally, since `work-item.slug-edges` refuses the second
+          generation while the stub's edge names the first; the batch-differs comparison that catches it is exercised
+          by the arriving namesake.
+
+    - `[x]` **5.R.b Preparation as a function of a store view, with its evidence**
+
+        - Both rename preparations take every store-derived decision themselves, including Candidate presence, lineage
+          settlement and the branch link's holders, and return their evidence: the records and exact absences that feed
+          a write, a report row or an advisory.
+        - _Outcome:_ `planStoreRename` and `prepareCohortRenameBatch` read through a store view. The subject read
+          returns the Candidate absence and Integrating dependents; preparation adds resolution ties and the branch
+          link's holders, decides whether the link moves, and observes the records it writes. The blanket observation
+          and the verb's no-op puts are gone: the verb submits exactly the prepared writes (`submitStoreRename`).
+
+    - `[x]` **5.R.c Admission re-plans**
+
+        - One check per batch, on the primary, rebuilds the request from the batch, runs preparation over `before`, and
+          admits only on success, with every fresh write in `after` and its evidence observed or written by the batch.
+          The rename admission predicates and the target recheck are removed.
+        - _Outcome:_ `checkPreparedRename` (`rename.preparation`) replaces both checks. Each acquired record must land
+          as the fresh preparation writes it or unchanged, which also refuses a write the fresh plan withholds; § 12.1
+          now says so. Fixtures that build states the verb cannot reach rename under `fixtureRenameProvenance`.
+
+    - `[x]` **5.R.d Archive's closeout observes the cohorts it completes**
+
+        - The transition batch and the stored closeout observe every cohort document they complete, so a conflict
+          arriving on one refuses archive and leaves the cohort open.
+        - _Outcome:_ Both batches observe each cohort document they complete; a conflict arriving on the closing
+          cohort refuses archive with nothing written.
+
+    - `[x]` **5.R.e Revalidate**
+
+        - Every 5.R.a arrival refuses with nothing written and lands on a fresh retry, or admits equal to fresh
+          preparation; the unrelated write admits. The segment scenarios of 3.8, 4.12 and 5.6 still hold.
+        - _Outcome:_ Locally, 192 rename, archive, cohort and fixture-rename files (2,101 tests) pass, including the
+          rename and staged-archive E2E files, with both type checks and the increment gate. Hosted CI runs once at
+          convergence.
+
+### `[x]` **5.R2 Retain a holding whose path disagrees with its leaf's Parent — § 5.1 (A8)**
+
+- _Goal:_ Under A8, a cohort rename leaves a `Cohort` path whose first segment is not its leaf's current `Parent`
+  unchanged and reports the edit to the leaf's current path, so such a holding no longer refuses the rename.
+
+- _Outcome:_ Cohort rename preparation keeps a disagreeing `Cohort` path and reports its edit to the leaf's current
+  path; renaming the leaf or the stale first segment lands on both backends.
+
+    - `[x]` **5.R2.a Disagreeing paths are retained — failing first**
+
+        - A completed member holds `p/l` after `l` moves under `q`. Renaming `l`, and renaming `p`, each land with that
+          `Cohort` unchanged and its repair edit reported; both cases fail against the current rewrite.
+        - _Outcome:_ Four cases in `store-ref-cohort-rename-cli.test.ts`, leaf and first segment on both backends,
+          refused through `meta.cohort` at `7407473e6e`.
+
+    - `[x]` **5.R2.b Retain and report**
+
+        - Cohort rename preparation treats a holding whose path disagrees with its leaf's current `Parent` as
+          retained: no write, and a § 4 report row whose edit is the leaf's current path.
+        - _Outcome:_ `consistentLeafPath` compares the path's first segment with the leaf's resolved `Parent` by
+          identity, so a former-slug segment still agrees and is rewritten; admission re-plans the same decision.
+
+    - `[x]` **5.R2.c Revalidate**
+
+        - Criterion 22 holds on both backends where the state forms; the 5.6 segment scenario still holds.
+        - _Outcome:_ Locally, 192 rename, archive, cohort and fixture-rename files (2,104 tests) pass, with both type
+          checks and the increment gate.
+
+### `[x]` **5.6 A cohort renamed end to end** — validate exit criterion at segment scope
+
+- _Goal:_ The segment's exit criterion holds end to end: one batch renames a cohort and every record holding it alone,
+  in every state, and the store's checks then hold every path to the new slug.
+
+- _Outcome:_ The mixed-state batch lands on both backends and cold native clones in both layouts, preserving
+  placement and rewriting eligible filenames. Ordered clash repairs execute, other holders remain unchanged by the
+  rename, and former-path edits refuse with the current name.
+
+## **Phase 6:** Verification
+
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Re-verified for the new Candidate root after A7 and A8. The full merge gate passed all 20 selected
+  checks at `9ac6a36c01`, including six store shards; 192 rename, archive, cohort and fixture files (2,104 tests) and
+  both type checks passed locally. Hosted CI run `42441219857` passed at `b39a7122a6`: build, lint, unit, integration,
+  store, E2E, and Linux portability; `9ac6a36c01` adds only the author check's refactor. The first root's hosted CI
+  run `42226728050` passed at `d16d659fc92ef768dd1eff9620eb64204b3165b6`.
+- _Success criteria:_ 26 criteria: 23 met, three superseded (criterion 10 by A5, 20 by A4, 23 by A6); criterion 16
+  carries the approved A3 deviation. Criteria 25 and 26 carry A7's and A8's spec criteria. The re-root walk carried
+  earlier evidence where the change since `3d536c05d0` leaves a criterion untouched and refreshed it where it does;
+  the independent companion was offered and declined. The first root's criteria Pass 4, three scoped reviewers and a
+  fresh seam-and-aggregate reviewer, returned no findings. Store behavior is exercised through command fixtures;
+  production activation remains with the storage flip.
+
+---
+
+## Success Criteria
+
+Over the ref backend and, where it can form the state, the reference backend, from the flip:
+
+- `[x]` With two live holders of one slug — two work units, a work unit and a cohort, a work unit and an Errand, two
+  Errands, two cohorts — the slug lookup's refusal, the lifecycle verbs' and `arc rename`'s refusals, and
+  `meta.depends-on`'s refusal of an edge naming the slug carry `clashRepair`'s remedy for those types; for two cohorts so
+  do `meta.cohort`'s and `cohort.parent`'s refusals and session entry's, archive's, and a member's rename's.
+
+- `[x]` Status's `slug-clash` warning for two work units names `arc rename <uid> <new-slug>` for each, as does Start
+  readiness withholding a target named by the former slug of one, and a live former-slug tie's remedy names the
+  intended holder by its current name.
+
+- `[x]` `arc rename <uid> <new-slug>` renames the named work unit or cohort under the clash, after which the slug resolves
+  to the other holder.
+
+- `[x]` `arc errand close <uid>` and `arc errand abandon <uid>` each end the named Errand of two, after which the slug
+  resolves to the other; a retry either prints repeats the UID; `arc errand promote <slug>` under the clash refuses naming
+  `arc errand close <uid>` and lands on the remaining Errand once one closes.
+
+- `[x]` A UID operand selecting an Errand on `arc rename`, a work unit on `arc errand close`, or nothing refuses as § 1.2
+  states; an upper-case UID selects the same owner; a slug resolving to a cohort renames it; a closed cohort refuses.
+
+- `[x]` Renaming a work unit onto an archived work unit's slug lands, discharging a stub's edge and the subject's own edge
+  naming it, and refuses while an in-flight dependent's edge names it; onto a live holder's current or former slug it
+  refuses naming that holder; a resumed rename and a rename back to a former slug land.
+
+- `[x]` Renaming one of two work units sharing a slug rewrites no other record naming the slug, reports each with its
+  edit, and leaves the slug resolving to the other; renaming one of two cohorts reports a subcohort naming the slug, with
+  an open and a completed member, with the edits in order, rewrites none of the other's members, and the edits land;
+  renaming the cohort of a work-unit and cohort pair rewrites its members as with no clash; renaming a duplicate stub of
+  a doubled cut reports its member heading and leaves it unchanged.
+
+- `[x]` With both work units linking one branch, renaming an active one moves only its own checkout and keeps the old
+  remote branch, as its continuation after a failed push does; run where no checkout of it holds the branch, it lands
+  with the branch and link unchanged and reports the catch-up command, which then moves them; before that catch-up, the
+  other holder's rename run where its own checkout is not leaves the branch both links name and keeps the old remote
+  branch; a rename with no clash renames, pushes, and deletes as today.
+
+- `[x]` Renaming the second holder of a repaired clash away reports the former-slug tie, and a promotion under `--name`
+  leaving the tie resumes when rerun by its new name.
+
+- `[~]` Renaming a parent cohort with a started member, a completed member, an open subcohort, and a closed subcohort with
+  a completed member lands in one batch, on a clone lacking those records' history refs too, after which each names the
+  new slug, as do the document's heading, the subcohorts' `Parent`, and the filename references; renaming a subcohort
+  rewrites its members' paths, one left on its parent's former slug included, to the current path, and its own `Parent`
+  where a pull left it there; renaming a parent whose closed subcohort holds an open stub a pull landed after its close
+  lands, re-pointing that stub; renaming an archived work unit whose cohort archive closed lands on a clone lacking both
+  their history refs.
+
+- `[x]` After a cohort rename, an edit putting a member's `Cohort` or a subcohort's `Parent` back on the old name refuses,
+  naming the current one, and a completed member's rewrite to a completed cohort's current slug lands.
+
+- `[x]` `arc cohort close` refuses a cohort an open stub names by a former slug, naming the edit; archive of its last
+  current-path member then lands, leaves it open, and reports the stub; a clash between two other cohorts blocks neither
+  close nor archive's in-batch close; a parent whose subcohort's `Parent` and open member a pull left on its former slug
+  refuses close naming § 4's three edits in order, which land.
+
+- `[x]` `arc cohort close` closes a cohort an abandon left with no open member, as that abandon's result named, and
+  refuses a completed one; `arc cohort remove` removes a cohort nothing ever named and refuses one an archived member
+  names, naming `arc cohort close`; without `--yes` each writes nothing; a member a pull lands naming a removed cohort
+  refuses archive and rename naming the edit to its `Cohort`, and both land after it.
+
+- `[x]` Closing one of two clashed Errands by UID clears only its own finalized head locks, and on a machine holding no
+  checkout of it refuses naming the machine holding its checkout; abandoning one returns only its own held inbox
+  entries; a UID under partial protection refuses `not-found`.
+
+- `[x]` Under a clash, renaming a work unit whose checkout carries an unbound marker refuses before the batch naming the
+  holders by UID and the release exit; after release and the rename, `arc materialize <new-slug>` and
+  `arc materialize <slug>` bring back each holder's checkout.
+
+- `[x]` Before the flip every command behaves as today, but for § 10's refusal order, or refuses `unsupported` naming
+  what serves.
+
+- `[x]` A rejected push after an older-alias catch-up returns the exact repository-scoped Git push for the actual new
+  branch, preserving the selected reference and retained-branch report. Executing that argv publishes the new branch,
+  keeps the actual old remote, and changes no stored records, history, markers, or checkout paths; ordinary rename
+  continuations retain their original operand and automatic publication recovery.
+
+- `[x]` All quality gates pass (tests, linting, type checking)
+
+- `[x]` Ready for integration
+
+- `[~]` A branch-link tie names a work unit's UID rename for a two-segment branch named after its current slug, and a
+  catch-up only if the suffix is a former slug, explicitly stating the limitation otherwise; other branch shapes state
+  that no rename-based repair is available. Executing a supported catch-up moves only the selected holder's link and
+  resolves the tie.
+
+- `[x]` Before the flip, `arc rename example example` outside an ARC project reports the missing project before its
+  distinct-name input refusal, while the same request in an admitted in-repo command retains that input refusal;
+  same-name store continuation and catch-up requests remain available.
+
+- `[x]` A branch-link tie gives a work unit with active placement ordinary rename advice only for its selected current link,
+  and catch-up advice only for a linked former-slug branch, naming the prior-work-unit-rename and UID-bound-checkout
+  prerequisites. Passive holders, ambiguous links, unsupported shapes, unknown suffixes, and retained current-name
+  links report no direct rename repair. With retained promotion links, ordinary rename moves only the selected link
+  and leaves the tie; an eligible later catch-up moves only the retained link and resolves it. A promotion-only alias
+  does not establish a prior work-unit rename.
+
+- `[~]` The batch and history-recovery outcomes of criterion 8 hold for independently mutable cohort holdings. A sole
+  Parent with an ambiguous open member, or an ambiguous Parent with a sole member, retains the coupled open-child Parent
+  and member paths while rename lands; its exact ordered edits execute successfully. Mixed open/completed members retain
+  placement, completed members alone do not block a sole Parent update, all-sole groups move automatically, and existing
+  closed-child restrictions remain intact.
+
+- `[x]` With two live parents sharing a name and two live children sharing a name, a parent UID rename lands while
+  retaining unresolved Parent/member fields. Every retained owner and companion prerequisite is reported without an
+  unproved field edit. After child UID disambiguation, owner-chosen clear → Parent → restore edits at the selected
+  child’s current path all land. Fully proved groups and closed-child restrictions remain intact; child retirement
+  with a former-name Parent reports its complete admissible prerequisite sequence.
+
+- `[x]` A record arriving, changing, gaining a conflict, or leaving between a rename's preparation and its batch, where
+  it would change the rename's writes, evidence, or report, refuses the batch with nothing written, and a fresh retry
+  lands with it accounted for; a conflict reaching a cohort that archive, close, or remove completes refuses the same
+  way; a write to an unrelated record admits the batch.
+
+- `[x]` Renaming the leaf cohort, or the stale first segment, of a completed member's `Cohort` path whose first segment
+  is no longer the leaf's `Parent` lands, leaves that `Cohort` unchanged, and reports the edit to the leaf's current
+  path.
+
+- `[~]` Renaming a parent that is a closed subcohort's `Parent`, while an open member of that subcohort has a tied first
+  segment, a tied leaf, or a path disagreeing with the subcohort's `Parent`, refuses with nothing written, naming the
+  member owner's `Cohort` clear and, for a first segment tied between live cohorts holding it as their current name,
+  the other holder's UID rename, which lands; after either exit the parent's rename lands with the subcohort's `Parent`
+  at the new slug. An open subcohort whose member's path disagrees with its `Parent` still lets the rename land,
+  retaining both.
+
+- `[x]` Renaming a parent refuses with nothing written while a cohort whose `Parent` the batch moves would fail the
+  Parent check over an open record it leaves in place — a live namesake's own member or subcohort, a member with a tied
+  first segment, an open subcohort's colliding records under a live tie of its name, a member whose path disagrees with
+  the subcohort's current `Parent`, or a retained closed group's member — naming each record's exits in order: the
+  namesake's UID rename, the other tied holder's UID rename, the open subcohort's UID rename, the member's edit to the
+  subcohort's current path, then the clear; after any one named exit the parent's rename lands. Renaming either live
+  holder of a name tied on the first segment of a path over a closed subcohort whose `Parent` is not that holder lands,
+  reporting the member with the edit to a top-level leaf's own slug.
+
+- `[x]` Renaming a cohort that is itself nested, while the batch moves a subcohort's `Parent`, open or closed, to the
+  new slug, or renaming one whose own `Parent` the batch re-points onto a completed or nested cohort, refuses with
+  nothing written, naming the renamed cohort's un-nesting; after it the rename lands. A nested cohort no subcohort names
+  still renames. A member's clear carries the closed-subcohort note only where its leaf resolves to that closed
+  subcohort.
+
+**Deviation (criterion 16, A3):** Ordinary same-name rename input checks follow backend selection; outside an ARC project,
+the missing-project refusal takes precedence. Admitted in-repo commands retain distinct-name rejection.
+
+**Superseded (criterion 20, A4):** Criterion 22 replaces the unconditional branch-shape prescription with captured
+holder and selected-link eligibility, including the stated prior-rename and UID-bound-checkout conditions.
+
+**Superseded (criterion 8, A5):** Criterion 23 replaces the unconditional rewrite-all prescription with coherent
+Parent/member groups and executable ordered repairs, retaining the original batch and history-recovery cases.
+
+**Superseded in A6 (criterion 23):** Criterion 24 qualifies exact ordered edits to proved companion identities;
+otherwise the retained owners and prerequisite repairs are reported. Original text and earlier verification stay preserved.
+
+**Superseded in A9 and A10 (criteria 8 and 27):** Criteria 27 and 28 qualify criterion 8's landing of a parent's rename
+over a closed subcohort's pulled open stub, which lands where the batch settles that stub and otherwise refuses naming
+its exits; criterion 28 replaces criterion 27's list of exits and adds the retained group to its causes. Original text
+and earlier verification stay preserved.
+
+**Superseded in A11 (criterion 28):** Criterion 29 adds the named parent's conditions to criterion 28's causes.
+Criterion 28's "after any one named exit the parent's rename lands" holds in states ordinary writes form. In states only
+a sync forms — two-level open nesting, or a live tie on a namesake's `Parent` — an exit named before the clear can
+itself refuse while the clear lands; those states are recorded as source-inferred. Original text and earlier
+verification stay preserved.
+
+**Numbering (review correction):** The criterion-8 references in the A5 and A9/A10 supersession notes above, and in
+criterion 23's text, cite the spec's numbering, in which criterion 8 is this list's criterion 10, the mixed-state cohort
+rename. Task 5.R2.c's "Criterion 22" also cites the spec's numbering, in which it is this list's criterion 26, the
+disagreeing member paths. Every other criterion reference in this list counts in its own order.
+
+**Known limit (review, follow-up):** The repair advice that `arc cohort close`, `arc cohort remove` and archive's
+former-holding notices give checks a former-slug path against its leaf's `Parent` only where the leaf is a completed
+cohort. Where the leaf is an open subcohort whose `Parent` names another cohort, the advised edit disagrees with that
+`Parent` and the membership check refuses it, explaining why. The state is inferred from source and likely forms only
+through a sync. These advice paths run only from the flip, so the fix is held as a follow-up Errand landing before it.

@@ -8,6 +8,7 @@ import { expect, it } from "vitest";
 import { checkCreationAdmission, renderCreationAdmissionRefusal } from "../../../../src/lib/store/creation-admission.js";
 import { recordPut, batchLifecycleWrites } from "../../../../src/lib/store/lifecycle-write.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
+import { fixtureRenameProvenance } from "../../../helpers/store/suite-tools.js";
 
 it("admits a slug that no record holds", async () => {
   const h = createLifecycleHarness();
@@ -33,7 +34,7 @@ it.each([false, true])("admits the writing owner's own current or former name, r
   const h = createLifecycleHarness(), initial = await h.seedMeta("own-name");
   if (renamed) lifecycleSuccess(await h.store.write({ ...recordPut(initial), action: "put",
     reference: { ...initial.reference, owner: { ...initial.reference.owner, name: SlugSchema.parse("current") } },
-    content: initial.content.replaceAll("own-name", "current"), provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    content: initial.content.replaceAll("own-name", "current"), provenance: fixtureRenameProvenance }));
   expect(await checkCreationAdmission(h.store, "own-name", [initial.reference.owner])).toEqual({ kind: "free" });
 });
 
@@ -44,7 +45,7 @@ async function cohort(h: ReturnType<typeof createLifecycleHarness>, name: string
 async function rename(h: ReturnType<typeof createLifecycleHarness>, record: StoreRecord, name: string) {
   const written = lifecycleSuccess(await h.store.write({ ...recordPut(record), action: "put",
     reference: { ...record.reference, owner: { ...record.reference.owner, name: SlugSchema.parse(name) } },
-    content: record.content.replaceAll(record.reference.owner.name, name), provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    content: record.content.replaceAll(record.reference.owner.name, name), provenance: fixtureRenameProvenance }));
   return lifecycleSuccess(await h.store.read({ reference: written.reference }));
 }
 it.each(["work-unit", "errand", "cohort"] as const)("a live %s holds its current and former names", async kind => {

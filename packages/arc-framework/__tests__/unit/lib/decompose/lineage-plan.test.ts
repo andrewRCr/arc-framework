@@ -43,7 +43,7 @@ it("keeps the current name and generation of a renamed provider that retired bet
   const h = await createDecomposeTerminalFixture({ provider: true, authorMap: map => {
     for (const outgoing of map.authoring.outgoingDispositions) outgoing.disposition = { kind: "drop", reason: "No inherited provider edge." };
   } });
-  expect(await runStoreRename({ ...h.ctx.executor, baseBranch: h.ctx.baseBranch }, { sourceSlug: "provider", targetSlug: "foundation" }))
+  expect(await runStoreRename({ ...h.ctx.executor, baseBranch: h.ctx.baseBranch }, { operand: "provider", targetSlug: "foundation" }))
     .toMatchObject({ status: "renamed" });
   const provider = lifecycleSuccess(await readWorkUnit(h.store, "foundation"));
   const retired = await h.seedRetiredWorkUnit(provider);
@@ -65,7 +65,7 @@ it("projects current member, home, provider, and renamed dependent generations i
     }
   } });
   for (const [sourceSlug, targetSlug] of [["consumer", "client"], ["provider", "foundation"], ["home", "existing-work"]] as const) {
-    expect(await runStoreRename({ ...h.ctx.executor, baseBranch: h.ctx.baseBranch }, { sourceSlug, targetSlug }))
+    expect(await runStoreRename({ ...h.ctx.executor, baseBranch: h.ctx.baseBranch }, { operand: sourceSlug, targetSlug }))
       .toMatchObject({ status: "renamed" });
   }
   const primary = lifecycleSuccess(await readWorkUnit(h.store, "origin"));

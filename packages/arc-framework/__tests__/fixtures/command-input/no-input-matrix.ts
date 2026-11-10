@@ -25,6 +25,8 @@ export const NO_INPUT_MATRIX: readonly NoInputMatrixCase[] = Object.freeze([
   { commandPath: "errand queue", args: ["errand", "queue", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
   { commandPath: "errand queue set", args: ["errand", "queue", "set", "-"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
   { commandPath: "handoff write", args: ["handoff", "write", "-"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "cohort close", args: ["cohort", "close", "matrix", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
+  { commandPath: "cohort remove", args: ["cohort", "remove", "matrix", "--json"], fixture: "arc-project", expected: { exitCode: 1, outputIncludes: "unsupported" } },
   { commandPath: "abandon", args: ["abandon", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "activate", args: ["activate", "matrix"], expected: { exitCode: 1 } },
   { commandPath: "archive", args: ["archive", "matrix"], expected: { exitCode: 1 } },

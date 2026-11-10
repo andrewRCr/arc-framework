@@ -191,10 +191,11 @@ function incrementalLocalResult(): ReviewResult {
   };
 }
 
-function dependencies(predecessor: ReviewResult, producedHeadSha = objectId("c")) {
+function dependencies(predecessor: ReviewResult, producedHeadSha = objectId("c"),
+  verification: "targeted" | "focused" | "full" = "focused") {
   const record = predecessor.originalOutcome === "findings" ? approvedRecord(predecessor, [{
     sourceVerification: "verified", verifiedSeverity: "minor", disposition: "fix",
-  }]) : null;
+  }], verification) : null;
   return {
     resultReader: { readResult: async (producerId: string) => {
       if (producerId !== predecessor.producerId) throw new Error("missing result");
@@ -214,6 +215,7 @@ async function resolveWithEvidence(
     confirmIncrementalApplicability?: ReviewNextPassInput["confirmApplicability"];
     confirmCurrentApplicability?: (predecessor: ReviewResult, target: ReviewResult["target"])
       => ReturnType<NonNullable<ReviewNextPassInput["confirmCurrentApplicability"]>>;
+    deltaAdmission?: ReviewNextPassInput["deltaAdmission"];
   },
 ) {
   const terminal = input.policy.state === "coverage-required" ? input.policy.payload.attemptedSources.at(-1) : undefined;
@@ -227,6 +229,7 @@ async function resolveWithEvidence(
     confirmApplicability: proof.confirmIncrementalApplicability,
     confirmCurrentApplicability: proof.confirmCurrentApplicability === undefined ? undefined
       : predecessor => proof.confirmCurrentApplicability!(predecessor, input.target),
+    ...(proof.deltaAdmission === undefined ? {} : { deltaAdmission: proof.deltaAdmission }),
   });
   const facts = nextPassFactsFixture();
   facts.chainProven = nextPassContext.incremental !== null;
@@ -1071,5 +1074,12 @@ describe("full-final local correction coverage", () => {
     if (incremental === undefined) throw new Error("Expected the incremental route's choice");
     await expect(resolveWithEvidence({ ...input(fullFinal), coverageAdmission: incremental },
       dependencies(fixedLocalResult(owner, fullFinal)))).rejects.toThrow("current offered choice");
+  });
+
+  it("offers the fix check beside the complete pass when the minor fixes were approved for full verification", async () => {
+    const offered = await resolveWithEvidence(input(fullFinal), { ...dependencies(fixedLocalResult(owner, fullFinal),
+      objectId("c"), "full"), deltaAdmission: { sources: ["delegated-agent"], surface: "open-pr-errand" } });
+    if (offered.state !== "coverage-required") throw new Error("Expected a coverage offer");
+    expect(offered.action.choices.map(choice => choice.requestedCoverage)).toEqual(["incremental", "complete"]);
   });
 });

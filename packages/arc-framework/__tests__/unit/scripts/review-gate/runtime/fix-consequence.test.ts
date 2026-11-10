@@ -10,6 +10,7 @@ import { approvedRecord, findingsHostedResult } from "../../../../fixtures/revie
 function input(options: {
   retrigger: "incremental" | "full-final"; materialFix?: boolean; local?: boolean;
   delivery?: boolean; coverage?: "complete" | "incremental"; belowCeiling?: boolean; chainAdequate?: boolean;
+  verification?: "targeted" | "focused" | "full";
 }) {
   const original = findingsHostedResult([options.materialFix ? "major" : "minor"]);
   if (original.kind !== "hosted") throw new Error("expected hosted result");
@@ -31,7 +32,7 @@ function input(options: {
       headSha: target.headSha, requiredFindings: [] } } : {}),
   } };
   const approved = approvedRecord(result, [{ sourceVerification: "verified",
-    verifiedSeverity: options.materialFix ? "major" : "minor", disposition: "fix" }]);
+    verifiedSeverity: options.materialFix ? "major" : "minor", disposition: "fix" }], options.verification ?? "focused");
   return { result, proposal: proposeDispositionSet(approved.approvedDispositionLineage[0]!.approvedDisposition.dispositionSet),
     materialFix: options.materialFix ?? false, belowCeiling: options.belowCeiling ?? true,
     chainAdequate: options.chainAdequate ?? coverage === "complete", delegatedAgentSelectable: options.local !== false };
@@ -77,5 +78,30 @@ describe("proposed fix consequences", () => {
     { retrigger: "incremental", coverage: "complete" },
   ] as const)("keeps delivery's minor-fix closure for $retrigger / $coverage", row => {
     expect(projectFixConsequence(input({ ...row, delivery: true }))).toEqual({ kind: "lane-closes" });
+  });
+});
+
+describe("minor fixes that change behavior under full-final", () => {
+  it.each([true, false])("offers an Errand's fix check beside the complete pass, below ceiling=%s", belowCeiling => {
+    expect(projectFixConsequence(input({ retrigger: "full-final", verification: "full", belowCeiling })))
+      .toEqual({ kind: "next-pass", coverage: "complete-or-incremental" });
+  });
+  it.each(["targeted", "focused"] as const)("keeps the complete pass alone for %s fixes", verification => {
+    expect(projectFixConsequence(input({ retrigger: "full-final", verification })))
+      .toEqual({ kind: "next-pass", coverage: "complete" });
+    expect(projectFixConsequence(input({ retrigger: "full-final", verification, belowCeiling: false })))
+      .toEqual({ kind: "ceiling-decision" });
+  });
+  it.each([{ local: false }, { chainAdequate: false }])("predicts no fix check the gate cannot run (%o)", options => {
+    expect(projectFixConsequence(input({ retrigger: "full-final", verification: "full", belowCeiling: false, ...options })))
+      .toEqual({ kind: "ceiling-decision" });
+  });
+  it("keeps a delivery fix check's complete successor, whatever its fixes' verification", () => {
+    expect(projectFixConsequence(input({ retrigger: "full-final", delivery: true, coverage: "incremental",
+      chainAdequate: true, verification: "full", belowCeiling: false }))).toEqual({ kind: "ceiling-decision" });
+  });
+  it("keeps delivery's closure after a complete pass", () => {
+    expect(projectFixConsequence(input({ retrigger: "full-final", delivery: true, verification: "full" })))
+      .toEqual({ kind: "lane-closes" });
   });
 });

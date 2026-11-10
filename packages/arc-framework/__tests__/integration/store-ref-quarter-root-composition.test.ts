@@ -4,7 +4,8 @@ import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 import { HistoryRefSchema, RecordReferenceSchema, type StoreRecord } from "../../src/lib/store/index.js";
 import { refSyncFixture, type RefSyncFixture } from "../helpers/store/ref-sync.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
-import { success } from "../helpers/store/suite-tools.js";
+import { observeRecords } from "../../src/lib/store/record-observations.js";
+import { success, fixtureRenameProvenance } from "../helpers/store/suite-tools.js";
 
 const quarter = ArchiveQuarterSchema.parse("2026-q4"), archive = `refs/arc/archive/${quarter}`;
 const provenance = { verb: "archive", lifecycleAction: "archive" };
@@ -88,8 +89,10 @@ async function publishedCohorts(layout: "default" | "separate") {
 async function rename(side: Checkout, reference: StoreRecord["reference"], name: string): Promise<StoreRecord> {
   const current = success(await side.store.read({ reference }));
   const renamed = RecordReferenceSchema.parse({ ...current.reference, owner: { ...current.reference.owner, name } });
-  success(await side.store.write({ action: "put", reference: renamed, expected: current.version, content: current.content,
-    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  const members = success(await side.store.list({ family: "work-item", kind: "work-item/meta" }));
+  if (members.status !== "complete" || members.missed || members.diagnostics.length > 0) throw new Error("Expected fixture membership");
+  success(await side.store.batch({ writes: [{ action: "put", reference: renamed, expected: current.version, content: current.content }],
+    observations: observeRecords([current, ...members.records]), provenance: fixtureRenameProvenance }));
   return success(await side.store.read({ reference: renamed }));
 }
 async function refs(side: Checkout): Promise<string> {

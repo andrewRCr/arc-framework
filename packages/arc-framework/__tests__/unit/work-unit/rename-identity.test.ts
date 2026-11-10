@@ -72,6 +72,15 @@ describe("reconcileRenameLocalBranch", () => {
 });
 
 describe("rename remote branch leg", () => {
+  it("retains the legacy preservation remedy when the caller supplies none", async () => {
+    const { exec } = scriptGitExec([
+      { match: ["push", "-u", "origin", NEW_BRANCH], responses: [{ stdout: "" }] },
+      { match: ["ls-remote", "--heads", "origin", `refs/heads/${NEW_BRANCH}`], responses: [{ stdout: `${MOVED_OID}\trefs/heads/${NEW_BRANCH}\n` }] },
+      { match: ["--no-replace-objects", "merge-base", "--is-ancestor", OLD_OID, MOVED_OID], responses: [{ failure: { exitCode: 1, stderr: "not an ancestor" } }] },
+    ]);
+    await expect(reconcileRenameRemoteBranch({ exec }, { remote: "origin", oldBranch: OLD_BRANCH, newBranch: NEW_BRANCH, oldRemoteOid: OLD_OID }))
+      .rejects.toThrow(`Run git fetch origin +refs/heads/${OLD_BRANCH}:refs/remotes/origin/${OLD_BRANCH}, merge refs/remotes/origin/${OLD_BRANCH} into ${NEW_BRANCH}, then retry the rename.`);
+  });
   it("reads the exact old remote head OID", async () => {
     const exec: GitExec = async () => ({ stdout: `${OLD_OID}\trefs/heads/${OLD_BRANCH}\n` });
 

@@ -14,6 +14,14 @@ const missing = StateVersionSchema.parse("missing-state");
 const common = { code: "state-unresolvable", class: "recoverable", condition: "This clone lacks the requested saved state.",
   remedy: { text: "Read the current saved version and rebuild the query." } };
 
+it("preserves missing UID evidence without inventing a name-bound reference or lookup", () => {
+  const value = { code: "not-found", class: "recoverable", uid,
+    condition: `UID ${uid} does not select an owner.`, remedy: { text: "Pull state or check the UID." } };
+  expect(assertSchemaAccepts(StoreRefusalSchema, value)).toEqual(value);
+  assertSchemaRefuses(StoreRefusalSchema, { ...value, uid: undefined });
+  assertSchemaRefuses(StoreRefusalSchema, { ...value, uid: "invalid" });
+});
+
 describe("unresolvable state refusal schema", () => {
   it.each([{ historyRefs: [] }, { historyRefs: [`refs/arc/history/work/${uid}`, `refs/arc/history/cohort/${uid}`] }])(
     "preserves the required history selection $historyRefs", ({ historyRefs }) => {

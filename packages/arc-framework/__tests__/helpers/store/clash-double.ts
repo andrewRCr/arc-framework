@@ -1,4 +1,5 @@
 /** Concurrent holder observations over real records whose mutation identities stay unchanged. */
+import { clashRepair } from "../../../src/lib/store/clash-repair.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import { RecordReferenceSchema, sameOwner, sameReference, type RecordReference } from "../../../src/lib/store/identity.js";
 
@@ -55,7 +56,7 @@ export function createClashDouble(store: Store, input: {
     return { status: "refused", refusal: { code: "ambiguous-match", class: "recoverable",
       candidates: input.holders.map(project), tie: { liveness: "live", name: "current" },
       condition: "The lookup matches more than one record generation.",
-      remedy: { text: "Disambiguate the stored names or links, then repeat the lookup." } } };
+      remedy: clashRepair(input.holders.map(project), { liveness: "live", name: "current" }) } };
   };
   return wrapped;
 }

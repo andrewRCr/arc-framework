@@ -4,7 +4,6 @@ import { SessionActionsSchema } from "../lib/session-init/actions.js";
 import type { UnboundMarkerClassification } from "../lib/locus/unbound-marker.js";
 import { readFile, readdir } from "node:fs/promises";
 import { StoreRefusalSchema, type Remedy, type StoreRefusal } from "../lib/store/refusal.js";
-import { clashRepair } from "../lib/store/clash-repair.js";
 import type { RecordReference } from "../lib/store/identity.js";
 import { quoteShellArgument } from "../lib/release/commit-message-retry.js";
 import { createStore } from "../lib/store/create.js";
@@ -185,8 +184,7 @@ export function reportOutcome(label: string, lines: string[], outcome: Transitio
  * @returns Nothing.
  */
 export function refuse(reason: string, refusal?: StoreRefusal, remedy?: Remedy): void {
-  const recovery = refusal?.code === "ambiguous-match" && refusal.tie !== undefined
-    ? clashRepair(refusal.candidates, refusal.tie) : refusal?.remedy ?? remedy;
+  const recovery = refusal?.remedy ?? remedy;
   const holders = refusal?.code === "ambiguous-match" ? refusal.candidates.map(renderRefusalCandidate) : [];
   const details = [`${refusal === undefined ? "" : `${refusal.code}: `}${reason}`, ...holders,
     ...(recovery === undefined ? [] : [recovery.text])].join("\n");
@@ -214,7 +212,7 @@ export const LifecycleCommandRefusalSchema = z.strictObject({
 });
 
 /** Render every checkout-bound recovery exit for an unbound work-unit target. */
-export function refuseUnboundTarget(unbound: UnboundMarkerClassification, json = false): void {
+export function refuseUnboundTarget(unbound: Pick<UnboundMarkerClassification, "reason" | "exits">, json = false): void {
   if (!json) { refuse(unbound.reason); return; }
   const envelope = LifecycleCommandRefusalSchema.parse({ status: "rejected", reason: unbound.reason, remedy: unbound.exits });
   process.stdout.write(`${JSON.stringify(envelope)}\n`);
@@ -230,11 +228,10 @@ export function refuseUnboundTarget(unbound: UnboundMarkerClassification, json =
  * @returns Nothing.
  */
 export function refuseWithRemedy(reason: string, remedy: SpineRemedy | Remedy, json = false, refusal?: StoreRefusal): void {
-  const repair = refusal?.code === "ambiguous-match" && refusal.tie !== undefined
-    ? clashRepair(refusal.candidates, refusal.tie) : undefined;
+  const repair = refusal?.code === "ambiguous-match" ? refusal.remedy : undefined;
   const recovery = repair === undefined
     ? "invariant" in remedy ? remedy : spineRemedy(reason, remedy.text, remedy.argv ?? ["arc", "status", "--json"])
-    : SpineRemedySchema.parse({ invariant: reason, ...repair });
+    : SpineRemedySchema.parse({ invariant: reason, ...repair, argv: repair.argv ?? ["arc", "status", "--json"] });
   if (json) {
     const envelope = LifecycleCommandRefusalSchema.parse({ status: "rejected", reason, remedy: recovery,
       ...(refusal === undefined ? {} : { refusal }) });

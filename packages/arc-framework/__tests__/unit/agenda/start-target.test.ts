@@ -1,4 +1,6 @@
 /** Start admission retains lifecycle quality and exact operational refusals. */
+import { createClashDouble } from "../../helpers/store/clash-double.js";
+import { recordKey } from "../../helpers/store/model.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveAgendaStartTarget } from "../../../src/commands/agenda/start-target.js";
 import { resolveLifecycleSubject } from "../../../src/lib/store/lifecycle-subject.js";
@@ -98,4 +100,20 @@ describe("local Start target admission", () => {
       provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
     expect(await resolveAgendaStartTarget(input, "target")).toMatchObject({ kind: "resolved", slug: "target" });
   });
+});
+
+it("withholds a former-name Start target with the repairs for its clashed current name", async () => {
+  const { input, h } = await fixture();
+  const first = await h.seedMeta("target", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "planned" });
+  const second = await h.seedMeta("other", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "planned" });
+  const stored = h.store.state.records.get(recordKey(first.reference));
+  if (stored === undefined) throw new Error("Missing former-name holder");
+  stored.formerSlugs.push("former");
+  const store = createClashDouble(h.store, { slug: "target", holders: [first.reference, second.reference] });
+  input.entry = await createTestStatusContext({ store, identity: "test-user", cwd: "/repo" });
+  const result = await resolveAgendaStartTarget(input, "former");
+  expect(result).toMatchObject({ kind: "unresolved", reason: expect.stringContaining("ambiguous") });
+  if (result.kind !== "unresolved") throw new Error("Expected withheld target");
+  for (const reference of [first.reference, second.reference]) expect(result.reason).toContain(
+    `arc rename ${reference.owner.type === "work-item" ? reference.owner.uid : "missing UID"} <new-slug>`);
 });

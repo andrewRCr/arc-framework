@@ -90,7 +90,7 @@
   editor-document provisioning, a separate concern from placement. Left for this target: no placement change, and CI
   shard walls that spread 150-170 s within one run.
 
-- _Result evidence:_ identity-global `.internal/investigations/wallclock-vm-vs-local-2026-10-20/` (`findings.md`,
+- _Result evidence:_ the `wallclock-vm-vs-local-2026-10-20` investigation, kept outside the repository (`findings.md`,
   `summary.txt`, per-file JSON, the CI duration input of run 39526154546).
 
 - _Captured during:_ the `candidate-applicability-merge-base` Errand, 2026-10-20, after two concurrent remote runs took
@@ -329,12 +329,12 @@
 
 - _Interim mitigation (2026-10-26):_ The approved arc-offload safeguard is installed locally at
   a70242d06ead384607b6e8534ea8bde243023792. Machine-local command_routes restrict whole-project lint:ts and
-  typecheck:test to primary-mini plus WSL when the active mode permits local execution. Both passed on frozen
-  current sources under WSL's unchanged 3072 MiB heap cap (80.66 and 46.42 seconds). Air and M2 retain other checks.
-  All runner limits and the global speed mode remain unchanged; all 121 arc-offload tests passed. General command
-  resource modeling remains unresolved. Evidence and the live-adapter coordination message are in
-  .arc/user/andrew/.internal/arc-offload-command-routes-20261026/. The external adapter must preserve these routes
-  before runtime/cache qualification as well as execution; its accepted spec already requires preserving host policy.
+  typecheck:test to primary-mini plus WSL when the active mode permits local execution. Both passed on frozen current
+  sources under WSL's unchanged 3072 MiB heap cap (80.66 and 46.42 seconds). Air and M2 retain other checks. All runner
+  limits and the global speed mode remain unchanged; all 121 arc-offload tests passed. General command resource modeling
+  remains unresolved. Evidence and the live-adapter coordination message are in `arc-offload-command-routes-20261026`,
+  kept outside the repository. The external adapter must preserve these routes before runtime/cache qualification as
+  well as execution; its accepted spec already requires preserving host policy.
 
 - _Additional evidence (2026-10-27):_ The storage repair's final full gate at `07e738664` placed `test:unit` on M2
   with a 2048 MiB heap and two workers. Run `e8e0623c2b384d6a9cc45ffe29035bbc` recorded two interrupted attempts
@@ -461,9 +461,9 @@
   machine's local runs have been weighed against its memory since arc-offload `7874f17` and record their own
   peaks since `c525d40`; neither changes ARC's own admission for a project without that runner.
 
-- _Evidence:_ identity-global `.internal/investigations/suite-timeouts-vm-memory-2026-10-20/` (findings, VM journal
-  and sar extracts, runner snapshots and SSH configuration) and `seam-decomposition-suite-timeouts-2026-10-20/` (the
-  failed gate, focused passes, serial retry, and source coordinates).
+- _Evidence:_ the `suite-timeouts-vm-memory-2026-10-20` investigation (findings, VM journal and sar extracts, runner
+  snapshots and SSH configuration) and `seam-decomposition-suite-timeouts-2026-10-20` (the failed gate, focused passes,
+  serial retry, and source coordinates), both kept outside the repository.
 
 - _Captured during:_ seam-decomposition pass-5 convergence, 2026-10-20; reduced to its remaining scope after the
   runner investigation.
@@ -487,6 +487,99 @@
   `distributed-check-shards` excludes.
 
 - _Captured during:_ reading `distributed-check-shards`' Phase 6 measurements, 2026-10-30.
+
+### `[ ]` **Reassess contention hardening after the storage and runner work, and assess decomposition**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Commitment Boundary. Its waits are met: `storage-ref-backend`, `machine-check-runner` and
+  `distributed-check-shards` have shipped, and the store-suite cost was partly measured on 2026-10-29
+  (`analysis-test-suite-cost-baseline.md` § Store-suite process cost).
+
+- _Observation:_ The existing draft now covers several outcomes, while the shared runner pool and
+  `distributed-check-shards` / `machine-check-runner` work change its execution and admission assumptions. The store
+  backend and eventual cutover also change fixture costs and dependencies. Earlier evidence should be remeasured
+  against that resulting setup before choosing remedies.
+
+- _Approach:_ Keep the work unstarted for now. Reassess the remaining concerns after the storage/backend and runner
+  work settles; explicitly decide whether to wait through `storage-cutover`. At that planning pass, assess a
+  decomposition into cohesive work units before launching the broad existing scope. No child cut-map or new
+  `Depends On` edge has been approved by this sequencing discussion.
+
+- _Store-suite follow-up (Owner, 2026-10-27):_ Evaluate performance after `storage-ref-backend` lands, when
+  capacity allows. This focused evaluation is an exception to the broader hold above: it need not wait for
+  `storage-cutover` or launch the whole contention-hardening WU. It is outside SRB and nonblocking for its landing,
+  the storage program, and release. At drain, size any resulting work as independent Errand(s) or a dedicated
+  performance WU, checking overlap with this candidate home before choosing placement.
+
+- _Store baseline:_ Remote run `7a9be2c4a58241209103890f148f3bfc`, head `8412e79235b25b8435479e401307cfe0ead51600`, on
+  `air-battery` with two Vitest workers: 1,264.97 seconds total (21m05s), 1,258.69 seconds execution (20m59s), 1.40
+  seconds preparation, and 0.00061 seconds runner admission wait. Vitest reported 277 passing files and 5,018 passing
+  cases; transform took 8.69 seconds. The slowest 20 files contributed about 42% of aggregate test duration. Aggregate
+  durations overlap across workers and are not serial wall time; this one run establishes neither a performance floor
+  nor a promised speedup.
+
+- _Store investigation:_ Profile fixture setup versus behavior, subprocess counts, and the slowest families.
+  Source-confirmed candidates are repeated real `peerStore.pull()` before individual remote observations, full
+  root/origin/peer fixture copies per case, repeated Git configuration and migration setup, and repeated CLI
+  syntax discovery. Immutable fixture templates are already cached, and file parallelism and duration-balanced
+  shard assignment already exist. Measure before changing them; preserve fresh mutable repositories, assertions,
+  and real Git, hook, sync, and recovery coverage. Do not turn a speed improvement into a coverage reduction.
+
+- _Store coordination and validation:_ `machine-check-runner` and `distributed-check-shards` own pool execution
+  and shard dispatch. Coordinate with them rather than duplicating that work. Rebaseline as they land; compare
+  fixed test populations on the same runner and worker settings, recording wall time and aggregate work separately.
+  Distinguish elapsed-time savings from more parallel capacity from savings due to doing less repeated work.
+  Check the cutover suite inventory before investing in fixtures that will retire.
+
+- _Store source loci:_ Under `packages/arc-framework/__tests__/helpers/`: `store/ref-remote.ts`,
+  `store/ref-fixture.ts`, `prepared-repository.ts`, `store/suite-tools.ts`, and `store/import-fixture.ts`.
+  Timing evidence: `remote-check history 7a9be2c4a58241209103890f148f3bfc --json` and the primary checkout's
+  `.git/worktrees/arc-framework.storage-ref-backend/arc-checks/` log
+  `test%3Astore.382dbb63-487a-4797-b714-6ac174e5d808.log`.
+
+- _Captured during:_ `machine-check-runner` launch and distributed-shard co-design discussion, 2026-10-26.
+
+### `[ ]` **Charge `test:changed` for what its selection actually uses**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Match check admission to runner heap requirements" (how command memory takes part in admission).
+
+- _Observation:_ `test:changed` carries a fixed 7,000 MB charge (14 of m4-mini's 20 tokens), but its peak follows its
+  selection: 3.3–11.2 GB of the VM in use over 81 solo gate runs on m4-mini, median 6.9, 90th percentile 9.5
+  (runner-capacity notes, 2026-11-05, 6:00–6:45 pm CT). Admission therefore pairs it with any 6-token job, such as the
+  sharded `typecheck:test` `test-typecheck-heap` proposes, and at its high end the pair can exceed the 11.9 GB VM. A
+  charge keyed on argv cannot see selection size.
+
+- _Approach:_ options named so far: charge it near its high end (about 8,900 MB, 18 tokens), giving up the pairing;
+  accept occasional overflow; or make the charge selection-aware. `test-typecheck-heap`'s landing handoff discloses
+  the pairing risk and leaves the choice to the Owner.
+
+- _Interim:_ `primary.ARC` is covering part of this in its runner-capacity work with the Owner (2026-11-05); check
+  what it settled before planning.
+
+- _Captured during:_ `test-typecheck-heap` create-spec, review of the landing handoff, 2026-11-05 (Owner-approved).
+
+### `[ ]` **Select the integration content tier by the Markdown a change reaches**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Make the suites cheaper to run at every gate, and select them by what a change reaches", its "Generalize"
+  bullet — already recorded there; this adds the content tier as the first case.
+
+- _Observation:_ `test:integration:content` runs the whole integration tier (512 files, about 43 minutes of summed
+  test time) whenever a change touches ARC Markdown, because integration tests read Markdown from disk and no import
+  graph shows which. A one-file method edit pays the same as a sweep: on 2026-11-02 the `successor-pass-yield` Errand
+  ran it twice, about 9½ minutes each on m4-mini. 387 of the 846 integration files name ARC paths somehow, so a
+  reach-based selection narrows a single-file edit a lot and a broad change little.
+
+- _Approach:_ select the integration files whose runtime reads reach the changed Markdown, plus those that read
+  whole trees (init, manifest, update), in the shape of the store suites' data-driven reach check
+  (`scripts/run-reach-check.mjs` with a reach file), failing closed on an unresolvable read. Weigh it against the
+  routed shards the tier gains first, which cut its wall time without narrowing it.
+
+- _Captured during:_ primary.ARC content-tier review after PR #1238, 2026-11-02.
 
 ---
 

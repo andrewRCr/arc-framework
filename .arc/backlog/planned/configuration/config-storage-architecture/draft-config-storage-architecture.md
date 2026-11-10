@@ -239,6 +239,48 @@
 - _Captured during:_ `machine-check-runner` and `distributed-check-shards` co-design, 2026-10-26. The approved runner
   design and shared ADR hold the decision; this capture is the handoff for the configuration owner's planning pass.
 
+---
+
+### `[ ]` **Expire a work unit's scratch folder after it ends**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Approach's three-tier table, for where the expiry setting lives. The storage register row ("removed and
+  reported") and shipped `spec-seam-locus.md` § 2.8 ("reported … never removes") disagree.
+
+- _Observation:_ From the flip, the user-reference reconcile reports an ended work unit's `scratch/work-unit/<slug>/`
+  for its person to remove and never removes a folder (`spec-seam-locus.md` § 2.8), so scratch grows without bound,
+  and from the flip scratch files are stored records that sync to every machine.
+
+- _Approach:_ an expiry the person sets once (for example seven days after archive), applied under that standing
+  choice, with the never-remove-unasked rule kept for everything else; weigh a size note for stored scratch. Neighbor:
+  `config-storage-architecture`, for where the setting lives.
+
+- _Captured during:_ `project-manager.ARC`'s survey of where agents write on this machine, 2026-11-10 (Owner-approved;
+  `pm-briefs/machine-write-zones.md`).
+
+---
+
+### `[ ]` **Carry an identity's machine-local ARC state to a new machine**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Problem / Motivation ("Cross-machine sync is absent"); its out-of-scope config migration is a neighbor,
+  not this concern.
+
+- _Observation:_ The Owner's session host moves to a new Linux box between about 11-28 and early December, before the
+  flip, so this move copies personal state by hand (`primary.ARC`'s capture). After the flip, a clone and a state
+  fetch bring back stored state, personal records and scratch included, but not `.internal/` (the import skips it),
+  the machine-local review state in `.git/arc/`, `~/.arc/config.yml`, the per-clone `arc.*` Git settings
+  (`config-storage-architecture` records cross-machine sync as absent), or harness configuration.
+
+- _Approach:_ a verb that lists and bundles what a fresh clone does not bring and checks the new machine afterward,
+  taking this move's hand list as its first evidence. Candidate home: `config-storage-architecture`. After the flip;
+  the Owner asked for it as built-in ARC functionality.
+
+- _Captured during:_ `project-manager.ARC`'s survey of where agents write on this machine, 2026-11-10 (Owner-approved;
+  `pm-briefs/machine-write-zones.md`).
+
 ## Problem / Motivation
 
 Per-developer settings (`arc.identity`, `arc.role`, `arc.commitInterlock`, `arc.pushInterlock`, `arc.syncInterlock`,

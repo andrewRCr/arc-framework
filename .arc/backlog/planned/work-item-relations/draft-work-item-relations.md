@@ -250,4 +250,30 @@ and its checks, then enforcement at each ceremony — decided after the cutover.
 - _Captured during:_ `lifecycle-slug-selection` create-spec, re-entered discovery over its dependency reconcile,
   2026-10-23.
 
+### `[ ]` **Let a work unit start and activate past an unlanded dependency on a recorded Owner override**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ Open question 4, where an Owner's override of a `start` or `task` stop is recorded (D1–D3 already design the
+  gated edges).
+
+- _Observation:_ the storage chain keeps starting dependents before their dependency lands, a part at a time:
+  `storage-ref-hardening` planned ahead of `store-operation-git-access`, `cohort-identity-verbs`' Phase 1 runs during
+  the hardening's verification (Owner, 2026-10-31), and `projection-write-back` builds all but Tasks 1.6 and 2.3 before
+  the hardening ships (Owner, 2026-11-03). ARC reads a `Depends On` edge as whole-unit: `assess-start-readiness` Tier 1
+  says an unmet dependency blocks the green launch path, and the Owner expects `arc activate` to refuse on one. The PM
+  session found only satisfied-edge discharge in `lib/work-unit/verbs/activate-deactivate.ts`; write-back's activation
+  will show which holds. Each early start is negotiated by message, and nothing durable records which parts may run
+  before the dependency lands.
+
+- _Approach:_ make an unmet edge advisory with an Owner override. The gate reports the unlanded dependency and its
+  state, and proceeds on an override recorded on the meta (who, when, and which tasks or phases may run first), with
+  the rest keyed to the dependency's landing. Keep the edge itself, so the dependent's base-merge obligation stays
+  visible. `lib/work-unit/lifecycle-deps.ts`' header already reserves a starts-at-integration policy for
+  `lifecycle-transition-core`; a partial-start override sits beside it. After the deadline unless activation refuses
+  write-back now.
+
+- _Captured during:_ `project-manager.ARC`, planning `projection-write-back`'s start before `storage-ref-hardening`
+  lands, 2026-11-03 (Owner's suggestion).
+
 ---

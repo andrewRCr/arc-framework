@@ -10,6 +10,7 @@ import { createStoreUserReferencePrepareContext } from "../../src/lib/user-refer
 import { projectUserReferenceSessionResult, runUserReferenceReconcile } from "../../src/lib/user-reference-reconcile.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
 import type { Store } from "../../src/lib/store/contract.js";
+import { fixtureRenameProvenance } from "../helpers/store/suite-tools.js";
 
 async function generations() {
   const h = createLifecycleHarness(), quarter = ArchiveQuarterSchema.parse("2026-q4");
@@ -17,7 +18,7 @@ async function generations() {
     const reference = RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name } });
     ok(await h.store.write({ ...recordPut(record, { content: record.content.replaceAll(record.reference.owner.name, name),
       placement: record.placement?.kind === "completed" ? { kind: "completed", quarter } : { kind: "active" } }),
-      reference, provenance: { verb: "rename", lifecycleAction: "rename" } }));
+      reference, provenance: fixtureRenameProvenance }));
     return ok(await h.store.read({ reference }));
   };
   const archive = async (record: StoreRecord) => {
@@ -91,7 +92,7 @@ it("revalidates captured records after target lookups and continues after fresh 
   const h = createLifecycleHarness(), former = await h.seedMeta("former");
   const reference = RecordReferenceSchema.parse({ ...former.reference, owner: { ...former.reference.owner, name: "current" } });
   ok(await h.store.write({ ...recordPut(former, { content: former.content.replaceAll("former", "current") }), reference,
-    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    provenance: fixtureRenameProvenance }));
   const meta = ok(await h.store.read({ reference }));
   const inbox = await h.seed(recordReferences["personal/inbox"](OwnerIdentitySchema.parse({ type: "person", name: "test-user" })),
     "## Work Unit\n\n### **Concern**\n- _WU_Target:_ `former`\n- _Id:_ `12345678`\n");
@@ -125,7 +126,7 @@ async function terminalGeneration(kind: "abandon" | "decompose", subject = "earl
   const rename = async (record: StoreRecord, name: string) => {
     const reference = RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name } });
     ok(await h.store.write({ ...recordPut(record, { content: record.content.replaceAll(record.reference.owner.name, name) }),
-      reference, provenance: { verb: "rename", lifecycleAction: "rename" } }));
+      reference, provenance: fixtureRenameProvenance }));
     return ok(await h.store.read({ reference }));
   };
   const retire = async (record: StoreRecord, successor: string) => {

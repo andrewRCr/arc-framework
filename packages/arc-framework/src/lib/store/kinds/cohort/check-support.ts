@@ -5,10 +5,16 @@ import { observeRecord, observeRecords, type RuleObservation } from "../rule-sup
 import { parseCohortDocument, type ParsedCohortDocument } from "./parser.js";
 import type { StoreRecord } from "../../read.js";
 import type { StoreView, WriteCheckInput } from "../../write-check.js";
-/** An open document with proved parsed nesting fields. */
-export interface OpenCohort { readonly record: StoreRecord; readonly fields: ParsedCohortDocument }
-/** An open work unit with its proved membership field. */
-export interface OpenMember { readonly record: StoreRecord; readonly cohort: string | null }
+import type { RecordReference } from "../../identity.js";
+import { observeCohortHoldings, type CohortHolding, type CohortHoldingCandidate } from "./holdings.js";
+import { cohortHoldingRepairs } from "./holding-edits.js";
+export { observeCohortHoldings, type CohortHoldingCandidate, type CohortHoldingSegment,
+  type ResolvedCohortCandidate, type CohortHolding } from "./holdings.js";
+export { cohortHoldingRepairs, cohortDocumentParent, type CohortHoldingEdit, type CohortHoldingRepairPlan } from "./holding-edits.js";
+/** A document with proved parsed nesting fields and its observed placement. */
+export interface CohortEvidence { readonly record: StoreRecord; readonly fields: ParsedCohortDocument }
+/** A work unit with its proved membership field and observed placement. */
+export interface CohortMemberEvidence { readonly record: StoreRecord; readonly cohort: string | null }
 /** Read a new or changed cohort field without inventing a comparison over malformed prior content.
  * @param input - Cohort write versions.
  * @param key - Parsed field to compare.
@@ -31,12 +37,16 @@ function disputed(record: StoreRecord, evidence: string): { status: "unavailable
  * @param view - Proposed store state.
  * @returns Parsed open documents or an actionable incomplete observation.
  */
-export async function observeOpenCohorts(view: StoreView): Promise<RuleObservation<readonly OpenCohort[]>> {
+export function observeOpenCohorts(view: StoreView): Promise<RuleObservation<readonly CohortEvidence[]>> {
+  return observeCohorts(view, "open");
+}
+
+async function observeCohorts(view: StoreView, scope: "open" | "all"): Promise<RuleObservation<readonly CohortEvidence[]>> {
   const listed = await observeRecords(view, { family: "cohort", kind: "cohort/document" });
   if (listed.status !== "known") return listed;
-  const result: OpenCohort[] = [];
+  const result: CohortEvidence[] = [];
   for (const listedRecord of listed.value) {
-    if (listedRecord.placement?.kind === "completed") continue;
+    if (scope === "open" && listedRecord.placement?.kind === "completed") continue;
     const observed = await observeRecord(view, listedRecord.reference);
     if (observed.status !== "known") return observed;
     const record = observed.value;
@@ -51,12 +61,16 @@ export async function observeOpenCohorts(view: StoreView): Promise<RuleObservati
  * @param view - Proposed store state.
  * @returns Every open membership or an actionable incomplete observation.
  */
-export async function observeOpenMembers(view: StoreView): Promise<RuleObservation<readonly OpenMember[]>> {
+export function observeOpenMembers(view: StoreView): Promise<RuleObservation<readonly CohortMemberEvidence[]>> {
+  return observeMembers(view, "open");
+}
+
+async function observeMembers(view: StoreView, scope: "open" | "all"): Promise<RuleObservation<readonly CohortMemberEvidence[]>> {
   const listed = await observeRecords(view, { family: "work-item", kind: "work-item/meta" });
   if (listed.status !== "known") return listed;
-  const result: OpenMember[] = [];
+  const result: CohortMemberEvidence[] = [];
   for (const listedRecord of listed.value) {
-    if (listedRecord.placement?.kind === "completed") continue;
+    if (scope === "open" && listedRecord.placement?.kind === "completed") continue;
     const observed = await observeRecord(view, listedRecord.reference);
     if (observed.status !== "known") return observed;
     const record = observed.value;
@@ -68,17 +82,45 @@ export async function observeOpenMembers(view: StoreView): Promise<RuleObservati
   return { status: "known", value: result };
 }
 
-/** Observe the open members and immediate subcohorts that keep a cohort open.
- * @param view - Found or whole proposed state.
- * @param name - Cohort whose membership is inspected.
- * @returns Complete holding names or the original observation failure.
- */
-export async function observeOpenCohortHoldings(view: StoreView, name: string): Promise<RuleObservation<readonly string[]>> {
-  const [cohorts, members] = await Promise.all([observeOpenCohorts(view), observeOpenMembers(view)]);
+/** List open candidates in one view and resolve their paths in the caller-selected view. */
+export function observeOpenHoldings(view: StoreView, resolve: StoreView, cohort: RecordReference): Promise<RuleObservation<readonly CohortHolding[]>> {
+  return observeHoldings(view, resolve, cohort, "open");
+}
+
+/** Count every candidate-view holding, optionally resolving identities before a proposed removal. */
+export function observeAllHoldings(view: StoreView, cohort: RecordReference, resolve: StoreView = view): Promise<RuleObservation<readonly CohortHolding[]>> {
+  return observeHoldings(view, resolve, cohort, "all");
+}
+
+async function observeHoldings(view: StoreView, resolve: StoreView, cohort: RecordReference, scope: "open" | "all"): Promise<RuleObservation<readonly CohortHolding[]>> {
+  const [cohorts, members] = await Promise.all([observeCohorts(view, scope), observeMembers(view, scope)]);
   if (cohorts.status !== "known") return cohorts;
   if (members.status !== "known") return members;
-  return { status: "known", value: [
-    ...members.value.filter(({ cohort }) => cohort?.split("/").includes(name)).map(({ record }) => record.reference.owner.name),
-    ...cohorts.value.filter(({ fields }) => fields.parent === name).map(({ record }) => record.reference.owner.name),
-  ] };
+  const candidates: CohortHoldingCandidate[] = [];
+  for (const { record, cohort: path } of members.value) {
+    if (path !== null) candidates.push({ reference: record.reference, field: "cohort", path, completed: record.placement?.kind === "completed" });
+  }
+  for (const { record, fields } of cohorts.value) {
+    if (fields.parent !== null) candidates.push({ reference: record.reference, field: "parent", path: fields.parent, completed: record.placement?.kind === "completed" });
+  }
+  return observeCohortHoldings(candidates, resolve, cohort);
+}
+
+/** Name exact holding owners without proposing a mutation to their references. */
+export function describeCohortHoldingOwners(holdings: readonly CohortHolding[]): string {
+  const holders = [...new Set(holdings.map(({ candidate }) => {
+    const { owner } = candidate.reference;
+    return `${owner.type} ${owner.name} (UID ${owner.type === "person" ? "unavailable" : owner.uid ?? "unavailable"})`;
+  }))];
+  return `The cohort is held by: ${holders.join(", ")}.`;
+}
+
+/** Name exact holders and the ordered field repairs supported by their resolved paths, given the cohort's own Parent. */
+export function describeCohortHoldings(holdings: readonly CohortHolding[], slug: string, parent?: string | null): string {
+  const names = describeCohortHoldingOwners(holdings), edits = cohortHoldingRepairs(holdings, slug, parent);
+  if (edits.status !== "known") return `${names} ${edits.status === "unavailable" ? edits.condition : "Holding edits are unavailable."}`;
+  const repair = edits.value.edits.map(edit => `${edit.record.type} ${edit.record.name} (UID ${edit.record.uid}): `
+    + `${edit.field === "cohort" ? "Cohort" : "Parent"} ${JSON.stringify(edit.from)} -> ${JSON.stringify(edit.to)}.`).join(" ");
+  const deferred = edits.value.deferred.map(group => group.condition).join(" ");
+  return `${names}${repair === "" ? "" : ` Re-pointing edits, in order: ${repair}`}${deferred === "" ? "" : ` ${deferred}`}`;
 }

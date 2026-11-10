@@ -129,7 +129,7 @@ it("limits terminal projection to stub dependents and homes, leaving member seed
 it("replaces a former origin spelling by generation without losing unrelated edges", async () => {
   const h = await fixture();
   const renamed = await runStoreRename({ store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main" },
-    { sourceSlug: "origin", targetSlug: "current-source" });
+    { operand: "origin", targetSlug: "current-source" });
   if (renamed.status !== "renamed") throw new Error(JSON.stringify(renamed));
   const consumer = lifecycleSuccess(await h.store.read({ reference: h.dependent.reference }));
   await h.handEdit(consumer, writeMetaDependsOn(consumer.content, ["unrelated", "origin"]));
@@ -146,7 +146,7 @@ it("replaces a former origin spelling by generation without losing unrelated edg
 it("keeps a renamed dependent bound to its UID when projecting the stored map", async () => {
   const h = await fixture();
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main" },
-    { sourceSlug: "consumer", targetSlug: "renamed-consumer" })).toMatchObject({ status: "renamed" });
+    { operand: "consumer", targetSlug: "renamed-consumer" })).toMatchObject({ status: "renamed" });
   const acquired = await acquireDecomposeOrigin(h.ctx, "origin");
   if (acquired.status === "refused") throw new Error(JSON.stringify(acquired));
   const facts = await acquireDecomposeDependencyFacts(h.ctx, h.map, acquired.result, []);

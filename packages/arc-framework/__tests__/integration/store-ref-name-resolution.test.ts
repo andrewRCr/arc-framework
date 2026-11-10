@@ -7,6 +7,24 @@ import { RecordReferenceSchema } from "../../src/lib/store/index.js";
 
 const quarter = ArchiveQuarterSchema.parse("2026-q4");
 
+it("names every completed holder when binding their shared former name", async () => {
+  const f = await createRefFixture(), named = f.reference("work-item/meta");
+  const references = [];
+  for (const name of ["first", "second"]) {
+    const initial = await seed(f, named);
+    const reference = RecordReferenceSchema.parse({ ...initial.reference, owner: { ...initial.reference.owner, name } });
+    success(await f.store.write({ ...update(f, initial, initial.content), reference }));
+    const renamed = success(await f.store.read({ reference }));
+    success(await f.store.write({ ...update(f, renamed, renamed.content), placement: { kind: "completed", quarter } }));
+    references.push(reference);
+  }
+  const result = await f.store.read({ reference: named });
+  expect(result).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match", tie: { liveness: "completed", name: "former" } } });
+  if (result.status !== "refused") throw new Error("Expected completed tie");
+  for (const reference of references) expect(result.refusal.remedy.text).toContain(reference.owner.type === "work-item" ? reference.owner.uid : "missing UID");
+  expect(result.refusal.remedy.text).toContain("No lifecycle repair is available");
+});
+
 describe("name resolution over captured ref owners", () => {
   it.each([
     ["work-item/meta", "current"], ["work-item/meta", "former"], ["cohort/document", "current"], ["cohort/document", "former"],
@@ -136,7 +154,9 @@ describe("name resolution over captured ref owners", () => {
       success(await f.store.write({ ...update(f, live, live.content), reference: RecordReferenceSchema.parse({ ...intermediate, owner: { ...intermediate.owner, name: "second-renamed" } }) }));
     }
     const to = await f.settle();
-    const refusal = { status: "refused", refusal: { code: "ambiguous-match", candidates: expect.arrayContaining([expect.objectContaining({ owner: current.reference.owner })]) } };
+    const refusal = { status: "refused", refusal: { code: "ambiguous-match", candidates: expect.arrayContaining([expect.objectContaining({ owner: current.reference.owner })]),
+      tie: { liveness: tier === "ended" ? "completed" : "live", name: tier === "ended" ? "current" : "former" },
+      remedy: { text: expect.stringContaining(tier === "ended" ? "No lifecycle repair is available" : "Name the intended holder by its current name"), argv: ["arc", "status", "--json"] } } };
     expect(await f.store.read({ reference: named })).toMatchObject(refusal);
     expect(await f.store.list({ family: "work-item", owner: named.owner })).toMatchObject(refusal);
     expect(await f.store.history({ reference: named })).toMatchObject(refusal);

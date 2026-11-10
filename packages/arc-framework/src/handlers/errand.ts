@@ -23,6 +23,7 @@ import { restoreErrandInboxOrigin, type ErrandInboxOrigin } from "../lib/errand/
 
 
 import { openDefaultStore } from "./lifecycle-shared.js";
+import { openErrandTerminalStore, selectErrandTerminalSubject } from "./errand-terminal-store.js";
 import { preCutoverBuildSealed } from "./pre-cutover-seal.js";
 import { StoreImportedError } from "../lib/store/store-imported.js";
 import { readRuntimeErrand } from "../lib/store/errand-runtime-transactions.js";
@@ -1229,7 +1230,7 @@ export interface ErrandCloseOptions {
 /** Validated input for closing an errand. */
 export const ErrandCloseInputSchema = z
   .object({
-    slug: SlugSchema,
+    slug: z.union([SlugSchema, z.uuid()]),
     confirmForeignGeneration: ErrandTerminalGenerationSchema.optional(),
     json: z.boolean().optional(),
   })
@@ -1306,12 +1307,12 @@ async function runErrandCloseHandler(
   }
 
   const io = createUserIOContext(context?.subprocess);
-  if (!io.execInput) {
-    emitErrandCloseFailure("locus.errand-close.identity", "The stdin Git boundary is unavailable.", opts.json === true);
-    return;
-  }
-
-  const store = openDefaultStore(cwd, io.exec);
+  const opened = openErrandTerminalStore({ cwd, subject: slug, io,
+    refuse: (code, message) => { emitErrandCloseFailure(`locus.errand-close.${code}`, message, opts.json === true); } });
+  if (opened === null) return;
+  const { store, execInput } = opened;
+  const selected = await selectErrandTerminalSubject(store, slug, "errand-close");
+  if (selected.kind === "stop") { emitErrandCloseResult(selected.result, opts.json === true); return; }
   const inboxContext = { store, identity, now: () => new Date() };
   let captureDisposition: "removed" | "retained" | "absent" = "absent";
   const queueReport: { value: QueueExecutionOffer | null } = { value: null };
@@ -1320,7 +1321,7 @@ async function runErrandCloseHandler(
   try {
     if (protection === "partial") {
       result = await settlePartialErrandAtRuntime({
-        slug,
+        slug: selected.slug,
         action: "close",
         base,
         exec: io.exec,
@@ -1363,12 +1364,14 @@ async function runErrandCloseHandler(
     } else {
       result = await closeOrdinaryErrandAtRuntime({
       store,
-        slug,
+        selectedRecord: selected.selectedRecord,
+        operand: slug,
+        slug: selected.slug,
         base,
         protection: "full",
         identity,
         exec: io.exec,
-        execInput: io.execInput,
+        execInput,
         readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
         confirmForeignGeneration: opts.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },
@@ -1510,7 +1513,7 @@ export interface ErrandAbandonOptions {
 /** Validated input for abandoning an errand. */
 export const ErrandAbandonInputSchema = z
   .object({
-    slug: SlugSchema,
+    slug: z.union([SlugSchema, z.uuid()]),
     confirmForeignGeneration: ErrandTerminalGenerationSchema.optional(),
     json: z.boolean().optional(),
   })
@@ -1575,15 +1578,12 @@ async function runErrandAbandonHandler(
     return;
   }
   const io = createUserIOContext(context?.subprocess);
-  if (!io.execInput) {
-    emitErrandAbandonFailure(
-      "locus.errand-abandon.identity",
-      "The stdin Git boundary is unavailable.",
-      opts.json === true,
-    );
-    return;
-  }
-  const store = openDefaultStore(cwd, io.exec);
+  const opened = openErrandTerminalStore({ cwd, subject: input.slug, io,
+    refuse: (code, message) => { emitErrandAbandonFailure(`locus.errand-abandon.${code}`, message, opts.json === true); } });
+  if (opened === null) return;
+  const { store, execInput } = opened;
+  const selected = await selectErrandTerminalSubject(store, input.slug, "errand-abandon");
+  if (selected.kind === "stop") { emitErrandAbandonResult(selected.result, opts.json === true); return; }
   let returnPlan: import("../lib/inbox/errand-return.js").ErrandReturn | null = null;
   let result: TerminalOperationOutcome;
   let observedAuthority: ErrandTerminalAuthority | null = null;
@@ -1591,7 +1591,7 @@ async function runErrandAbandonHandler(
     returnPlan = await prepareHandlerErrandReturn(input.slug, protection, { store, identity, now: () => new Date() });
     if (protection === "partial") {
       result = await settlePartialErrandAtRuntime({
-        slug: input.slug,
+        slug: selected.slug,
         action: "abandon",
         base,
         exec: io.exec,
@@ -1615,14 +1615,16 @@ async function runErrandAbandonHandler(
     } else {
       result = await abandonOrdinaryErrandAtRuntime({
       store,
+        selectedRecord: selected.selectedRecord,
+        operand: input.slug,
         companionWrites: returnPlan?.writes,
         provenanceVerb: "errand-abandon",
-        slug: input.slug,
+        slug: selected.slug,
         protection: "full",
         base,
         identity,
         exec: io.exec,
-        execInput: io.execInput,
+        execInput,
         readFrame: () => runDerivedLocusStateProbe({ cwd, identity, baseBranch: base, exec: io.exec }),
         confirmForeignGeneration: input.confirmForeignGeneration,
         onAuthority: (authority) => { observedAuthority = authority; },

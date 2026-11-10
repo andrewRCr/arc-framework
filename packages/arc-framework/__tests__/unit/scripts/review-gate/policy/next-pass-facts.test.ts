@@ -179,7 +179,8 @@ it("marks a current fix check as this look, labels a look before the first pass 
   const facts = await deriveNextPassFacts({ progress: fixture.progress(), dispositions: [record], proposed: proposal,
     nextPassContext: { completePasses: 1, convergence: "unconverged", responseDue: false, incremental: null },
     target: fixture.currentTarget(), ceiling: 4, exec: async () => { throw new Error("Git unavailable"); } });
-  const render = (laneFacts: typeof facts) => {
+  type Reading = { kind: "baseline" | "converging"; rationale: string };
+  const render = (laneFacts: typeof facts, reading: Reading = { kind: "converging", rationale: "One repair is left." }) => {
     const standardFacts = { facts: laneFacts, chainAdequate: true, delegatedAgentSelectable: true };
     const assessment = projectProvisionalPassAssessment({ proposal, result: producer, lane: "standard",
       admittedLogicalPass: producer.admission.logicalPass, configuredMaxPasses: 4, standardFacts });
@@ -187,11 +188,14 @@ it("marks a current fix check as this look, labels a look before the first pass 
       release: { commit: true, push: true, threads: null }, assessment, standardFacts,
       report: { tags: [{ findingId: "finding-1", tag: "local-correction" }],
         fails: [{ findingId: "finding-1", fails: "Correctness and failure behavior" }],
-        successorRecommendation: "Check the repair.", reading: { kind: "converging", rationale: "One repair is left." } },
+        successorRecommendation: "Check the repair.", reading },
     }).dispositionReportText;
   };
   const series = "Critical and major findings, each full pass then its fix checks:\n";
   expect(render(facts)).toContain(`${series}- Standard pass 1: 0 → 1 (this look)\n\n`);
+  expect(render(facts, { kind: "baseline", rationale: "The first pass found none; its fix check found one." }))
+    .toContain("**Trend:** baseline — The first pass found none; its fix check found one.\n\n"
+      + `${series}- Standard pass 1: 0 → 1 (this look)\n\n`);
   const earlier = { producerId: "earlier", logicalPass: 1, coverage: "fix-check" as const, outcome: "findings" as const,
     materialCount: null, provisional: false };
   expect(render({ ...facts, materialTrend: [earlier, ...facts.materialTrend] }))

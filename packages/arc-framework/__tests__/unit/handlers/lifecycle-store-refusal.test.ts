@@ -63,3 +63,15 @@ it("retains a non-clash store refusal without changing its supplied spine remedy
   const envelope = LifecycleCommandRefusalSchema.parse(JSON.parse(stdout));
   expect(envelope).toMatchObject({ refusal }); expect(envelope.remedy).toEqual(remedy);
 });
+
+it("preserves a branch-link repair in the JSON refusal", async () => {
+  const h = createLifecycleHarness();
+  const first = await h.seedMeta("shared"), second = await h.seedMeta("renamed");
+  const refusal = StoreRefusalSchema.parse({ code: "ambiguous-match", class: "recoverable", candidates: [first.reference, second.reference],
+    tie: { liveness: "live" }, condition: "Branch links collide.",
+    remedy: { text: "On the holding machine run arc rename <uid> caught-up.", argv: ["arc", "status", "--json"] } });
+  refuseWithRemedy(refusal.condition, refusal.remedy, true, refusal);
+  const envelope = LifecycleCommandRefusalSchema.parse(JSON.parse(stdout));
+  expect(envelope.refusal).toEqual(refusal);
+  expect(SpineRemedySchema.parse(envelope.remedy)).toEqual({ invariant: refusal.condition, ...refusal.remedy });
+});

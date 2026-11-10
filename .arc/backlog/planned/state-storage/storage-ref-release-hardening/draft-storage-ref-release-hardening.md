@@ -48,8 +48,7 @@
 
 - _Evidence:_ the per-test inventory (`qualification-results.json`), failed job logs (`floor-store-*-failed.log`), and
   the classification with both reproductions (`classification.md`, `reftable-exclude-repro.sh`,
-  `fetch-rejected-ref-repro.sh`) in
-  `/home/andrew/dev/repos/github.com/andrewRCr/arc-framework/.arc/user/andrew/.internal/investigations/weekly-git-floor-2026-10-29/`.
+  `fetch-rejected-ref-repro.sh`) in the `weekly-git-floor-2026-10-29` investigation, kept outside the repository.
 
 - _Captured during:_ triaging the first weekly Git-floor run for the Errand that adds it, 2026-10-30.
 
@@ -178,6 +177,30 @@
   `checkRefBatchPaths`, with a benchmark case beside that unit's other batch-size measurements.
 
 - _Captured during:_ `storage-ref-hardening`'s task-list review (finding F10), 2026-10-31.
+
+### `[ ]` **Keep the ref store's per-command ref listing cheap on Windows as live refs grow**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Routed Items — the benchmark gaps before the public release; beside "Make the store suites pass at the
+  supported Git floor, or raise the floor" for the Git-floor half.
+
+- _Observation:_ the ref backend's `version()`, which every ARC command calls, lists every live ref under `refs/arc/`
+  with one `for-each-ref` (`spec-storage-ref-backend.md` § 4.1). In the in-repo (default) layout those refs are files
+  refs, loose until Git packs them. On the `desktop-windows` runner (2026-11-07), a loose ref cost about 72 µs and a
+  packed one about 5 µs: 10,000 loose refs took 716 ms per listing, packed 52 ms (Linux: 3.4 and 1.2 µs). The store's
+  `maintain()` runs `git maintenance run --auto` at sync and handoff (`lib/store/ref/maintain.ts`), whose default task
+  packs refs only when gc's own object thresholds fire, so refs written since the last gc stay loose. Live refs grow
+  with backlog and active work items: about 700 at a 50-person team and 3,000–11,000 at 250 in the projection scale
+  model (`projection-worktrees`' scale summary), each loose one paid by every command on Windows. The separate layout
+  uses reftable and does not pay it.
+
+- _Approach:_ measure the loose share a busy clone actually carries, then pack refs at the store's own maintenance (a
+  `pack-refs` task beside the auto run) or prefer reftable for the in-repo layout where Git supports it; check the
+  supported Git floor either way.
+
+- _Captured during:_ `projection-worktrees` task generation, the scale assessment's re-entry, 2026-11-07
+  (Owner-approved; the target has no checkout, so no session to message).
 
 ---
 

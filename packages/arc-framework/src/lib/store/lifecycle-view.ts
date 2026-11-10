@@ -13,13 +13,25 @@ import { selectStandingLifecycleEntries, type StandingLifecycleSelection } from 
 export async function readLifecycleView(checkoutRoot: string, store: Pick<Store, "list">): Promise<StoreResult<{
   listing: LifecycleIndexOutcome; entries: readonly LifecycleEntry[]; index: LifecycleIndex; standing: StandingLifecycleSelection;
 }>> {
-  const outcome = await listLifecycleIndex(store);
-  if (outcome.status === "refused") return outcome;
-  const listing = outcome.result;
-  const entries = listing.status === "complete" ? listing.index.entries() : [];
+  const inventory = await readLifecycleEntries(store);
+  if (inventory.status === "refused") return inventory;
+  const { listing, entries } = inventory.result;
   const standing = selectStandingLifecycleEntries(entries, listing.status === "complete" ? listing.diagnostics : []);
   const index = await buildLifecycleViewIndex(checkoutRoot, standing.entries);
   return { status: "ok", result: { listing, entries, index, standing } };
+}
+
+/** Read the identity inventory and its completeness evidence without resolving any checkout's artifact paths.
+ * @param store - Operational store or one side of a proposed batch.
+ * @returns The original listing and its identity entries, empty unless the listing is complete.
+ */
+export async function readLifecycleEntries(store: Pick<Store, "list">): Promise<StoreResult<{
+  listing: LifecycleIndexOutcome; entries: readonly LifecycleEntry[];
+}>> {
+  const outcome = await listLifecycleIndex(store);
+  if (outcome.status === "refused") return outcome;
+  const listing = outcome.result;
+  return { status: "ok", result: { listing, entries: listing.status === "complete" ? listing.index.entries() : [] } };
 }
 
 /** Build the slug-keyed transition view from an already selected set of lifecycle entries. */

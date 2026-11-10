@@ -27,6 +27,7 @@ import { parseNativeReviewOperationReference } from "../../src/scripts/review-ga
 import { bindReviewSourceReference, parseReviewSourceReference } from "../../src/scripts/review-gate/core/review-source-reference.js";
 import { handleReviewLocalPrepare, handleReviewLocalAttest, handleReviewLocalResume, handleReviewReduce, handleReviewPrePublication }
   from "../../src/handlers/review.js";
+import { fixtureRenameProvenance } from "../helpers/store/suite-tools.js";
 
 it.each(["clean", "findings"] as const)("replays a %s result and approved evidence through actual defaults after pruning, rename, and slug reuse on two clones", async outcome => {
   const h = await createReviewRepositoryHarness();
@@ -171,8 +172,9 @@ it.each(["clean", "findings"] as const)("replays a %s result and approved eviden
   await completedReplay(h.native);
   const renamedReference = RecordReferenceSchema.parse({ ...primary.reference,
     owner: { ...primary.reference.owner, name: "renamed-example" } });
-  lifecycleSuccess(await h.reference.store.write({ ...recordPut(primary), reference: renamedReference,
-    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  const renamedContent = primary.content.replace("# Metadata: example", "# Metadata: renamed-example");
+  lifecycleSuccess(await h.reference.store.write({ ...recordPut(primary, { content: renamedContent }), reference: renamedReference,
+    provenance: fixtureRenameProvenance }));
   const renamed = lifecycleSuccess(await h.reference.store.read({ reference: renamedReference }));
   expect(renamed.reference.owner).toEqual({ ...primary.reference.owner, name: "renamed-example" });
   await completedReplay(h.native, "renamed-example");

@@ -14,7 +14,8 @@ function depends(...names: string[]): string { return content.replace("- **Depen
 
 describe("metadata dependencies", () => {
   it("refuses a new unresolved edge", async () => {
-    expect(await checkMetaDependsOn(metaRuleInput(depends("missing")))).toMatchObject([{ rule: "meta.depends-on" }]);
+    expect(await checkMetaDependsOn(metaRuleInput(depends("missing")))).toMatchObject([{ rule: "meta.depends-on",
+      remedy: { text: "Use a current unambiguous work-item slug, remove the new edge, or repair unavailable store state and retry." } }]);
   });
   it("refuses ambiguous generations", async () => {
     const input = metaRuleInput(depends("target"));
@@ -29,7 +30,8 @@ describe("metadata dependencies", () => {
     const failure: StoreResult<LookupResult> = { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal",
       namespace: "work-item", condition: "Inventory unavailable", remedy: { text: "Retry the inventory." } } };
     input.after = ruleView([], new Map([["slug:target", failure]]));
-    expect(await checkMetaDependsOn(input)).toMatchObject([{ rule: "meta.depends-on" }]);
+    expect(await checkMetaDependsOn(input)).toMatchObject([{ rule: "meta.depends-on",
+      remedy: { text: "Use a current unambiguous work-item slug, remove the new edge, or repair unavailable store state and retry." } }]);
   });
   it("admits a uniquely resolved live target", async () => {
     const input = metaRuleInput(depends("target"));
@@ -112,11 +114,27 @@ describe("metadata cohort references", () => {
     input.after = ruleView([cohortDocument("parent/child")]);
     expect(await checkMetaCohort(input)).toMatchObject([{ rule: "meta.cohort" }]);
   });
+  it("refuses a missing parent segment and admits the path once the parent is restored", async () => {
+    const input = metaRuleInput(cohort("parent/child")), child = cohortDocument("parent/child");
+    input.after = ruleView([child]);
+    expect(await checkMetaCohort(input)).toMatchObject([{ rule: "meta.cohort",
+      condition: expect.stringContaining("parent cohort document is absent") }]);
+    input.after = ruleView([cohortDocument("parent", other), child]);
+    expect(await checkMetaCohort(input)).toEqual([]);
+  });
   it("refuses a closed cohort", async () => {
     const input = metaRuleInput(cohort("parent"));
     input.after = ruleView([StoreRecordSchema.parse({ ...cohortDocument("parent"),
       placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4"), sequence: "01", closeout: "a" } })]);
     expect(await checkMetaCohort(input)).toMatchObject([{ rule: "meta.cohort" }]);
+  });
+  it("refuses a completed-cohort join when the prior holding has an invalid name", async () => {
+    const input = metaRuleInput(cohort("parent"), cohort("Not a slug"));
+    const own = await input.after.read({ reference: input.reference });
+    if (own.status !== "ok") throw new Error("Expected the proposed meta");
+    input.after = ruleView([own.result, StoreRecordSchema.parse({ ...cohortDocument("parent"),
+      placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4"), sequence: "01", closeout: "a" } })]);
+    expect(await checkMetaCohort(input)).toMatchObject([{ rule: "meta.cohort", condition: expect.stringContaining("cohort is completed") }]);
   });
   it("refuses an unreadable named document", async () => {
     const input = metaRuleInput(cohort("parent")), good = cohortDocument("parent");
@@ -130,7 +148,7 @@ describe("metadata cohort references", () => {
   });
   it.each(["parent", "parent/child"])("admits the open full path %s without completed placement", async (path) => {
     const input = metaRuleInput(cohort(path));
-    input.after = ruleView([cohortDocument(path)]);
+    input.after = ruleView(path.includes("/") ? [cohortDocument("parent", other), cohortDocument(path)] : [cohortDocument(path)]);
     expect(await checkMetaCohort(input)).toEqual([]);
   });
   it("admits a good named cohort despite an unrelated malformed document", async () => {
@@ -154,4 +172,15 @@ describe("metadata cohort references", () => {
 it("refuses a new unresolved pause waits-on slug", async () => {
   const next = content.replace("---\n", "## Pause\n\n- **Paused By:** `andrew`\n- **Since:** `2026-10-13T12:00:00Z`\n- **Reason:** Waiting.\n- **Waits On:** `missing`\n\n---\n");
   expect(await checkMetaDependsOn(metaRuleInput(next))).toMatchObject([{ rule: "meta.depends-on" }]);
+});
+
+it("refuses unavailable evidence for the first segment of a cohort path", async () => {
+  const input = metaRuleInput(cohort("parent/child"));
+  const view = ruleView([cohortDocument("parent/child")]), read = view.read;
+  view.read = async request => request.reference.owner.name === "parent"
+    ? { status: "refused", refusal: { code: "namespace-corrupt", class: "terminal", namespace: "cohort",
+      condition: "Parent evidence is unavailable", remedy: { text: "Repair parent evidence" } } }
+    : read(request);
+  input.after = view;
+  expect(await checkMetaCohort(input)).toMatchObject([{ rule: "meta.cohort", condition: expect.stringContaining("Parent evidence is unavailable") }]);
 });

@@ -56,7 +56,8 @@ import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js"
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => removeGitBackedDir(root))); });
 async function candidateFix(local = false, member = false, hostedFirst = false, unchecked = false, fullFinal = false,
-  sources = ["codex-pr", "coderabbit-pr", "delegated-agent"], maxPasses = 4) {
+  sources = ["codex-pr", "coderabbit-pr", "delegated-agent"], maxPasses = 4,
+  minorFix?: { verification: "focused" | "full" }) {
   const cwd = await createTempRepoCore({ prefix: "arc-pre-publication-correction-", identity: "andrew" });
   roots.push(cwd);
   const realExec = makeGitExec(cwd);
@@ -149,7 +150,8 @@ async function candidateFix(local = false, member = false, hostedFirst = false, 
       expect(envelope).toMatchObject({ state: "ready" });
       const prepared = envelope.payload as PreparedLocalReview;
       await inProcessReview.attest(cwd, localReviewResult(prepared, `local-run-${pass}`, findings ? [{
-        findingId: "finding-1", severity: "major", locus: "source.ts:1", evidenceUrlOrId: "test://finding-1" }] : []));
+        findingId: "finding-1", severity: pass === 1 && minorFix !== undefined ? "minor" : "major", locus: "source.ts:1",
+        evidenceUrlOrId: "test://finding-1" }] : []));
       return reader.readResult(prepared.operationId);
     }
     const headSha = await git("rev-parse", "HEAD");
@@ -188,7 +190,8 @@ async function candidateFix(local = false, member = false, hostedFirst = false, 
               createdAt: handle.artifact.createdAt, updatedAt: handle.artifact.createdAt, actorIdentity: "136622811", appId: "347564" },
           } }), ...(findings ? { schemaVersion: 1, mode: "review-hosted-await", handle, state: "findings", nextAction: "triage",
         reviewUrl: "https://example.test/review", findings: [{ findingId: "finding-1", origin: "review-body",
-          reviewId: "review-1", fingerprint: "fingerprint-1", settlement: "not-applicable", severity: pass === 1 ? "major" : "minor",
+          reviewId: "review-1", fingerprint: "fingerprint-1", settlement: "not-applicable",
+          severity: pass === 1 && minorFix === undefined ? "major" : "minor",
           locus: "source.ts:1", url: "https://example.test/review", body: "Fix the contribution.", sourceOrdinal: 1 }] }
         : { schemaVersion: 1, mode: "review-hosted-await", handle, state: "clean", nextAction: "complete",
           reviewUrl: "https://example.test/review",  }) } });
@@ -198,7 +201,8 @@ async function candidateFix(local = false, member = false, hostedFirst = false, 
   if (first.kind === "frontline") throw new Error("expected standard result");
   const firstProducerId = first.producerId;
   const firstHead = first.target.headSha;
-  let record = approvedRecord(first, [{ sourceVerification: "verified", verifiedSeverity: "major", disposition: "fix" }]);
+  let record = approvedRecord(first, [{ sourceVerification: "verified",
+    verifiedSeverity: minorFix === undefined ? "major" : "minor", disposition: "fix" }], minorFix?.verification);
   if (member) record = ApprovedDispositionRecordSchema.parse({ ...record,
     deliveryMember: { ...memberIdentity, head: first.target.headSha },
     approvedDispositionLineage: record.approvedDispositionLineage.map(node => ({ ...node,
@@ -214,7 +218,8 @@ async function candidateFix(local = false, member = false, hostedFirst = false, 
   if (!member) {
   const response = createCandidateReviewResponseEvidence({ candidateId: candidate.attestation.candidateId,
     oldTarget: oldSubject, newTarget: fixed, dispositionId: record.currentDispositionSetId,
-    approvedBy: "andrew", appliedBy: "review-agent", applicability: "focused", approvedVerification: "focused",
+    approvedBy: "andrew", appliedBy: "review-agent", applicability: minorFix?.verification ?? "focused",
+    approvedVerification: minorFix?.verification ?? "focused",
     verificationEvidenceRefs: ["test://fix"], implementationChanged: true });
   await recordLaneResponsePerformance(store, { lane: "standard", repositoryId, headSha: first.target.headSha, lineage,
     attemptId: first.producerId, dispositionSetId: record.currentDispositionSetId, producedHeadSha: fixed.revision,
@@ -434,6 +439,51 @@ describe("pre-publication correction confirmation", () => {
     await inProcessReview.attest(cwd, localReviewResult(prepared.payload, "singleton-delta", []));
     await expect(discharge(args)).resolves.toMatchObject({ discharged: true, nextSource: null });
   });
+
+  it.each(["full", "focused"] as const)(
+    "offers a Candidate's local fix check at the ceiling only for minor fixes approved at %s verification",
+    async verification => {
+      const fixture = await candidateFix(true, false, false, true, true, ["codex-pr", "delegated-agent"], 1,
+        { verification });
+      const routingFacts = { contentKind: "code-bearing", reviewRisk: "sensitive", changeDeterminacy: "ordinary",
+        ownership: "self", surfaceAuthority: "ordinary" };
+      const compose = async () => {
+        const result = await composePrePublicationReviewRequest({ workUnit: "example", selfReview: "settled",
+          changeSet: { changeSetState: "known", ...routingFacts }, lanes: { frontline: { invocation: { mode: "skip" } } } },
+        createPrePublicationCompositionDependencies(fixture));
+        if (result.status !== "composed") throw new Error(JSON.stringify(result));
+        return result.request;
+      };
+      if (verification === "focused") {
+        expect(resolveReviewPolicy((await compose()).standard)).toMatchObject({ state: "approval-required",
+          nextAction: "obtain-ceiling-override" });
+        return;
+      }
+      expect(resolveReviewPolicy((await compose()).standard)).toMatchObject({ state: "ready", nextAction: "local-prepare",
+        payload: { sourceId: "delegated-agent", ceilingOverrideApplied: false } });
+      const request = { schemaVersion: 1, evaluatorIdentity: "independent-reviewer", routingFacts };
+      const prepare = async (body: unknown) => {
+        const output: string[] = []; const exits: number[] = [];
+        await handleReviewLocalPrepare("-", { resolveRoot: () => fixture.cwd, readText: async () => JSON.stringify(body),
+          prepare: input => prepareLocalReview(input, createLocalPrepareDependencies(fixture)),
+          write: text => output.push(text), setExitCode: code => exits.push(code) });
+        expect(exits, output.join("")).toEqual([]);
+        return LocalPrepareEnvelopeSchema.parse(JSON.parse(output.join("")));
+      };
+      const offered = await prepare(request);
+      if (offered.state !== "coverage-required") throw new Error(JSON.stringify(offered));
+      const { choices } = offered.payload.coverageSelectionAction;
+      expect(choices).toEqual([{ requestedCoverage: "incremental", correctionScope: expect.objectContaining({
+        predecessorProducerId: fixture.predecessor.producerId, headSha: await fixture.git("rev-parse", "HEAD") }) },
+      { requestedCoverage: "complete" }]);
+      const prepared = await prepare({ ...request, coverageAdmission: choices[0] });
+      if (prepared.state !== "ready") throw new Error(JSON.stringify(prepared));
+      expect(prepared.payload.reviewerPayload.correctionScope?.predecessorProducerId).toBe(fixture.predecessor.producerId);
+      await inProcessReview.attest(fixture.cwd, localReviewResult(prepared.payload, "behavioral-fix-check", []));
+      // The converged check leaves the lane at its ceiling decision: a complete pass by override, or the Owner's stop.
+      expect(resolveReviewPolicy((await compose()).standard)).toMatchObject({ state: "approval-required",
+        nextAction: "obtain-ceiling-override" });
+    }, 60_000);
 
   it("closes a private full-final Candidate only after its clean fix check and complete successor", async () => {
     const fixture = await candidateFix(true, false, false, false, true, ["delegated-agent"]);

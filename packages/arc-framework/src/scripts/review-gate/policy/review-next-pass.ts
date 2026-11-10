@@ -40,24 +40,33 @@ export interface ReviewNextPassInput extends Omit<ReviewCorrectionLegInput, "pre
   readonly confirmCurrentApplicability?: (predecessor: ReviewResult) => Promise<IncrementalPredecessorApplicability>;
 }
 
-async function approvedFindings(input: Pick<PerformedResponseProofInput, "predecessor" | "dispositionStore">) {
+async function approvedDispositionSet(input: Pick<PerformedResponseProofInput, "predecessor" | "dispositionStore">) {
   const record = await input.dispositionStore.readDispositionRecord(input.predecessor.producerId);
   return record === null ? null : currentApprovedDispositionNode(
     validateApprovedDispositionRecordForResult(record, input.predecessor),
-  ).approvedDisposition.dispositionSet.findings;
+  ).approvedDisposition.dispositionSet;
 }
 
+/**
+ * Read the predecessor's convergence and response obligation, and whether its performed fixes were approved for `full`
+ * verification, meaning they change behavior. A performed fix is never narrower than its approval.
+ */
 async function predecessorFacts(input: Pick<PerformedResponseProofInput,
   "predecessor" | "dispositionStore" | "readResponsePerformance"
->): Promise<Pick<ReviewNextPassContext, "convergence" | "responseDue">> {
+>): Promise<Pick<ReviewNextPassContext, "convergence" | "responseDue"> & { readonly behavioralFix: boolean }> {
   const { predecessor } = input;
   const response = await readIncrementalPredecessorResponseEvidence(
     predecessor, input.dispositionStore, input.readResponsePerformance,
   );
-  const findings = predecessor.originalOutcome === "clean" ? [] : await approvedFindings(input);
+  const set = predecessor.originalOutcome === "clean" ? null : await approvedDispositionSet(input);
+  const findings = predecessor.originalOutcome === "clean" ? [] : set?.findings ?? null;
   const convergence = findings !== null && fixesMaterialFinding(findings) ? "unconverged"
     : response.status === "performed" ? "converged" : "pending";
-  return { convergence, responseDue: predecessor.originalOutcome === "findings" && response.status !== "performed" };
+  return {
+    convergence,
+    responseDue: predecessor.originalOutcome === "findings" && response.status !== "performed",
+    behavioralFix: response.status === "performed" && response.hasFix && set?.proposedVerification === "full",
+  };
 }
 
 /** Preserve a site's grounds while proving fixes through the subject's performed-response proof. */
@@ -69,8 +78,8 @@ export async function confirmReviewCorrectionLeg(input: ReviewCorrectionLegInput
     return "unavailable" as const;
   }) ?? "unavailable";
   if (input.predecessor.target.kind !== "change-set") return confirmDeliveryCorrectionLeg(input, grounds);
-  const findings = await approvedFindings(input);
-  const existing = findings?.some(finding => finding.disposition === "fix") === true
+  const set = await approvedDispositionSet(input);
+  const existing = set?.findings.some(finding => finding.disposition === "fix") === true
     ? await confirmPerformedResponse(input) : grounds;
   if (existing === "applicable" || input.rangeProof === undefined) return existing;
   const { convergence } = await predecessorFacts(input);
@@ -89,10 +98,17 @@ function samePolicy(predecessor: ReviewResult, input: ReviewNextPassInput,
       === canonicalize({ ...input.standardReview, reasons: [...input.standardReview.reasons].sort() });
 }
 
+/**
+ * Under `full-final`, a converged look offers a fix check only when its approved fixes change behavior and the local
+ * source can run it; the lane still closes only on a complete pass at the settled head.
+ */
 function incrementalBasis(input: ReviewNextPassInput, ground: IncrementalPredecessorApplicability,
-  convergence: ReviewNextPassContext["convergence"]): "fix-check" | "delta-check" | null {
+  facts: Pick<Awaited<ReturnType<typeof predecessorFacts>>, "convergence" | "behavioralFix">,
+): "fix-check" | "delta-check" | null {
   if (ground !== "range-proven") {
-    return input.standardReview.retrigger === "full-final" && convergence !== "unconverged" ? null : "fix-check";
+    const repairsNeedCheck = facts.convergence === "unconverged" || (facts.convergence === "converged"
+      && facts.behavioralFix && input.deltaAdmission?.sources.includes("delegated-agent") === true);
+    return input.standardReview.retrigger === "full-final" && !repairsNeedCheck ? null : "fix-check";
   }
   const admission = input.deltaAdmission;
   if (input.currentTarget?.kind !== "change-set" || input.currentLineage.kind === "delivery-member"
@@ -107,7 +123,8 @@ export async function deriveReviewNextPassContext(input: ReviewNextPassInput): P
   const readResponseEvidence = (result: ReviewResult) => readIncrementalPredecessorResponseEvidence(
     result, input.dispositionStore, input.readResponsePerformance,
   );
-  const { convergence, responseDue } = await predecessorFacts({ ...input, predecessor });
+  const facts = await predecessorFacts({ ...input, predecessor });
+  const { convergence, responseDue } = facts;
   if (currentTarget === null || !samePolicy(predecessor, input, currentTarget)) {
     return { completePasses, convergence, responseDue, incremental: null };
   }
@@ -132,7 +149,7 @@ export async function deriveReviewNextPassContext(input: ReviewNextPassInput): P
       return ground;
     },
   });
-  const basis = incrementalBasis(input, currentLeg.ground, convergence);
+  const basis = incrementalBasis(input, currentLeg.ground, facts);
   return { completePasses, convergence, responseDue, incremental: scope === null || basis === null ? null : { basis, scope } };
 }
 

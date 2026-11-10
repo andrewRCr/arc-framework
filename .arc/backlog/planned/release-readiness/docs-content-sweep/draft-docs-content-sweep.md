@@ -143,6 +143,23 @@ WU activation.
 
 - _Captured during:_ `review-coverage-cadence` draft-design source grounding, 2026-10-16.
 
+### `[ ]` **State the contributor guide's ADR lock at the accepting change's merge**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Drift Items.
+
+- _Observation:_ `docs/contributing.md` (the published "Contributing" page) says "Once accepted, an ADR's decision
+  changes only through supersession". Once `adr-accept-timing` lands, `strategy-adr-methodology.md` states that an ADR
+  is freely editable until the change that accepts it merges and that the amendment tiers bind from that merge; the
+  guide's wording then states the older lock-at-acceptance timing.
+
+- _Approach:_ reword the sentence to lock the decision once the change that accepts the ADR merges, matching the
+  strategy's "Stable" characteristic and Amending opening.
+
+- _Captured during:_ `adr-accept-timing`'s generate-tasks, independent review pass 1, 2026-11-04 (Owner-approved
+  capture).
+
 ---
 
 ## Why a Dedicated Plan

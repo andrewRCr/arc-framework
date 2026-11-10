@@ -62,7 +62,8 @@ export function renderCreationAdmissionRefusal(slug: string, admission: Exclude<
   return { condition, remedy: { text: wait ? "Choose another name, or wait for the holders of the current name to complete." : "Choose another name." } };
 }
 
-function holderCondition(slug: string, admission: Exclude<CreationAdmission, { kind: "free" }>): string {
+/** Describe the exact holders of a name without choosing a namespace remedy. */
+export function holderCondition(slug: string, admission: Exclude<CreationAdmission, { kind: "free" }>): string {
   const state = admission.kind === "held" ? "live " : admission.cause.startsWith("completed") ? "completed " : "";
   const holders = admission.holders.map(({ reference, name }) => {
     const type = reference.kind === "work-item/meta" ? "work unit" : reference.kind === "work-item/record" ? "Errand"

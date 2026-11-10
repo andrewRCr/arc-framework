@@ -144,7 +144,7 @@ async function renamedPrerequisite() {
     exec: async () => ({ stdout: "", stderr: "" }),
     locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" as const }), writeAnchoredMarker: async () => ({ kind: "unadmitted" as const }) } };
   expect(await runPause(ctx, { name: "paused", identity: "andrew", reason: "Waiting for dependency", waitsOn: "dependency" })).toMatchObject({ status: "paused" });
-  expect(await runStoreRename(ctx, { sourceSlug: "dependency", targetSlug: "current" })).toMatchObject({ status: "renamed" });
+  expect(await runStoreRename(ctx, { operand: "dependency", targetSlug: "current" })).toMatchObject({ status: "renamed" });
   const savedPause = MetaPauseSchema.parse(ParsedMetaRecordSchema.parse(lifecycleSuccess(await h.store.read({ reference: dependent.reference })).fields).pause);
   expect(savedPause).toMatchObject({ since: "2026-10-15T12:00:00.000Z", waitsOn: { kind: "work-unit", slug: "dependency" } });
   const end = async (kind: "abandon" | "decompose", name = "current") => {

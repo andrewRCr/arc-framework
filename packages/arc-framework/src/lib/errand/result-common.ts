@@ -23,6 +23,7 @@ export const ErrandRefusalReasonSchema = z.enum([
   "full-protection-required",
   "remote-unreachable",
   "identity-conflict",
+  "not-found",
   "change-request-open",
   "change-request-unverifiable",
   "partial-handoff-forbidden",

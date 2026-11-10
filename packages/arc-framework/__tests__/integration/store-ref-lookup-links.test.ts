@@ -41,9 +41,13 @@ describe("ref lookup through code links", () => {
     const other = await seed(f, f.reference("work-item/meta", "other"), undefined, { kind: "active" }, links);
     const result = await f.store.lookup(input);
     expect(result).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match",
-      tie: { liveness: "live" }, candidates: expect.arrayContaining([live.reference, other.reference]) } });
+      tie: { liveness: "live" }, candidates: expect.arrayContaining([live.reference, other.reference]),
+      remedy: { text: expect.stringContaining("No direct rename repair"), argv: ["arc", "status", "--json"] } } });
     if (result.status === "refused" && result.refusal.code === "ambiguous-match") {
       expect(result.refusal.candidates).toHaveLength(2);
+      expect(result.refusal.remedy?.text).toContain(`No direct rename repair for \`${live.reference.owner.name}\``);
+      expect(result.refusal.remedy?.text).toContain(`No direct rename repair for \`${other.reference.owner.name}\``);
+      expect(result.refusal.remedy?.text).not.toContain("arc rename");
       expect(result.refusal.tie).not.toHaveProperty("name");
     }
   });

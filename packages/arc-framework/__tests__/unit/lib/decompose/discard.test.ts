@@ -122,7 +122,7 @@ it("preserves only the competing write on a discard batch conflict and permits f
 it("removes a renamed member by its authenticated generation", async () => {
   const h = await createDecomposeTerminalFixture();
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-    { sourceSlug: "member-a", targetSlug: "delta" })).toMatchObject({ status: "renamed" });
+    { operand: "member-a", targetSlug: "delta" })).toMatchObject({ status: "renamed" });
   const plan = await preview(h);
   expect(plan.removals.filter(reference => reference.owner.name === "delta")).toHaveLength(2);
   expect((await runStoreDecomposeDiscard(h.ctx, "origin", { applyAuthority: plan.applyAuthority })).status).toBe("ok");
@@ -143,7 +143,7 @@ it("removes a sibling renamed to an abandoned member's slug exactly once", async
   const h = await createDecomposeTerminalFixture();
   await h.seedRetiredWorkUnit(lifecycleSuccess(await readWorkUnit(h.store, "member-a")));
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-    { sourceSlug: "member-b", targetSlug: "member-a" })).toMatchObject({ status: "renamed" });
+    { operand: "member-b", targetSlug: "member-a" })).toMatchObject({ status: "renamed" });
   const plan = await preview(h);
   expect(plan.removals.filter(reference => reference.kind === "work-item/meta")).toHaveLength(1);
   expect(new Set(plan.removals.map(reference => JSON.stringify(reference))).size).toBe(plan.removals.length);

@@ -36,6 +36,46 @@
 
 - _Captured during:_ disposition-report design discussion ahead of the `disposition-report-trim` Errand, 2026-10-20.
 
+### `[ ]` **Calibrate standard-review/v1's materiality by reachability, likelihood and recoverability**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Current model and § Design lean. In tension with `review-activity-contracts` D3.1, which cuts the finding
+  requirements from the hosted guidance blocks.
+
+- _Observation:_ `integration.CIV`'s report: the rubric carries no calibration for likelihood, reachability or
+  recoverability, so in `cohort-identity-verbs` every race in an arm dormant until the storage flip was rated major,
+  which fed the non-converging rounds.
+
+- _Approach:_ add a materiality line that weighs when a path becomes reachable, how likely it is, and whether its
+  failure is recoverable, without weakening correctness. A race dormant until the flip goes live at the flip, when
+  every session writes the store, so calibration must not discount future-live paths. It should separate a
+  design-class issue for the Owner from a per-finding patch, not down-rate real defects.
+
+- _Evidence:_ `integration.CIV`'s report.
+
+- _Captured during:_ `project-manager.ARC`, routing `integration.CIV`'s process report, 2026-11-07 (Owner-requested
+  capture and routing, relayed by `integration.CIV`).
+
+- _Follow-up:_ (2026-11-08, Owner-prompted) a session's reasoning noted ARC's severities carry no classification
+  threshold, leaving grading to the agent, and leaned on likelihood alone, which the Owner judged too narrow. The
+  scale is defined by kind, not consequence (`adversarial-review.md` § Severity model: `critical` "a real correctness
+  defect or gate-breaking gap", `major` "a substantive design, grounding, or conformance problem", `minor` wording and
+  residue). Read literally, most recent findings would be critical, yet they were graded major, so grading runs on
+  intuition and varies. It matters because the major/minor line gates another pass: grading too high drives churn
+  (`cohort-identity-verbs`' A9 and A10 findings, refusals writing nothing in rare states, graded major), and grading
+  too low lets defects through. Prior art keeps likelihood on its own axis: IEEE 1044 (severity as the failure's
+  impact, probability and priority separate attributes), FMEA (severity, occurrence and detection scored separately;
+  AIAG-VDA's 2019 revision replaced their product with severity-first action priority, since low occurrence masked
+  severe failures), CVSS (impact apart from exploitability). These are stated from memory; cite them from sources when
+  planned. Proposed shape: grade by consequence if the path is taken (silent loss, corruption or authority breach
+  critical; a blocked operation without a safe way out, or a silent but recoverable divergence, major; cosmetic or
+  wording minor), with detection and recoverability moving it (silent and irreversible up, a loud refusal writing
+  nothing down). Record reachability and likelihood separately; they decide disposition (fix now or capture), not
+  grade, with two floors: a path that goes live at a planned change counts as reachable, and a critical consequence is
+  never discounted for low likelihood. It shapes `adversarial-review.md` § Severity model as well as the rubric, and
+  stays a work unit.
+
 ---
 
 ## Problem / Motivation

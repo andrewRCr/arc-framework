@@ -234,7 +234,18 @@ describe("arc rename", () => {
     for (const path of cleanupPaths.splice(0).reverse()) await removeGitBackedDir(path);
   });
 
-  it("renames a backlog stub through a rejecting commit hook and rests on main", async () => {
+  it.each([false, true])("retains the same-name input refusal before the storage flip, json=%s", async json => {
+    const fixture = await createFixture();
+    cleanupPaths.push(fixture.remote, fixture.repo);
+    const head = await git(fixture.repo, ["rev-parse", "HEAD"]);
+    const result = await runArcNoTty(["rename", "old-name", "old-name", ...(json ? ["--json"] : [])], fixture.repo);
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout + result.stderr).toContain("The new slug must differ from the current one.");
+    if (json) expect(JSON.parse(result.stdout)).toMatchObject({ status: "rejected", remedy: { argv: ["arc", "rename", "--help"] } });
+    expect(await git(fixture.repo, ["rev-parse", "HEAD"])).toBe(head);
+  });
+
+  it.each([false, true])("renames a backlog stub through a rejecting commit hook and rests on main, json=%s", async json => {
     const fixture = await createFixture();
     cleanupPaths.push(fixture.remote, fixture.repo);
     const stubbed = await runArcNoTty([
@@ -250,19 +261,25 @@ describe("arc rename", () => {
     await git(fixture.repo, ["push"]);
     const gate = await installRenameGateHook(fixture.repo, { rejectOnce: true });
 
-    const refused = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
+    const flags = json ? ["--json"] : [];
+    const refused = await runArcNoTty(["rename", "old-name", "new-name", ...flags], fixture.repo);
     expect(refused.exitCode).toBe(1);
     expect(refused.stdout + refused.stderr).toContain("rename commit refused");
+    if (json) expect(JSON.parse(refused.stdout)).toMatchObject({ status: "rejected", remedy: { argv: ["arc", "status", "--json"] } });
     expect(await exists(gate.ranMarker)).toBe(true);
     expect(await exists(gate.refusalMarker), refused.stdout + refused.stderr).toBe(true);
     expect(await git(fixture.repo, ["status", "--porcelain"])).toBe("");
     expect(await exists(join(fixture.repo, oldArtifactDir, "meta-old-name.md"))).toBe(true);
     expect(await exists(join(fixture.repo, newArtifactDir, "meta-new-name.md"))).toBe(false);
 
-    const renamed = await runArcNoTty(["rename", "old-name", "new-name"], fixture.repo);
+    const renamed = await runArcNoTty(["rename", "old-name", "new-name", ...flags], fixture.repo);
 
     expect(renamed.exitCode).toBe(0);
-    expect(renamed.stdout).toContain("pending integration");
+    if (json) {
+      expect(JSON.parse(renamed.stdout)).toMatchObject({ status: "renamed", reference: null, pendingIntegration: true,
+        report: { references: [], memberHeadings: [], formerSlugTies: [], keptBranches: [] } });
+      expect(renamed.stdout.trim().split("\n")).toHaveLength(1);
+    } else expect(renamed.stdout).toContain("pending integration");
     expect(await git(fixture.repo, ["branch", "--show-current"])).toBe("main");
     const transition = JSON.parse(await git(fixture.repo, [
       "show", "chore/rename-old-name-to-new-name:.arc/system/.internal/transitions/old-name.json",

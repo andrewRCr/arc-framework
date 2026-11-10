@@ -8,6 +8,31 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Keep machine paths out of tracked documents**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Problem and § Approach — the rule half; a forbidden-pattern check would be `knowledge-lint`'s.
+
+- _Observation:_ arc-framework's tracked `.arc/` cites `~/dev/...` paths about 70 times (archived notes, eight live
+  drafts and cohort documents, and a tracked Candidate record), mostly `~/dev/arc-evidence/` and `~/dev/scratch/`.
+  They resolve only on this machine, and each one made later sessions treat its folder as the convention.
+
+- _Approach:_ a rule in the shipped guidance (put the number or conclusion in the document; cite a commit, a CI run ID
+  or a stored record for the raw evidence), and a check that flags a home-directory or absolute machine path in
+  tracked ARC Markdown. Check `init-recipe.json` before placing the rule (`WORKING-MEMORY`). The live drafts'
+  citations are folded by hand at the pre-rehearsal cleanup.
+
+- _Captured during:_ `project-manager.ARC`'s survey of where agents write on this machine, 2026-11-10 (Owner-approved;
+  `pm-briefs/machine-write-zones.md`).
+
+---
+
 ## Problem
 
 Five places state how a reader-facing surface stands apart from planning history, each in its own words:

@@ -75,6 +75,24 @@
 
 - _Captured during:_ `retire-extension-points` draft close, 2026-10-13.
 
+### `[ ]` **Count inbox triage and unassigned work among the facts whose authority composition settles**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Evaluation Design › 1. ARC fact-and-operation authority map.
+
+- _Observation:_ the evaluation's map of facts and authorities should include ARC's inboxes: who owns unassigned work,
+  and its triage, assignment, de-duplication and notification. GitHub Issues with Projects, Linear and Jira already do
+  these at scale; rebuilding them in ARC's project inbox would make the second PM authority the strategy warns against.
+  What trackers do not do stays agent-native core: capture discipline, routing to a design unit's draft, Errand
+  execution, per-session context.
+
+- _Approach:_ a split to test: the personal inbox stays ARC's, as the agents' capture buffer; the project inbox is the
+  standalone home for unassigned work; in a composed project, unassigned work goes to the tracker. Settle the seam with
+  `shared-inbox-model`, whose promote-by-default destination it is (the companion capture).
+
+- _Captured during:_ `project-manager.ARC` with the Owner, 2026-11-10, after the inbox-size review (Owner-approved).
+
 ## Planning Continuity
 
 - **Readiness:** rough

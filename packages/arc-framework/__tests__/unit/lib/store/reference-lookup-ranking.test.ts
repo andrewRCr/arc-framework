@@ -3,8 +3,9 @@ import { expect, it } from "vitest";
 import { createReferenceFixture } from "../../../helpers/store/reference-fixture.js";
 import { createLifecycleHarness, lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { ArchiveQuarterSchema, SlugSchema } from "../../../../src/lib/kernel/index.js";
-import { OwnerIdentitySchema, recordReferences } from "../../../../src/lib/store/identity.js";
+import { OwnerIdentitySchema, RecordReferenceSchema, recordReferences } from "../../../../src/lib/store/identity.js";
 import { recordPut, batchLifecycleWrites } from "../../../../src/lib/store/lifecycle-write.js";
+import { clashRepair } from "../../../../src/lib/store/clash-repair.js";
 import { recordKey } from "../../../helpers/store/model.js";
 import type { StoreRecord } from "../../../../src/lib/store/read.js";
 import { seed, success, testProvenance } from "../../../helpers/store/suite-tools.js";
@@ -74,7 +75,8 @@ it("refuses a live cohort and work unit under one name with both references", as
   const reference = await cohort(h, "shared");
   const meta = await h.seedMeta("shared");
   expect(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("shared") })).toMatchObject({ status: "refused",
-    refusal: { code: "ambiguous-match", tie: { liveness: "live", name: "current" }, candidates: expect.arrayContaining([reference, meta.reference]) } });
+    refusal: { code: "ambiguous-match", tie: { liveness: "live", name: "current" }, candidates: expect.arrayContaining([reference, meta.reference]),
+      remedy: clashRepair([reference, meta.reference], { liveness: "live", name: "current" }) } });
 });
 
 it.each(["quarter", "sequence"] as const)("selects the latest completed work unit by %s", async order => {
@@ -127,9 +129,13 @@ it("resolves a reused branch to its live holder and retains live ambiguity", asy
   const current = await h.seedMeta("shared", {}, { kind: "active" }, branchLinks);
   expect(lifecycleSuccess(await h.store.lookup(branchLookup)).reference).toEqual(current.reference);
   const other = await h.seedMeta("other", {}, { kind: "active" }, branchLinks);
-  expect(await h.store.lookup(branchLookup)).toMatchObject({ status: "refused", refusal: {
+  const tied = await h.store.lookup(branchLookup);
+  expect(tied).toMatchObject({ status: "refused", refusal: {
     code: "ambiguous-match", tie: { liveness: "live" }, candidates: expect.arrayContaining([current.reference, other.reference]),
+    remedy: { text: expect.stringContaining("arc rename"), argv: ["arc", "status", "--json"] },
   } });
+  if (tied.status !== "refused") throw new Error("Expected live branch tie");
+  expect(tied.refusal.remedy.text).toContain("No direct rename repair for `other`");
 });
 
 it("selects the latest completed branch holder but leaves Errand-only ties ambiguous", async () => {
@@ -171,7 +177,10 @@ it("leaves claim, commit, and lineage ambiguity without ranked tier facts", asyn
     errands.store.lookup({ kind: "claim", claim: { kind: "errand", slug: SlugSchema.parse("shared"), claimId: "a".repeat(32) } }),
   ])) {
     expect(result).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match" } });
-    if (result.status === "refused") expect(result.refusal).not.toHaveProperty("tie");
+    if (result.status === "refused") {
+    expect(result.refusal).not.toHaveProperty("tie");
+    expect(result.refusal.remedy.text).toBe("Name the intended owner by UID, then repeat the lookup.");
+  }
   }
   const f = createReferenceFixture();
   for (const name of ["first", "second"]) {
@@ -185,5 +194,30 @@ it("leaves claim, commit, and lineage ambiguity without ranked tier facts", asyn
   }
   const result = await f.store.lookup({ kind: "lineage", origin: "work-item-one" });
   expect(result).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match" } });
-  if (result.status === "refused") expect(result.refusal).not.toHaveProperty("tie");
+  if (result.status === "refused") {
+    expect(result.refusal).not.toHaveProperty("tie");
+    expect(result.refusal.remedy.text).toBe("Name the intended owner by UID, then repeat the lookup.");
+  }
+});
+
+it.each([
+  ["work-item/meta", "work-item/meta"], ["work-item/meta", "cohort/document"],
+  ["work-item/meta", "work-item/record"], ["work-item/record", "work-item/record"],
+  ["cohort/document", "cohort/document"],
+] as const)("repairs a live slug clash between %s and %s", async (left, right) => {
+  const h = createLifecycleHarness();
+  const references = [];
+  for (const [index, kind] of [left, right].entries()) {
+    const name = `holder-${index}`;
+    const reference = kind === "cohort/document" ? await cohort(h, name)
+      : kind === "work-item/record" ? (await errand(h, name, false)).reference : (await h.seedMeta(name)).reference;
+    const record = h.store.state.records.get(recordKey(reference))!;
+    record.reference = RecordReferenceSchema.parse({ ...reference, owner: { ...reference.owner, name: "shared" } });
+    record.content = record.content.replaceAll(name, "shared");
+    references.push(record.reference);
+  }
+  const result = await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("shared") });
+  expect(result).toMatchObject({ status: "refused", refusal: { code: "ambiguous-match", candidates: expect.arrayContaining(references) } });
+  if (result.status !== "refused" || result.refusal.code !== "ambiguous-match") throw new Error("Expected clash");
+  expect(result.refusal.remedy).toEqual(clashRepair(result.refusal.candidates, { liveness: "live", name: "current" }));
 });

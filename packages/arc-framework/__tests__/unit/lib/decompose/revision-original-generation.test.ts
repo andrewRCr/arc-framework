@@ -51,7 +51,7 @@ it("preserves groomed edges from an unrelated retirement when exact terminal nam
   const member = lifecycleSuccess(await readWorkUnit(h.store, "member-a"));
   await h.handEdit(member, writeMetaDependsOn(member.content, []));
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-    { sourceSlug: "member-b", targetSlug: "original-retired-member" })).toMatchObject({ status: "renamed" });
+    { operand: "member-b", targetSlug: "original-retired-member" })).toMatchObject({ status: "renamed" });
   await h.seedRetiredWorkUnit(lifecycleSuccess(await readWorkUnit(h.store, "original-retired-member")));
   const upstream = await h.seedStub("unrelated-upstream");
   const unrelated = await h.seedStub("member-b");

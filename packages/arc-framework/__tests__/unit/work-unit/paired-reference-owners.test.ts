@@ -36,7 +36,7 @@ it("renames while a backlog record mentions another clashed name's paired spec",
   const store = createClashDouble(h.store, { slug: "clashed", holders: [first.reference, second.reference] });
   expect(await runStoreRename({ store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
     locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }),
-      writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } }, { sourceSlug: "source", targetSlug: "renamed" }))
+      writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } }, { operand: "source", targetSlug: "renamed" }))
     .toMatchObject({ status: "renamed" });
   expect(lifecycleSuccess(await h.store.read({ reference: source.reference })).reference.owner.name).toBe("renamed");
   expect(lifecycleSuccess(await h.store.read({ reference: notes.reference })).content).toBe(notes.content);

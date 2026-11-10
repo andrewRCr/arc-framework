@@ -700,6 +700,99 @@
 
 - _Captured during:_ triage of `storage-ref-backend`'s process lessons, 2026-10-24 (Owner-approved).
 
+---
+
+### `[ ]` **Settle which reviewers `AGENTS.md`'s review guidance reaches when trimming it**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Hosted Guidance Contract, D3.1 (the trim).
+
+- _Observation:_ The draft treats `AGENTS.md`'s `arc:review-guidance` block as the channel to a hosted reviewer. In this
+  repository `CLAUDE.md` imports `AGENTS.md` and Codex reads it directly, so every local session and its subagents load
+  the block too, whatever its scope note says. In `seam-delivery-review`'s chunked local standard pass (2026-10-31) the
+  reviewer brief carried the typed five-dimension rubric, and two of nine reviewers also applied the block's sixth
+  dimension, "Repository contract coherence", read from `AGENTS.md`; the aggregate recorded it. After D3.1's trim, item
+  4 still reaches local reviewers beside the typed brief's dimensions.
+
+- _Approach:_ when settling D3.1, decide whether a local reviewer should apply item 4 — it is repository context a local
+  reviewer also lacks — and say so in the block's scope note or the typed brief, so a local reader applies the block as
+  the design intends.
+
+- _Evidence:_ `seam-delivery-review`'s first pre-publication review pass, kept outside the repository: the reviewer
+  instructions (five dimensions), two reviewer reports that each applied the sixth, and the aggregate's note on the
+  sixth dimension.
+
+- _Captured during:_ `seam-delivery-review` pre-publication review, pass 1 disposition (2026-10-31).
+
+---
+
+### `[ ]` **Let a work unit waiting on a dependency start its complete review over the change set so far**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Represent authorized incremental review without whole-target clearance", beside the capture "Let an
+  incremental pass settle a lane whose complete coverage already happened".
+
+- _Observation:_ on 2026-11-02 `storage-ref-hardening` finished every task it could and stood idle at Task 5.12, which
+  waits for `seam-delivery-review`'s merge; only 5.12, 5.13 and verification remained, and its review (likely three
+  or more complete passes) could start only after verification. The review machinery cannot run a complete pass over
+  the change set so far and have a later incremental pass over the rest settle the final obligation, so a dependency
+  wait and the review run in series. The Owner wants this in general, an Owner-chosen review scope.
+
+- _Approach:_ when settling those two items, cover this sequence: an Owner-authorized complete pass over
+  `base..H1` before verification, with findings through the ordinary disposition path, then an incremental pass over
+  `H1..H2` (here, 5.12's and 5.13's corrective parents and any base merge) that settles the whole-target obligation
+  at `H2`.
+
+- _Captured during:_ `project-manager.ARC`, `storage-ref-hardening`'s wait on `seam-delivery-review`, 2026-11-02.
+
+---
+
+### `[ ]` **Read Codex's structured review state as its completion signal**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Recognize CodeRabbit's edited incremental-clean signal" — the same completion pattern for Codex.
+
+- _Observation:_ Codex keeps one `<!-- codex-pull-request-review-summary -->` issue comment per pull request, edited as
+  reviews run, carrying `<!-- codex-review-state:v1 {...} -->` JSON: `code_review.commit_sha`, `has_any_findings`,
+  `has_unresolved_findings` and `status` (`completed`), plus a matching `security_review` block (seen on #1295-#1303).
+  The adapter (`hosted/codex.ts`) decides completion from wording instead: the receipt's "Didn't find any major issues"
+  and its `Reviewed commit:` line. It also drops every edited comment (`createdAt === updatedAt`), so it never reads
+  this one.
+
+- _Approach:_ read the state JSON as the exact-head completion signal (commit SHA equal to the head, status
+  `completed`), keeping findings from reviews and threads as now and the receipt wording as corroboration. Settle how an
+  edited comment binds to one request, since its update time is the only timing it carries.
+
+- _Files:_ `packages/arc-framework/src/scripts/review-gate/hosted/codex.ts` and
+  `__tests__/unit/scripts/review-gate/hosted/codex.test.ts`.
+
+- _Captured during:_ the `coderabbit-reader-format-tolerance` Errand's completion report, 2026-11-08 (Owner-approved).
+
+---
+
+### `[ ]` **Settle a commented CodeRabbit review on its completion status when the reply is never edited**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Recognize CodeRabbit's edited incremental-clean signal", and "Recognize hosted acknowledgement and
+  retrigger semantics before completion waiting".
+
+- _Observation:_ a commented CodeRabbit review settles only when CodeRabbit edits its tagged reply to the request at or
+  after the review (`commentedReviewSettlement`, `hosted/coderabbit.ts`). If CodeRabbit stops editing that reply, the
+  wait runs to the attention timeout. CodeRabbit also sets a `CodeRabbit` commit status reading "Review completed",
+  which the no-review clean path already requires (`completedStatus`).
+
+- _Approach:_ accept a success status created after the review, and before the next request boundary, as completion
+  for a commented review, keeping the reply as corroboration. Check first whether the status is set once per request
+  or once per review, since CodeRabbit can post several reviews for one request.
+
+- _Files:_ `packages/arc-framework/src/scripts/review-gate/hosted/coderabbit.ts` and its tests.
+
+- _Captured during:_ the `coderabbit-reader-format-tolerance` Errand's completion report, 2026-11-08 (Owner-approved).
+
 ## Hosted Guidance Contract
 
 Established against source: the hosted adapters inject **no** guidance — `CodeRabbitHostedAdapter.request` posts exactly

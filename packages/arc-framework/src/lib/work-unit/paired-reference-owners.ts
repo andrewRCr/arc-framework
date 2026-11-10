@@ -11,7 +11,7 @@ import type { ArtifactReferenceOwner } from "./reference-reconcile.js";
  * @param retiredNames - Authenticated terminal names and their former names.
  * @returns Filename interpretations, retaining ambiguity and lookup refusals.
  */
-export async function readPairedReferenceOwners(store: Store, records: readonly StoreRecord[], retiredNames: ReadonlySet<string>): Promise<StoreResult<ReadonlyMap<string, readonly ArtifactReferenceOwner[]>>> {
+export async function readPairedReferenceOwners(store: Pick<Store, "lookup">, records: readonly StoreRecord[], retiredNames: ReadonlySet<string>): Promise<StoreResult<ReadonlyMap<string, readonly ArtifactReferenceOwner[]>>> {
   const owners = new Map<string, ArtifactReferenceOwner[]>();
   for (const [filename, candidates] of pairedCandidates(records)) {
     const resolved: ArtifactReferenceOwner[] = [];
@@ -24,6 +24,19 @@ export async function readPairedReferenceOwners(store: Store, records: readonly 
   }
   return { status: "ok", result: owners };
 }
+
+/** Find an ambiguous backticked paired filename that the caller would rewrite. */
+export async function findAmbiguousPairedReference(store: Pick<Store, "lookup">, records: readonly StoreRecord[],
+  rewrites: (filename: string) => boolean): Promise<StoreResult<{ filename: string; owners: readonly ArtifactReferenceOwner[] } | null>> {
+  const interpretations = await readPairedReferenceOwners(store, records, new Set());
+  if (interpretations.status === "refused") return interpretations;
+  for (const [filename, owners] of interpretations.result) {
+    if (owners.length > 1 && rewrites(filename) && records.some(record => record.content.includes(`\`${filename}\``))) {
+      return { status: "ok", result: { filename, owners } };
+    }
+  }
+  return { status: "ok", result: null };
+}
 function pairedCandidates(records: readonly StoreRecord[]): Map<string, ArtifactReferenceOwner[]> {
   const candidates = new Map<string, ArtifactReferenceOwner[]>();
   for (const record of records) {
@@ -35,7 +48,7 @@ function pairedCandidates(records: readonly StoreRecord[]): Map<string, Artifact
   }
   return candidates;
 }
-async function knownArtifactOwner(store: Store, subject: string, retiredNames: ReadonlySet<string>): Promise<StoreResult<boolean>> {
+async function knownArtifactOwner(store: Pick<Store, "lookup">, subject: string, retiredNames: ReadonlySet<string>): Promise<StoreResult<boolean>> {
   const lookup = await store.lookup({ kind: "slug", slug: SlugSchema.parse(subject) });
   if (lookup.status === "refused" && lookup.refusal.code === "ambiguous-match") return {
     status: "ok", result: lookup.refusal.candidates.some(reference => reference.kind === "work-item/meta"),

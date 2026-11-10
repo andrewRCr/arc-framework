@@ -271,8 +271,8 @@ describe("repository command-input inventory", () => {
     }
   });
 
-  it("declares JSON mode on attest, publish, and locus", () => {
-    for (const path of ["attest", "publish", "locus"]) {
+  it("declares JSON mode on attest, publish, rename, and locus", () => {
+    for (const path of ["attest", "publish", "rename", "locus"]) {
       expect(inventory.entries.find((entry) => entry.identity === `${path}:option.json`)?.acquisition, path)
         .toBe("machine-mode");
     }

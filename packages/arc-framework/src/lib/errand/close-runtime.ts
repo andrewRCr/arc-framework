@@ -3,6 +3,7 @@ import { readRuntimeErrand, transitionRuntimeErrand, type ErrandRuntimeStorageOp
 
 import type { RawGitExec } from "../git/exec.js";
 import { readCloseLandingCommit } from "./close-store-landing.js";
+import { guardCloseSubjectBranch } from "./close-subject-branch.js";
 import type { ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
@@ -37,7 +38,7 @@ import {
 import { type OrdinaryErrandTransition, type OrdinaryErrandRecord } from "./identity-transitions.js";
 import { authorizeErrandTerminal } from "./terminal-authority.js";
 import { createTerminalOccupancyIO, settleTerminalOccupancy } from "./terminal-occupancy.js";
-import type { TransientIdentityRecord } from "./identity-record.js";
+import { deserializeTransientIdentityRecord, type TransientIdentityRecord } from "./identity-record.js";
 
 export interface CloseOrdinaryErrandRuntimeOptions extends ErrandRuntimeStorageOptions {
   readonly projectionRemovalSlots?: ProjectionRemovalSlots;
@@ -87,7 +88,8 @@ export async function closeOrdinaryErrandAtRuntime(
   const remote = await configuredIdentityRemote(exec);
   const dependencies: CloseOrdinaryErrandDependencies = {
     readIdentity: () => readReconciledCloseIdentity(identityIO, options.slug, remote, options),
-    resolveTarget: (record) => resolveCloseChangeRequest(runtimeOptions, record),
+    resolveTarget: async (record) => await guardCloseSubjectBranch(runtimeOptions, record)
+      ?? resolveCloseChangeRequest(runtimeOptions, record),
     readLifecycle: (target) => target.kind === "merged"
       ? lifecyclePort.read(target.changeRequest, target.changeRequest)
       : Promise.reject(new Error("An unchanged-base close has no change request lifecycle.")),
@@ -197,9 +199,12 @@ async function readReconciledCloseIdentity(
   const result = await readRuntimeErrand(options, io, slug, remote);
   if (result.kind === "applied" || result.kind === "idempotent") {
     if (result.value === null) {
+      const selected = finalizedCloseClaim(options, slug);
+      if (selected.kind === "refused") return selected;
       const recovery = await recoverFinalizedErrandCloseHeadLock({
         exec: io.exec,
         slug,
+        claimId: selected.claimId,
       });
       if (recovery.kind === "blocked") return { kind: "refused", reason: recovery.message };
       if (recovery.kind === "error") return recovery;
@@ -209,6 +214,15 @@ async function readReconciledCloseIdentity(
   return result.kind === "refused"
     ? { kind: "refused", reason: result.reason }
     : { kind: "error", message: result.message };
+}
+
+function finalizedCloseClaim(options: ErrandRuntimeStorageOptions, slug: string):
+  { kind: "ready"; claimId?: string } | Extract<CloseIdentityRuntimeRead, { kind: "refused" }> {
+  if (options.selectedRecord === undefined) return { kind: "ready" };
+  const selected = deserializeTransientIdentityRecord(options.selectedRecord.content, slug);
+  return selected.kind !== "valid" || selected.record.kind !== "errand" || selected.record.purpose !== "errand"
+    ? { kind: "refused", reason: "The selected Errand has no valid finalized claim. Repair its record before recovering close locks." }
+    : { kind: "ready", claimId: selected.record.claimId };
 }
 
 async function readCloseOccupancy(
@@ -221,6 +235,7 @@ async function readCloseOccupancy(
     store: options.store,
     frame,
     operation: "close",
+    operand: options.operand,
     subject: { kind: "errand", slug: target.record.slug, claimId: target.record.claimId },
     confirmForeignGeneration: options.confirmForeignGeneration,
   });

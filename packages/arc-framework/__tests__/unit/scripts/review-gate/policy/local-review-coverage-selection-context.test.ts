@@ -40,6 +40,24 @@ describe("shared local coverage context", () => {
         { requestedCoverage: "complete" }] },
     });
   });
+  it("offers the fix check beside a complete pass after converged fixes that change behavior", () => {
+    const base = input("converged");
+    const scope = { schemaVersion: 1 as const, predecessorProducerId: "earlier-minor-producer",
+      predecessorHeadSha: "e".repeat(40), basisHeadSha: "e".repeat(40), headSha: target.headSha, requiredFindings: [] };
+    expect(resolveLocalReviewCoverageSelection({ ...base, facts: nextPassFactsFixture(),
+      nextPassContext: { ...base.nextPassContext, incremental: { basis: "fix-check" as const, scope } } })).toMatchObject({
+      state: "coverage-required", action: { choices: [{ requestedCoverage: "incremental", correctionScope: scope },
+        { requestedCoverage: "complete" }], interactionText: expect.stringContaining("weigh the fix check beside it") },
+    });
+  });
+  it("refuses a fix check after convergence when none is offered", () => {
+    const base = input("converged");
+    const scope = { schemaVersion: 1 as const, predecessorProducerId: "earlier-minor-producer",
+      predecessorHeadSha: "e".repeat(40), basisHeadSha: "e".repeat(40), headSha: target.headSha, requiredFindings: [] };
+    expect(() => resolveLocalReviewCoverageSelection({ ...base,
+      coverageAdmission: { requestedCoverage: "incremental", correctionScope: scope } }))
+      .toThrow("Local review coverage selection does not match a current offered choice.");
+  });
   it("keeps the complete-only choice when a material fix has no proven chain", () => {
     expect(resolveLocalReviewCoverageSelection(input("unconverged")))
       .toMatchObject({ state: "coverage-required", action: { choices: [{ requestedCoverage: "complete" }] } });

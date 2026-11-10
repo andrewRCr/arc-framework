@@ -1,5 +1,6 @@
 import type { GitExec } from "../../src/lib/git/exec.js";
 import type { ReviewAdditionalPassAuthorization } from "../../src/scripts/review-gate/policy/review-policy-driver.js";
+import type { ReviewCeilingOverride } from "../../src/scripts/review-gate/policy/review-ceiling-override.js";
 import type { StandardReviewObligationProjection } from "../../src/scripts/review-gate/policy/standard-review-projection-schema.js";
 import { LocalPrepareEnvelopeSchema } from "../../src/scripts/review-gate/core/review-command-envelope.js";
 import { approvedRecord } from "../fixtures/review-response-proof.js";
@@ -120,6 +121,8 @@ interface FixedErrandOptions {
   readonly routine?: boolean;
   /** Approve the finding for a host reply instead of recording it, leaving its settlement owed. */
   readonly settlementPending?: boolean;
+  /** The verification scope the fix was approved at. */
+  readonly verification?: "focused" | "full";
 }
 
 /** One Errand whose first hosted pass found one verified finding, fixed by an approved commit. */
@@ -238,7 +241,7 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
       producerId: firstAttemptId, resultDigest: firstResultId,
       policyVersion: first.admission.requirement.policyVersion,
       rubricVersion: standardReview.rubricVersion, rubricDigest: standardReview.rubricDigest,
-      proposedBy: "reviewer", proposedVerification: "focused",
+      proposedBy: "reviewer", proposedVerification: options.verification ?? "focused",
       findings: [{
         findingId: finding.findingId, sourceIdentity: provider, locus: finding.locus,
         sourceVerification: "verified", verificationRefs: [finding.url],
@@ -300,10 +303,12 @@ async function fixedErrand(options: FixedErrandOptions = {}) {
       reply: "Fixed in the follow-up commit." },
     errand: { slug, claimId, branch },
     fixedReviewTarget: reviewTargetAt(fixedHead, fixedTree),
-    readStatus: (withBaseRef = true, sourceId?: string, additionalPassAuthorization?: ReviewAdditionalPassAuthorization) => readErrandRoutedObligation({
+    readStatus: (withBaseRef = true, sourceId?: string, additionalPassAuthorization?: ReviewAdditionalPassAuthorization,
+      ceilingOverride?: ReviewCeilingOverride) => readErrandRoutedObligation({
       cwd: root, exec, rawExec, target: statusTarget, pullRequest: 42, currentBaseOid: base,
       ...(sourceId === undefined ? {} : { sourceId }),
       ...(additionalPassAuthorization === undefined ? {} : { additionalPassAuthorization }),
+      ...(ceilingOverride === undefined ? {} : { ceilingOverride }),
       ...(withBaseRef
         ? { changeRequestCandidate: { baseRefName: "main", url: "https://github.com/owner/repo/pull/42" } }
         : {}),
@@ -853,6 +858,27 @@ describe("ordinary resolve next-pass records", () => {
       } });
       expect(await prepareErrandLocal(errand, { requestedCoverage: "incremental", correctionScope: errand.expectedScope }))
         .toMatchObject({ state: "ready", payload: { request: { logicalPass: 2 }, reviewerPayload: { correctionScope: errand.expectedScope } } });
+    });
+  });
+
+  it("selects a full-final Errand's fix check at the ceiling after minor fixes approved for full verification", async () => {
+    const errand = await fixedErrand({ provider: "codex-pr", severity: "minor", retrigger: "full-final", maxPasses: 1,
+      sources: ["codex-pr", "delegated-agent"], hostedAdmission: true, verification: "full" });
+    await expect(errand.readStatus()).resolves.toMatchObject({ state: "review-required",
+      detail: expect.stringContaining("delegated-agent with arc review local prepare") });
+    const override = { target: { repository: "owner/repo", pullRequest: 42, headSha: errand.statusTarget.headSha },
+      lane: "standard" as const, exhaustedPassCount: 1, nextPass: 2 };
+    await withErrandHost(errand, true, async () => {
+      const predecessor = await createRepositoryReviewResultReader(errand.publisher).readResult(errand.firstAttemptId);
+      expect(await resolveErrandReview(errand, predecessor, 42)).toMatchObject({ exitCodes: [], result: {
+        state: "ready", nextAction: "local-prepare",
+        payload: { sourceId: "delegated-agent", pass: 2, ceilingOverrideApplied: false } } });
+      expect(await performHostedRequest(errand)).toMatchObject({ exitCodes: [1], result: {
+        remedy: { text: expect.stringContaining("--ceiling-override") } } });
+      await expect(errand.readStatus(true, undefined, undefined, override)).resolves.toMatchObject({
+        state: "review-required", action: { provider: "codex-pr", coverage: "complete" } });
+      expect(await prepareErrandLocal(errand, { requestedCoverage: "incremental", correctionScope: errand.expectedScope }))
+        .toMatchObject({ state: "ready", payload: { request: { logicalPass: 2 } } });
     });
   });
 

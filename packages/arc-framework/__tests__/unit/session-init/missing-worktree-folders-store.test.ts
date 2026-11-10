@@ -140,3 +140,16 @@ it("offers the archived branch holder's UID when only its checkout folder is mis
   expect(reports[0]?.actions).toEqual([{ argv: ["arc", "teardown", uid], text: `arc teardown ${uid}` }]);
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
 });
+
+it("reports that a live tie has no direct rename when neither holder retains its suffix", async () => {
+  const h = createLifecycleHarness(), warnings: string[] = [];
+  const links = { branches: [{ repository: "project", ref: "topic/arbitrary", linkedAs: "created" as const, excluded: [] }] };
+  const first = await h.seedMeta("one", {}, { kind: "active" }, links);
+  const second = await h.seedMeta("two", {}, { kind: "active" }, links);
+  const reports = await readMissingWorktreeFolders({ store: h.store, projectId: async () => "project", warnings,
+    rows: [row("topic/arbitrary")], shipped: new Set(), exec, folderExists: async () => false });
+  expect(reports).toEqual([]);
+  for (const record of [first, second]) {
+    expect(warnings.join(" ")).toContain(`No direct rename repair for \`${record.reference.owner.name}\` (UID ${record.reference.owner.type === "work-item" ? record.reference.owner.uid : ""})`);
+  }
+});

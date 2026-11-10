@@ -59,9 +59,9 @@ export function createStorePromotionSteps(options: StorePromotionOptions): Store
 async function readPrimary(options: StorePromotionOptions): Promise<{ kind: "ready"; record: StoreRecord | null } | { kind: "refused"; reason: string }> {
   const lookup = await options.store.lookup({ kind: "slug", slug: SlugSchema.parse(options.slug) });
   if (lookup.status === "refused") return lookup.refusal.code === "not-found" ? { kind: "ready", record: null }
-    : { kind: "refused", reason: lookup.refusal.condition };
+    : { kind: "refused", reason: `${lookup.refusal.condition} ${lookup.refusal.remedy.text}` };
   const read = await options.store.read({ reference: lookup.result.reference });
-  if (read.status === "refused") return { kind: "refused", reason: read.refusal.condition };
+  if (read.status === "refused") return { kind: "refused", reason: `${read.refusal.condition} ${read.refusal.remedy.text}` };
   const conflict = primaryConflict(read.result);
   return conflict === undefined ? { kind: "ready", record: read.result } : { kind: "refused", reason: conflict };
 }
@@ -118,7 +118,7 @@ async function recover(options: StorePromotionOptions): Promise<PromotionFrameRe
   const meta = read.record, fields = ParsedMetaRecordSchema.parse(meta.fields);
   const history = await options.store.history({ reference: meta.reference });
   if (history.status === "refused") return refused(history.refusal.condition);
-  const recovered = sourceFromHistory(history.result, options.slug, fields.promotionReceipt, meta);
+  const recovered = sourceFromHistory(history.result, fields.promotionReceipt, meta);
   if (recovered === undefined || meta.reference.owner.name !== options.name) return refused("The primary lacks this exact Errand promotion receipt and history.");
   const { source, tip } = recovered;
   const ownerFailure = sourceOwnerRefusal(options.identity, source);
@@ -143,13 +143,13 @@ function sourceOwnerRefusal(identity: string, source: TransientIdentityRecordV3)
   if (source.owner === undefined) return `Errand ${source.slug}: owner is missing. Repair its owner, then retry promotion.`;
   return source.owner === identity ? null : `Errand ${source.slug} is owned by ${source.owner}. Run this promotion as its owner ${source.owner}.`;
 }
-function sourceFromHistory(entries: readonly HistoryEntry[], slug: string,
+function sourceFromHistory(entries: readonly HistoryEntry[],
   promotionReceipt: string | null, meta: StoreRecord): { source: OrdinaryErrandRecord; tip: string | undefined } | undefined {
   for (const [index, entry] of entries.entries()) {
     if (entry.reference.kind !== "work-item/record" || entry.content === null) continue;
     let decoded: unknown; try { decoded = JSON.parse(entry.content); } catch { continue; }
     const parsed = TransientIdentityRecordV3Schema.safeParse(decoded);
-    if (!parsed.success || parsed.data.kind !== "errand" || parsed.data.purpose !== "errand" || parsed.data.slug !== slug) continue;
+    if (!parsed.success || parsed.data.kind !== "errand" || parsed.data.purpose !== "errand") continue;
     const source = parsed.data;
     if (promotionReceipt !== `errand-v1/${source.slug}/${source.claimId}`) continue;
     const role = entries[index - 1];

@@ -28,8 +28,9 @@ describe.each(["default", "separate"] as const)("retained Design paths in %s", l
       await plantRef(h.a.root, ref, (await capturedEntries(h.a, ref)).map(entry => entry.path === path
         ? { path, content: writeMetaDesign(meta.content, [key]) } : entry), { parents: [parent], gitDir: h.a.gitDir });
       if (rename) {
-        const subject = success(await readStoreRenameSubject(h.a.root, store, { sourceSlug: "example", targetSlug: "renamed" }));
-        const prepared = success(await prepareStoreRename(h.a.root, store, subject, "renamed"));
+        const primary = success(await store.read({ reference: meta.reference }));
+        const subject = success(await readStoreRenameSubject(store, { primary, operand: "example", targetSlug: "renamed" }));
+        const prepared = success(await prepareStoreRename(store, subject, "renamed"));
         success(await store.batch({ writes: [...prepared.writes], provenance: { verb: "rename", lifecycleAction: "rename" } }));
       }
       const current = success(await store.read({ reference: meta.reference }));

@@ -43,6 +43,9 @@
     { "module": "packages/arc-framework/src/lib/version.ts", "finds": ["packages/arc-framework/package.json"] },
     { "module": "packages/arc-framework/src/lib/change-facts.ts", "finds": [] },
     { "module": "packages/arc-framework/src/scripts/build-compiler.ts", "finds": [] },
+    { "module": "packages/arc-framework/src/cli.ts", "finds": [] },
+    { "module": "packages/arc-framework/src/scripts/validate-frontmatter.ts", "finds": [] },
+    { "module": "packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts", "finds": [] },
     { "module": "packages/arc-framework/src/lib/local-vitest-runner.ts", "finds": [] },
     {
       "module": "packages/arc-framework/__tests__/helpers/cli-spawn.ts",

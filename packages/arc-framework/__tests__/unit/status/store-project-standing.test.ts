@@ -114,7 +114,7 @@ it("omits both live holders of a clashed slug and names their identities and rep
   }
   expect(text).toMatch(/omit/iu);
   expect(text).toMatch(/renam/iu);
-  expect(text).not.toContain("arc rename");
+  for (const entry of observed) expect(text).toContain(`arc rename ${entry.reference.owner.type === "work-item" ? entry.reference.owner.uid : "missing UID"} <new-slug>`);
 });
 
 it.each(["lifecycle", "backend"] as const)("fails a withheld meta's name closed after %s rejection", async rejection => {

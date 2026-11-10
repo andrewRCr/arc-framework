@@ -1,5 +1,6 @@
 /** Resolve a mutation batch's owner generations from one captured namespace. */
 
+import { clashRepair } from "../clash-repair.js";
 import { randomUUID } from "node:crypto";
 import { OwnerIdentitySchema, RecordReferenceSchema, type OwnerIdentity, type RecordReference } from "../identity.js";
 import type { Mutation } from "../write.js";
@@ -107,7 +108,8 @@ function resolveOwner(reference: RecordReference, owners: readonly OwnerIdentity
   if (candidates.length > 1) return { status: "refused", refusal: {
     code: "ambiguous-match", class: "recoverable",
     candidates: candidates.map((owner) => RecordReferenceSchema.parse({ ...reference, owner })),
-    condition: "More than one live owner holds this name", remedy: { text: "Name the intended owner by UID and rename one, then retry." },
+    condition: "More than one live owner holds this name", remedy: preselected ? { text: "Name the intended origin by UID, then retry." }
+      : clashRepair(candidates.map(owner => RecordReferenceSchema.parse({ ...reference, owner })), { liveness: "live", name: "current" }),
   } };
   const key = `${requested.type}:${requested.name}`;
   const owner = candidates[0] ?? fresh.get(key) ?? OwnerIdentitySchema.parse({ ...requested, uid: randomUUID() });

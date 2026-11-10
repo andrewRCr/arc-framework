@@ -20,10 +20,10 @@ export interface ResolvedRetiredEdge {
   records: readonly StoreRecord[];
 }
 interface ResolvedTargets { priorTarget: WorkItemRef; targets: readonly string[]; records: readonly StoreRecord[] }
-interface ResolutionContext { store: Store; dependent: OwnerIdentity }
+interface ResolutionContext { store: Pick<Store, "read" | "lookup">; dependent: OwnerIdentity }
 
 /** Resolve the previous holder without considering the new member that will take its name. */
-export async function resolveRetiredEdge(store: Store, slug: string,
+export async function resolveRetiredEdge(store: Pick<Store, "read" | "lookup">, slug: string,
   dependent: OwnerIdentity, uid?: string): Promise<StoreResult<ResolvedRetiredEdge | null>> {
   const resolved = await resolveTargets({ store, dependent }, { name: SlugSchema.parse(slug), ...(uid === undefined ? {} : { uid }) }, new Set());
   if (resolved.status === "refused") return resolved;
