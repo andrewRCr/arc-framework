@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "rename-design-once",
+  "claimId": "8a8a8f1ccea285c560a77ab5a2cdaa81",
+  "createdAt": "2026-11-10T22:49:23.919Z",
+  "updatedAt": "2026-11-10T22:49:23.919Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Rewrite owned Design filenames once when the store renames a work unit.",
+  "branch": "chore/rename-design-once",
+  "origin": "inbox",
+  "originEntry": "Avoid rewriting an own Design filename twice during store rename",
+  "originEntrySourceDigest": "sha256:fb7e1499eb47ccf325033fe355ed1c2a0ad218c6e5837733a65d2016e36c5c60",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
