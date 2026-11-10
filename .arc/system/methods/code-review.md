@@ -104,9 +104,11 @@ closure requires the policy's proved chain. A pending or failed invocation spend
 ceilings count complete coverage only; frontline keeps its recorded completed-pass accounting.
 
 After a material fix, follow the driver's `delegated-agent` action even when hosted sources rank first. Fix and delta
-checks run locally; never force a hosted incremental request. After a converged look, configured rank selects a
-complete successor. A local complete alternative carries `coverageAdmission: { requestedCoverage: "complete" }`
-without correction scope. Never infer an incremental basis or carry an earlier review to a new head by agent judgment.
+checks run locally; never force a hosted incremental request. After a converged look, configured rank selects a complete
+successor. When the look's minor fixes were approved at the `full` verification scope, the driver also offers their
+local fix check and selects it at the ceiling; weigh it by [the convergence rule][convergence] before the complete
+successor runs. A local complete alternative carries `coverageAdmission: { requestedCoverage: "complete" }` without
+correction scope. Never infer an incremental basis or carry an earlier review to a new head by agent judgment.
 
 For a plain commit after convergence, follow the returned delta check without a coverage question. Under
 `incremental`, it may close an Errand before or after its PR, the same checkpoint-advanced Candidate, or the published
@@ -136,11 +138,12 @@ Run `arc review lane read -`, deriving the request from `arc review lane read --
 its exact head as `memberHeadObjectId`; otherwise use the caller's Candidate or Errand subject. Follow a refusal's
 remedy. Recommend only stopping or a look `payload.nextLooks` admits: its `incremental` look when it names one, or a
 complete pass, which at `ceiling-decision` needs § Ceiling override. A `disabled` lane or a `refusal` admits no look;
-surface which. When `payload.lastLook` has `coverage: incremental`, the fix checks have converged: that ends fix
-checking and says nothing about code the fixes did not touch. Apply [review-model's successor passes][successor-passes]
-to `payload.facts`, weighing the last complete pass's critical and major count, the complete-pass series, and
-[the re-inspection test][re-inspection]. Prefer a different source for a successor pass. State the recommendation,
-its reasons, and what would change it. A complete pass never replaces a required fix check.
+surface which. When `payload.lastLook` has `coverage: incremental`, the fix checks have converged, which says nothing
+about code the fixes did not touch; an `incremental` look still named is a fix check of minor fixes at the `full`
+verification scope, recommended by [review-model's convergence rule][convergence]. Apply [review-model's successor
+passes][successor-passes] to `payload.facts`, weighing the last complete pass's critical and major count, the
+complete-pass series, and [the re-inspection test][re-inspection]. Prefer a different source for a successor pass. State
+the recommendation, its reasons, and what would change it. A complete pass never replaces a required fix check.
 
 Honor an existing decision for this exact successor across unchanged re-entry. Otherwise, when recommending stopping,
 use the [stop line][stop-line] before the next look is admitted. An unavailable stop is a disclosed limit, never a clean
@@ -152,10 +155,11 @@ result or an invented terminus. The pre-publication caller also runs this check 
 **Signature:** At `coverage-required / select-coverage` or `select-coverage`, take the typed response obligation and
 listed choices; leave one selected coverage admission or the caller's accepted stop.
 
-While `payload.responseRequired` is true, complete the [findings round][findings-round] first, including a converged
-fix check's minor fixes. Once false, recommend a listed choice from the latest confirmed signal and exact correction.
-Offer an available Owner stop alongside the next look, disclosing when approved material fixes have not been
-re-examined. A decline leaves the approved set unchanged and follows the caller's stop continuation.
+While `payload.responseRequired` is true, complete the [findings round][findings-round] first, including a converged fix
+check's minor fixes. Once false, recommend a listed choice from the latest confirmed signal and exact correction; after
+a converged look, a listed fix check covers minor fixes at the `full` verification scope, recommended by [review-model's
+convergence rule][convergence]. Offer an available Owner stop alongside the next look, disclosing when approved material
+fixes have not been re-examined. A decline leaves the approved set unchanged and follows the caller's stop continuation.
 
 Off delivery, invoke ordinary `arc review local prepare -` for its question. Render
 `payload.coverageSelectionAction.interactionText` and the listed choices verbatim. On delivery, status owns that
