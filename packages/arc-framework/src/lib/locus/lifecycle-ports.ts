@@ -1,4 +1,7 @@
 /** Lifecycle checkout claim operations bound to one operational context. */
+import type { CheckoutObservation } from "./checkout-observation.js";
+import type { StoreResult } from "../store/refusal.js";
+import type { ListingOutcome } from "../store/read.js";
 import { markerMatchesWorkUnitOwner } from "./holder-match.js";
 import { resolve } from "node:path";
 import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
@@ -16,15 +19,16 @@ interface MarkerHolder { path: string; name: string; uid?: string; marker: Workt
 const rerun = "Run again once Git lists all registered worktrees.";
 
 /** Bind lifecycle's checkout claims to the selected checkout, executor and store. */
-export function createLocusPorts(input: { cwd: string; exec: GitExec; store: Store }): LocusPorts {
+export function createLocusPorts(input: { cwd: string; exec: GitExec; store: Store; observation?: CheckoutObservation;
+  listing?: () => Promise<StoreResult<ListingOutcome>> }): LocusPorts {
   const exec: GitExec = (command, args, options) => input.exec(command, args, { cwd: input.cwd, ...options });
   async function holders(): Promise<MarkerHolder[]> {
-    const topology = await scanRegisteredWorktrees(exec);
+    const topology = await (input.observation?.scan() ?? scanRegisteredWorktrees(exec));
     if (!topology.ok) throw new Error(`${topology.message} ${rerun}`);
     if (topology.worktrees.length === 0) throw new Error(`The registered-worktree listing is incomplete. ${rerun}`);
     const holders: MarkerHolder[] = [];
     for (const checkout of topology.worktrees) {
-      const holder = await readMarkerHolder(checkout.path);
+      const holder = await readMarkerHolder(checkout.path, input.observation?.readMarker);
       if (holder !== null) holders.push(holder);
     }
     return holders;
@@ -51,7 +55,7 @@ export function createLocusPorts(input: { cwd: string; exec: GitExec; store: Sto
   return {
     checkMarkerExclusivity: async request => {
       try {
-        const matches = await observeMatches(input.store, await holders(), request);
+        const matches = await observeMatches(input.store, await holders(), request, input.listing);
         requireSingleHolder(request, matches);
         const other = matches[0];
         if (other === undefined) return { kind: "clear" };
@@ -62,7 +66,7 @@ export function createLocusPorts(input: { cwd: string; exec: GitExec; store: Sto
       catch (error) { return { kind: "refused", reason: error instanceof Error ? error.message : String(error) }; }
     },
     findHoldingCheckout: async request => {
-      const matches = await observeMatches(input.store, await holders(), request);
+      const matches = await observeMatches(input.store, await holders(), request, input.listing);
       requireSingleHolder(request, matches);
       const found = matches[0];
       return found === undefined ? { kind: "none" } : request.kind === "creation" ? { kind: "held", path: found.holder.path } : found.result;
@@ -84,10 +88,10 @@ function markerRepair(checkout: string, path: string, diagnostic: string): strin
   return `Cannot read checkout ${checkout}'s marker ${path}: ${diagnostic}. inspect it, then repair or remove its marker, or remove the checkout.`;
 }
 
-async function readMarkerHolder(checkout: string): Promise<MarkerHolder | null> {
+async function readMarkerHolder(checkout: string, readMarker = readWorktreeMarkerGeneration): Promise<MarkerHolder | null> {
   const path = resolveWorktreeMarkerPath(checkout);
   let marker;
-  try { marker = await readWorktreeMarkerGeneration(checkout); }
+  try { marker = await readMarker(checkout); }
   catch (error) { throw new Error(markerRepair(checkout, path, error instanceof Error ? error.message : String(error)), { cause: error }); }
   if (marker.kind === "absent") return null;
   if (marker.kind === "malformed") throw new Error(markerRepair(checkout, marker.path, marker.message));
@@ -98,11 +102,11 @@ async function readMarkerHolder(checkout: string): Promise<MarkerHolder | null> 
 }
 
 interface HolderObservation { holder: MarkerHolder; result: Exclude<HoldingCheckoutResult, { kind: "none" }> }
-async function observeMatches(store: Store, inventory: readonly MarkerHolder[], request: HolderLookupRequest): Promise<HolderObservation[]> {
+async function observeMatches(store: Store, inventory: readonly MarkerHolder[], request: HolderLookupRequest, listing?: () => Promise<StoreResult<ListingOutcome>>): Promise<HolderObservation[]> {
   const observations: HolderObservation[] = [];
   for (const holder of matchingHolders(inventory, request, store.capabilities.stateOffBranch)) {
     if (store.capabilities.stateOffBranch && holder.uid === undefined) {
-      const classified = await classifyUnboundMarker({ store, cwd: holder.path, marker: holder.marker });
+      const classified = await classifyUnboundMarker({ store, cwd: holder.path, marker: holder.marker, listing: await listing?.() });
       if (classified.kind === "unreadable") throw new Error(classified.reason);
       observations.push({ holder, result: { kind: "unbound", path: holder.path, exits: classified.exits, reason: classified.reason } });
     } else observations.push({ holder, result: { kind: "held", path: holder.path } });

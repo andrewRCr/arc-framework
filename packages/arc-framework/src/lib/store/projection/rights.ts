@@ -1,4 +1,6 @@
 /** Record-based edit rights shared by persistence, protection, and adoption. */
+import type { ProjectionSource } from "./record-source.js";
+import type { WorktreeMarkerReadResult } from "../../git/worktree-marker.js";
 import { markerMatchesWorkUnitOwner } from "../../locus/holder-match.js";
 import { decodeWorktreeMarkerOwnership, readWorktreeMarker } from "../../git/worktree-marker.js";
 import { SlugSchema, WorkUnitStateSchema, type Slug } from "../../kernel/index.js";
@@ -21,6 +23,8 @@ export interface ProjectionEditRightsInput {
   readonly identity: Slug;
   readonly checkout: string;
   readonly local?: ProjectionAdmission["local"];
+  readonly source?: Pick<ProjectionSource, "read" | "list">;
+  readonly readMarker?: (checkout: string) => Promise<WorktreeMarkerReadResult>;
 }
 
 /** Authorization facts kept separate from the notice or refusal that presents them. */
@@ -41,7 +45,7 @@ export async function readProjectionEditRights(input: ProjectionEditRightsInput)
       : protectedRights(input, "identity", input.reference.owner.name);
   }
   if (input.reference.owner.type !== "work-item") return protectedRights(input, "verb", null);
-  const primary = await input.store.read({ reference: recordReferences["work-item/meta"](input.reference.owner) });
+  const primary = await (input.source ?? input.store).read({ reference: recordReferences["work-item/meta"](input.reference.owner) });
   if (primary.status === "refused") return primary;
   return primary.result.reference.kind === "work-item/record" ? errandRights(input, primary.result) : workUnitRights(input, primary.result);
 }
@@ -89,9 +93,9 @@ async function checkoutRights(input: ProjectionEditRightsInput, owner: Slug, pri
   if (input.local !== undefined) {
     return frozenCheckoutRights(input, owner, primary, input.local);
   }
-  if (await markerNamesAnotherOwner(input.checkout, primary)) return protectedRights(input, "checkout", owner);
+  if (await markerNamesAnotherOwner(input, primary)) return protectedRights(input, "checkout", owner);
   const warnings: string[] = [];
-  const claim = await readClaimedCurrentWorkUnit({ cwd: input.checkout, store: input.store }, warnings);
+  const claim = await readClaimedCurrentWorkUnit({ cwd: input.checkout, store: input.store, source: input.source, readMarker: input.readMarker }, warnings);
   if (claim.kind === "absent" && claim.cause !== undefined) {
     const native = nativeRefusalReport(claim.cause);
     if (native?.refusal !== undefined) return { status: "refused", refusal: native.refusal };
@@ -121,9 +125,9 @@ async function frozenCheckoutRights(input: ProjectionEditRightsInput, owner: Slu
     ? { status: "ok", result: { kind: "editable" } } : protectedRights(input, "checkout", owner);
 }
 
-async function markerNamesAnotherOwner(checkout: string, primary: StoreRecord): Promise<boolean> {
+async function markerNamesAnotherOwner(input: ProjectionEditRightsInput, primary: StoreRecord): Promise<boolean> {
   // Failed or malformed reads retain the normal claim reader's refusal and repair route.
-  const marker = await readWorktreeMarker(checkout).catch(() => null);
+  const marker = await (input.readMarker ?? readWorktreeMarker)(input.checkout).catch(() => null);
   if (marker?.kind !== "present" || marker.marker.husk !== undefined) return false;
   const ownership = decodeWorktreeMarkerOwnership(marker.marker);
   return ownership.kind === "current" && ownership.subject.kind === "work-unit" && !namesFileOwner(ownership.subject, primary);

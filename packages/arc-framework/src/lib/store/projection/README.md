@@ -22,6 +22,12 @@ and reads an existing actor without creating a machine ID. Its provisional answe
 `record-source.ts` defines the four read operations a projection source supplies; renderers accept source reads with
 the writable store’s history memo.
 
+Rendering rounds supply `protection-evidence.ts` with their source memo and share lazy checkout topology and marker
+observations. Both holder and markerless searches validate those raw observations independently. Metadata and unbound
+inventories come from the source; claim lookups use the writable store. `record-source.ts` retains each distinct
+read, list, version, and changes answer within a round, including refusals. Take-ins use fresh record and checkout
+evidence on each attempt, so a notice can name an earlier holder while a later refusal names its current location.
+
 `engine-end.ts` takes each ready root's lease again and reads its current index before the second check. After another
 index read under that lease, it removes retained take-in copies no entry names. An unusable index preserves its files.
 

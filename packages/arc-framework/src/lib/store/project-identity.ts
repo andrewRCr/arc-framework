@@ -22,7 +22,7 @@ export class ProjectIdentityError extends Error {
  * @param store - Selected operational backend.
  * @returns A callback retaining its exact observation across checkout rebinding.
  */
-export function createProjectIdentityReader(store: Store): () => Promise<string> {
+export function createProjectIdentityReader(store: Pick<Store, "list">): () => Promise<string> {
   let observation: Promise<string> | undefined;
   return () => observation ??= readProjectIdentity(store);
 }
@@ -37,12 +37,12 @@ export async function resolveProjectIdentity(reader?: () => Promise<string>): Pr
   catch (error) { if (error instanceof ProjectIdentityError) return error.failure; throw error; }
 }
 
-async function readProjectIdentity(store: Store): Promise<string> {
+async function readProjectIdentity(store: Pick<Store, "list">): Promise<string> {
   return (await readProjectIdentityBinding(store)).id;
 }
 
 /** Read the unique selected project's owner and stable ID from one complete identity observation. */
-export async function readProjectIdentityBinding(store: Store): Promise<{ id: string; owner: OwnerIdentity }> {
+export async function readProjectIdentityBinding(store: Pick<Store, "list">): Promise<{ id: string; owner: OwnerIdentity }> {
   const listing = await store.list({ family: "project-registry", kind: "project-registry/identity" });
   if (listing.status === "refused") throw new ProjectIdentityError({ status: "unavailable", reason: listing.refusal.condition,
     remedy: listing.refusal.remedy, refusal: listing.refusal });

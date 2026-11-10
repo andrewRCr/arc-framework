@@ -78,47 +78,23 @@ that chunk.
   the located common directory once per identity and command, retaining legacy candidates; renderers accept source
   reads with writable history, through the `ProjectionSource` seam.
 
-### `[ ]` **1.4 Read protection once per round — § 16.3, § 2.2, § 15.5**
+### `[x]` **1.4 Read protection once per round — § 16.3, § 2.2, § 15.5**
 
 - _Goal:_ A file's protection costs nothing per worktree but the claim of a worktree whose marker names the file's own
   work unit: rights answer another work unit's checkout protected without reading its claim, and a refresh's renders
   read the owner's meta and the holding checkout through evidence the refresh shares, while the take-in's rights and the
   refusal behind a notice still observe the current place.
 
-- **Additional Context:** `notes-projection-worktrees.md` § Spike 3
-
     - `[x]` **1.4.a Rights read only the file's own work unit's claim**
 
         - Live and captured rights reject unrelated marker owners before claim lookup, sharing lifecycle's UID-first
           current/former-name predicate. Own broken and unbound claims retain their refusals and recovery routes.
 
-    - `[ ]` **1.4.b A refresh's protection over its own evidence**
+    - `[x]` **1.4.b A refresh's protection over its own evidence**
 
-        - A refresh (1.6.a) builds its renderer (`createRecordRenderer`, `lib/store/projection/record-render.ts`) with a
-          protection of its own, made by `createProjectionProtection` (`lib/store/projection/protection.ts`) over inputs
-          this task adds. Its meta reads go through the source the refresh reads through (1.3): a fan-out round's memo
-          (1.6.a), at the start a memo the refresh builds over the store it is handed, and in a full materialization a
-          memo answered from the records its listing returned (1.5). Its claim `lookup` goes to the writable store
-          (1.3).
-        - Its holder and markerless searches take one listing of the worktrees per round or materialization, made only
-          when a render first needs one (`scanRegisteredWorktrees`, `lib/git/worktree-roster.ts`), with each listed
-          worktree's marker read once in it: the holder search (`findHoldingCheckout`, `createLocusPorts`,
-          `lib/locus/lifecycle-ports.ts`, which scans and reads every marker itself today) takes the listing's marker
-          holders, and the markerless search (`findNativeMarkerlessWorkUnitCheckouts`, `lib/locus/markerless-native.ts`)
-          its rows, its project identity (`createProjectIdentityReader`, `lib/store/project-identity.ts`) listing
-          through the same source. Classifying an unbound marker (`UnboundMarkerInput.listing`,
-          `lib/locus/unbound-marker.ts`) takes the source's listing; it is a repair state, outside spec § 15.5's counts.
-        - The root's protection (`bindRoot`'s, 1.3) stays as it is, uncached, for the take-in's rights, adoption, and
-          the stub mint (`rights-binding.ts`, `adoption.ts`, `stub-mint.ts`, `lib/store/projection/`) and for
-          write-back's read-back and drawing renders (`read-back.ts`, `checkout-drawing.ts`), so the refusal behind a
-          notice names the current place (spec § 17 item 7).
-        - Build `test-first` (one behavior at a time):
-            - a refresh's renders of one owner's files read the owner's meta once and list the worktrees at most once
-            - a protected file's notice names the checkout the refresh's listing found holding the owner
-            - an edit to a protected file, taken in after the owner moved to another checkout, is refused naming the new
-              checkout, though its notice named the old, and, once the edit is reverted, the next refresh's notice names
-              the new one
-            - an unbound marker's classification lists the work units through the refresh's source
+        - Rendering uses source-owned meta and inventory reads, a per-round read memo, and shared lazy roster and
+          marker observations. Holder and markerless searches retain their validation; take-ins observe fresh evidence,
+          including the current holder after a move. Unbound-marker classification uses the source inventory.
 
 ### `[ ]` **1.5 Materialize a worktree in full, and rebuild one with no usable index — § 2.5, § 3.1**
 
