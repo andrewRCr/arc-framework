@@ -141,7 +141,7 @@
       check refuses on an Errand's record in any state, the grooming and housekeep claims crossing as claims; Stage 1
       abandons the Errands it copied and opens its own to refuse on, the copy taken while no Errand awaits its merge;
       and the review ends there, with no fourth pass (Owner, 2026-11-06) (§ The window; § The rehearsal).
-- **Open:** ten inbound entries routed in after the capture (2026-11-10; § Inbound Buffer — Pending Integration).
+- **Open:** eleven inbound entries routed in after the capture (2026-11-10; § Inbound Buffer — Pending Integration).
 - **Next:** create-spec, whose entry check takes the inbound entries through the Owner's planning pass.
 
 ### The cut
@@ -1592,6 +1592,28 @@ draft, routed by the 2026-11-06 housekeep (PR #1290), since that member has no s
 
 - _Approach:_ make both rewrites minimal, enough not to mislead until the recipe goes; settle with that unit whether
   `01_verify-and-configure.md`'s lane steps go with the recipe.
+
+### `[ ]` **Keep the handoff's finalize pass from stopping on an unpushed head**
+
+- _Routed from:_ the 2026-11-10 housekeep drain of `USER-INBOX`, by message from `primary.ARC` (Owner-confirmed); the
+  capture was removed when it was routed here.
+
+- _Shapes:_ § The workflow rewrite, `session-handoff.md`'s sync section.
+
+- _Observation:_ `session-handoff.md` § Sync runs § Same-session finalize pass before `arc sync`, and the pass resolves
+  each candidate branch's local head, so after an active-WU handoff it reads a head carrying the unpushed
+  `chore(arc): handoff` commit. For a pull request still open at the remote head, `arc review change-request resolve`
+  returns `ambiguous / stop` ("An open change request exists at a different head",
+  `scripts/review-gate/change-request.ts`), which the pass dispatches as failed / blocked and surfaces loudly; once
+  `arc sync` pushes, the same call returns `open / reuse-change-request`, the still-pending arm. Seen at
+  `cohort-identity-verbs`' integration handoff (PR #1309), 2026-11-08; the order and the local-head read verified at
+  source (2026-11-10). The pass runs first so that a re-anchored post-merge note rides the sync push. This draft's
+  rewrite drops the notes legs and moves the handoff's meta write onto the store, which may remove both the unpushed
+  handoff commit and the reason for the order; a local head ahead by unpushed task commits would still stop.
+
+- _Approach:_ resolve an open request against the pushed head when the local head is ahead only by unpushed commits;
+  treat an open request at an ancestor of the local head as still pending; or detect merges before sync and check open
+  requests after it. If this spec does not take it, return it to a `USER-INBOX` capture, as `primary.ARC` offered.
 
 ### `[ ]` **Re-point the pieces deleted with the in-repo implementation to the unit split from tracked-state removal**
 
