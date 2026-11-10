@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "behavior-fix-check",
+  "claimId": "9f103f59404559fe1242e6c706b7c06e",
+  "createdAt": "2026-11-10T12:30:44.711Z",
+  "updatedAt": "2026-11-10T12:30:44.711Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Offer a fix check after a converged round whose fixes change behavior, and recommend it where no complete pass follows",
+  "branch": "chore/behavior-fix-check",
+  "origin": "inbox",
+  "originEntry": "Question whether a fix check should be offered only after material fixes",
+  "originEntrySourceDigest": "sha256:5ab59858c35219f27d0fdaf7daeb7a04b3558e0ac196f402f281fce8b4008a92",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
