@@ -500,9 +500,9 @@
   Separate machine delay from attended decisions. The agent also waited too long before bounding diagnosis and
   asking for the bridge continuation; that execution mistake compounded the product's opaque wait.
 
-- _Post-mortem:_ Identity-global `postmortems/2026-10-05-artifact-editor-handoff/POST-MORTEM.md` records outcomes,
-  witnessed failures, ownership and avoidable execution costs. Reassess the successful path after storage cutover;
-  branch-carried record commits and the two-PR archive bridge already belong to the storage program.
+- _Post-mortem:_ `postmortems/2026-10-05-artifact-editor-handoff/POST-MORTEM.md`, kept outside the repository, records
+  outcomes, witnessed failures, ownership and avoidable execution costs. Reassess the successful path after storage
+  cutover; branch-carried record commits and the two-PR archive bridge already belong to the storage program.
 
 - _Field evidence:_ PR #790's complete hosted Codex pass 2 returned clean at `e478b13646f6510b62fbfc017a781a7fdc3139da`
   on 2026-10-04 at 00:56:03 UTC. The approved final head `ce04ece722980873628ca26e94624b4a5fcd91b7` merged at
@@ -573,8 +573,8 @@
   green) that the reuse path the hook consults can accept, plus an amendment to the invariant's named local command.
   Local enforcement accepting a remote attestation is an authority change, so it is design work, not an Errand.
 
-- _Evidence:_ `postmortems/2026-10-10-quality-gate-hooks-bridge/BRIDGE-LANDING/DUPLICATE-MERGED-TREE-EVIDENCE.json`,
-  `NEW-HEAD-CHECKS.json`.
+- _Evidence:_ `postmortems/2026-10-10-quality-gate-hooks-bridge/BRIDGE-LANDING/DUPLICATE-MERGED-TREE-EVIDENCE.json` and
+  `NEW-HEAD-CHECKS.json`, kept outside the repository.
 
 - _Captured during:_ housekeep triage of the `quality-gate-hooks` landing inefficiencies, 2026-10-10.
 
@@ -948,9 +948,9 @@
   the baseline rather than redesigning or re-executing them by default. Genuinely new authority or design decisions
   remain with the WU; stronger enforcement needs fresh evidence.
 
-- _Analysis:_ `analysis-seam-locus-verification-expansion-2026-10-18.md`. This historical, untracked identity-global
-  user document preserves the timeline, transcript identity, exact target, concrete temporary-control examples, workflow
-  gaps, interim candidates, longer-term design, and standard-review implications.
+- _Analysis:_ `analysis-seam-locus-verification-expansion-2026-10-18.md`. This historical user document, kept outside
+  the repository, preserves the timeline, transcript identity, exact target, concrete temporary-control examples,
+  workflow gaps, interim candidates, longer-term design, and standard-review implications.
 
 - _Files:_ `verify-work-unit.md`, `validate-criteria.md`, `adversarial-review.md`, `review-chunking.md`, preparation and
   integration review entry, delivery-member criteria closing, shared changeset sizing policy/input contract, and

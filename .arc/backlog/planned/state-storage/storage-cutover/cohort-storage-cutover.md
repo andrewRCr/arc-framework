@@ -7,31 +7,34 @@
 
 **Purpose:** Cut this repository over to the ref store and finish the program: rehearse, quiesce, import, flip, and
 retire Git notes in one window, then delete what the flip made dead and rewrite the documentation to the new model. One
-draft designed the cutover whole; the members deliver it in five work units, the flip first and four follow-ons in
-parallel after it.
+draft designed the cutover whole; the members deliver it in six work units: the window's pre-flip machinery first, then
+the flip, and four follow-ons in parallel after it.
 
 ---
 
 ## Coordination
 
 ```text
-cutover-flip                       the rehearsal, the window, the flip change, the workflow rewrite, and notes
-│                                  retirement
-├── cutover-tracked-state-removal  what reads as live after the flip: refusing and inert verbs, the lifecycle
-│                                  hook checks, the CI planning classifier, and the merge-gate recipe; until its
-│                                  cut at the flip's landing, also the collapse share
-├── cutover-notes-removal          notes-specific sync and its configuration keys
-├── cutover-decompose-removal      the old decomposition machine
-└── cutover-documentation          the strategy rewrites and the ADR supersessions and amendments
+cutover-window-tooling                 the quiesce check, its record, the abort's restore, the worktree lock step,
+│                                      and Stage 1, on `main` ahead of the window
+└── cutover-flip                       Stage 2, the window, the flip change, the workflow rewrite, and notes
+    │                                  retirement
+    ├── cutover-tracked-state-removal  what reads as live after the flip: refusing and inert verbs, the lifecycle
+    │                                  hook checks, the CI planning classifier, and the merge-gate recipe; until
+    │                                  its cut at the flip's landing, also the collapse share
+    ├── cutover-notes-removal          notes-specific sync and its configuration keys
+    ├── cutover-decompose-removal      the old decomposition machine
+    └── cutover-documentation          the strategy rewrites and the ADR supersessions and amendments
 ```
 
-Each member's `Depends On` edges are the source of truth: `cutover-flip` depends on `cohort-identity-verbs`,
-`projection-worktrees`, `projection-write-back`, and `storage-ref-hardening`, and each follow-on on `cutover-flip`.
-These orderings are not edges:
+Each member's `Depends On` edges are the source of truth: `cutover-window-tooling` depends on no member outstanding,
+`cutover-flip` on `cohort-identity-verbs`, `projection-worktrees`, `projection-write-back`, `storage-ref-hardening`,
+`projection-team-scale`, and `cutover-window-tooling`, and each follow-on on `cutover-flip`. These orderings are not
+edges:
 
-- **Gate B placement** (Owner, 2026-11-03):
-    - `cutover-flip`, `cutover-tracked-state-removal`, `cutover-notes-removal`, and `cutover-documentation` are Musts;
-      `cutover-decompose-removal` is a Should.
+- **Gate B placement** (Owner, 2026-11-03; the window tooling, 2026-11-10):
+    - `cutover-window-tooling`, `cutover-flip`, `cutover-tracked-state-removal`, `cutover-notes-removal`, and
+      `cutover-documentation` are Musts; `cutover-decompose-removal` is a Should.
     - The follow-ons are planned to implementation-ready before `cutover-flip` lands. They land between the flip and the
       start of the product-renames sweep, which waits on them through `naming-conventions`' edges.
     - If `cutover-decompose-removal` has not landed by the sweep's start, it waits until after the deadline, and its
@@ -66,15 +69,18 @@ These orderings are not edges:
     - #26, "Take `seam-status-roadmap`'s two-step ROADMAP removal and its in-repo arms": `cutover-flip` holds it;
       `cutover-tracked-state-removal` takes the in-repo arms, `DERIVED_VIEWS`, and the conflict remedy.
 
-### Why five before the flip
+### Why six before the flip
 
-The flip is separate from the deletion it makes due (Owner, 2026-11-03). The five named members hold that boundary
-through the flip's landing. Tracked-state removal keeps what a user, CI, help, or the shipped recipe still exposes.
-Its draft holds a marked internal-collapse share until that share is cut at the flip's landing; the new member is
-added then, not before. That share contains the in-repo store, dormant capability and seam arms, branch-tree readers,
-lifecycle classification, and the write-context guard. Notes sync and the old decomposition machine each remain one
-self-contained deletion member. Their roughly 10,000-line deletion sets stay whole (Owner, 2026-11-03), since another
-branch and review would not shrink the subsystem a reviewer must check.
+The flip is separate from the deletion it makes due (Owner, 2026-11-03), and from the window's pre-flip machinery
+(Owner, 2026-11-10). The flip crossed the size marks at its create-spec entry, and of its parts only that machinery can
+sit inert on `main` before the window while the window keeps one merge; the window runs the quiesce check on `main`'s
+pre-flip build, so the check must be there first. The rest of the flip stays one work unit. The six named members hold
+that boundary through the flip's landing. Tracked-state removal keeps what a user, CI, help, or the shipped recipe still
+exposes. Its draft holds a marked internal-collapse share until that share is cut at the flip's landing; the collapse
+member is added then, not before. That share contains the in-repo store, dormant capability and seam arms, branch-tree
+readers, lifecycle classification, and the write-context guard. Notes sync and the old decomposition machine each remain
+one self-contained deletion member. Their roughly 10,000-line deletion sets stay whole (Owner, 2026-11-03), since
+another branch and review would not shrink the subsystem a reviewer must check.
 
 ### Register shares — 2026-11-10
 
@@ -88,8 +94,7 @@ while unused legacy implementation remains; that residue's removal is recorded u
 explicit deletion or contract-removal clause is not satisfied by dormancy. In the later column, **tracked-state
 removal** names `cutover-tracked-state-removal`, **notes removal** names `cutover-notes-removal`, **decomposition
 removal** names `cutover-decompose-removal`, and **documentation** names `cutover-documentation`. **Collapse** is the
-marked share still held in tracked-state removal's draft until its cut at the flip's landing; it is not a sixth
-member yet.
+marked share still held in tracked-state removal's draft until its cut at the flip's landing; it is not yet a member.
 
 | Mechanism                                                                    | Flip share                                                                                                                                                                                           | Later share or unresolved obligation                                                                                                                                                                            |
 | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -202,13 +207,22 @@ Every member has shipped, and every row of `cohort-state-storage.md`'s storage-c
 
 ## Members
 
+### `cutover-window-tooling`
+
+_Exposes:_ on `main` ahead of the window, inert until run: the quiesce check, its record and hold under
+`refs/arc-window/`, its recompute after the import and its last read of `origin/main`'s tip; the abort's restore; the
+worktree lock step; and Stage 1, with its copy driver, accounting case, and chain comparison, run clean.
+
+_Consumes:_ nothing outstanding; it reads only landed machinery.
+
 ### `cutover-flip`
 
-_Exposes:_ the flipped repository: the rehearsal, the quiesce and its check, the import and its second run, the flip
-change, every workflow rewritten onto the store, and Git notes retired.
+_Exposes:_ the flipped repository: Stage 2, the quiesce run through `cutover-window-tooling`'s check, the import and its
+second run, the flip change, every workflow rewritten onto the store, and Git notes retired.
 
 _Consumes:_ every other `state-storage` member, landed, the last of them `cohort-identity-verbs`,
-`projection-worktrees`, `projection-write-back`, and `storage-ref-hardening`.
+`projection-worktrees`, `projection-write-back`, `storage-ref-hardening`, and `projection-team-scale`; and
+`cutover-window-tooling`.
 
 ### `cutover-tracked-state-removal`
 

@@ -40,6 +40,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | review-evaluator-isolation            | P1       | andrew | —          | review-protocol-alignment  |
 | review-source-authority               | P1       | andrew | —          | review-protocol-alignment  |
 | storage-native-windows-bulk-transport | P1       | andrew | —          | state-storage              |
+| cutover-window-tooling                | P1       | andrew | —          | storage-cutover            |
 | compact-schema-declarations           | P1       | andrew | —          | —                          |
 | cross-worktree-git-state-safety       | P1       | andrew | —          | —                          |
 | delivery-intent-integrity             | P1       | andrew | —          | —                          |
