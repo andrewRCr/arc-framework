@@ -141,7 +141,7 @@
       check refuses on an Errand's record in any state, the grooming and housekeep claims crossing as claims; Stage 1
       abandons the Errands it copied and opens its own to refuse on, the copy taken while no Errand awaits its merge;
       and the review ends there, with no fourth pass (Owner, 2026-11-06) (§ The window; § The rehearsal).
-- **Open:** five inbound entries routed in after the capture (2026-11-10; § Inbound Buffer — Pending Integration).
+- **Open:** six inbound entries routed in after the capture (2026-11-10; § Inbound Buffer — Pending Integration).
 - **Next:** create-spec, whose entry check takes the inbound entries through the Owner's planning pass.
 
 ### The cut
@@ -1518,5 +1518,19 @@ draft, routed by the 2026-11-06 housekeep (PR #1290), since that member has no s
 
 - _Approach:_ name the second unit wherever this draft assigns those deletions, once it is minted, with
   `cohort-storage-cutover.md`'s member list.
+
+### `[ ]` **Drop the draft's citations of paths on this machine from the spec**
+
+- _Routed from:_ the Owner's host conventions, which from 2026-11-10 bar a committed file from citing a path on this
+  machine (Owner-approved, 2026-11-10).
+
+- _Shapes:_ § The rehearsal, where each stage records its run, and the store-backed paths' finding-by-finding grouping.
+
+- _Observation:_ the draft cites `~/dev/arc-evidence/cutover-flip/` twice: as where each rehearsal stage records its
+  run, and for the grouping of `seam-delivery-review`'s findings into the paths the rehearsal exercises. The
+  conventions keep such a run's raw evidence in the machine's per-repository agent area, uncited.
+
+- _Approach:_ the spec states each conclusion it needs in its own text, as the seven cases already are, and cites a
+  commit or a CI run ID for raw evidence, never a path on this machine.
 
 ---
