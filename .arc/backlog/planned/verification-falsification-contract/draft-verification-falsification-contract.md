@@ -106,6 +106,130 @@
 
 - _Captured during:_ `delivery-post-landing-conflict-recovery` Phase 4, 2026-09-17.
 
+---
+
+### `[ ]` **State what each step of a multi-step operation must preserve, and test it by perturbing between steps**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Direction — the verification half: perturbation tests between steps.
+
+- _Observation:_ `cohort-identity-verbs`' pre-publication review ran six complete standard passes with majors of 1, 2,
+  2, 1, 1 and 2 while the fix checks between them went clean. Its advisor's process diagnosis (2026-11-07) traced them
+  to meaning not preserved across steps. A rename's retry re-resolved its slug after a history pull and renamed an
+  arriving namesake (selection to retry). Close and remove checked conflicts at preparation but admitted on primary
+  versions alone, so a conflict arriving in between was accepted (preparation to admission). The holdings planner's
+  result depended on enumeration order (discovery to planning). Review established that the source was read, not that
+  these transitions were exercised, and the example-based tests never changed anything between steps. It is the same
+  class as `storage-ref-backend`'s restart matrix (the pending entry) and as `cutover-flip`'s draft review, whose
+  later passes found their majors in how records and checkouts carry through the window.
+
+- _Approach:_ for an operation whose steps run over state that can change between them, the spec states each
+  transition invariant with its enforcement point and its regression assertion: the selected identity held across
+  automatic retries; the evidence that justified preparation still holding at atomic admission, or refusal and fresh
+  preparation; equivalent inputs giving equivalent plans whatever their order. Verification proves each by controlled
+  perturbation, introducing the change between steps or reversing the order, and asserts the refusal, the legitimate
+  repair and the continuation, not only the normal path. Settle the split with `planning-iteration-mechanics`
+  (success-criteria authoring) at integration, as the pending entry already notes.
+
+- _Evidence:_ `advisor-process-question.md`, `advisor-process-result.md` and the three probe results
+  (`history-reselection-probe-result.json`, `conflict-arrival-probe-result.json`, `planner-order-probe-result.json`),
+  from `cohort-identity-verbs`' sixth standard pass. They were personal and gitignored, and went with that unit's
+  checkout at teardown unless copied out.
+
+- _Captured during:_ `project-manager.ARC`, reading `cohort-identity-verbs`' advisor process diagnosis, 2026-11-07
+  (Owner-approved; the target has no checkout, so no session to message).
+
+- _Follow-up:_ `integration.CIV`'s later classification (2026-11-07) narrows the dominant case to arrival: records the
+  plan's listing or lookup would have returned, arriving between preparation and the atomic write, which the store's
+  read-only fences cannot see. A perturbation test should introduce such an arrival, not only change a record already
+  read. The design half is captured separately ("State the concurrency contract of every prepared multi-record
+  write").
+
+- _Follow-up:_ `cohort-identity-verbs`' design amendment A7 (approved 2026-11-07) is a worked instance: one
+  perturbation harness on both backends, seeded from an audit of each read family preparation uses, each case
+  asserting either refusal with a correct fresh retry or admission equal to fresh preparation, plus an unrelated write
+  that must admit. The audit found the gaps an eighth complete pass would have been left to find one at a time.
+
+---
+
+### `[ ]` **State the concurrency contract of every prepared multi-record write**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Direction — the spec-authoring half, paired with "State what each step of a multi-step operation must
+  preserve, and test it by perturbing between steps". Partly overtaken: `cohort-identity-verbs` (#1309) and
+  `projection-write-back` (#1305) state their fences.
+
+- _Observation:_ `integration.CIV`'s process report (2026-11-07, sent at the Owner's request): after verification at
+  `86b29cc076`, seven complete standard passes plus fix checks, twelve disposition rounds, nearly every round finding
+  one or two majors. Of 19 findings, 11 (10 major) share one mechanism: a rename or cohort retirement prepares a
+  multi-record batch from store reads, a record arrives or changes before the atomic write, and the write check does
+  not re-establish that part of the plan. That class appears in 9 of 12 rounds, the last 4 in a row. Six more, on
+  cohort Parent and member coupling, stopped after design amendments A5 and A6. Root cause: the store fences only
+  records it has already read (per-record version observations in a batch), and nothing detects a record arriving that
+  the plan's listing or lookup would have returned. The spec stated no concurrency contract for prepared multi-record
+  writes, so admission was completed one participant class per finding, in hand-written checks that partly repeat the
+  planning logic (`lib/store/rename-reference-admission.ts` and its siblings). The rule that checks the resulting
+  state directly (`checkSlugEdges`) has the same exposure and produced no finding. The exposure is not one unit's:
+  every writer that decides from reads taken before it submits is exposed (the lifecycle verbs,
+  `projection-write-back`'s write-back, `projection-worktrees`' fan-out and partitioned index commit, the flip's
+  import), and the races go live when the flip makes the store the substrate every session writes.
+
+- _Approach:_ every spec with a prepare-then-atomic-batch write states what is fenced and how arriving records are
+  handled: re-planning at admission against a locked view (the unit's design amendment A7), a check on the resulting
+  state, or a state-version or listing precondition on the batch. Write checks prefer rules over the resulting state,
+  or one shared planner, to predicates comparing against what preparation chose, since those drift from the planner.
+  A7 is unit-local; the store already serializes publication with a whole-state check (the follow-up below), so each
+  prepared writer states its own fence.
+
+- _Evidence:_ commit bodies on `feat/cohort-identity-verbs` (each disposition set lists its findings),
+  `notes-cohort-identity-verbs.md`, and its private review ledger, personal and gitignored, which went with that unit's
+  checkout at teardown unless copied out.
+
+- _Captured during:_ `project-manager.ARC`, routing `integration.CIV`'s process report, 2026-11-07 (Owner-requested
+  capture and routing, relayed by `integration.CIV`).
+
+- _Follow-up:_ `integration.CIV`'s scoping, corrected the same day (2026-11-07) after an independent audit: the store
+  has no store-wide window. Every ref-backend publication runs through `commitRefStep`
+  (`lib/store/ref/commit-step.ts`) under one store-wide `layout` lock, ordinary batches, sync merges and sync
+  withdrawals alike, and inside it `refAdmissionBasisChanged` (`ref/write-admission.ts`) compares every state ref's
+  tip with those captured at submission and retries from fresh state on any difference, a new ref included, so write
+  checks see the exact, serialized state the commit lands on. The real window is local to each verb: between preparing
+  a batch and submitting it. A7 closes it for rename and retirement by re-running preparation inside the admission
+  check, which is complete because that view is exact. What carries to the other prepared writers
+  (`projection-write-back`'s write-back, `projection-worktrees`' fan-out, the flip's import) is a pattern, not a store
+  primitive. A writer that decides from reads taken before it submits either re-derives the decision inside a write
+  check or observes everything it read; it cannot rely on the backend's retry, which compares against tips at
+  submission, not at preparation. A coarse alternative is a batch carrying its preparation-time `store.version()` (a
+  manifest of all ref tips) as a precondition, which the basis check could enforce almost free, but that is a contract
+  change and retries on any unrelated write. Both go into A7's text so the writers state their fences the same way.
+
+- _Follow-up:_ A7 approved (Owner, 2026-11-07), the text `integration.CIV` commits to its spec next. The contract: a
+  prepared store write lands only if preparing it against the state it lands on would produce the same writes from the
+  same evidence. Two arms. Re-plan at admission: preparation is a pure function of a store view and the request, and
+  emits as the batch's observations exactly the records and exact-reference absences that feed a write, a report row
+  or an advisory (refusals, which the fresh plan re-derives, and records listed but feeding nothing are not evidence);
+  the write check re-runs it over `before` and admits only when every fresh write appears in `after` unchanged and the
+  fresh evidence names nothing the batch neither observes nor writes at an expected version. Or observe what the
+  decision read, where decisions already rest on rules over the resulting state. Verification is by perturbation: one
+  harness on both backends injects a store change between preparation and batch, seeded with each read family
+  preparation uses; each case asserts refusal with nothing written and a correct fresh retry, or admission equal to
+  fresh preparation, and an unrelated write admits. The cost is one extra preparation inside the store-wide lock. The
+  other prepared writers (`projection-write-back`'s write-back, `projection-worktrees`' fan-out and index commit, the
+  flip's import) state their fences the same way; relayed to `generate-tasks.PWT`, `draft-design.CF` and, through
+  `primary.ARC`, `projection-team-scale`'s draft.
+
+- _Follow-up:_ checked with the writers the same day (2026-11-07). `projection-worktrees` prepares no store write of
+  its own: its fan-out brings sibling worktrees' working copies and indexes up to the store, re-reading each index
+  under its projection lock and skipping a worktree whose state version moved; its index commit is local under that
+  lock; and its protection reads feed no store write. The store writes it causes go through write-back's take-in. The
+  flip's import lands only on an empty store (`landImportRefs`, `lib/store/ref/import/land.ts`, refuses `occupied`
+  under the `layout` lock), so the contract holds trivially, and its inputs outside the store are fenced by the
+  quiesce, a lease on each Errand identity ref at the tip read, and the check's recompute after the import. A7's
+  pattern governs the flip's other store writes (its archive, the register closures). Of the writers named above,
+  write-back's take-in is the one still without a stated fence; the flip's spec names who states it.
+
 ## Problem / Motivation
 
 On `integration-boundary-accuracy`, two self-verification passes marked every success criterion met; two adversarial

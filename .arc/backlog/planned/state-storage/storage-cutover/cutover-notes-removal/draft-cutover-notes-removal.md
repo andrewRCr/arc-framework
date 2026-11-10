@@ -151,4 +151,46 @@ None on unlanded members.
 - _Captured during:_ `cutover-flip` draft-design, planning review's expected-contract sweep, 2026-11-06
   (Owner-approved; the target has no session).
 
+### `[ ]` **Name the session-init notes surfaces in the notes deletion set**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Scope's deletion set from #1 and its survivors.
+
+- _Observation:_ the shipped specs leave six session-init notes surfaces to the deletion pass that no cutover draft
+  names: `lib/session-init/notes-compaction-advisory.ts` (`spec-storage-contract.md` L482),
+  `lib/session-init/partial-push-marker-surface.ts` (`spec-storage-contract.md` L484; `spec-seam-locus.md` L780),
+  `composeNotesPromptText` and `composeCombinedPrompt` with the notes inputs of `commands/status/run.ts`
+  (`spec-storage-contract.md` L441; `spec-seam-locus.md` L1241), and the notes branches of `inferUser` and
+  `inferRetiredSubdirs` in `lib/session-init/recommended-action.ts` (`spec-seam-locus.md` L1109, L1241). The notes
+  lock's callers also include `runUserInboxRemove` and `removeCurrentInboxEntry` (`commands/user/inbox-remove.ts`;
+  `spec-storage-contract.md` L540), which the draft's notes-lock entry does not name.
+
+- _Approach:_ verify each against the base the flip lands on, then add the live ones to the deletion set or name them
+  as survivors.
+
+- _Captured during:_ `cutover-tracked-state-removal` draft-design, a sweep of the shipped specs' hand-offs to the
+  cutover (subagent findings, not yet verified at source), 2026-11-10 (Owner-approved; the target has no session).
+
+### `[ ]` **Settle which deletion pass takes the Errand ref-tree and publish-outcome residue**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Scope's survivor list, and the Git failure-text predicates' move to `lib/git/ref-tree.ts`.
+
+- _Observation:_ these items are reached by both notes removal's survivor list and tracked-state removal's collapse
+  share, and named by neither draft: the in-repo-only statuses of `PublishOutcomeSchema` (`lib/store/sync.ts`;
+  `spec-storage-ref-backend.md` L368); `lib/errand/ref-tree.ts` and `errandsRef` (L3511); `hashBlob`,
+  `reconcileErrandPush`, `lib/git/publication-failure.ts`, and `writeTreeCommit`, `RefTreeWriteIO`, and
+  `MAX_RECONCILE_ATTEMPTS` beside the predicates #1 moves into `lib/git/ref-tree.ts` (L3509; `spec-seam-lifecycle.md`
+  L224); and the register's named survivor symbols (`CrossWuShape`, `CrossWuEntrySchema`, `CrossWuEntryParseSchema`,
+  `CrossWuEntry`, `EntryParse`), which the draft names only generally.
+
+- _Approach:_ at notes removal's planning, decide for each item which unit deletes it, or that it survives.
+  Tracked-state removal's collapse share, cut out at the flip's landing, takes whatever notes removal leaves that is an
+  in-repo arm.
+
+- _Captured during:_ `cutover-tracked-state-removal` draft-design, the same sweep, 2026-11-10 (Owner-approved; the
+  target has no session).
+
 ---

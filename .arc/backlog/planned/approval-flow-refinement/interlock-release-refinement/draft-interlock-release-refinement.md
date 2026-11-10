@@ -255,6 +255,57 @@ atomic companion and the personal atomic inbox.
 
 - _Captured during:_ the CineXplorer install rehearsal's `/arc-setup`, 2026-10-23.
 
+### `[ ]` **Add a planned-fix check failure that ended a whole deferred range to the one-answer-stops audit**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Carry a recommendation into approval gates, not only advisory forks", its one-answer-stops observation
+  (that entry's home is the `approval-flow-refinement` cohort's to settle). The in-scope fix rule landed in #1231; what
+  remains is holding one item and continuing the deferred range.
+
+- _Observation:_ a workflow-mandated one-answer ask that cost an overnight range. `storage-ref-hardening`'s Codex
+  implementer stopped at Task 3.4 (2026-11-01) on a feedback failure whose fix Task 3.9.a already specifies, with
+  edits uncommitted and the same pull-forward already made once at Task 3.3.b; implementation waited about 6 hours.
+  The Owner reports it has recurred. In the same window `projection-substrate`'s Opus implementer held one item for
+  the Owner and kept implementing, which the text does not describe either: it says a failure ends the deferred scope.
+
+- _Approach:_ an **in-scope fix** rule (a known-cause fix that plainly serves the goal of a task inside the current
+  approval, within the recorded design, is made, noted on its task, rerun and reported) runs now as Errand #1231 (Owner
+  2026-11-01), widened from a planned-task carve-out after the implementer stopped again on a fix spec § 1.6 required
+  but no task named. Left for the audit: whether a deferred range should hold the one failing item and continue
+  independent tasks rather than end, which needs what commits while an item is held (safe-accumulate or opted-in
+  per-task commits) and how tasks that depend on it are ordered; and whether the Backstop's check-integrity limb should
+  say that fixing and rerunning lies outside it.
+
+- _Captured during:_ `project-manager.ARC`, `storage-ref-hardening`'s overnight stop, 2026-11-01.
+
+### `[ ]` **Let one "yes" accept every recommendation an approval question names**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Carry a recommendation into approval gates, not only advisory forks" (part 1 duplicates it in substance;
+  that entry's home is the `approval-flow-refinement` cohort's to settle).
+
+- _Observation:_ ARC requires a recommendation on every advisory fork (`DEV-RULES.ARC` § Recommend on advisory forks)
+  and review decision, but nothing asks for a closing question that one "yes" can answer. Codex asks for each decision
+  separately, and review reports never offer the next look: `disposition-report` § Closing question says "Never name
+  the next pass", chosen in `cd6ee84b6c` (2026-10-20) because the command cannot see the agent's recommendation
+  (free-text `successorRecommendation`) and a yes would authorize the pass. The Owner wants that authorization, and
+  `review-triage` already lets one reply grant the set and the next activity.
+
+- _Approach:_ (1) Extend § Recommend on advisory forks: end with one question whose "yes" accepts every
+  recommendation, naming each thing it approves; § A stop with one answer and the merge invariant keep their own
+  stops. (2) Give the report input a structured recommended look (one that `nextLooks` admits, or stop) and have
+  `response-report.ts`'s closer name it as its own clause, such as `… → push, then fix check round 2?`; update
+  `disposition-report` § Closing question and its examples. Ask separately for an over-ceiling pass (its consequence
+  comes first), a finding with an open question, and a pass an Owner-set stop rules out. Fix-check approval has no
+  record today, so this is wording plus one input field.
+
+- _Files:_ `DEV-RULES.ARC.md` and `disposition-report.md` (both trees),
+  `packages/arc-framework/src/scripts/review-gate/runtime/response-report.ts`, its report-input schema and tests.
+
+- _Captured during:_ `project-manager.ARC`, 2026-11-10 (Owner-approved; kept in ARC rather than a host rule).
+
 ---
 
 ## Problem / Motivation

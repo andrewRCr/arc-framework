@@ -239,6 +239,70 @@
 
 - _Captured during:_ `storage-contract` create-spec, 2026-09-30.
 
+---
+
+### `[ ]` **Warn before an inbox record nears the store's 1 MB cap**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Consumption wiring (the rot fix), whose session-init probe would carry a size signal.
+
+- _Observation:_ after the flip, each person's `USER-INBOX` and the project's `ATOMIC-INBOX` are each one projected
+  record (`personal/inbox`, `project-inbox/inbox`; `lib/store/registry.ts:102`, `:113`), and the store refuses any
+  projected record over 1 MB (`store.size-cap`, `lib/store/serialization.ts:17`). Every capture to a full inbox then
+  fails, and nothing warns first. This identity's `USER-INBOX` reached 344 KB on 2026-11-10, about 9 KB a day between
+  drains.
+
+- _Approach:_ a size signal well before the cap (the session-init inbox probe, by size as well as age), and a drain
+  prompted by size, since with many sessions in parallel the between-work-units drain rarely comes round.
+
+- _Captured during:_ `project-manager.ARC`'s inbox-size review, 2026-11-10 (Owner-approved); the record shape
+  confirmed by `draft-design.CF` the same day (the flip keeps it, D11).
+
+---
+
+### `[ ]` **Give held entries that wait on an event or a decision their own handling, and keep captures short**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § The retention line (drain fork, sharpened).
+
+- _Observation:_ the retention line reads a hold as "I am doing this myself, soon", but most of this identity's 89 held
+  entries on 2026-11-10 waited on something else: about 33 on the storage cutover, about 17 on an Owner decision.
+  Drains keep them, so held entries made up 177 KB of the inbox's 344 KB. Entries also run long, a median of about
+  1.7 KB and several of 5–8 KB, carrying evidence and design analysis that belongs in the target's draft.
+
+- _Approach:_ an entry waiting only on a decision gets it at the drain (Owner direction, 2026-11-10; working memory
+  carries it until this lands); one waiting on an event routes once its home exists and otherwise names the event; a
+  capture is a short pointer, its analysis written in the target's draft.
+
+- _Captured during:_ `project-manager.ARC`'s inbox-size review, 2026-11-10 (Owner-approved).
+
+---
+
+### `[ ]` **Plan the inbox for team scale: name the decider, own triage, and let a tracker take unassigned work**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § The retention line (promote-by-default's destination) and § The Model.
+
+- _Observation:_ the model is being planned from a solo repository, where parallel agent sessions supply team-like
+  volume (77 captures in ten days, 2026-11) but not team-like coordination. Solo use hides five things: who decides
+  (a held entry waiting on "the Owner" would need to name whose decision, which `DEV-RULES.ARC` § Rule Authority
+  resolves by role and surface); who triages the project inbox, unclaimed entries and stalled Errands; duplicates
+  across people, unseen while each personal inbox is read only by its person; who hears of what (watchers, mentions,
+  assignment, not one person's host conventions); and conventions kept in one person's files, not shared configuration.
+
+- _Approach:_ at planning, trace a three-person scenario through capture, drain, promote, claim and stall, as
+  `external-pm-composition` requires of its own design. Keep promote-by-default's destination a seam, so a project
+  composed with a tracker sends unassigned work there instead of `INBOX.PROJECT` (the standalone and composed postures
+  of `strategy-pm-composition-evolution.md`). The agent-side discipline stays here in both: short captures routed to a
+  design unit's draft, no item with a known home resting in an inbox, Errand execution.
+
+- _Related:_ the companion capture for `external-pm-composition`; `collaborative-team-planning`.
+
+- _Captured during:_ `project-manager.ARC` with the Owner, 2026-11-10, after the inbox-size review (Owner-approved).
+
 ## Problem / Motivation
 
 The core invariant — _no item with a known home may rest in a capture surface_ — is enforced at **write-time**
