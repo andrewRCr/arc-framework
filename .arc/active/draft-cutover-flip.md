@@ -141,7 +141,7 @@
       check refuses on an Errand's record in any state, the grooming and housekeep claims crossing as claims; Stage 1
       abandons the Errands it copied and opens its own to refuse on, the copy taken while no Errand awaits its merge;
       and the review ends there, with no fourth pass (Owner, 2026-11-06) (§ The window; § The rehearsal).
-- **Open:** nine inbound entries routed in after the capture (2026-11-10; § Inbound Buffer — Pending Integration).
+- **Open:** ten inbound entries routed in after the capture (2026-11-10; § Inbound Buffer — Pending Integration).
 - **Next:** create-spec, whose entry check takes the inbound entries through the Owner's planning pass.
 
 ### The cut
@@ -1546,12 +1546,37 @@ draft, routed by the 2026-11-06 housekeep (PR #1290), since that member has no s
     7. `arc wu reconcile --apply`: "Apply and stage the exact reported path set", where the store arm stages nothing;
     8. `arc errand next`: "the first execute-bound USER-INBOX Errand";
     9. `arc errand link`: "so close/promote can drop it", and the `--from-inbox <entry-title>` option;
-    10. `arc errand close`: "drop its originating inbox capture".
+    10. `arc errand close`: "drop its originating inbox capture";
+    11. `arc decompose`'s `--execute`, `--extract`, and `--finish` describe the repository arm first ("Stage an exact
+        repository result", "Stage an additive extraction", "Preview source thinning from a map"), and `--revise` and
+        `--discard` hold the store arm to "when state is off branch", where only the store arm runs after the flip
+        (added by message, 2026-11-10). That unit removes the two decompose inputs that refuse on every input on the
+        store, `--advance-base` and `--finish` given a map.
 
   The text is as quoted at source (2026-11-10); the store arms' behavior is that unit's reading.
 
 - _Approach:_ take them with the status help, or decline any one; a decline goes to `cutover-tracked-state-removal` by
   message, and that unit rewrites it.
+
+### `[ ]` **Decide whether the store archive records `PR URL` and `Completed`**
+
+- _Routed from:_ `cutover-tracked-state-removal` draft-design, by message (2026-11-10), which holds it as Open until
+  this spec answers.
+
+- _Shapes:_ § The workflow rewrite, the step that opens a work unit's pull request; the store arm of `arc archive`.
+
+- _Observation:_ on the store, `arc archive --pr-url` and `--completed` are dropped without a notice. `runArchive`
+  hands an off-branch store to `runStoreArchive` before it reads either parameter (`lib/work-unit/verbs/archive.ts`),
+  and `runStoreArchive` (`lib/work-unit/verbs/archive-store.ts`) takes the quarter from the clock and writes only the
+  cleared session fields. No store verb writes either field; only the projected meta's write-back does
+  (`lib/store/kinds/meta/preformatted-writer.ts`). Readers still take both: `completedRecord`
+  (`lib/store/lifecycle-completed.ts`) and `completed-index.ts`. `archive-work-unit.md` passes `--pr-url`, and this
+  draft says archive records the pull request as the meta's `PR URL`, so after the flip an archived meta loses both
+  fields unless edited by hand. Verified at source (2026-11-10).
+
+- _Approach:_ recommended, the store archive writes both, a fix in this unit's store arm, and tracked-state removal
+  keeps the two options; otherwise that unit removes both options after the flip. Send the answer to
+  `cutover-tracked-state-removal` by message at create-spec.
 
 ### `[ ]` **Keep the merge-gate recipe's planning-lane rewrite minimal, since the recipe retires after the flip**
 
