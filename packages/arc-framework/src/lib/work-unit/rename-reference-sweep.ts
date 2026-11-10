@@ -104,10 +104,7 @@ export async function planRenameReferences(
       params.targetSlug,
       params.artifactRenames,
     );
-    rewritten = rewriteBacktickedArtifactReferences(rewritten, params.sourceSlug, params.targetSlug);
-    for (const [from, to] of params.artifactRenames ?? []) {
-      rewritten = rewritten.replaceAll(`\`${from}\``, `\`${to}\``);
-    }
+    rewritten = rewriteBacktickedArtifactReferences(rewritten, params.sourceSlug, params.targetSlug, params.artifactRenames);
     if (basename(relativePath).startsWith("meta-") && basename(relativePath).endsWith(".md")) {
       rewritten = rewriteDependsOn(rewritten, params.sourceSlug, params.targetSlug);
     }
@@ -166,12 +163,19 @@ function rewriteArtifactSelfReferences(
   );
 }
 
-/** Apply the generic filename rewrite used by every reference sweep. */
-export function rewriteBacktickedArtifactReferences(content: string, sourceSlug: string, targetSlug: string): string {
-  const escaped = sourceSlug.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const pattern = new RegExp("`([a-z]+)-" + escaped + "\\.md`", "gu");
-  return content.replace(pattern, (match, prefix: string) =>
-    prefix === "cohort" ? match : `\`${prefix}-${targetSlug}.md\``);
+/** Rewrite each original backticked filename once, preferring exact acquired names to the conventional suffix. */
+export function rewriteBacktickedArtifactReferences(content: string, sourceSlug: string, targetSlug: string,
+  artifactRenames?: ReadonlyMap<string, string>): string {
+  const escape = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const names = [...(artifactRenames?.keys() ?? [])].map(escape);
+  names.push(`[a-z]+-${escape(sourceSlug)}\\.md`);
+  const pattern = new RegExp("`(" + names.join("|") + ")`", "gu");
+  return content.replace(pattern, (match, filename: string) => {
+    const exact = artifactRenames?.get(filename);
+    if (exact !== undefined) return `\`${exact}\``;
+    return filename === `cohort-${sourceSlug}.md` ? match
+      : `\`${filename.slice(0, -sourceSlug.length - 3)}${targetSlug}.md\``;
+  });
 }
 
 function rewriteDependsOn(content: string, sourceSlug: string, targetSlug: string): string {
