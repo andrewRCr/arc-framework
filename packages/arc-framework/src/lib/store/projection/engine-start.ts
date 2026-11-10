@@ -26,6 +26,7 @@ import { observeProjectionConfiguration } from "./command-configuration.js";
 import { interpretProjectionView } from "./view-settings.js";
 import { createProjectionLinkBoundary, reconcileProjectionLinks } from "./discovery-links.js";
 import { observeProjectionEdit } from "./edit-observation.js";
+import { checkoutHoldsProjection } from "./ownership.js";
 
 /** Start independent reads together, drain them all, then sweep and take in files under the lease. */
 export async function startUnderLease(input: ProjectionCommandInput, ports: ProjectionEnginePorts,
@@ -35,6 +36,11 @@ export async function startUnderLease(input: ProjectionCommandInput, ports: Proj
   let root: ProjectionRootState | undefined;
   try {
     await session.step();
+    const disk = await readProjectionIndex(location, await checkoutHoldsProjection(input.checkout, location));
+    if (disk.kind === "no-projection") {
+      await bindResolution(input, null);
+      return { kind: "no-projection" };
+    }
     const configuration = observeProjectionConfiguration(input.checkout, () => readProjectionConfiguration(ports.exec, input.checkout));
     const version = input.store.version();
     const shared = walkProjectionRoots(input.checkout, PROJECTED_LIFECYCLE_ROOTS.filter(path => input.mode === "save" || path !== ".arc/completed"), ports.walkFs);
@@ -53,11 +59,6 @@ export async function startUnderLease(input: ProjectionCommandInput, ports: Proj
     reportProjectionLinks([...sharedWalk.links, ...personalWalk.links]);
     await session.step();
     if (saved.status === "refused") return { kind: "refused", mark: { reason: saved.refusal.condition, remedy: saved.refusal.remedy } };
-    const disk = await readProjectionIndex(location, false);
-    if (disk.kind === "no-projection") {
-      await bindResolution(input, null);
-      return { kind: "no-projection" };
-    }
     if (disk.kind === "unusable") return { kind: "refused", mark: { reason: `Projection index is ${disk.cause}.`,
       remedy: { text: "Restore a readable projection index, then retry; existing projected files have been preserved." } } };
     await bindResolution(input, disk.index);

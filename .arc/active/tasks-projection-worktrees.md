@@ -35,30 +35,15 @@ which read through both (`notes-projection-worktrees.md` § Spike 3, § Spike 4)
 lands with tests of its own code that need no later chunk's, and a test that also needs a later chunk's code lands with
 that chunk.
 
-### `[ ]` **1.1 Decide which checkouts hold a projection — § 2.5**
+### `[x]` **1.1 Decide which checkouts hold a projection — § 2.5**
 
 - _Goal:_ A worktree holds a projection when it holds an index, and gets one only when it is the primary or its
   work-unit marker names a work unit or a transient claim — an `arc start --here` checkout included — so ARC's machinery
   checkouts and unclaimed worktrees run with the projection off.
 
-    - Read from the marker (`readWorktreeMarker`, `decodeWorktreeMarkerOwnership`, and the husk stamp
-      `decodeWorktreeHuskStamp`, `lib/git/worktree-marker.ts`) and whether the checkout is the primary
-      (`ProjectionLocation.primary`, from `locateProjection`, `lib/store/projection/location.ts`, which reads `.git`
-      with no Git call, falling back to `git rev-parse` only where `.git` does not read (`resolveCheckoutGitDir`) — the
-      primary's Git directory holds no `commondir`, being the common one): a `current` ownership naming a work unit, or
-      a transient subject whose provisioning is `ready`, counts; a `pending` provisioning, a `manual-only` ownership, a
-      husk-stamped marker, and a subject naming a branch, as a decomposition worktree's does, get none.
-    - The answer replaces the fixed `holdsProjection: false` the start reads its index with
-      (`readProjectionIndex(location, false)` in `startUnderLease`, `lib/store/projection/engine-start.ts`), so a
-      missing index where this task gives a projection reads as `missing` and goes to 1.5, and a checkout it gives none
-      still answers `no-projection`.
-    - A checkout with the projection off still fans out its writes to the machine's projections (1.7).
-    - Build `test-first` (one behavior at a time):
-        - the primary and a checkout whose marker names a work unit or a ready claim each get a projection
-        - a primary whose `.git` is a `gitdir:` file, as `git init --separate-git-dir` makes it, gets a projection
-        - a hand-made worktree with no marker, a decomposition worktree, and a claim still `pending` get none, and the
-          engine's start there touches no projection file
-        - a husk-stamped marker and a `manual-only` ownership get none
+- _Outcome:_ Command entry reads projection eligibility from the primary flag and decoded marker ownership before
+  walking projected files. Existing indexes remain readable in unclaimed checkouts; only work-unit and ready transient
+  claims gain a missing projection, with husks and machinery excluded.
 
 ### `[ ]` **1.2 The index's header and partitions — § 3.1, § 16.2**
 
