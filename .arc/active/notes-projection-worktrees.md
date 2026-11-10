@@ -282,11 +282,11 @@ re-reads and hashes each aside copy, and deletes it. 4 KB files, 20 writes per c
 ## Grounding basis
 
 The task list names code as it stands at `c7b14659e3`, this branch with `main` merged (`6a8ba934cf`) on 2026-11-10,
-which carries `projection-write-back` (#1305) and `cohort-identity-verbs` as shipped, so every symbol it names is on
-base. Task generation first grounded it on 2026-11-06, against `86d8e18dcd` and `projection-write-back`'s branch head
-`6b82b6f671`. The re-check at `c7b14659e3` read each cited file that changed since against every statement naming it,
-and checked the spec's citations of `spec-projection-write-back.md` against that spec as shipped; the spec's amendment
-of 2026-11-10 records what moved.
+which carries `projection-write-back` (#1305) and `cohort-identity-verbs` (#1309) as shipped, so every symbol it names
+is on base. Task generation first grounded it on 2026-11-06, against `86d8e18dcd` and `projection-write-back`'s branch
+head `6b82b6f671`. The re-check at `c7b14659e3` read each cited file that changed since against every statement naming
+it, and checked the spec's citations of `spec-projection-write-back.md` against that spec as shipped; the spec's
+amendment of 2026-11-10 records what moved.
 
 ## Removal callers
 

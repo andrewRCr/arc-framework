@@ -109,11 +109,11 @@ that chunk.
       each entry the state no longer holds as a removal. Every other reader reaches entries by path and loads the group
       holding it — `dropRemovedEntries`, `swap.ts`; adoption's removal of one entry, `adoption.ts`; `readIndexedOwners`,
       `container-ownership.ts`, the container's group; the overlap advisory, `lib/errand/overlap-targets.ts`; and a
-      send's local capture (`captureProjectionLocal`, `local-capture.ts`), which reads the published index itself, twice
-      a send, and scans it for the candidate containers' indexed metadata, all in the path's own root group, so it loads
-      that group — and the `{ ...index.entries, [path]: entry }` updates across `lib/store/projection/` move to the
-      module's per-path update. The index in memory iterates only its loaded groups, so a pass that has not loaded a
-      group finds less, never more.
+      send's local capture (`captureProjectionLocal`, `local-capture.ts`), which reads the published index itself at
+      each of a send's captures, and scans it for the candidate containers' indexed metadata, all in the path's own root
+      group, so it loads that group — and the `{ ...index.entries, [path]: entry }` updates across
+      `lib/store/projection/` move to the module's per-path update. The index in memory iterates only its loaded groups,
+      so a pass that has not loaded a group finds less, never more.
     - A partition the header names that is missing answers `unreadable` (`UnusableIndexCause`), so the start rebuilds
       the worktree (1.5) and the fan-out and the end skip it. One whose bytes do not match its name answers `unreadable`
       where the start's read loads it, so the start rebuilds (1.5), and, naming that partition, where the removal check
@@ -188,42 +188,46 @@ that chunk.
       configuration and the claim and layout fresh before and after each send's preparation (`prepareStable`,
       `lib/store/projection/submission.ts`), reads them in the bound checkout, never the command's: today's `bindRoot`
       reads them in the command's checkout, so a sibling's or a target's take-in would capture the command's marker and
-      configuration. Binding makes no Git call, but each send through a root reads that checkout's configuration twice,
-      one Git call each. The command's read is the one `observeProjectionConfiguration`
-      (`lib/store/projection/command-configuration.ts`) holds for the command's checkout in the process state
-      (`ProjectionProcessState.configurations`): the start's, whatever the start answered, `no-projection` included, or,
-      where the start made none — under `--skip-projection`, with its lock held or lost, or its checkout gone — one made
-      there on first need. The fan-out supplies that read, so binding a sibling adds no Git call: `git config` reads the
-      same values in every worktree of a clone unless a worktree's own `config.worktree` or a conditional include
-      (`includeIf`) differs, and a sibling whose recorded view setting, identity, or ignore configuration then differs,
-      or whose index records no guard pass, is skipped (1.7.b), its next command reading its own (1.8). The removal
-      check, the persist and release steps, and a spawn's materialization read the target's own in the target checkout,
-      since its identity decides its personal root and edit rights, and refuse or skip a target whose identity differs
-      from the one the command's read yields: the command's store reads and lists person-owned state under the command's
-      identity alone (`otherIdentityRefusal`, `otherIdentityRef`, `lib/store/ref/read.ts`) (2.1, 2.2, 2.3, 1.5). It
-      reads the claim and `layout.active` fresh (`readCheckoutLayoutContext` with `fresh: true`), never from a cached
-      claim, and, for the command's own start, the fan-out, and a spawn's materialization, registers the root in the
-      process state's `roots` (`ProjectionRootState`, `projectionProcessState`,
-      `lib/store/projection/process-state.ts`), so the command's end checks every worktree it replaced files in
-      (`endProjection`, `lib/store/projection/engine.ts`; `finishProjectionRoot`, `lib/store/projection/engine-end.ts`);
-      a root is marked `ready` once a fan-out's refresh or a materialization has run on it, whoever bound it — the
-      start's among them where a lost lease left it unready — since the end skips a root that is not. The fan-out never
-      binds a checkout the command's roots already hold — its own, a sibling an earlier round or fan-out visited, or a
-      worktree a spawn materialized earlier in the command: it re-reads that checkout's claim and `layoutActive` fresh
-      into the root it holds (`ProjectionRootState`), so the copies and removals the end's second check reads stay with
-      it, and at that visit the skip rule (1.7.b) compares the claim and `layoutActive` re-read into that root, and the
-      command's view setting, identity, and ignore configuration, with what the worktree's index records, whatever read
-      bound the root it holds, a worktree a spawn materialized earlier in the command reprojected in place where its
-      claim or `layoutActive` alone differs (1.7.b). The persist and release steps register nothing, so the end never
-      checks a checkout they retire and no binding of theirs replaces a root the command holds (2.2, 2.3); a copy either
-      step leaves, on a refusal or from its last check, is settled by the target's next sweep or the retry's takeover. A
-      checkout move announced during the command (`notifyCheckoutChange`'s `move`, `lib/git/checkout-change.ts`), as
-      `arc rename` makes when it moves a holder's folder (`reconcileWorkUnitWorktree`,
-      `lib/work-unit/mutators/reconcile-work-unit-worktree.ts`), re-keys every root the command holds at the old path to
-      the new one, its checkout and location with it, beside the capabilities and layout contexts the process state's
-      listener re-keys today (`onCheckoutChange`, `process-state.ts`), so the end checks a moved worktree's copies at
-      its new path and a later fan-out finds the root it holds there. The command's own start binds through it, its
-      behavior unchanged but for the actor.
+      configuration. Binding makes no Git call, but each send through a root reads that checkout's configuration at each
+      capture, one Git call each: two in the usual case, a third where the local evidence changed between them
+      (`prepareStable`), and the same again for a base recovery's retry (`sendWriteBack`). The command's read is the one
+      `observeProjectionConfiguration` (`lib/store/projection/command-configuration.ts`) holds for the command's
+      checkout in the process state (`ProjectionProcessState.configurations`): the start's, whatever the start answered,
+      `no-projection` included, or, where the start made none — under `--skip-projection`, with its lock held or lost,
+      or its checkout gone — one made there on first need. The fan-out supplies that read, so binding a sibling adds no
+      Git call: `git config` reads the same values in every worktree of a clone unless a worktree's own
+      `config.worktree` or a conditional include (`includeIf`) differs, and a sibling whose recorded view setting,
+      identity, or ignore configuration then differs, or whose index records no guard pass, is skipped (1.7.b), its next
+      command reading its own (1.8). The removal check, the persist and release steps, and a spawn's materialization
+      read the target's own in the target checkout, since its identity decides its personal root and edit rights, and
+      refuse or skip a target whose identity differs from the one the command's read yields: the command's store reads
+      and lists person-owned state under the command's identity alone (`otherIdentityRefusal`, `otherIdentityRef`,
+      `lib/store/ref/read.ts`) (2.1, 2.2, 2.3, 1.5). It reads the claim and `layout.active` fresh
+      (`readCheckoutLayoutContext` with `fresh: true`), never from a cached claim, and, for the command's own start, the
+      fan-out, and a spawn's materialization, registers the root in the process state's `roots` (`ProjectionRootState`,
+      `projectionProcessState`, `lib/store/projection/process-state.ts`), so the command's end checks every worktree it
+      replaced files in (`endProjection`, `lib/store/projection/engine.ts`; `finishProjectionRoot`,
+      `lib/store/projection/engine-end.ts`); a root is marked `ready` once a fan-out's refresh or a materialization has
+      run on it, whoever bound it — the start's among them where a lost lease left it unready — since the end skips a
+      root that is not. The fan-out never binds a checkout the command's roots already hold — its own, a sibling an
+      earlier round or fan-out visited, or a worktree a spawn materialized earlier in the command: it re-reads that
+      checkout's claim and `layoutActive` fresh into the root it holds (`ProjectionRootState`), so the copies and
+      removals the end's second check reads stay with it, and at that visit the skip rule (1.7.b) compares the claim and
+      `layoutActive` re-read into that root, and the command's view setting, identity, and ignore configuration, with
+      what the worktree's index records, whatever read bound the root it holds, a worktree a spawn materialized earlier
+      in the command reprojected in place where its claim or `layoutActive` alone differs (1.7.b). The persist and
+      release steps register nothing, so the end never checks a checkout they retire and no binding of theirs replaces a
+      root the command holds (2.2, 2.3); a copy either step leaves, on a refusal or from its last check, is settled by
+      the target's next sweep or the retry's takeover. A checkout move announced during the command
+      (`notifyCheckoutChange`'s `move`, `lib/git/checkout-change.ts`), as `arc rename` makes when it moves a work unit's
+      folder (`reconcileWorkUnitWorktree`, `lib/work-unit/mutators/reconcile-work-unit-worktree.ts`), the command's own
+      checkout among them, drops every root the command holds at the old path and reports it, through the process
+      state's listener (`onCheckoutChange`, `process-state.ts`), which today re-keys capabilities and deletes both
+      paths' layout contexts: a root's `captureLocal`, protection, and ports are bound to the path it was bound at
+      (`bindRoot`, `engine-start.ts`; `createProjectionEnginePorts`, `lib/store/projection/engine-ports.ts`), so the end
+      checks nothing there, the copies the command left in it are settled by its next command's sweep, and a later
+      fan-out binds it afresh at its new path. The command's own start binds through it, its behavior unchanged but for
+      the actor.
     - The actor, `<identity>@<machine id>`, is read at the common Git directory the location already holds
       (`ProjectionLocation.commonDir`) for the identity the binding's configuration yields — once per command for the
       command's identity, which the fan-out shares — through a form of the user-sync wrapper (`getOrCreateMachineId`,
@@ -736,10 +740,14 @@ that chunk.
               take-in, through a store double that lands it there, is neither overwritten nor taken as the edit's base:
               the edit merges with it, or is held pending or in conflict with the remedy write-back reports, and the
               file afterwards holds what the take-in left, never the round's version of the record; a write to an
-              unrelated record landing at the same point is laid by the next round and holds nothing back
-            - `arc rename` run from one worktree, whose start fanned an edit into the holder's worktree, then moves that
-              worktree's folder: the command's end checks the holder's copies at its new path and writes nothing at the
-              old one, and a later fan-out in the same command finds the root it holds there
+              unrelated record landing at the same point holds nothing back, laid by the next round where the take-in
+              lands and by that worktree's next refresh where it is held
+            - `arc rename` run from one worktree, whose start fanned an edit into the holder's worktree, leaving an
+              aside copy there, then moves that worktree's folder: the root is dropped and reported, the command's end
+              reads and writes nothing at either path for it, a later fan-out in the same command binds the worktree at
+              its new path, and that worktree's next command's sweep takes the copy in
+            - `arc rename` moving the command's own checkout drops the command's own root the same way, and the command
+              completes
 
 ### `[ ]` **1.8 Reproject on a changed view setting, identity, claim, or layout — § 10.4, § 10.3**
 
@@ -1075,7 +1083,14 @@ No production composition sets the slots today, so every caller runs `passingPro
       planner adoption's send already runs, read-only (`prepareAdoptedProjectionSubmission`,
       `lib/store/projection/submission.ts`, reaching `planAdoption`, `lib/store/projection/admission-planner.ts`): it
       re-selects the target from the captured local evidence, re-runs the edit rights, and runs the kind's content
-      checks, and the check runs it without `submitProjectionBatch`. A refusal only the verb's executor returns reaches
+      checks, and the check runs it without `submitProjectionBatch`, only where adoption itself reaches it — its owner
+      established and its record absent — since the planner refuses a prospective owner (`projection.selection`,
+      `selectProjectionAdmissionSubject`, `lib/store/projection/admission-selection.ts`) and an existing record (an
+      admission conflict, `planAdoption`). Where the record exists, adoption attaches it and the walk sends the file as
+      an indexed edit (`attachExistingProjectionFile`, `lib/store/projection/adoption-existing.ts`), so the check reads
+      the entry attaching would build, in memory, through the read path and the indexed preparation below; where the
+      owner is prospective, adoption mints before it plans, so the check stops at the first part, the kind's content
+      checks the persist step's after the mint. A refusal only the verb's executor returns reaches
       the persist step, which refuses with the verb's remedy.
     - `would-refuse` also for a file held by a conflict, failing to parse, or holding a refused edit; an aside copy
       whose edit is refused, fails to parse, or clashes in the checkout (`putBack`,
@@ -1091,20 +1106,34 @@ No production composition sets the slots today, so every caller runs `passingPro
       `readStamplessFile` makes where neither version of an interrupted replacement is readable, and a base selection
       whose store read refused (`selectStamplessBase`, `lib/store/projection/stampless-base.ts`). The check answers
       `unobservable` where it is set, carrying the refusal's remedy.
-    - `would-refuse` also for a file whose accepted-input recording is unfinished (`persisted.recording`,
-      `lib/store/projection/index-schema.ts`), which any write-back whose read-back failed after its write landed can
-      leave (`recordPendingWriteBack`, `lib/store/projection/taken-in.ts`), with the remedy write-back's refusal of it
-      names (`unfinishedRecordingRefusal`, `lib/store/projection/recording-state.ts`). That refusal is made locally,
-      not by a store read, so the check classifies the state by the entry's mark before the read path runs, never
-      through the store-refusal rule above, which would read it `unobservable`; the persist step's send may finish the
-      recording (2.2), which the read-only check cannot, so the check holds the removal until a command run there has.
-    - `would-refuse` also for a refusal the send's preparation returns after the read path is ready (below): a local
-      capture that refuses (`projection.local`: a retained copy missing, unsettled, behind a symbolic link, or differing
-      from its recorded blob, `captureRetainedBases`; a malformed marker or no identity, through the bound
-      `captureLocal`), a content check that refuses (`projection.content`), or a `version-conflict` carrying
-      `cause: "projection-admission"` (`projectionAdmissionConflict`, `lib/store/projection/preparation-view.ts`), each
-      with its remedy; a store read the preparation makes that refuses `namespace-corrupt`, `identity-mismatch`, or
-      `state-unresolvable` answers `unobservable`, as below.
+    - `would-refuse` also, by a deliberate hold, for a file whose accepted-input recording is unfinished
+      (`persisted.recording`, `lib/store/projection/index-schema.ts`), which three writers leave: a write-back whose
+      read-back failed after its write landed (`sendWriteBack`, `write-back.ts`, through `recordPendingWriteBack`,
+      `lib/store/projection/taken-in.ts`); an accepted adoption awaiting its read-back (`recordAdoptionAcceptance`,
+      `lib/store/projection/adoption-read-back.ts`, its entry's `adoption.kind` `read-back`); and a landed write whose
+      accepted version's history is unavailable for recording its entry IDs (`recordWriteBack`'s `acceptedIdReference`,
+      `taken-in.ts`). The remedy is the one write-back's refusal of it names (`unfinishedRecordingRefusal`,
+      `lib/store/projection/recording-state.ts`), `arc save` run there, whose walk finishes each, since every one is
+      left pending: the send finishes a recording before it prepares (`completeWriteBackRecording`,
+      `lib/store/projection/write-back-recording.ts`), and the walk resumes an adoption's read-back
+      (`resumeAdoptionReadBack`, reached from `checkFileAtPath`, `lib/store/projection/engine-files.ts`). That refusal
+      is made locally, not by a store read, so the check classifies the state by the entry's mark before the read path
+      runs, for every entry the index holds whether or not its file changed, since the walk re-sends a pending entry
+      either way (`checkFileAtPath`), never through the store-refusal rule above, which would read it `unobservable`.
+      The persist step would finish it (2.2), but finishing writes — a completion can keep a copy (`keepCopy`), and a
+      resumed read-back installs the file — and the check writes nothing, so it holds the removal until a command run
+      there has finished it.
+    - `would-refuse` also for a refusal the send's preparation returns after the read path is ready (below), each with
+      its remedy, unless the planner marks it as a store read's own refusal (`planProjectionWrite`'s `nativeRefusal`,
+      `lib/store/projection/admission-planner.ts`), which answers `unobservable`, as below: `prepareStable` returns that
+      flag with the refusal, and this task carries it on the preparation's result type. So a local capture that refuses
+      (`projection.local`: a retained copy missing, unsettled, behind a symbolic link, or differing from its recorded
+      blob, `captureRetainedBases`; no identity, through the bound `captureLocal`), the target's selection
+      (`projection.selection`), the edit rights, a content check (`projection.content`), or a `version-conflict`
+      carrying `cause: "projection-admission"` (`projectionAdmissionConflict`,
+      `lib/store/projection/preparation-view.ts`) answers `would-refuse`. A marker that cannot be read, is malformed, or
+      needs manual repair throws at the capture (`readCheckoutLayoutContext`) as it does at binding (1.3), and answers
+      `unobservable` with its detail.
     - `would-refuse` also, for a checkout 1.1 gives a projection or that holds an index, for a configuration that
       yields no identity (`ConfiguredIdentity`, `lib/store/projection/configuration.ts`), naming the remedy its
       `no-identity` answer carries.
@@ -1120,11 +1149,12 @@ No production composition sets the slots today, so every caller runs `passingPro
       capture, the local capture through the root's `captureLocal` in the target checkout (1.3), and the shared planner
       (`planProjectionWrite`, `lib/store/projection/admission-planner.ts`), never `submitProjectionBatch` — the
       read-only feasibility check `spec-projection-write-back.md` § 7.2 permits, whose answer is provisional, the
-      persist step capturing and preparing again under the target's lock. Each file prepared so reads the target's
-      configuration twice, one Git call each (`prepareStable`'s two captures). It never trusts the index's refused mark
-      (`RecordEntry.refused`), so an edit made since the last command and a refusal since reverted both read true. The
-      aside copies read as the persist step's takeover reads them (`checkAsideCopy`), through the read-only take-in, so
-      nothing is sent: per path in the order their swaps were made (`RecordEntry.copies`), each read with the record
+      persist step capturing and preparing again under the target's lock. Each file prepared so, and each new file the
+      adoption planner reads, reads the target's configuration at each capture, one Git call each: two in the usual
+      case, a third where the local evidence changed between them (`prepareStable`). It never trusts the index's refused
+      mark (`RecordEntry.refused`), so an edit made since the last command and a refusal since reverted both read true.
+      The aside copies read as the persist step's takeover reads them (`checkAsideCopy`), through the read-only take-in,
+      so nothing is sent: per path in the order their swaps were made (`RecordEntry.copies`), each read with the record
       that a write-back has been sent since its swap (`recordWriteBackSent`) set wherever an earlier copy of its path
       would be taken in. A symbolic link is never read and refuses nothing.
     - In another identity's personal root an edit answers `would-refuse` as one its edit rights refuse
@@ -1147,15 +1177,21 @@ No production composition sets the slots today, so every caller runs `passingPro
         - a new file adoption would place answers `passes`; one it would refuse — a companion in a folder with no
           established owner, or a cohort file with no cohort-generation authority among them — answers `would-refuse`,
           and adoption refuses the same file for the same reason
+        - a new file in a prospective stub's folder whose parameters `arc stub` accepts, and an unindexed file whose
+          record already exists, each answer `passes`, `planAdoption` never reached for either
         - a refused edit reverted to its base answers `passes`
         - a Markdown file and a file other than Markdown whose retained write-back base cannot be read each answer
           `would-refuse` with write-back's remedy, and `passes` once the base is restored
-        - a file whose accepted-input recording is unfinished answers `would-refuse` with the remedy that names
-          `arc save`, never `unobservable`, and `passes` once `arc save` run there finishes it
+        - a file whose accepted-input recording is unfinished, and an accepted adoption awaiting its read-back, each
+          answer `would-refuse` with the remedy that names `arc save`, never `unobservable`, and `passes` once
+          `arc save` run there finishes it
         - a file whose retained input differs from its recorded blob, which only the send's preparation reads, answers
           `would-refuse` with its remedy, though write-back's read path alone answers ready
-        - a file whose captured edit the shared planner finds protected under the current claim answers `would-refuse`
-          with the `projection-admission` conflict's remedy
+        - a file whose claim a store double changes between the check's own rights step and its preparation, so the
+          shared planner finds the captured edit protected, answers `would-refuse` with the `projection-admission`
+          conflict's remedy
+        - a store read the preparation makes that refuses, through a store double, answers `unobservable`, never
+          `would-refuse`, and a marker made malformed between binding and capture answers `unobservable`
         - a file other than Markdown whose `history` read refuses `state-unresolvable` answers `unobservable` with its
           remedy, never `would-refuse`
         - a drawing's aside copy a failed command left, its markers since resolved, answers `passes`
@@ -1206,10 +1242,14 @@ No production composition sets the slots today, so every caller runs `passingPro
       holding a refused edit, withheld, not yet settled, or pending for any other cause — a `lock-held` refusal, a
       `version-conflict` one its recovery did not clear (`sendWriteBack`, `lib/store/projection/write-back.ts`), one
       carrying `cause: "projection-admission"`, which takes no recovery, a retained base it cannot read, for any format,
-      or an accepted-input recording its send could not finish among them — the file keeping its content. Each send
-      first finishes an unfinished recording (`completeWriteBackRecording`,
-      `lib/store/projection/write-back-recording.ts`) under the target's lock, so a recording left by an earlier command
-      refuses only where its retained copy or its landed version cannot be read, with the repair that names. A file
+      or an accepted-input recording the step could not finish among them — the file keeping its content. A recording
+      reaches the step unfinished only where it arrived after the check, which holds one left before it (2.1); the step
+      finishes it under the target's lock as the command's walk does (`writeBackProjectionFiles`,
+      `lib/store/projection/engine-files.ts`): an accepted adoption awaiting its read-back by resuming it
+      (`resumeAdoptionReadBack`), which refuses where the record's read refuses, and any other by the send, which
+      finishes a recording before it prepares (`completeWriteBackRecording`,
+      `lib/store/projection/write-back-recording.ts`), refusing where its retained copy, the record's read-back, or the
+      accepted version's history cannot be read; each refusal names the repair it reports. A file
       write-back leaves pending refuses with the remedy write-back reports for it, or a retry where it reports none. A
       symbolic link, at a path the index lists or not, is never adopted and refuses nothing.
     - It then takes over every aside copy, per path in the order their swaps were made (`RecordEntry.copies`), its
@@ -1250,9 +1290,12 @@ No production composition sets the slots today, so every caller runs `passingPro
           base recovery and refuses with its remedy, and the retry removes the checkout once the refusal clears
         - a Markdown file and a file other than Markdown whose retained write-back base cannot be read each refuse with
           write-back's remedy, and the removal proceeds once the base is restored
-        - an accepted-input recording an earlier command left unfinished is finished by the step's send and the removal
-          proceeds; one whose retained copy cannot be read refuses with the repair, and the removal proceeds once it is
-          restored
+        - with the check slot passing, as for a recording arriving after the check: an unfinished recording is finished
+          by the step's send, and an accepted adoption awaiting its read-back by the resumed read-back, and the removal
+          proceeds; one whose retained copy cannot be read, and one whose record's read-back refuses through a store
+          double, each refuse with the repair it reports, and the removal proceeds once that is repaired
+        - with 2.1's check slot injected too, a recording left before the check holds the removal at the check, and
+          `arc save` run in that checkout finishes it, after which the removal proceeds
         - an aside copy left by a live writer is taken over once settled
         - an aside copy whose take-in answers `pending` is kept and refuses with a retry
         - a save landing after write-back read its file, before the lock is released, is taken in by the last check
