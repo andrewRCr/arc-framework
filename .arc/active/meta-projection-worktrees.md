@@ -1,24 +1,23 @@
 # Metadata: Projection Worktrees
 
-| **State**  | **Owner** | **Branch**                  | **Class** | **Priority** |
-| ---------- | --------- | --------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/projection-worktrees` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                  | **Class** | **Priority** |
+| --------- | --------- | --------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/projection-worktrees` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-projection`
-- **Depends On:** `projection-write-back`
+- **Depends On:** [none]
 
 - **Origin:** [internal] — the `storage-projection` cut (2026-10-30)
 - **Design:** `spec-projection-worktrees.md`
 - **Task List:** `tasks-projection-worktrees.md`
 - **Review Rubric:** [none]
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** `process-task-loop`
 - **Last Completed:** [none]
-- **Next Task:** [none]
-- **Blockers:** `projection-write-back` must land on `main` first (`Depends On`)
+- **Next Task:** Begin Task 1.1 — Decide which checkouts hold a projection (§ 2.5)
+- **Blockers:** [none]
 
-- **Next Action:** Once `projection-write-back` lands: merge `main`, run Task 1.1's grounding re-check
-  (`notes-projection-worktrees.md` § Grounding basis), then activate
+- **Next Action:** Start Task 1.1 under the task loop
 
 - **PR URL:** [none]
 - **Completed:** [none]
