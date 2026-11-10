@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "trend-first-pass",
+  "claimId": "d507c48bd786effabf433628f25e984f",
+  "createdAt": "2026-11-10T17:04:33.665Z",
+  "updatedAt": "2026-11-10T17:04:33.665Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Give review-model's Trend a reading for a first complete pass whose fix checks have not converged",
+  "branch": "chore/trend-first-pass",
+  "origin": "inbox",
+  "originEntry": "Give review-model's Trend a reading for a first complete pass whose fix checks have not converged",
+  "originEntrySourceDigest": "sha256:09ae1e738765dc8ba2d5b01f03da7f756127520905f89527144022fabe833670",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
