@@ -402,22 +402,23 @@ at its next command.
   persist and release steps hold no root of their own, so the end never checks a checkout they retire and neither
   replaces a root the command holds; a copy either leaves, on a refusal or from its last check, is settled by the
   target's next sweep or the retry's takeover (§ 12.2, § 12.3). A checkout the command moves while it holds a root there
-  — `arc rename` moving a work unit's folder, which it may run from any checkout, its own included — has that root
-  dropped and reported, since its bound reads and ports name the old path: the end checks nothing there, the copies the
-  command left in it are settled by its next command's sweep like any copy a command leaves, and a later round binds it
-  afresh at its new path. It skips a sibling where they, or the command's view setting and identity, differ from what
-  its index records it was projected under (`ProjectionIndexSchema.projectedUnder`), or where its index records no guard
-  pass, or one under another ignore configuration than the command's (`ProjectionIndexSchema.ignoreGuard`), deciding
-  this before any guard runs there, so no file is laid from a recorded claim and no guard runs on another worktree's
-  basis; that worktree's own next command reprojects it (§ 10.4). The writer's own worktree is never skipped for a
-  difference: a verb run there may have changed its claim, so it is reprojected in place before its refresh (§ 10.4),
-  and the verb's changed marks land (§ 11.7). Nor is a worktree a spawn materialized earlier in the command skipped for
-  a difference in its claim or `layout.active` alone, as the creation's stamp makes one by binding the UID (the creation
-  batch above): it is reprojected in place before its refresh as the writer's own is, under the claim re-read into its
-  root, and marks nothing changed (§ 11.7); a difference in its view setting, identity, or ignore configuration still
-  skips it. A checkout this command's persist step is removing, or whose projection its release step removes, is
-  skipped; the primary, whose release keeps its projection, is not (§ 12.3). A primary entry's re-lay lists its owner's
-  records once per round of a fan-out, shared by every worktree (§ 15.2).
+  — `arc rename` moving a work unit's folder from another checkout, since it defers a move of the checkout it runs in
+  and prints the move to run from outside it — has that root dropped and reported, since its bound reads and ports name
+  the old path: the end checks nothing there, the copies the command left in it are settled by its next command's sweep
+  like any copy a command leaves, and a later round binds it afresh at its new path. It skips a sibling where they, or
+  the command's view setting and identity, differ from what its index records it was projected under
+  (`ProjectionIndexSchema.projectedUnder`), or where its index records no guard pass, or one under another ignore
+  configuration than the command's (`ProjectionIndexSchema.ignoreGuard`), deciding this before any guard runs there, so
+  no file is laid from a recorded claim and no guard runs on another worktree's basis; that worktree's own next command
+  reprojects it (§ 10.4). The writer's own worktree is never skipped for a difference: a verb run there may have changed
+  its claim, so it is reprojected in place before its refresh (§ 10.4), and the verb's changed marks land (§ 11.7). Nor
+  is a worktree a spawn materialized earlier in the command skipped for a difference in its claim or `layout.active`
+  alone, as the creation's stamp makes one by binding the UID (the creation batch above): it is reprojected in place
+  before its refresh as the writer's own is, under the claim re-read into its root, and marks nothing changed (§ 11.7);
+  a difference in its view setting, identity, or ignore configuration still skips it. A checkout this command's persist
+  step is removing, or whose projection its release step removes, is skipped; the primary, whose release keeps its
+  projection, is not (§ 12.3). A primary entry's re-lay lists its owner's records once per round of a fan-out, shared by
+  every worktree (§ 15.2).
 - **Fan-out keeps copies fresh and carries no correctness:** whatever it misses — a write through another tool, a
   process that stopped — each worktree's next command start refreshes, and an edit made to a stale copy merges through
   the store (`spec-projection-write-back.md` § 7.1). So a fault fanning out into one worktree — a marker or
@@ -719,7 +720,8 @@ projection in place and removes no checkout — and stays as today.
 answers:
 
 - `passes`, as a checkout § 2.5 gives no projection and that holds no index does before the identity is consulted;
-- `would-refuse` with a remedy, when the persist step would refuse — a file adoption would refuse
+- `would-refuse` with a remedy, when the persist step would refuse, save for a new file under a prospective owner,
+  whose kind's content checks wait for the persist step's mint (below) — a file adoption would refuse
   (`spec-projection-write-back.md` § 9), held by a conflict (`spec-projection-write-back.md` § 6), failing to parse,
   holding an edit its edit rights refuse (`spec-projection-write-back.md` § 8) or another refused edit
   (`spec-projection-write-back.md` § 7.6), an aside copy whose edit is refused or clashes in the checkout, or that holds
@@ -731,18 +733,20 @@ answers:
   edit rights, a content check, or a `version-conflict` carrying `cause: "projection-admission"`
   (`spec-projection-write-back.md` § 7.2, § 7.8) — or, for a checkout § 2.5 gives a projection or that holds an index, a
   configuration that yields no identity (§ 2.5); and, by a deliberate hold, a file holding an accepted-input recording
-  write-back has not finished (`spec-projection-write-back.md` § 7.1), an accepted adoption awaiting its read-back
-  among them, which the persist step would finish: finishing it writes, which the check never does, so the check holds
-  the removal on the entry's mark, read for every entry whether or not its file changed, its refusal made locally
-  rather than by a store read, with the remedy naming `arc save` run there, whose walk finishes it — each of which the
-  check reports as `persist-would-refuse`;
+  write-back has not finished (`spec-projection-write-back.md` § 7.1), or an accepted adoption whose read-back has not
+  installed, which can outlast its recording, each of which the persist step would finish: finishing either writes,
+  which the check never does, so the check holds the removal on the entry's marks, read for every entry whether or not
+  its file changed, its refusal made locally rather than by a store read, with the remedy naming `arc save` run there,
+  whose walk finishes it; such an entry in another identity's personal root, which that walk does not reach, answers
+  as an edit there does, naming that identity's remedy — each of which the check reports as `persist-would-refuse`. A
+  write-back's recording whose file is gone holds nothing, since its write has landed and no walk re-sends it;
 - `unobservable` with its detail, when a read it needs fails — the store, the index, a projected file, or the target's
   configuration or marker — which the check reports as it reports its Git part's failed read, so a failed read never
   reads as `persist-would-refuse`. Branch-gone recovery keeps a `persist-would-refuse` checkout as a switch target, a
   live checkout, but reads `unobservable` as `external` (`spec-seam-locus.md` § 12.1), and nothing observed the
   checkout. A store read refusing `namespace-corrupt`, `identity-mismatch`, or `state-unresolvable`, and any store read
-  the send's preparation makes that refuses, is such a failed read: the slot cannot tell what the persist step would
-  meet.
+  the send's preparation makes that refuses with another code than `not-found`, which the planner answers itself, is
+  such a failed read: the slot cannot tell what the persist step would meet.
 
 The index's refused and pending marks record what the last write-back or refresh met, never what a file holds now
 (`spec-projection-substrate.md` § 3.1), so the slot runs write-back's read path over each changed file in every
@@ -763,19 +767,20 @@ it writes — the target's resolution through established folder ownership and c
 `arc stub`'s own checks of the parameters the meta supplies where the owner is prospective, the record's protection, a
 path through a symbolic link, an existing record, and metadata that must come through `arc stub` — which this member
 extracts from adoption (`adoptProjectionFile`, `lib/store/projection/adoption.ts`) and adoption itself calls before it
-writes, so the check and adoption cannot disagree; and, only where adoption itself plans — its owner established and
-its record absent — the shared planner adoption's send runs, which re-selects the target from the captured local
-evidence, re-runs the edit rights, and runs the kind's content checks, run without its submission. Where the record
-exists, adoption attaches it and sends the file as an indexed edit, so the check reads the entry attaching would build
-through the read path and the send's preparation; where the owner is prospective, adoption mints before it plans, so
-the check stops at the inline checks, the kind's content checks the persist step's after the mint. A refusal only the
-verb's executor returns reaches the persist step, which refuses with the verb's
-remedy. In another identity's personal root an edit is one the edit rights refuse, and a file the index does
-not hold one adoption refuses, each for the identity and naming that identity's remedy (`spec-projection-write-back.md`
-§ 8), since rights answer for the target's identity alone; an unchanged file there passes. Its cost is the stat walk,
-about 3 ms on Linux and 27 ms on Windows at 1,000 files (§ Spike 2), plus the read of each changed file, one
-configuration read in the target, one Git call (§ 15.3), and, for each changed file whose read path is ready and each
-new file the planner reads, its preparation's captures, two Git calls in the usual case (§ 13). The third answer is
+writes, so the check and adoption cannot disagree; and, only where adoption itself plans — its owner established and its
+record absent — the shared planner adoption's send runs, which re-selects the target from the captured local evidence,
+re-runs the edit rights, and runs the kind's content checks, run without its submission. Where the record exists,
+adoption attaches it and sends the file as an indexed edit, so the check reads the entry attaching would build through
+the read path alone, since the send's capture finds a path's binding only in the published index, which holds no such
+entry until the persist step attaches it and prepares; where the owner is prospective, adoption mints before it plans,
+so the check stops at the inline checks, the kind's content checks the persist step's after the mint. A refusal only the
+verb's executor returns reaches the persist step, which refuses with the verb's remedy. In another identity's personal
+root an edit is one the edit rights refuse, and a file the index does not hold one adoption refuses, each for the
+identity and naming that identity's remedy (`spec-projection-write-back.md` § 8), since rights answer for the target's
+identity alone; an unchanged file there holding neither mark of the hold above passes. Its cost is the stat walk, about
+3 ms on Linux and 27 ms on Windows at 1,000 files (§ Spike 2), plus the read of each changed file, one configuration
+read in the target, one Git call (§ 15.3), and, for each changed file whose read path is ready and each new file the
+planner reads, its preparation's captures, two Git calls in the usual case (§ 13). The third answer is
 `seam-lifecycle`'s, as shipped (§ 18).
 
 **`persist(checkout)`** — the persist step, run by the function after the check and before it unlocks and removes the
@@ -1825,13 +1830,16 @@ this design open.
     - § 2.2: a new bullet states what a fan-out and the persist and release steps fence, and a checkout the command
       moves has its held root dropped, its copies left to its next command's sweep, where neither was stated.
     - § 12.2: the check's `would-refuse` states add a preparation's refusal other than a store read's and a retained
-      base unreadable for any format, and hold an unfinished recording deliberately, since finishing it writes; it runs
-      the send's preparation without its submission; adoption's verdict is read in two parts, the planner only where
-      adoption plans; and the persist step sends each file as its own admission batch, finishing a recording that
-      arrives after the check as the command's walk does. It read "held pending by write-back's read path for any other
-      cause but a store read's refusal", "through one read-only verdict this member extracts from adoption", "each file
-      as its own write", and "a retained base write-back cannot read for a file other than Markdown, or an adoption's
-      read-back still owed".
+      base unreadable for any format, and hold an unfinished recording or an adoption's uninstalled read-back
+      deliberately, since finishing either writes, such an entry in another identity's personal root naming that
+      identity's remedy; it runs the send's preparation without its submission; adoption's verdict is read in two parts,
+      the planner only where adoption plans and an existing record through the read path alone; the check's frame
+      excepts a new file under a prospective owner, whose content checks wait for the mint, as Task 2.1's Goal now
+      does, where it read "the check never passes a file the persist step would refuse"; and the persist step sends
+      each file as its own admission batch, finishing a recording that arrives after the check as the command's walk
+      does. It read "held pending by write-back's read path for any other cause but a store read's refusal", "through
+      one read-only verdict this member extracts from adoption", "each file as its own write", and "a retained base
+      write-back cannot read for a file other than Markdown, or an adoption's read-back still owed".
     - § 13 and § 15.5: a send adds two configuration reads in its checkout in the usual case, where the Git calls were
       stated for a command that sends nothing.
     - § 15: `history` is read also for an accepted-input recording, and prepared admission repeats only the queries its
