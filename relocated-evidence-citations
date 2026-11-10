@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "relocated-evidence-citations",
+  "claimId": "1959599e8fa83094995387dff5b8e0b7",
+  "createdAt": "2026-11-10T21:52:06.783Z",
+  "updatedAt": "2026-11-10T21:52:06.783Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Rewrite backlog drafts' citations of evidence moved out of the identity root to the kept-outside-the-repository form, and drop a machine path",
+  "branch": "chore/relocated-evidence-citations",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
