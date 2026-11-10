@@ -3,7 +3,7 @@
   "slug": "trend-first-pass",
   "claimId": "d507c48bd786effabf433628f25e984f",
   "createdAt": "2026-11-10T17:04:33.665Z",
-  "updatedAt": "2026-11-10T17:04:33.665Z",
+  "updatedAt": "2026-11-10T19:46:55.148Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Give review-model's Trend a reading for a first complete pass whose fix checks have not converged",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Give review-model's Trend a reading for a first complete pass whose fix checks have not converged",
   "originEntrySourceDigest": "sha256:09ae1e738765dc8ba2d5b01f03da7f756127520905f89527144022fabe833670",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/trend-first-pass",
+    "headSha": "8604221a9af6f3c48edcc815d4cdde2f455f63d3"
+  }
 }
