@@ -166,8 +166,9 @@ review stands and where what remains comes from. The reading compares complete p
 repairs hold. Origins, tags, and change signals inform the reading and stay out of the report. Each reading points to
 a decision:
 
-- **`baseline`** — the first look has no trend yet; decide the fixes and their check from that look's own signal. A
-  report shows no Trend for it.
+- **`baseline`** — no trend yet: the first look, or a first complete pass that found few while its fix checks have not
+  converged. Decide the fixes and their next round from that pass's own signal. A report shows no Trend at the first
+  look; once a fix check follows, it shows the counts with this reading.
 - **`converging`** — across complete passes, material counts fall, findings come from earlier folds, adjacent repair
   code, or siblings of a known defect class, and fixes are mostly local corrections; or a first complete pass found few,
   and its fix checks converged. This expects the next complete pass to find little, and supports stopping once one finds
