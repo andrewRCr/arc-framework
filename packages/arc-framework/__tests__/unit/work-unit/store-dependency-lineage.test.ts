@@ -22,8 +22,8 @@ it.each([false, true])("holds a cohort dependency without lineage under its curr
     cohort = lifecycleSuccess(await h.store.read({ reference: cohort.reference }));
   }
   const dependent = await h.seedMeta("dependent", { dependsOn: ["target"] });
-  const ceremony = buildStoreCurrentWuReconcile(h.store);
-  const prepared = await ceremony.prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) });
+  const ceremony = buildStoreCurrentWuReconcile("/project", h.store);
+  const prepared = await ceremony.prepare({ slug: "dependent", metaPath: await workUnitMetaPath("/project", dependent) });
   expect(prepared).toMatchObject({ status: "pending", prepared: { edits: [], plan: { dependency: {
     after: ["target"], live: [], conflicts: [], held: [{ edge: "target", name: "target", cause: "not-a-work-unit", candidates: [cohort.reference] }],
   } } } });
@@ -40,7 +40,7 @@ it("reads a retired origin's former-name lineage even when a cohort now holds th
   const dependent = await h.seedMeta("dependent", { dependsOn: ["former"] });
   await h.seedRetiredWorkUnit(renamed);
   await h.seedCohort("former");
-  expect(await buildStoreCurrentWuReconcile(h.store).prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) }))
+  expect(await buildStoreCurrentWuReconcile("/project", h.store).prepare({ slug: "dependent", metaPath: await workUnitMetaPath("/project", dependent) }))
     .toMatchObject({ status: "pending", prepared: { plan: { dependency: { after: [], conflicts: [],
       drops: [{ retiredSubject: "former", reason: "retired work unit was abandoned" }],
     } } } });
@@ -50,7 +50,7 @@ it.each([false, true])("reads a missing name's lineage and keeps missing-evidenc
   const h = createDecomposeHarness();
   if (retired) await h.seedRetiredWorkUnit("target");
   await h.seedMeta("dependent");
-  const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "dependent"));
+  const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext("/project", h.store, "dependent"));
   const plan = await planDependencyReconcile({ ...context, dependentSlug: "dependent", edges: ["target"] });
   expect(plan).toMatchObject(retired ? { status: "ready", dependency: { after: [], conflicts: [], drops: [expect.anything()] } }
     : { status: "conflict", dependency: { after: ["target"], conflicts: [{ reason: "missing-evidence" }] } });
@@ -62,7 +62,7 @@ it("holds a cohort/Errand tie with no lineage, naming both holders", async () =>
   const reference = recordReferences["work-item/record"](OwnerIdentitySchema.parse({ type: "work-item", name: "errand" }));
   const errand = await h.seed(reference, transientContent(reference), { kind: "active" });
   const store = createClashDouble(h.store, { slug: "target", holders: [cohort.reference, errand.reference] });
-  const prepared = await buildStoreCurrentWuReconcile(store).prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) });
+  const prepared = await buildStoreCurrentWuReconcile("/project", store).prepare({ slug: "dependent", metaPath: await workUnitMetaPath("/project", dependent) });
   expect(prepared).toMatchObject({ status: "pending", prepared: { plan: { dependency: { after: ["target"], live: [], conflicts: [],
     held: [{ edge: "target", cause: "not-a-work-unit", candidates: [cohort.reference,
       { ...errand.reference, owner: { ...errand.reference.owner, name: "target" } }],

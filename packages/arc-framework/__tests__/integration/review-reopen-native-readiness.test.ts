@@ -91,7 +91,7 @@ it.each([{ accepted: false, keepPr: false }, { accepted: false, keepPr: true },
   const readBinding = () => readReviewReadinessBinding({ store: h.reference.store, workItem: primary.reference.owner,
     inFlight: family.ports.inFlight, repositoryId: projectId, candidateId: candidate.attestation.candidateId, headSha: collected.target.revision });
   const forbidden = (): Promise<never> => Promise.reject(new Error("tracked lifecycle access"));
-  const ctx: ExecuteTransitionContext & CurrentWuReconcileHost = { cwd, store: h.reference.store, currentWuReconcile: buildStoreCurrentWuReconcile(h.reference.store),
+  const ctx: ExecuteTransitionContext & CurrentWuReconcileHost = { cwd, store: h.reference.store, currentWuReconcile: buildStoreCurrentWuReconcile(cwd, h.reference.store),
     indexFs: { readdir: forbidden, readFile: forbidden }, setPhase: forbidden, relocateArtifacts: forbidden,
     reconcileBranch: forbidden, reconcileWorkUnitWorktree: forbidden, writeSoftFields: forbidden,
     writeBranchField: forbidden, writeDesignField: forbidden, writeCurrentWorkflowField: forbidden,

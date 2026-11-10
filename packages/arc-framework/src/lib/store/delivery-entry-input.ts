@@ -12,7 +12,7 @@ import { describeRecordConflicts } from "./conflict-diagnostics.js";
 interface StoredDeliveryEntryInput { primary: StoreRecord; taskListPath: string }
 
 /** Read delivery's selected primary and require a task-list binding without following a metadata path. */
-export async function readStoredDeliveryEntryInput(store: Store, name: string,
+export async function readStoredDeliveryEntryInput(checkoutRoot: string, store: Store, name: string,
   owner?: OwnerIdentity): Promise<StoreResult<StoredDeliveryEntryInput>> {
   const read = await readWorkUnit(store, name, owner);
   if (read.status === "refused") return read;
@@ -23,6 +23,6 @@ export async function readStoredDeliveryEntryInput(store: Store, name: string,
     condition: fields.result.taskList === null ? "Task list unavailable" : `Delivery metadata has unresolved conflicts.${describeRecordConflicts(primary.conflicts)}`,
     remedy: { text: "Restore the work unit's task-list binding and resolve any named metadata conflicts, then retry inspection." },
   } };
-  return { status: "ok", result: { primary, taskListPath: workItemArtifactPath(primary.reference.owner.name, "tasks",
+  return { status: "ok", result: { primary, taskListPath: await workItemArtifactPath(checkoutRoot, primary.reference.owner.name, "tasks",
     WorkUnitReadPlacementSchema.parse(primary.placement), fields.result.cohort) } };
 }

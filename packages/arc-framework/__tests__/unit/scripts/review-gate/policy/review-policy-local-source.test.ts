@@ -60,3 +60,60 @@ it("selects a delta check from the complete configuration despite a historical p
     configuredSources: ["delegated-agent", "codex-pr"] })).toMatchObject({ state: "ready", nextAction: "local-prepare",
     payload: { sourceId: "delegated-agent" } });
 });
+
+describe("fix check after a converged look", () => {
+  // A new head after a converged look whose minor fixes were approved for full verification.
+  function offered(pullRequest: number | null = 42, maxPasses = 4) {
+    const base = request("converged", pullRequest);
+    const scope = { schemaVersion: 1 as const, predecessorProducerId: "review/one", predecessorHeadSha: "b".repeat(40),
+      basisHeadSha: "b".repeat(40), headSha: base.target.headSha, requiredFindings: [] };
+    return { ...base, maxPasses,
+      nextPassContext: { ...base.nextPassContext, incremental: { basis: "fix-check" as const, scope } } };
+  }
+
+  it("keeps the hosted rank for the complete pass below the ceiling", () => {
+    expect(resolveReviewPolicy(offered())).toMatchObject({ state: "ready", nextAction: "hosted-request",
+      payload: { sourceId: "codex-pr" } });
+    expect(resolveReviewPolicy(offered(null))).toMatchObject({ state: "awaiting-change-request" });
+  });
+
+  it.each([null, 42])("selects the local fix check at the ceiling, pull request %s", pullRequest => {
+    expect(resolveReviewPolicy(offered(pullRequest, 1))).toMatchObject({ state: "ready", nextAction: "local-prepare",
+      payload: { sourceId: "delegated-agent", pass: 2, ceilingOverrideApplied: false } });
+    expect(resolveReviewPolicy({ ...offered(pullRequest, 1), chosenCoverage: "complete" }))
+      .toMatchObject({ state: "approval-required", nextAction: "obtain-ceiling-override" });
+  });
+
+  it("leaves an Owner's ceiling override to the configured rank's complete pass", () => {
+    const look = offered(42, 1);
+    const ceilingOverride = { target: look.target, lane: "standard", exhaustedPassCount: 1, nextPass: 2 };
+    expect(resolveReviewPolicy({ ...look, ceilingOverride })).toMatchObject({ state: "ready",
+      nextAction: "hosted-request", payload: { sourceId: "codex-pr" } });
+    expect(resolveReviewPolicy({ ...look, ceilingOverride, chosenCoverage: "complete" })).toMatchObject({
+      state: "ready", nextAction: "hosted-request", payload: { sourceId: "codex-pr", ceilingOverrideApplied: true } });
+  });
+
+  it("leaves an incremental-retrigger lane's ceiling to the configured rank", () => {
+    const look = offered(42, 1);
+    expect(resolveReviewPolicy({ ...look, standardReview: { ...look.standardReview, retrigger: "incremental" } }))
+      .toMatchObject({ payload: { sourceId: "codex-pr" } });
+  });
+
+  it.each([null, 42])("runs a chosen fix check locally below the ceiling, pull request %s", pullRequest => {
+    expect(resolveReviewPolicy({ ...offered(pullRequest), chosenCoverage: "incremental" })).toMatchObject({
+      state: "ready", nextAction: "local-prepare", payload: { sourceId: "delegated-agent" } });
+  });
+
+  it("leaves a forced hosted source to its complete pass, which the ceiling gates", () => {
+    const forced = { ...offered(42, 1), invocation: { mode: "force", sourceId: "codex-pr" } };
+    expect(resolveReviewPolicy(forced)).toMatchObject({ payload: { sourceId: "codex-pr" } });
+    expect(resolveReviewPolicy({ ...forced, chosenCoverage: "complete" }))
+      .toMatchObject({ state: "approval-required", nextAction: "obtain-ceiling-override" });
+  });
+
+  it("refuses a forced hosted fix check", () => {
+    expect(resolveReviewPolicy({ ...offered(), chosenCoverage: "incremental",
+      invocation: { mode: "force", sourceId: "codex-pr" } })).toMatchObject({ state: "unavailable", nextAction: "stop",
+      diagnostics: expect.arrayContaining([expect.objectContaining({ code: "hosted-incremental-unsupported" })]) });
+  });
+});

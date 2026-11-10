@@ -184,7 +184,7 @@ describe("gitConfigGet", () => {
 
   it("returns undefined when key does not exist", async () => {
     const mockExec = vi.fn().mockRejectedValue(makeGitProcessError({ command: "git",
-      args: ["config", "--get", "nonexistent.key"], exitCode: 1, stderr: "exit code 1" }));
+      args: ["config", "--get", "nonexistent.key"], exitCode: 1, stdout: "", stderr: "" }));
     const result = await gitConfigGet(mockExec, "nonexistent.key");
     expect(result).toBeUndefined();
   });
@@ -235,7 +235,7 @@ describe("gitConfigUnset", () => {
       .fn()
       .mockRejectedValueOnce(makeGitProcessError({ command: "git",
         args: ["config", "--get", "missing.key"], exitCode: 1,
-        stderr: "exit code 1" })); // --get fails (absent key)
+        stdout: "", stderr: "" })); // --get fails (absent key)
     await expect(
       gitConfigUnset(mockExec, "missing.key"),
     ).resolves.toBeUndefined();

@@ -23,7 +23,7 @@ async function measure(mode: "additive" | "terminal" | "revision", unrelated: nu
     await h.seedRetiredWorkUnit(provider);
   } else {
     expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-      { sourceSlug: "provider", targetSlug: "current-provider" })).toMatchObject({ status: "renamed" });
+      { operand: "provider", targetSlug: "current-provider" })).toMatchObject({ status: "renamed" });
     await h.seedRetiredWorkUnit(lifecycleSuccess(await readWorkUnit(h.store, "current-provider")));
     const member = lifecycleSuccess(await readWorkUnit(h.store, "member-b"));
     await h.handEdit(member, writeMetaDependsOn(member.content, []));

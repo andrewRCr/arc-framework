@@ -54,7 +54,7 @@ async function fixture(fields: MetaRenderOverrides = {}, seedCandidate = false, 
       const boundaryMatches = snapshot.boundary?.candidateId === publication.candidateId
         && snapshot.boundary.candidateSubjectDigest === publication.candidateSubjectDigest;
       const boundary = publication.repairCurrent && boundaryMatches && snapshot.boundary !== null ? snapshot.boundary : projected;
-      const input: StoredAttestationInput = { store: h.store, primary: selected, publication, boundary,
+      const input: StoredAttestationInput = { cwd: "/no-projected-files", store: h.store, primary: selected, publication, boundary,
         taskListObservation,
         expectedBoundaryVersion: snapshot.version, boundaryMatches,
         nextAction: boundaryMatches || lifecycle === "Shipped" ? publication.nextAction : boundary.nextAction.interactionText };

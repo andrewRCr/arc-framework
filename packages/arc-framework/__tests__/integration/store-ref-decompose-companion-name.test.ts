@@ -7,6 +7,8 @@ import { prepareDecomposePreflight } from "../../src/lib/decompose/preflight.js"
 import { runStoreDecomposeAdditive } from "../../src/lib/decompose/additive.js";
 import { recordReferences } from "../../src/lib/store/index.js";
 import { readLifecycleMetaFields } from "../../src/lib/store/lifecycle-write.js";
+import { acquireDecomposeOrigin } from "../../src/lib/decompose/acquire-origin.js";
+import { copyDecomposeArtifact } from "../../src/lib/decompose/scaffold-copy.js";
 import { expandStoredPath } from "../../src/lib/store/stored-path.js";
 
 describe.each(["default", "separate"] as const)("verbatim decomposition copies in %s", layout => {
@@ -42,4 +44,24 @@ describe.each(["default", "separate"] as const)("verbatim decomposition copies i
     expect(new TextDecoder().decode((await h.ports.rawExec([...h.gitDir ? [`--git-dir=${h.gitDir}`] : [],
       "show", `${home.ref}:${home.root}${copy.basename}`], { cwd: h.root })).stdout)).toBe(record.content);
   }, 30_000);
+  it("copies a literal root companion without turning its basename into a conventional name", async () => {
+    const h = await nativeDecomposeFixture(layout);
+    const source = await h.seed(recordReferences["work-item/companion"](h.primary.reference.owner, "./readme"),
+      "# origin reference\n\nLiteral root text.\n");
+    const destination = await h.seedMeta("recipient");
+    const acquired = await acquireDecomposeOrigin(h.ctx, "origin");
+    if (acquired.status === "refused") throw new Error(JSON.stringify(acquired));
+    const copied = copyDecomposeArtifact(h.ctx, acquired.result, destination.reference.owner, "readme");
+    if (copied.status === "refused") throw new Error(JSON.stringify(copied));
+    expect(copied.result.basename).toBe("readme");
+    expect(copied.result.reference.key).toBe(source.reference.key);
+    success(await h.store.write({ ...copied.result.write, provenance: { verb: "decompose", lifecycleAction: "create" } }));
+    const record = success(await h.store.read({ reference: copied.result.reference }));
+    expect(record.content).toBe("# recipient reference\n\nLiteral root text.\n");
+    const home = expandStoredPath(record.reference);
+    expect(home.path).toBe("readme");
+    expect(new TextDecoder().decode((await h.ports.rawExec([...h.gitDir ? [`--git-dir=${h.gitDir}`] : [],
+      "show", `${home.ref}:${home.path}`], { cwd: h.root })).stdout)).toBe(record.content);
+  });
+
 });

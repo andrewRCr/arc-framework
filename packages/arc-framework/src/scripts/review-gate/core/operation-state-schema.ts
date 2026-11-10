@@ -448,7 +448,7 @@ export const HostedSettlementEvidenceSchema = z.discriminatedUnion("channelActio
     replyDigest: CanonicalDigestSchema,
     replyId: z.string().trim().min(1),
   }).superRefine((evidence, context) => {
-    if ((evidence.disposition === "fix") !== (evidence.fixTarget !== null)) {
+    if (evidence.disposition === "fix" && evidence.fixTarget === null) {
       context.addIssue({
         code: "custom",
         path: ["fixTarget"],

@@ -10,6 +10,7 @@ import { createStoreUserReferencePrepareContext } from "../../src/lib/user-refer
 import { projectUserReferenceSessionResult, runUserReferenceReconcile } from "../../src/lib/user-reference-reconcile.js";
 import type { StoreRecord } from "../../src/lib/store/read.js";
 import type { Store } from "../../src/lib/store/contract.js";
+import { fixtureRenameProvenance } from "../helpers/store/suite-tools.js";
 
 async function generations() {
   const h = createLifecycleHarness(), quarter = ArchiveQuarterSchema.parse("2026-q4");
@@ -17,7 +18,7 @@ async function generations() {
     const reference = RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name } });
     ok(await h.store.write({ ...recordPut(record, { content: record.content.replaceAll(record.reference.owner.name, name),
       placement: record.placement?.kind === "completed" ? { kind: "completed", quarter } : { kind: "active" } }),
-      reference, provenance: { verb: "rename", lifecycleAction: "rename" } }));
+      reference, provenance: fixtureRenameProvenance }));
     return ok(await h.store.read({ reference }));
   };
   const archive = async (record: StoreRecord) => {
@@ -32,7 +33,7 @@ async function generations() {
   await rename(await h.seedMeta("safe-former"), "safe-current");
   const inbox = await h.seed(recordReferences["personal/inbox"](OwnerIdentitySchema.parse({ type: "person", name: "test-user" })),
     "# Inbox\n\n## Work Unit\n\n### **Old **bold** concern**\n- _WU_Target:_ `earliest`\n- _Id:_ `12345678`\n\n### **Independent concern**\n- _WU_Target:_ `safe-former`\n- _Id:_ `87654321`\n");
-  const prepare = async () => ok(await createStoreUserReferencePrepareContext({ store: h.store, identity: "test-user" }));
+  const prepare = async () => ok(await createStoreUserReferencePrepareContext({ cwd: "/project", store: h.store, identity: "test-user" }));
   const apply = async () => {
     const prepared = await prepare();
     return runUserReferenceReconcile({ preparedStore: prepared.preparedStore, transitions: prepared.authority.transitions,
@@ -76,13 +77,13 @@ it("refuses a name reused under the apply lock and continues with an advisory af
   }), reference: renamed, provenance: { verb: "archive", lifecycleAction: "archive" } }));
   const inbox = await h.seed(recordReferences["personal/inbox"](OwnerIdentitySchema.parse({ type: "person", name: "test-user" })),
     "# Inbox\n\n## Work Unit\n\n### **Concern**\n- _WU_Target:_ `former`\n- _Id:_ `12345678`\n");
-  const prepared = ok(await createStoreUserReferencePrepareContext({ store: h.store, identity: "test-user" }));
+  const prepared = ok(await createStoreUserReferencePrepareContext({ cwd: "/project", store: h.store, identity: "test-user" }));
   const result = await runUserReferenceReconcile({ preparedStore: prepared.preparedStore, transitions: prepared.authority.transitions,
     apply: true, readSurfaces: async () => prepared.surfaces, acquireLock: async () => { await h.seedMeta("current"); return null; },
     releaseLock: async () => {} });
   expect(result).toMatchObject({ status: "refused", refusal: { code: "version-conflict", remedy: { text: expect.stringContaining("again") } } });
   expect(ok(await h.store.read({ reference: inbox.reference }))).toEqual(inbox);
-  const fresh = ok(await createStoreUserReferencePrepareContext({ store: h.store, identity: "test-user" }));
+  const fresh = ok(await createStoreUserReferencePrepareContext({ cwd: "/project", store: h.store, identity: "test-user" }));
   expect(projectUserReferenceSessionResult(fresh.authority, fresh.surfaces))
     .toMatchObject({ status: "advisory", plan: { edits: [], advisories: [expect.objectContaining({ subject: "former", kind: "conflict" })] } });
 });
@@ -91,7 +92,7 @@ it("revalidates captured records after target lookups and continues after fresh 
   const h = createLifecycleHarness(), former = await h.seedMeta("former");
   const reference = RecordReferenceSchema.parse({ ...former.reference, owner: { ...former.reference.owner, name: "current" } });
   ok(await h.store.write({ ...recordPut(former, { content: former.content.replaceAll("former", "current") }), reference,
-    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    provenance: fixtureRenameProvenance }));
   const meta = ok(await h.store.read({ reference }));
   const inbox = await h.seed(recordReferences["personal/inbox"](OwnerIdentitySchema.parse({ type: "person", name: "test-user" })),
     "## Work Unit\n\n### **Concern**\n- _WU_Target:_ `former`\n- _Id:_ `12345678`\n");
@@ -105,7 +106,7 @@ it("revalidates captured records after target lookups and continues after fresh 
     }
     return h.store.lookup(input);
   };
-  const prepare = async () => ok(await createStoreUserReferencePrepareContext({ store, identity: "test-user" }));
+  const prepare = async () => ok(await createStoreUserReferencePrepareContext({ cwd: "/project", store, identity: "test-user" }));
   const apply = async () => {
     const prepared = await prepare();
     return runUserReferenceReconcile({ preparedStore: prepared.preparedStore, transitions: prepared.authority.transitions,
@@ -125,7 +126,7 @@ async function terminalGeneration(kind: "abandon" | "decompose", subject = "earl
   const rename = async (record: StoreRecord, name: string) => {
     const reference = RecordReferenceSchema.parse({ ...record.reference, owner: { ...record.reference.owner, name } });
     ok(await h.store.write({ ...recordPut(record, { content: record.content.replaceAll(record.reference.owner.name, name) }),
-      reference, provenance: { verb: "rename", lifecycleAction: "rename" } }));
+      reference, provenance: fixtureRenameProvenance }));
     return ok(await h.store.read({ reference }));
   };
   const retire = async (record: StoreRecord, successor: string) => {
@@ -157,7 +158,7 @@ async function terminalGeneration(kind: "abandon" | "decompose", subject = "earl
   ok(await h.store.write({ ...recordPut(dependent, { content: writeMetaSessionContext(dependent.content, "Keep earliest and ended-former in mind.") }),
     provenance: { verb: "handoff", lifecycleAction: "update" } }));
   const context = ok(await h.store.read({ reference: dependent.reference }));
-  const prepare = async () => ok(await createStoreUserReferencePrepareContext({ store: h.store, identity: "test-user", workUnit: "dependent" }));
+  const prepare = async () => ok(await createStoreUserReferencePrepareContext({ cwd: "/project", store: h.store, identity: "test-user", workUnit: "dependent" }));
   const apply = async () => {
     const prepared = await prepare();
     return runUserReferenceReconcile({ preparedStore: prepared.preparedStore, transitions: prepared.authority.transitions,

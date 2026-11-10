@@ -97,7 +97,7 @@ it("refuses an unbound delivery's owner typed without arc.identity, naming how t
 it("refuses a missing metadata task binding without writes and continues after repair", async () => {
   const h = await fixture("Active", null);
   const version = lifecycleSuccess(await h.store.version());
-  const missing = await readStoredDeliveryEntryInput(h.store, "example", h.primary.reference.owner);
+  const missing = await readStoredDeliveryEntryInput("/project", h.store, "example", h.primary.reference.owner);
   if (missing.status !== "refused") throw new Error("Expected the missing task binding to refuse.");
   expect(await h.run()).toMatchObject({ status: "rejected", reason: missing.refusal.condition, refusal: missing.refusal });
   expect(lifecycleSuccess(await h.store.version())).toBe(version);

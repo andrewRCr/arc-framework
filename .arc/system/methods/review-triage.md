@@ -133,18 +133,19 @@ Labels remain the same in the proposal, approved report, and replay. Tags foreca
 stored as the agent's reading beside the set, never as an approved judgment. Keep them distinct from observed
 fix-round signals. Producer-native labels, capture ordinals, and references remain beside the report-local labels.
 
-The report's header names the lane's position — standard `complete pass N of M` or `fix check, round N since pass M`, or
-frontline's recorded pass and ceiling — and the verified counts. Its Decisions block carries the step the fixed head
-needs, naming each look it admits, then your `successorRecommendation` under `Recommended:`, then open questions. The
-command states the step and the label, so write the recommendation as the choice you recommend and why, in a sentence or
-two, without a label or restating the fix, the step, or its authorization. Recommend the step or stopping, never a look
-the step does not name. Where the step leaves the next look to review status at the fixed head, recommend provisionally,
-say that the fixed head decides, and recheck the recommendation against that head's lane read `nextLooks` before any
-look is dispatched. Supply a clear recommendation from expected signal and cost, including at the ceiling. When a fix
-requires a fix check or complete pass, the recommendation covers that activity, as spend the approver may decline. Emit
-the composed report without adding a second header, Decisions block, or approval question. Once the lane has two or more
-looks, its Trend sets your reading over the CLI's counts at each look; it is advice, never admission or convergence
-evidence.
+The report's header names the review kind, the lane's position, the source that ran it, and the verified counts, as
+`Standard code review — fix check, round R since pass N, Codex (hosted)` or
+`Frontline code review — pass N, coderabbit-cli (local)`; the position adds `(limit reached)` or `(over limit)` once the
+configured limit binds. Its Decisions block carries the step the fixed head needs, naming each look it admits, then your
+`successorRecommendation` under `Recommended:`, then open questions. The command states the step and the label, so write
+the recommendation as the choice you recommend and why, in a sentence or two, without a label or restating the fix, the
+step, or its authorization. Recommend the step or stopping, never a look the step does not name. Where the step leaves
+the next look to review status at the fixed head, recommend provisionally, say that the fixed head decides, and recheck
+the recommendation against that head's lane read `nextLooks` before any look is dispatched. Supply a clear
+recommendation from expected signal and cost, including at the ceiling. When a fix requires a fix check or complete
+pass, the recommendation covers that activity, as spend the approver may decline. Emit the composed report without
+adding a second header, Decisions block, or approval question. Once the lane has two or more looks, its Trend sets your
+reading over the CLI's counts at each look; it is advice, never admission or convergence evidence.
 
 A fix check verifies repairs and a complete pass looks for what remains undiscovered. Recommend the fix check on the
 approved fixes' merits, even when a complete pass follows. Converge the rounds before a successor complete pass;

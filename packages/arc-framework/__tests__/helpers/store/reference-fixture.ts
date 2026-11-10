@@ -28,10 +28,12 @@ export const referenceDeclarations: FixtureDeclarations = {
   refusalExclusions: {
     "command-line-capacity": "Memory publication launches no native Git process.",
     "checkout-not-writable": "A memory namespace has no checkout write authority.",
+    "store-imported": "A memory namespace has no repository whose store an import could seal.",
     "unsupported:cross-substrate-batch": "Every memory batch uses one atomic substrate.",
     "unsupported:uncovered-state-version": "Memory snapshots cover every family.",
     "unsupported:work-item-kind-required": "Memory enumerates every kind in a work-item family.",
     "unsupported:unhomed-kind": "Memory serves every registered kind.",
+    "unsupported:projection-admission": "Memory replays prepared projection decisions atomically with their content put.",
     "unsupported:batch-observations": "Memory admits strict read observations atomically with its batch.",
     "unsupported:personal-history": "Memory records history for personal records.",
     "unsupported:links-write": "Memory stores work-item links.",

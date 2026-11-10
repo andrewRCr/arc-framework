@@ -7,6 +7,8 @@
  */
 import { rejectUnsupportedReviewJson, rejectUnsupportedReviewOutputJson } from "./lib/command-input/review-json-option.js";
 import { formatCommandPath } from "./lib/command-input/command-path.js";
+import { registerProjectionHooks } from "./lib/store/projection/command-hooks.js";
+import { projectionCommandBinding } from "./lib/store/projection/engine.js";
 
 import { fileURLToPath } from "node:url";
 
@@ -129,6 +131,7 @@ program
   .name("arc")
   .description("CLI for installing, updating, and managing ARC framework files")
   .option("--no-input", "Forbid prompts, presenters, editors, and ambient child-process input")
+  .option("--skip-projection", "Skip automatic projection work for this command, leaving edits pending")
   .version(getFrameworkVersion());
 
 // --- Checks ---
@@ -465,11 +468,36 @@ program
 
 program
   .command("rename <slug> <new-slug>")
-  .description("Rename a work unit and its branch, workspace, remote, marker, and worktree identities")
+  .description("Rename a work unit or cohort selected by slug or UID, with a work unit's branch, workspace, remote, marker, and worktree identities")
+  .option("--json", "Emit the rename result and follow-up report as JSON")
   .action(withInteractionContext(
-    {},
-    async (context, slug: string, newSlug: string) => {
-      await (await import("./handlers/lifecycle.js")).handleRename(slug, newSlug, context);
+    { machineReadable: (opts) => opts.json === true },
+    async (context, slug: string, newSlug: string, opts: { json?: boolean }) => {
+      await (await import("./handlers/lifecycle.js")).handleRename(slug, newSlug, opts, context);
+    },
+  ));
+
+const cohort = program.command("cohort").description("Manage cohorts selected by slug or UID");
+cohort
+  .command("close <cohort>")
+  .description("Close a cohort selected by slug or UID")
+  .option("--yes", "Confirm closing the cohort")
+  .option("--json", "Emit one machine-readable result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, subject: string, opts: { yes?: boolean; json?: boolean }) => {
+      await (await import("./handlers/cohort.js")).handleCohortClose(subject, opts, context);
+    },
+  ));
+cohort
+  .command("remove <cohort>")
+  .description("Remove an empty cohort selected by slug or UID")
+  .option("--yes", "Confirm removing the cohort")
+  .option("--json", "Emit one machine-readable result")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (context, subject: string, opts: { yes?: boolean; json?: boolean }) => {
+      await (await import("./handlers/cohort.js")).handleCohortRemove(subject, opts, context);
     },
   ));
 
@@ -912,7 +940,7 @@ errand
 
 errand
   .command("close <slug>")
-  .description("Complete an Errand, release its exact occupancy, and drop its originating inbox capture")
+  .description("Complete an Errand selected by slug or UID, release its exact occupancy, and drop its originating inbox capture")
   .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
@@ -924,7 +952,7 @@ errand
 
 errand
   .command("abandon <slug>")
-  .description("Abandon a safely preserved Errand and retain its inbox capture")
+  .description("Abandon a safely preserved Errand selected by slug or UID and retain its inbox capture")
   .option("--confirm-foreign-generation <generation>", "Confirm the exact foreign Errand generation")
   .option("--json", "Emit the producer-validated mutation result")
   .action(withInteractionContext(
@@ -1815,6 +1843,47 @@ recoverCmd
     },
   ));
 
+// --- Editor ---
+
+program
+  .command("editor")
+  .description("Configure checkout editor settings for projected files")
+  .argument("<editor>", "Editor to configure (vscode or zed)")
+  .option("--remove", "Remove ARC's editor settings")
+  .action(withInteractionContext({}, async (_context, editor: "vscode" | "zed", opts: { remove?: boolean }) => {
+    const binding = projectionCommandBinding();
+    await (await import("./handlers/editor.js")).handleEditor({ editor, ...opts }, binding.store, binding.checkout);
+  }));
+
+// --- Selection ---
+
+program
+  .command("selection")
+  .description("List editable projected Markdown files")
+  .option("--changed", "List only files changed since the last arc save")
+  .option("--json", "Emit the selected paths as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (_context, opts: { changed?: boolean; json?: boolean }) => {
+      const binding = projectionCommandBinding();
+      await (await import("./handlers/selection.js")).handleSelection(opts, binding.store, binding.checkout);
+    },
+  ));
+
+// --- Save ---
+
+program
+  .command("save")
+  .description("Save pending edits in every projected root")
+  .option("--resolve <conflict>", "Resolve an indexed conflict shown without markers")
+  .option("--json", "Emit the complete save result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (_context, opts: { resolve?: string; json?: boolean }) => {
+      await (await import("./handlers/save.js")).handleSave(opts, projectionCommandBinding().store);
+    },
+  ));
+
 // --- Sync (orchestrator) ---
 
 program
@@ -2515,6 +2584,8 @@ program.hook("postAction", async () => {
   );
   process.exitCode = 1;
 });
+
+registerProjectionHooks(program, { mint: async input => (await import("./handlers/projection-stub.js")).mintProjectionStub(input) });
 
 // --- Entry ---
 

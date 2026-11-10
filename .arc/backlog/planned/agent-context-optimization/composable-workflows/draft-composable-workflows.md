@@ -477,6 +477,27 @@
 
 ---
 
+### `[ ]` **Give the landing ceremony its steps as resolved invocations, not prose to rediscover**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § D3 "The session-agenda compiler".
+
+- _Observation:_ from the Owner's accepted stop to an open pull request, `seam-delivery-review`'s landing (2026-11-02,
+  Codex, 45 minutes) ran 12 distinct ARC verbs and about 40 tool calls whose commands took under a minute in total;
+  the rest was reasoning between steps. It made six `--help` calls and read about 700 lines of
+  `integrate-work-unit.md` and `pull-request-format` in chunks, rediscovering invocations after its 18th compaction.
+
+- _Approach:_ have each step's typed result name the next step as an exact invocation with its input, so the agent
+  supplies only judgment content and approvals; fold deterministic chains into one verb where nothing between them
+  needs a judgment. Measure a landing's calls and wall time before and after.
+
+- _Evidence:_ the timeline of `seam-delivery-review`'s 2026-11-02 landing, kept outside the repository.
+
+- _Captured during:_ `project-manager.ARC`, a process review of `seam-delivery-review`'s landing, 2026-11-02.
+
+---
+
 ## Problem / Motivation
 
 ARC's workflows scale across modes, tiers, and session states via **carry-and-skip**: inline conditionals

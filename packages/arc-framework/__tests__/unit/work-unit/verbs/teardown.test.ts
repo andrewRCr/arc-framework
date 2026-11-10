@@ -7,7 +7,10 @@
  * orchestration is asserted in isolation.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, onTestFinished } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
   runBranchTeardown,
@@ -19,11 +22,14 @@ import { validateManagedPath } from "../../../../src/lib/kernel/canonical/manage
 import { artifactGroupDigest } from "../../../../src/lib/canonical/content-digest.js";
 import type { GitExec } from "../../../../src/lib/git/exec.js";
 import type { LifecycleIndexFs, DirEntry } from "../../../../src/lib/work-unit/lifecycle-index.js";
-import type { WorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
+import { writeWorktreeMarker, readWorktreeMarker, type WorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
 import type { RetirementAuthorityPort } from "../../../../src/lib/work-unit/retirement-authority.js";
 import type { TeardownSelection } from "../../../../src/lib/work-unit/teardown-selection.js";
 import type { RetireWorktreeOptions } from "../../../../src/lib/work-unit/teardown-worktree-transaction.js";
 import { worktreePorcelainZ } from "../../../helpers/worktree-porcelain.js";
+import { readCheckoutLayoutContext } from "../../../../src/lib/store/checkout-layout.js";
+import { beginProjectionCommand } from "../../../../src/lib/store/projection/process-state.js";
+import { nodeReconcileWorkUnitWorktreeFs } from "../../../../src/lib/work-unit/mutators/reconcile-work-unit-worktree.js";
 
 const CWD = "/repo";
 
@@ -1720,4 +1726,20 @@ describe("runBranchTeardown — recordless cheap branches", () => {
       expect(calls).toEqual([]);
     },
   );
+});
+
+it("invalidates an anchored checkout's cached claim after in-repo teardown releases its marker", async () => {
+  const root = await mkdtemp(join(tmpdir(), "teardown-in-repo-layout-"));
+  onTestFinished(async () => { await rm(root, { recursive: true, force: true }); beginProjectionCommand(); });
+  await writeWorktreeMarker(root, { spawnedByArc: false, wuName: "demo", createdFor: { kind: "work-unit", name: "demo" },
+    spawningIdentity: "andrew", createdAt: "2026-11-05T00:00:00Z" });
+  const porcelain = `worktree /repo\nHEAD ${"a".repeat(40)}\nbranch refs/heads/main\n\n`
+    + `worktree ${root}\nHEAD ${"b".repeat(40)}\nbranch refs/heads/feat/demo\n`;
+  const { ctx } = buildCtx([SHIPPED_META], { branches: ["feat/demo"], worktreePorcelain: porcelain });
+  ctx.readMarker = readWorktreeMarker;
+  ctx.worktreeFs = { ...nodeReconcileWorkUnitWorktreeFs, directoryExists: async () => true };
+  expect((await readCheckoutLayoutContext(root)).claim).toBe("demo");
+  expect(await runTeardown(ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down" });
+  expect(await readWorktreeMarker(root)).toEqual({ kind: "absent" });
+  expect((await readCheckoutLayoutContext(root)).claim).toBeNull();
 });

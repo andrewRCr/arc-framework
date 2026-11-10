@@ -67,7 +67,7 @@ The command is at `state: awaiting-approval`, `nextAction: obtain-approval`, wit
 The command's `payload.dispositionReportText` is exactly these bytes:
 
 ```text
-**Standard complete pass 1 of 2** · 1 not supported
+**Standard code review — pass 1, delegated agent (local)** · 1 not supported
 
 ### F1 — Failing path at the cited branch
 
@@ -98,7 +98,7 @@ Its `payload.dispositionEvidenceText`, held back from the report and shown when 
 The same command payload supplies this provisional pass line:
 
 ```text
-Standard complete pass 1 of 2. No confirmed findings.
+Standard code review — pass 1, delegated agent (local). No confirmed findings.
 ```
 
 Assess the combined report, typed proposal, and pass line as the proposed complete-set approval surface. Do not invent

@@ -128,7 +128,7 @@ async function inspectPublication(ctx: ExecuteTransitionContext & { store: Store
   if (read.status === "refused") return reject(read.refusal.condition, read.refusal);
   const parsed = readLifecycleMetaFields(read.result);
   if (parsed.status === "refused") return reject(parsed.refusal.condition, parsed.refusal);
-  const meta = parsed.result, metaPath = workUnitMetaPath(read.result);
+  const meta = parsed.result, metaPath = await workUnitMetaPath(ctx.cwd, read.result);
   if (meta.state !== "Active" && meta.state !== "Integrating") return reject("Publication requires an Active work unit.");
   const pause = await checkAdvancingPause(ctx.store, params.name, read.result);
   if (pause.status === "rejected") return reject(pause.reason, pause.refusal, pause.remedy);

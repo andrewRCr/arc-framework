@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { RemoteFailureReasonSchema } from "../kernel/index.js";
-import { RecordReferenceSchema, StateVersionSchema, STORED_UID_SOURCE } from "./identity.js";
+import { RecordReferenceSchema, StateVersionSchema, StoredUidSchema, STORED_UID_SOURCE } from "./identity.js";
 import { LookupInputSchema } from "./lookup.js";
 
 /** An ended work item's or cohort's history ref, named by the lowercase UID its stored names carry. */
@@ -23,6 +23,7 @@ export const UNSUPPORTED_CASES = {
   "held-here": "recoverable",
   "unhomed-kind": "terminal",
   "batch-observations": "terminal",
+  "projection-admission": "terminal",
   "personal-history": "terminal",
   "links-write": "terminal",
   "placement-move": "terminal",
@@ -44,9 +45,11 @@ export const PublishFailureSchema = z.discriminatedUnion("code", [
 ]);
 /** A local refusal, including the interim backend's narrowly assigned unsupported cases. */
 export const LocalRefusalSchema = z.discriminatedUnion("code", [
-  z.strictObject({ code: z.literal("not-found"), ...recoverable, reference: RecordReferenceSchema.optional(), lookup: LookupInputSchema.optional() })
-    .refine((value) => value.reference !== undefined || value.lookup !== undefined, "Name the missing record or lookup"),
-  z.strictObject({ code: z.literal("version-conflict"), ...recoverable, records: z.array(RecordReferenceSchema).min(1) }),
+  z.strictObject({ code: z.literal("not-found"), ...recoverable, reference: RecordReferenceSchema.optional(),
+    lookup: LookupInputSchema.optional(), uid: StoredUidSchema.optional() })
+    .refine((value) => value.reference !== undefined || value.lookup !== undefined || value.uid !== undefined, "Name the missing record, lookup, or UID"),
+  z.strictObject({ code: z.literal("version-conflict"), ...recoverable, records: z.array(RecordReferenceSchema).min(1),
+    cause: z.literal("projection-admission").optional() }),
   z.strictObject({ code: z.literal("state-unresolvable"), ...recoverable, stateVersion: StateVersionSchema.optional(),
     historyRefs: z.array(HistoryRefSchema), reference: RecordReferenceSchema.optional(), field: z.string().min(1).optional() }),
   z.strictObject({ code: z.literal("record-malformed"), ...recoverable, reference: RecordReferenceSchema.optional(), rule: z.string().min(1) }),
@@ -56,6 +59,7 @@ export const LocalRefusalSchema = z.discriminatedUnion("code", [
   z.strictObject({ code: z.literal("lock-held"), ...recoverable, lock: z.string().min(1) }),
   z.strictObject({ code: z.literal("namespace-corrupt"), ...terminal, namespace: z.string().min(1) }),
   z.strictObject({ code: z.literal("checkout-not-writable"), ...recoverable, checkout: z.string().min(1) }),
+  z.strictObject({ code: z.literal("store-imported"), ...recoverable }),
   z.strictObject({ code: z.literal("unsupported"), ...common, class: z.enum(["recoverable", "terminal"]), case: z.enum(Object.keys(UNSUPPORTED_CASES) as [UnsupportedCase, ...UnsupportedCase[]]) })
     .refine((value) => value.class === UNSUPPORTED_CASES[value.case], "Class must match the unsupported case"),
 ]);

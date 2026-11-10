@@ -79,6 +79,30 @@
   with a remedy, when a Configurable file has no baseline (`USER-INBOX § Errand`); it lands before CineXplorer's first
   update.
 
+### `[ ]` **Build what a read-only projection source adds, against the installed package as that source**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Constraints (more than one source, read-only copies), beside "Leave the projection's machine-local files
+  alone when the package projects `.arc/system/`".
+
+- _Observation:_ `projection-worktrees` builds only the projection's source seam (Owner, 2026-11-06, at its task
+  generation): the engine reads records through `Pick<Store, "read" | "list" | "version" | "changes">`, refresh and
+  full materialization take the source as a parameter, and the store is the only source. What a read-only source adds
+  was deferred to the first one, this unit's installed package: each source's own state version in the projection
+  index, which holds one (`ProjectionIndexSchema.state`, a strict versioned schema); protection of a read-only source's
+  files, which needs a source input to the edit rights and protection (`readProjectionEditRights`,
+  `readProjectionProtection`, whose protected reasons are identity, checkout, and verb alone), a notice naming the
+  source (`spec-projection-write-back.md` § 8.2 already words it), and write-back refusing an edit to one as a refused
+  edit; and the `.arc/system/` paths it projects added to the exclude writer's list, leaving `MACHINE_LOCAL_PATHS`
+  entries there alone.
+
+- _Approach:_ shape all three against the package source when this unit designs its read-only projection; the index
+  field is a format bump the pre-release posture allows.
+
+- _Captured during:_ `projection-worktrees` generate-tasks, grounding audit, 2026-11-06 (Owner-approved; the target
+  has no session).
+
 ---
 
 ## Problem

@@ -132,7 +132,7 @@ async function resolveStoreSessionContext(cwd: string, slug: string, store: Stor
       return { status: "error", message: `The work unit's session context is unresolved. Inspect and repair its meta record, then retry.${describeRecordConflicts(record.conflicts)}` };
     }
     const fields = ParsedMetaRecordSchema.parse(record.fields);
-    const path = workItemArtifactPath(record.reference.owner.name, "meta", WorkUnitReadPlacementSchema.parse(record.placement), fields.cohort);
+    const path = await workItemArtifactPath(cwd, record.reference.owner.name, "meta", WorkUnitReadPlacementSchema.parse(record.placement), fields.cohort);
     return { status: "resolved", path: join(cwd, path) };
   } catch (error) { return { status: "error", message: `Unable to resolve session context: ${error instanceof Error ? error.message : String(error)}` }; }
 }

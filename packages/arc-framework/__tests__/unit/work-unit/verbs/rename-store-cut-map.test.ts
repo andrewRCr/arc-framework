@@ -52,7 +52,7 @@ it("keeps an origin's stored map bytes when its own artifacts are renamed", asyn
   const h = createLifecycleHarness();
   const primary = await stub(h, "origin");
   const { draft, map } = await seedCut(h, primary, "draft-origin.md");
-  const result = await runStoreRename(context(h), { sourceSlug: "origin", targetSlug: "renamed" });
+  const result = await runStoreRename(context(h), { operand: "origin", targetSlug: "renamed" });
   expect(result, JSON.stringify(result)).toMatchObject({ status: "renamed" });
   const saved = lifecycleSuccess(await h.store.read({ reference: map.reference }));
   expect(saved.content).toBe(map.content);
@@ -67,7 +67,7 @@ it("keeps a foreign stub's stored map bytes while rewriting that stub's prose", 
   await h.seed(recordReferences["work-item/draft"](other.reference.owner), "# Draft: other\n\nOther work.\n");
   const primary = await stub(h, "origin");
   const { draft, map } = await seedCut(h, primary, "draft-other.md");
-  const result = await runStoreRename(context(h), { sourceSlug: "other", targetSlug: "renamed" });
+  const result = await runStoreRename(context(h), { operand: "other", targetSlug: "renamed" });
   expect(result, JSON.stringify(result)).toMatchObject({ status: "renamed" });
   const saved = lifecycleSuccess(await h.store.read({ reference: map.reference }));
   expect(saved.content).toBe(map.content);
@@ -88,7 +88,7 @@ it("ignores a saved map's sole ambiguous paired reference when renaming another 
   const { draft, map } = await seedCut(h, waiting, "spec-origin-prd.md");
   lifecycleSuccess(await h.store.write({ action: "put", reference: draft.reference, expected: draft.version,
     content: "# Draft: waiting\n\nCurrent prose no longer contains the earlier heading.\n", provenance: { verb: "save", lifecycleAction: "edit" } }));
-  const result = await runStoreRename(context(h), { sourceSlug: "origin", targetSlug: "successor" });
+  const result = await runStoreRename(context(h), { operand: "origin", targetSlug: "successor" });
   expect(result, JSON.stringify(result)).toMatchObject({ status: "renamed" });
   expect(lifecycleSuccess(await h.store.read({ reference: map.reference })).content).toBe(map.content);
   expect(lifecycleSuccess(await h.store.read({ reference: ordinary.reference }))).toEqual(ordinary);

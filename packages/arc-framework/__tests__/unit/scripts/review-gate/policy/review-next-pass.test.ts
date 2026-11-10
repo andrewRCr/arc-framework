@@ -9,8 +9,11 @@ import type { IncrementalReviewScope } from "../../../../../src/scripts/review-g
 import type { ReviewResult } from "../../../../../src/scripts/review-gate/core/review-result.js";
 import { resolveReviewPolicy } from "../../../../../src/scripts/review-gate/policy/review-policy-driver.js";
 
+type Verification = "targeted" | "focused" | "full";
+
 function input(predecessor: ReviewResult | null, severity: "major" | "minor" = "major", performed = true,
-  retrigger: "full-final" | "incremental" = "full-final"): ReviewNextPassInput & { currentTarget: ReviewResult["target"] } {
+  retrigger: "full-final" | "incremental" = "full-final", verification: Verification = "focused",
+): ReviewNextPassInput & { currentTarget: ReviewResult["target"] } {
   let result = predecessor ?? cleanHostedResult();
   if (result.kind === "frontline") throw new Error("expected standard producer");
   if (result.requirement.retrigger !== retrigger) {
@@ -27,7 +30,7 @@ function input(predecessor: ReviewResult | null, severity: "major" | "minor" = "
   const currentTarget = createReviewTarget({ ...target, headSha: "e".repeat(40) });
   const record = predecessor?.originalOutcome === "findings" ? approvedRecord(predecessor, [{
     sourceVerification: "verified", verifiedSeverity: severity, disposition: "fix",
-  }]) : null;
+  }], verification) : null;
   const { obligation, reasons, rubricVersion, rubricDigest, count } = result.requirement;
   return {
     completePasses: predecessor === null ? 0 : 1,
@@ -388,4 +391,101 @@ it("admits repeated material fix checks at the ceiling with the complete correct
   expect(resolveReviewPolicy({ ...request, ceilingOverride: approval.payload.consequence }))
     .toMatchObject({ state: "ready", nextAction: "local-prepare", payload: { scope: "whole-target", pass: 5,
       sourceId: "delegated-agent", consumedPass: false, ceilingOverrideApplied: true } });
+});
+
+describe("minor fixes that change behavior under full-final", () => {
+  function minorFixed(verification: Verification, predecessor: ReviewResult = findingsHostedResult(["minor"])) {
+    return input(predecessor, "minor", true, "full-final", verification);
+  }
+  function policyAtCeiling(request: ReturnType<typeof minorFixed>, nextPassContext: ReviewNextPassContextValue) {
+    return { schemaVersion: 1,
+      target: { repository: "owner/repository", pullRequest: 7, headSha: request.currentTarget.headSha },
+      lane: "standard", standardReview: request.standardReview, sources: ["codex-pr", "delegated-agent"], maxPasses: 1,
+      completedPasses: request.predecessor!.admission.logicalPass, attempts: [], nextPassContext };
+  }
+  type ReviewNextPassContextValue = Awaited<ReturnType<typeof deriveReviewNextPassContext>>;
+
+  it("offers a fix check over the fix range when the fixes were approved for full verification", async () => {
+    const request = minorFixed("full");
+    expect(await deriveReviewNextPassContext(request)).toEqual({ completePasses: 1, convergence: "converged",
+      responseDue: false, incremental: { basis: "fix-check", scope: { schemaVersion: 1,
+        predecessorProducerId: request.predecessor!.producerId, predecessorHeadSha: request.predecessor!.target.headSha,
+        basisHeadSha: request.predecessor!.target.headSha, headSha: request.currentTarget.headSha, requiredFindings: [] } } });
+  });
+
+  it.each(["targeted", "focused"] as const)("withholds it for %s verification", async verification => {
+    expect(await deriveReviewNextPassContext(minorFixed(verification)))
+      .toMatchObject({ convergence: "converged", responseDue: false, incremental: null });
+  });
+
+  it("withholds it where the local source cannot run it", async () => {
+    const request = minorFixed("full");
+    for (const deltaAdmission of [undefined, { sources: ["codex-pr"], surface: "ordinary" as const }]) {
+      expect(await deriveReviewNextPassContext({ ...request, deltaAdmission }))
+        .toMatchObject({ convergence: "converged", responseDue: false, incremental: null });
+    }
+  });
+
+  it("withholds it until the fix is performed", async () => {
+    const request = minorFixed("full");
+    expect(await deriveReviewNextPassContext({ ...request, readResponsePerformance: async () => null }))
+      .toMatchObject({ convergence: "pending", responseDue: true, incremental: null });
+  });
+
+  it("withholds it when full verification approved no fix", async () => {
+    const predecessor = findingsHostedResult(["minor"]);
+    const record = approvedRecord(predecessor, [{ sourceVerification: "verified", verifiedSeverity: "minor",
+      disposition: "defer" }], "full");
+    expect(await deriveReviewNextPassContext({ ...minorFixed("full", predecessor),
+      dispositionStore: { readDispositionRecord: async () => record }, readResponsePerformance: async () => null }))
+      .toMatchObject({ convergence: "converged", responseDue: false, incremental: null });
+  });
+
+  it("admits only the fix check at the ceiling; a complete pass, local or hosted, still needs the override", async () => {
+    const request = minorFixed("full");
+    const policy = policyAtCeiling(request, await deriveReviewNextPassContext(request));
+    expect(resolveReviewPolicy({ ...policy, chosenCoverage: "incremental", invocation: { mode: "force",
+      sourceId: "delegated-agent" } })).toMatchObject({ state: "ready", nextAction: "local-prepare",
+      payload: { sourceId: "delegated-agent", coverage: "incremental", ceilingOverrideApplied: false } });
+    for (const sourceId of ["codex-pr", "delegated-agent"]) {
+      expect(resolveReviewPolicy({ ...policy, chosenCoverage: "complete", invocation: { mode: "force", sourceId } }))
+        .toMatchObject({ state: "approval-required", nextAction: "obtain-ceiling-override" });
+    }
+    const narrower = minorFixed("focused");
+    expect(resolveReviewPolicy(policyAtCeiling(narrower, await deriveReviewNextPassContext(narrower))))
+      .toMatchObject({ state: "approval-required", nextAction: "obtain-ceiling-override" });
+  });
+
+  it("offers a second round after a fix check whose minor fixes again change behavior", async () => {
+    const first = minorFixed("full");
+    const firstContext = await deriveReviewNextPassContext(first);
+    if (firstContext.incremental === null) throw new Error("expected the first fix check");
+    const root = first.predecessor!;
+    const check = localCorrectionResult(root, firstContext.incremental.scope);
+    const { targetId: ignored, ...coordinates } = check.target;
+    void ignored;
+    const currentTarget = createReviewTarget({ ...coordinates, headSha: "f".repeat(40) });
+    const second = (verification: Verification) => {
+      const record = approvedRecord(check, [{ sourceVerification: "verified", verifiedSeverity: "minor",
+        disposition: "fix" }], verification);
+      return { ...input(check, "minor"), currentTarget,
+        resultReader: { readResult: async () => root },
+        dispositionStore: { readDispositionRecord: async (producer: string) => producer === check.producerId ? record
+          : first.dispositionStore.readDispositionRecord(producer) },
+        readResponsePerformance: async (result: ReviewResult) => result.producerId !== check.producerId
+          ? first.readResponsePerformance(result)
+          : { ...performedFix(check, record), producedHeadSha: currentTarget.headSha },
+        confirmApplicability: async () => "review-required" as const,
+      };
+    };
+    expect(await deriveReviewNextPassContext(second("full"))).toMatchObject({
+      convergence: "converged", incremental: { basis: "fix-check", scope: { basisHeadSha: root.target.headSha,
+        predecessorProducerId: check.producerId, headSha: currentTarget.headSha, requiredFindings: [] } } });
+    expect((await deriveReviewNextPassContext(second("focused"))).incremental).toBeNull();
+    const clean = localCorrectionResult(root, firstContext.incremental.scope, "clean");
+    expect(await deriveReviewNextPassContext({ ...input(clean, "minor"), currentTarget: clean.target,
+      resultReader: { readResult: async () => root }, dispositionStore: first.dispositionStore,
+      readResponsePerformance: first.readResponsePerformance }))
+      .toEqual({ completePasses: 1, convergence: "converged", responseDue: false, incremental: null });
+  });
 });

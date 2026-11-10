@@ -1,5 +1,8 @@
 /** Exact terminal snapshots govern ref-set cleanup and retained checkout coordinates. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { boundWorkUnitSubject } from "../../../helpers/store/bound-checkout.js";
 import { createRetirementHarness as fixture, retirementLink as link } from "../../../helpers/store/retirement-harness.js";
 import { recordReferences } from "../../../../src/lib/store/identity.js";
@@ -7,6 +10,35 @@ import { writeLineageRecord, parseLineageRecord } from "../../../../src/lib/stor
 import { lifecycleSuccess } from "../../../helpers/store/lifecycle-harness.js";
 import { runTeardown } from "../../../../src/lib/work-unit/verbs/teardown.js";
 import { PROJECTION_LOCK_REASON } from "../../../../src/lib/git/worktree-removal.js";
+import { writeWorktreeMarker, readWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
+import { readCheckoutLayoutContext } from "../../../../src/lib/store/checkout-layout.js";
+import { beginProjectionCommand } from "../../../../src/lib/store/projection/process-state.js";
+import { nodeReconcileWorkUnitWorktreeFs } from "../../../../src/lib/work-unit/mutators/reconcile-work-unit-worktree.js";
+
+it.each([false, true])("invalidates the retained checkout's cached claim after store teardown, native fallback=%s", async fallback => {
+  const h = await fixture({ held: true, spawned: false });
+  const root = await mkdtemp(join(tmpdir(), "teardown-store-layout-"));
+  onTestFinished(async () => { await rm(root, { recursive: true, force: true }); beginProjectionCommand(); });
+  const original = await h.ctx.readMarker!(h.ctx.cwd);
+  if (original.kind !== "present") throw new Error("Expected the retirement fixture's bound marker");
+  await writeWorktreeMarker(root, original.marker);
+  h.ctx.cwd = root;
+  const exec = h.ctx.exec;
+  h.ctx.exec = async (command, args, options) => {
+    const result = await exec(command, args, options);
+    return args[0] === "worktree" && args[1] === "list" ? { ...result, stdout: result.stdout.replaceAll("/repo", root) } : result;
+  };
+  h.ctx.readMarker = readWorktreeMarker;
+  h.ctx.worktreeFs = { ...h.ctx.worktreeFs!, removeFile: fallback ? undefined
+    : async function(this: NonNullable<typeof h.ctx.worktreeFs>, path: string) {
+      if (!await this.directoryExists(root)) throw new Error("The retained checkout must still exist");
+      await nodeReconcileWorkUnitWorktreeFs.removeFile!(path);
+    } };
+  expect((await readCheckoutLayoutContext(root)).claim).toBe("demo");
+  expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down" });
+  expect(await readWorktreeMarker(root)).toEqual({ kind: "absent" });
+  expect((await readCheckoutLayoutContext(root)).claim).toBeNull();
+});
 describe("store retirement ref sets", () => {
   it("discards a created branch locally and remotely on abandonment lineage", async () => {
     const h = await fixture(); expect(await runTeardown(h.ctx, { subject: { kind: "slug", slug: "demo" }, base: "main" })).toMatchObject({ status: "torn-down", branchDeleted: true, remoteBranchDeleted: true });
@@ -129,4 +161,16 @@ it("names both bound and unbound retirement holders before changing refs without
   expect(JSON.stringify(result)).toContain("/unbound");
   expect(JSON.stringify(result)).toContain("arc locus release");
   expect([...h.refs]).toEqual(refs);
+});
+
+it("keeps a retiring branch and reports no direct rename for holders without its former slug", async () => {
+  const h = await fixture();
+  const first = await h.seedMeta("one", {}, { kind: "active" }, { branches: [link()] });
+  const second = await h.seedMeta("two", {}, { kind: "active" }, { branches: [link()] });
+  const result = await runTeardown(h.ctx, { subject: { kind: "owner", owner: h.meta.reference.owner }, base: "main" });
+  expect(result).toMatchObject({ status: "torn-down", branchDeleted: false, remoteBranchDeleted: false });
+  expect(h.refs.has("refs/heads/feat/demo")).toBe(true);
+  if (result.status !== "torn-down") throw new Error("Expected retained branch");
+  for (const record of [first, second]) expect(result.notices.join(" ")).toContain(
+    `No direct rename repair for \`${record.reference.owner.name}\` (UID ${record.reference.owner.type === "work-item" ? record.reference.owner.uid : ""})`);
 });

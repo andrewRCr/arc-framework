@@ -4,7 +4,7 @@ import { resolveCurrentWorkUnit } from "../lib/store/current-work-unit.js";
 import type { Store } from "../lib/store/contract.js";
 import { readWorkUnit, readLifecycleMetaFields } from "../lib/store/lifecycle-write.js";
 import { WorkUnitReadPlacementSchema } from "../lib/store/placement.js";
-import { workItemArtifactPath, workItemLayoutPlacement } from "../lib/store/lifecycle-storage.js";
+import { workItemArtifactPath, workItemArtifactPathAt, workItemLayoutPlacement } from "../lib/store/lifecycle-storage.js";
 import { recordReferences, RecordReferenceSchema, OwnerIdentitySchema, type RecordReference } from "../lib/store/identity.js";
 import { familyOf, type KindId } from "../lib/store/catalog.js";
 import type { StoreRecord } from "../lib/store/read.js";
@@ -20,18 +20,19 @@ export async function resolveStoreViewTarget(input: { cwd: string; store: Store;
   const read = await readWorkUnit(input.store, input.slug);
   if (read.status === "refused") {
     if (read.refusal.code === "not-found" || (read.refusal.code === "record-malformed" && read.refusal.rule === "lifecycle.work-unit")) return { status: "unavailable", slug: input.slug };
-    const completed = read.refusal.code === "ambiguous-match" ? " Open a completed holder through its projected file under completed/." : "";
+    const completed = read.refusal.code === "ambiguous-match" && read.refusal.tie?.liveness === "completed" ? " Open a completed holder through its projected file under completed/." : "";
     return { status: "unavailable", slug: input.slug, message: `${read.refusal.condition} ${read.refusal.remedy.text}${completed}` };
   }
   return targetFromMeta(input.cwd, read.result);
 }
 
-function targetFromMeta(cwd: string, meta: StoreRecord): ViewTargetResult {
+async function targetFromMeta(cwd: string, meta: StoreRecord): Promise<ViewTargetResult> {
   const fields = readLifecycleMetaFields(meta);
   if (fields.status === "refused") throw new Error(`${fields.refusal.condition} ${fields.refusal.remedy.text}`);
-  const placement = WorkUnitReadPlacementSchema.parse(meta.placement), slug = meta.reference.owner.name;
-  const path = (artifact: "meta" | "tasks"): string => resolve(cwd, workItemArtifactPath(slug, artifact, placement, fields.result.cohort));
-  return { status: "resolved", slug, placement: workItemLayoutPlacement(placement, fields.result.cohort),
+  const slug = meta.reference.owner.name;
+  const placement = await workItemLayoutPlacement(cwd, slug, WorkUnitReadPlacementSchema.parse(meta.placement), fields.result.cohort);
+  const path = (artifact: "meta" | "tasks"): string => resolve(cwd, workItemArtifactPathAt(slug, artifact, placement));
+  return { status: "resolved", slug, placement,
     location: placement.kind === "backlog" ? placement.commitment : placement.kind,
     metaPath: path("meta"), taskListPath: fields.result.taskList === null ? null : path("tasks"),
     artifactSource: { kind: "store", reference: meta.reference } };
@@ -91,7 +92,7 @@ function ownRecord(kind: KindId, artifact: WorkUnitArtifactKind): StoreViewSelec
     const record = kind === "work-item/meta" ? primary : await readRecord(input.store,
       RecordReferenceSchema.parse({ kind, owner: primary.reference.owner }));
     return record === null ? null : { record, path: resolve(input.cwd,
-      workItemArtifactPath(primary.reference.owner.name, artifact, placement, fields.cohort)) };
+      await workItemArtifactPath(input.cwd, primary.reference.owner.name, artifact, placement, fields.cohort)) };
   };
 }
 async function readPrimary(input: StoreViewSelectionInput): Promise<StoreRecord | null> {
@@ -118,7 +119,7 @@ async function selectDesign(input: StoreViewSelectionInput): Promise<StoreViewSe
     if (design.warnings.length > 0) throw new Error(`${design.warnings.join(" ")} Repair the design inventory, then retry arc view design --for ${primary.reference.owner.name}.`);
     return null;
   }
-  const path = lifecycleRecordPath(primary, design.record);
+  const path = await lifecycleRecordPath(input.cwd, primary, design.record);
   return path === null ? null : { record: design.record, path: resolve(input.cwd, path), warnings: design.warnings };
 }
 async function selectCohort(input: StoreViewSelectionInput): Promise<StoreViewSelection | null> {

@@ -21,6 +21,16 @@ function context() {
   return { ...h, ctx: { executor, fs: { mkdir: async () => { throw Error("no directories"); }, writeFile: async () => { throw Error("no files"); } } } };
 }
 describe("store stub", () => {
+  it("refuses an invalid priority without mutation and creates after repair", async () => {
+    const h = context(), before = lifecycleSuccess(await h.store.version());
+    const params = { name: "demo", commitment: "provisional", priority: "P0", owner: "starter" } as const;
+    await expect(runStub(h.ctx, params)).resolves.toMatchObject({ status: "rejected", reason: expect.stringMatching(/priority/iu) });
+    expect(lifecycleSuccess(await h.store.version())).toBe(before);
+    expect(lifecycleSuccess(await h.store.list({ family: "work-item" })).status).toBe("absent");
+    expect(await runStub(h.ctx, { ...params, priority: "P1" })).toMatchObject({ status: "scaffolded" });
+    const lookup = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("demo") }));
+    expect(lifecycleSuccess(await h.store.read({ reference: lookup.reference })).fields).toMatchObject({ priority: "P1" });
+  });
   it.each(["planned", "provisional"] as const)("creates a %s stub with explicit creation fields", async (commitment) => {
     const h = context();
     expect(await runStub(h.ctx, { name: "demo", commitment, priority: "P1", owner: "starter", cls: "Novel", origin: "#42", design: "draft-demo.md" })).toMatchObject({ status: "scaffolded" });

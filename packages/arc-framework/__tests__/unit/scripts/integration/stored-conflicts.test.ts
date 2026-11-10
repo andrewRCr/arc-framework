@@ -30,7 +30,7 @@ async function conflicted(kind: RecordKind) {
 
 it("reports a conflicted meta as an incomplete lifecycle and binds its version once resolved", async () => {
   const h = await conflicted("work-item/meta");
-  const input = { store: h.store, workUnit: "example", archiveCadence: "manual" as const, storageVersion: "v1" };
+  const input = { cwd: "/project", store: h.store, workUnit: "example", archiveCadence: "manual" as const, storageVersion: "v1" };
   const refused = await readStoredLifecycleSummary(input);
   expect(refused).toMatchObject({ recordVersion: null, summary: { complete: false,
     artifactFacts: [{ message: expect.stringContaining(JSON.stringify(h.state.conflict)) }] } });

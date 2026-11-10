@@ -153,6 +153,14 @@ const localResult = {
   applicabilityId: null,
   findings: [],
 };
+const frontlineFinding = {
+  findingId: "finding-1",
+  severity: "major",
+  locus: "src/index.ts",
+  evidenceUrlOrId: "Guard the read before indexing.",
+  sourceOrdinal: 1,
+  sourceLabel: "Unguarded index read",
+};
 const dispositionProposal = proposeDispositionSet(createDispositionSet({
   schemaVersion: 2,
   semanticsVersion: "review-gate/v2",
@@ -192,7 +200,7 @@ const provisionalPassAssessment = {
   potentialStopReason: "cap-exhausted",
   nextPassAuthority: "none",
   summaryText: "Provisional pass 2 of 2; approval and response are pending; no next-pass authority.",
-  positionText: "Standard complete pass 2 of 2 (limit reached)",
+  positionText: "Standard code review — pass 2 (limit reached), Codex (hosted)",
   nextActivityText: "another complete pass, which needs a ceiling decision",
 } as const;
 
@@ -288,7 +296,7 @@ describe("review command envelopes", () => {
     }],
     [FrontlineRunEnvelopeSchema, {
       ...header("review-frontline-run"),
-      state: "findings", nextAction: "respond", payload: operationPayload(),
+      state: "findings", nextAction: "respond", payload: operationPayload({ findings: [frontlineFinding] }),
     }],
     [FrontlineRunEnvelopeSchema, {
       ...header("review-frontline-run"),
@@ -638,6 +646,16 @@ describe("review command envelopes", () => {
       ...envelope,
       nextAction: "retry",
     })).toThrow();
+  });
+
+  it("carries findings on a findings run and on no other run state", () => {
+    const run = (state: string, nextAction: string, findings?: unknown[]) => ({
+      ...header("review-frontline-run"), state, nextAction,
+      payload: operationPayload(findings === undefined ? {} : { findings }),
+    });
+    expect(() => FrontlineRunEnvelopeSchema.parse(run("findings", "respond"))).toThrow();
+    expect(() => FrontlineRunEnvelopeSchema.parse(run("findings", "respond", []))).toThrow();
+    expect(() => FrontlineRunEnvelopeSchema.parse(run("clean", "none", [frontlineFinding]))).toThrow();
   });
 
   it.each([

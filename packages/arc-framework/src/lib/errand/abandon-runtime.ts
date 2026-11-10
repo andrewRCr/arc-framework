@@ -122,6 +122,7 @@ async function cleanupOccupancy(
     store: options.store,
     frame,
     operation: "abandon",
+    operand: options.operand,
     subject: { kind: "errand", slug: record.slug, claimId: record.claimId },
     confirmForeignGeneration: options.confirmForeignGeneration,
   });

@@ -12,7 +12,8 @@
 import { createStore } from "../store/create.js";
 import { createDefaultStorePorts } from "../store/default-store-ports.js";
 import { workItemArtifactPath } from "../store/lifecycle-storage.js";
-import { identifyWorkUnitArtifactPath } from "../layout/index.js";
+import { identifyWorkUnitArtifactPath, type ActiveLayoutContext } from "../layout/index.js";
+import { resolveCheckoutLayoutContext } from "../store/checkout-layout.js";
 import type { Store } from "../store/contract.js";
 import type { StateVersion } from "../store/identity.js";
 import type { GitExec } from "../git/exec.js";
@@ -24,7 +25,7 @@ import { resolveLoadSetManifest } from "../load-set/projection.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import type { TaskListCursorFileResult } from "../task-list/file-cursor.js";
 import type { DerivedLocusFrame } from "../locus/derived-reader.js";
-import { deriveRecoveryLocusContext } from "../recover/locus-context.js";
+import { deriveRecoveryLocusContext, resolveRecoveryParentContext } from "../recover/locus-context.js";
 import {
   assertCompactionSeed,
   COMPACTION_SEED_SCHEMA_VERSION,
@@ -190,6 +191,8 @@ export async function emitCompactionSeed(
       ? options.envelope.taskCursor.value.cursor
       : null;
   let loadSet = options.envelope.loadSet.value;
+  let activeContext: ActiveLayoutContext | undefined;
+  let inheritedParent: ReturnType<typeof resolveRecoveryParentContext> | undefined;
   let sessionType = options.envelope.active.ok ? options.envelope.active.value.sessionType : null;
   if (options.envelope.derivedLocusState.ok
     && options.envelope.derivedLocusState.value.entering.kind === "selected") {
@@ -224,14 +227,27 @@ export async function emitCompactionSeed(
           currentWorkflow = recovery.frame.workflow;
           sessionType = asCompactionSeedSessionType(recovery.frame.sessionType);
         }
-        metaPath = loadSet.entries.find((entry) =>
-          identifyWorkUnitArtifactPath(entry.path)?.artifact === "meta")?.path ?? metaPath;
+        if (recovery.frame.kind === "resolved" && recovery.frame.subject.kind !== "work-unit") {
+          inheritedParent = resolveRecoveryParentContext(options.envelope.derivedLocusState.value, recovery.frame);
+          metaPath = inheritedParent?.metaPath ?? null;
+        } else {
+          activeContext = await resolveCheckoutLayoutContext(options.cwd);
+          metaPath = loadSet.entries.find((entry) =>
+            identifyWorkUnitArtifactPath(entry.path, activeContext)?.artifact === "meta")?.path ?? metaPath;
+        }
       }
     } catch (error) {
       return { status: "failed", reason: "seed-invalid", message: errorMessage(error) };
     }
   }
-  metaPath = projectSeedMetaPath(metaPath);
+  try {
+    if (inheritedParent === undefined && metaPath !== null) {
+      activeContext ??= await resolveCheckoutLayoutContext(options.cwd);
+      metaPath = await projectSeedMetaPath(options.cwd, metaPath, activeContext);
+    }
+  } catch (error) {
+    return { status: "failed", reason: "seed-invalid", message: errorMessage(error) };
+  }
   const stateVersion = options.stateVersion === undefined ? await readEmissionStateVersion(options) : options.stateVersion;
   const seed: CompactionSeed = {
     schemaVersion: COMPACTION_SEED_SCHEMA_VERSION,
@@ -241,7 +257,7 @@ export async function emitCompactionSeed(
     head: options.gitSnapshot.head,
     stateVersion,
     dirty: uncommittedFiles.length > 0,
-    activeWorkUnit: activeWorkUnitName(metaPath),
+    activeWorkUnit: inheritedParent === undefined ? activeWorkUnitName(metaPath, activeContext) : inheritedParent?.workUnit ?? null,
     metaPath,
     sessionType,
     currentWorkflow,
@@ -284,13 +300,13 @@ async function writeCompactionSeedFile(path: string, seed: CompactionSeed): Prom
   await atomicWriteJson(path, seed);
 }
 
-function activeWorkUnitName(path: string | null): string | null {
-  const identified = path === null ? null : identifyWorkUnitArtifactPath(path);
+function activeWorkUnitName(path: string | null, active?: ActiveLayoutContext): string | null {
+  const identified = path === null ? null : identifyWorkUnitArtifactPath(path, active);
   return identified?.artifact === "meta" ? identified.slug : null;
 }
 
-function projectSeedMetaPath(path: string | null): string | null {
-  const identified = path === null ? null : identifyWorkUnitArtifactPath(path);
+async function projectSeedMetaPath(checkoutRoot: string, path: string, active?: ActiveLayoutContext): Promise<string> {
+  const identified = identifyWorkUnitArtifactPath(path, active);
   if (identified === null || identified.artifact !== "meta") return path;
   const placement = identified.placement;
   if (placement.kind === "active" && placement.scope.kind !== "project") return path;
@@ -298,7 +314,7 @@ function projectSeedMetaPath(path: string | null): string | null {
   const readPlacement = placement.kind === "active" ? { kind: "active" as const }
     : placement.kind === "backlog" ? { kind: "backlog" as const, commitment: placement.commitment }
       : placement;
-  return workItemArtifactPath(identified.slug, "meta", readPlacement, cohort);
+  return workItemArtifactPath(checkoutRoot, identified.slug, "meta", readPlacement, cohort);
 }
 
 function errorMessage(err: unknown): string {

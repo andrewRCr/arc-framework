@@ -89,11 +89,13 @@ export async function readRemoteBranchOid(
   return matches[0][0];
 }
 
-/** Result of converging the remote branch identity. */
+/** Result of converging the remote branch identity. `retained` keeps the old branch beside the pushed new name; `kept`
+ * leaves a published branch in place with no new name pushed, because the rename did not move the link. */
 export type RenameRemoteBranchResult =
   | { status: "unpublished" }
   | { status: "renamed"; oldOid: string }
   | { status: "retained"; oldBranch: string; newBranch: string; oldOid: string }
+  | { status: "kept"; oldBranch: string; oldOid: string }
   | { status: "stale"; expectedOid: string; actualOid: string | null };
 
 /** Parameters captured across preflight and the remote rename leg. */
@@ -103,6 +105,8 @@ export interface RenameRemoteBranchParams extends RenameLocalBranchParams {
   oldRemoteOid: string | null;
   /** Adopted old refs remain the person's after the new name is pushed. */
   keepOld?: boolean;
+  /** Caller-specific recovery when the old head is not preserved by the new one. */
+  preservationRemedy?: string;
 }
 
 /**
@@ -145,8 +149,8 @@ async function requirePublishedPreservation(exec: GitExec, params: RenameRemoteB
       { objectAccess: "local-only" }).then(() => true, () => false);
   }
   if (!preserved) throw new Error(`Cannot remove ${params.oldBranch}: its observed head ${params.oldRemoteOid} is not proven preserved by published ${params.newBranch}. `
-    + `Run git fetch ${params.remote} +refs/heads/${params.oldBranch}:refs/remotes/${params.remote}/${params.oldBranch}, `
-    + `merge refs/remotes/${params.remote}/${params.oldBranch} into ${params.newBranch}, then retry the rename.`);
+    + (params.preservationRemedy ?? `Run git fetch ${params.remote} +refs/heads/${params.oldBranch}:refs/remotes/${params.remote}/${params.oldBranch}, `
+    + `merge refs/remotes/${params.remote}/${params.oldBranch} into ${params.newBranch}, then retry the rename.`));
 }
 
 /** Parameters for the branch that carries a backlog-stub rename. */

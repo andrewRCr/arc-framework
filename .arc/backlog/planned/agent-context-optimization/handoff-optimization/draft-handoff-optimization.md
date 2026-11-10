@@ -137,6 +137,66 @@ Optimization WU.
 
 - _Captured during:_ the List B run, 2026-10-13, at the housekeep-drain recommendation.
 
+### `[ ]` **Land the routing-shift posture surface as an agenda surface, not a session-init step**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ item 5, "Routing-shift posture surface for session-init", and its scope bullet, which still names a
+  session-init Step 6 that no longer exists.
+
+- _Observation:_ `strategy-interlock-release-wrappers.md` (§ Opt-in, the session-init orientation bullet, and
+  § Interlock setting changes shift routing) says orientation surfaces a routing shift when this session's resolved
+  routing differs from the previous session's. No probe slot, CLI code, or session-init step produces it today.
+  Item 5 is the planned build. `session-init-agenda` replaces `session-init.md` with a spine that names no probe slot
+  and removes Step 6: after it lands, a new slot reaches the session through a compiler case in
+  `arc agenda session-init` that emits a `note` or `render`, which is where item 5's comparison and line belong.
+
+- _Approach:_ keep item 5's slot (`releaseRoutingAtLastHandoff` beside `statusFieldsAtLastHandoff`); emit the
+  posture-change line as an agenda surface, silent with no shift. Until it ships, the strategy promises a surface
+  nothing produces; correct the text instead if item 5 is dropped.
+
+- _Captured during:_ `session-init-agenda` task generation, Pass 3 grounding audit (2026-11-01).
+
+### `[ ]` **Decide whether a handoff `arc sync` should wait on the push gate, and show what a long gate waits for**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ "Terminal-WU handoff mode, an explicit sync-only handoff tier".
+
+- `WU_Target: TBD`
+
+- _Observation:_ `arc sync` pushes the branch, so it runs the full push gate and inherits its slowest check. At
+  `test-typecheck-heap`'s handoff on 2026-11-06 a sync took about 11 minutes, almost all of it the push gate: after a
+  base merge few passes could be reused, and `typecheck:test` waited 577 s for runner placement, then ran in about
+  70 s. This instance comes from local configuration (an interim arc-offload rule routes the check to one runner at
+  13 of its 20 tokens) and this repository's heavy test type-check. But the shape is ARC's: a project with a large
+  suite on one modest machine waits as long as its push checks take, every handoff sync.
+
+- _Observation:_ Whether the sync told the user what it was waiting for during those minutes was not checked.
+
+- _Product question:_ should a handoff sync block on the push gate at all, and how should ARC report a long gate
+  wait (which check, where, queued or running)? Candidate directions, none settled: let a handoff sync publish
+  state without waiting on the branch push's checks; make the branch leg reuse or defer checks more aggressively; at
+  minimum, report a long wait and its cause while it happens.
+
+- _Owner direction:_ correct this before the appropriate release gate, to be named at drain. `gate-a-private-beta`
+  (ARC in use beyond this repository) is the first where other people would meet it.
+
+- _Context:_ the cutover flip changes it only in part. `cutover-flip` (Owner, 2026-11-06) makes the rewired sync
+  publish state first, whatever the branch push's outcome, and report each separately, so a slow or failing push gate
+  no longer holds state back. Sync still pushes the branch and waits on its gate; its store push of `refs/arc/*`
+  selects no checks and adds seconds, not minutes. Sync that publishes state only, with handoff's own branch push,
+  stays here: first check the readers a resume on another machine meets for a record naming a commit origin lacks
+  (verify, completion and Release Notes, the paused delivery records). Neighbor to check at drain:
+  `check-gate-semantics` (gate selection and pass reuse). The runner-side cause is separate: the `typecheck:test`
+  charge cut `test-typecheck-heap`'s landing handoff proposes from its measured shard peaks, the Owner's registry call
+  at that landing.
+
+- _Evidence:_ arc-offload history for that checkout, 2026-11-06 7:20–7:31 am CT, run `cbd0b6f58a…` (head
+  `3b5679a10b`).
+
+- _Captured during:_ the pre-flip seal Errand, discussing m4-mini capacity with the Owner, 2026-11-06.
+
 ---
 
 ## Problem / Motivation

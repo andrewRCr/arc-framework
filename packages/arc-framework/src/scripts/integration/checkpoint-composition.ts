@@ -791,7 +791,7 @@ export function createIntegrationCheckpointDependencies(options: ReviewInvocatio
       const config = await settings();
       const snapshot = await lifecycleStorage.readSnapshot();
       if (reviewRecordStore.capabilities.stateOffBranch) {
-        const observed = await readStoredLifecycleSummary({ store: reviewRecordStore, workUnit, owner: input.workItem,
+        const observed = await readStoredLifecycleSummary({ cwd: input.cwd, store: reviewRecordStore, workUnit, owner: input.workItem,
           archiveCadence: config.settings["archive.cadence"] === "manual" ? "manual" : "with-integration",
           storageVersion: snapshot.version });
         lifecycleRecordVersions.set(JSON.stringify([workUnit, snapshot.version]), observed.recordVersion);

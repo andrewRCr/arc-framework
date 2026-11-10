@@ -1,3 +1,4 @@
+import { clashRepair } from "../../src/lib/store/clash-repair.js";
 import { describe, expect, it } from "vitest";
 import { createRefReadFixture } from "../helpers/store/ref-read.js";
 import { plantRef, removeLooseObject, type PlantTreeEntry } from "../helpers/store/ref-plant.js";
@@ -66,6 +67,7 @@ describe("lookup over live state refs", () => {
     const second = await plantOwner(f.root, secondUid, tier === "current" ? "shared" : "beta", ["shared"]);
     expect(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("shared") })).toMatchObject({ status: "refused", refusal: {
       code: "ambiguous-match", tie: { liveness: "live", name: tier }, candidates: expect.arrayContaining([first, second]),
+      remedy: clashRepair([first, second], { liveness: "live", name: tier as "current" | "former" }),
     } });
   });
 

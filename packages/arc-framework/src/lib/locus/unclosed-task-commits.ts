@@ -36,7 +36,7 @@ export async function computeUnclosedTaskCommits(input: ComputeUnclosedTaskCommi
   if (resolveTaskListCursor(tasks.result.content).status === "no-open-task") return null;
   const targets = prepareTaskTargets(tasks.result.content, [], "close");
   if (targets.status === "refused") return projectRefusal(input, targets);
-  const inventory = await inventoryRefusal(store);
+  const inventory = await inventoryRefusal(input.cwd, store);
   if (inventory !== null) return projectRefusal(input, inventory);
   const project = await projectIdentity(input, store);
   if (project.status === "refused") return projectRefusal(input, project);
@@ -47,8 +47,8 @@ export async function computeUnclosedTaskCommits(input: ComputeUnclosedTaskCommi
   if (snapshot.status === "refused") return baseRefusal(input, snapshot.reason, snapshot.remedy);
   return { status: "available", commits: snapshot.commits, actions: closeActions(input, snapshot.commits, fields.data.pause !== null), warnings: snapshot.warnings };
 }
-async function inventoryRefusal(store: Store): Promise<TaskRefusal | null> {
-  const view = await readLifecycleView(store);
+async function inventoryRefusal(checkoutRoot: string, store: Store): Promise<TaskRefusal | null> {
+  const view = await readLifecycleView(checkoutRoot, store);
   if (view.status === "refused") return storeRefusal(view.refusal);
   try { requireCompleteInventory(store, view.result.listing); }
   catch (error) { return refuseTask(error instanceof Error ? error.message : String(error), "Repair the named lifecycle records, then retry the task verb.", "inventory-incomplete"); }

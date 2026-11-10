@@ -296,7 +296,7 @@ describe("CodeRabbit bold-badge review body", () => {
     expect(parsed).toEqual({
       kind: "parsed",
       actionableCount: null,
-      supplementalCounts: { nitpick: 1, "outside-diff": 0 },
+      supplementalCounts: { nitpick: 1, "outside-diff": 0, other: 0 },
       findings: [expect.objectContaining({
         findingId: "PRR_BOLD:5c5d68124d9c257974ca3454",
         fingerprint: "5c5d68124d9c257974ca3454",
@@ -328,7 +328,7 @@ describe("CodeRabbit review-body section headers", () => {
     expect(parseCodeRabbitReviewBody(await colonCountReview())).toEqual({
       kind: "parsed",
       actionableCount: null,
-      supplementalCounts: { nitpick: 1, "outside-diff": 0 },
+      supplementalCounts: { nitpick: 1, "outside-diff": 0, other: 0 },
       findings: [expect.objectContaining({
         findingId: "PRR_COLON:db6b75842d7626a57adad521",
         severity: "minor",
@@ -352,9 +352,20 @@ describe("CodeRabbit review-body section headers", () => {
     });
   });
 
-  it("fails closed when a finding marker sits in a section whose header it does not recognize", async () => {
+  it("reads the findings in a counted section whose label it does not know", async () => {
     const review = await colonCountReview((body) =>
       body.replace(nitpickHeader, "<summary>♻️ Duplicate comments: 1</summary>"));
+
+    expect(parseCodeRabbitReviewBody(review)).toMatchObject({
+      kind: "parsed",
+      supplementalCounts: { nitpick: 0, "outside-diff": 0, other: 1 },
+      findings: [{ fingerprint: "db6b75842d7626a57adad521", severity: "minor" }],
+    });
+  });
+
+  it("fails closed when a finding marker sits in a section that carries no count", async () => {
+    const review = await colonCountReview((body) =>
+      body.replace(nitpickHeader, "<summary>♻️ Duplicate comments</summary>"));
 
     expect(parseCodeRabbitReviewBody(review)).toEqual({
       kind: "malformed",

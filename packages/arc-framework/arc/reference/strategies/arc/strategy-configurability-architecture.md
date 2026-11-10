@@ -244,6 +244,8 @@ independently; they have no project-level counterpart except the dual-scope entr
 | `arc.notesPush`        | Personal user-directory notes push behavior  | `manual` / `prompt` / `on-sync`               | `on-sync`    |
 | `arc.frontlineSources` | Ordered registered frontline review sources  | Repeated lowercase registry IDs               | (project)    |
 | `arc.releaseOptedIn`   | Per-developer release-wrapper opt-in flag    | `true` / `false`                              | `false`      |
+| `arc.inflightView`     | Other active work items selected for view    | `mine` / `cohort` / `all`                     | `mine`       |
+| `arc.inflightPin`      | Active work items added to that selection    | Repeated work-item slugs                      | (none)       |
 
 `arc.notesPush` is dual-scope: it overrides the project-level `user.notes_push` value in `arc-config.yml`. The
 `arc.frontlineSources` preferences similarly override `review.frontline_sources`; both lists name registered
@@ -257,6 +259,12 @@ Strategy][interlock-release-wrappers] for the trust model and per-harness setup 
 `arc.identity`, `arc.role`, and `arc.tools` are managed by `arc init` (project bootstrap) or `arc join`
 (joining an existing project). The autonomy interlocks have no setup helper today — set them via direct
 `git config arc.<key> <value>` edits as preference.
+
+Set the view with `git config --local arc.inflightView <mode>`; the last value wins. Add each pin with
+`git config --local --add arc.inflightPin <slug>`. `mine` selects active work items owned by the current identity,
+`cohort` selects the checkout work unit's other cohort members, and `all` selects every active work item. Pins add to
+each mode; the checkout's own work item is always excluded. `arc status` names unknown modes, which use `mine`, and
+pins naming no active work item, which add nothing.
 
 ### Settings with behavioral implications
 

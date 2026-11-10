@@ -9,6 +9,48 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Name a clash exit each Errand holder's owner can run when two people's Errands share a slug**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-10).
+
+- _Shapes:_ § Approach (provisional) — an operator recovery for same-slug Errand identities; its draft is framed on the
+  retired v3 identity ref.
+
+- _Observation:_ for a live slug clash with an Errand holder, the clash repair names `arc errand close <uid>` for the
+  first `work-item/record` candidate only (`lib/store/clash-repair.ts`, the slug arm of `lib/store/lookup.ts`). Errand
+  verbs refuse a record another person owns ("Errand <slug> is owned by <owner>. Choose another slug for a new
+  Errand.", `store-runtime.ts`), and `formatRefusal` drops the candidates. So when two people's Errands share one slug,
+  or a work unit clashes with another person's Errand, the printed command refuses its reader, and the reader's own
+  Errand UID is never shown. The refusal is explicit and recoverable, and the state needs two people to open one
+  Errand slug at once. Every clashed Errand in `store-ref-errand-uid-cli.test.ts` shares one owner.
+
+- _Approach:_ draft alternative, new design amending `spec-cohort-identity-verbs.md` § 3.1, which settles one preferred
+  move with an executable argv "where that move runs as printed": for a live tie with Errand holders, name every
+  Errand holder's close by UID, and a work-unit holder's rename where one holds, with `arc status --json` as the argv
+  unless the reader is known to own the named Errand. Add a two-owner clash case on the ref fixture. It changes the
+  text printed by status's slug-clash warning, Start readiness and every slug lookup reader.
+
+- _Observation:_ a second Errand-clash exit with no landing route, deferred from the same round's ad hoc fix check
+  (2026-11-08): two Errands tied on one branch name, both left awaiting merge with their change requests merged. Each
+  one's UID close reaches the branch-link guard (`lib/errand/close-subject-branch.ts`, `leftSubjectTie`), which names
+  the other holder's close or abandon as the exit that lands; the other's close refuses the same way, abandon of an
+  awaiting-merge Errand needs a change request closed unmerged (`identity-transitions.ts`), and `arc errand
+  materialize` takes only a slug, which the clash refuses. The dead end predates the left-Errand fix, which corrected
+  the case where the other holder still has a checkout. Any landing exit is new design: admit close on the record's
+  retained change-request evidence without the branch read, which the spec's § 9.2 rejected, or a UID re-entry, a
+  Non-Goal. Until then the refusal could at least stop naming a left holder's close as landing. The state needs a
+  sync-formed slug clash and runs only from the flip.
+
+- _Captured during:_ `cohort-identity-verbs` pre-publication standard pass 22, finding F1, deferred with Owner approval
+  (2026-11-08).
+
+---
+
 ## Problem / Motivation
 
 The v3 Errand identity ref is one shared authoritative ledger. Every close, abandon, leave, or promotion mutation

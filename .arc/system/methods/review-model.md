@@ -75,6 +75,19 @@ fix at the cause: every implementation of the rule, or one implementation in pla
 outside the reviewed change is named for the approver and routed as discovered work. Where no cause is shared, this
 adds nothing.
 
+A shared cause can also be a contract the design never states: findings whose repairs each patch a different
+participant of one property no rule defines, such as which records a prepared write guards against changing before it
+lands. Repairs one participant at a time cannot close that set, since nothing says where it ends. The fix at the cause
+is stating the contract and enforcing it where it is decided, which is new design: propose that as those findings'
+disposition and put it to the Owner as a design question, not another per-site repair. Code review asks whether the spec
+needs `amend-design`, and its findings stay open until the code enforces the contract the Owner approves; planning
+review folds the contract into the design.
+
+Run this look over every verified finding the lane has dispositioned, not only the latest look's. One or two findings
+a look rarely form a set on their own, and an earlier conclusion that nothing was shared holds only for the findings
+it saw. For each candidate cause, ask whether fixing it would have prevented the earlier findings; those it would have
+prevented are its instances, whichever look found them.
+
 ### Convergence and permission
 
 **Completeness** means every finding has an approved disposition, including unsupported findings. **Convergence**
@@ -88,11 +101,15 @@ caller's disposition approvals and ceiling rules. Every fix-check round runs onl
 permission waits for complete response performance, including the offered fix check's resolution, and is consumed only
 by its named complete-pass admission. A fix check neither spends nor inherits it.
 
-Recommend a fix check, and another round, whenever the last look's approved fixes include a material one. Decline only
-on the fixes' own merits: minor-only repairs, or an accepted re-entry or pending rewrite that will supersede them.
-A following pass, approved or under the cap, is never a reason to decline. Where the subject requires a successor after
-any fix, run the look that its policy names. Converge the rounds before launching the successor pass. Converged rounds
-end fix checking; § Successor passes decides whether a complete pass follows, and a complete pass never replaces them.
+Recommend a fix check, and another round, whenever the last look's approved fixes include a material one. Decline it
+only on the fixes' own merits, such as an accepted re-entry or pending rewrite that will supersede them; a following
+pass, approved or under the cap, is never a reason to decline. Minor-only fixes converge the look and end fix checking,
+unless they were approved at the `full` verification scope, which marks behavioral, authority, contract, materially
+interacting, or uncertain changes. A finding's grade need not match its repair's risk, so such a look offers a fix check
+of its repairs. Recommend that check where no complete pass will follow, because the ceiling is reached or the Owner has
+set a stop; otherwise weigh it beside the coming complete pass. Where the subject requires a successor after any fix,
+run the look that its policy names. Converge the rounds before launching the successor pass. § Successor passes decides
+whether a complete pass follows, and a complete pass never replaces a fix check that material fixes require.
 
 ### Successor passes
 
@@ -103,7 +120,8 @@ the complete pass missed elsewhere. The last complete pass's own critical and ma
 as in inspection re-review criteria and capture-recapture estimates: a pass that found many likely missed more. Read the
 complete passes' counts in sequence for what the next may find. A falling series expects little; a high or flat one says
 the defects come from the change itself, so apply § Shared causes and say whether splitting the change or reworking its
-design would serve better than another pass.
+design would serve better than another pass. Complete coverage shows that a pass read the whole subject, not that the
+subject holds; only what the pass found speaks to that.
 
 Recommend on engineering grounds first, beside the last complete pass's critical and major count, then name any cost,
 time, or ceiling constraint separately for the Owner to weigh. Use your own judgment within this default: you may
@@ -142,23 +160,30 @@ approval authority.
 ### Trend
 
 Once a lane has two or more looks, report its material trend: the critical and major findings at each look, each
-complete pass followed by its fix checks (for example `Pass 1 of 3: 6 → 2`), or one line when no look found a critical
-or major finding. Give one reading, and say in a sentence or two where the review stands and where what remains comes
-from. The reading compares complete passes; fix checks show only whether repairs hold. Origins, tags, and change
-signals inform the reading and stay out of the report. Each reading points to a decision:
+complete pass followed by its fix checks and named with its review kind (for example `Standard pass 1: 6 → 2`),
+or one line when no look found a critical or major finding. Give one reading, and say in a sentence or two where the
+review stands and where what remains comes from. The reading compares complete passes; fix checks show only whether
+repairs hold. Origins, tags, and change signals inform the reading and stay out of the report. Each reading points to
+a decision:
 
-- **`baseline`** — the first look has no trend yet; decide the fixes and their check from that look's own signal. A
-  report shows no Trend for it.
+- **`baseline`** — no trend yet: the first look, or a first complete pass that found few while its fix checks have not
+  converged. Decide the fixes and their next round from the latest look's own signal. A report shows no Trend at the
+  first look; once a fix check follows, it shows the counts with this reading.
 - **`converging`** — across complete passes, material counts fall, findings come from earlier folds, adjacent repair
   code, or siblings of a known defect class, and fixes are mostly local corrections; or a first complete pass found few,
   and its fix checks converged. This expects the next complete pass to find little, and supports stopping once one finds
   no critical or major finding.
 - **`discovering`** — a complete pass finds new material defect classes in code or text earlier looks already read,
-  rather than in folds, or a first complete pass finds many. This supports another complete pass after fix checks,
-  however they converge. It takes precedence over `converging` wherever both readings fit.
+  rather than in folds, or a first complete pass finds many. A new instance of a cause § Shared causes has already named
+  is not a new class. This supports another complete pass after fix checks, however they converge. It takes precedence
+  over `baseline` and `converging` wherever both readings fit.
 - **`sustained non-convergence`** — most material findings originate in earlier new-design folds and need new design
-  again. Stop for the Owner's decision: planning review offers the stage's re-entry or shaping route; code review asks
-  whether the spec needs `amend-design`. Another round must not silently become design authoring.
+  again, or one cause § Shared causes names has produced material findings in three looks. Stop for the Owner's
+  decision: planning review offers the stage's re-entry or shaping route; code review asks whether the spec needs
+  `amend-design`. Another round must not silently become design authoring, nor another per-site repair stand in for
+  that decision. The three looks must share a named cause, not merely a count of findings, and the stop composes with
+  any review stop the Owner has set: whichever is reached first applies. Once the Owner decides on a cause, count its
+  looks afresh from that decision. It takes precedence over every other reading.
 
 A fix check reads its repairs, so a clean round shows those repairs hold, not that a rule repaired at one site holds at
 its others. Material findings that are siblings an earlier repair missed show the repair fixed a site rather than its

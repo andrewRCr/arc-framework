@@ -6,6 +6,7 @@ import tseslint from "typescript-eslint";
 import { composeArchitectureBans, TYPESCRIPT_SCOPE } from "./eslint/architecture-config.ts";
 import { ARCHITECTURE_RULES, createArchitectureImportsRule } from "./eslint/architecture-imports.ts";
 import { moduleDocCommentRule } from "./eslint/module-doc-comment.ts";
+import { refCompletedFailureRule } from "./eslint/ref-completed-failure.ts";
 
 const src = (path) => `src/${path}`;
 const subtree = (path) => `src/${path}/${TYPESCRIPT_SCOPE}`;
@@ -160,6 +161,7 @@ export default tseslint.config(
           ...Object.fromEntries(Object.entries(ARCHITECTURE_RULES).map(([rule, predicates]) =>
             [rule, createArchitectureImportsRule(join(import.meta.dirname, "src"), predicates)])),
           "module-doc-comment": moduleDocCommentRule,
+          "ref-completed-failure": refCompletedFailureRule,
         },
       },
     },
@@ -228,6 +230,10 @@ export default tseslint.config(
         object, property: "only", message: "Remove .only; a focused test narrows every run of its file.",
       }))],
     },
+  },
+  {
+    files: ["src/lib/store/ref/**/*.ts"],
+    rules: { "arc/ref-completed-failure": "error" },
   },
   ...composeArchitectureBans(architectureBans),
   {

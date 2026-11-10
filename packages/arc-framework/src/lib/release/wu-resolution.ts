@@ -42,7 +42,7 @@ export async function resolveActiveWu(opts: ResolveActiveWuOptions): Promise<WuR
     }
   }
   return { status: "resolved", name: candidate.reference.owner.name, branch,
-    path: workItemArtifactPath(candidate.reference.owner.name, "meta", { kind: "active" }, candidate.record?.cohort ?? null) };
+    path: await workItemArtifactPath(opts.cwd, candidate.reference.owner.name, "meta", { kind: "active" }, candidate.record?.cohort ?? null) };
 }
 /** An empty checkout is none; a read failure that left it empty is ambiguous, carrying any native refusal whole. */
 function unresolvedOccupancy(resolved: Extract<CurrentWorkUnitResolution, { status: "none" }>): WuResolution {

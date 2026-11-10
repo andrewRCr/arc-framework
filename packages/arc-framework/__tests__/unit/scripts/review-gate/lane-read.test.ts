@@ -55,6 +55,23 @@ it("admits the proven incremental look at the ceiling, and a complete pass there
   expect((await read(1)).payload).toMatchObject({ nextLooks: { incremental: "fix-check", completePass: "admitted" } });
   expect((await read(2)).payload).toMatchObject({ nextLooks: { incremental: "fix-check", completePass: "ceiling-decision" } });});
 
+it("names a converged look's fix check at the ceiling beside hosted-first sources", async () => {
+  const fixture = await createLocalDeltaFixture("Light");
+  const delta = await fixture.moveHead(); await fixture.conclude(delta, "findings");
+  const owner = fixture.laneProgress();
+  if (owner?.kind !== "lane-progress") throw new Error("expected lane owner");
+  const producer = await fixture.resultReader.readResult(delta.operationId);
+  const scope = { schemaVersion: 1 as const, predecessorProducerId: producer.producerId,
+    predecessorHeadSha: producer.target.headSha, basisHeadSha: producer.target.headSha,
+    headSha: fixture.currentTarget().headSha, requiredFindings: [] };
+  const result = await projectReviewLaneRead({ lineage: delta.lineage, progress: [owner], dispositions: [],
+    nextPassContext: { completePasses: 2, convergence: "converged", responseDue: false,
+      incremental: { basis: "fix-check", scope } }, target: delta.target, sources: ["codex-pr", "delegated-agent"],
+    ceiling: 2, exec: async () => { throw new Error("Git unavailable"); } });
+  expect(result.payload).toMatchObject({ nextLooks: { state: "enabled", incremental: "fix-check",
+    completePass: "ceiling-decision", responseDue: false, refusal: null } });
+});
+
 it("admits no look after a material fix when the configured sources omit the local reviewer", async () => {
   const fixture = await createLocalDeltaFixture("Light");
   const delta = await fixture.moveHead(); await fixture.conclude(delta, "findings");

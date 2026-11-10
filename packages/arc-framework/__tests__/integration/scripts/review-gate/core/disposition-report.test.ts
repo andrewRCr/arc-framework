@@ -219,7 +219,7 @@ describe("disposition report", () => {
     });
     expect(exerciseReport).toBeDefined();
     expect(exerciseReport).toBe(renderDispositionReport({ dispositionSet, producerFindings,
-      header: { title: "Standard complete pass 1 of 2", details: ["1 not supported"] },
+      header: { title: "Standard code review — pass 1, delegated agent (local)", details: ["1 not supported"] },
       fails: [{ findingId: "finding-1", fails: "none — the cited branch is unreachable" }],
       decisions: ["Recommended: Do not request another standard pass from this unsupported finding; request a named next "
         + "pass only if it identifies a new expected signal worth the reviewer cost."],
@@ -447,10 +447,10 @@ describe("disposition report", () => {
       findings: findings.map((item) => ({ ...item, openQuestions: [`Question for ${item.findingId}?`] })),
     });
     const input = { dispositionSet, producerFindings,
-      header: { title: "Complete pass 2 of 3", details: ["🟠 1 major", "🟡 1 minor"] },
-      decisions: ["After the fix: standard complete pass 3 of 3. Recommended: Stop after the approved response.",
+      header: { title: "Standard code review — pass 2, Codex (hosted)", details: ["🟠 1 major", "🟡 1 minor"] },
+      decisions: ["After the fix: standard complete pass 3. Recommended: Stop after the approved response.",
         "Recommended: Stop after the approved response."], closer: "Approve: 2 defers?",
-      trend: { reading: "converging — repairs stay local", series: ["Pass 1 of 3: 2", "Pass 2 of 3: 1 (this look)"] },
+      trend: { reading: "converging — repairs stay local", series: ["Standard pass 1: 2", "Standard pass 2: 1 (this look)"] },
       fails: dispositionSet.findings.map(item => ({ findingId: item.findingId, fails: "Correctness" })) };
     const report = renderDispositionReport(input);
     const quiet = renderDispositionReport({ ...input, trend: { ...input.trend, series: [] } });

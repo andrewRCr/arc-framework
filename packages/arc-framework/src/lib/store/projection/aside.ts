@@ -93,8 +93,10 @@ function isProjectedPath(path: string): boolean {
  * @param location - Its repository-relative location, as {@link nameAsideFile} named it.
  * @param content - Its content.
  */
-export async function createStagedFile(checkout: string, location: string, content: string | Uint8Array): Promise<void> {
+export async function createStagedFile(checkout: string, location: string, content: string | Uint8Array, checkpoint?: () => Promise<void>): Promise<void> {
   const target = join(checkout, location);
+  await checkpoint?.();
   await mkdir(dirname(target), { recursive: true });
+  await checkpoint?.();
   await writeFile(target, content, { flag: "wx" });
 }

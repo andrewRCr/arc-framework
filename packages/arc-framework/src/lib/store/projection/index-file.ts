@@ -16,9 +16,9 @@ export const PROJECTION_INDEX_FILE = "index";
  * @param location - The located checkout, its state folder already created.
  * @param index - The index to write.
  */
-export async function writeProjectionIndex(location: ProjectionLocation, index: ProjectionIndex): Promise<void> {
+export async function writeProjectionIndex(location: ProjectionLocation, index: ProjectionIndex, checkpoint?: () => Promise<void>): Promise<void> {
   const path = join(location.stateDir, PROJECTION_INDEX_FILE);
-  await atomicWriteFile(path, encodeProjectionIndex(index), { createParents: false });
+  await atomicWriteFile(path, encodeProjectionIndex(index), { createParents: false, checkpoint });
 }
 
 /**
@@ -27,11 +27,11 @@ export async function writeProjectionIndex(location: ProjectionLocation, index: 
  * @returns The index as written.
  */
 export async function commitProjectionIndex(input: {
-  location: ProjectionLocation; checkout: string; index: ProjectionIndex; installing?: ReadonlySet<string>;
+  location: ProjectionLocation; checkout: string; index: ProjectionIndex; installing?: ReadonlySet<string>; checkpoint?: () => Promise<void>;
 }): Promise<ProjectionIndex> {
   const written = smudgeRacyEntries(input.index, await readReference(input.checkout), input.installing);
-  await writeProjectionIndex(input.location, written);
-  await writeReference(input.checkout);
+  await writeProjectionIndex(input.location, written, input.checkpoint);
+  await writeReference(input.checkout, input.checkpoint);
   return written;
 }
 

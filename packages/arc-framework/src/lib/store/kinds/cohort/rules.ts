@@ -1,8 +1,10 @@
 /** Cohort Purpose, Parent, and retirement integrity over the proposed state. */
 import { OwnerIdentitySchema, recordReferences } from "../../identity.js";
-import { brokenRule, observeRecord, type RuleObservation } from "../rule-support.js";
-import { changedCohortFields, observeOpenCohorts, observeOpenMembers, observeOpenCohortHoldings, type OpenCohort, type OpenMember } from "./check-support.js";
-import { parseCohortDocument } from "./parser.js";
+import type { Remedy } from "../../refusal.js";
+import { brokenRule, observeRecord, observeNamedRecord, type RuleObservation } from "../rule-support.js";
+import { changedCohortFields, observeOpenCohorts, observeOpenMembers, observeOpenHoldings, observeAllHoldings, describeCohortHoldings, describeCohortHoldingOwners,
+  cohortDocumentParent } from "./check-support.js";
+import { cohortParentConflicts, namedParentProblem } from "./parent-conflicts.js";
 import type { BrokenRule, StoreView, WriteCheckInput } from "../../write-check.js";
 /** Require an authored Purpose on creation or a proved Purpose change.
  * @param input - Proposed cohort write.
@@ -22,21 +24,18 @@ export function checkCohortPurpose(input: WriteCheckInput): readonly BrokenRule[
 export async function checkCohortParent(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
   const next = changedCohortFields(input, "parent");
   if (next === undefined) return [];
-  const fail = (condition: string): readonly BrokenRule[] => [brokenRule("cohort.parent", condition,
-    "Use an open top-level parent, keep nesting to one level, and settle all open member paths in the same batch.")];
+  const fail = (condition: string, remedy?: Remedy): readonly BrokenRule[] => [{ rule: "cohort.parent", condition,
+    remedy: remedy ?? { text: "Use an open top-level parent, keep nesting to one level, and settle all open member paths in the same batch." } }];
   if (next.parent !== null) {
     const problem = await parentProblem(input.after, next.parent);
-    if (problem !== undefined) return fail(problem);
+    if (problem !== undefined) return fail(problem.condition, problem.remedy);
   }
   const [cohorts, members] = await Promise.all([observeOpenCohorts(input.after), observeOpenMembers(input.after)]);
   if (cohorts.status !== "known") return fail(cohorts.status === "unavailable" ? cohorts.condition : "Open cohort evidence is unavailable.");
   if (members.status !== "known") return fail(members.status === "unavailable" ? members.condition : "Open membership evidence is unavailable.");
-  const name = input.reference.owner.name;
-  if (next.parent !== null && cohorts.value.some(({ fields }) => fields.parent === name)) {
-    return fail("Nesting this cohort would put its own open subcohorts below the one-level limit.");
-  }
-  const disagreeing = members.value.filter((member) => !memberAgrees(member, name, next.parent, cohorts.value));
-  return disagreeing.length === 0 ? [] : fail(`Open member Cohort paths disagree with Parent: ${disagreeing.map(({ record }) => record.reference.owner.name).join(", ")}.`);
+  const conflicts = cohortParentConflicts(input.reference.owner.name, next.parent, cohorts.value, members.value);
+  if (conflicts.nesting.length > 0) return fail("Nesting this cohort would put its own open subcohorts below the one-level limit.");
+  return conflicts.members.length === 0 ? [] : fail(`Open member Cohort paths disagree with Parent: ${conflicts.members.map(({ record }) => record.reference.owner.name).join(", ")}.`);
 }
 /** Keep a cohort document until every proposed open member and subcohort has left.
  * @param input - Proposed document removal or placement change.
@@ -48,13 +47,20 @@ export async function checkCohortOpenMembers(input: WriteCheckInput): Promise<re
   const retirement = await observeRetirement(input);
   if (retirement.status !== "known") return fail(retirement.status === "unavailable" ? retirement.condition : "Cohort retirement evidence is unavailable.");
   if (!retirement.value) return [];
-  const [cohorts, members] = await Promise.all([observeOpenCohorts(input.after), observeOpenMembers(input.after)]);
-  if (cohorts.status !== "known") return fail(cohorts.status === "unavailable" ? cohorts.condition : "Open cohort evidence is unavailable.");
-  if (members.status !== "known") return fail(members.status === "unavailable" ? members.condition : "Open membership evidence is unavailable.");
-  const name = input.reference.owner.name;
-  const held = [...members.value.filter(({ cohort }) => cohort?.split("/").includes(name)).map(({ record }) => record.reference.owner.name),
-    ...cohorts.value.filter(({ fields }) => fields.parent === name).map(({ record }) => record.reference.owner.name)];
-  return held.length === 0 ? [] : fail(`The cohort still has open members or subcohorts: ${held.join(", ")}.`);
+  const held = await observeOpenHoldings(input.after, input.before, input.reference);
+  if (held.status !== "known") return fail(held.status === "unavailable" ? held.condition : "Open holding evidence is unavailable.");
+  const content = input.next?.content ?? input.prior?.content;
+  return held.value.length === 0 ? [] : fail(describeCohortHoldings(held.value, input.reference.owner.name,
+    content === undefined ? undefined : cohortDocumentParent(content)));
+}
+/** Keep every holder's document during explicit removal, including completed records. */
+export async function checkCohortRemoveHoldings(input: WriteCheckInput): Promise<readonly BrokenRule[]> {
+  if (input.next !== undefined || input.writer.kind !== "verb" || input.writer.verb !== "cohort-remove") return [];
+  const held = await observeAllHoldings(input.after, input.reference, input.before);
+  const fail = (condition: string): readonly BrokenRule[] => [brokenRule("cohort.remove-holdings", condition,
+    "Keep this document until every holder's owner clears or re-points Cohort and Parent, then retry removal.")];
+  if (held.status !== "known") return fail(held.status === "unavailable" ? held.condition : "All-record holding evidence is unavailable.");
+  return held.value.length === 0 ? [] : fail(describeCohortHoldingOwners(held.value));
 }
 /** Require local archive closeout in the batch that removes the final open holding.
  * @param input - Cohort write and whole-batch membership views.
@@ -68,25 +74,22 @@ export async function checkCohortArchiveCloseout(input: WriteCheckInput): Promis
   if (cohort.status !== "known") return fail(cohort.status === "unavailable" ? cohort.condition : "The proposed cohort is unavailable.");
   if (cohort.value.placement?.kind === "completed") return [];
   const name = input.reference.owner.name;
-  const [before, after] = await Promise.all([observeOpenCohortHoldings(input.before, name), observeOpenCohortHoldings(input.after, name)]);
+  const [before, after] = await Promise.all([observeOpenHoldings(input.before, input.before, input.reference),
+    observeOpenHoldings(input.after, input.after, input.reference)]);
   if (before.status !== "known") return fail(before.status === "unavailable" ? before.condition : "Prior membership evidence is unavailable.");
   if (after.status !== "known") return fail(after.status === "unavailable" ? after.condition : "Proposed membership evidence is unavailable.");
   return before.value.length > 0 && after.value.length === 0
     ? fail(`The archive batch removes the final open member or subcohort of ${name} without completing its document.`) : [];
 }
-async function parentProblem(view: StoreView, name: string): Promise<string | undefined> {
-  const parent = await observeRecord(view, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name })));
-  if (parent.status !== "known") return parent.status === "unavailable" ? parent.condition : "The named parent cohort is absent.";
-  if (parent.value.placement?.kind === "completed") return "The named parent cohort is completed.";
-  const parsed = parseCohortDocument(parent.value.content);
-  return !parsed.success ? parsed.error : parsed.data.parent !== null ? "The named parent is already nested below another cohort." : undefined;
-}
-function memberAgrees(member: OpenMember, name: string, parent: string | null, cohorts: readonly OpenCohort[]): boolean {
-  const parts = member.cohort?.split("/") ?? [];
-  if (!parts.includes(name)) return true;
-  if (parent !== null) return member.cohort === `${parent}/${name}`;
-  return parts.length === 1 || (parts.length === 2 && parts[0] === name
-    && cohorts.some(({ record, fields }) => record.reference.owner.name === parts[1] && fields.parent === name));
+async function parentProblem(view: StoreView, name: string): Promise<{ condition: string; remedy?: Remedy } | undefined> {
+  const parent = await observeNamedRecord(view, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name })));
+  if (parent.status === "ambiguous") return { condition: parent.condition, remedy: parent.remedy };
+  if (parent.status !== "known") return { condition: parent.status === "unavailable" ? parent.condition : "The named parent cohort is absent." };
+  if (parent.value.reference.owner.name !== name) return { condition: `The parent cohort '${name}' is now named '${parent.value.reference.owner.name}'.` };
+  const problem = namedParentProblem(parent.value);
+  if (problem === undefined) return undefined;
+  return { condition: problem.kind === "completed" ? "The named parent cohort is completed."
+    : problem.kind === "nested" ? "The named parent is already nested below another cohort." : problem.error };
 }
 
 async function observeRetirement(input: WriteCheckInput): Promise<RuleObservation<boolean>> {

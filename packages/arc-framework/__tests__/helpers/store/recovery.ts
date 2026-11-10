@@ -32,11 +32,14 @@ export const refusalRecoveryTable: Record<RefusalCode, readonly RecoveryCase[]> 
   "lock-held": [{ id: "lock-held", class: "recoverable", produce: "Hold the injected surface write lock while a write waits.", repair: "Release that lock and repeat the original write." }],
   "namespace-corrupt": [{ id: "namespace-corrupt", class: "terminal", produce: "Break the namespace record index.", repair: "Rebuild the index from its saved record state." }],
   "checkout-not-writable": [{ id: "checkout-not-writable", class: "recoverable", produce: "Attempt a write in a checkout without authority.", repair: "Repeat the write in the authorized checkout named by its remedy." }],
+  "store-imported": [{ id: "store-imported", class: "recoverable", produce: "Write from the interim backend once the repository's store has been imported.",
+    repair: "Repeat the write where no import has run; the fixture removes the imported registry ref to stand in for a current build." }],
   "state-unresolvable": [{ id: "state-unresolvable", class: "recoverable", produce: "Read a saved state the backend holds no snapshot for.",
     repair: "Read the current version and rebuild the query from that saved state." }],
   unsupported: (Object.keys(UNSUPPORTED_CASES) as (keyof typeof UNSUPPORTED_CASES)[]).map((value) => ({
     id: `unsupported:${value}`, class: UNSUPPORTED_CASES[value],
     produce: {
+      "projection-admission": "Submit a prepared projection request to an interim backend.",
       "batch-observations": "Submit a nonempty atomic observation basis to an interim backend.",
       "cross-substrate-batch": "Batch records across the interim backend's physical substrates.",
       "uncovered-state-version": "Request saved state for records outside that version's coverage.",
@@ -50,6 +53,7 @@ export const refusalRecoveryTable: Record<RefusalCode, readonly RecoveryCase[]> 
       rename: "Rename a work item through an interim backend without UIDs.",
     }[value],
     repair: {
+      "projection-admission": "Use a backend supporting atomic prepared projection admission.",
       "batch-observations": "Use a backend that supports atomic read observations.",
       "cross-substrate-batch": "Sequence the writes in their separate substrates.",
       "uncovered-state-version": "Bind reads and changes by each record's own version.",

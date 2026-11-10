@@ -24,7 +24,7 @@ async function pullPersonal(context: InRepoContext, identity: Slug, remote: stri
     import("../../../commands/user/push-fetch.js"), import("../../../commands/user/save-load.js"),
   ]);
   const io = notesIO(context, identity);
-  const fetch = await runUserFetch({ io, identity });
+  const fetch = await runUserFetch({ cwd: context.ports.checkoutRoot, io, identity });
   const base = { remote, role: "state" as const, families: ["personal" as const], notices: [] };
   if (fetch.kind === "remote-unavailable") {
     if (isGitProcessError(fetch.error) && fetch.error.expectedOutcome === "absent-remote-ref") return { ...base, status: "noop" };

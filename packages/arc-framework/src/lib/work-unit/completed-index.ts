@@ -75,9 +75,12 @@ export type ArchivedWorkUnitMetaRead =
   | { readonly kind: "duplicate"; readonly paths: readonly string[] }
   | { readonly kind: "unreadable"; readonly path?: string; readonly reason: string };
 
-/** `NN_<slug>` archive-directory shape; capture group 1 is the WU-name slug. */
+/**
+ * `NN_<slug>` archive-directory shape; capture group 1 is the WU-name slug. A
+ * cohort closeout's letter after its number (`NNa_cohort-<slug>`) fails the
+ * match, so a work unit whose own slug starts with `cohort-` still reads as one.
+ */
 const ARCHIVE_DIR_RE = /^\d+_(.+)$/u;
-const COHORT_ARCHIVE_PREFIX = "cohort-";
 
 /**
  * Completion-order prefix shape; capture group 1 is the numeric `NN`. Matches
@@ -101,9 +104,7 @@ const COMPLETED_META_READ_CONCURRENCY = 16;
  * @returns The WU-name slug, or `null` for a non-WU entry
  */
 function slugFromArchiveDir(entry: string): string | null {
-  const slug = ARCHIVE_DIR_RE.exec(entry)?.[1];
-  if (slug === undefined || slug.startsWith(COHORT_ARCHIVE_PREFIX)) return null;
-  return slug;
+  return ARCHIVE_DIR_RE.exec(entry)?.[1] ?? null;
 }
 
 /**

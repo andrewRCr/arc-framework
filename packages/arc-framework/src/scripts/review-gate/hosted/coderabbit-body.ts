@@ -1,5 +1,6 @@
 /** Parse CodeRabbit review bodies and inline thread findings. */
 
+import { canonicalDigest } from "../../../lib/kernel/index.js";
 import {
   captureReviewFindingSourceLabel,
   hasExplicitPurePolishMarker,
@@ -32,6 +33,12 @@ const GROUPED_METADATA_LINE = new RegExp(
   `^[\\t ]*(?:>[\\t ]*)*\`(\\d+(?:-\\d+)?)\`:[\\t ]*${BADGE_RUN}[\\t ]*\\r?$`,
   "gmu",
 );
+
+/** A callout item's opening: a whole-line locus such as `` `src/a.ts:12` ``, then the line that carries its badges. */
+const CALLOUT_LOCUS_LINE = /^[\t ]*(?:>[\t ]*)*`[^`\r\n]+:\d+(?:-\d+)?`[\t ]*\r?\n([^\r\n]*)$/gmu;
+
+/** CodeRabbit's hidden per-finding marker, which some of its review layouts write after each item and others omit. */
+const FINDING_MARKER = /<!--\s*cr-comment:v1:([a-f0-9]+)\s*-->/giu;
 
 /** A severity badge: its color emoji or icon, then the grade, in one italic or bold span. */
 const SEVERITY = new RegExp(`(_|\\*\\*)(?:[🔴🟠🟡🔵]|${ICON})\\s*(Critical|Major|Minor|Trivial)\\1`, "iu");
@@ -111,7 +118,8 @@ export function finding(
 
 type ReviewBodyFinding = Omit<Extract<HostedFinding, { origin: "review-body" }>, "sourceOrdinal">;
 export type UnorderedFinding = UnorderedThreadFinding | ReviewBodyFinding;
-type SupplementalCategory = "nitpick" | "outside-diff";
+/** `other` is a counted section under a label this reader does not know, read as findings because it holds them. */
+type SupplementalCategory = "nitpick" | "outside-diff" | "other";
 
 export type CodeRabbitReviewBodyParseResult =
   | {
@@ -121,9 +129,9 @@ export type CodeRabbitReviewBodyParseResult =
     findings: ReviewBodyFinding[];
   }
   | { kind: "malformed"; reason: string };
-type SupplementalParseResult =
-  | { kind: "parsed"; findings: ReviewBodyFinding[] }
-  | Extract<CodeRabbitReviewBodyParseResult, { kind: "malformed" }>;
+type Malformed = Extract<CodeRabbitReviewBodyParseResult, { kind: "malformed" }>;
+type SupplementalParseResult = { kind: "parsed"; findings: ReviewBodyFinding[] } | Malformed;
+type GroupFinding = { kind: "finding"; finding: ReviewBodyFinding } | Malformed;
 
 interface SupplementalSection {
   category: SupplementalCategory;
@@ -203,8 +211,35 @@ function supplementalHeader(text: string): Pick<SupplementalSection, "category" 
   return null;
 }
 
-function supplementalSection(match: SummaryMatch, block: DetailsBlock): SupplementalSection | null {
-  const header = supplementalHeader(match.text);
+/** A counted header read as findings whatever its label, for a section that holds a finding's shape. */
+function otherHeader(text: string): Pick<SupplementalSection, "category" | "count"> | null {
+  const header = headerCount(text);
+  return header === null ? null : { category: "other", count: header.count };
+}
+
+/**
+ * Start indexes, outside fenced code, of the lines every finding item opens with: a grouped item's metadata line, or
+ * a callout item's locus line followed by a severity badge.
+ */
+function findingShapeLines(body: string): number[] {
+  const fencedRanges = fencedMarkdownRanges(body);
+  const calloutLoci = [...body.matchAll(CALLOUT_LOCUS_LINE)].filter((match) => severity(match[1] ?? "") !== null);
+  return [...body.matchAll(GROUPED_METADATA_LINE), ...calloutLoci]
+    .map((match) => match.index)
+    .filter((index) => !fencedRanges.some((range) => range.start <= index && index < range.end));
+}
+
+/**
+ * Read a counted top-level section as findings: by its label when the reader knows it, otherwise as `other` when it
+ * holds a finding's shape, so a section CodeRabbit renames or adds still yields its findings.
+ */
+function supplementalSection(
+  match: SummaryMatch,
+  block: DetailsBlock,
+  shapeLines: readonly number[],
+): SupplementalSection | null {
+  const holdsFindings = shapeLines.some((index) => match.end <= index && index < block.closeStart);
+  const header = supplementalHeader(match.text) ?? (holdsFindings ? otherHeader(match.text) : null);
   return header === null
     ? null
     : { ...header, start: match.end, end: block.closeStart, blockId: block.id };
@@ -222,7 +257,7 @@ function calloutSections(body: string, blocks: readonly DetailsBlock[]): Supplem
     const headers = [...callout[0].matchAll(/^[\t ]*>[\t ]*\*\*([^*\r\n]+)\*\*[\t ]*$/gmu)]
       .flatMap((match) => {
         const start = callout.index + match.index;
-        const header = supplementalHeader(match[1] ?? "");
+        const header = supplementalHeader(match[1] ?? "") ?? otherHeader(match[1] ?? "");
         return header === null
           || fencedRanges.some((range) => range.start <= start && start < range.end)
           || blocks.some((block) => block.openStart < start && start < block.closeEnd)
@@ -396,7 +431,7 @@ function directSummary(
       };
 }
 
-function malformed(reason: string): CodeRabbitReviewBodyParseResult {
+function malformed(reason: string): Malformed {
   return { kind: "malformed", reason };
 }
 
@@ -410,7 +445,7 @@ export function diagnostic(
 function malformedWithContext(
   reason: string,
   context: Readonly<Record<string, string | number>>,
-): CodeRabbitReviewBodyParseResult {
+): Malformed {
   return malformed(diagnostic(reason, context));
 }
 
@@ -423,6 +458,68 @@ function calloutSourceLabel(summaryText: string, body: string): ReturnType<typeo
   return captureReviewFindingSourceLabel({ title, body });
 }
 
+/**
+ * Read one callout item: a top-level details block holding a locus line, a severity line and the finding. Its hidden
+ * marker, when CodeRabbit wrote one, ends the finding and is its fingerprint; otherwise the item's end does and its
+ * fingerprint is a digest of its locus and body.
+ */
+function calloutFinding(
+  review: HostedGitHubReview,
+  body: string,
+  category: SupplementalCategory,
+  item: DetailsBlock,
+  blocks: readonly DetailsBlock[],
+): GroupFinding {
+  const semanticItem = maskDetailsRanges(body, item.openEnd, item.closeStart,
+    blocks.filter((block) => block.parentId === item.id));
+  const markers = [...semanticItem.matchAll(FINDING_MARKER)];
+  const marker = markers[0];
+  if (markers.length > 1) {
+    return malformedWithContext("provider-supplemental-finding-count-mismatch", {
+      category, group: "callout", advertised: 1, markers: markers.length,
+    });
+  }
+  const contentEnd = marker?.index ?? trimClosingTags(semanticItem).length;
+  const content = semanticItem.slice(0, contentEnd);
+  const loci = [...content.matchAll(/^[\t ]*(?:>[\t ]*)*`([^`\r\n]+:\d+(?:-\d+)?)`[\t ]*$/gmu)];
+  const locus = loci[0];
+  const context = { category, ...(marker === undefined ? {} : { fingerprint: marker[1] as string }) };
+  if (locus?.[1] === undefined) {
+    return malformedWithContext("provider-body-finding-locus-unrecognized", context);
+  }
+  const locusLineEnd = content.indexOf("\n", locus.index);
+  const severityLineEnd = locusLineEnd === -1 ? -1 : content.indexOf("\n", locusLineEnd + 1);
+  const severityLine = locusLineEnd === -1 ? "" : content.slice(locusLineEnd + 1,
+    severityLineEnd === -1 ? undefined : severityLineEnd);
+  const parsedSeverity = severity(severityLine);
+  if (parsedSeverity === null) {
+    return malformedWithContext("provider-body-finding-severity-unrecognized", context);
+  }
+  const substantiveBody = severityLineEnd === -1 ? "" : content.slice(severityLineEnd + 1)
+    .replace(/^[\t ]*(?:>[\t ]*)*/gmu, "").trim();
+  if (substantiveBody.length === 0) {
+    return malformedWithContext("provider-body-finding-empty", context);
+  }
+  const findingBody = body.slice(item.openEnd + locus.index, item.openEnd + contentEnd).trim();
+  const fingerprint = marker?.[1] ?? canonicalDigest({ locus: locus[1], body: findingBody });
+  return { kind: "finding", finding: {
+    findingId: `${review.id}:${fingerprint}`,
+    origin: "review-body",
+    reviewId: review.id,
+    fingerprint,
+    settlement: "not-applicable",
+    severity: parsedSeverity,
+    ...(parsedSeverity === "minor"
+      && (category === "nitpick" || hasExplicitPurePolishMarker(substantiveBody))
+      ? { nit: true as const }
+      : {}),
+    locus: locus[1],
+    url: review.url,
+    body: findingBody,
+    ...calloutSourceLabel(content.slice(0, locus.index), substantiveBody),
+  } };
+}
+
 function parseCalloutSection(
   review: HostedGitHubReview,
   body: string,
@@ -433,55 +530,9 @@ function parseCalloutSection(
     && block.openStart >= section.start && block.closeEnd <= section.end);
   const findings: ReviewBodyFinding[] = [];
   for (const item of items) {
-    const semanticItem = maskDetailsRanges(body, item.openEnd, item.closeStart,
-      blocks.filter((block) => block.parentId === item.id));
-    const markers = [...semanticItem.matchAll(/<!--\s*cr-comment:v1:([a-f0-9]+)\s*-->/giu)];
-    const marker = markers[0];
-    if (markers.length !== 1 || marker === undefined) {
-      return malformedWithContext("provider-supplemental-finding-count-mismatch", {
-        category: section.category,
-        group: "callout",
-        advertised: 1,
-        markers: markers.length,
-      });
-    }
-    const fingerprint = marker[1] as string;
-    const content = semanticItem.slice(0, marker.index);
-    const loci = [...content.matchAll(/^[\t ]*(?:>[\t ]*)*`([^`\r\n]+:\d+(?:-\d+)?)`[\t ]*$/gmu)];
-    const locus = loci[0];
-    const context = { category: section.category, fingerprint };
-    if (locus?.[1] === undefined) {
-      return malformedWithContext("provider-body-finding-locus-unrecognized", context);
-    }
-    const locusLineEnd = content.indexOf("\n", locus.index);
-    const severityLineEnd = locusLineEnd === -1 ? -1 : content.indexOf("\n", locusLineEnd + 1);
-    const severityLine = locusLineEnd === -1 ? "" : content.slice(locusLineEnd + 1,
-      severityLineEnd === -1 ? undefined : severityLineEnd);
-    const parsedSeverity = severity(severityLine);
-    if (parsedSeverity === null) {
-      return malformedWithContext("provider-body-finding-severity-unrecognized", context);
-    }
-    const substantiveBody = severityLineEnd === -1 ? "" : content.slice(severityLineEnd + 1)
-      .replace(/^[\t ]*(?:>[\t ]*)*/gmu, "").trim();
-    if (substantiveBody.length === 0) {
-      return malformedWithContext("provider-body-finding-empty", context);
-    }
-    findings.push({
-      findingId: `${review.id}:${fingerprint}`,
-      origin: "review-body",
-      reviewId: review.id,
-      fingerprint,
-      settlement: "not-applicable",
-      severity: parsedSeverity,
-      ...(parsedSeverity === "minor"
-        && (section.category === "nitpick" || hasExplicitPurePolishMarker(substantiveBody))
-        ? { nit: true as const }
-        : {}),
-      locus: locus[1],
-      url: review.url,
-      body: body.slice(item.openEnd + locus.index, item.openEnd + marker.index).trim(),
-      ...calloutSourceLabel(content.slice(0, locus.index), substantiveBody),
-    });
+    const parsed = calloutFinding(review, body, section.category, item, blocks);
+    if (parsed.kind === "malformed") return parsed;
+    findings.push(parsed.finding);
   }
   return { kind: "parsed", findings };
 }
@@ -505,6 +556,118 @@ function supplementalGroups(
   });
 }
 
+interface GroupItem {
+  /** CodeRabbit's per-finding marker, or null for an item it wrote without one. */
+  marker: string | null;
+  semantic: string;
+  original: string;
+}
+
+type GroupSplit = { kind: "items"; items: GroupItem[] } | Malformed;
+
+/** A line holding only quote markers and closing list or quote tags, which ends an unmarked item's markup. */
+const CLOSING_MARKUP_LINE = /^[\t ]*(?:>[\t ]*)*(?:<\/(?:dd|dl|blockquote)>[\t ]*)*\r?\n?$/u;
+
+/** Drop the trailing lines of closing markup from the end of an unmarked item. */
+function trimClosingTags(text: string): string {
+  const lines = text.split(/(?<=\n)/u);
+  while (lines.length > 0 && CLOSING_MARKUP_LINE.test(lines.at(-1) as string)) lines.pop();
+  return lines.join("");
+}
+
+/**
+ * Split a file group into its finding items. Where CodeRabbit writes a hidden marker after each item, the markers
+ * delimit them; where it writes none, each item runs from its metadata line to the next. Either way the items must
+ * match the group's advertised count.
+ */
+function groupItems(
+  semanticGroupBody: string,
+  originalGroupBody: string,
+  context: { category: SupplementalCategory; group: string; advertised: number },
+): GroupSplit {
+  const markers = [...semanticGroupBody.matchAll(FINDING_MARKER)];
+  if (markers.length > 0) {
+    if (markers.length !== context.advertised) {
+      return malformedWithContext("provider-supplemental-finding-count-mismatch", {
+        ...context, markers: markers.length,
+      });
+    }
+    let start = 0;
+    return { kind: "items", items: markers.map((marker) => {
+      const item = {
+        marker: marker[1] as string,
+        semantic: semanticGroupBody.slice(start, marker.index),
+        original: originalGroupBody.slice(start, marker.index),
+      };
+      start = marker.index + marker[0].length;
+      return item;
+    }) };
+  }
+  const lines = [...semanticGroupBody.matchAll(GROUPED_METADATA_LINE)];
+  if (lines.length !== context.advertised) {
+    return malformedWithContext("provider-supplemental-finding-count-mismatch", {
+      ...context, metadataLines: lines.length,
+    });
+  }
+  return { kind: "items", items: lines.map((line, index) => {
+    const end = lines[index + 1]?.index ?? semanticGroupBody.length;
+    return {
+      marker: null,
+      semantic: trimClosingTags(semanticGroupBody.slice(line.index, end)),
+      original: trimClosingTags(originalGroupBody.slice(line.index, end)),
+    };
+  }) };
+}
+
+/** Read one grouped item's locus, severity and body. An unmarked item's fingerprint is a digest of its locus and body. */
+function groupFinding(
+  review: HostedGitHubReview,
+  category: SupplementalCategory,
+  path: string,
+  item: GroupItem,
+): GroupFinding {
+  const findingContext = { category, group: path, ...(item.marker === null ? {} : { fingerprint: item.marker }) };
+  if (path.length === 0) {
+    return malformedWithContext("provider-body-finding-group-path-empty", findingContext);
+  }
+  const locusMatch = [...item.semantic.matchAll(GROUPED_METADATA_LINE)].at(-1);
+  if (locusMatch?.[1] === undefined) {
+    return malformedWithContext("provider-body-finding-locus-unrecognized", findingContext);
+  }
+  const parsedSeverity = severityOnMetadataLine(item.semantic, locusMatch.index);
+  if (parsedSeverity === null) {
+    return malformedWithContext("provider-body-finding-severity-unrecognized", findingContext);
+  }
+  const findingBody = item.original.slice(locusMatch.index).trim();
+  const metadataLineEnd = item.semantic.indexOf("\n", locusMatch.index);
+  const substantiveBody = metadataLineEnd === -1
+    ? ""
+    : item.semantic.slice(metadataLineEnd + 1)
+      .replace(/^[\t ]*(?:>[\t ]*)*/gmu, "")
+      .trim();
+  if (substantiveBody.length === 0) {
+    return malformedWithContext("provider-body-finding-empty", findingContext);
+  }
+  const locus = `${path}:${locusMatch[1]}`;
+  const fingerprint = item.marker ?? canonicalDigest({ locus, body: findingBody });
+  return { kind: "finding", finding: {
+    findingId: `${review.id}:${fingerprint}`,
+    origin: "review-body",
+    reviewId: review.id,
+    fingerprint,
+    settlement: "not-applicable",
+    severity: parsedSeverity,
+    ...(parsedSeverity === "minor"
+      && (category === "nitpick" || hasExplicitPurePolishMarker(findingBody))
+      ? { nit: true as const }
+      : {}),
+    locus,
+    url: review.url,
+    body: findingBody,
+    ...captureReviewFindingSourceLabel({ body: substantiveBody }),
+  } };
+}
+
 function parseSupplementalSection(
   review: HostedGitHubReview,
   body: string,
@@ -524,72 +687,22 @@ function parseSupplementalSection(
 
   const findings: ReviewBodyFinding[] = [];
   for (const group of groups) {
-    const originalGroupBody = body.slice(group.start, group.end);
     const semanticGroupBody = maskDetailsRanges(
       body,
       group.start,
       group.end,
       blocks.filter((block) => block.parentId === group.blockId),
     );
-    const markers = [...semanticGroupBody.matchAll(/<!--\s*cr-comment:v1:([a-f0-9]+)\s*-->/giu)];
-    if (markers.length !== group.count) {
-      return malformedWithContext("provider-supplemental-finding-count-mismatch", {
-        category: section.category,
-        group: group.path,
-        advertised: group.count,
-        markers: markers.length,
-      });
-    }
-
-    let itemStart = 0;
-    for (const marker of markers) {
-      const fingerprint = marker[1] as string;
-      const semanticItem = semanticGroupBody.slice(itemStart, marker.index);
-      const originalItem = originalGroupBody.slice(itemStart, marker.index);
-      const loci = [...semanticItem.matchAll(GROUPED_METADATA_LINE)];
-      const locusMatch = loci.at(-1);
-      const findingContext = {
-        category: section.category,
-        group: group.path,
-        fingerprint,
-      };
-      if (group.path.length === 0) {
-        return malformedWithContext("provider-body-finding-group-path-empty", findingContext);
-      }
-      if (locusMatch?.[1] === undefined) {
-        return malformedWithContext("provider-body-finding-locus-unrecognized", findingContext);
-      }
-      const parsedSeverity = severityOnMetadataLine(semanticItem, locusMatch.index);
-      if (parsedSeverity === null) {
-        return malformedWithContext("provider-body-finding-severity-unrecognized", findingContext);
-      }
-      const findingBody = originalItem.slice(locusMatch.index).trim();
-      const metadataLineEnd = semanticItem.indexOf("\n", locusMatch.index);
-      const substantiveBody = metadataLineEnd === -1
-        ? ""
-        : semanticItem.slice(metadataLineEnd + 1)
-          .replace(/^[\t ]*(?:>[\t ]*)*/gmu, "")
-          .trim();
-      if (substantiveBody.length === 0) {
-        return malformedWithContext("provider-body-finding-empty", findingContext);
-      }
-      findings.push({
-        findingId: `${review.id}:${fingerprint}`,
-        origin: "review-body",
-        reviewId: review.id,
-        fingerprint,
-        settlement: "not-applicable",
-        severity: parsedSeverity,
-        ...(parsedSeverity === "minor"
-          && (section.category === "nitpick" || hasExplicitPurePolishMarker(findingBody))
-          ? { nit: true as const }
-          : {}),
-        locus: `${group.path}:${locusMatch[1]}`,
-        url: review.url,
-        body: findingBody,
-        ...captureReviewFindingSourceLabel({ body: substantiveBody }),
-      });
-      itemStart = marker.index + marker[0].length;
+    const split = groupItems(semanticGroupBody, body.slice(group.start, group.end), {
+      category: section.category,
+      group: group.path,
+      advertised: group.count,
+    });
+    if (split.kind === "malformed") return split;
+    for (const item of split.items) {
+      const parsed = groupFinding(review, section.category, group.path, item);
+      if (parsed.kind === "malformed") return parsed;
+      findings.push(parsed.finding);
     }
   }
   return { kind: "parsed", findings };
@@ -606,7 +719,7 @@ function unattributedMarker(
   sections: readonly SupplementalSection[],
 ): CodeRabbitReviewBodyParseResult | null {
   const fencedRanges = fencedMarkdownRanges(body);
-  const unattributed = [...body.matchAll(/<!--\s*cr-comment:v1:([a-f0-9]+)\s*-->/giu)].filter((marker) =>
+  const unattributed = [...body.matchAll(FINDING_MARKER)].filter((marker) =>
     !fencedRanges.some((range) => range.start <= marker.index && marker.index < range.end)
     && !sections.some((section) => section.start <= marker.index && marker.index < section.end));
   const first = unattributed[0];
@@ -618,11 +731,72 @@ function unattributedMarker(
     });
 }
 
-/** Parse CodeRabbit's optional review-thread count claim and non-thread findings. */
-export function parseCodeRabbitReviewBody(
+/**
+ * Refuse a finding's shape outside fenced code that no recognized section holds. Findings in a section the reader
+ * cannot recognize would otherwise drop out of a result that reads as complete, even where CodeRabbit wrote no
+ * per-finding markers for the marker check to catch.
+ */
+function unattributedFindingLine(
   review: HostedGitHubReview,
-): CodeRabbitReviewBodyParseResult {
-  const actionableMatches = [...review.body.matchAll(
+  shapeLines: readonly number[],
+  sections: readonly SupplementalSection[],
+): CodeRabbitReviewBodyParseResult | null {
+  const unattributed = shapeLines.filter((index) =>
+    !sections.some((section) => section.start <= index && index < section.end));
+  return unattributed.length === 0
+    ? null
+    : malformedWithContext("provider-body-finding-unattributed", {
+      lines: unattributed.length,
+      review: review.url,
+    });
+}
+
+/** Find every finding section: counted top-level details by label or shape, then the caution callouts. */
+function findingSections(
+  body: string,
+  blocks: readonly DetailsBlock[],
+  shapeLines: readonly number[],
+): SupplementalSection[] {
+  return blocks
+    .filter((block) => block.parentId === null)
+    .flatMap((block) => {
+      const summary = directSummary(body, block, blocks);
+      return summary === null ? [] : [supplementalSection(summary, block, shapeLines)];
+    })
+    .filter((section): section is SupplementalSection => section !== null)
+    .concat(calloutSections(body, blocks))
+    .sort((left, right) => left.start - right.start);
+}
+
+/**
+ * Count a section's finding delimiters, leaving out anything inside its findings' own nested details: its markers when
+ * CodeRabbit wrote any, otherwise a callout's items or a grouped section's finding metadata lines.
+ */
+function sectionDelimiters(body: string, section: SupplementalSection, blocks: readonly DetailsBlock[]): number {
+  const groupIds = new Set(blocks.filter((block) => section.blockId === null
+    ? block.parentId === null && block.openStart >= section.start && block.closeEnd <= section.end
+    : block.parentId === section.blockId).map((block) => block.id));
+  const semanticSectionBody = maskDetailsRanges(
+    body,
+    section.start,
+    section.end,
+    blocks.filter((block) => block.parentId !== null && groupIds.has(block.parentId)),
+  );
+  const markers = [...semanticSectionBody.matchAll(FINDING_MARKER)].length;
+  if (markers > 0) return markers;
+  return section.blockId === null
+    ? groupIds.size
+    : [...semanticSectionBody.matchAll(GROUPED_METADATA_LINE)].length;
+}
+
+function countsByCategory(sections: readonly SupplementalSection[]): Record<SupplementalCategory, number> {
+  const counts: Record<SupplementalCategory, number> = { nitpick: 0, "outside-diff": 0, other: 0 };
+  for (const section of sections) counts[section.category] += section.count;
+  return counts;
+}
+
+function actionableCountClaim(body: string): { kind: "count"; count: number | null } | CodeRabbitReviewBodyParseResult {
+  const actionableMatches = [...body.matchAll(
     /^\*\*Actionable comments posted:\s*([^*\r\n]*?)\s*\*\*\s*$/gimu,
   )];
   const actionableText = actionableMatches[0]?.[1];
@@ -631,28 +805,29 @@ export function parseCodeRabbitReviewBody(
       matches: actionableMatches.length,
     });
   }
-  const actionableCount = actionableText === undefined
-    ? null
-    : nonNegativeInteger(actionableText);
-  if (actionableText !== undefined && actionableCount === null) {
+  const count = actionableText === undefined ? null : nonNegativeInteger(actionableText);
+  if (actionableText !== undefined && count === null) {
     return malformedWithContext("provider-actionable-count-invalid", {
       value: actionableText.trim(),
     });
   }
+  return { kind: "count", count };
+}
+
+/** Parse CodeRabbit's optional review-thread count claim and non-thread findings. */
+export function parseCodeRabbitReviewBody(
+  review: HostedGitHubReview,
+): CodeRabbitReviewBodyParseResult {
+  const actionable = actionableCountClaim(review.body);
+  if (actionable.kind !== "count") return actionable;
 
   const detailBody = review.body;
   const blocks = detailsBlocks(detailBody);
   if (blocks === null) return malformed("provider-details-structure-unbalanced");
-  const sections = blocks
-    .filter((block) => block.parentId === null)
-    .flatMap((block) => {
-      const summary = directSummary(detailBody, block, blocks);
-      return summary === null ? [] : [supplementalSection(summary, block)];
-    })
-    .filter((section): section is SupplementalSection => section !== null)
-    .concat(calloutSections(detailBody, blocks))
-    .sort((left, right) => left.start - right.start);
-  const unattributed = unattributedMarker(detailBody, sections);
+  const shapeLines = findingShapeLines(detailBody);
+  const sections = findingSections(detailBody, blocks, shapeLines);
+  const unattributed = unattributedMarker(detailBody, sections)
+    ?? unattributedFindingLine(review, shapeLines, sections);
   if (unattributed !== null) return unattributed;
   const findings: ReviewBodyFinding[] = [];
   for (const section of sections) {
@@ -674,31 +849,13 @@ export function parseCodeRabbitReviewBody(
   }
 
   const advertisedSupplementalCount = sections.reduce((total, section) => total + section.count, 0);
-  const supplementalCounts = {
-    nitpick: sections
-      .filter((section) => section.category === "nitpick")
-      .reduce((total, section) => total + section.count, 0),
-    "outside-diff": sections
-      .filter((section) => section.category === "outside-diff")
-      .reduce((total, section) => total + section.count, 0),
-  };
-  const markerCount = sections.reduce((total, section) => {
-    const groupIds = new Set(blocks.filter((block) => section.blockId === null
-      ? block.parentId === null && block.openStart >= section.start && block.closeEnd <= section.end
-      : block.parentId === section.blockId).map((block) => block.id));
-    const semanticSectionBody = maskDetailsRanges(
-      detailBody,
-      section.start,
-      section.end,
-      blocks.filter((block) => block.parentId !== null && groupIds.has(block.parentId)),
-    );
-    return total + [...semanticSectionBody.matchAll(/<!--\s*cr-comment:v1:[a-f0-9]+\s*-->/giu)].length;
-  }, 0);
-  if (findings.length !== advertisedSupplementalCount || markerCount !== findings.length) {
+  const delimiterCount = sections.reduce((total, section) =>
+    total + sectionDelimiters(detailBody, section, blocks), 0);
+  if (findings.length !== advertisedSupplementalCount || delimiterCount !== findings.length) {
     return malformedWithContext("provider-supplemental-total-count-mismatch", {
       advertised: advertisedSupplementalCount,
       parsed: findings.length,
-      markers: markerCount,
+      delimiters: delimiterCount,
     });
   }
   const seenFingerprints = new Set<string>();
@@ -712,5 +869,10 @@ export function parseCodeRabbitReviewBody(
       fingerprint: duplicate.fingerprint,
     });
   }
-  return { kind: "parsed", actionableCount, supplementalCounts, findings };
+  return {
+    kind: "parsed",
+    actionableCount: actionable.count,
+    supplementalCounts: countsByCategory(sections),
+    findings,
+  };
 }

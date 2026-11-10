@@ -13,9 +13,10 @@ import { atomicWriteFile } from "../../fs.js";
 import type { RecordVersion } from "../identity.js";
 import type { StoreResult } from "../refusal.js";
 import { gitBlobId, type ObjectFormat } from "./blob-id.js";
-import { lineDistance, type HistoryMemo } from "./base-recovery.js";
-import type { RecordEntry } from "./index-schema.js";
+import { type HistoryMemo } from "./base-recovery.js";
+import type { RecordEntry, RefusedMark } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
+import { unfinishedRecordingRefusal } from "./recording-state.js";
 
 /** The folder under `arc-projection/` that keeps copies of content a persisted write-back took in. */
 export const TAKEN_IN_FOLDER = "taken-in";
@@ -85,26 +86,51 @@ export async function readTakenInCopy(location: ProjectionLocation, name: string
   return readFile(join(location.stateDir, TAKEN_IN_FOLDER, name), "utf8");
 }
 
+/** A retained input could not be read; consumers decide whether to hold their file or propagate the failure. */
+export class RetainedBaseUnavailable extends Error {
+  readonly mark: RefusedMark;
+  constructor(cause: Error) {
+    super(`The retained write-back base cannot be read: ${cause.message}`, { cause });
+    this.name = "RetainedBaseUnavailable";
+    this.mark = { reason: this.message,
+      remedy: { text: "Restore the retained base copy or recover a projection from readable stored content, then retry." } };
+  }
+}
+
+/** Read retained input, distinguishing filesystem unavailability from unexpected programming failures. */
+export async function readRetainedBase(location: ProjectionLocation, name: string): Promise<string> {
+  try {
+    return await readTakenInCopy(location, name);
+  } catch (error) {
+    if (!(error instanceof Error) || !("code" in error)) throw error;
+    throw new RetainedBaseUnavailable(error);
+  }
+}
+
 /**
  * Remove kept copies the index no longer names, once the index that stopped naming them is written.
  * @param location - The located checkout.
  * @param names - The copies' names.
  */
-export async function removeTakenInCopies(location: ProjectionLocation, names: readonly string[]): Promise<void> {
-  await Promise.all(names.map((name) => rm(join(location.stateDir, TAKEN_IN_FOLDER, name), { force: true })));
+export async function removeTakenInCopies(location: ProjectionLocation, names: readonly string[], checkpoint?: () => Promise<void>): Promise<void> {
+  for (const name of names) {
+    await checkpoint?.();
+    await rm(join(location.stateDir, TAKEN_IN_FOLDER, name), { force: true });
+  }
 }
 
 /** Keep a copy inside the state folder, which exists under the projection lock, never creating that folder. */
-async function keepCopy(location: ProjectionLocation, content: string, format: ObjectFormat): Promise<{ name: string; blob: string }> {
+async function keepCopy(location: ProjectionLocation, content: string, format: ObjectFormat, checkpoint?: () => Promise<void>): Promise<{ name: string; blob: string }> {
   const blob = gitBlobId(content, format);
   const name = `${blob}.${randomBytes(8).toString("hex")}`;
   const folder = join(location.stateDir, TAKEN_IN_FOLDER);
   try {
+    await checkpoint?.();
     await mkdir(folder);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
   }
-  await atomicWriteFile(join(folder, name), content, { createParents: false });
+  await atomicWriteFile(join(folder, name), content, { createParents: false, checkpoint });
   return { name, blob };
 }
 
@@ -115,45 +141,29 @@ export type PersistedBase =
 
 /** What the base selection reads. */
 export interface PersistedBaseInput {
+  readonly readCopy?: (name: string) => Promise<string>;
   readonly location: ProjectionLocation;
   readonly entry: RecordEntry;
-  /** The stamp the file carries, null for a file other than Markdown, which carries none. */
+  /** A Markdown file's stamp, null where it was lost or the file carries none. */
   readonly stamp: string | null;
-  /** The file's content as the store would hold it. */
-  readonly content: string;
-  readonly memo: HistoryMemo;
 }
 
 /**
- * Select the base of a save from what the file's last persisted write-back took in: for Markdown, where the save carries
- * the stamp that write-back read; for a file other than Markdown, the closer of a kept copy and the version the write
- * landed.
- * @param input - The file's entry, stamp, and content, and how to reach copies and `history`.
- * @returns The base, null where the rule does not select one, or the store's refusal of `history`.
+ * Select the base of a Markdown save carrying the stamp its last persisted write-back read. Files without a stamp
+ * select no base here; their recorded candidates are compared by agreement.
+ * @param input - The file's entry, stamp, and location of its kept copies.
+ * @returns The matching persisted base, or null where the stamp does not select one.
  */
 export async function selectPersistedBase(input: PersistedBaseInput): Promise<StoreResult<PersistedBase | null>> {
+  const unfinished = unfinishedRecordingRefusal(input.entry);
+  if (unfinished !== null) return { status: "refused", refusal: unfinished };
   const persisted = input.entry.persisted;
   if (persisted === null) return { status: "ok", result: null };
   const { takenIn } = persisted;
-  if (input.stamp === null) return takenIn.kind === "copy" ? closerOfCopyAndLanded(input, takenIn.name, takenIn.version) : { status: "ok", result: null };
+  if (input.stamp === null) return { status: "ok", result: null };
   if (input.stamp !== persisted.stamp) return { status: "ok", result: null };
   if (takenIn.kind === "landed") return { status: "ok", result: { kind: "stored", version: takenIn.version } };
-  return { status: "ok", result: { kind: "copy", content: await readTakenInCopy(input.location, takenIn.name) } };
-}
-
-/**
- * A file with no stamp cannot tell a stale buffer's save from an edit of what the read-back laid, so it takes whichever
- * is closer: the kept copy, which wins a tie, or the version that write landed, regardless of later read-backs or refreshes.
- */
-async function closerOfCopyAndLanded(input: PersistedBaseInput, name: string, version: RecordVersion): Promise<StoreResult<PersistedBase>> {
-  const copy = await readTakenInCopy(input.location, name);
-  const history = await input.memo.read(input.entry.reference);
-  if (history.status === "refused") return history;
-  const landed = history.result.find((entry) => entry.version === version)?.content ?? null;
-  const lines = input.content.split("\n");
-  const closerToLanded = landed !== null
-    && lineDistance(lines, landed.split("\n")).changed < lineDistance(lines, copy.split("\n")).changed;
-  return { status: "ok", result: closerToLanded ? { kind: "stored", version } : { kind: "copy", content: copy } };
+  return { status: "ok", result: { kind: "copy", content: await (input.readCopy?.(takenIn.name) ?? readRetainedBase(input.location, takenIn.name)) } };
 }
 
 /** How a write-back ended: a landing, which persists, or an outcome that lands nothing. */
@@ -163,9 +173,10 @@ export type WriteBackOutcome =
 
 /** What write-back's read-back hands the recording. */
 export interface WriteBackRecording {
+  readonly checkpoint?: () => Promise<void>;
   readonly location: ProjectionLocation;
   readonly entry: RecordEntry;
-  /** The stamp write-back read from the file. */
+  /** The Markdown stamp read, or the base blob id the take-in carried for a file without a stamp. */
   readonly stamp: string;
   /** What write-back read from the file after parse-back. */
   readonly takenIn: string;
@@ -178,24 +189,51 @@ export interface WriteBackRecording {
   readonly memo: HistoryMemo;
 }
 
+/** Keep the accepted input until read-back can restore its stored entry IDs and complete the take-in mapping. */
+export async function recordPendingWriteBack(input: Pick<WriteBackRecording, "location" | "entry" | "stamp" | "takenIn" | "format" | "checkpoint">
+  & { readonly version: RecordVersion }): Promise<RecordEntry> {
+  return { ...input.entry, persisted: { stamp: input.stamp, recording: true, takenIn: { kind: "copy", version: input.version,
+    ...await keepCopy(input.location, input.takenIn, input.format, input.checkpoint) } } };
+}
+
 /**
  * Record what a write-back took in, where it persisted.
  * @param input - What the read-back hands over.
  * @returns The entry to write, and the names of copies to remove once the index holding it is written.
  */
-export async function recordWriteBack(input: WriteBackRecording): Promise<{ entry: RecordEntry; released: string[] }> {
+export async function recordWriteBack(input: WriteBackRecording): Promise<{ entry: RecordEntry; released: string[]; mark?: RefusedMark }> {
   const { outcome, readBack, grammar } = input;
   if (outcome.kind !== "landed") return { entry: input.entry, released: [] };
   if (readBack === null) throw new Error("A landed write-back's recording needs the record read back");
-  const takenIn = grammar === undefined ? input.takenIn : restoreEntryIds(input.takenIn, readBack.content, grammar);
-  // The read-back puts the version just written in the file, which no earlier answer holds.
+  // A landed write invalidates cached history before an exact-version identity lookup.
   input.memo.drop(input.entry.reference);
+  const reference = await acceptedIdReference(input, readBack, outcome.version);
+  if (reference.status === "refused") {
+    const entry = input.entry.persisted?.recording === true ? input.entry
+      : await recordPendingWriteBack({ ...input, version: outcome.version });
+    return { entry, released: [], mark: { reason: reference.refusal.condition, remedy: reference.refusal.remedy } };
+  }
+  const takenIn = grammar === undefined ? input.takenIn : restoreEntryIds(input.takenIn, reference.result, grammar);
   const kept = input.entry.persisted?.takenIn;
   const released = kept?.kind === "copy" ? [kept.name] : [];
   const record = readBack.version === outcome.version && sameApartFromStampedIds(readBack.content, takenIn, grammar)
     ? { kind: "landed" as const, version: outcome.version }
-    : { kind: "copy" as const, version: outcome.version, ...await keepCopy(input.location, takenIn, input.format) };
+    : { kind: "copy" as const, version: outcome.version, ...await keepCopy(input.location, takenIn, input.format, input.checkpoint) };
   return { entry: { ...input.entry, persisted: { stamp: input.stamp, takenIn: record } }, released };
+}
+
+async function acceptedIdReference(input: WriteBackRecording, readBack: NonNullable<WriteBackRecording["readBack"]>,
+  version: RecordVersion): Promise<StoreResult<string>> {
+  const grammar = input.grammar;
+  const needsIds = grammar !== undefined && entriesOf(splitEntryList(input.takenIn, grammar)).some(entry => entry.id === undefined);
+  if (!needsIds || readBack.version === version) return { status: "ok", result: readBack.content };
+  const history = await input.memo.read(input.entry.reference);
+  if (history.status === "refused") return history;
+  const landed = history.result.find(entry => entry.version === version && entry.content !== null);
+  return landed?.content !== undefined && landed.content !== null ? { status: "ok", result: landed.content }
+    : { status: "refused", refusal: { code: "state-unresolvable", class: "recoverable", reference: input.entry.reference,
+      historyRefs: [], condition: "The accepted record version is unavailable for entry-ID recording.",
+      remedy: { text: "Restore the accepted version's history content, then retry; keep the file and retained input." } } };
 }
 
 /**

@@ -192,16 +192,15 @@ describe("a copy whose edit the take-in refuses", () => {
 });
 
 describe("a copy whose take-in clashes", () => {
-  const markers = { length: 7, sets: [{ shows: "checkout" as const }] };
-  const clashing: TakeInPort = async (request) => ({ answer: "clashed", entry: { ...request.entry, markers } });
+  const clashing: TakeInPort = async (request) => ({ answer: "clashed", entry: { ...request.entry, pending: true } });
 
-  it("at the second check is swapped back to its path, pending and held by its markers, and reported", async () => {
+  it("at the second check is swapped back to its path, pending and undrawn, and reported", async () => {
     const swapped = await swappedWithHandle();
     await swapped.writeThroughHandle("# Cohort: one\n\nA clashing save.\n");
     const checked = await swapped.secondCheck(clashing);
     expect(checked.settled.map((each) => each.settlement)).toMatchObject([{ kind: "returned", how: "swapped-back", held: "clashed" }]);
     expect(await readFile(swapped.file, "utf8")).toContain("A clashing save.");
-    expect(await onDisk(swapped.seeded.location, swapped.path)).toMatchObject({ pending: true, markers, refused: null });
+    expect(await onDisk(swapped.seeded.location, swapped.path)).toMatchObject({ pending: true, markers: null, refused: null });
   });
 
   it("at the sweep, its path saved over, stays aside, reported with its path", async () => {

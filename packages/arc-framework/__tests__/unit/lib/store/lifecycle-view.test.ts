@@ -23,7 +23,7 @@ it("selects the live generation even when the completed holder lists last", asyn
     return result.status === "ok" && result.result.status === "complete"
       ? { status: "ok", result: { ...result.result, records: [...result.result.records].reverse() } } : result;
   };
-  const view = lifecycleSuccess(await readLifecycleView(store));
+  const view = lifecycleSuccess(await readLifecycleView("/project", store));
   expect(view.entries.map(entry => entry.reference)).toEqual([current.reference, old.reference]);
   expect(view.index.get("shared")).toMatchObject({ phase: "Active", location: "active" });
   expect(view).toMatchObject({ standing: { entries: [expect.objectContaining({ reference: current.reference })], clashes: [] } });
@@ -33,7 +33,7 @@ it("omits a clashed slug from the index while retaining both live identities", a
   const h = createLifecycleHarness();
   const first = await h.seedMeta("first"), second = await h.seedMeta("second");
   const store = createClashDouble(h.store, { slug: "clashed", holders: [first.reference, second.reference] });
-  const view = lifecycleSuccess(await readLifecycleView(store));
+  const view = lifecycleSuccess(await readLifecycleView("/project", store));
   expect(view.entries).toHaveLength(2);
   expect(view.index.has("clashed")).toBe(false);
   expect(view).toMatchObject({ standing: { entries: [], clashes: [{ slug: "clashed", kind: "current-name",
@@ -45,7 +45,7 @@ it("withholds an archived namesake when the current meta is malformed", async ()
   await h.seedMeta("shared", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
   const current = await h.seedMeta("shared");
   h.store.state.records.get(recordKey(current.reference))!.content = "Malformed metadata";
-  const view = lifecycleSuccess(await readLifecycleView(h.store));
+  const view = lifecycleSuccess(await readLifecycleView("/project", h.store));
   expect(view.listing).toMatchObject({ status: "complete", diagnostics: [{ key: "work-item/meta:shared" }] });
   expect(view.index.has("shared")).toBe(false);
   expect(view).toMatchObject({ standing: { failClosedNames: new Set(["shared"]) } });
@@ -60,8 +60,8 @@ it("reconciles a completed current name against its live former-name holder", as
     provenance: { verb: "rename", lifecycleAction: "rename" } }));
   const dependent = await h.seedMeta("dependent", { dependsOn: ["former"] });
   await h.seed(recordReferences["work-item/notes"](dependent.reference.owner), "# Notes\n\nRead `spec-former.md`.\n");
-  const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "dependent"));
+  const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext("/project", h.store, "dependent"));
   expect(acquired.context.additionalReferenceTransitions).toContainEqual({ subject: "former", outcome: { kind: "rename", targetSlug: "current" } });
-  const result = await prepareCurrentWuReconcile(acquired.context, { slug: "dependent", metaPath: workUnitMetaPath(dependent) });
+  const result = await prepareCurrentWuReconcile(acquired.context, { slug: "dependent", metaPath: await workUnitMetaPath("/project", dependent) });
   expect(result.prepared.plan.dependency).toMatchObject({ after: ["current"], discharged: [], conflicts: [] });
 });

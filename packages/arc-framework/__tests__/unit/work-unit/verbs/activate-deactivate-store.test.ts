@@ -21,7 +21,7 @@ it("activates while its notes mention a slug tied among completed Errands", asyn
   const h = await harness();
   await seedCompletedErrandTie(h, "tied");
   const notes = await h.seed(recordReferences["work-item/notes"](h.meta.reference.owner), "# Notes\n\nNarrative tied context.\n");
-  h.ctx.currentWuReconcile = buildStoreCurrentWuReconcile(h.store);
+  h.ctx.currentWuReconcile = buildStoreCurrentWuReconcile("/project", h.store);
   expect(await runActivate(h.ctx, params)).toMatchObject({ status: "activated" });
   expect(parseMetaRecord((await h.read()).content).state).toBe("Active");
   expect(lifecycleSuccess(await h.store.read({ reference: notes.reference }))).toEqual(notes);
@@ -229,7 +229,7 @@ it("activation reconciles the live namesake's records through the real store cer
   const h = await harness({ branch: "main", archived: true });
   await h.seedMeta("done", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
   lifecycleSuccess(await h.store.write({ ...recordPut(h.meta, { content: writeMetaDependsOn(h.meta.content, ["done"]) }), provenance: { verb: "edit", lifecycleAction: "edit" } }));
-  h.ctx.currentWuReconcile = buildStoreCurrentWuReconcile(h.store);
+  h.ctx.currentWuReconcile = buildStoreCurrentWuReconcile("/project", h.store);
   expect(await runActivate(h.ctx, params)).toMatchObject({ status: "activated" });
   expect((await h.read()).fields).toMatchObject({ state: "Active", dependsOn: [] });
   if (h.archived === undefined) throw Error("Expected archived namesake");
@@ -240,7 +240,7 @@ it("activation rereads the selected primary after reconciliation when its name b
   const h = await harness({ branch: "main" });
   const other = await h.seedMeta("other");
   const store = createClashDouble(h.store, { slug: "demo", holders: [h.meta.reference, other.reference], mode: "mid-verb" });
-  expect(await runActivate({ ...h.ctx, store, currentWuReconcile: buildStoreCurrentWuReconcile(store) }, params))
+  expect(await runActivate({ ...h.ctx, store, currentWuReconcile: buildStoreCurrentWuReconcile("/project", store) }, params))
     .toMatchObject({ status: "activated" });
   expect((await h.read()).fields).toMatchObject({ state: "Active" });
   expect(h.state().current).toBe("feat/demo");

@@ -69,7 +69,7 @@ function context(store: Store) {
   const ctx: ExecuteTransitionContext = { cwd: "/repo", store, indexFs: { readdir: forbidden, readFile: forbidden },
     setPhase: forbidden, relocateArtifacts: forbidden, reconcileBranch: forbidden, reconcileWorkUnitWorktree: forbidden,
     writeSoftFields: forbidden, writeBranchField: forbidden, writeDesignField: forbidden, writeCurrentWorkflowField: forbidden };
-  return { ...ctx, currentWuReconcile: buildStoreCurrentWuReconcile(store) };
+  return { ...ctx, currentWuReconcile: buildStoreCurrentWuReconcile("/project", store) };
 }
 const parameters = nativePublicationParameters;
 describe("store publish", () => {
@@ -114,7 +114,7 @@ describe("store publish", () => {
     const immutable = lifecycleSuccess(await h.store.read({ reference: lineage }));
     const renamed = await runStoreRename({ store: h.store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
       locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }), writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } },
-    { sourceSlug: "former-dependent", targetSlug: "example" });
+    { operand: "former-dependent", targetSlug: "example" });
     expect(renamed.status, JSON.stringify(renamed)).toBe("renamed");
     const current = lifecycleSuccess(await h.store.read({ reference: dependent.reference }));
     lifecycleSuccess(await h.store.write({ ...recordPut(current, { content: writeMetaCandidate(current.content, candidateId) }),

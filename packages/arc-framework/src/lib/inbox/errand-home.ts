@@ -2,9 +2,10 @@
 import { resolveEntryList } from "./lists.js";
 import { latestRoutingReceipt, type RoutingCoordinate } from "./receipts.js";
 import type { InboxContext, InboxOutcome } from "./types.js";
+import type { RecordReference } from "../store/identity.js";
 
 /** A still-open Errand holds the source inbox's identity; ended homes are only reported. */
-export interface EntryErrandHome { held: { slug: string; owner: string | null } | null; closed?: string }
+export interface EntryErrandHome { held: { slug: string; owner: string | null; reference: RecordReference } | null; closed?: string }
 /** Resolve an inbox entry's latest description home without treating an unrelated same-ID receipt as authority.
  * @param entryId - Identity in the named inbox.
  * @param inbox - Qualified source inbox coordinate.
@@ -18,7 +19,8 @@ export async function openErrandHolding(entryId: string, inbox: RoutingCoordinat
   if (destination === undefined || ["personal", "project"].includes(destination.list)) return { status: "ok", result: { held: null } };
   const home = await resolveEntryList(destination.list, context);
   if (home.status === "refused") return home.refusal.code === "destination-refused" ? { status: "ok", result: { held: null } } : home;
-  if (home.result.kind !== "work-item/description") return { status: "ok", result: { held: null } };
-  return { status: "ok", result: home.result.primary?.placement?.kind === "completed" ? { held: null, closed: home.result.primary.reference.owner.name }
-    : { held: { slug: home.result.primary?.reference.owner.name ?? destination.list, owner: home.result.owner } } };
+  if (home.result.kind !== "work-item/description" || home.result.primary === null) return { status: "ok", result: { held: null } };
+  const primary = home.result.primary;
+  return { status: "ok", result: primary.placement?.kind === "completed" ? { held: null, closed: primary.reference.owner.name }
+    : { held: { slug: primary.reference.owner.name, owner: home.result.owner, reference: primary.reference } } };
 }

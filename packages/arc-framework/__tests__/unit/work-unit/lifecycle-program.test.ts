@@ -51,7 +51,7 @@ function executor(h: ReturnType<typeof createLifecycleHarness>, git: ReturnType<
   return { store: h.store, cwd: "/holder", exec: git.exec, execRaw: git.raw, projectId: async () => "repo", locusPorts: git.locusPorts,
     indexFs: { readFile: forbidden, readdir: forbidden }, setPhase: forbidden, reconcileBranch: forbidden, reconcileWorkUnitWorktree: forbidden,
     relocateArtifacts: forbidden, writeSoftFields: forbidden, writeBranchField: forbidden, writeCurrentWorkflowField: forbidden, writeDesignField: forbidden,
-    currentWuReconcile: buildStoreCurrentWuReconcile(h.store) };
+    currentWuReconcile: buildStoreCurrentWuReconcile("/project", h.store) };
 }
 it.each(["created", "adopted"] as const)("keeps one UID and sticky %s provenance through activation, deactivation, reactivation and rename", async (linkedAs) => {
   const h = createLifecycleHarness(), git = repository();
@@ -74,7 +74,7 @@ it.each(["created", "adopted"] as const)("keeps one UID and sticky %s provenance
   expect(await runStoreRename({ ...ctx, store: h.store, exec: git.exec, baseBranch: "main", renameCheckout: async (request) => {
     git.state.marker = request.targetSlug;
     return { report: { checkout: { kind: "renamed", checkoutPath: "/holder", markerGeneration: "renamed" } }, rollback: async () => { git.state.marker = request.sourceSlug; } };
-  } }, { sourceSlug: "demo", targetSlug: "renamed" })).toMatchObject({ status: "renamed" });
+  } }, { operand: "demo", targetSlug: "renamed" })).toMatchObject({ status: "renamed" });
   const renamed = await read(); expect(renamed.reference.owner).toEqual({ ...primary.reference.owner, name: "renamed" });
   expect(renamed.links?.branches).toEqual(active.links?.branches?.map((link) => ({ ...link, ref: "feat/renamed" })));
   expect(lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("demo") })).reference).toEqual(renamed.reference);
@@ -96,7 +96,7 @@ it("promotes a second owner through the real adapter, then rename keeps its Erra
   expect(promoted.reference).toMatchObject({ kind: "work-item/meta", owner: { ...primary.reference.owner, name: "promoted" } });
   expect(promoted.links?.branches).toEqual([...primary.links!.branches!, { repository: "repo", ref: "feat/promoted", linkedAs: "created", excluded: [] }]);
   expect(await runStoreRename({ store: h.store, exec: git.exec, cwd: "/holder", baseBranch: "main", projectId: async () => "repo",
-    locusPorts: { ...git.locusPorts, findHoldingCheckout: async () => ({ kind: "none" as const }) } }, { sourceSlug: "promoted", targetSlug: "renamed-promotion" })).toMatchObject({ status: "renamed", keptBranches: [identity.branch] });
+    locusPorts: { ...git.locusPorts, findHoldingCheckout: async () => ({ kind: "none" as const }) } }, { operand: "promoted", targetSlug: "renamed-promotion" })).toMatchObject({ status: "renamed", report: { keptBranches: [{ branch: identity.branch, reason: "other-link" }] } });
   const renamed = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
   expect(renamed.links?.branches).toEqual([primary.links!.branches![0], { repository: "repo", ref: "feat/renamed-promotion", linkedAs: "created", excluded: [] }]);
   expect(git.state.branches.get(identity.branch)).toBe(personal);

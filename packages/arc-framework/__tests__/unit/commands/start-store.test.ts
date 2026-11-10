@@ -43,7 +43,7 @@ describe("store start graduation", () => {
   it("graduates a retained former name as the same renamed work item", async () => {
     const h = await harness();
     expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.exec!, baseBranch: "main" },
-      { sourceSlug: "demo", targetSlug: "current" })).toMatchObject({ status: "renamed" });
+      { operand: "demo", targetSlug: "current" })).toMatchObject({ status: "renamed" });
     expect(await runGraduate(h.ctx, { name: "demo", spawningIdentity: "starter", baseBranch: "main", locationTemplate: "../{repo}.{name}", repo: "repo" }))
       .toMatchObject({ status: "graduated", previousOwner: "previous" });
     const alias = lifecycleSuccess(await h.store.lookup({ kind: "slug", slug: SlugSchema.parse("demo") }));
