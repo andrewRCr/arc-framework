@@ -141,7 +141,7 @@
       check refuses on an Errand's record in any state, the grooming and housekeep claims crossing as claims; Stage 1
       abandons the Errands it copied and opens its own to refuse on, the copy taken while no Errand awaits its merge;
       and the review ends there, with no fourth pass (Owner, 2026-11-06) (§ The window; § The rehearsal).
-- **Open:** six inbound entries routed in after the capture (2026-11-10; § Inbound Buffer — Pending Integration).
+- **Open:** nine inbound entries routed in after the capture (2026-11-10; § Inbound Buffer — Pending Integration).
 - **Next:** create-spec, whose entry check takes the inbound entries through the Owner's planning pass.
 
 ### The cut
@@ -1500,9 +1500,72 @@ draft, routed by the 2026-11-06 housekeep (PR #1290), since that member has no s
   grammar's state-only commit kinds (`lib/commit-check/artifact-resolver.ts`; `spec-storage-contract.md` L1930 and its
   register key 65), where this draft rewrites only the `commit-format` method's wording; and the interim
   `personal/session-context` kind (`KIND_MECHANISMS`, `interim: true`; `spec-storage-ref-backend.md` L662,
-  `spec-seam-status-roadmap.md` L690), which this draft lists only as a parser exception.
+  `spec-seam-status-roadmap.md` L690), which this draft lists only as a parser exception. That unit now names the
+  footer's state-only kinds (`artifact-resolver.ts`, `policy.ts`) as its own, since this draft rewrites only the
+  `commit-format` wording, and places `personal/session-context` in its collapse share unless this unit removes the kind
+  with the workspace (by message, 2026-11-10, Owner-approved); whichever of the two this spec takes leaves that unit's
+  draft, so tell it by message.
 
 - _Approach:_ verify each against its source line, then fold, hand to the member it belongs to, or dismiss.
+
+### `[ ]` **Drop the wait on refreshed hooks before removing the ROADMAP conflict remedy**
+
+- _Routed from:_ `cutover-tracked-state-removal` draft-design, by message (2026-11-10, Owner-approved).
+
+- _Shapes:_ § The flip change, the two-step ROADMAP removal.
+
+- _Observation:_ that unit's D6 removes `arc hook-remedy-roadmap-conflict`, its hook block in both copies, and
+  `arc base merge --regenerate-roadmap` in one change, with no wait, so this draft's "Removing
+  `arc hook-remedy-roadmap-conflict` waits on every live branch's refreshed pre-commit hook" is stale. The tracked hook
+  runs the in-tree `scripts/remedy-roadmap-conflict.ts` whenever that file exists and calls the CLI command only when it
+  is absent (`.arc/system/.internal/githooks/pre-commit`), so each branch here runs its own copy, and CineXplorer's
+  hooks (`.githooks/`) call no `arc` command; that unit reports no other project carries the hook. On `main` after the
+  flip nothing produces a regenerable conflict, since each pre-flip branch takes ROADMAP's deletion at its merge
+  (§ Tracked state the import does not claim). Verified at source (2026-11-10). The PM routes the cohort record's
+  correction.
+
+- _Approach:_ drop the sentence; the remedy's removal is that unit's.
+
+### `[ ]` **Rewrite the help text the flip makes false on commands that keep working**
+
+- _Routed from:_ `cutover-tracked-state-removal` draft-design's census of the CLI against this draft's end state, by
+  message (2026-11-10, Owner-approved).
+
+- _Shapes:_ § The flip change, beside the status help it already takes, under the rule that whatever would mislead
+  lands at the flip.
+
+- _Observation:_ help text on commands that keep working describes the substrate the flip retires (`cli.ts`):
+    1. `arc start`: its description, `-y`, and `--new` describe a `plan/<name>` branch committed and pushed, where the
+       store arm is branchless;
+    2. `arc resume`: "Re-attach a parked work unit's preserved branch", where the store arm clears the pause;
+    3. `arc materialize`: "remote-only" and "checks it out";
+    4. `arc rename`: its description names the per-work-unit workspace;
+    5. `arc view --for` and its after-help say it reads a registered checkout or a ref, where the store arm reads the
+       record;
+    6. `arc view`'s `session-notes` kind;
+    7. `arc wu reconcile --apply`: "Apply and stage the exact reported path set", where the store arm stages nothing;
+    8. `arc errand next`: "the first execute-bound USER-INBOX Errand";
+    9. `arc errand link`: "so close/promote can drop it", and the `--from-inbox <entry-title>` option;
+    10. `arc errand close`: "drop its originating inbox capture".
+
+  The text is as quoted at source (2026-11-10); the store arms' behavior is that unit's reading.
+
+- _Approach:_ take them with the status help, or decline any one; a decline goes to `cutover-tracked-state-removal` by
+  message, and that unit rewrites it.
+
+### `[ ]` **Keep the merge-gate recipe's planning-lane rewrite minimal, since the recipe retires after the flip**
+
+- _Routed from:_ `cutover-tracked-state-removal` draft-design, by message (2026-11-10, Owner-approved).
+
+- _Shapes:_ § The workflow rewrite, the planning-lane prose.
+
+- _Observation:_ that unit's D10 retires the shipped merge-gate recipe whole after the flip: its README, the CODEOWNERS
+  template, `setup-merge-gate.md`, and their `init-recipe.json` entries. `arc merge lock` and its draft-lock model stay.
+  This draft rewrites `setup-merge-gate.md` and the lane steps of `initial-setup/01_verify-and-configure.md`, which run
+  that workflow under full protection (L210-213, L321-323).
+
+- _Approach:_ make both rewrites minimal, enough not to mislead until the recipe goes; settle with that unit whether
+  `01_verify-and-configure.md`'s lane steps go with the recipe.
 
 ### `[ ]` **Re-point the pieces deleted with the in-repo implementation to the unit split from tracked-state removal**
 
