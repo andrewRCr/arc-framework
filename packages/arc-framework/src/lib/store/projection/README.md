@@ -13,6 +13,15 @@ skip machine-local folders, and return newly discovered files unsent.
 `process-state.ts` gives stores created at different call sites the same command's skip verdict, lock state, history
 memo, per-root capability and bindings, and copy bookkeeping. Each command starts with fresh bindings and history.
 Rights default to granting an edit; adoption, refresh, fan-out, and materialization bindings live with each root.
+
+`engine-binding.ts` binds any target checkout under its lease, with fresh claim and layout reads and checkout-local
+admission captures. Non-registering bindings leave command roots alone. Checkout moves discard the old path’s binding
+and report its kept copies for the next visit. `engine-actor.ts` shares one actor per clone and identity, using the
+already located common Git directory. `engine-read-only.ts` prepares take-ins without a lease, sending or persistence,
+and reads an existing actor without creating a machine ID. Its provisional answers grant no replacement authority.
+`record-source.ts` defines the four read operations a projection source supplies; renderers accept source reads with
+the writable store’s history memo.
+
 `engine-end.ts` takes each ready root's lease again and reads its current index before the second check. After another
 index read under that lease, it removes retained take-in copies no entry names. An unusable index preserves its files.
 

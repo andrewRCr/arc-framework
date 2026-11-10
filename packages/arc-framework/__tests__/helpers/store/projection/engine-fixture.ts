@@ -19,6 +19,7 @@ import { createKindRegistry } from "../../../../src/lib/store/registry.js";
 import { PRODUCTION_REGISTRATIONS } from "../../../../src/lib/store/kinds/registrations.js";
 import type { WritePlacement } from "../../../../src/lib/store/placement.js";
 import { writeBackFixturePath } from "./write-back-fixture.js";
+import { resolveGitCommonDir } from "../../../../src/lib/git/exec.js";
 
 export async function createEngineFixture(directories: string[], input: { path?: string; kind?: KindId; content?: string; extraPaths?: readonly string[];
   placement?: WritePlacement; registryOverrides?: Parameters<typeof createReferenceFixture>[1] } = {}) {
@@ -79,7 +80,7 @@ export function overrideEngineStore(store: import("../../../../src/lib/store/con
 export async function configureEngineCheckout(checkout: string) {
   const exec = createExecaGitExec();
   await exec("git", ["config", "arc.identity", "andrew"], { cwd: checkout });
-  await writeFile(join(checkout, ".git/info/exclude"), ".arc/active/\n.arc/backlog/\n.arc/completed/\n.arc/system/.local/\n");
+  await writeFile(join(await resolveGitCommonDir(exec, checkout), "info/exclude"), ".arc/active/\n.arc/backlog/\n.arc/completed/\n.arc/system/.local/\n");
   await writeFile(join(checkout, ".gitignore"), ".arc/user/*/\n");
   await mkdir(join(checkout, ".arc/user"), { recursive: true });
   await writeFile(join(checkout, ".arc/user/.npmignore"), "*\n");

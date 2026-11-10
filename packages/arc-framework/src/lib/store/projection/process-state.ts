@@ -65,6 +65,7 @@ export interface ProjectionProcessState {
   lockHeld: boolean;
   history: HistoryMemo | null;
   readonly roots: Map<string, ProjectionRootState>;
+  readonly actors: Map<string, Promise<string>>;
   readonly capabilities: Map<string, boolean>;
   readonly composedCapabilities: Map<string, boolean>;
   readonly engineCapabilityRoots: Set<string>;
@@ -77,7 +78,7 @@ export interface ProjectionProcessState {
 }
 
 function freshState(composedCapabilities = new Map<string, boolean>()): ProjectionProcessState {
-  return { command: null, start: null, resolution: null, skip: null, lockHeld: false, history: null, roots: new Map(),
+  return { command: null, start: null, resolution: null, skip: null, lockHeld: false, history: null, roots: new Map(), actors: new Map(),
     capabilities: new Map(composedCapabilities), composedCapabilities,
     engineCapabilityRoots: new Set(), layoutContexts: new Map(), configurations: new Map(), fanOutRounds: new Set(),
     notices: [], diagnostics: [], resolutions: [] };
@@ -115,6 +116,9 @@ export function beginProjectionCommand(): ProjectionProcessState {
 onCheckoutChange(change => {
   const state = projectionProcessState();
   if (change.kind === "marker") { state.layoutContexts.delete(change.checkoutRoot); return; }
+  if (state.roots.delete(change.from)) state.diagnostics.push({ path: change.from, copy: null, mark: {
+    reason: `Projection checkout moved from ${change.from} to ${change.to}; its old binding was released.`,
+    remedy: { text: "The next projection visit binds the new path; kept copies settle at its next command." } } });
   state.layoutContexts.delete(change.from);
   state.layoutContexts.delete(change.to);
   for (const capabilities of [state.capabilities, state.composedCapabilities]) {

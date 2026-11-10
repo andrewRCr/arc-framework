@@ -65,110 +65,18 @@ that chunk.
   only the command's own partition under its lease. Interrupted publications retain the old header; later writes
   collect obsolete partitions, including a previously held file.
 
-### `[ ]` **1.3 Bind a projection root for any worktree, reading through one source — § 2.1, § 14**
+### `[x]` **1.3 Bind a projection root for any worktree, reading through one source — § 2.1, § 14**
 
 - _Goal:_ Refresh, fan-out, materialization, and the persist and release steps each act on a worktree through one root
   binding — its location, claim, effective `layout.active`, view, `history` memo, and a take-in under that worktree's
   own rights — reading records through one source interface, so a sibling's edit is taken in under the sibling's rights
   and a second source plugs in without changing the engine.
 
-    - Generalize the root binding (`bindRoot`, private in `lib/store/projection/engine-start.ts`), which binds the
-      command's own checkout alone, into an exported binder for any worktree on the machine. It takes the target
-      checkout, its `ProjectionLocation`, the lock session held on it, the configuration read its caller supplies
-      (`readProjectionConfiguration`, `lib/store/projection/configuration.ts`), the actor of the identity that read
-      yields, the kind registry (`ProjectionEnginePorts.registry`, `lib/store/projection/engine-ports.ts`), and the
-      store its take-in sends through with the `history` memo it reads through, which the persist and release steps
-      supply as their own (2.2, 2.3) and every other caller takes from the command (`ProjectionProcessState.history`,
-      `lib/store/projection/process-state.ts`). The command's own start supplies its own read. The send's local capture
-      the binding supplies (`captureLocal`, `WriteBackContext`, `lib/store/projection/write-back.ts`), which reads the
-      configuration and the claim and layout fresh before and after each send's preparation (`prepareStable`,
-      `lib/store/projection/submission.ts`), reads them in the bound checkout, never the command's: today's `bindRoot`
-      reads them in the command's checkout, so a sibling's or a target's take-in would capture the command's marker and
-      configuration. Binding makes no Git call, but each send through a root reads that checkout's configuration at each
-      capture, one Git call each: two in the usual case, a third where the local evidence changed between them
-      (`prepareStable`), and the same again for a base recovery's retry (`sendWriteBack`). The command's read is the one
-      `observeProjectionConfiguration` (`lib/store/projection/command-configuration.ts`) holds for the command's
-      checkout in the process state (`ProjectionProcessState.configurations`): the start's, whatever the start answered,
-      `no-projection` included, or, where the start made none — under `--skip-projection`, with its lock held or lost,
-      or its checkout gone — one made there on first need. The fan-out supplies that read, so binding a sibling adds no
-      Git call: `git config` reads the same values in every worktree of a clone unless a worktree's own
-      `config.worktree` or a conditional include (`includeIf`) differs, and a sibling whose recorded view setting,
-      identity, or ignore configuration then differs, or whose index records no guard pass, is skipped (1.7.b), its next
-      command reading its own (1.8). The removal check, the persist and release steps, and a spawn's materialization
-      read the target's own in the target checkout, since its identity decides its personal root and edit rights, and
-      refuse or skip a target whose identity differs from the one the command's read yields: the command's store reads
-      and lists person-owned state under the command's identity alone (`otherIdentityRefusal`, `otherIdentityRef`,
-      `lib/store/ref/read.ts`) (2.1, 2.2, 2.3, 1.5). It reads the claim and `layout.active` fresh
-      (`readCheckoutLayoutContext` with `fresh: true`), never from a cached claim, and, for the command's own start, the
-      fan-out, and a spawn's materialization, registers the root in the process state's `roots` (`ProjectionRootState`,
-      `projectionProcessState`, `lib/store/projection/process-state.ts`), so the command's end checks every worktree it
-      replaced files in (`endProjection`, `lib/store/projection/engine.ts`; `finishProjectionRoot`,
-      `lib/store/projection/engine-end.ts`); a root is marked `ready` once a fan-out's refresh or a materialization has
-      run on it, whoever bound it — the start's among them where a lost lease left it unready — since the end skips a
-      root that is not. The fan-out never binds a checkout the command's roots already hold — its own, a sibling an
-      earlier round or fan-out visited, or a worktree a spawn materialized earlier in the command: it re-reads that
-      checkout's claim and `layoutActive` fresh into the root it holds (`ProjectionRootState`), so the copies and
-      removals the end's second check reads stay with it, and at that visit the skip rule (1.7.b) compares the claim and
-      `layoutActive` re-read into that root, and the command's view setting, identity, and ignore configuration, with
-      what the worktree's index records, whatever read bound the root it holds, a worktree a spawn materialized earlier
-      in the command reprojected in place where its claim or `layoutActive` alone differs (1.7.b). The persist and
-      release steps register nothing, so the end never checks a checkout they retire and no binding of theirs replaces a
-      root the command holds (2.2, 2.3); a copy either step leaves, on a refusal or from its last check, is settled by
-      the target's next sweep or the retry's takeover. A checkout move announced during the command
-      (`notifyCheckoutChange`'s `move`, `lib/git/checkout-change.ts`), as `arc rename` makes when it moves a work unit's
-      folder (`reconcileWorkUnitWorktree`, `lib/work-unit/mutators/reconcile-work-unit-worktree.ts`) — always another
-      checkout than the command's, since rename defers a move of the one it runs in (`resolveRenameWorktreeMove`'s
-      `deferred-self-move`, the same file) — drops every root the command holds at the old path and reports it, through
-      the process state's listener (`onCheckoutChange`, `process-state.ts`), which today re-keys capabilities and
-      deletes both paths' layout contexts: a root's `captureLocal`, protection, and ports are bound to the path it was
-      bound at (`bindRoot`, `engine-start.ts`; `createProjectionEnginePorts`, `lib/store/projection/engine-ports.ts`),
-      so the end checks nothing there, the copies the command left in it are settled by its next command's sweep, and a
-      later fan-out binds it afresh at its new path. The command's own start binds through it, its behavior unchanged
-      but for the actor.
-    - The actor, `<identity>@<machine id>`, is read at the common Git directory the location already holds
-      (`ProjectionLocation.commonDir`) for the identity the binding's configuration yields — once per command for the
-      command's identity, which the fan-out shares — through a form of the user-sync wrapper (`getOrCreateMachineId`,
-      `lib/user-sync/sync-state.ts`) that takes that directory rather than resolving it and keeps its legacy candidate.
-      The engine ports' `actor` (`createProjectionEnginePorts`, `lib/store/projection/engine-ports.ts`) resolves it with
-      `git rev-parse --git-common-dir` (`resolveGitCommonDir`) after the start's two calls, on every start; reading it
-      from the location leaves the start its two Git calls (1.12.a).
-    - A configuration that yields no identity is answered before binding: a command with none fans out nothing, running
-      as under the skip switch (spec § 2.5); the removal check answers `would-refuse` with the remedy the `no-identity`
-      answer carries (2.1); the persist and release steps refuse naming it (2.2, 2.3); and a spawn's materialization
-      writes nothing (1.5). A binding throws only where the target's marker cannot be read, is malformed, or needs
-      manual repair, or its `arc-config.yml` cannot be read or is invalid (`readCheckoutLayoutContext`), and a slot's
-      read of the target's configuration that fails (`readProjectionConfiguration`) is answered as such a throw: the
-      fan-out reports the worktree and skips it (1.7.b), the removal check answers `unobservable` with its detail (2.1),
-      and the persist and release steps refuse with a remedy naming the failure (2.2, 2.3).
-    - Its read-only form, for the removal check (2.1), takes no lock session and registers nothing. Its take-in applies
-      the edit rights (`readProjectionEditRights`, `lib/store/projection/rights.ts`), write-back's read path
-      (`prepareWriteBack`, `lib/store/projection/write-back.ts`), `checkSerializationRules`
-      (`lib/store/serialization.ts`), and, where the read path is ready, the send's preparation without its submission
-      (`prepareIndexedProjectionSubmission`, `lib/store/projection/submission.ts`, never `submitProjectionBatch`), and
-      answers what the send would meet without sending, provisionally, as `spec-projection-write-back.md` § 7.2 permits
-      a read-only feasibility check; its actor, which labels only a checkout merge's markers, is the target identity's,
-      read by `readMachineIdFile` (`lib/store/machine-id.ts`) and never created; where that identity has none there, the
-      label is the identity alone, since any markers mean a clash whatever they name.
-    - Each slot is filled by the task that builds its function: `refresh` by 1.6, the command's own root's `fanOut` by
-      1.7.a, and `materialize` by the materialization of the command's own checkout (1.5, 1.9), or removed, so no slot
-      stays declared and unfilled.
-    - The source a root reads records through is `Pick<Store, "read" | "list" | "version" | "changes">`
-      (`lib/store/contract.ts`), which the store satisfies with no adapter, as does `ReadOnlyStore`; refresh and full
-      materialization take it as a parameter rather than reading the root's `store`. `history` and `lookup` are read
-      from the writable store alone. The root's protection (`createProjectionProtection`), bound here for the take-in,
-      stays uncached; a refresh renders through one of its own (1.4.b). Only the store is built as a source; a read-only
-      source's protection and each source's own state version come with `framework-core-from-package` (§ 14), and the
-      index keeps its one state version (`ProjectionIndexSchema.state`, `lib/store/projection/index-schema.ts`).
-    - Build `test-first` (one behavior at a time):
-        - a sibling's root takes in an edit in its own file under that checkout's rights, not the writer's
-        - binding a sibling runs no Git call, and a ready start with nothing changed runs two, issued together
-        - a root bound after the target's marker changed in this process reads the new claim
-        - the read-only form's take-in sends nothing, and its actor creates no machine id
-        - re-reading the claim and `layoutActive` into a root the command holds keeps that root, the start's aside
-          copies reaching the end's second check
-        - a binding that does not register, as the persist and release steps' does not, adds no root and replaces none
-          the command holds, one for the same checkout included
-        - the store and a `ReadOnlyStore` each satisfy the source interface with no adapter
+- _Outcome:_ `bindProjectionRoot` binds arbitrary checkouts with fresh target-local capture and rights, supplied actor
+  and history, and optional process registration. Read-only bindings prepare sealed admissions without sending or
+  creating machine IDs. Held roots refresh their layout in place; moves drop and report the stale binding. Actors use
+  the located common directory once per identity and command, retaining legacy candidates; renderers accept source
+  reads with writable history, through the `ProjectionSource` seam.
 
 ### `[ ]` **1.4 Read protection once per round — § 16.3, § 2.2, § 15.5**
 
