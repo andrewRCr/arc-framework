@@ -3,7 +3,7 @@
   "slug": "cohort-parent-repair-advice",
   "claimId": "6079e186abd79b1512133ff5e7db1f9f",
   "createdAt": "2026-11-10T21:46:59.861Z",
-  "updatedAt": "2026-11-10T21:46:59.861Z",
+  "updatedAt": "2026-11-10T22:48:15.192Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Respect the leaf cohort's current Parent when advising repairs to former-slug holdings in close, remove, and archive.",
@@ -11,7 +11,13 @@
   "origin": "inbox",
   "originEntry": "Check a former-slug repair edit against the leaf's Parent in cohort close, remove and archive advice",
   "originEntrySourceDigest": "sha256:2f53437feeeac273f171e39a11058de7900ae98225c414d54dbfb8b984a713b8",
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/cohort-parent-repair-advice",
+    "headSha": "79e9fe79581d024ea693ca2a16b9655ee5949bde"
+  }
 }
