@@ -141,8 +141,8 @@
       check refuses on an Errand's record in any state, the grooming and housekeep claims crossing as claims; Stage 1
       abandons the Errands it copied and opens its own to refuse on, the copy taken while no Errand awaits its merge;
       and the review ends there, with no fourth pass (Owner, 2026-11-06) (§ The window; § The rehearsal).
-- **Open:** none.
-- **Next:** the capture commit, then create-spec.
+- **Open:** five inbound entries routed in after the capture (2026-11-10; § Inbound Buffer — Pending Integration).
+- **Next:** create-spec, whose entry check takes the inbound entries through the Owner's planning pass.
 
 ### The cut
 
@@ -1413,5 +1413,110 @@ draft, routed by the 2026-11-06 housekeep (PR #1290), since that member has no s
 | Found at the consolidation: `DEV-RULES.ARC.md`'s state-committing rules | fold                    | § The workflow rewrite, the always-loaded text: task-list accuracy, meta-file timing and commit shape, § Atomicity, § Handoff, the rebase rule's notes reason                                                    | Owner, 2026-11-06; the rebase rule's relaxation stays with `history-policy`                                                                                                                    |
 | Found at planning review: the relocatability rule                       | fold                    | § The workflow rewrite, ceremony check requests and the relocatability rule                                                                                                                                      | Always-loaded text the flip makes false (Owner, 2026-11-06); its move from `draft-cutover-documentation.md` is captured for that member                                                        |
 | Found at planning review: the expected-contract sweep                   | fold                    | § The workflow rewrite; § The flip change, `arc init`, the Errand branch's suffix, and the status help text; § The quiesce; § The rehearsal, Stage 2                                                             | Hand-offs the consumer map and shipped specifications make to the cutover; the suffix (Owner, 2026-11-06); four parts captured for `cutover-tracked-state-removal` and `cutover-notes-removal` |
+
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending integration at this work unit's next planning iteration. Integrate — or consciously
+> reject — each one._
+
+### `[ ]` **Decide who owns the base-drift resolver once no completed meta lands on base**
+
+- _Routed from:_ `cutover-tracked-state-removal` draft-design, by message (2026-11-10, Owner-approved).
+
+- _Shapes:_ § What lands at the flip, and what follows.
+
+- _Observation:_ `createCompletedMetaResolver` (`lib/base-drift/current-adapters.ts`) proves a single-parent base
+  commit only by a completed meta added in that same commit (`readAddedCompletedMetas`), and `analyzeIntegrationEvidence`
+  (`lib/git/base-integration-evidence.ts`) scans `--first-parent` and marks coverage `partial` on any commit it cannot
+  classify, which the integration checkpoint refuses as `unsafe-reconcile` (`scripts/integration/checkpoint.ts`). Once no
+  completed meta lands on base, a squash- or rebase-strategy project's checkpoint refuses reconciliation; this
+  repository's recent first-parent commits on `main` are all merges, so here only the integration naming is lost.
+  Callers: `handlers/base.ts`, `handlers/status.ts`, `scripts/integration/merge-composition.ts`,
+  `checkpoint-composition.ts`, and `errand-merge-composition.ts`. Verified at source (2026-11-10).
+
+- _Approach:_ the flip, under its rule for what lands at it, or `cutover-tracked-state-removal`, moving the resolver
+  onto the store's archive, since no squash project runs a flip build before the prerelease.
+
+### `[ ]` **Make the delivery rename source fail loudly once the transition records are untracked**
+
+- _Routed from:_ `cutover-tracked-state-removal` draft-design, by message (2026-11-10, Owner-approved).
+
+- _Shapes:_ § The flip change, the `.internal/` records untracked.
+
+- _Observation:_ `GitDeliveryRenameTransitionSource` (`lib/delivery/plan-resolution.ts`) reads transition records from
+  the branch tree through raw `git`, constructed with no guard (`handlers/delivery-transfer.ts`,
+  `handlers/delivery-execution.ts`, `handlers/delivery.ts`). After the untrack it reads empty, since `ls-tree` on a
+  missing path exits 0, so a plan stored under a former name resolves `no-match` rather than failing as that passage
+  expects of a missed in-repo reader. Delivery is paused, and this machine's shared `arc/delivery/` folder holds no
+  stored plan. Verified at source (2026-11-10).
+
+- _Approach:_ a refusal on the missing folder, a store read, or a recorded reason it stays as is while delivery is
+  paused.
+
+### `[ ]` **Decide how tests that build a store through `createStore` stay green once it builds the ref store**
+
+- _Routed from:_ `cutover-tracked-state-removal` draft-design, by message (2026-11-10, Owner-approved).
+
+- _Shapes:_ § The flip change, the in-repo override.
+
+- _Observation:_ about 85 test files build an in-repo store through `createStore` over tracked fixtures, and 146
+  files, about 35,000 lines, target the in-repo backend in all (that unit's count, on `main` at `9c63a803ae`). Once
+  `createStore` builds the ref store, they need the environment override in test setup, an explicit in-repo
+  constructor for tests, or rewrites at the flip. The answer sets how much of that surface the deletion members
+  inherit.
+
+### `[ ]` **Check the shipped specifications' hand-offs to the flip that no cutover draft names**
+
+- _Routed from:_ `cutover-tracked-state-removal` draft-design's sweep of 15 shipped units' hand-offs, by message
+  (2026-11-10, Owner-approved). That unit has not verified these at source; each is a candidate, not a route.
+
+- _Shapes:_ § The workflow rewrite; § The flip change; § The rehearsal.
+
+- _Observation:_ eleven hand-offs that sort to the flip and that no cutover draft names:
+    1. `spec-storage-contract.md` L1700: a pre-flip integration checkpoint is retaken after the flip;
+    2. `spec-storage-contract.md` L1894: readiness's reads of Completion and Release Notes
+       (`readLifecycleArtifactFacts`, `readLifecycleSummary`; `scripts/review-gate/readiness.ts`,
+       `scripts/integration/checkpoint-composition.ts`);
+    3. `spec-storage-contract.md` L2168: documenting the working copy, `arc save`, write-back, and protected-file
+       notices (the flip's or `cutover-documentation`'s);
+    4. `spec-seam-record-kinds.md` L907: rename readers moving to `lookup`'s former slugs (`retarget`,
+       `transition-disposition-query.ts`), possibly an arm from the flip already built;
+    5. `spec-storage-ref-backend.md` L1036, L1978, L2002, L4896: pull-and-retry on `state-unresolvable`
+       (`pull({ history })`, `arc rename`), "at the flip or with their verbs";
+    6. `spec-storage-ref-backend.md` L2233, L4897: `designation-needed` from `arc join`, session start's pull, and
+       `arc sync`, where this draft names `arc init` only; L2379: `randomUUID` for `project-registry/identity`;
+    7. `spec-storage-ref-backend.md` L3137: the Errand `owner` field from the flip;
+    8. `spec-storage-ref-backend.md` L3196: disk-only personal files on a second machine, where this draft brings notes
+       by bundle;
+    9. `spec-storage-ref-backend.md` L3516, `spec-seam-delivery-review.md` L2431, and `notes-seam-delivery-review.md`
+       L446: `scripts/review-gate/status-errand.ts` (`readTransientIdentitySnapshot`) still reads the identity ref;
+    10. `spec-storage-ref-backend.md` L1088 and L1090: `e2e/store-command-dormancy.e2e.test.ts`, whose
+        unsupported-before-flip cases change when the capability activates, and
+        `unit/lib/store/operational-sync.test.ts`;
+    11. a conflict: `spec-seam-delivery-review.md` L1987 says the cutover binds the project-ID port, while
+        `spec-seam-locus.md` A2 (L2662; `notes-seam-locus.md` L399) says the binding exists and the cutover binds none.
+
+  And two contested with `cutover-tracked-state-removal`, which whichever unit leaves them names: the `Context:` footer
+  grammar's state-only commit kinds (`lib/commit-check/artifact-resolver.ts`; `spec-storage-contract.md` L1930 and its
+  register key 65), where this draft rewrites only the `commit-format` method's wording; and the interim
+  `personal/session-context` kind (`KIND_MECHANISMS`, `interim: true`; `spec-storage-ref-backend.md` L662,
+  `spec-seam-status-roadmap.md` L690), which this draft lists only as a parser exception.
+
+- _Approach:_ verify each against its source line, then fold, hand to the member it belongs to, or dismiss.
+
+### `[ ]` **Re-point the pieces deleted with the in-repo implementation to the unit split from tracked-state removal**
+
+- _Routed from:_ `cutover-tracked-state-removal` draft-design, by message (2026-11-10, Owner-approved).
+
+- _Shapes:_ § Scope; § The flip change, the in-repo override and the refusal; § The quiesce, the sealing guard.
+
+- _Observation:_ the Owner split `cutover-tracked-state-removal` on 2026-11-10 by what reads as live. That unit keeps
+  the visible surfaces, the import transform, and the window's leftovers; a second unit takes the in-repo
+  implementation and every dormant capability arm, cut at this unit's landing. The sealing guard, the in-repo override,
+  and the flip build's refusal over an unimported repository, which this draft says go "with the in-repo
+  implementation in `cutover-tracked-state-removal`", now go to that second unit.
+
+- _Approach:_ name the second unit wherever this draft assigns those deletions, once it is minted, with
+  `cohort-storage-cutover.md`'s member list.
 
 ---
