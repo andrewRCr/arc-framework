@@ -136,8 +136,7 @@ async function waitingWorkDisposition(store: Store, slug: string): Promise<"ship
   }
   if (resolved.refusal.code !== "not-found") {
     const refusal = resolved.refusal;
-    const remedy = refusal.code === "ambiguous-match" && refusal.tie !== undefined
-      ? clashRepair(refusal.candidates, refusal.tie) : refusal.remedy;
+    const remedy = refusal.remedy;
     throw new Error(`${refusal.condition} ${remedy.text}`);
   }
   const record = await terminalPrerequisiteRecord(store, slug);

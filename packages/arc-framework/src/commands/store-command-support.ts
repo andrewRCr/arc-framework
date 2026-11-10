@@ -4,8 +4,9 @@ import { resolveArcPath } from "../lib/layout/index.js";
 import { SlugSchema } from "../lib/kernel/index.js";
 import type { Store } from "../lib/store/contract.js";
 
-/** The six independently retiring dormant command arms. */
-export type DormantStoreCommand = "inbox" | "route" | "locus release" | "errand queue" | "errand queue set" | "handoff write";
+/** Independently retiring dormant command arms. */
+export type DormantStoreCommand = "inbox" | "route" | "locus release" | "errand queue" | "errand queue set" | "handoff write"
+  | "cohort close" | "cohort remove";
 /** Stable unsupported command refusal, independent of backend operation refusal cases. */
 export interface StoreCommandUnsupported {
   status: "refused";
@@ -25,6 +26,8 @@ export function runDormantStoreCommand(command: DormantStoreCommand, store: Pick
 
 function servingPath(command: DormantStoreCommand): string {
   switch (command) {
+    case "cohort close":
+    case "cohort remove": return "Use tracked cohort file edits and archive's sidecar sweep until the store capability flips.";
     case "inbox": return "Use arc user inbox-list --target <slug> until the store capability flips.";
     case "route": return 'Use route-discovered-work, "Binding: carrying out outcomes", and its until-the-flip hold-and-route binding.';
     case "locus release": return "Use arc park or arc teardown, as appropriate, to release this checkout.";

@@ -1,5 +1,5 @@
 /** Expected-version stub edge settlement for work-item name creation. */
-import type { Store } from "./contract.js";
+import type { StoreView } from "./write-check.js";
 import type { OwnerIdentity } from "./identity.js";
 import { recordReferences, sameOwner, sameReference } from "./identity.js";
 import type { StoreRecord } from "./read.js";
@@ -16,7 +16,7 @@ import { writeMetaDependsOn } from "./kinds/meta/writers.js";
 export interface CreationSlugSettlement { writes: readonly Mutation[]; observations: readonly RecordObservation[] }
 
 /** Settle eligible stub dependencies while leaving owner decisions to the slug-edge write rule. */
-export async function settleCreationSlugEdges(store: Store, slug: string, writingOwner: OwnerIdentity): Promise<CreationSlugSettlement> {
+export async function settleCreationSlugEdges(store: StoreView, slug: string, writingOwner: OwnerIdentity): Promise<CreationSlugSettlement> {
   const empty = { writes: [], observations: [] };
   const prior = await priorTarget(store, SlugSchema.parse(slug));
   if (prior.status !== "known" || prior.value !== null && sameOwner(prior.value, writingOwner)) return empty;
@@ -35,7 +35,7 @@ export async function settleCreationSlugEdges(store: Store, slug: string, writin
   return { writes, observations };
 }
 
-async function settleStub(store: Store, primary: StoreRecord, slug: string): Promise<{
+async function settleStub(store: StoreView, primary: StoreRecord, slug: string): Promise<{
   write: Mutation; observations: readonly RecordObservation[];
 } | null> {
   if (primary.placement?.kind !== "backlog" || primary.conflicts.length > 0) return null;

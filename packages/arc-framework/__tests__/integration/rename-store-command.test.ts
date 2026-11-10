@@ -88,7 +88,7 @@ it("preserves a marker changed between compensation's check and the inverse tran
   expect(await readWorktreeMarker(f.checkout)).toMatchObject({ kind: "present", marker: { wuName: "target", spawningIdentity: "another-user" } });
 });
 
-it("keeps a peer's advanced old remote head through a rename retry until the new branch preserves it", async () => {
+it("completes a retry while retaining a peer's advanced old remote head", async () => {
   const f = await fixture(false); const remote = join(f.root, ".git", "remote.git");
   await f.exec("git", ["init", "--bare", remote]); await f.exec("git", ["remote", "add", "origin", remote]);
   await f.exec("git", ["push", "origin", "feat/source"]);
@@ -101,20 +101,23 @@ it("keeps a peer's advanced old remote head through a rename retry until the new
   };
   const params = { sourceSlug: "source", targetSlug: "target" };
   expect(await runRenameCommand(f.command, params)).toMatchObject({ status: "partial" });
+  const landed = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
+  const history = lifecycleSuccess(await f.store.history({ reference: f.primary.reference }));
+  const head = (await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim(), marker = await readWorktreeMarker(f.checkout);
   const peer = join(f.root, ".git", "peer"); await f.exec("git", ["clone", "--branch", "feat/source", remote, peer]);
   const peerExec = makeGitExec(peer);
   await peerExec("git", ["config", "user.name", "Peer"]); await peerExec("git", ["config", "user.email", "peer@example.invalid"]);
   await writeFile(join(peer, "peer-work"), "preserve this peer commit\n"); await peerExec("git", ["add", "peer-work"]);
   await peerExec("git", ["commit", "-m", "peer work"]); await peerExec("git", ["push", "origin", "feat/source"]);
   const advanced = (await peerExec("git", ["rev-parse", "HEAD"])).stdout.trim();
-  expect(await runRenameCommand(f.command, params)).toMatchObject({ status: "partial", reason: expect.stringMatching(/preserv|fetch|merge/iu) });
+  expect(await runRenameCommand(f.command, params)).toMatchObject({ status: "renamed", recordBatch: "existing",
+    remote: { status: "retained", oldOid: advanced }, report: { keptBranches: [{ branch: "feat/source", reason: "continuation" }] } });
   expect((await f.exec("git", ["ls-remote", "--heads", "origin", "refs/heads/feat/source"])).stdout).toContain(advanced);
-  await f.exec("git", ["fetch", "origin", "+refs/heads/feat/source:refs/remotes/origin/feat/source"]);
-  await f.exec("git", ["merge", "--ff-only", "refs/remotes/origin/feat/source"]);
-  expect(await runRenameCommand(f.command, params)).toMatchObject({ status: "renamed", recordBatch: "existing" });
-  expect((await f.exec("git", ["ls-remote", "--heads", "origin", "refs/heads/feat/source"])).stdout).toBe("");
-  expect((await f.exec("git", ["ls-remote", "--heads", "origin", "refs/heads/feat/target"])).stdout).toContain(advanced);
-  expect(await readFile(join(f.root, "peer-work"), "utf8")).toBe("preserve this peer commit\n");
+  expect((await f.exec("git", ["ls-remote", "--heads", "origin", "refs/heads/feat/target"])).stdout).toContain(head);
+  expect(lifecycleSuccess(await f.store.read({ reference: f.primary.reference }))).toEqual(landed);
+  expect(lifecycleSuccess(await f.store.history({ reference: f.primary.reference }))).toEqual(history);
+  expect(await readWorktreeMarker(f.checkout)).toEqual(marker);
+  expect((await f.exec("git", ["rev-parse", "HEAD"])).stdout.trim()).toBe(head);
 }, 30_000);
 
 it.each([false, true])("defers the holder's own folder move while completing the logical rename, detached=%s", async (detached) => {
@@ -186,7 +189,7 @@ it("renames the promoted work branch while retaining the holder's Errand link an
     provenance: { verb: "edit", lifecycleAction: "edit" } }));
   const input = RenameCommandInputSchema.parse({ slug: "source", newSlug: "target" });
   expect(await runRenameCommand(f.command, { sourceSlug: input.slug, targetSlug: input.newSlug })).toMatchObject({ status: "renamed",
-    keptBranches: ["chore/source"] });
+    report: { keptBranches: [{ branch: "chore/source", reason: "other-link" }] } });
   const current = lifecycleSuccess(await f.store.read({ reference: f.primary.reference }));
   expect(current.links?.branches).toEqual([errand, { ...f.primary.links!.branches![0], ref: "feat/target" }]);
   expect((await f.exec("git", ["rev-parse", "chore/source"])).stdout.trim()).toBe(before);
@@ -239,7 +242,7 @@ it("retains compensation before the adapter's final marker observation and prese
       concurrent = Buffer.from(`${JSON.stringify({ ...marker, spawningIdentity: "another-user" })}\n`);
       writeFileSync(path, concurrent);
     }),
-  }, { sourceSlug: "source", targetSlug: "target" });
+  }, { operand: "source", targetSlug: "target" });
   expect(result).toMatchObject({ status: "rejected", reason: expect.stringContaining("marker changed"),
     recovery: { kind: "rollback", failures: [{ step: "checkout-rename", reason: expect.stringContaining("marker changed") }],
       retryAfterRepair: [["arc", "rename", "source", "target"]] } });

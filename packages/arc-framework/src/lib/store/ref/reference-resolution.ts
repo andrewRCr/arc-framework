@@ -1,10 +1,11 @@
 /** Bind typed name-only references through the shared captured lookup tiers. */
+import { clashRepair, type ClashTie } from "../clash-repair.js";
 import { RecordReferenceSchema, OwnerIdentitySchema, type RecordReference } from "../identity.js";
 import type { ListInput } from "../read.js";
 import type { StoreResult, StoreRefusal } from "../refusal.js";
 import type { RefBackendContext } from "./context.js";
 import { type RefLookupTree } from "./lookup.js";
-import { preferredNameTrees } from "./lookup-primary.js";
+import { preferredNameTrees, lookupPrimary } from "./lookup-primary.js";
 import { readCapturedLookupTrees, type RefLookupCapture } from "./lookup-trees.js";
 import { isArchiveRef } from "./archive-read.js";
 import { resolveLineageReadReference, lineageOwnerCandidates } from "./lineage-resolution.js";
@@ -26,14 +27,31 @@ export function resolveCapturedReference(context: Pick<RefBackendContext, "regis
   if (skipped && !preferred.some(([, tree]) => !tree.liveRef && tree.metadata.slug === owner.name)) return { status: "refused", refusal: skipped };
   const candidates = preferred.map(([ref, tree]) => RecordReferenceSchema.parse({ ...reference,
     owner: refOwner(tree.liveRef ?? ref, family, tree.metadata), kind: canonicalPrimaryKind(reference.kind, tree.metadata) }));
-  if (candidates.length > 1) return { status: "refused", refusal: { code: "ambiguous-match", class: "recoverable", candidates,
-    condition: "More than one captured owner holds this name.", remedy: { text: "Name the intended owner by UID, then retry." } } };
+  if (candidates.length > 1) return { status: "refused", refusal: nameBindingRefusal(context, preferred, candidates, owner.name) };
   const resolved = candidates[0];
   if (!resolved) return { status: "refused", refusal: checkRefKey(reference, context.registry) ?? {
     code: "not-found", class: "recoverable", reference, condition: "No captured owner holds this name.",
     remedy: { text: "Pull state or name the owner by UID, then retry." } } };
   const invalid = checkRefKey(resolved, context.registry);
   return invalid ? { status: "refused", refusal: invalid } : { status: "ok", result: resolved };
+}
+
+function nameBindingRefusal(context: Pick<RefBackendContext, "registry">, preferred: readonly [string, RefLookupTree][],
+  candidates: readonly RecordReference[], name: string): StoreRefusal {
+  const first = preferred[0]?.[1];
+  if (first === undefined) throw new Error("A name ambiguity requires ranked holders.");
+  const tie: ClashTie = { liveness: first.liveRef ? "completed" : "live",
+    name: first.metadata.slug === name ? "current" : "former" };
+  const holders = preferred.flatMap(([ref, tree]) => {
+    const primary = lookupPrimary(context, ref, tree);
+    return primary === null ? [] : [primary];
+  });
+  const remedy = holders.length === preferred.length ? clashRepair(holders, tie) : {
+    text: "No direct lifecycle repair is available without primary records. Name the intended record owner by UID, then retry.",
+    argv: ["arc", "status", "--json"],
+  };
+  return { code: "ambiguous-match", class: "recoverable", candidates: [...candidates], tie,
+    condition: "More than one captured owner holds this name.", remedy };
 }
 
 /** Read lookup evidence solely from the operation's already captured namespace. */

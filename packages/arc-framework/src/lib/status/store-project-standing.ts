@@ -1,4 +1,5 @@
 /** Render status warnings from the store's typed current-name clash facts. */
+import { clashRepair } from "../store/clash-repair.js";
 import type { LifecycleEntry } from "../store/lifecycle-index.js";
 import type { StandingLifecycleClash } from "../store/lifecycle-standing.js";
 import { sameReference } from "../store/identity.js";
@@ -18,5 +19,5 @@ function clashWarning(name: string, holders: readonly LifecycleEntry[]): Project
     return `UID ${uid ?? "unavailable"}, owner ${entry.fields.owner ?? "unowned"}, location ${entry.location}`;
   });
   return { code: "slug-clash", workUnit: name,
-    rendered: `Slug ${name} has multiple live holders (${descriptions.join("; ")}). The view omits them. Rename one holder to repair the clash.` };
+    rendered: `Slug ${name} has multiple live holders (${descriptions.join("; ")}). The view omits them. ${clashRepair(holders.map(entry => entry.reference), { liveness: "live", name: "current" }).text}` };
 }

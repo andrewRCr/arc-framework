@@ -13,18 +13,18 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                       | Priority | Owner  | Depends on                                  | Cohort             |
-| ---------- | ------------------------------- | -------- | ------ | ------------------------------------------- | ------------------ |
-| `Planning` | cutover-flip                    | P1       | andrew | cohort-identity-verbs, projection-worktrees | storage-cutover    |
-| `Planning` | projection-worktrees            | P1       | andrew | —                                           | storage-projection |
-| `Active`   | cohort-identity-verbs           | P1       | andrew | —                                           | storage-seam       |
-| `Planning` | adopter-install-authority       | P1       | andrew | storage-cutover                             | —                  |
-| `Planning` | candidate-reroot-recovery-frame | P1       | andrew | —                                           | —                  |
-| `Planning` | decomposition-doctrine          | P1       | andrew | —                                           | —                  |
-| `Planning` | delivery-rebuild-continuity     | P1       | andrew | —                                           | —                  |
-| `Planning` | review-checkout-lifecycle       | P1       | andrew | —                                           | —                  |
-| `Planning` | stub-mint-to-launch             | P1       | andrew | —                                           | —                  |
-| `Planning` | cli-output-contract             | P2       | andrew | —                                           | —                  |
+| State         | Work unit                       | Priority | Owner  | Depends on                                  | Cohort             |
+| ------------- | ------------------------------- | -------- | ------ | ------------------------------------------- | ------------------ |
+| `Planning`    | cutover-flip                    | P1       | andrew | cohort-identity-verbs, projection-worktrees | storage-cutover    |
+| `Planning`    | projection-worktrees            | P1       | andrew | —                                           | storage-projection |
+| `Integrating` | cohort-identity-verbs           | P1       | andrew | —                                           | storage-seam       |
+| `Planning`    | adopter-install-authority       | P1       | andrew | storage-cutover                             | —                  |
+| `Planning`    | candidate-reroot-recovery-frame | P1       | andrew | —                                           | —                  |
+| `Planning`    | decomposition-doctrine          | P1       | andrew | —                                           | —                  |
+| `Planning`    | delivery-rebuild-continuity     | P1       | andrew | —                                           | —                  |
+| `Planning`    | review-checkout-lifecycle       | P1       | andrew | —                                           | —                  |
+| `Planning`    | stub-mint-to-launch             | P1       | andrew | —                                           | —                  |
+| `Planning`    | cli-output-contract             | P2       | andrew | —                                           | —                  |
 
 ## Ready
 

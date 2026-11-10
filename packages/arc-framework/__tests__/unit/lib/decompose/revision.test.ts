@@ -144,7 +144,7 @@ it("drops a gone member without touching an unrelated generation that reused its
 it("keeps a retained seed's current alias when its provider's fresh machine name changes", async () => {
   const h = await createDecomposeTerminalFixture({ provider: true });
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-    { sourceSlug: "provider", targetSlug: "upstream" })).toMatchObject({ status: "renamed" });
+    { operand: "provider", targetSlug: "upstream" })).toMatchObject({ status: "renamed" });
   const current = lifecycleSuccess(await readWorkUnit(h.store, "member-b"));
   const member = await h.handEdit(current, writeMetaDependsOn(current.content, ["provider"]));
   const refreshed = await runStoreDecomposeRevisionStarter(h.ctx, "origin");

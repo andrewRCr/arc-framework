@@ -20,7 +20,7 @@ export async function resolveStoreViewTarget(input: { cwd: string; store: Store;
   const read = await readWorkUnit(input.store, input.slug);
   if (read.status === "refused") {
     if (read.refusal.code === "not-found" || (read.refusal.code === "record-malformed" && read.refusal.rule === "lifecycle.work-unit")) return { status: "unavailable", slug: input.slug };
-    const completed = read.refusal.code === "ambiguous-match" ? " Open a completed holder through its projected file under completed/." : "";
+    const completed = read.refusal.code === "ambiguous-match" && read.refusal.tie?.liveness === "completed" ? " Open a completed holder through its projected file under completed/." : "";
     return { status: "unavailable", slug: input.slug, message: `${read.refusal.condition} ${read.refusal.remedy.text}${completed}` };
   }
   return targetFromMeta(input.cwd, read.result);

@@ -9,6 +9,7 @@ const cases: [DormantStoreCommand, string][] = [
   ["inbox", "arc user inbox-list --target"], ["route", "Binding: carrying out outcomes"],
   ["locus release", "arc park"], ["errand queue", "arc user inbox-mark-execute-bound"],
   ["errand queue set", "arc user inbox-mark-execute-bound"], ["handoff write", "SESSION-NOTES"],
+  ["cohort close", "tracked cohort"], ["cohort remove", "archive"],
 ];
 describe("dormant store command capability boundary", () => {
   it.each(cases)("refuses %s over the in-repo backend", (command, serving) => {

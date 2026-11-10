@@ -74,7 +74,7 @@ it.each(repairs)("finishes the same retirement after a native revision repairs %
   let origin = "origin";
   if (kind === "renamed-origin") {
     expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-      { sourceSlug: origin, targetSlug: "delta" })).toMatchObject({ status: "renamed" });
+      { operand: origin, targetSlug: "delta" })).toMatchObject({ status: "renamed" });
     origin = "delta";
   } else if (kind === "home-gone") await h.seedRetiredWorkUnit(lifecycleSuccess(await readWorkUnit(h.store, "home")));
   else if (kind === "home-shipped") {

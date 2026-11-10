@@ -5,7 +5,7 @@ import type { WorkItemRef } from "./kinds/lineage/index.js";
 import type { StoreResult } from "./refusal.js";
 
 /** Find one terminal generation without treating unreadable or ambiguous history as absence. */
-export async function readRetiredLineage(store: Store, target: WorkItemRef): Promise<StoreResult<StoreRecord | null>> {
+export async function readRetiredLineage(store: Pick<Store, "read" | "lookup">, target: WorkItemRef): Promise<StoreResult<StoreRecord | null>> {
   const found = await store.lookup({ kind: "lineage", origin: target.uid ?? target.name });
   if (found.status === "ok") {
     const read = await store.read({ reference: found.result.reference });

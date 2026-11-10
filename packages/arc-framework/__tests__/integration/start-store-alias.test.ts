@@ -89,7 +89,7 @@ async function fixture(reused?: "backlog" | "active") {
   const archived = reused === undefined ? undefined : await h.seedMeta("source", { state: "Shipped", currentWorkflow: null },
     { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
   const meta = await h.seedMeta("source", { state: "Planning", owner: "previous", currentWorkflow: "draft-design" }, reused === "active" ? { kind: "active" } : { kind: "backlog", commitment: "planned" });
-  if (reused === undefined) expect(await runStoreRename({ store: h.store, cwd: root, exec, baseBranch: "main" }, { sourceSlug: "source", targetSlug: "target" }))
+  if (reused === undefined) expect(await runStoreRename({ store: h.store, cwd: root, exec, baseBranch: "main" }, { operand: "source", targetSlug: "target" }))
     .toMatchObject({ status: "renamed" });
   const io = { ...createUserIOContext(), exec };
   const executor = buildExecutorContext({ cwd: root, io, store: h.store, identity: "starter", teamMode: false, internalTemplateDir: "/templates" });

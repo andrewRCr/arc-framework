@@ -133,7 +133,7 @@ it.each(["snapshot", "run"] as const)("%s admits the branch retained by the prod
   const h = await fixture();
   await h.branch("kept-arbitrary-name");
   await h.seedMeta("former-widget", { state: "Shipped" }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q1") }, { branches: [{ repository, ref: "kept-arbitrary-name", linkedAs: "created", excluded: [] }] });
-  expect(await runStoreRename({ store: h.store, cwd: h.cwd, exec: h.exec, baseBranch: "main", projectId: async () => repository }, { sourceSlug: "former-widget", targetSlug: "renamed-widget" })).toMatchObject({ status: "renamed" });
+  expect(await runStoreRename({ store: h.store, cwd: h.cwd, exec: h.exec, baseBranch: "main", projectId: async () => repository }, { operand: "former-widget", targetSlug: "renamed-widget" })).toMatchObject({ status: "renamed" });
   const result = await h.sweep(path, ["kept-arbitrary-name"]);
   expect(result.orphans).toEqual([{ branch: "kept-arbitrary-name", merged: true, shippedWorkUnit: "renamed-widget", teardown: { text: "arc teardown renamed-widget", argv: ["arc", "teardown", "renamed-widget"] }, actions: [{ text: "arc teardown renamed-widget", argv: ["arc", "teardown", "renamed-widget"] }] }]);
 });
@@ -165,4 +165,18 @@ it.each(["snapshot", "run"] as const)("%s offers the archived branch holder's UI
   expect(lifecycleSuccess(await h.store.read({ reference: live.reference }))).toEqual(live);
   expect(lifecycleSuccess(await h.store.version())).toBe(before);
   expect((await h.exec("git", ["rev-parse", branch])).stdout.trim()).toBe(h.head);
+});
+
+it.each(["snapshot", "run"] as const)("%s withholds catch-up for a branch not naming a holder's former slug", async path => {
+  const h = await fixture(), name = "topic/shared";
+  await h.branch(name);
+  const links = { branches: [{ repository, ref: name, linkedAs: "created" as const, excluded: [] }] };
+  const first = await h.seedMeta("one", {}, { kind: "active" }, links);
+  const second = await h.seedMeta("two", {}, { kind: "active" }, links);
+  const result = await h.sweep(path, [name]);
+  for (const record of [first, second]) {
+    expect(result.warnings?.join(" ")).toContain(
+      `No direct rename repair for \`${record.reference.owner.name}\` (UID ${record.reference.owner.type === "work-item" ? record.reference.owner.uid : ""})`);
+  }
+  expect(result.warnings?.join(" ")).not.toContain("arc rename");
 });

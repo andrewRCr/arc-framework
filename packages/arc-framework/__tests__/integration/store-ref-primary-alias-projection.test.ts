@@ -5,6 +5,7 @@ import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { seed, success, testProvenance, update } from "../helpers/store/suite-tools.js";
 import { RecordReferenceSchema, type WriteCheck } from "../../src/lib/store/index.js";
 import { acquireStoreUserReferenceAuthority } from "../../src/lib/store/user-reference-authority.js";
+import { observeRecords } from "../../src/lib/store/record-observations.js";
 import { ArchiveQuarterSchema } from "../../src/lib/kernel/index.js";
 
 describe.each(["default", "separate"] as const)("complete primary aliases in %s", layout => {
@@ -72,8 +73,10 @@ describe.each(["default", "separate"] as const)("complete primary aliases in %s"
     const origin = await make("former"), dependent = await make("dependent", ["former"]);
     const prior = success(await store.read({ reference: origin.reference }));
     const reference = RecordReferenceSchema.parse({ ...origin.reference, owner: { ...origin.reference.owner, name: "current" } });
-    success(await store.write({ action: "put", reference, expected: prior.version,
-      content: makeMetaFixture("current"), placement: { kind: "active" }, provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    success(await store.batch({ writes: [{ action: "put", reference, expected: prior.version,
+      content: makeMetaFixture("current"), placement: { kind: "active" } }],
+    observations: observeRecords([success(await store.read({ reference: dependent.reference }))]),
+    provenance: { verb: "rename", lifecycleAction: "rename" } }));
     const current = success(await store.read({ reference }));
     const remove = { action: "remove" as const, reference, expected: current.version,
       provenance: { verb: "decompose", lifecycleAction: "decompose" } };

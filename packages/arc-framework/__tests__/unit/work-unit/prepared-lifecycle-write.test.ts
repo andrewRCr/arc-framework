@@ -17,6 +17,39 @@ async function fixture() {
 }
 
 describe("prepared lifecycle writes", () => {
+  it("guards an observed record without writing it and succeeds after its evidence is refreshed", async () => {
+    const f = await fixture(), observed = await f.seedMeta("observed");
+    const prepared = { ...f, observations: [{ reference: observed.reference, expected: { version: observed.version, conflicts: observed.conflicts } }] };
+    lifecycleSuccess(await f.store.write({ ...recordPut(observed, { content: writeMetaNextAction(observed.content, "Concurrent") }),
+      provenance: { verb: "edit", lifecycleAction: "edit" } }));
+    const fresh = lifecycleSuccess(await f.store.read({ reference: observed.reference })), before = lifecycleSuccess(await f.store.version());
+    expect(await applyPreparedLifecycleWrite(f.store, prepared, { verb: "wu-reconcile", lifecycleAction: "reconcile" }))
+      .toMatchObject({ status: "refused", refusal: { code: "version-conflict" } });
+    expect(lifecycleSuccess(await f.store.version())).toBe(before);
+    expect(lifecycleSuccess(await f.store.read({ reference: f.meta.reference }))).toEqual(f.meta);
+    expect(await applyPreparedLifecycleWrite(f.store, { ...prepared, observations: [
+      { reference: fresh.reference, expected: { version: fresh.version, conflicts: fresh.conflicts } },
+    ] }, { verb: "wu-reconcile", lifecycleAction: "reconcile" })).toMatchObject({ status: "ok" });
+    expect(lifecycleSuccess(await f.store.read({ reference: f.meta.reference })).content).toContain("Next Action:** Next");
+    expect(lifecycleSuccess(await f.store.read({ reference: observed.reference }))).toEqual(fresh);
+  });
+
+  it("guards an observed absence and succeeds once the added companion is removed", async () => {
+    const f = await fixture(), reference = recordReferences["work-item/companion"](f.meta.reference.owner, "research");
+    const prepared = { ...f, observations: [{ reference, expected: null }] };
+    const added = await f.seed(reference, "# Research\n\nConcurrent evidence.\n"), before = lifecycleSuccess(await f.store.version());
+    expect(await applyPreparedLifecycleWrite(f.store, prepared, { verb: "wu-reconcile", lifecycleAction: "reconcile" }))
+      .toMatchObject({ status: "refused", refusal: { code: "version-conflict" } });
+    expect(lifecycleSuccess(await f.store.version())).toBe(before);
+    expect(lifecycleSuccess(await f.store.read({ reference: f.meta.reference }))).toEqual(f.meta);
+    lifecycleSuccess(await f.store.write({ action: "remove", reference: added.reference, expected: added.version,
+      provenance: { verb: "edit", lifecycleAction: "remove" } }));
+    expect(await applyPreparedLifecycleWrite(f.store, prepared, { verb: "wu-reconcile", lifecycleAction: "reconcile" }))
+      .toMatchObject({ status: "ok" });
+    expect(lifecycleSuccess(await f.store.read({ reference: f.meta.reference })).content).toContain("Next Action:** Next");
+    expect(await f.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
+  });
+
   it("guards a selected cohort document alongside the artifact group", async () => {
     const f = await fixture();
     const cohort = await f.seed(recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "group" })),

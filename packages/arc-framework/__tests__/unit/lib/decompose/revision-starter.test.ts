@@ -134,7 +134,7 @@ it.each(["consumer", "provider"])("carries a renamed %s by stable edge identity 
   const h = await createDecomposeTerminalFixture({ provider: true });
   const target = source === "consumer" ? "follower" : "upstream";
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-    { sourceSlug: source, targetSlug: target })).toMatchObject({ status: "renamed" });
+    { operand: source, targetSlug: target })).toMatchObject({ status: "renamed" });
   const report = await revision(h.ctx);
   expect(report).toMatchObject({ status: "carried", map: { authoring: h.map.authoring } });
   if (report.status !== "carried") throw new Error(JSON.stringify(report));
@@ -182,7 +182,7 @@ it("includes an unrelated generation that reused a gone member's slug in the fre
 it("reports the renamed origin before its changed artifact identities", async () => {
   const h = await createDecomposeTerminalFixture();
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: h.ctx.executor.exec, baseBranch: "main" },
-    { sourceSlug: "origin", targetSlug: "delta" })).toMatchObject({ status: "renamed" });
+    { operand: "origin", targetSlug: "delta" })).toMatchObject({ status: "renamed" });
   expect(await revision(h.ctx, "delta")).toMatchObject({ status: "reauthor", reason: "source-identity", locus: "machine.origin",
     starter: { machine: { origin: { slug: "delta", uid: h.map.machine.origin.uid } } }, storedAuthoring: h.map.authoring });
 });

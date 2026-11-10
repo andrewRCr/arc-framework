@@ -33,7 +33,7 @@ it("refuses a dropped seeded dependency and passes after it is restored through 
 it("compares a renamed seeded provider by owner after the production reference sweep", async () => {
   const h = await createDecomposeTerminalFixture({ provider: true });
   expect(await runStoreRename({ store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main" },
-    { sourceSlug: "provider", targetSlug: "foundation" })).toMatchObject({ status: "renamed" });
+    { operand: "provider", targetSlug: "foundation" })).toMatchObject({ status: "renamed" });
   const member = lifecycleSuccess(await readWorkUnit(h.store, "member-b"));
   expect(member.fields).toMatchObject({ dependsOn: ["foundation"] });
   expect((await check(h.ctx)).status).toBe("ok");
@@ -43,8 +43,8 @@ it.each([false, true])("requires removing a retirement member's origin edge thro
   const h = await createDecomposeTerminalFixture();
   if (alias) {
     const context = { store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main" };
-    expect(await runStoreRename(context, { sourceSlug: "origin", targetSlug: "current-source" })).toMatchObject({ status: "renamed" });
-    expect(await runStoreRename(context, { sourceSlug: "current-source", targetSlug: "origin" })).toMatchObject({ status: "renamed" });
+    expect(await runStoreRename(context, { operand: "origin", targetSlug: "current-source" })).toMatchObject({ status: "renamed" });
+    expect(await runStoreRename(context, { operand: "current-source", targetSlug: "origin" })).toMatchObject({ status: "renamed" });
   }
   const member = lifecycleSuccess(await readWorkUnit(h.store, "member-a"));
   const edited = await h.handEdit(member, writeMetaDependsOn(member.content, ["member-b", alias ? "current-source" : "origin"]));
@@ -99,7 +99,7 @@ it("requires revision for a gone member while leaving its replacement generation
 
 it("names the reverse rename for a member and passes after the production rename restores it", async () => {
   const h = await createDecomposeTerminalFixture();
-  const rename = (sourceSlug: string, targetSlug: string) => runStoreRename({ store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main" }, { sourceSlug, targetSlug });
+  const rename = (sourceSlug: string, targetSlug: string) => runStoreRename({ store: h.store, cwd: "/repo", exec: scriptGitExec([]).exec, baseBranch: "main" }, { operand: sourceSlug, targetSlug });
   expect(await rename("member-b", "current-member")).toMatchObject({ status: "renamed" });
   expect(await check(h.ctx)).toMatchObject({ status: "refused", reason: "member-renamed",
     remedy: { argv: ["arc", "rename", "current-member", "member-b"] } });
