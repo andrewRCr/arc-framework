@@ -61,8 +61,8 @@ the subset is what keeps the commit gate fast. A project with no remote pool run
 
 - `lint:ts:file` runs split in two: about 280 increment runs took 1–11 s, while about 70 merge or forced-gate runs took
   80–190 s, because a gate lints every TypeScript file the branch changed. `lint:ts` over the whole project takes
-  40–90 s on a remote runner. Source: `costMs` per check in the `arc check` results under `.arc/user/andrew/.internal/`,
-  such as `public-ci-cost-guidance-20261027/merge-gate.json` (checkout-local).
+  40–90 s on a remote runner. Source: `costMs` per check in the `arc check` results kept outside the repository,
+  such as `public-ci-cost-guidance-20261027/merge-gate.json`.
 - Routing `lint:ts:file` through the machine runner instead was assessed and dismissed (2026-10-28). The day's
   profiles put a routed plan's overhead at about 20 s before its check runs, so routing would slow the commit and
   increment runs to speed up the merge-gate ones; a cover removes the merge-gate duplicate directly.

@@ -48,8 +48,7 @@
 
 - _Evidence:_ the per-test inventory (`qualification-results.json`), failed job logs (`floor-store-*-failed.log`), and
   the classification with both reproductions (`classification.md`, `reftable-exclude-repro.sh`,
-  `fetch-rejected-ref-repro.sh`) in
-  `/home/andrew/dev/repos/github.com/andrewRCr/arc-framework/.arc/user/andrew/.internal/investigations/weekly-git-floor-2026-10-29/`.
+  `fetch-rejected-ref-repro.sh`) in the `weekly-git-floor-2026-10-29` investigation, kept outside the repository.
 
 - _Captured during:_ triaging the first weekly Git-floor run for the Errand that adds it, 2026-10-30.
 

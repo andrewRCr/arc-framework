@@ -29,8 +29,8 @@
   exact commit/tree reads covering only 47 unique commands. Historical applicability carry replays contribution
   proofs and verifies the same coordinates repeatedly; this is a production cost beyond the fixture cleanup.
 
-- _Evidence:_ Identity-local investigation `review-status-base-movement-timeout-2026-10-19` retains both Git
-  traces, original failure and retry logs, final full-tier results, and the increment proposal. Source loci:
+- _Evidence:_ The `review-status-base-movement-timeout-2026-10-19` investigation, kept outside the repository, retains
+  both Git traces, original failure and retry logs, final full-tier results, and the increment proposal. Source loci:
   `git-review-contribution-applicability.ts`, `git-contribution-proof.ts`, `hosted-applicability-context.ts`, and
   `mechanical-review-applicability-carry.ts`.
 

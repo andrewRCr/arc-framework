@@ -337,7 +337,7 @@
   `arc errand open`, recovery audit) touch the lifecycle write path, so the steering map keeps it clear of the seam.
 
 - _Captured during:_ read-only exploration session on cross-harness agent messaging, including the Herdr label spike
-  (`.arc/user/andrew/tools/herdr-arc-labels.mjs`), 2026-10-14.
+  (`herdr-arc-labels.mjs`, kept outside the repository), 2026-10-14.
 
 ### `[ ]` **Add the `EnterWorktree` case to the Claude Code compaction-seed binding**
 
