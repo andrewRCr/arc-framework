@@ -3,14 +3,20 @@
   "slug": "mint-cutover-window-tooling",
   "claimId": "2badebd8730bdf7d5522d38ea13cb873",
   "createdAt": "2026-11-10T21:46:25.504Z",
-  "updatedAt": "2026-11-10T21:46:25.504Z",
+  "updatedAt": "2026-11-10T21:59:23.400Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Mint cutover-window-tooling, split from cutover-flip at its create-spec entry, and record it in cohort-storage-cutover.md",
   "branch": "chore/mint-cutover-window-tooling",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/mint-cutover-window-tooling",
+    "headSha": "13cb23dc1a562f8f7a594b7b98c39205ec44a4cd"
+  }
 }
