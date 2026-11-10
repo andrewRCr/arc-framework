@@ -9,14 +9,14 @@ import { hasPendingReconcileFindings, prepareCurrentWuReconcile, type CurrentWuR
   type PreparedCurrentWuReconcile } from "./side-effects/discharge-dep-edges.js";
 
 /** Bind complete record acquisition and one version-bound atomic apply. */
-export function buildStoreCurrentWuReconcile(store: Store): CurrentWuReconcileCeremony {
+export function buildStoreCurrentWuReconcile(checkoutRoot: string, store: Store): CurrentWuReconcileCeremony {
   return {
     prepare: async (op) => {
-      const acquired = await createStoreReconcilePrepareContext(store, op.slug, op.reference);
+      const acquired = await createStoreReconcilePrepareContext(checkoutRoot, store, op.slug, op.reference);
       if (acquired.status === "refused") throw new Error(`${acquired.refusal.condition} ${acquired.refusal.remedy.text}`);
       const { primary } = acquired.result;
       const result = await prepareCurrentWuReconcile(acquired.result.context, {
-        ...op, slug: primary.reference.owner.name, metaPath: workUnitMetaPath(primary),
+        ...op, slug: primary.reference.owner.name, metaPath: await workUnitMetaPath(checkoutRoot, primary),
       });
       const writes = result.prepared.edits.map((edit) => {
         const record = acquired.result.byPath.get(edit.path);

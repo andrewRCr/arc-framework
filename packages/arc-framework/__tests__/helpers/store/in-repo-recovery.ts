@@ -6,8 +6,10 @@ import type { GitExec } from "../../../src/lib/git/exec.js";
 import { createReferenceFixture } from "./reference-fixture.js";
 import { seed, success, testProvenance, update, mutationOf } from "./suite-tools.js";
 import type { ConformanceFixture, RecoveryCaseId, RecoveryOperation } from "./fixture-contract.js";
+import { newPersonalAdmission } from "./projection/admission-request.js";
 import { produceRemoteRecovery } from "./in-repo-remote-recovery.js";
 type Repairs = Map<string, () => Promise<void>>;
+const IMPORTED_REGISTRY_REF = "refs/arc/project/registry";
 
 /** Produce an actual refused operation whose retained repair preserves its logical intent.
  * @param fixture - Real tracked checkout.
@@ -58,6 +60,12 @@ export async function produceInRepoRecovery(fixture: ConformanceFixture, exec: G
     await exec("git", ["checkout", "--detach", base]);
     repairs.set(caseId, async () => { await exec("git", ["checkout", "feat/work-item-one"]); });
     return { run: () => fixture.store.write(update(fixture, record)) };
+  }
+  if (caseId === "store-imported") {
+    const head = await fixture.settle();
+    await exec("git", ["update-ref", IMPORTED_REGISTRY_REF, head]);
+    repairs.set(caseId, async () => { await exec("git", ["update-ref", "-d", IMPORTED_REGISTRY_REF]); });
+    return { run: () => fixture.store.write({ action: "put", reference, content: fixture.content(reference), expected: null, provenance: testProvenance }) };
   }
   throw new Error(`No tracked producer: ${caseId}`);
 }
@@ -114,6 +122,17 @@ async function crossSubstrate(fixture: ConformanceFixture, repairs: Repairs, cas
 async function selectCapableBackend(fixture: ConformanceFixture, repairs: Repairs, caseId: RecoveryCaseId): Promise<RecoveryOperation> {
   const capable = createReferenceFixture();
   let switched = false;
+  if (caseId === "unsupported:projection-admission") {
+    repairs.set(caseId, async () => { switched = true; });
+    return { run: () => {
+      const selected = switched ? capable : fixture;
+      const reference = selected.reference("personal/working-memory");
+      const content = selected.content(reference);
+      return selected.store.batch({ writes: [{ action: "put", reference, expected: null, content }],
+        provenance: { verb: "write-back", lifecycleAction: "edit" }, observations: [{ reference, expected: null }],
+        projectionAdmission: newPersonalAdmission(reference, content, reference.owner.name) });
+    } };
+  }
   if (caseId === "unsupported:batch-observations") {
     repairs.set(caseId, async () => { switched = true; });
     return { run: () => {

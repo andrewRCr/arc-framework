@@ -74,3 +74,14 @@ describe("reference saved-state recovery", () => {
     expect(success(await operation.run())).toMatchObject({ content: expect.any(String) });
   });
 });
+
+
+it("distinguishes prepared projection admission conflicts without changing ordinary conflicts", () => {
+  const value = { code: "version-conflict", class: "recoverable", records: [reference],
+    condition: "Prepared projection evidence changed.", remedy: { text: "Prepare the edit again on the next command." } };
+  expect(assertSchemaAccepts(StoreRefusalSchema, { ...value, cause: "projection-admission" }))
+    .toEqual({ ...value, cause: "projection-admission" });
+  expect(assertSchemaAccepts(StoreRefusalSchema, value)).toEqual(value);
+  assertSchemaRefuses(StoreRefusalSchema, { ...value, cause: "unknown" });
+  assertSchemaRefuses(StoreRefusalSchema, { ...common, historyRefs: [], cause: "projection-admission" });
+});

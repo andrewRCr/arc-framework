@@ -22,10 +22,10 @@ interface CompletedDeliverySelection {
   projectId?: () => Promise<string>;
 }
 
-async function readSelectedPrimary(store: Store, name: string, selection: CompletedDeliverySelection): Promise<StoreRecord | null> {
+async function readSelectedPrimary(cwd: string, store: Store, name: string, selection: CompletedDeliverySelection): Promise<StoreRecord | null> {
   if (selection.owner !== undefined) return unwrapReviewRecordResult(store, await readWorkUnit(store, name, selection.owner));
   if (selection.branch !== undefined && selection.branch !== null) {
-    const linked = await readReviewWorkUnitByRef({ store, projectId: selection.projectId }, selection.branch);
+    const linked = await readReviewWorkUnitByRef({ cwd, store, projectId: selection.projectId }, selection.branch);
     if (linked !== null) return linked.name === name ? linked.record : null;
   }
   return unwrapReviewRecordResult(store, await readWorkUnit(store, name));
@@ -49,9 +49,9 @@ export async function readMarkedDeliveryWorkItem(store: Store, cwd: string, name
 export async function readCompletedDeliveryLocus(store: Store, cwd: string, name: string, selection: CompletedDeliverySelection = {}):
   Promise<{ name: string; path: string; workItem?: OwnerIdentity } | null> {
   if (store.capabilities.stateOffBranch) {
-    const primary = await readSelectedPrimary(store, name, selection);
+    const primary = await readSelectedPrimary(cwd, store, name, selection);
     return primary?.placement?.kind === "completed"
-      ? { name: primary.reference.owner.name, path: workUnitMetaPath(primary), workItem: primary.reference.owner } : null;
+      ? { name: primary.reference.owner.name, path: await workUnitMetaPath(cwd, primary), workItem: primary.reference.owner } : null;
   }
   const index = await buildLifecycleIndex({ cwd, fs: {
     readdir: path => readdir(path, { withFileTypes: true }), readFile: path => readFile(path, "utf8"),
@@ -64,7 +64,7 @@ export async function readCompletedDeliveryLocus(store: Store, cwd: string, name
 export async function readDeliveryReviewFixTaskInput(store: Store, cwd: string, locus: { name: string; path: string },
   owner?: OwnerIdentity): Promise<{ taskListPath: string | null; workItem?: OwnerIdentity }> {
   if (store.capabilities.stateOffBranch) {
-    const stored = unwrapReviewRecordResult(store, await readStoredDeliveryEntryInput(store, locus.name, owner));
+    const stored = unwrapReviewRecordResult(store, await readStoredDeliveryEntryInput(cwd, store, locus.name, owner));
     return { taskListPath: stored.taskListPath, workItem: stored.primary.reference.owner };
   }
   const meta = parseMetaFile(await readFile(resolve(cwd, locus.path), "utf8"));

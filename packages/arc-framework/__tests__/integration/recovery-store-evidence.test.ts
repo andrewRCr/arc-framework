@@ -1,14 +1,31 @@
 /** Recovery compares the saved operational task list to current Store bytes. */
-import { expect, it } from "vitest";
+import { expect, it, onTestFinished } from "vitest";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { createLifecycleHarness, lifecycleSuccess } from "../helpers/store/lifecycle-harness.js";
 import { resolveRecoveryTaskListEvidence } from "../../src/lib/recover/task-list-evidence.js";
 import { recordReferences } from "../../src/lib/store/identity.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
+import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { boundWorkUnitSubject } from "../helpers/store/bound-checkout.js";
+import type { StoreRecord } from "../../src/lib/store/read.js";
+
+async function flatCheckout(meta: StoreRecord): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "arc-recovery-evidence-"));
+  onTestFinished(() => rm(root, { recursive: true, force: true }));
+  await writeWorktreeMarker(root, { spawnedByArc: false, spawningIdentity: "test-user", createdAt: "2026-10-17T00:00:00Z",
+    createdFor: boundWorkUnitSubject(meta) });
+  await mkdir(join(root, ".arc/system"), { recursive: true });
+  await writeFile(join(root, ".arc/system/arc-config.yml"), "layout.active: flat\n");
+  return root;
+}
 
 const noGit: GitExec = () => Promise.reject(new Error("Operational evidence must not read the code tree"));
 it("reads the seed's saved task list and the pinned current task list", async () => {
   const h = createLifecycleHarness();
   const meta = await h.seedMeta("subject");
+  const cwd = await flatCheckout(meta);
   const reference = recordReferences["work-item/task-list"](meta.reference.owner);
   const before = "# Tasks\n\n### `[ ]` **1.1 Implement**\n";
   const after = before.replace("[ ]", "[x]");
@@ -24,13 +41,14 @@ it("reads the seed's saved task list and the pinned current task list", async ()
     available = input?.history?.length === 1 && input.history[0] === "refs/arc/history/work/00000000-0000-4000-8000-000000000001";
     return { status: "ok", result: { states: [], pulls: [] } };
   };
-  expect(await resolveRecoveryTaskListEvidence({ cwd: "/absent-checkout", exec: noGit, seedHead: "code-head",
+  expect(await resolveRecoveryTaskListEvidence({ cwd, exec: noGit, seedHead: "code-head",
     taskListPath: ".arc/active/tasks-subject.md", store: h.store, stateVersion }))
     .toEqual({ status: "ok", seed: before, fresh: after });
 });
 
 it("keeps fresh task evidence at the captured recovery snapshot after a later task edit", async () => {
   const h = createLifecycleHarness(), meta = await h.seedMeta("subject");
+  const cwd = await flatCheckout(meta);
   const reference = recordReferences["work-item/task-list"](meta.reference.owner);
   const before = "# Tasks\n\n### `[ ]` **1.1 Earlier**\n\n### `[ ]` **1.2 Later**\n";
   const first = await h.seed(reference, before), stateVersion = lifecycleSuccess(await h.store.version());
@@ -41,7 +59,7 @@ it("keeps fresh task evidence at the captured recovery snapshot after a later ta
   const second = lifecycleSuccess(await h.store.read({ reference }));
   lifecycleSuccess(await h.store.write({ action: "put", reference, expected: second.version, content: captured.replace("[ ]", "[x]"),
     provenance: { verb: "task-close", lifecycleAction: "update" } }));
-  const input = { cwd: "/absent-checkout", exec: noGit, seedHead: "code-head", taskListPath: ".arc/active/tasks-subject.md", store: h.store, stateVersion };
+  const input = { cwd, exec: noGit, seedHead: "code-head", taskListPath: ".arc/active/tasks-subject.md", store: h.store, stateVersion };
   expect(await resolveRecoveryTaskListEvidence({ ...input, currentStateVersion })).toEqual({ status: "ok", seed: before, fresh: captured });
   expect(await resolveRecoveryTaskListEvidence({ ...input, currentStateVersion: null })).toMatchObject({ status: "unavailable",
     message: expect.stringContaining("Repair state availability and retry recovery") });

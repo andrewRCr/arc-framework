@@ -100,7 +100,8 @@ async function prepareRefWriteProposal(context: RefBackendContext, resolved: Res
 /** Land prepared mutations over one captured namespace using expected old ref values. */
 export async function commitRefWrites(context: RefBackendContext, resolved: ResolvedBatch,
   provenance: BatchInput["provenance"], batchId: string, observations: readonly RecordObservation[],
-  observeHistory: (destinations: ReadonlyMap<string, string | null>) => StoreRefusal | undefined): Promise<StoreResult<BatchResult> | RefWriteRetry | "resolve" | "layout-changed"> {
+  observeHistory: (destinations: ReadonlyMap<string, string | null>) => StoreRefusal | undefined,
+  projectionInput?: BatchInput): Promise<StoreResult<BatchResult> | RefWriteRetry | "resolve" | "layout-changed"> {
   const proposal = await prepareRefWriteProposal(context, resolved, provenance, batchId);
   if (proposal === "resolve" || proposal.status === "refused") return proposal;
   const { groups, writes, results, reopens, archives, retirements, historyMoves } = proposal.result;
@@ -120,7 +121,7 @@ export async function commitRefWrites(context: RefBackendContext, resolved: Reso
     const admission = await refAdmissionBasisChanged(physical, tips);
     if (admission.size) return { status: "retry", destinations, observed: admission };
     const proposedCreatedOwners = proposedRefCreatedOwners(resolved, writes, completed);
-    const broken = await checkRefWrites(physical, writes, completed, tips, provenance, proposedCreatedOwners, observations);
+    const broken = await checkRefWrites(physical, writes, completed, tips, provenance, proposedCreatedOwners, observations, projectionInput);
     if (broken) return { status: "refused", refusal: broken };
     const receipt = BatchCreationReceiptSchema.parse({ schemaVersion: 1, batchId, createdOwners: proposedCreatedOwners });
     sweepRefRetirements(retirements, groups, completed);

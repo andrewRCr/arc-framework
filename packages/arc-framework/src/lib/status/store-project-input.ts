@@ -15,6 +15,7 @@ export type StoreProjectViewInput = Required<Pick<ComposeProjectReadinessViewOpt
 
 /** Operational store, configured pause-review age, and optional clock observation. */
 export interface ReadStoreProjectViewOptions {
+  cwd: string;
   store: Store;
   reviewAfterDays: number;
   now?: Date;
@@ -22,7 +23,7 @@ export interface ReadStoreProjectViewOptions {
 
 /** Acquire the complete project input or retain the lifecycle inventory's refusal. */
 export async function readStoreProjectViewInput(options: ReadStoreProjectViewOptions): Promise<StatusViewResult<StoreProjectViewInput>> {
-  const view = await readLifecycleView(options.store);
+  const view = await readLifecycleView(options.cwd, options.store);
   if (view.status === "refused") return { status: "refused", refusal: {
     code: view.refusal.code, condition: view.refusal.condition, remedy: view.refusal.remedy,
   } };

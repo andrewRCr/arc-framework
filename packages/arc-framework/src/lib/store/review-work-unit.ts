@@ -9,7 +9,7 @@ import type { StoreRecord } from "./read.js";
 import type { Store } from "./contract.js";
 
 /** Bound project authority used to reverse a code branch to its work item. */
-export interface ReviewWorkUnitLookup { store: Store; projectId?: () => Promise<string> }
+export interface ReviewWorkUnitLookup { cwd: string; store: Store; projectId?: () => Promise<string> }
 
 /** Exact linked metadata retained independently of any projected file. */
 interface ReviewLinkedWorkUnit {
@@ -47,5 +47,5 @@ export async function readReviewWorkUnitByRef(input: ReviewWorkUnitLookup,
   if (selected.kind === "none") {
     throw new ReviewOwnerSelectionError("corrupt-state", `The selected work unit has no branch link for ${branch}.`, REPAIR_BRANCH_LINKS);
   }
-  return { name: reference.owner.name, path: workUnitMetaPath(record), branch: workBranchName(selected.link.ref), record, meta };
+  return { name: reference.owner.name, path: await workUnitMetaPath(input.cwd, record), branch: workBranchName(selected.link.ref), record, meta };
 }

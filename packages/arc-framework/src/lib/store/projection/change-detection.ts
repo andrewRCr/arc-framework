@@ -22,9 +22,11 @@ export async function readReference(checkout: string): Promise<bigint | null> {
  * Rewrite the racy reference, which follows each index write.
  * @param checkout - The checkout root.
  */
-export async function writeReference(checkout: string): Promise<void> {
+export async function writeReference(checkout: string, checkpoint?: () => Promise<void>): Promise<void> {
   const reference = join(checkout, PROJECTION_REFERENCE);
+  await checkpoint?.();
   await mkdir(dirname(reference), { recursive: true });
+  await checkpoint?.();
   await writeFile(reference, "");
 }
 

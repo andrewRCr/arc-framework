@@ -34,6 +34,7 @@ export const ErrandRefusalReasonSchema = z.enum([
   "stub-ambiguous",
   "authority-unresolved",
   "generation-mismatch",
+  "store-imported",
 ]);
 
 export const ErrandErrorStageSchema = z.enum([

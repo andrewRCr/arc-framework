@@ -50,7 +50,7 @@ async function readMetadata(ports: AttestInputPorts, name: string, newRoot: bool
     if (primary.conflicts.length > 0) return reject(name, newRoot,
       `Attestation metadata has unresolved conflicts.${describeRecordConflicts(primary.conflicts)}`, "Resolve the named conflict records, then retry attestation",
       "Candidate attestation requires settled metadata authority.");
-    return { primary, metaPath: validateManagedPath(workUnitMetaPath(primary)), metaContent: primary.content, meta: fields.result };
+    return { primary, metaPath: validateManagedPath(await workUnitMetaPath(ports.cwd, primary)), metaContent: primary.content, meta: fields.result };
   }
   let metaPath = ports.activeMetaPath(name), metaContent: string;
   try { metaContent = await ports.readFile(materializeArcPath(ports.cwd, metaPath)); }
@@ -79,7 +79,7 @@ async function readTasks(ports: AttestInputPorts, basis: Metadata, name: string,
       const refusal = recordConflictRefusal(task.result, "The task list", "attest.task-list-conflict");
       return { status: "rejected", reason: refusal.condition, remedy: refusal.remedy, refusal };
     }
-    const path = lifecycleRecordPath(basis.primary, task.result);
+    const path = await lifecycleRecordPath(ports.cwd, basis.primary, task.result);
     if (path === null || basis.meta.taskList !== posix.basename(path)) return reject(name, newRoot,
       `\`arc attest\` requires a canonical task-list binding for \`${name}\`.`);
     return { taskListPath: path, taskList: task.result.content, taskListObservation: { reference: task.result.reference,

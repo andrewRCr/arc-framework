@@ -25,7 +25,7 @@ export async function checkDecomposeRemovals(ctx: DecomposeContext, input: Decom
     const inbound = checkRemovedInbound(ctx, member, input);
     if (inbound !== undefined) return inbound;
   }
-  const surviving = await acquireDecomposeSurvivingMembers(ctx.executor.store, input.writes);
+  const surviving = await acquireDecomposeSurvivingMembers(ctx.executor.cwd, ctx.executor.store, input.writes);
   if (surviving.status === "refused") return surviving;
   const names = await decomposeRemovedMemberNames(ctx.executor.store, members);
   if (names.status === "refused") return names;

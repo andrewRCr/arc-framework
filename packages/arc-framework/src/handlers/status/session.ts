@@ -27,6 +27,9 @@ import type { SessionStatusContext } from "./session-context.js";
 import { openDefaultStore } from "../lifecycle-shared.js";
 import { releaseRoutingFromSettings } from "./session-evidence.js";
 import { pullStoreStatus } from "./store-locus.js";
+import { readProjectionStatus } from "../../lib/store/projection/status.js";
+import { createProjectionEnginePorts } from "../../lib/store/projection/engine-ports.js";
+import { readProjectionViewStatus } from "../../lib/store/projection/view-status.js";
 
 function requireGitExecInput(execInput: GitExecInput | undefined): GitExecInput {
   if (execInput === undefined) {
@@ -112,7 +115,7 @@ export function createHandoffProbes(
         if (active === null) return { commitsSinceHandoff: [], tasksClosedSinceHandoff: [], noteFileChangesSinceHandoff: [], baselineSignal: "baseline-unknown" as const };
         const resolved = await store.lookup({ kind: "slug", slug: SlugSchema.parse(active.subject.key) });
         if (resolved.status === "refused") throw new Error(`${resolved.refusal.condition} ${resolved.refusal.remedy.text}`);
-        return deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: resolved.result.reference, identity, sync: context.storeSync });
+        return deriveRestateCandidates({ cwd, exec, sessionNotes: null, store, workUnit: resolved.result.reference, identity, sync: context.storeSync });
       }
       let sessionNotes: string | null = null;
       if (identity !== null) {
@@ -221,6 +224,7 @@ export async function handleRecoverStatus(context: SessionStatusContext, opts: S
  */
 export async function handleCompositeStatus(context: SessionStatusContext, opts: StatusCliOptions): Promise<void> {
   const { cwd, exec, io, identity, role } = context;
+  const store = context.store ?? openDefaultStore(cwd, exec);
   const json = Boolean(opts.json);
   const warnings = context.store?.capabilities.stateOffBranch === true && opts.fetch === true && !opts.local
     ? await pullStoreStatus({ sync: context.storeSync }) : [];
@@ -228,6 +232,8 @@ export async function handleCompositeStatus(context: SessionStatusContext, opts:
     user: (id) => runUserStatus({ cwd, io, identity: id }),
     config: () => runConfigStatus({ cwd }),
     active: () => runActiveStatus({ cwd, exec, store: context.store }),
+    projection: () => readProjectionStatus({ store, checkout: cwd, ports: () => ({ ...createProjectionEnginePorts(cwd), exec }),
+      view: () => readProjectionViewStatus({ store, checkout: cwd, exec }) }),
   };
   const result = await runStatus({ identity, role, probes });
 

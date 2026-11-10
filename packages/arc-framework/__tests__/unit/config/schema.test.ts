@@ -22,6 +22,23 @@ function field(key: string) {
 }
 
 describe("ARC config field catalog", () => {
+  it("defaults the active layout to nested and accepts only its two documented layouts", async () => {
+    const validate = (content: string) => validateConfigFile({ readPath: "selected.yml", displayPath: "selected.yml",
+      readFile: async () => content });
+    expect((await validate("")).lines).toContain("PASS  layout.active: [absent, default: nested]");
+    expect(field("layout.active").defaultValue).toBe("nested");
+    for (const value of ["nested", "flat"]) {
+      assertSchemaAccepts(field("layout.active").schema, value);
+      const result = await validate(`layout.active: ${value}\n`);
+      expect(result.exitCode).toBe(0);
+      expect(result.lines).toContain(`PASS  layout.active: ${value}`);
+    }
+    assertSchemaRefuses(field("layout.active").schema, "unknown");
+    const invalid = await validate("layout.active: unknown\n");
+    expect(invalid.exitCode).toBe(2);
+    expect(invalid.lines).toContain("ERROR layout.active: 'unknown' is not valid (expected: nested flat)");
+  });
+
   it("defaults design tracking to specs and validates both export choices", async () => {
     expect(field("storage.track_design_docs").defaultValue).toBe("specs");
     for (const value of ["specs", "none"]) {
@@ -63,6 +80,7 @@ describe("ARC config field catalog", () => {
       "sync.auto_pull": ["false", "true"],
       "archive.cadence": ["with-integration", "manual"],
       "storage.track_design_docs": ["none", "specs"],
+      "layout.active": ["nested", "flat"],
     };
 
     for (const [key, values] of Object.entries(domains)) {
@@ -306,6 +324,7 @@ describe("ARC config field catalog", () => {
       ["sync.auto_pull", "false"],
       ["archive.cadence", "with-integration"],
       ["storage.track_design_docs", "specs"],
+      ["layout.active", "nested"],
       ["inbox.remind_after_days", "1"],
       ["inbound.retriage_after_entries", "10"],
       ["inbound.retriage_after_days", "30"],

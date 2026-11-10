@@ -54,7 +54,7 @@ export async function repairCli(f: RepairCliFixture, args: readonly string[], op
   try {
     binding.store = options.store ?? f.h.context.store; process.chdir(f.cwd); process.exitCode = undefined;
     const factory = options.storeFactory;
-    await dispatchRegisteredCli(["--no-input", ...args], factory === undefined ? undefined : async () => { binding.store = await factory(); });
+    await dispatchRegisteredCli(["--no-input", ...args], undefined, factory === undefined ? undefined : async () => { binding.store = await factory(); });
     return { exitCode: process.exitCode, stdout, stderr, result: stdout.trim().startsWith("{") ? JSON.parse(stdout) as unknown : null };
   } finally { binding.store = null; stdin?.mockRestore(); out.mockRestore(); err.mockRestore(); process.chdir(oldCwd); process.exitCode = oldExit; }
 }

@@ -9,7 +9,7 @@ import { resolveCandidateMutationOwner, resolveCompletedCandidateOwners, resolve
 import type { ReviewResult } from "../core/review-result.js";
 import type { ReviewInvocationInput } from "./invocation.js";
 
-type RespondOwnerInput = { store?: Store; workItem?: OwnerIdentity; projectId?: () => Promise<string> };
+type RespondOwnerInput = { cwd: string; store?: Store; workItem?: OwnerIdentity; projectId?: () => Promise<string> };
 
 /**
  * Whether the checkout owns this work unit's Candidate. Natively the bound work item must be the checkout's own
@@ -20,7 +20,7 @@ export async function ownsBoundCandidate(input: RespondOwnerInput, owner: Candid
   if (owner.status !== "owned" || owner.workUnit !== workUnit) return false;
   if (input.store?.capabilities.stateOffBranch !== true || input.workItem === undefined) return true;
   if (input.workItem.name !== workUnit) return false;
-  const generation = await resolveOwnedCandidateGeneration(input.store, owner, input.projectId);
+  const generation = await resolveOwnedCandidateGeneration(input.cwd, input.store, owner, input.projectId);
   return generation !== undefined && sameOwner(generation, input.workItem);
 }
 

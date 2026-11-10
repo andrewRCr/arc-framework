@@ -180,7 +180,8 @@ it.each(["close", "abandon"])("renders a partial UID's not-found repair as text 
 it.each(["close", "abandon"])("reports a thrown listing boundary under the %s identity-read stage", async verb => {
   const f = await fixture("partial");
   f.store = createRefStore({ ...f.ports, rawExec: async () => { throw new Error("Injected raw Git failure"); } });
-  const result = await invoke(f, f.root, ["errand", verb, uidA, "--json"]);
+  // Command-entry projection reads the same store first; skip it so the failure reaches the Errand's identity read.
+  const result = await invoke(f, f.root, ["--skip-projection", "errand", verb, uidA, "--json"]);
   expect(result, JSON.stringify(result)).toMatchObject({ exitCode: 1, result: { outcome: "error",
     error: { code: `locus.errand-${verb}.identity-read`, message: expect.stringContaining("Injected raw Git failure") } } });
 }, 60_000);

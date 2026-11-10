@@ -7,6 +7,8 @@
  */
 import { rejectUnsupportedReviewJson, rejectUnsupportedReviewOutputJson } from "./lib/command-input/review-json-option.js";
 import { formatCommandPath } from "./lib/command-input/command-path.js";
+import { registerProjectionHooks } from "./lib/store/projection/command-hooks.js";
+import { projectionCommandBinding } from "./lib/store/projection/engine.js";
 
 import { fileURLToPath } from "node:url";
 
@@ -129,6 +131,7 @@ program
   .name("arc")
   .description("CLI for installing, updating, and managing ARC framework files")
   .option("--no-input", "Forbid prompts, presenters, editors, and ambient child-process input")
+  .option("--skip-projection", "Skip automatic projection work for this command, leaving edits pending")
   .version(getFrameworkVersion());
 
 // --- Checks ---
@@ -1840,6 +1843,47 @@ recoverCmd
     },
   ));
 
+// --- Editor ---
+
+program
+  .command("editor")
+  .description("Configure checkout editor settings for projected files")
+  .argument("<editor>", "Editor to configure (vscode or zed)")
+  .option("--remove", "Remove ARC's editor settings")
+  .action(withInteractionContext({}, async (_context, editor: "vscode" | "zed", opts: { remove?: boolean }) => {
+    const binding = projectionCommandBinding();
+    await (await import("./handlers/editor.js")).handleEditor({ editor, ...opts }, binding.store, binding.checkout);
+  }));
+
+// --- Selection ---
+
+program
+  .command("selection")
+  .description("List editable projected Markdown files")
+  .option("--changed", "List only files changed since the last arc save")
+  .option("--json", "Emit the selected paths as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (_context, opts: { changed?: boolean; json?: boolean }) => {
+      const binding = projectionCommandBinding();
+      await (await import("./handlers/selection.js")).handleSelection(opts, binding.store, binding.checkout);
+    },
+  ));
+
+// --- Save ---
+
+program
+  .command("save")
+  .description("Save pending edits in every projected root")
+  .option("--resolve <conflict>", "Resolve an indexed conflict shown without markers")
+  .option("--json", "Emit the complete save result as JSON")
+  .action(withInteractionContext(
+    { machineReadable: (opts) => opts.json === true },
+    async (_context, opts: { resolve?: string; json?: boolean }) => {
+      await (await import("./handlers/save.js")).handleSave(opts, projectionCommandBinding().store);
+    },
+  ));
+
 // --- Sync (orchestrator) ---
 
 program
@@ -2540,6 +2584,8 @@ program.hook("postAction", async () => {
   );
   process.exitCode = 1;
 });
+
+registerProjectionHooks(program, { mint: async input => (await import("./handlers/projection-stub.js")).mintProjectionStub(input) });
 
 // --- Entry ---
 

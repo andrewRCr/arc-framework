@@ -41,10 +41,10 @@ export async function runStoreArchive(ctx: ArchiveContext & { executor: ArchiveC
   }
   const meta = parsed.data;
   if (primary.placement?.kind === "completed" && meta.state === "Shipped" && meta.currentWorkflow === null) {
-    return settleStoredArchive(store, primary, completedOutcome());
+    return settleStoredArchive(ctx.executor.cwd, store, primary, completedOutcome());
   }
   const date = ctx.clock(), quarter = ArchiveQuarterSchema.parse(`${date.getFullYear()}-q${Math.floor(date.getMonth() / 3) + 1}`);
-  const view = await readLifecycleView(store);
+  const view = await readLifecycleView(ctx.executor.cwd, store);
   if (view.status === "refused") return { status: "rejected", reason: view.refusal.condition, refusal: view.refusal };
   try { requireCompleteInventory(store, view.result.listing); }
   catch (error) { return { status: "rejected", reason: String(error) }; }
@@ -63,25 +63,25 @@ export async function runStoreArchive(ctx: ArchiveContext & { executor: ArchiveC
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message,
     ...("refusal" in outcome && outcome.refusal !== undefined ? { refusal: outcome.refusal } : {}),
     ...("remedy" in outcome && outcome.remedy !== undefined ? { remedy: outcome.remedy } : {}) };
-  return settleStoredArchive(store, primary, outcome);
+  return settleStoredArchive(ctx.executor.cwd, store, primary, outcome);
 }
 
 // Every notice a push raised joins the archive's warnings, or the reason of any rejection after publication.
-async function settleStoredArchive(store: Store, primary: StoreRecord, outcome: Extract<TransitionOutcome, { status: "ok" }>): Promise<ArchiveResult> {
-  const notices: string[] = [], result = await settleStoredArchiveSteps(store, primary, outcome, notices);
+async function settleStoredArchive(checkoutRoot: string, store: Store, primary: StoreRecord, outcome: Extract<TransitionOutcome, { status: "ok" }>): Promise<ArchiveResult> {
+  const notices: string[] = [], result = await settleStoredArchiveSteps(checkoutRoot, store, primary, outcome, notices);
   return result.status === "rejected" && notices.length ? { ...result, reason: `${result.reason} Also reported: ${notices.join(" ")}` } : result;
 }
 
-async function settleStoredArchiveSteps(store: Store, primary: StoreRecord, outcome: Extract<TransitionOutcome, { status: "ok" }>,
+async function settleStoredArchiveSteps(checkoutRoot: string, store: Store, primary: StoreRecord, outcome: Extract<TransitionOutcome, { status: "ok" }>,
   notices: string[]): Promise<ArchiveResult> {
   const name = primary.reference.owner.name;
   try {
     const publication = await publishArchive(store, name, notices);
     if (publication !== undefined) return publication;
     for (;;) {
-      const plan = await prepareStoredCloseout(store, primary);
+      const plan = await prepareStoredCloseout(checkoutRoot, store, primary);
       if (plan.status === "rejected") return plan;
-      if (plan.writes.length === 0) return await reportStoredArchive(store, plan.primary, outcome,
+      if (plan.writes.length === 0) return await reportStoredArchive(checkoutRoot, store, plan.primary, outcome,
         cohortReferencesFor(plan.cohort), [...notices, ...plan.notices]);
       const closeout = await publishCohortCloseout(store, name, plan, notices);
       if (closeout !== undefined) return closeout;
@@ -89,7 +89,7 @@ async function settleStoredArchiveSteps(store: Store, primary: StoreRecord, outc
   } catch (error) { return persistedFailure(name, error instanceof Error ? error.message : String(error)); }
 }
 
-async function prepareStoredCloseout(store: Store, primary: StoreRecord): Promise<
+async function prepareStoredCloseout(checkoutRoot: string, store: Store, primary: StoreRecord): Promise<
   { status: "ready"; primary: StoreRecord; cohort: string | null; writes: Mutation[]; records: StoreRecord[]; completed: StoreRecord[]; notices: string[] }
   | Extract<ArchiveResult, { status: "rejected" }>> {
   const name = primary.reference.owner.name;
@@ -97,7 +97,7 @@ async function prepareStoredCloseout(store: Store, primary: StoreRecord): Promis
   if (current.status === "refused") return reportFailure(name, current.refusal);
   const meta = ParsedMetaRecordSchema.parse(current.result.fields), placement = current.result.placement;
   if (placement?.kind !== "completed") throw new Error("The persisted archive no longer has completed placement.");
-  const view = await readLifecycleView(store);
+  const view = await readLifecycleView(checkoutRoot, store);
   if (view.status === "refused") return reportFailure(name, view.refusal);
   requireCompleteInventory(store, view.result.listing);
   const cohorts = await prepareArchiveCohorts(store, current.result, archiveMemberCandidates(view.result.entries), placement.quarter, false);
@@ -178,7 +178,7 @@ function persistedFailure(name: string, reason: string, remedy?: Remedy, refusal
     remedy: { text: `${remedy?.text ?? "Repair the reported condition."} Retry archive to settle publication and closeout.`, argv: ["arc", "archive", name] } };
 }
 
-async function reportStoredArchive(store: Store, primary: StoreRecord, outcome: Extract<TransitionOutcome, { status: "ok" }>,
+async function reportStoredArchive(checkoutRoot: string, store: Store, primary: StoreRecord, outcome: Extract<TransitionOutcome, { status: "ok" }>,
   cohortReferences: readonly RecordReference[], notices: readonly string[]): Promise<ArchiveResult> {
   const placement = primary.placement;
   if (placement?.kind !== "completed" || !("sequence" in placement)) throw new Error("Archive result lacks its backend-assigned sequence");
@@ -188,7 +188,7 @@ async function reportStoredArchive(store: Store, primary: StoreRecord, outcome: 
     if (cohort.status === "refused") return reportFailure(primary.reference.owner.name, cohort.refusal);
     if (cohort.result.placement?.kind === "completed") paths.push(completedCohortPath(cohort.result));
   }
-  const metaPath = workUnitMetaPath(primary);
+  const metaPath = await workUnitMetaPath(checkoutRoot, primary);
   return { status: "archived", outcome, metaPath, destination: { quarter: placement.quarter, sequence: placement.sequence, toDir: posix.dirname(metaPath) },
     cohortSwept: paths[0] ?? null, nestedParentSwept: paths[1] ?? null, warnings: [...notices] };
 }

@@ -105,8 +105,8 @@ it("accepts a started member's seeded edge after its own production reconcile dr
   lifecycleSuccess(await h.store.write({ ...recordPut(member, { placement: { kind: "active" } }), provenance: { verb: "start", lifecycleAction: "start" } }));
   await h.seedRetiredWorkUnit(lifecycleSuccess(await readWorkUnit(h.store, "provider")));
   const current = lifecycleSuccess(await readWorkUnit(h.store, "member-b"));
-  const reconcile = buildStoreCurrentWuReconcile(h.store);
-  const prepared = await reconcile.prepare({ slug: "member-b", metaPath: workUnitMetaPath(current) });
+  const reconcile = buildStoreCurrentWuReconcile("/project", h.store);
+  const prepared = await reconcile.prepare({ slug: "member-b", metaPath: await workUnitMetaPath("/project", current) });
   expect(prepared).toMatchObject({ status: "pending", prepared: { plan: { dependency: { after: [] } } } });
   expect(await reconcile.apply(prepared.prepared)).toMatchObject({ status: "applied" });
   expect(lifecycleSuccess(await readWorkUnit(h.store, "member-b"))).toMatchObject({ placement: { kind: "active" }, fields: { dependsOn: [] } });

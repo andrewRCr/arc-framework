@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { scriptGitExec, type GitExecCall } from "../../../../../helpers/git-exec-fake.js";
 import { createReviewTarget } from "../../../../../../src/scripts/review-gate/core/gate-contract-v2.js";
-import { confirmLocalReviewCorrectionTarget } from
+import { assertLocalReviewTargetBase, confirmLocalReviewCorrectionTarget } from
   "../../../../../../src/scripts/review-gate/hosts/local/repository-target.js";
 
 const headSha = "c".repeat(40);
@@ -86,4 +86,14 @@ describe("local correction target dirt authorization", () => {
     })).rejects.toThrow("rename/copy status lacks its source path");
     expectExactReads(calls);
   });
+});
+
+it("retains a delivery predecessor even when the local base branch is unavailable", async () => {
+  const memberTarget = createReviewTarget({ schemaVersion: 2, semanticsVersion: "review-gate/v2",
+    kind: "delivery-member", repositoryId: target.repositoryId, baseRef: "main",
+    diffBaseSha: target.diffBaseSha, diffBaseTree: target.diffBaseTree,
+    headSha: target.headSha, headTree: target.headTree });
+  await expect(assertLocalReviewTargetBase({ cwd: "/repo", target: memberTarget,
+    exec: async (): Promise<never> => { throw new Error("No local base branch is available"); },
+  })).resolves.toBeUndefined();
 });

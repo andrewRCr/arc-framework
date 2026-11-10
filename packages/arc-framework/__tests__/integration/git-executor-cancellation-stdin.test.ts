@@ -5,6 +5,7 @@ import { basename, join, resolve } from "node:path";
 import { inspect, promisify } from "node:util";
 import { beforeAll, expect, it, onTestFailed, onTestFinished } from "vitest";
 import { createTempRepoCore, removeGitBackedDir } from "../helpers/temp-repo.js";
+import { killOwnedProcesses, type ProcessRow } from "../helpers/owned-processes.js";
 import { quoteShellArgument } from "../../src/lib/release/commit-message-retry.js";
 
 const run = promisify(execFile);
@@ -12,6 +13,17 @@ const WINDOWS_OBSERVER_SETUP_TIMEOUT_MS = 30_000;
 const traceDirectory = resolve(import.meta.dirname, "../../.test-cost-runs/cancellation-stdin");
 let observerSetup: { node: string; durationMs: number } | undefined;
 const windowsProcessQuery = 'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId) $($_.CommandLine)" }';
+
+/** Read every process's PID and command line. */
+async function processTable(): Promise<ProcessRow[]> {
+  const { stdout } = process.platform === "win32"
+    ? await run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", windowsProcessQuery])
+    : await run("ps", ["-A", "-o", "pid=,args="]);
+  return stdout.split(/\r?\n/u).flatMap((line) => {
+    const match = /^\s*(\d+)\s+(.*)$/u.exec(line);
+    return match ? [{ pid: Number(match[1]), command: match[2] ?? "" }] : [];
+  });
+}
 
 // Initialize the cold Windows observer before a controller starts timing backpressured Git input.
 beforeAll(async () => {
@@ -52,8 +64,10 @@ it.each(["native raw", "execa raw", "execa stdin", "execa plain"])("settles back
       await writeFile(tracePath + ".parent.json", JSON.stringify(parentRecord()) + "\n");
     } finally {
       const pid = Number(await readFile(ready, "utf8").catch(() => ""));
+      // Cancellation normally ended the blocked child already, so its PID may now be another process's.
+      const marker = ready.replaceAll("\\", "/");
       if (Number.isSafeInteger(pid) && pid > 0) {
-        try { process.kill(pid, "SIGKILL"); } catch { /* The cancellation already ended its owned child. */ }
+        await killOwnedProcesses(new Map([[pid, (command: string) => command.replaceAll("\\", "/").includes(marker)]]), processTable);
       }
       await removeGitBackedDir(root);
     }

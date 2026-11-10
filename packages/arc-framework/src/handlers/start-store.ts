@@ -35,7 +35,7 @@ export async function handleStoreStart(input: Input, ctx: StoreStartContext): Pr
   if (store === undefined) throw new Error("Store start requires an operational store");
   if (input.here && input.name === undefined && ctx.admitColdStart !== undefined) { await ctx.admitColdStart(input); return; }
   if (input.name === undefined) { refuse("Store-backed start requires a work-unit name; supply arc start <name>."); return; }
-  const view = await readLifecycleView(store);
+  const view = await readLifecycleView(ctx.cwd, store);
   if (view.status === "refused") { refuse(view.refusal.condition, view.refusal); return; }
   try { requireCompleteInventory(store, view.result.listing); }
   catch (error) { refuse(String(error)); return; }

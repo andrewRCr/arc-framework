@@ -76,4 +76,79 @@ None on unlanded members.
 
 - _Captured during:_ `seam-locus` create-spec, 2026-10-12.
 
+### `[ ]` **Remove `arc user inbox-list` once the flip moves its three callers onto `arc inbox`**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-06).
+
+- _Shapes:_ its deletion set from #1, and that set's survivors.
+
+- _Observation:_ at the flip, `create-spec`'s owner's pass, `activate-work-unit`'s pre-condition gate, and the start of
+  `verify-work-unit` move from `arc user inbox-list --target <slug>` onto `arc inbox` (`cutover-flip`'s inbound #11;
+  `spec-seam-locus.md` § 1.5 lists the old verb among the arms the deletion pass removes), so the verb is inert from
+  then. Its reader, `lib/user-sync/inbox-target.ts`, sits in the notes machinery this unit deletes and is not a
+  survivor, but its handler (`handlers/user-inbox-list.ts`) and its command registration are not in the deletion set.
+  The inbox writer and the `user inbox` mutations stay survivors.
+
+- _Approach:_ delete the handler, its registration, and `inbox-target.ts` with the notes machinery.
+
+- _Captured during:_ `cutover-flip` draft-design, the Owner's planning pass, 2026-11-06 (Owner-approved; the target has
+  no session).
+
+### `[ ]` **Delete the old notes ref the cutover window moves aside, with the notes residue refs**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-06).
+
+- _Shapes:_ its notes residue refs (draft § Scope: `refs/notes/test` and `refs/notes/tmp-remote-andrew*`).
+
+- _Observation:_ the cutover window's last step moves the importing machine's notes ref
+  (`refs/notes/arc/user/<id>`) under a namespace that is neither a tag nor pushed, so `git push --tags` cannot publish
+  every past personal note, and amends ADR-035 item 8 to match (`draft-cutover-flip.md` § Notes retirement). That draft
+  names this unit as the one that deletes it with the notes residue refs, but this unit's draft lists only
+  `refs/notes/test` and `refs/notes/tmp-remote-andrew*`, so the routing never landed. `origin` holds no notes refs
+  (deleted 2026-10-06), so the old ref exists only on the importing machine.
+
+- _Approach:_ add it to the residue refs this unit deletes, once nothing reads it as a fallback after the window.
+
+- _Captured during:_ `cutover-flip` draft-design, planning review's source-grounding, 2026-11-06 (Owner-approved; the
+  target has no session).
+
+### `[ ]` **Move the notes lock's surviving callers onto the store's write serialization before deleting it**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-06).
+
+- _Shapes:_ the deletion set from #1 and its survivors.
+
+- _Observation:_ `spec-storage-contract.md` D15: "The inbox writer's lock moves onto the contract's per-surface write
+  serialization before the notes-lock code is deleted; `getNotesLockPath` and `getRepoSharedUserInternalDir` then
+  retire with notes sync." Three callers of `getNotesLockPath` (`lib/user-sync/notes-lock.ts`) survive the flip: the
+  personal-reference reconcile's store arm (`handlers/user-reference-store.ts`), which runs from the flip; the inbox
+  writer's binding (`lib/store/personal-command-store.ts`); and the `locks.notes` port
+  (`lib/store/default-store-ports.ts`). This unit's draft deletes "the notes machinery in `lib/user-sync/`" and keeps
+  the inbox writer as a survivor, but names neither the lock nor the move, so the deletion as drafted breaks a store
+  arm that runs after the flip.
+
+- _Approach:_ move each caller onto the store's per-surface write serialization first, then delete `notes-lock.ts`
+  with `getRepoSharedUserInternalDir`.
+
+- _Captured during:_ `cutover-flip` draft-design, planning review's expected-contract sweep, 2026-11-06
+  (Owner-approved; the target has no session).
+
+### `[ ]` **Reconcile keeping `isCasRejectionError` with the ref backend's retiring it**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-06).
+
+- _Shapes:_ the survivor list's Git failure-text predicates.
+
+- _Observation:_ this unit's draft keeps `isCasRejectionError` as a survivor moved to `lib/git/ref-tree.ts`, as
+  `draft-cutover-tracked-state-removal.md` does, while `spec-storage-ref-backend.md` § 11.1 and § 13.2 have it retire
+  with notes. Its callers today are `lib/git/ref-tree.ts`, `lib/user-sync/cas-retry.ts`,
+  `lib/user-sync/compaction.ts`, `lib/errand/identity-transaction.ts`, and `commands/user/push-fetch.ts`, most of which
+  the cutover deletes.
+
+- _Approach:_ decide from the callers that survive both deletion passes, and record the departure from the ref
+  backend's specification if it stays.
+
+- _Captured during:_ `cutover-flip` draft-design, planning review's expected-contract sweep, 2026-11-06
+  (Owner-approved; the target has no session).
+
 ---

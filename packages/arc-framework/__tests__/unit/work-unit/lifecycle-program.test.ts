@@ -51,7 +51,7 @@ function executor(h: ReturnType<typeof createLifecycleHarness>, git: ReturnType<
   return { store: h.store, cwd: "/holder", exec: git.exec, execRaw: git.raw, projectId: async () => "repo", locusPorts: git.locusPorts,
     indexFs: { readFile: forbidden, readdir: forbidden }, setPhase: forbidden, reconcileBranch: forbidden, reconcileWorkUnitWorktree: forbidden,
     relocateArtifacts: forbidden, writeSoftFields: forbidden, writeBranchField: forbidden, writeCurrentWorkflowField: forbidden, writeDesignField: forbidden,
-    currentWuReconcile: buildStoreCurrentWuReconcile(h.store) };
+    currentWuReconcile: buildStoreCurrentWuReconcile("/project", h.store) };
 }
 it.each(["created", "adopted"] as const)("keeps one UID and sticky %s provenance through activation, deactivation, reactivation and rename", async (linkedAs) => {
   const h = createLifecycleHarness(), git = repository();

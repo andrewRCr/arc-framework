@@ -5,9 +5,11 @@ import type { FixtureDeclarations } from "./fixture-contract.js";
 /** Ref mutations are local and support observations, history, placement, links, and UID rename. */
 export const refRefusalExclusions: FixtureDeclarations["refusalExclusions"] = {
   "checkout-not-writable": "Ref writes do not require authority to edit the tracked checkout.",
+  "store-imported": "The ref store is the import's destination; only the interim backend's writes are sealed.",
   "unsupported:cross-substrate-batch": "Every ref batch publishes through one local ref transaction.",
   "unsupported:uncovered-state-version": "Ref manifests cover every served family.",
   "unsupported:work-item-kind-required": "Ref listings enumerate every registered kind in the family.",
+  "unsupported:projection-admission": "Ref batches replay prepared projection decisions at serialized publication.",
   "unsupported:batch-observations": "Ref batches validate read observations atomically with their writes.",
   "unsupported:personal-history": "Ref storage records personal history.",
   "unsupported:links-write": "Ref storage writes work-item links.",

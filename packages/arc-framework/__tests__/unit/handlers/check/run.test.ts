@@ -658,9 +658,13 @@ it("keeps a completed batch failure when the request is interrupted during a lat
 });
 
 
-it("keeps the unconnected projected selection empty and successful", async () => {
-  expect(await readProjectedSelection("/unused", { changed: false })).toEqual({ status: "ok", paths: [] });
-  expect(await readProjectedSelection("/unused", { changed: true })).toEqual({ status: "ok", paths: [] });
+it("reads full and changed scope through the connected projected selection reader", async () => {
+  const paths = [".arc/active/current/notes-alpha.md", ".arc/active/current/research-alpha.md"];
+  const io = { createStore: () => ({ capabilities: { stateOffBranch: true } }),
+    run: async (_command: string, args: readonly string[]) => ({ exitCode: 0,
+      stdout: JSON.stringify({ paths: args.includes("--changed") ? paths.slice(0, 1) : paths }), stderr: "" }) };
+  expect(await readProjectedSelection("/unused", { changed: false }, io)).toEqual({ status: "ok", paths });
+  expect(await readProjectedSelection("/unused", { changed: true }, io)).toEqual({ status: "ok", paths: paths.slice(0, 1) });
 });
 
 it.each([

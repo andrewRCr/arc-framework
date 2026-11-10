@@ -25,7 +25,7 @@ it.each(["authority", "prepared-context"] as const)("keeps %s available during a
     return h.store.lookup(input);
   };
   const result = mode === "authority" ? await acquireStoreUserReferenceAuthority(racing)
-    : await createStoreUserReferencePrepareContext({ store: racing, identity: "test-user" });
+    : await createStoreUserReferencePrepareContext({ cwd: "/project", store: racing, identity: "test-user" });
   expect(result).toMatchObject({ status: "ok" });
   expect(lifecycleSuccess(await h.store.version())).not.toBe(before);
   expect(lifecycleSuccess(await h.store.read({ reference: current.reference }))).toEqual(current);
@@ -80,7 +80,7 @@ it("accepts a resolved current-name replacement while the earlier generation ret
   for (let attempt = 0; attempt < 2; attempt++) {
     expect(await acquireStoreUserReferenceAuthority(h.store)).toMatchObject({ status: "ok", result: { transitions: [] } });
   }
-  expect(await createStoreUserReferencePrepareContext({ store: h.store, identity: "test-user" }))
+  expect(await createStoreUserReferencePrepareContext({ cwd: "/project", store: h.store, identity: "test-user" }))
     .toMatchObject({ status: "ok", result: { authority: { transitions: [] } } });
 });
 it("returns the actual versioned alias authority while preserving the transition-only API", async () => {

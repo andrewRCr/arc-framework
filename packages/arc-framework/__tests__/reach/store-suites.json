@@ -21,6 +21,15 @@
   ],
   "scripts": ["packages/arc-framework/__tests__/fixtures/store/"],
   "locating": [
+    { "module": "packages/arc-framework/src/cli.ts", "finds": ["packages/arc-framework/src/cli.ts"] },
+    {
+      "module": "packages/arc-framework/src/scripts/validate-frontmatter.ts",
+      "finds": ["packages/arc-framework/src/scripts/validate-frontmatter.ts"]
+    },
+    {
+      "module": "packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts",
+      "finds": ["packages/arc-framework/src/scripts/remedy-roadmap-conflict.ts"]
+    },
     {
       "module": "packages/arc-framework/src/lib/paths.ts",
       "finds": [

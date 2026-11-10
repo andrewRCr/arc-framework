@@ -17,8 +17,9 @@ import { malformed, ok, namespaceAdmission, recordAdmission, refused, surfaceLoc
 import { splitEntryList } from "../../../src/lib/store/concurrency/index.js";
 import { entryConfig, mergeBase, mergeContents, persistedContent, storeConflicts } from "./merge.js";
 import { withStateQueue } from "./state-queue.js";
-import { checkPreparedWrites } from "./write-checks.js";
+import { checkPreparedWrites, createReferenceWriteBefore } from "./write-checks.js";
 import { indexIdentities } from "./identities.js";
+import { checkProjectionAdmission, projectionObservationRefusal } from "../../../src/lib/store/projection/admission-check.js";
 import { checkRecordObservations } from "../../../src/lib/store/record-observations.js";
 import { readReference } from "./read.js";
 import { proposedBirths, retainCreationReceipt } from "./creation-receipts.js";
@@ -304,7 +305,9 @@ export async function batchReference(context: ReferenceContext, input: BatchInpu
       if (admission) return refused(admission);
     }
     const observed = await checkRecordObservations({ read: async (reading) => readReference(context, reading) }, observations);
-    if (observed.status === "refused") return observed;
+    if (observed.status === "refused") return refused(projectionObservationRefusal(input, observed.refusal));
+    const projection = await checkProjectionAdmission(createReferenceWriteBefore(context), input, context.registry, context.environment.identity);
+    if (projection) return refused(projection);
     const prepared = { ...context, state: structuredClone(context.state) };
     const generations = prepareGenerations(prepared, writes), mutations = generations.mutations;
     const keys = new Set<string>();

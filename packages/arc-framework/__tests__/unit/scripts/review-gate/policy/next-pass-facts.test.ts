@@ -162,7 +162,8 @@ it("reports the trend as each complete pass's critical and major counts, without
       reading: { kind: "converging", rationale: "One major finding is left, in the new pass's own code." } },
   });
   expect(text).toContain("\n\n---\n\n**Trend:** converging — One major finding is left, in the new pass's own code.\n\n"
-    + "Critical and major findings, each full pass then its fix checks:\n- Pass 1 of 4: 0 → 0\n- Pass 2 of 4: 1 (this look)\n\n"
+    + "Critical and major findings, each full pass then its fix checks:\n- Standard pass 1: 0 → 0\n"
+    + "- Standard pass 2: 1 (this look)\n\n"
     + "**Decisions**");
   for (const absent of ["Looks:", "Origins:", "Round ", "forecast", "material", "provisional"]) {
     expect(text).not.toContain(absent);
@@ -190,11 +191,11 @@ it("marks a current fix check as this look, labels a look before the first pass 
     }).dispositionReportText;
   };
   const series = "Critical and major findings, each full pass then its fix checks:\n";
-  expect(render(facts)).toContain(`${series}- Pass 1 of 4: 0 → 1 (this look)\n\n`);
+  expect(render(facts)).toContain(`${series}- Standard pass 1: 0 → 1 (this look)\n\n`);
   const earlier = { producerId: "earlier", logicalPass: 1, coverage: "fix-check" as const, outcome: "findings" as const,
     materialCount: null, provisional: false };
   expect(render({ ...facts, materialTrend: [earlier, ...facts.materialTrend] }))
-    .toContain(`${series}- Before pass 1: unknown\n- Pass 1 of 4: 0 → 1 (this look)\n\n`);
+    .toContain(`${series}- Standard before pass 1: unknown\n- Standard pass 1: 0 → 1 (this look)\n\n`);
   const quiet = render({ ...facts, materialTrend: facts.materialTrend.map(look => ({ ...look, materialCount: 0 })) });
   expect(quiet).toContain("**Trend:** converging — One repair is left.\n\nNo critical or major findings at any look.\n\n"
     + "**Decisions**");

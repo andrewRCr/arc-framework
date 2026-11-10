@@ -4,6 +4,15 @@ import type { TextConflictRecord, SideLabel } from "../conflict.js";
 import type { RecordReference, RecordVersion } from "../identity.js";
 import { alignMergedTables, compareTablePadding } from "./table-padding.js";
 
+/** One preserved side's exact lines, distinguishing no lines from one blank line. */
+export interface ConflictLineSide { readonly lines: readonly string[]; readonly label: SideLabel }
+/** A caller-owned inline drawing, kept independent of any projection or storage policy. */
+export interface ConflictMarkerInput {
+  readonly current: ConflictLineSide;
+  readonly incoming: ConflictLineSide;
+  readonly length: number;
+}
+
 /** Role-labelled inputs; a conflict always keeps the store's current side. */
 export interface MergeTextInput {
   readonly base: string;
@@ -13,11 +22,12 @@ export interface MergeTextInput {
   readonly record: RecordReference;
   readonly currentLabel: SideLabel;
   readonly incomingLabel: SideLabel;
+  readonly conflictMarkers?: { readonly length: number; readonly render: (input: ConflictMarkerInput) => readonly string[] };
 }
 /** Text to persist and the clashes to store alongside it. */
 export interface MergeTextResult { content: string; conflicts: TextConflictRecord[] }
 
-/** Merge complete text without inline conflict markers.
+/** Merge complete text, optionally drawing its labelled conflicts inline.
  * @param input - Base and caller-labelled current and incoming versions.
  * @returns Merged text retaining the current side of every conflicting hunk.
  */
@@ -42,8 +52,11 @@ export function mergeLineText(input: MergeTextInput): MergeTextResult {
         currentLines.push(origin);
       }
     } else {
-      result.push(...current.slice(region.aStart,region.aStart + region.aLength));
-      currentLines.push(...Array.from({length:region.aLength},(_,index) => region.aStart + index));
+      const retained = current.slice(region.aStart,region.aStart + region.aLength);
+      const drawn = drawConflict(input, retained, incoming.slice(region.bStart,region.bStart + region.bLength),
+        sameLines(region.aContent,region.bContent));
+      result.push(...drawn ?? retained);
+      currentLines.push(...Array.from({length:(drawn ?? retained).length},(_,index) => drawn === undefined ? region.aStart + index : undefined));
       if (sameLines(region.aContent,region.bContent)) continue;
       conflicts.push({record:input.record,location:{kind:"hunk",start:region.oStart,end:region.oStart + region.oLength},
         baseVersion:input.baseVersion,currentLines:region.aLength,incomingLines:region.bLength,
@@ -55,6 +68,12 @@ export function mergeLineText(input: MergeTextInput): MergeTextResult {
   const finalNewline = input.current.endsWith("\n") === input.base.endsWith("\n")
     ? input.incoming.endsWith("\n") : input.current.endsWith("\n");
   return {content:alignMergedTables(result,currentLines,comparisons.a,current).join("\n") + (finalNewline ? "\n" : ""),conflicts};
+}
+
+function drawConflict(input: MergeTextInput, current: readonly string[], incoming: readonly string[], same: boolean): readonly string[] | undefined {
+  if (same || input.conflictMarkers === undefined) return undefined;
+  return input.conflictMarkers.render({ current: { lines: current, label: input.currentLabel },
+    incoming: { lines: incoming, label: input.incomingLabel }, length: input.conflictMarkers.length });
 }
 
 function sameLines(left: readonly string[], right: readonly string[]): boolean {

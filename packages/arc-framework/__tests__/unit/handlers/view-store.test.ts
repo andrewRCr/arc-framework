@@ -63,7 +63,7 @@ it("opens a completed work unit's projected meta by default", async () => {
   const archived = lifecycleSuccess(await f.store.read({ reference: meta.reference }));
   const placement = WorkUnitReadPlacementSchema.parse(archived.placement);
   if (placement.kind !== "completed") throw new Error("Expected completed fixture");
-  const path = join(f.cwd, workItemArtifactPath("archived", "meta", placement, null));
+  const path = join(f.cwd, await workItemArtifactPath(f.cwd, "archived", "meta", placement, null));
   await mkdir(dirname(path), { recursive: true }); await writeFile(path, archived.content);
   const result = await runView({ cwd: f.cwd, project: false, identity: "alice", forSlug: "archived", path: true }, {
     resolveArtifact: input => resolveViewArtifact(input, f.deps), readFile: f.deps.readFile });
@@ -158,7 +158,7 @@ it("names every candidate when checkout-held work units are ambiguous", async ()
 it("opens a work-unit claim through a fresh read of its own placement", async () => {
   const f = await fixture(), meta = await f.seedMeta("claimed", { state: "Planning", currentWorkflow: "draft-design" });
   await writeWorktreeOwnershipMarker(f.cwd, { createdByArc: true, spawningIdentity: "alice", now: 0, createdFor: boundWorkUnitSubject(meta) });
-  const planned = join(f.cwd, workItemArtifactPath("claimed", "meta", { kind: "backlog", commitment: "planned" }, null));
+  const planned = join(f.cwd, await workItemArtifactPath(f.cwd, "claimed", "meta", { kind: "backlog", commitment: "planned" }, null));
   await mkdir(dirname(planned), { recursive: true }); await writeFile(planned, meta.content);
   const read = f.store.read.bind(f.store); let moved = false;
   f.store.read = async input => {

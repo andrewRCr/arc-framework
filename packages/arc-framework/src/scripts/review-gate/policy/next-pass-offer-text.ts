@@ -45,7 +45,8 @@ export function trendLooks(facts: NextPassFacts): ReturnType<typeof materialTren
 
 /**
  * Each complete pass with the fix checks after it, as one series of critical and major counts per look, marking the
- * current look; empty when no look found a critical or major finding.
+ * current look; empty when no look found a critical or major finding. Each line names the standard review, since a line
+ * is often quoted on its own.
  */
 export function criticalMajorSeries(facts: NextPassFacts): string[] {
   const looks = trendLooks(facts);
@@ -57,7 +58,7 @@ export function criticalMajorSeries(facts: NextPassFacts): string[] {
     passes.set(look.pass, counts);
   }
   return [...passes].map(([pass, counts]) =>
-    `${pass === 0 ? "Before pass 1" : `Pass ${pass} of ${facts.ceiling}`}: ${counts.join(" → ")}`);
+    `Standard ${pass === 0 ? "before pass 1" : `pass ${pass}`}: ${counts.join(" → ")}`);
 }
 
 /** Render the critical and major counts the way the disposition report's Trend does. */

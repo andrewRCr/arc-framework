@@ -1,19 +1,15 @@
 /** Exact conventional artifact-name changes for one selected work-item generation. */
-import { posix } from "node:path";
-import { RecordReferenceSchema, sameOwner } from "./identity.js";
+import { sameOwner } from "./identity.js";
 import type { StoreRecord } from "./read.js";
-import { lifecycleRecordPath } from "./lifecycle-record-path.js";
-import { workUnitMetaPath } from "./lifecycle-write.js";
+import { lifecycleRecordName } from "./lifecycle-record-path.js";
 
 /** Project the selected owner's artifact basenames before and after its name change. */
 export function ownedArtifactRenames(records: readonly StoreRecord[], primary: StoreRecord, target: string): Map<string, string> {
-  const renamed = { ...primary, reference: RecordReferenceSchema.parse({ ...primary.reference,
-    owner: { ...primary.reference.owner, name: target } }) };
   const names = new Map<string, string>();
   for (const record of records) {
     if (!sameOwner(record.reference.owner, primary.reference.owner)) continue;
-    const from = lifecycleRecordPath(primary, record), to = lifecycleRecordPath(renamed, record);
-    if (from !== null && to !== null) names.set(posix.relative(posix.dirname(workUnitMetaPath(primary)), from), posix.relative(posix.dirname(workUnitMetaPath(renamed)), to));
+    const from = lifecycleRecordName(primary.reference.owner.name, record), to = lifecycleRecordName(target, record);
+    if (from !== null && to !== null) names.set(from, to);
   }
   return names;
 }
@@ -23,8 +19,6 @@ export function renameSweepFilename(records: readonly StoreRecord[], primary: St
   const own = sameOwner(record.reference.owner, primary.reference.owner);
   const groupPrimary = own ? primary : records.find(candidate => candidate.reference.kind === "work-item/meta"
     && sameOwner(candidate.reference.owner, record.reference.owner));
-  const projected = groupPrimary === undefined ? null : lifecycleRecordPath(groupPrimary, record);
-  return projected === null || groupPrimary === undefined
-    ? `${record.reference.kind.replaceAll("/", "-")}-${record.reference.owner.name}.md`
-    : posix.relative(posix.dirname(workUnitMetaPath(groupPrimary)), projected);
+  const name = groupPrimary === undefined ? null : lifecycleRecordName(groupPrimary.reference.owner.name, record);
+  return name ?? `${record.reference.kind.replaceAll("/", "-")}-${record.reference.owner.name}.md`;
 }

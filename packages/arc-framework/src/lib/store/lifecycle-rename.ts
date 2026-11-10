@@ -4,7 +4,7 @@ import { SlugSchema } from "../kernel/index.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import { ParsedMetaRecordSchema, MetaPauseSchema } from "../active/meta-schema.js";
 import { recordReferences, OwnerIdentitySchema, RecordReferenceSchema, sameReference, sameOwner } from "./identity.js";
-import { readLifecycleView } from "./lifecycle-view.js";
+import { readLifecycleEntries } from "./lifecycle-view.js";
 import { requireCompleteInventory } from "./lifecycle-storage.js";
 import { recordPut, mergeLifecycleLinks, batchLifecycleWrites } from "./lifecycle-write.js";
 import { acquireLifecycleRecords, revalidateLifecycleRecords, type PreparedLifecycleWrite } from "../work-unit/prepared-lifecycle-write.js";
@@ -53,7 +53,7 @@ export interface PreparedStoreRename extends PreparedLifecycleWrite {
  */
 export async function readStoreRenameSubject(store: RenamePlanView, request: { primary: StoreRecord; operand: string; targetSlug: string }): Promise<StoreResult<StoreRenameSubject>> {
   const target = SlugSchema.parse(request.targetSlug), primary = request.primary;
-  const view = await readLifecycleView(store); if (view.status === "refused") return view;
+  const view = await readLifecycleEntries(store); if (view.status === "refused") return view;
   requireCompleteInventory(store, view.result.listing);
   const admission = await checkCreationAdmission(store, target, [primary.reference.owner]);
   if (admission.kind !== "free") {
@@ -218,7 +218,7 @@ async function acquireRenameGroups(store: RenamePlanView, primary: StoreRecord):
 }>> {
   const own = await acquireLifecycleRecords(store, primary.reference); if (own.status === "refused") return own;
   const records = [...own.result];
-  const view = await readLifecycleView(store); if (view.status === "refused") return view;
+  const view = await readLifecycleEntries(store); if (view.status === "refused") return view;
   requireCompleteInventory(store, view.result.listing);
   for (const entry of view.result.entries) {
     if (entry.placement.kind !== "backlog" || entry.fields.state !== "Planning" || sameReference(entry.reference, primary.reference)) continue;

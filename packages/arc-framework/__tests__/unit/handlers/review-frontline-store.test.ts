@@ -101,6 +101,7 @@ async function fixture(project = true, vehicle: "errand" | "work-unit" = "errand
     { match: ["rev-parse", "--verify", "HEAD"], responses: [() => ({ stdout: currentHead })] },
     { match: ["rev-parse", "--verify", "refs/heads/main"], responses: [{ stdout: base }] },
     { match: ["merge-base", "--all", base, head], responses: [{ stdout: base }] },
+    { match: ["merge-base", "--all", base, advancedHead], responses: [{ stdout: base }] },
     { match: ["status", "--porcelain=v2", "--untracked-files=normal"], responses: [{ stdout: "" }] },
     { match: { prefix: ["worktree", "add", "--detach"] }, responses: [async ({ args }) => {
       const root = args[3]; if (root === undefined) throw new Error("Expected materialization path");

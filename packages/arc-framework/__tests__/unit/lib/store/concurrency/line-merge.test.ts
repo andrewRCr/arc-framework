@@ -23,6 +23,23 @@ function table(width: number, first = "a", last = "c"): string {
   ].join("\n");
 }
 
+describe("inline conflict rendering", () => {
+  it.each([false, true])("renders a clashing side with its exact line count (blank: %s)", blank => {
+    const args = input("opening\nbase\nclosing\n", blank ? "opening\n\nclosing\n" : "opening\nclosing\n",
+      "opening\nincoming\nclosing\n");
+    const ordinary = mergeLineText(args);
+    const markers = { ...args, conflictMarkers: { length: 11, render: (set: {
+      current: { lines: readonly string[]; label: { actor: string; time: string } };
+      incoming: { lines: readonly string[]; label: { actor: string; time: string } }; length: number;
+    }) => ["<".repeat(set.length) + " " + set.current.label.actor, ...set.current.lines,
+      "=".repeat(set.length), ...set.incoming.lines, ">".repeat(set.length) + " " + set.incoming.label.actor] } };
+    const drawn = mergeLineText(markers);
+    expect(drawn.content).toBe("opening\n<<<<<<<<<<< current-session\n" + (blank ? "\n" : "")
+      + "===========\nincoming\n>>>>>>>>>>> incoming-session\nclosing\n");
+    expect(drawn.conflicts).toEqual(ordinary.conflicts);
+  });
+});
+
 describe("Markdown table padding", () => {
   it("merges separated row edits that widen aligned columns", () => {
     const result = mergeLineText(input(table(5), table(12, "current-wide"), table(15, "a", "incoming-longer")));

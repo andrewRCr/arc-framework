@@ -13,6 +13,8 @@ export interface SwapFileSystem {
 
 /** How a caller's moves run, each part the system's unless a test injects its own. */
 export interface SwapMoves {
+  /** Confirm the caller still owns its lease immediately before a mutation. */
+  readonly checkpoint?: () => Promise<void>;
   readonly fs?: Partial<SwapFileSystem>;
   /** The bounded retry's sleep, for a test that runs it without waiting. */
   readonly retrySleep?: (milliseconds: number) => Promise<void>;
@@ -34,7 +36,7 @@ export interface RetriedMoves {
 export function retriedMoves(moves: SwapMoves): RetriedMoves {
   const sleep = moves.retrySleep;
   const retry = <T>(operation: () => Promise<T>): Promise<T> =>
-    retryTransientFileSystemRefusal(operation, sleep === undefined ? {} : { sleep });
+    retryTransientFileSystemRefusal(async () => { await moves.checkpoint?.(); return operation(); }, sleep === undefined ? {} : { sleep });
   const renameFile = moves.fs?.rename ?? rename;
   const linkFile = moves.fs?.link ?? link;
   return {

@@ -57,8 +57,8 @@ async function resolveStoreTarget(cwd: string, store: Store, meta: StoreRecord):
   if (meta.placement?.kind !== "backlog") return { kind: "unresolved", reason: `Target '${slug}' has no locally available backlog stub.` };
   const evidence = await readAgendaStartRecords(store, meta);
   if (evidence.status === "refused") return { kind: "refused", refusal: evidence.refusal };
-  const taskPath = evidence.result.taskList === null ? null : lifecycleRecordPath(meta, evidence.result.taskList);
-  return { kind: "resolved", slug, metaPath: resolve(cwd, workUnitMetaPath(meta)),
+  const taskPath = evidence.result.taskList === null ? null : await lifecycleRecordPath(cwd, meta, evidence.result.taskList);
+  return { kind: "resolved", slug, metaPath: resolve(cwd, await workUnitMetaPath(cwd, meta)),
     taskListPath: taskPath === null ? null : resolve(cwd, taskPath), storeEvidence: evidence.result };
 }
 

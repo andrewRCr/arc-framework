@@ -46,7 +46,7 @@ export async function runCurrentWuReconcileSessionProbe(
   if (current.kind === "absent") return unavailable(op.slug, warnings.join("\n") || "The checkout does not hold an active work-unit claim.",
     [{ text: "Inspect arc locus --json, repair the checkout's work-unit claim, then retry session status." }]);
   let acquired;
-  try { acquired = await createStoreReconcilePrepareContext(ctx.store, op.slug, current.record.reference); }
+  try { acquired = await createStoreReconcilePrepareContext(op.checkoutPath, ctx.store, op.slug, current.record.reference); }
   catch (error) {
     if (!(error instanceof ArcError) || (error.code !== "store.lifecycle-incomplete" && error.code !== "store.lifecycle-unreadable")) throw error;
     const diagnostics = z.array(ListingDiagnosticSchema).safeParse(error.cause);
@@ -57,7 +57,7 @@ export async function runCurrentWuReconcileSessionProbe(
   }
   if (acquired.status === "refused") return unavailable(op.slug, acquired.refusal.condition, [{ text: acquired.refusal.remedy.text }]);
   const primary = acquired.result.primary;
-  const selected = { ...op, slug: primary.reference.owner.name, metaPath: workUnitMetaPath(primary) };
+  const selected = { ...op, slug: primary.reference.owner.name, metaPath: await workUnitMetaPath(op.checkoutPath, primary) };
   return projectCurrentWuResult(await prepareCurrentWuReconcile(acquired.result.context, selected), selected);
 }
 

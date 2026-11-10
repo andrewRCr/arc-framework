@@ -1158,6 +1158,121 @@ describe("hosted review fan-out lifecycle", () => {
       responsePerformance: { dispositionSetId, producedHeadSha: fixedHead },
     });
   });
+  it("settles a deferred thread missed before the fix push at its response's verified head", async () => {
+    const harness = await createHarness();
+    const status = await statusThroughHandler(harness, {
+      repository,
+      headRef: "delivery/delivery-plan-record/first",
+      headSha: harness.oldFirst,
+    });
+    if (status.nextAction !== "review-hosted-request") throw new Error("expected hosted request");
+    const requested = await requestThroughHandler(status.action, {
+      kind: "created",
+      artifact: {
+        kind: "pull-request-review",
+        id: "review-missed-settlement",
+        url: "https://example.test/review-missed-settlement",
+        createdAt: "2026-08-24T06:00:00.000Z",
+      },
+      effectiveCoverage: "complete",
+    }, harness.root, harness.exec, "1");
+    if (requested.nextAction !== "await") throw new Error("expected hosted review handle");
+    const finding = {
+      findingId: "finding-missed-settlement",
+      origin: "review-thread" as const,
+      commentId: "111",
+      threadId: "THREAD_1",
+      settlement: "reply-and-resolve" as const,
+      severity: "minor" as const,
+      locus: "first.txt:1",
+      url: "https://example.test/finding-missed-settlement",
+      sourceOrdinal: 1,
+    };
+    const awaited = await awaitThroughObserver(requested.handle, {
+      kind: "findings",
+      reviewUrl: "https://example.test/review-missed-settlement",
+      findings: [finding],
+    });
+    const progress = await recordHostedAwaitAttempt(harness.store, {
+      repositoryId: harness.repositoryId,
+      result: awaited,
+      now: "2026-08-24T06:01:00.000Z",
+    });
+    if (progress === null) throw new Error("expected findings progress");
+    const attemptId = hostedLaneAttemptId(requested.handle);
+    const dispositionSetId = await bindApprovedHostedFinding(harness, {
+      operationId: progress.operationId,
+      handle: requested.handle,
+      progress,
+      finding,
+      disposition: "defer",
+      channelAction: "reply-and-resolve",
+      now: "2026-08-24T06:02:00.000Z",
+    });
+    const fixedHead = harness.movedFirst;
+    const { fakeBin, replyPath, resolvedPath } = await writeSettlementGhFake(harness, {
+      head: fixedHead,
+      replyBody: "Tracked for follow-up.",
+    });
+    const request = {
+      schemaVersion: 1,
+      response: {
+        attemptRef: bindReviewSourceReference({ kind: "hosted", operationId: progress.operationId, durableRef: attemptId }),
+        dispositionSetId,
+        findingId: finding.findingId,
+      },
+      target: requested.handle.target,
+      fixTarget: null,
+      actorIdentity: "1",
+      finding: { commentId: finding.commentId, threadId: finding.threadId },
+      disposition: "defer",
+      reply: "Tracked for follow-up.",
+    };
+    const atFixHead = { ...request, fixTarget: { ...requested.handle.target, headSha: fixedHead } };
+
+    const unperformed = await settleThroughProductionHandler(harness, fakeBin, atFixHead);
+    expect(unperformed.output).toMatchObject({ state: "fix-not-performed", nextAction: "complete-verified-fix" });
+    const before = await harness.store.readOperation(progress.operationId);
+    if (before.state?.kind !== "lane-progress") throw new Error("expected lane progress");
+    await recordLaneResponsePerformance(harness.store, {
+      lane: "standard",
+      repositoryId: before.state.repositoryId,
+      headSha: requested.handle.target.headSha,
+      lineage: before.state.lineage,
+      attemptId,
+      dispositionSetId,
+      producedHeadSha: fixedHead,
+      now: "2026-08-24T06:03:00.000Z",
+    });
+
+    const stale = await settleThroughProductionHandler(harness, fakeBin, request);
+    expect(stale.exitCodes).toEqual([]);
+    expect(stale.output).toMatchObject({
+      state: "stale-target",
+      nextAction: "retry",
+      remedy: { argv: ["arc", "review", "hosted", "settle", "-"], stdin: atFixHead },
+    });
+    const foreign = await settleThroughProductionHandler(harness, fakeBin,
+      { ...request, fixTarget: { ...requested.handle.target, headSha: "f".repeat(40) } });
+    expect(foreign.exitCodes).toEqual([1]);
+    await expect(access(replyPath)).rejects.toThrow();
+
+    const settled = await settleThroughProductionHandler(harness, fakeBin,
+      (stale.output as { remedy: { stdin: unknown } }).remedy.stdin);
+    expect(settled.exitCodes, JSON.stringify(settled.output)).toEqual([]);
+    expect(settled.output).toMatchObject({ state: "settled", nextAction: "complete", replyId: "222" });
+    await expect(readFile(resolvedPath, "utf8")).resolves.toBe("resolved");
+    const after = await harness.store.readOperation(progress.operationId);
+    expect(after.state?.kind === "lane-progress"
+      ? after.state.attempts.find(({ attemptId: id }) => id === attemptId)
+      : null).toMatchObject({
+      outcome: "settled-findings",
+      hosted: {
+        settledFindingIds: [finding.findingId],
+        settlementEvidence: [expect.objectContaining({ disposition: "defer", fixTarget: atFixHead.fixTarget })],
+      },
+    });
+  });
   it("lets an exact-head Owner terminus preempt moved-target applicability without provider spend", async () => {
     const harness = await createHarness();
     await writeFile(
@@ -2605,11 +2720,11 @@ describe("hosted review fan-out lifecycle", () => {
           sourceVerification: "verified",
           verificationRefs: ["source:first.txt:1"],
           verifiedSeverity: "major",
-          disposition: "defer",
+          disposition: "fix",
           title: "Finding title",
           issue: "The reviewer's claim.",
           rationale: "The current source supports the material concern.",
-          recommendation: "Carry the approved response before opening another pass.",
+          recommendation: "Fix the claim; the next pass reviews that fix.",
           openQuestions: [],
         }],
       },
@@ -2644,11 +2759,11 @@ describe("hosted review fan-out lifecycle", () => {
       dispositions,
     } as const;
     const result = await respondThroughHandler(harness, approvedRequest);
-    if (result.state !== "settled") throw new Error("expected settled response");
+    if (result.state !== "delivery-correction-required") throw new Error("expected an approved delivery correction");
     const authorizationId = result.payload.conditionalPassAuthorizationId;
     expect(authorizationId).toMatch(/^sha256:[0-9a-f]{64}$/u);
     expect(result.payload).toMatchObject({
-      policy: { state: "pass-complete", nextAction: "none" },
+      policy: { state: "findings", nextAction: "respond", payload: { pass: 1, postResponseAction: "resolve-next-pass" } },
       policyRequest: {
         ceilingOverride: {
           ...ceilingOverride,
@@ -2683,8 +2798,8 @@ describe("hosted review fan-out lifecycle", () => {
     });
     const replay = await respondToReviewCommand(withReviewReport(approvedRequest), replayDependencies);
     expect(replay).toMatchObject({
-      state: "already-settled",
-      nextAction: "reduce",
+      state: "delivery-correction-required",
+      nextAction: "continue-delivery-correction",
       payload: {
         conditionalPassAuthorizationId: authorizationId,
         policyRequest: {

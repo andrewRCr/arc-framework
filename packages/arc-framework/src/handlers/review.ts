@@ -335,6 +335,7 @@ import {
   HostedSettleResultSchema,
   hostedFixNotPerformedResult,
   settleHostedFinding,
+  withVerifiedFixHeadRetry,
   type HostedSettlementPort,
 } from "../scripts/review-gate/hosted/settle.js";
 import { explainHostedSettlementBindingMismatch } from
@@ -351,7 +352,7 @@ import {
 } from "../scripts/review-gate/hosted/gh-process.js";
 import { CodeRabbitHostedAdapter } from "../scripts/review-gate/hosted/coderabbit.js";
 import { CodexHostedAdapter } from "../scripts/review-gate/hosted/codex.js";
-import { frontlineRetryRemedy } from "../scripts/review-gate/runtime/frontline-retry-remedy.js";
+import { frontlineResolveRemedy, frontlineRetryRemedy } from "../scripts/review-gate/runtime/frontline-retry-remedy.js";
 import { createFrontlineRunDependencies, type CodeRabbitProcessOptions } from "../scripts/review-gate/runtime/frontline-run-composition.js";
 import {
   FrontlineRunCommandError,
@@ -409,6 +410,7 @@ import {
 import { createGhChangeRequestResolutionPort } from "../scripts/review-gate/hosts/github/change-request.js";
 import {
   composeDeliveryMemberTarget,
+  assertLocalReviewTargetBase,
   confirmLocalReviewTarget,
   deriveLocalReviewTarget,
   deriveLocalReviewTargetFromCoordinates,
@@ -2534,12 +2536,11 @@ async function deriveFrontlineCommandRequest(
 ): Promise<FrontlineCommandRequest> {
   const publisher = new RepositoryGitCommonStatePublisher(exec, root);
   const repositoryId = await resolveRepositoryIdentity(publisher, undefined, invocation);
-  return FrontlineCommandRequestSchema.parse({
-    ...request,
-    target: await deriveLocalReviewTargetFromCoordinates({
-      exec, cwd: root, repositoryId, coordinates: request.target,
-    }),
+  const target = await deriveLocalReviewTargetFromCoordinates({
+    exec, cwd: root, repositoryId, coordinates: request.target,
   });
+  await assertLocalReviewTargetBase({ exec, cwd: root, target });
+  return FrontlineCommandRequestSchema.parse({ ...request, target });
 }
 
 class PlannedFrontlineMemberRefreshError extends Error {
@@ -2774,6 +2775,7 @@ export async function handleReviewFrontlineResolve(
   await executeReviewHandler({
     mode: "review-frontline-resolve",
     source,
+    remedyFor: frontlineResolveRemedy,
     requestSchema: FrontlineResolveRequestSchema,
     resultSchema: FrontlineResolveEnvelopeSchema,
     dependencies,
@@ -4145,16 +4147,16 @@ function defaultHostedSettleDependencies(context: InteractionContext, invocation
             || disposition?.disposition !== request.disposition) {
             throw new Error("Hosted settlement does not match its approved disposition.");
           }
-          const confirmedContinuation = disposition.disposition === "fix"
+          const confirmedContinuation = request.fixTarget !== null
             ? await hostedSettlementHeadContinuation({
               attempt, repositoryId: persisted.repositoryId, lineage: persisted.lineage,
-              requestedHeadSha: request.fixTarget?.headSha, confirmResponseHeadContinuation,
+              requestedHeadSha: request.fixTarget.headSha, confirmResponseHeadContinuation,
             }) : undefined;
-          if (disposition.disposition === "fix" && !hostedFixSettlementPerformed({
+          if (request.fixTarget !== null && !hostedFixSettlementPerformed({
             attemptId: attempt.attemptId,
             originatingHeadSha: attempt.headSha,
             dispositionSetId: request.response.dispositionSetId,
-            producedHeadSha: request.fixTarget?.headSha,
+            producedHeadSha: request.fixTarget.headSha,
             responsePerformance: attempt.responsePerformance,
             confirmedContinuation,
           })) {
@@ -4183,7 +4185,9 @@ function defaultHostedSettleDependencies(context: InteractionContext, invocation
               now: new Date().toISOString(),
             });
           }
-          return result;
+          const performance = attempt.responsePerformance;
+          return withVerifiedFixHeadRetry(result, request,
+            performance?.dispositionSetId === request.response.dispositionSetId ? performance.producedHeadSha : undefined);
         },
       );
     },

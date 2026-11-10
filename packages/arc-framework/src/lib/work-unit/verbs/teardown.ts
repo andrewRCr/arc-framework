@@ -61,7 +61,7 @@ import type { ProtectionMode } from "../../git/write-context.js";
 import { decideHuskCleanup, isWorktreeClean } from "../../git/worktree-cleanup.js";
 import {
   readWorktreeMarker,
-  resolveWorktreeMarkerPath,
+  removeWorktreeMarker,
   decodeWorktreeHuskStamp,
   stampWorktreeHusk,
   type WorktreeHuskStampResult,
@@ -601,7 +601,7 @@ async function teardownBranchProjection(
           primaryWorktreePath: primary ?? cwd, slots: ctx.projectionRemovalSlots });
         if (outcome.kind === "refused") throw new Error(describeRemovalRefusal(outcome.check));
         if (fs.removeFile === undefined) throw new Error("marker release filesystem boundary is not wired");
-        await fs.removeFile(resolveWorktreeMarkerPath(registered.path));
+        await removeWorktreeMarker(registered.path, fs.removeFile.bind(fs));
       };
       const expectedSelection = teardownSelections.get(registered.path);
       try {

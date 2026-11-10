@@ -22,8 +22,9 @@ import { createDispositionSet, approveDispositionSet } from "../../src/scripts/r
 import { publishNativeReviewSuccessor } from "../../src/scripts/review-gate/runtime/native-review-successor.js";
 
 
-export async function createNativeConditionalPassFixture(kind: "local" | "frontline" | "hosted", approve = true, lineage?: LaneSubjectLineage, frontlineMaxPasses?: number) {
-  const f = await createNativeReviewApprovalFixture(kind, "fix", lineage, frontlineMaxPasses);
+export async function createNativeConditionalPassFixture(kind: "local" | "frontline" | "hosted", approve = true, lineage?: LaneSubjectLineage, frontlineMaxPasses?: number,
+  disposition: "fix" | "defer" = "fix") {
+  const f = await createNativeReviewApprovalFixture(kind, disposition, lineage, frontlineMaxPasses);
   const approval = approve ? await publishNativeReviewApproval(f.input) : null;
   const decisions = createReviewDecisionPort(f.h.store, f.primary.reference.owner);
   const capture = { lane: f.outcome.lane, repositoryId: f.outcome.target.repositoryId, headSha: f.outcome.target.headSha,

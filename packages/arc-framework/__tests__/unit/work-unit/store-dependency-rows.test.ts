@@ -23,7 +23,7 @@ it("discharges a completed former-name holder when the dependent takes its curre
   const h = createLifecycleHarness();
   await renamed(h, true);
   const dependent = await h.seedMeta("current", { dependsOn: ["former"] });
-  const result = await buildStoreCurrentWuReconcile(h.store).prepare({ slug: "current", metaPath: workUnitMetaPath(dependent) });
+  const result = await buildStoreCurrentWuReconcile("/project", h.store).prepare({ slug: "current", metaPath: await workUnitMetaPath("/project", dependent) });
   expect(result).toMatchObject({ status: "pending", prepared: { plan: { status: "ready", dependency: {
     after: [], discharged: ["former"], conflicts: [],
   } } } });
@@ -43,7 +43,7 @@ it.each([false, true])("keeps only live replacement targets and holds the whole 
       content: writeLineageRecord({ schemaVersion: 2, origin: { name: origin.reference.owner.name }, kind: "decompose", successors: targets,
         outgoing: [], incoming: [{ dependent: { name: dependent.reference.owner.name }, disposition: { kind: "replace", replacementTargets: targets } }] }) },
   ], { verb: "decompose", lifecycleAction: "decompose" }));
-  const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "dependent"));
+  const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext("/project", h.store, "dependent"));
   if (hold) {
     const lookup = h.store.lookup.bind(h.store);
     h.store.lookup = input => input.kind === "slug" && input.slug === "current"
@@ -64,7 +64,7 @@ it("keeps an edge on a reused slug live against its new holder", async () => {
   await h.seedMeta("target", { state: "Shipped", currentWorkflow: null }, { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
   await h.seedMeta("target");
   const dependent = await h.seedMeta("dependent", { dependsOn: ["target"] });
-  const result = await buildStoreCurrentWuReconcile(h.store).prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) });
+  const result = await buildStoreCurrentWuReconcile("/project", h.store).prepare({ slug: "dependent", metaPath: await workUnitMetaPath("/project", dependent) });
   expect(result).toMatchObject({ status: "clean", prepared: { plan: { dependency: {
     after: ["target"], live: ["target"], discharged: [], conflicts: [],
   } } } });
@@ -73,7 +73,7 @@ it("keeps an edge on a reused slug live against its new holder", async () => {
 it.each([false, true])("follows a live former name only when the current name selects the same record, clash=%s", async clash => {
   const h = createLifecycleHarness(), target = await renamed(h);
   const dependent = await h.seedMeta("dependent", { dependsOn: ["former"] });
-  const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "dependent"));
+  const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext("/project", h.store, "dependent"));
   const { context } = acquired;
   const lookup = h.store.lookup.bind(h.store);
   const cohort = recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "current", uid: "10000000-0000-4000-8000-000000000001" }));
@@ -89,7 +89,7 @@ it.each([false, true])("follows a live former name only when the current name se
     repair: { text: "Rename the cohort holder with `arc rename 10000000-0000-4000-8000-000000000001 <new-slug>`.", argv: ["arc", "status", "--json"] } }]);
   if (clash) {
     const prepared = await prepareCurrentWuReconcile(context,
-      { slug: "dependent", metaPath: workUnitMetaPath(dependent) });
+      { slug: "dependent", metaPath: await workUnitMetaPath("/project", dependent) });
     prepared.prepared.storePlan = { records: acquired.records, writes: [] };
     expect(prepared).toMatchObject({ status: "pending", prepared: { edits: [], plan: { advisories: [], dependency: { held: plan.dependency.held } } } });
     expect(await applyStoreCurrentWuReconcile(h.store, prepared.prepared)).toMatchObject({ status: "pending" });
@@ -102,7 +102,7 @@ it.each([false, true])("refuses operational lookup failures without rewriting an
   if (follow) await renamed(h); else await h.seedMeta("target");
   await h.seedMeta("done", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
   await h.seedMeta("dependent");
-  const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "dependent"));
+  const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext("/project", h.store, "dependent"));
   const lookup = h.store.lookup.bind(h.store);
   h.store.lookup = input => input.kind === "slug" && input.slug === (follow ? "current" : "target")
     ? Promise.resolve({ status: "refused", refusal: { code: "lock-held", class: "recoverable", lock: "lookup",
@@ -115,7 +115,7 @@ it.each([false, true])("refuses operational lookup failures without rewriting an
 it("refuses the dependent's own current name before consulting lookup", async () => {
   const h = createLifecycleHarness();
   await h.seedMeta("dependent");
-  const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "dependent"));
+  const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext("/project", h.store, "dependent"));
   h.store.lookup = async () => { throw new Error("Lookup is unavailable"); };
   expect(await planDependencyReconcile({ ...context, dependentSlug: "dependent", edges: ["dependent"] })).toMatchObject({ status: "conflict",
     dependency: { after: ["dependent"], conflicts: [{ edge: "dependent", subject: "dependent", reason: "self-dependency" }] } });
@@ -129,7 +129,7 @@ it("refuses a cycle among retired lineage names", async () => {
       writeLineageRecord({ schemaVersion: 2, origin: { name: SlugSchema.parse(name) }, kind: "rename",
         successors: [{ name: SlugSchema.parse(successor) }], incoming: [] }));
   }
-  const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "dependent"));
+  const { context } = lifecycleSuccess(await createStoreReconcilePrepareContext("/project", h.store, "dependent"));
   expect(await planDependencyReconcile({ ...context, dependentSlug: "dependent", edges: ["first"] })).toMatchObject({ status: "conflict",
     dependency: { after: ["first"], conflicts: [{ edge: "first", subject: "first", reason: "rename-cycle" }] } });
 });

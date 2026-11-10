@@ -1,18 +1,13 @@
 /** Native process boundary shared by declared checks and CI invocation playback. */
 import { mkdtemp, open, rm } from "node:fs/promises";
-import { constants, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execa } from "execa";
 import { whichCommandSync } from "which-command";
 import { environmentForGitCwd, sanitizeGitRepositoryEnvironment } from "../git/process-executor.js";
 import { displayLines, NOTICE_LIMIT } from "./display-text.js";
 import { CHECK_EXECUTION_ENVIRONMENT, type CheckContentContext } from "./environment-policy.js";
-
-/** The exit status a shell reports for a command a signal ended: 128 plus the signal's number. */
-function signalExitCode(signal: NodeJS.Signals | undefined): number | undefined {
-  const number = signal === undefined ? undefined : constants.signals[signal];
-  return number === undefined ? undefined : 128 + number;
-}
+import { signalExitCode } from "./signal-exit-code.js";
 
 /** Receives a check's output as it is written, one chunk at a time. */
 export type OutputForwarder = (chunk: Uint8Array, stream: "stdout" | "stderr") => void;

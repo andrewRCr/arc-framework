@@ -6,7 +6,7 @@
  */
 
 import type { GitBatchReadScope } from "./batch-reader.js";
-import { normalizeGitRejection } from "./process-error.js";
+import { isCompletedGitFailure, normalizeGitRejection } from "./process-error.js";
 import type { InteractionContext } from "../command-input/interaction-context.js";
 import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
@@ -362,7 +362,8 @@ export async function checkOriginExists(exec: GitExec): Promise<boolean> {
 }
 
 /**
- * Retrieves a git config value by key.
+ * Retrieves a git config value by key. Only a completed missing-value result with
+ * captured empty streams is absence; failed or incomplete reads propagate.
  *
  * @param exec - Injectable command executor
  * @param key - Git config key (e.g., "user.name", "arc.identity")
@@ -375,9 +376,19 @@ export async function gitConfigGet(
   try {
     const { stdout } = await exec("git", ["config", "--get", key]);
     return stdout.trim();
-  } catch {
-    return undefined;
+  } catch (rejection) {
+    const error = normalizeGitRejection(rejection, { command: "git", args: ["config", "--get", key] });
+    // Normalization fills omitted streams; only captured empty output can prove a missing value.
+    if (hasConfigFailureStreams(rejection) && isCompletedGitFailure(error) && error.exitCode === 1
+      && error.stdout === "" && error.stderr === "") return undefined;
+    throw error;
   }
+}
+
+function hasConfigFailureStreams(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || !("stdout" in value) || !("stderr" in value)) return false;
+  return (typeof value.stdout === "string" || value.stdout instanceof Uint8Array)
+    && (typeof value.stderr === "string" || value.stderr instanceof Uint8Array);
 }
 
 /** Git config scope (`--local` / `--global` / `--system`). */
@@ -457,7 +468,7 @@ export async function gitMergeFile(
     const error = normalizeGitRejection(err, {
       command: "git", args: ["merge-file", "-p", current, base, other],
     });
-    if (error.exitCode !== undefined && error.exitCode >= 1 && error.exitCode <= 127) {
+    if (isCompletedGitFailure(error) && error.exitCode !== undefined && error.exitCode >= 1 && error.exitCode <= 127) {
       return { content: error.stdout, hasConflicts: true };
     }
     throw error;

@@ -117,6 +117,7 @@ function buildSettings(overrides: SettingsOverrides = {}): ResolvedSettingsResul
     "sync.auto_pull": "false",
     "archive.cadence": "with-integration",
     "storage.track_design_docs": "specs",
+    "layout.active": "nested",
     "user.notes_push": "on-sync",
   };
 

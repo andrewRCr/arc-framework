@@ -3,6 +3,7 @@
  * place, by renaming a new file over the path, and by truncating first, with a reader holding the file open, and a run
  * of saves fired at random moments into a run of commands, none of them lost.
  */
+import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { open, readFile, rm, type FileHandle } from "node:fs/promises";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { createEditorHandles } from "../../../helpers/store/projection/editor-handles.js";
@@ -208,7 +209,7 @@ describe("a save timed into a removal", () => {
       // The next command's removal re-checks the file and takes the save in before the file goes.
       const again = await guardReplacement({
         checkout, path: removal.path, entry, staged: null, reference: await readReference(checkout), format: "sha1",
-        store: removal.fixture.store, writer: SWAP_WRITER, takeIn: removal.takeIn,
+        store: removal.fixture.store, writer: SWAP_WRITER, takeIn: removal.takeIn, renderer: createRecordRenderer({ store: removal.fixture.store }),
       });
       expect(await removal.stored()).toBe(content);
       if (again.kind !== "replace") throw new Error(`expected the next removal to go ahead, found ${again.cause}`);

@@ -111,7 +111,7 @@ it("dispatches a former name to its canonical stub while refusing explicit creat
   expect(alias.reference).toEqual(canonical.reference);
   expect(alias.reference.owner).toEqual({ ...h.meta.reference.owner, name: "target" });
   expect(lifecycleSuccess(await h.store.read({ reference: alias.reference }))).toMatchObject({ placement: { kind: "active" }, fields: { owner: "starter" } });
-  expect(lifecycleSuccess(await readLifecycleView(h.store)).entries).toHaveLength(1);
+  expect(lifecycleSuccess(await readLifecycleView(h.root, h.store)).entries).toHaveLength(1);
   expect(await h.exec("git", ["symbolic-ref", "--quiet", "HEAD"], { cwd: h.path }).catch(() => null)).toBeNull();
 }, START_TIMEOUT_MS);
 
@@ -127,7 +127,7 @@ it("directs a spawning seeded start to in-place admission from the intended chec
   expect(errors.join("\n")).toContain("arc start --here --from 'draft-fresh.md'");
   expect(errors.join("\n")).toContain("intended checkout");
   expect(await stat(h.path).catch(() => null)).toBeNull();
-  expect(lifecycleSuccess(await readLifecycleView(h.store)).entries).toHaveLength(1);
+  expect(lifecycleSuccess(await readLifecycleView(h.root, h.store)).entries).toHaveLength(1);
   process.exitCode = 0;
   await handleStoreStart(StartCommandInputSchema.parse({ ...input, here: true }), ctx);
   expect(process.exitCode).toBe(0);

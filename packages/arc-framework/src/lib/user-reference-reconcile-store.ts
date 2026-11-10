@@ -22,7 +22,7 @@ export interface StoreUserReferencePreparation {
 }
 /** Acquire personal records and the current meta's session context without workspace or Git reads. */
 export async function createStoreUserReferencePrepareContext(input: {
-  store: Store; identity: string; workUnit?: string;
+  cwd: string; store: Store; identity: string; workUnit?: string;
 }): Promise<StoreResult<StoreUserReferencePreparation>> {
   const identity = SlugSchema.parse(input.identity);
   const acquired = await acquireStoreUserReferenceAuthority(input.store);
@@ -45,7 +45,7 @@ export async function createStoreUserReferencePrepareContext(input: {
     ...(memory.result === null ? {} : { workingMemory: { path: memoryPath, content: memory.result.content } }),
   };
   if (input.workUnit !== undefined) {
-    const context = await acquireSessionContext(input.store, records, input.workUnit);
+    const context = await acquireSessionContext(input.cwd, input.store, records, input.workUnit);
     if (context.status === "refused") return context;
     byPath.set(context.result.surface.path, context.result.record);
     surfaces.sessionNotes = context.result.surface;
@@ -57,7 +57,7 @@ export async function createStoreUserReferencePrepareContext(input: {
   return { status: "ok", result: { authority: { status: "ready", ref: "store", remoteEvidence: "not-applicable", transitions: acquired.result.transitions },
     surfaces: qualified.result, preparedStore: { store: input.store, records, byPath } } };
 }
-async function acquireSessionContext(store: Store, records: readonly StoreRecord[], workUnit: string): Promise<StoreResult<{ record: StoreRecord; surface: UserReferenceSurface }>> {
+async function acquireSessionContext(checkoutRoot: string, store: Store, records: readonly StoreRecord[], workUnit: string): Promise<StoreResult<{ record: StoreRecord; surface: UserReferenceSurface }>> {
   const selected = await store.lookup({ kind: "slug", slug: SlugSchema.parse(workUnit) });
   if (selected.status === "refused") return selected;
   const meta = records.find(record => sameReference(record.reference, selected.result.reference));
@@ -65,7 +65,7 @@ async function acquireSessionContext(store: Store, records: readonly StoreRecord
     "The selected work unit is not in the acquired metadata authority. Read its current record again, then retry.");
   const fields = readLifecycleMetaFields(meta);
   if (fields.status === "refused") return fields;
-  return { status: "ok", result: { record: meta, surface: { path: workUnitMetaPath(meta), content: fields.result.sessionContext ?? "" } } };
+  return { status: "ok", result: { record: meta, surface: { path: await workUnitMetaPath(checkoutRoot, meta), content: fields.result.sessionContext ?? "" } } };
 }
 async function qualifyReferenceSurfaces(store: Store, records: readonly StoreRecord[],
   surfaces: StoreUserReferencePreparation["surfaces"], transitions: StoreUserReferenceAuthority["transitions"]): Promise<StoreResult<StoreUserReferencePreparation["surfaces"]>> {
