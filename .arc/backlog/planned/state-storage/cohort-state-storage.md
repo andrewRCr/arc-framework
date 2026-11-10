@@ -21,7 +21,7 @@ Stage 2  storage-seam              every reader and writer through the contract;
                                    storage-ref-hardening's implementation
          storage-ref-hardening     the ref backend's routed defects the cutover exercises; after the
                                    ref backend lands
-         storage-projection/*      the working copy, in three members
+         storage-projection/*      the working copy, in five members
          projected-markdown-checks Markdown checks over projected state; builds beside the projection
 Stage 3  storage-cutover/*         the window tooling, the flip, then deletion and documentation, in six members
 ```
