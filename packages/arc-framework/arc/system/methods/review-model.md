@@ -183,7 +183,7 @@ a decision:
   `amend-design`. Another round must not silently become design authoring, nor another per-site repair stand in for
   that decision. The three looks must share a named cause, not merely a count of findings, and the stop composes with
   any review stop the Owner has set: whichever is reached first applies. Once the Owner decides on a cause, count its
-  looks afresh from that decision. It takes precedence over `baseline` and `discovering`.
+  looks afresh from that decision. It takes precedence over every other reading.
 
 A fix check reads its repairs, so a clean round shows those repairs hold, not that a rule repaired at one site holds at
 its others. Material findings that are siblings an earlier repair missed show the repair fixed a site rather than its
