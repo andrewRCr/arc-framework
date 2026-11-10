@@ -37,7 +37,7 @@ export type PausedWorkResult = z.infer<typeof PausedWorkResultSchema>;
 
 /** Report no paused work while the checkout-backed lifecycle is active. */
 export interface RunPausedWorkOptions {
-  store: Store; identity: string; reviewAfterDays: number; now?: Date;
+  cwd: string; store: Store; identity: string; reviewAfterDays: number; now?: Date;
   findHoldingCheckout: LocusPorts["findHoldingCheckout"];
   markerlessCheckouts?: readonly { workUnit: string; checkoutPath: string }[];
   inFlightEntries?: readonly StoreInFlightEntry[];
@@ -56,7 +56,7 @@ async function readPausedWork(options: RunPausedWorkOptions): Promise<PausedWork
   const listing = unwrap(await listLifecycleIndex(options.store, { locations: ["active"] }));
   requireCompleteInventory(options.store, listing);
   if (listing.status !== "complete") return { items: [] };
-  const view = unwrap(await readLifecycleView(options.store));
+  const view = unwrap(await readLifecycleView(options.cwd, options.store));
   requireCompleteInventory(options.store, view.listing);
   const clashes = new Map(view.standing.clashes.map(clash => [clash.slug, clash]));
   const items: PausedWorkResult["items"] = [];
@@ -136,8 +136,7 @@ async function waitingWorkDisposition(store: Store, slug: string): Promise<"ship
   }
   if (resolved.refusal.code !== "not-found") {
     const refusal = resolved.refusal;
-    const remedy = refusal.code === "ambiguous-match" && refusal.tie !== undefined
-      ? clashRepair(refusal.candidates, refusal.tie) : refusal.remedy;
+    const remedy = refusal.remedy;
     throw new Error(`${refusal.condition} ${remedy.text}`);
   }
   const record = await terminalPrerequisiteRecord(store, slug);

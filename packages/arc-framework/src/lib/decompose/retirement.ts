@@ -46,7 +46,7 @@ export async function applyDecomposeRetirement(ctx: DecomposeContext, plan: Deco
   } });
   if (outcome.status !== "ok") {
     if (outcome.status === "rejected" && outcome.stage === "guard") {
-      const view = await readLifecycleView(ctx.executor.store);
+      const view = await readLifecycleView(ctx.executor.cwd, ctx.executor.store);
       if (view.status === "refused") return decomposeStoreRefusal(view.refusal);
       const incomplete = decomposeInventoryRefusal(ctx.executor.store, view.result.listing);
       if (incomplete !== undefined) return incomplete;

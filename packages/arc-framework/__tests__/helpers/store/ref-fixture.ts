@@ -134,12 +134,12 @@ export async function createRefFixture(registryOverrides: Partial<Record<KindId,
 }
 
 /** The item range each file of the default layout's whole run takes. */
-const wholeRunRanges = { records: [1, 6], reads: [7, 15], sync: [16, 17] } as const;
+const wholeRunRanges = { records: [1, 6], reads: [7, 15], sync: [16, 18] } as const;
 
 /** The separate layout's ranges, each split into parts. A file runs on one worker, and each range runs for 15–25
  * minutes on a hosted Windows runner, so parts let shards share a range instead of one shard running it alone. */
 const separateWholeRunRanges = {
-  ...rangeParts("records", [1, 6], 4), ...rangeParts("reads", [7, 15], 4), ...rangeParts("sync", [16, 17], 3),
+  ...rangeParts("records", [1, 6], 4), ...rangeParts("reads", [7, 15], 4), ...rangeParts("sync", [16, 18], 3),
 };
 
 function rangeParts(name: string, items: readonly [SuiteItem, SuiteItem], of: number): Record<string, ItemRange> {

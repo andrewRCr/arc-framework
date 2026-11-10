@@ -33,7 +33,7 @@ it.each([null, "main", "person"])("activates from %s while retaining a different
     indexFs: { readdir: unsupported, readFile: unsupported }, setPhase: unsupported, relocateArtifacts: unsupported,
     reconcileBranch: unsupported, reconcileWorkUnitWorktree: unsupported, writeSoftFields: unsupported,
     writeBranchField: unsupported, writeCurrentWorkflowField: unsupported, writeDesignField: unsupported,
-    currentWuReconcile: buildStoreCurrentWuReconcile(h.store) };
+    currentWuReconcile: buildStoreCurrentWuReconcile(root!, h.store) };
   const input = ActivateCommandInputSchema.parse({ slug: "example", type: "feat", action: "Begin work" });
   expect(await runActivate(ctx, { name: input.slug!, toBranch: `${input.type}/${input.slug}`, baseBranch: "main", nextAction: input.action }))
     .toMatchObject({ status: "activated", branch: "feat/example" });
@@ -60,7 +60,7 @@ async function freshActivation() {
     indexFs: { readdir: unsupported, readFile: unsupported }, setPhase: unsupported, relocateArtifacts: unsupported,
     reconcileBranch: unsupported, reconcileWorkUnitWorktree: unsupported, writeSoftFields: unsupported,
     writeBranchField: unsupported, writeCurrentWorkflowField: unsupported, writeDesignField: unsupported,
-    currentWuReconcile: buildStoreCurrentWuReconcile(h.store) });
+    currentWuReconcile: buildStoreCurrentWuReconcile(root!, h.store) });
   const input = ActivateCommandInputSchema.parse({ slug: "example", type: "feat", action: "Begin work" });
   return { ...h, meta, exec, base, root, context,
     params: { name: input.slug!, toBranch: `${input.type}/${input.slug}`, baseBranch: "main", nextAction: input.action } };

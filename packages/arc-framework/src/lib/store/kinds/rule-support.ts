@@ -1,4 +1,5 @@
 /** Completeness-preserving observations and actionable content-rule diagnostics. */
+import type { StoreRefusal } from "../refusal.js";
 import type { RecordReference } from "../identity.js";
 import type { StoreRecord } from "../read.js";
 import type { BrokenRule, StoreView } from "../write-check.js";
@@ -16,6 +17,20 @@ export async function observeRecord(view: StoreView, reference: RecordReference)
   if (result.status === "ok") return { status: "known", value: result.result };
   return result.refusal.code === "not-found" ? { status: "absent" }
     : { status: "unavailable", condition: result.refusal.condition };
+}
+
+/** A name observation also preserves the holders and recovery of a ranked ambiguity. */
+export type NamedRecordObservation = RuleObservation<StoreRecord> | ({ status: "ambiguous" }
+  & Pick<Extract<StoreRefusal, { code: "ambiguous-match" }>, "condition" | "candidates" | "tie" | "remedy">);
+
+/** Observe a name-bound record while preserving its ambiguity recovery evidence. */
+export async function observeNamedRecord(view: StoreView, reference: RecordReference): Promise<NamedRecordObservation> {
+  const result = await view.read({ reference });
+  if (result.status === "ok") return { status: "known", value: result.result };
+  const refusal = result.refusal;
+  if (refusal.code === "ambiguous-match") return { status: "ambiguous", condition: refusal.condition,
+    candidates: refusal.candidates, ...(refusal.tie === undefined ? {} : { tie: refusal.tie }), remedy: refusal.remedy };
+  return refusal.code === "not-found" ? { status: "absent" } : { status: "unavailable", condition: refusal.condition };
 }
 
 /** Name the rule and an actionable correction for the whole refused write.

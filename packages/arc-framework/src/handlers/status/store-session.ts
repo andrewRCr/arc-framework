@@ -49,7 +49,7 @@ export function createStoreSessionProbes(context: StoreSessionContext) {
     getOracle,
     userReferenceReconcile: async (workUnit: string) => {
       if (context.identity === null) throw new Error("User-reference reconciliation requires an identity.");
-      const prepared = await createStoreUserReferencePrepareContext({ store: context.store, identity: context.identity, workUnit });
+      const prepared = await createStoreUserReferencePrepareContext({ cwd: context.cwd, store: context.store, identity: context.identity, workUnit });
       if (prepared.status === "refused") return projectUserReferenceSessionResult({ status: "unavailable", ref: "store",
         reason: "state-unavailable", condition: prepared.refusal.condition, remedy: prepared.refusal.remedy, remoteEvidence: "not-applicable" },
         { userInbox: { path: "", content: "" } });
@@ -81,7 +81,7 @@ export function createStoreSessionProbes(context: StoreSessionContext) {
     pausedWork: async () => {
       if (context.identity === null) return { items: [] };
       const oracle = await getOracle();
-      return runPausedWork({ store: context.store, identity: context.identity,
+      return runPausedWork({ cwd: context.cwd, store: context.store, identity: context.identity,
         reviewAfterDays: positive((await context.readSettings())["pause.review_after_days"], 14), findHoldingCheckout,
         markerlessCheckouts: await getMarkerless(), inFlightEntries: oracle.entries,
         localRefsAvailable: localRefsAvailable(oracle), projectId });

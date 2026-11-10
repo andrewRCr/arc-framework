@@ -1,10 +1,10 @@
 /** Exact ownership evidence for compensation of a newly spawned operational checkout. */
-import { stat, writeFile } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import type { GitExec } from "../git/exec.js";
 import type { WorkUnitHolderRequest } from "./mutators/reconcile-work-unit-worktree.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
 import { createWorktreeMarkerGeneration, readWorktreeMarkerGeneration, removeWorktreeMarkerGeneration,
-  resolveWorktreeMarkerPath } from "../git/worktree-marker.js";
+  createWorktreeMarkerBytesGeneration } from "../git/worktree-marker.js";
 import type { WorktreeSubject } from "../git/worktree-marker.js";
 
 /** Authorized initial commit and symbolic branch selected before Git creates the checkout. */
@@ -97,8 +97,5 @@ async function restoreSpawnClaim(path: string, bytes: Buffer): Promise<void> {
     throw error;
   });
   if (!present) return;
-  try { await writeFile(resolveWorktreeMarkerPath(path), bytes, { flag: "wx", mode: 0o600 }); }
-  catch (error) {
-    if (!(typeof error === "object" && error !== null && "code" in error && error.code === "EEXIST")) throw error;
-  }
+  await createWorktreeMarkerBytesGeneration(path, bytes);
 }

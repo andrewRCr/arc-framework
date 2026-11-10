@@ -9,6 +9,8 @@ import { runStoreRename } from "../../../../src/lib/work-unit/verbs/rename-store
 import { scriptGitExec } from "../../../helpers/git-exec-fake.js";
 import { ParsedMetaRecordSchema } from "../../../../src/lib/active/meta-schema.js";
 import { createStoreReconcilePrepareContext } from "../../../../src/lib/work-unit/store-reconcile-context.js";
+import { prepareStoreRename, readStoreRenameSubject, submitStoreRename } from "../../../../src/lib/store/lifecycle-rename.js";
+import { recordPut } from "../../../../src/lib/store/lifecycle-write.js";
 import type { StoreRecord } from "../../../../src/lib/store/read.js";
 
 it("keeps both paired Design bindings and references coherent after a refused batch is retried", async () => {
@@ -35,12 +37,12 @@ it("keeps both paired Design bindings and references coherent after a refused ba
   const batch = h.store.batch.bind(h.store);
   h.store.batch = async () => ({ status: "refused", refusal: { code: "version-conflict", class: "recoverable",
     records: [primary.reference], condition: "Concurrent rename input", remedy: { text: "Retry the rename." } } });
-  expect(await runStoreRename(ctx, { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "rejected" });
+  expect(await runStoreRename(ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "rejected" });
   for (const record of [primary, ...companions, draft]) {
     expect(lifecycleSuccess(await h.store.read({ reference: record.reference }))).toEqual(record);
   }
   h.store.batch = batch;
-  expect(await runStoreRename(ctx, { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  expect(await runStoreRename(ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
   const renamed = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
   expect(renamed.fields).toMatchObject({ design: ["spec-target-prd.md", "spec-target-rfc.md"] });
   for (const [index, record] of companions.entries()) {
@@ -82,7 +84,7 @@ it.each(["prd", "rfc"])("refuses a shared %s reference with two live owners, the
     checkMarkerExclusivity: async () => ({ kind: "clear" as const }), findHoldingCheckout: boundHolderLookup(primary, () => "/holder/origin"),
     writeAnchoredMarker: async () => ({ kind: "unadmitted" as const }),
   }, renameCheckout: async () => { physical++; return { report: { checkout: { kind: "renamed" as const, checkoutPath: "/holder/successor", markerGeneration: "renamed" } }, rollback: async () => {} }; } };
-  const request = { sourceSlug: "origin", targetSlug: "successor" };
+  const request = { operand: "origin", targetSlug: "successor" };
   expect(await runStoreRename(ctx, request)).toMatchObject({ status: "rejected",
     reason: expect.stringContaining(`spec-origin-${half}.md`), refusal: { code: "record-malformed" } });
   expect(physical).toBe(0); expect(batches).toBe(0);
@@ -120,7 +122,7 @@ it.each(["prd", "rfc"])("refuses the generic sweep of an ambiguous %s filename w
   }, renameCheckout: async () => { checkout = "/holder/successor"; return {
     report: { checkout: { kind: "renamed" as const, checkoutPath: checkout, markerGeneration: "renamed" } }, rollback: async () => {},
   }; } };
-  const request = { sourceSlug: `origin-${half}`, targetSlug: "successor" };
+  const request = { operand: `origin-${half}`, targetSlug: "successor" };
   expect(await runStoreRename(ctx, request)).toMatchObject({ status: "rejected",
     reason: expect.stringContaining(`spec-origin-${half}.md`), refusal: { code: "record-malformed" } });
   expect(checkout).toBe("/holder/source");
@@ -146,7 +148,7 @@ it("sweeps both nested companions that share a basename", async () => {
     checkMarkerExclusivity: async () => ({ kind: "clear" as const }), findHoldingCheckout: async () => ({ kind: "none" as const }),
     writeAnchoredMarker: async () => ({ kind: "unadmitted" as const }),
   } };
-  expect(await runStoreRename(ctx, { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  expect(await runStoreRename(ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
   for (const record of records) {
     const renamed = lifecycleSuccess(await h.store.read({ reference: record.reference }));
     expect(renamed.reference.key).toBe(record.reference.key);
@@ -166,13 +168,41 @@ it("renames the root Design while a nested draft-named companion retains its pat
     checkMarkerExclusivity: async () => ({ kind: "clear" as const }), findHoldingCheckout: async () => ({ kind: "none" as const }),
     writeAnchoredMarker: async () => ({ kind: "unadmitted" as const }),
   } };
-  expect(await runStoreRename(ctx, { sourceSlug: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
+  expect(await runStoreRename(ctx, { operand: "source", targetSlug: "target" })).toMatchObject({ status: "renamed" });
   const renamed = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
   expect(renamed.fields).toMatchObject({ design: ["draft-target.md"] });
   const retained = lifecycleSuccess(await h.store.read({ reference: companion.reference }));
   expect(retained.reference.key).toBe("sub/draft-source.md");
-  const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext(h.store, "target"));
+  const acquired = lifecycleSuccess(await createStoreReconcilePrepareContext("/project", h.store, "target"));
   expect(acquired.byPath.get(".arc/active/sub/draft-source.md")).toEqual(retained);
   expect((await readLifecycleDesign(h.store, renamed)).content)
     .toBe(lifecycleSuccess(await h.store.read({ reference: draft.reference })).content);
 });
+
+it.each(["prd", "rfc"].flatMap(half => [false, true].map(generic => ({ half, generic }))))(
+  "refuses an arriving alternate paired-filename owner in the reference backend: %j", async ({ half, generic }) => {
+    const h = createLifecycleHarness(), name = generic ? `origin-${half}` : "origin", filename = `spec-origin-${half}.md`;
+    const primary = await h.seedMeta(name, { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "planned" });
+    const paired = generic ? undefined : await h.seed(recordReferences["work-item/companion"](primary.reference.owner, `spec-${half}`), "# Design\n");
+    const waiting = await h.seedMeta("waiting", { state: "Planning", currentWorkflow: null }, { kind: "backlog", commitment: "planned" });
+    const draft = await h.seed(recordReferences["work-item/draft"](waiting.reference.owner), `See \`${filename}\`.\n`);
+    const subject = lifecycleSuccess(await readStoreRenameSubject(h.store, { primary, operand: name, targetSlug: "after" }));
+    const prepared = lifecycleSuccess(await prepareStoreRename(h.store, subject, "after"));
+    const alternate = await h.seedMeta(generic ? "origin" : `origin-${half}`, { state: "Planning", currentWorkflow: null },
+      { kind: "backlog", commitment: "planned" });
+    const version = lifecycleSuccess(await h.store.version());
+    expect(await submitStoreRename(h.store, prepared))
+      .toMatchObject({ status: "refused", refusal: { code: "record-malformed", rule: "rename.preparation" } });
+    expect(lifecycleSuccess(await h.store.version())).toBe(version);
+    for (const record of [primary, draft, alternate, ...(paired === undefined ? [] : [paired])]) {
+      expect(lifecycleSuccess(await h.store.read({ reference: record.reference }))).toEqual(record);
+    }
+    lifecycleSuccess(await h.store.write({ ...recordPut(draft, { content: `See \`meta-${name}.md\`.\n` }),
+      provenance: { verb: "save", lifecycleAction: "edit" } }));
+    const fresh = lifecycleSuccess(await prepareStoreRename(h.store, subject, "after"));
+    expect(await submitStoreRename(h.store, fresh)).toMatchObject({ status: "ok" });
+    expect(lifecycleSuccess(await h.store.read({ reference: draft.reference })).content).toBe("See `meta-after.md`.\n");
+    expect(lifecycleSuccess(await h.store.read({ reference: alternate.reference }))).toMatchObject({
+      reference: alternate.reference, content: alternate.content, fields: alternate.fields, placement: alternate.placement, aliases: alternate.aliases,
+    });
+  });

@@ -6,14 +6,14 @@ import { readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { isAdvisoryHolderAbandoned, type AdvisoryHolderObserver } from "../../advisory-lock.js";
 import { ASIDE_FILES_ROOT, parseAsideFile, processScopeDigest, type AsideFile, type AsideWriterInput } from "./aside.js";
-import { hasPathMovedOn, readPathHolding, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
+import { hasPathMovedOn, readPathHolding, restoreCopyRendering, settleAsideCopy, type CopySettlement } from "./aside-copies.js";
 import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import { checkIgnores, type IgnoreCheck } from "./ignore-check.js";
 import { guardedProjectionRoots, type ProjectionIgnoreGuardInput } from "./ignore-guard.js";
 import type { ConfiguredIgnoreRules } from "./configuration.js";
 import { readReference, readStat } from "./change-detection.js";
-import { commitProjectionIndex } from "./index-file.js";
+import { commitReturnedCopies } from "./returned-copies.js";
 import type { AsideCopyRecord, ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionLocation } from "./location.js";
 import { PROJECTION_ASIDE_ROOT } from "./paths.js";
@@ -21,6 +21,7 @@ import { notAFileRemedy, type ReadGateDependencies } from "./read-gate.js";
 import type { Remedy } from "../refusal.js";
 import { deleteAsideCopy, finalizeAsideCopy } from "./stampless.js";
 import type { TakeInPort } from "./take-in-port.js";
+import { readProjectionLinkBoundary, projectionLinkRemedy, type ProjectionLinkBoundary } from "./discovery-links.js";
 
 /** What the sweep reads, run under the worktree's projection lock; its moves are the system's unless a test injects its own. */
 export interface SweepInput extends SwapMoves {
@@ -37,6 +38,8 @@ export interface SweepInput extends SwapMoves {
   /** The ignore rules from this command's one configuration read. */
   readonly ignoreRules: ConfiguredIgnoreRules;
   readonly readIgnoreRules: () => Promise<ConfiguredIgnoreRules>;
+  /** Observed link destinations are opaque, including when a retained copy names a descendant. */
+  readonly blockedByLink?: ProjectionLinkBoundary;
   /** Whether a process ID is in use, the system's unless a test injects its own. */
   readonly isProcessAlive?: (pid: number) => boolean;
   /** The read gate every copy check runs on, the system's unless a test injects its own. */
@@ -88,14 +91,22 @@ export async function sweepAsideFolder(input: SweepInput): Promise<SweepResult> 
   const writable = writableUnder(ignores, guarded);
   // A refusal of the aside folder, as a failed call refuses every root, leaves the sweep nothing it may write.
   if (!writable(`${PROJECTION_ASIDE_ROOT}/`)) return { ignores, index: input.index, swept: [], left: [], withheld: [], copies: [] };
-  const judges: SweepJudges = { writerOf: judgeWriters(input), writable };
   const found = await listAsideFolder(input.checkout);
+  const destinations = [
+    ...Object.entries(input.index?.entries ?? {}).flatMap(([path, entry]) => entry.kind === "record" && entry.copies.length > 0 ? [path] : []),
+    ...found.flatMap(copy => { const named = parseAsideFile(copy); return named?.role === "aside" ? [named.path] : []; }),
+  ];
+  const observed = await readProjectionLinkBoundary(input.checkout, destinations.filter(writable));
+  const judges: SweepJudges = { writerOf: judgeWriters(input), writable,
+    blockedByLink: path => input.blockedByLink?.(path) ?? observed(path) };
   if (input.index === null) return { ignores, ...await sweepWithoutIndex(input, found, judges) };
   const recorded = await takeOverRecorded(input, input.index, judges);
   const unrecorded = await takeOverUnrecorded(input, recorded.index, found, judges);
-  await deleteStagedFiles(input.checkout, found, judges.writerOf);
-  const index = await commitProjectionIndex({
-    location: input.location, checkout: input.checkout, index: {
+  await deleteStagedFiles(input, found, judges.writerOf);
+  const index = await commitReturnedCopies({
+    location: input.location, checkout: input.checkout, checkpoint: input.checkpoint,
+    returned: recorded.swept.filter(each => each.outcome.kind === "returned" || each.outcome.kind === "linked-back")
+      .map(({ path, copy }) => ({ path, copy })), index: {
       ...recorded.index, ignoreFiles: ignoreFilesAfter(ignores, recorded.index),
       ignoreGuard: ignores.kind === "passed" ? ignores.basis
         : ignores.kind === "refused" ? null : recorded.index.ignoreGuard,
@@ -117,10 +128,18 @@ function ignoreFilesAfter(ignores: IgnoreCheck, index: ProjectionIndex): Project
 interface SweepJudges {
   readonly writerOf: (name: string) => WriterState;
   readonly writable: (path: string) => boolean;
+  readonly blockedByLink: ProjectionLinkBoundary;
+}
+
+/** Admit a copy destination before any read or restoration can traverse its path. */
+function destinationRefusal(path: string, copy: string, judges: SweepJudges): LeftCopy | null {
+  const link = judges.blockedByLink(path);
+  if (link !== null) return { path, copy, reason: "not-a-file", remedy: projectionLinkRemedy(link) };
+  return judges.writable(path) ? null : unauthorizedCopy(path, copy);
 }
 
 /** Only proved roots may be written; a passing current-identity guard never authorizes another personal root. */
-function writableUnder(ignores: IgnoreCheck, guarded: readonly string[]): (path: string) => boolean {
+export function writableUnder(ignores: IgnoreCheck, guarded: readonly string[]): (path: string) => boolean {
   const refused = ignores.kind !== "refused" ? []
     : ignores.reason === "guard-failed" ? ignores.paths : ignores.roots.map((root) => root.path);
   const authorized = guarded.filter((root) => !refused.includes(root));
@@ -157,14 +176,16 @@ async function takeOverRecorded(
  * when an index was rebuilt, which stays until the person deletes it. One from another process scope is reported.
  */
 function recordsToTake(
-  index: ProjectionIndex, { writerOf, writable }: SweepJudges,
+  index: ProjectionIndex, judges: SweepJudges,
 ): { taking: { path: string; copy: string }[]; left: LeftCopy[] } {
+  const { writerOf } = judges;
   const taking: { path: string; copy: string }[] = [];
   const left: LeftCopy[] = [];
   for (const [path, entry] of Object.entries(index.entries)) {
     if (entry.kind !== "record") continue;
     for (const record of entry.copies.filter((copy) => !index.withheldCopies.includes(copy.name))) {
-      if (!writable(path)) { left.push(unauthorizedCopy(path, record.name)); continue; }
+      const refusal = destinationRefusal(path, record.name, judges);
+      if (refusal !== null) { left.push(refusal); continue; }
       const writer = writerOf(record.name);
       if (writer === "other-scope") left.push({ path, copy: record.name, reason: "other-scope" });
       if (writer === "exited") taking.push({ path, copy: record.name });
@@ -178,8 +199,9 @@ function recordsToTake(
  * was written, say — deleted where it holds no edit, and otherwise kept and reported with its path.
  */
 async function takeOverUnrecorded(
-  input: SweepInput, index: ProjectionIndex, found: readonly string[], { writerOf, writable }: SweepJudges,
+  input: SweepInput, index: ProjectionIndex, found: readonly string[], judges: SweepJudges,
 ): Promise<LeftCopy[]> {
+  const { writerOf } = judges;
   const recorded = new Set(Object.values(index.entries).flatMap((entry) => (
     entry.kind === "record" ? entry.copies.map((copy) => copy.name) : []
   )));
@@ -187,7 +209,8 @@ async function takeOverUnrecorded(
   for (const location of found) {
     const named = parseAsideFile(location);
     if (named?.role !== "aside" || recorded.has(location) || index.withheldCopies.includes(location)) continue;
-    if (!writable(named.path)) { left.push(unauthorizedCopy(named.path, location)); continue; }
+    const refusal = destinationRefusal(named.path, location, judges);
+    if (refusal !== null) { left.push(refusal); continue; }
     const writer = writerOf(location);
     if (writer === "other-scope") left.push({ path: named.path, copy: location, reason: "other-scope" });
     if (writer === "exited" && !await deleteIfUnedited(input, location, named)) {
@@ -202,21 +225,27 @@ async function takeOverUnrecorded(
  * link or file equal to its base is deleted, and every other stays, withheld and reported with its path.
  */
 async function sweepWithoutIndex(
-  input: SweepInput, found: readonly string[], { writerOf, writable }: SweepJudges,
+  input: SweepInput, found: readonly string[], judges: SweepJudges,
 ): Promise<Omit<SweepResult, "ignores">> {
+  const { writerOf } = judges;
   const left: LeftCopy[] = [];
   const withheld: string[] = [];
   for (const location of found) {
     const named = parseAsideFile(location);
     if (named?.role !== "aside") continue;
-    if (!writable(named.path)) { left.push(unauthorizedCopy(named.path, location)); continue; }
+    const refusal = destinationRefusal(named.path, location, judges);
+    if (refusal !== null) {
+      left.push(refusal);
+      if (refusal.reason === "not-a-file") withheld.push(location);
+      continue;
+    }
     const writer = writerOf(location);
     if (writer === "other-scope") left.push({ path: named.path, copy: location, reason: "other-scope" });
     if (writer !== "exited" || await returnWithoutIndex(input, location, named)) continue;
     withheld.push(location);
     left.push(await retainedCopy(input.checkout, named.path, location, "withheld"));
   }
-  await deleteStagedFiles(input.checkout, found, writerOf);
+  await deleteStagedFiles(input, found, writerOf);
   return { index: null, swept: [], left, withheld, copies: [] };
 }
 
@@ -225,6 +254,7 @@ async function returnWithoutIndex(input: SweepInput, location: string, named: As
   const at = { copy: join(input.checkout, location), path: join(input.checkout, named.path) };
   const isFile = (await readStat(at.copy))?.type === "file";
   if (isFile && await readStat(at.path) === null && await retriedMoves(input).linkOnto(at.copy, at.path)) {
+    await input.checkpoint?.();
     await rm(at.copy, { force: true });
     return true;
   }
@@ -239,16 +269,22 @@ async function deleteIfUnedited(input: SweepInput, location: string, named: Asid
   if (stat.type === "other") return false;
   const unedited = stat.type !== "file"
     || storedBlobId(await readFile(copy, "utf8"), { format: input.format, markdown: named.path.endsWith(".md") }) === named.base;
-  if (unedited) await rm(copy, { force: true });
+  if (unedited) {
+    await input.checkpoint?.();
+    await rm(copy, { force: true });
+  }
   return unedited;
 }
 
 /** Delete the staged files a writer that has exited left. */
 async function deleteStagedFiles(
-  checkout: string, found: readonly string[], writerOf: (name: string) => WriterState,
+  input: SweepInput, found: readonly string[], writerOf: (name: string) => WriterState,
 ): Promise<void> {
   for (const location of found) {
-    if (parseAsideFile(location)?.role === "staged" && writerOf(location) === "exited") await rm(join(checkout, location), { force: true });
+    if (parseAsideFile(location)?.role === "staged" && writerOf(location) === "exited") {
+      await input.checkpoint?.();
+      await rm(join(input.checkout, location), { force: true });
+    }
   }
 }
 
@@ -264,18 +300,17 @@ async function sweepCopy(input: SweepInput, path: string, entry: RecordEntry, re
   if (stat === null) return { kind: "dropped", entry: await finalizeAsideCopy({ checkout, path, entry, copy: record.name }) };
   const holding = await readPathHolding(at.path, input.format);
   if (stat.type === "symlink") {
-    const deleted = await deleteAsideCopy({ checkout, path, entry, copy: record.name });
+    const deleted = await deleteAsideCopy({ checkout, path, entry, copy: record.name, checkpoint: input.checkpoint });
     // An absent path waits for the next refresh to rebuild it.
     return { kind: "deleted", entry: holding.kind === "absent" ? { ...deleted, pending: true } : deleted };
   }
   if (stat.type === "file" && holding.kind === "absent" && !hasPathMovedOn(record, holding)
     && await retriedMoves(input).linkOnto(at.copy, at.path)) {
-    await rm(at.copy, { force: true });
-    return { kind: "linked-back", entry: { ...entry, pending: true, copies: entry.copies.filter((each) => each.name !== record.name) } };
+    return { kind: "linked-back", entry: { ...restoreCopyRendering(entry, record), pending: true } };
   }
   // Every other copy, and one whose path reappeared before its link, is settled as any aside copy is.
   const { format, takeIn, writer, fs, retrySleep, gate } = input;
-  return settleAsideCopy({ checkout, path, entry, copy: record, format, takeIn, writer, fs, retrySleep, gate });
+  return settleAsideCopy({ checkout, path, entry, copy: record, format, takeIn, writer, fs, retrySleep, gate, checkpoint: input.checkpoint });
 }
 
 /** How the sweep reads the writer a copy's or staged file's name records. */

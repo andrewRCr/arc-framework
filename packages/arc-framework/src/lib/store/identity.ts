@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { SlugSchema, validateManagedPath } from "../kernel/index.js";
+import { validateCompanionKey } from "../layout/index.js";
 import { KIND_SHAPES, type KindId, type KeyedKindId, type SingletonKindId } from "./catalog.js";
 
 /**
@@ -45,6 +46,9 @@ const keySchemas = {
     try { validateManagedPath(value); return true; } catch { return false; }
   }, "Expected a managed relative path"),
 };
+const companionKeySchema = z.string().min(1).refine(value => {
+  try { validateCompanionKey(value); return true; } catch { return false; }
+}, "Expected a canonical companion key");
 /** Within-owner key; its exact shape is selected by the kind registry. */
 export const RecordKeySchema = z.union([z.string().min(1), keySchemas.pass]);
 /** A validated record key. */
@@ -60,7 +64,7 @@ export const RecordReferenceSchema = z.strictObject({
   if (value.owner.type !== shape.owner) context.addIssue({ code: "custom", message: "Owner namespace disagrees with kind" });
   if (shape.key === null) {
     if (value.key !== undefined) context.addIssue({ code: "custom", message: "Singleton records take no key" });
-  } else if (!keySchemas[shape.key].safeParse(value.key).success) {
+  } else if (!(value.kind === "work-item/companion" ? companionKeySchema : keySchemas[shape.key]).safeParse(value.key).success) {
     context.addIssue({ code: "custom", message: "Expected the kind's declared key shape" });
   }
 }).brand<"StoreRecordReference">();

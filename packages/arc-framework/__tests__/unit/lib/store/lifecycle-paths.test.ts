@@ -11,8 +11,8 @@ describe("work-item artifact paths", () => {
     [{ kind: "backlog", commitment: "planned" }, "group/leaf", ".arc/backlog/planned/group/leaf/demo"],
     [{ kind: "backlog", commitment: "provisional" }, null, ".arc/backlog/provisional/demo"],
     [{ kind: "completed", quarter: "2026-q4", sequence: "12" }, null, ".arc/completed/2026-q4/12_demo"],
-  ])("projects meta and task list at %j", (placement, cohort, root) => {
-    for (const artifact of ["meta", "tasks"] as const) expect(workItemArtifactPath("demo", artifact,
+  ])("projects meta and task list at %j", async (placement, cohort, root) => {
+    for (const artifact of ["meta", "tasks"] as const) expect(await workItemArtifactPath("/project", "demo", artifact,
       WorkUnitReadPlacementSchema.parse(placement), cohort)).toBe(`${root}/${artifact}-demo.md`);
   });
 });

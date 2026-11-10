@@ -120,6 +120,17 @@ describe("readShippedWorkUnits", () => {
     expect([...shipped]).toEqual(["doc-cascade-sweep"]);
   });
 
+  it("collects a work unit whose slug starts with cohort- beside a cohort closeout", async () => {
+    const fs = buildReaddirFs({
+      [completed]: ["2026-q4"],
+      [`${completed}/2026-q4`]: ["33_cohort-verbs", "33a_cohort-demo"],
+    });
+
+    const shipped = await readShippedWorkUnits({ cwd: "/repo", fs });
+
+    expect([...shipped]).toEqual(["cohort-verbs"]);
+  });
+
   it("returns an empty set when completed/ is absent", async () => {
     const shipped = await readShippedWorkUnits({ cwd: "/repo", fs: buildReaddirFs({}) });
     expect(shipped.size).toBe(0);
@@ -217,6 +228,31 @@ describe("readShippedWorkUnitsFromRef", () => {
       prNumber: null,
     });
     expect(records.has("cohort-demo")).toBe(false);
+  });
+
+  it("reads a work unit whose slug starts with cohort- as shipped beside a cohort closeout", async () => {
+    const metaPath = ".arc/completed/2026-q4/33_cohort-verbs/meta-cohort-verbs.md";
+    const result = await readCompletedEvidenceFromRef(buildTreeExec({
+      paths: [
+        metaPath,
+        ".arc/completed/2026-q4/33_cohort-verbs/spec-cohort-verbs.md",
+        ".arc/completed/2026-q4/33a_cohort-demo/cohort-demo.md",
+      ],
+      blobs: {
+        [metaPath]:
+          "# Metadata: cohort-verbs\n\n"
+          + "| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n"
+          + "| --------- | --------- | ---------- | --------- | ------------ |\n"
+          + "| Shipped | — | — | — | — |\n\n"
+          + "- **Completed:** 2026-11-10\n\n---\n",
+      },
+    }), "origin/main");
+
+    expect(result.status).toBe("available");
+    if (result.status === "available") {
+      expect([...result.records.keys()]).toEqual(["cohort-verbs"]);
+      expect(result.records.get("cohort-verbs")).toMatchObject({ completedAt: "2026-11-10" });
+    }
   });
 
   it("parses PR identity and preserves available negative evidence", async () => {
@@ -323,6 +359,16 @@ describe("readArchivedWorkUnitMetaFromRef", () => {
     }), "a".repeat(40), "demo");
 
     expect(result).toEqual({ kind: "read", path, text: "# Metadata: demo\n" });
+  });
+
+  it("reads the metadata of a work unit whose slug starts with cohort-", async () => {
+    const path = ".arc/completed/2026-q4/33_cohort-verbs/meta-cohort-verbs.md";
+    const result = await readArchivedWorkUnitMetaFromRef(buildTreeExec({
+      paths: [path, ".arc/completed/2026-q4/33a_cohort-demo/cohort-demo.md"],
+      blobs: { [path]: "# Metadata: cohort-verbs\n" },
+    }), "a".repeat(40), "cohort-verbs");
+
+    expect(result).toEqual({ kind: "read", path, text: "# Metadata: cohort-verbs\n" });
   });
 
   it("preserves duplicate exact metadata paths as ambiguity", async () => {

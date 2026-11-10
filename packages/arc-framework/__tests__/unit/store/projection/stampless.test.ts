@@ -26,11 +26,31 @@ function entryAt(content: string, version: RecordVersion, inProgress: RecordEntr
   };
 }
 
+async function replacingFile() {
+  const fixture = createReferenceFixture();
+  const counting = createCountingStore(fixture.store);
+  const document = fixture.reference("cohort/document");
+  const put = async (content: string, expected: RecordVersion | null): Promise<RecordVersion> => {
+    const result = await fixture.store.write({
+    action: "put", reference: document, content, expected, provenance: { verb: "save", lifecycleAction: "save" },
+    });
+    if (result.status !== "ok" || result.result.version === undefined) throw new Error("the fixture write was refused");
+    return result.result.version;
+  };
+  const replaced = await put("a\nb\nc\n", null);
+  const replacingVersion = await put("x\ny\nz\n", replaced);
+  const entry = { ...entryAt("x\ny\nz\n", replacingVersion, {
+    replaces: { blob: gitBlobId("a\nb\nc\n", "sha1"), version: replaced }, copy: ASIDE_COPY,
+  }), reference: document };
+  const memo = createHistoryMemo(counting.store);
+  return { entry, memo, document, counting, replacingVersion };
+}
+
 describe("files other than Markdown", () => {
   it("reads a file restored to an older version as an edit from the entry's version", async () => {
     const entry = entryAt("newer\n", v("v2"));
     expect(await readStamplessFile({ entry, text: "older\n", mtimeNs: LONG_AGO, format: "sha1", memo: noHistory }))
-      .toEqual({ status: "ok", result: { kind: "edit", base: entry.base } });
+      .toEqual({ status: "ok", result: { kind: "edit", base: entry.base, replaces: null } });
     expect(await readStamplessFile({ entry, text: "newer\r\n", mtimeNs: LONG_AGO, format: "sha1", memo: noHistory }))
       .toEqual({ status: "ok", result: { kind: "unedited" } });
   });
@@ -43,29 +63,44 @@ describe("files other than Markdown", () => {
       .toEqual({ status: "ok", result: { kind: "unedited" } });
   });
 
-  it("takes the closer of the two versions as the base of content matching neither, reading history once", async () => {
-    const fixture = createReferenceFixture();
-    const counting = createCountingStore(fixture.store);
-    const document = fixture.reference("cohort/document");
-    const put = async (content: string, expected: RecordVersion | null): Promise<RecordVersion> => {
-      const result = await fixture.store.write({
-        action: "put", reference: document, content, expected, provenance: { verb: "save", lifecycleAction: "save" },
-      });
-      if (result.status !== "ok" || result.result.version === undefined) throw new Error("the fixture write was refused");
-      return result.result.version;
-    };
-    const replaced = await put("a\nb\nc\n", null);
-    const replacingVersion = await put("x\ny\nz\n", replaced);
-    const entry = { ...entryAt("x\ny\nz\n", replacingVersion, {
-      replaces: { blob: gitBlobId("a\nb\nc\n", "sha1"), version: replaced }, copy: ASIDE_COPY,
-    }), reference: document };
-    const memo = createHistoryMemo(counting.store);
+  it("reads the indexed content as a revert when the last persisted write-back recorded that base", async () => {
+    const base = entryAt("before\n", v("v1"));
+    const entry = { ...base, persisted: { stamp: base.base.blob, takenIn: { kind: "landed" as const, version: v("v2") } } };
+    expect(await readStamplessFile({ entry, text: "before\n", mtimeNs: LONG_AGO, format: "sha1", memo: noHistory }))
+      .toEqual({ status: "ok", result: { kind: "edit", base: entry.base, replaces: null } });
+  });
+
+  it("returns both replacement versions for an edit matching neither, reading history once", async () => {
+    const { entry, memo, document, counting } = await replacingFile();
     const readOf = (text: string) => readStamplessFile({ entry, text, mtimeNs: LONG_AGO, format: "sha1", memo });
     expect(await readOf("a\nb\nc\nd\n")).toEqual({
-      status: "ok", result: { kind: "edit", base: { blob: gitBlobId("a\nb\nc\n", "sha1"), version: replaced } },
+      status: "ok", result: { kind: "edit", base: entry.base, replaces: entry.inProgress?.replaces },
     });
-    expect(await readOf("x\ny\nz\nw\n")).toEqual({ status: "ok", result: { kind: "edit", base: entry.base } });
+    expect(await readOf("x\ny\nz\nw\n")).toEqual({ status: "ok", result: { kind: "edit", base: entry.base, replaces: entry.inProgress?.replaces } });
     expect(counting.count({ operation: "history", input: { reference: document } })).toBe(1);
+  });
+
+  it("recognizes the replaced version as a revert of a recorded take-in while the laid version is unedited", async () => {
+    const source = await replacingFile();
+    if (source.entry.inProgress === null) throw new Error("replacement unavailable");
+    const entry = { ...source.entry, persisted: { stamp: source.entry.inProgress.replaces.blob,
+      takenIn: { kind: "landed" as const, version: source.replacingVersion } } };
+    const readOf = (text: string) => readStamplessFile({ entry, text, mtimeNs: LONG_AGO, format: "sha1", memo: source.memo });
+    expect(await readOf("a\nb\nc\n")).toEqual({ status: "ok", result: { kind: "edit", base: entry.base, replaces: entry.inProgress?.replaces } });
+    expect(await readOf("x\ny\nz\n")).toEqual({ status: "ok", result: { kind: "unedited" } });
+  });
+
+  it("keeps unreadable replacement versions pending and accepts repaired recorded versions", async () => {
+    const source = await replacingFile();
+    if (source.entry.inProgress === null) throw new Error("replacement unavailable");
+    const entry = { ...source.entry, base: { ...source.entry.base, version: v("unreadable-new") },
+      inProgress: { ...source.entry.inProgress, replaces: { ...source.entry.inProgress.replaces, version: v("unreadable-old") } } };
+    const readOf = (recorded: RecordEntry) => readStamplessFile({ entry: recorded, text: "neither\n", mtimeNs: LONG_AGO,
+      format: "sha1", memo: source.memo });
+    expect(await readOf(entry)).toMatchObject({ status: "ok", result: { kind: "pending",
+      refusal: { code: "state-unresolvable", historyRefs: [], remedy: { text: expect.any(String) } } } });
+    expect(await readOf(source.entry)).toMatchObject({ status: "ok", result: { kind: "edit", base: source.entry.base,
+      replaces: source.entry.inProgress.replaces } });
   });
 
   it("leaves an empty file younger than 50 ms for the next command, and reads one older", async () => {
@@ -73,7 +108,7 @@ describe("files other than Markdown", () => {
     const now = 10_000_000_000n;
     const readAt = (mtimeNs: bigint) => readStamplessFile({ entry, text: "", mtimeNs, format: "sha1", memo: noHistory, now: () => now });
     expect(await readAt(now - 49_000_000n)).toEqual({ status: "ok", result: { kind: "wait" } });
-    expect(await readAt(now - 50_000_000n)).toEqual({ status: "ok", result: { kind: "edit", base: entry.base } });
+    expect(await readAt(now - 50_000_000n)).toEqual({ status: "ok", result: { kind: "edit", base: entry.base, replaces: null } });
   });
 
   it("clears the in-progress record when its copy is deleted while the file holds what was linked, and not otherwise",
@@ -89,7 +124,7 @@ describe("files other than Markdown", () => {
         await writeFile(join(checkout, target), "content\n");
       }
       const linked = await lstat(join(checkout, path), { bigint: true });
-      const record = (name: string) => ({ name, moving: gitBlobId("older\n", "sha1"), linked: gitBlobId("newer\n", "sha1"), writeBackSent: false, landed: null });
+      const record = (name: string) => ({ name, moving: gitBlobId("older\n", "sha1"), linked: gitBlobId("newer\n", "sha1"), writeBackSent: false, landed: null, rendering: { markers: null, notices: [] } });
       const entry: RecordEntry = {
         ...entryAt("newer\n", v("v2"), { replaces: { blob: gitBlobId("older\n", "sha1"), version: v("v1") }, copy: named }),
         stat: { type: "file", size: linked.size, mtimeNs: linked.mtimeNs, ino: linked.ino },

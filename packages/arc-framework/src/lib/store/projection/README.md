@@ -3,6 +3,19 @@
 The projection is the gitignored working copy of the store at the familiar `.arc/` paths. This folder holds its
 engine and the files it writes.
 
+`engine.ts` starts and ends a command over its supplied store. A backend whose state stays in the checkout returns
+before resolving engine dependencies. With state off branch, start takes the projection lease before launching the
+configuration, state-version read, and shared-root walk together; personal discovery waits for the identity. It sweeps
+before scanning edits, rereads recovered paths, and sends an ignore-refused root's edits without replacing its files.
+Normal discovery covers active, backlog, and personal roots; save mode includes completed files. Walks use `lstat`,
+skip machine-local folders, and return newly discovered files unsent.
+
+`process-state.ts` gives stores created at different call sites the same command's skip verdict, lock state, history
+memo, per-root capability and bindings, and copy bookkeeping. Each command starts with fresh bindings and history.
+Rights default to granting an edit; adoption, refresh, fan-out, and materialization bindings live with each root.
+`engine-end.ts` takes each ready root's lease again and reads its current index before the second check. After another
+index read under that lease, it removes retained take-in copies no entry names. An unusable index preserves its files.
+
 `paths.ts` names the checkout's machine-local folder, `.arc/system/.local/`, and the aside folder inside it.
 
 `excludes.ts` builds the clone-local Git exclude list from the projected roots `lib/layout/projected-roots.ts` names:
@@ -65,7 +78,9 @@ folder that exists, so a worktree whose Git directory was removed reads as gone 
 ends only the guarded operation, at its next step, with the report the caller names. The operation awaits each
 `session.step()`, which confirms ownership through the renewable lease before proceeding, even when a queued heartbeat
 has not run. Failed confirmation stops the operation with a retry report. A wait that times out names the holder it
-last saw. It is not reentrant.
+last saw. It is not reentrant. The engine forwards its ownership checkpoint through store sends, staging, moves,
+index publication, and cleanup, including retry attempts. A lost lease prevents subsequent mutations; the command's
+unsent set stays outside the leased operation for reporting, without publishing unlocked pending marks.
 
 `blob-id.ts` computes Git blob ids with `node:crypto`, `blob <length>\0` plus the bytes, in the repository's object
 format, never by running Git per file. A file's stored blob id is taken over LF line endings with, for Markdown alone,
@@ -109,18 +124,118 @@ matcher: an entry carrying no ID takes the ID of the one reference entry whose t
 own, else of the one sharing its heading or complete field-header paragraph, and a reference entry two entries match the
 same way goes to neither. Where the record read back is at the write's version and holds that content apart from the IDs
 the store stamped, the version is the content taken in; otherwise the content is kept as a copy under
-`arc-projection/taken-in/` until a later landing releases it. A save carrying the recorded stamp takes that content as
-its base, and a file other than Markdown takes the closer of a kept copy and the version that write landed, recorded
-alongside the copy so a later refresh cannot change the comparison's basis.
+`arc-projection/taken-in/` until a later landing releases it. A Markdown save carrying the recorded stamp takes that
+content as its base. An accepted input whose read-back or required identity reference is unavailable keeps a raw copy
+with `persisted.recording: true`. `write-back-recording.ts` completes that mapping before another send, without
+installing a file; `recording-state.ts` refuses raw-basis consumption. Missing IDs use the accepted version, consulting
+per-record history only when needed and read-back names a newer version. Accepted adoption retains its own guarded
+installation continuation. Unavailable copies or history stay pending until repaired. For a file without a stamp, the
+take-in records its carried base blob id and retains both the landed version and any kept copy as candidates,
+independently of later refreshes.
 
 `stampless.ts` reads a file other than Markdown, which carries no stamp, against its entry: the entry's version is its
 base, so a file restored to an older version is an edit, and an empty file is read only once its modification time is
 50 ms old. While a replacement is in progress, the entry also names the version it replaces and the aside copy its batch
-makes: content equal to that version reads as unedited, so it is refreshed and never written back over the newer
-version, and content matching neither version merges from the closer of the two, read through `history`; where that
-read refuses `state-unresolvable`, the file takes neither and stays pending, reported with the refusal. Every deleter
-of an aside copy deletes through `deleteAsideCopy`, which clears the copy's record, and the in-progress record where it
-names that copy and the file holds what the batch linked there, by the file identity the entry records.
+makes. Content equal to what was written, or to the replaced version, is unedited unless the last persisted take-in
+recorded that version's base blob id, which makes it the person's revert. An edit retains both replacement versions,
+read through `history`; where that read refuses `state-unresolvable` or neither version is readable, the file stays
+pending, reported with the refusal. Every deleter of an aside copy deletes through `deleteAsideCopy`, which clears the
+copy's record, and the in-progress record where it names that copy and the file holds what the batch linked there, by the
+file identity the entry records.
+
+`base-selection.ts` resolves a Markdown save's stamp, falling back to recovery when it was lost or names no stored
+version. `stampless-base.ts` compares a stampless save's carried base, the replaced version at its path, the last
+take-in's landed version, and its kept copy. Stored candidates count once by record version, while a kept copy counts
+separately by blob id. One candidate needs no content read; otherwise every candidate must give the same merge before
+the edit is sent against its carried base. Comparison includes each clash's position and preserved sides, so identical
+stored clashes agree while a clash from a kept copy remains distinct. Unreadable candidates stay pending; differing
+merges become checkout holds.
+
+`write-back.ts` prepares an edit without writing, then sends it as one content put with hand-edit provenance. It restores
+missing entry IDs through the shared matcher and repairs later duplicates from the repeatable stream in
+`write-back-ids.ts`. The take-in port records a landing and its read-back without swapping. `read-back.ts` owns the file
+walk's guarded read-back batch, using the exact bytes read as its baseline and retaining any earlier pending mark.
+The operation supplies `write-back` or `save`, each with `edit`; editable bytes supply neither provenance field.
+Backend record-malformed refusals retain their rule ID with the condition and remedy.
+
+`write-refusal.ts` handles a rejected merge base by reading the record and claiming one recovery allowance per logical
+record for the command. Recovery consults fresh history while retaining the save's original stamp or carried blob;
+stampless candidate agreement still applies. A removed record leaves a refused edit with a copy-out remedy. A second
+version conflict or a held store lock leaves the edit pending with the backend's remedy. Other refusals preserve the
+edit and their remedy without pulling history. A failed read-back after acceptance stays pending without another send.
+An existing ambiguity hold retains its original token across refused attempts; backend diagnostics remain separate
+from that durable hold, which a successful send clears.
+
+`command-hooks.ts` registers the root Commander's entry after the development guard and its completion after the
+development refresh registration, so Commander's reverse completion order settles copies before rebuilding. Root
+`save` uses save provenance and includes completed roots. Every start outcome remains in process state for the action
+to inspect. Native bindings check the backend capability before resolving a root; the in-repo backend returns without
+projection I/O. `report.ts` flushes new diagnostics and resolutions to stderr before the action and after completion,
+including corrective argv, unseen conflicts, pending saves, and retained aside copies with their original paths.
+
+`status.ts` reads outstanding file marks, ownerless entries, unseen conflicts, and recorded aside copies without a
+lease or index write. Its JSON view omits filesystem stats, and its summary retains repair guidance and copy paths.
+Composite status runs this reader as an independent probe; an unreadable projection leaves the other sections
+available. Disabled backends resolve no projection dependency.
+
+`save.ts` reports the save start's refusal or its final store version using the backend retained by command entry. The
+retained selection includes the checkout even when initialization is disabled or refused; the handler takes its Store
+explicitly. An explicit resolution binds its exact subject and conflict through the index before the sweep, rechecks
+them afterward, and sends only at that subject's path. Standing or malformed markers keep their repair route.
+`save-resolution.ts` groups equivalent indexed subject/conflict mappings and checks every alias through ordinary
+write-back preparation. Agreeing prepared content resolves through the first path in walk order; incompatible choices,
+withheld files, and other preparation refusals keep the group unsent with repair guidance. `engine-files.ts` preserves
+those files while independent edits continue. Distinct owner generations remain ambiguous.
+Whole-record resolution checks the submitted content while retaining the stored placement and links: keeping the stored
+side or an admitted content edit discards the other alternative; actual verb-owned field changes require their owning
+verbs. `bases-disagree` holds use their recorded token and the current stored base after controls are removed. Accepted
+resolutions remain accepted when later rendering or read-back fails.
+
+`check-edit.ts` runs the kind's production check over merged content, with current parsed fields or raw prior content
+when parsing fails. It stamps only the entry merge's check copy and reports every broken rule with its remedy.
+`after-view.ts` overlays that caller-parsed pending record on reads and family listings, retaining its prior envelope
+or inheriting a new companion's owner placement. Other reads, saved-state queries, and all lookups remain the backend's.
+Name-only queries resolve through the backend's canonical record or owner, so a reused name retains the generation the
+backend selects.
+
+`conflict-placement.ts` locates stored entry conflicts by their stable ID. Hunk placement relocates the base range
+through the line diff, then checks the exact current side and neighboring lines or file edges. Historical content comes
+from the command's memo; an unreadable base leaves the conflict unplaced. Side line counts distinguish a blank line from
+an empty side, whose span is an insertion point.
+
+`marker-render.ts` creates one renderer from the whole file and its preserved conflict sides. Every set uses its
+chosen length, names its stored conflict or checkout origin, and carries a resolve-by-hand instruction when escalated.
+
+`record-render.ts` composes checked placement with the whole file's marker rendering. It preserves existing sets by
+their labels, draws remaining conflicts in token order against stable content coordinates, and emits notices for
+unplaceable, overlapping, or whole-record conflicts. A stampless file records those conflicts only in its index.
+`render-held.ts` reserves each set's lines and each empty side's insertion point, including its edges, and excludes
+generated controls when selecting the final marker length.
+
+`conflicted-refresh.ts` prepares a marked file's next view by merging its indexed stored base, the newer record, and
+the file with its markers. Closed sets leave only when the file's bytes still equal what was written; open sets grow
+before merging marker-like prose. An overlap or unreadable base returns a retryable pending remedy. A clean result
+passes through the shared renderer, removing closed notices and drawing newly open conflicts together.
+
+`marker-scan.ts` locates complete and malformed controls at exactly the indexed length. `marker-preparation.ts` reads
+indexed conflict evidence, including retained history for conflicts already closed elsewhere; `marker-parse.ts`
+substitutes untouched stored sides and attaches resolutions to the same content put. Edited standing sides and checkout
+clashes hold the whole file. `marker-entries.ts` restores malformed entries from the selected base by section and
+identity, retaining independent edits and new entries. A partial landing still answers refused, preserves the original
+file and base, and records its sanitized take-in. Aside copies refuse whole before returning to their path.
+`held-conflicts.ts` retains and reports open conflicts the held file cannot show, using the file's repair remedy.
+
+`checkout-merge.ts` merges kept-copy and empty bases, and stale single-writer records, onto the current stored version.
+Entry merges stamp their own repeatable copy and fall back to a clean line merge. The sent content is the merge's,
+while the recorded take-in remains the file's input. Conflicts stay in the checkout, rendered by `mergeLineText` through
+its optional line callback, which preserves the distinction between no lines and one blank line.
+
+`checkout-differences.ts` draws every actual difference of a stampless hold, retaining common file lines and its final
+newline. A final-newline-only difference draws the whole file. `checkout-drawing.ts` installs drawings through the
+replace guard and swap; a `bases-disagree` refusal and its resolution token belong to that staged drawing alone until
+it is installed, and then persist until the file is sent. Rendering metadata stays off the guard's input, so a save it
+holds or restages inherits no proposed drawing marks. A guard-observed edit reaches candidate comparison even when
+its later save equals the index again.
 
 `read-gate.ts` gates every read of a projected file on its stats alone, so write-back never reads one mid-save. An empty
 file younger than 50 ms waits for the next command, since an editor that truncates before writing leaves it empty
@@ -142,9 +257,12 @@ lock records a holder, with the process scope digested since a scope holds chara
 and `aside` or `staged`, so no name ends in `.md` and none grows with its path. A location parses back to what it
 records, and a staged file is created exclusively.
 
-`staging.ts` stages a record's file in the aside folder, created exclusively under the name `aside.ts` gives it: a
-Markdown file stamped with its stored content's blob id, any other as stored, with the blob id of its bytes and the
-version it lays. A protected file is staged read-only, and a link shares that mode.
+`staging.ts` stages rendered content in the aside folder, created exclusively under the name `aside.ts` gives it. A
+Markdown file carries its stored content's blob id as its stamp, while its `written` blob identifies the rendered bytes;
+its base keeps the stored version. A file without a stamp carries the rendered content directly. A protected file is
+staged read-only, and a link shares that mode. The record-to-stage operation returns store refusals before creating
+staged bytes. Read-back and checkout drawings bind the same renderer for the guard's restage; a rendering failure keeps
+the original file pending, retaining any write that already landed.
 
 `take-in-port.ts` is the port reading and replacing hand every edit they meet to, and write-back answers once bound: the
 worktree whose file holds the edit, the path or the aside copy, its entry, and its base — the stamp it carries, or, for
@@ -171,9 +289,16 @@ has not moved on, and is deleted once its edit lands whole, kept where the take-
 whose path has moved on is kept, reported with its path and never sent. A record whose copy is gone is dropped. A copy
 whose edit is refused, unparseable, or clashed is never deleted while that stands. Where its path has not moved on it
 goes back there — linked back to an absent path, or swapped back onto one holding what its swap linked, the replacement
-moved aside and recorded as a copy holding what its swap moved — and the file is pending, marked refused or held by the
-markers the take-in left. Where the path has moved on, or a save recreates it mid-move, the copy stays aside, reported
-with its path.
+moved aside and recorded as a copy holding what its swap moved — and the file is pending with its own marker and notice
+mapping restored. A checkout clash remains undrawn until the file's own write-back. Where the path has moved on, or a
+save recreates it mid-move, the copy stays aside, reported with its path.
+
+Each aside record retains the marker length, origins, and notice references of the bytes it displaced. Its take-in
+uses that snapshot while the live entry continues describing the current path. `returned-copies.ts` publishes a
+returned file's restored mapping with its alias still recorded, then unlinks the alias and publishes finalization.
+Interrupted links are recovered by proving the copy and path share both device and inode before restoring the mapping.
+A path on another inode keeps its own mapping and leaves the copy available. Current open-conflict knowledge advances
+independently of the displaced file's rendering snapshot.
 
 `aside-moves.ts` makes a swap's two moves, the rename into the aside folder and the link onto the path, inside the
 bounded retry, since a reader holding the file without sharing delete access refuses them for a moment on Windows. A
@@ -181,23 +306,23 @@ link refused because something is at the path reads as a save that recreated it.
 second check take the operations and retry sleep a test injects, and the swap, the second check, and the sweep take the
 read gate it injects for every copy they check.
 
-`swap.ts` replaces a batch of files between two index writes. The first, with the reference after it, records each
-file's new base, the staged file's stat — which the path shares once it is linked — pending, the record of the aside
-copy its move makes, and, for a file other than Markdown, an in-progress record naming the version it replaces and that
-copy. Then each file is renamed aside and its staged file hard-linked onto the path, both inside the bounded retry
-(`aside-moves.ts`), and its copy checked once, an edit taken in and one refused or clashed put back as `aside-copies.ts`
-states, nothing deleted; an absent file is rebuilt by the link alone, which makes no copy. A link refused because a save
-recreated the path yields to it, the replaced version still recorded; a move still refused past the bound leaves the
-file in place, its entry restored; and a link failing otherwise links the copy back, unless it is a symbolic link, which
-leaves the path absent. The second write clears the pending mark of each file whose path still holds the staged file's
-identity, and a rebuild's in-progress record, but keeps a mark a file carried into a read-back's batch. A stop between
-the writes leaves a file pending that write-back reads no edit in. A file the guard staged nothing for is removed: moved
-aside and its copy checked like any other, nothing linked, its entry kept its record's, recorded absent and pending.
-The entry is dropped once the file is gone and no aside copy of its path remains, at the second write or the second
-check, so a copy that goes back to the path is still taken in against that record; where the projection now lays
-another record at the path, the entry stays, pending, as a deleted file's. The batch returns the copies it made that its
-index still records, and the paths it removed from, for the second check. Hooks after the re-check, the move, and the
-first check, and before a rebuild's link, place a save in each interval for tests.
+`swap.ts` publishes planned replacements before moving files and settled entries afterward. The first write, with the
+reference after it, records each file's new base, the staged file's stat — which the path shares once it is linked —
+pending, the record of the aside copy its move makes, and, for a file other than Markdown, an in-progress record naming
+the version it replaces and that copy. Then each file is renamed aside and its staged file hard-linked onto the path,
+both inside the bounded retry (`aside-moves.ts`), and its copy checked once, an edit taken in and one refused or clashed
+put back as `aside-copies.ts` states, nothing deleted; an absent file is rebuilt by the link alone, which makes no copy.
+A link refused because a save recreated the path yields to it, the replaced version still recorded; a move still refused
+past the bound leaves the file in place, its entry restored; and a link failing otherwise links the copy back, unless it
+is a symbolic link, which leaves the path absent. The second write clears the pending mark of each file whose path still
+holds the staged file's identity, and a rebuild's in-progress record, but keeps a mark a file carried into a read-back's
+batch. A stop between the writes leaves a file pending that write-back reads no edit in. A file the guard staged nothing
+for is removed: moved aside and its copy checked like any other, nothing linked, its entry kept its record's, recorded
+absent and pending. The entry is dropped once the file is gone and no aside copy of its path remains, at the second
+write or the second check, so a copy that goes back to the path is still taken in against that record; where the
+projection now lays another record at the path, the entry stays, pending, as a deleted file's. The batch returns the
+copies it made that its index still records, and the paths it removed from, for the second check. Hooks after the
+re-check, the move, and the first check, and before a rebuild's link, place a save in each interval for tests.
 
 `second-check.ts` checks each aside copy a command's batches made once more at the command's end, under the projection
 lock again, since a save through a handle opened before the move can write after the first check. Each copy the index

@@ -131,7 +131,7 @@ it("does not bind an Active extraction's task-list edits or its old Planning sou
 it.each([false, true])("keeps dependency identities after actual provider and dependent renames, started=%s", async started => {
   const h = await createDecomposeTerminalFixture({ started, provider: true });
   for (const [sourceSlug, targetSlug] of [["provider", "foundation"], ["consumer", "client"]] as const) {
-    expect(await runStoreRename({ ...h.ctx.executor, baseBranch: h.ctx.baseBranch }, { sourceSlug, targetSlug }))
+    expect(await runStoreRename({ ...h.ctx.executor, baseBranch: h.ctx.baseBranch }, { operand: sourceSlug, targetSlug }))
       .toMatchObject({ status: "renamed" });
   }
   expect((await check(h.ctx)).status).toBe("ok");

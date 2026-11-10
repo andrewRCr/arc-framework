@@ -41,7 +41,6 @@ import {
 import { prompt } from "../lib/command-input/prompter.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { type ParsedMetaRecord } from "../lib/active/meta-schema.js";
-import { COHORT_SEGMENT_CAP } from "../lib/active/cohort-path.js";
 import { expandActiveInFlight, runActiveInFlightExpansion } from "../commands/active.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { boundedFetch, getCurrentBranch, type GitExec } from "../lib/git/exec.js";
@@ -79,6 +78,8 @@ import {
 import { runPark, runResume, type ParkResumeFs } from "../lib/work-unit/verbs/park-resume.js";
 import { runMaterialize } from "../lib/work-unit/verbs/materialize.js";
 import { runStub } from "../lib/work-unit/verbs/stub.js";
+import { StubCommandInputSchema } from "../lib/work-unit/verbs/stub-parameters.js";
+export { StubCommandInputSchema } from "../lib/work-unit/verbs/stub-parameters.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import {
   createInRepoAbandonRetirementContext,
@@ -128,7 +129,7 @@ import { listParkedSlugs } from "../lib/work-unit/lifecycle-resolver.js";
 import { createNodeTeardownSelectionReader } from "../lib/work-unit/teardown-selection.js";
 import { createNodeTeardownWorktreeTransactionDriver } from "../lib/work-unit/teardown-worktree-transaction.js";
 import { spineRemedy } from "../scripts/integration/spine-refusal.js";
-import { PrioritySchema, SLUG_PATTERN, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
+import { PrioritySchema, SlugSchema, WorkClassSchema } from "../lib/kernel/index.js";
 import {
   resolveProcessInteractionContext,
   type InteractionContext,
@@ -188,7 +189,7 @@ export async function resolveVerbTargetOrReport(
   const target = selectVerbTarget(verb, slugArg, currentWuSlug);
   if (target.kind === "resolved") return canonicalVerbTarget(target.slug, store, json);
 
-  const view = usesOffBranchState(store) && store !== undefined ? await readLifecycleView(store) : undefined;
+  const view = usesOffBranchState(store) && store !== undefined ? await readLifecycleView(cwd, store) : undefined;
   if (view?.status === "refused") {
     refuseWithRemedy(view.refusal.condition, view.refusal.remedy, json, view.refusal);
     return null;
@@ -312,28 +313,6 @@ export interface StubOptions {
   class?: string;
 }
 
-/** Canonical cohort path accepted by the `stub` command boundary. */
-const slugSegmentPatternSource = SLUG_PATTERN.source.slice(1, -1);
-const stubCohortPathPattern = new RegExp(
-  `^${slugSegmentPatternSource}(?:/${slugSegmentPatternSource}){0,${String(COHORT_SEGMENT_CAP - 1)}}$`,
-  "u",
-);
-const StubCohortPathSchema = z.string().regex(
-  stubCohortPathPattern,
-  "Expected a canonical one- or two-segment cohort path",
-);
-
-/** Complete schema-owned stub creation input. */
-export const StubCommandInputSchema = z.object({
-  name: SlugSchema,
-  commitment: z.enum(["provisional", "planned"]),
-  priority: PrioritySchema,
-  origin: z.string().min(1).optional(),
-  design: z.string().min(1).optional(),
-  cohort: StubCohortPathSchema.optional(),
-  class: WorkClassSchema.optional(),
-}).strict();
-
 /** Schema-owned backlog tier inputs. */
 export const PromoteCommandInputSchema = z.object({
   slug: SlugSchema.optional(),
@@ -421,9 +400,11 @@ export const RepointDesignCommandInputSchema = z.object({
   event: z.enum(["draft-created", "spec-finalized"]),
 }).strict();
 export const RenameCommandInputSchema = z.object({
-  slug: SlugSchema,
+  slug: z.union([SlugSchema, z.uuid()]),
   newSlug: SlugSchema,
-}).strict().superRefine((value, refinement) => {
+  json: z.boolean().optional(),
+}).strict();
+const InRepoRenameCommandInputSchema = RenameCommandInputSchema.superRefine((value, refinement) => {
   if (value.slug === value.newSlug) {
     refinement.addIssue({ code: "custom", path: ["newSlug"], message: "The new slug must differ from the current one." });
   }
@@ -535,7 +516,7 @@ export const lifecycleCommandInputRegistrations = [
   {
     commandPath: "rename",
     schema: RenameCommandInputSchema,
-    schemaFields: { "operand.slug": "slug", "operand.new-slug": "newSlug" },
+    schemaFields: { "operand.slug": "slug", "operand.new-slug": "newSlug", "option.json": "json" },
   },
 ] as const satisfies readonly CommandInputRegistration[];
 
@@ -565,7 +546,16 @@ export const promoteClassPromptSite = declarePromptSite("prompt.promote.class", 
 
 /** Interaction policies owned by the lifecycle command adapters. */
 export const lifecycleCommandInputPolicyDeclarations = [
-
+  {
+    commandPath: "rename",
+    aliases: [],
+    sites: [declareCliOptionSite("json", {
+      acquisition: "machine-mode", schemaOwnership: "owned", schemaField: "json",
+      cancellation: "not-applicable",
+      automation: { noInput: "same", flags: ["--json"], acceptedSyntax: [] },
+      mutationBoundary: "output selection", subprocess: "none",
+    })],
+  },
   {
     commandPath: "publish",
     aliases: [],
@@ -667,24 +657,29 @@ export async function handleStub(
   reportOutcome("Stubbed", [`Work unit: ${parsed.data.name}`, `Meta:      ${result.metaPath}`], result.outcome);
 }
 
-/** `arc rename <slug> <new-slug>` — atomically rename a work unit and its applicable identities. */
+/** `arc rename <slug> <new-slug>` — atomically rename a work unit or cohort and its applicable identities. */
 export async function handleRename(
   sourceSlug: string,
   targetSlug: string,
+  opts: { json?: boolean } = {},
   context?: InteractionContext,
 ): Promise<void> {
-  p.intro("arc rename");
+  if (opts.json !== true) p.intro("arc rename");
   const input = parseLifecycleCommand(RenameCommandInputSchema, {
-    slug: sourceSlug.trim(), newSlug: targetSlug.trim(),
-  }, ["rename"]);
+    slug: sourceSlug.trim(), newSlug: targetSlug.trim(), json: opts.json,
+  }, ["rename"], opts.json === true);
   if (input === null) return;
   const { slug: renameSource, newSlug: renameTarget } = input;
-  const base = await resolveVerbBase(context);
+  const base = await resolveVerbBase(context, input.json === true);
   if (base === null) return;
   const { executor, settings } = await buildExecutor(base);
   if (!usesOffBranchState(executor.store) && base.io.execInput === undefined) {
-    refuse("remote rename expansion requires stdin-capable Git I/O");
+    reportRenameResult(renameSource, renameTarget, { status: "rejected", reason: "remote rename expansion requires stdin-capable Git I/O" }, input.json === true);
     return;
+  }
+  if (!usesOffBranchState(executor.store)) {
+    if (parseLifecycleCommand(InRepoRenameCommandInputSchema, input, ["rename"], input.json === true) === null) return;
+    if (parseLifecycleCommand(SlugSchema, renameSource, ["rename"], input.json === true) === null) return;
   }
   const io = base.io;
   const result = await runRenameCommand({
@@ -698,11 +693,11 @@ export async function handleRename(
     retirement: createInRepoRenameRetirementContext(directRetirementDeps(base)),
     transitionWriter: terminalTransitionWriter(base),
     onPreparedAdvisories: (advisories) => {
-      for (const advisory of advisories) p.log.warn(advisory);
+      if (input.json !== true) for (const advisory of advisories) p.log.warn(advisory);
       return Promise.resolve();
     },
   }, { sourceSlug: renameSource, targetSlug: renameTarget });
-  reportRenameResult(renameSource, renameTarget, result);
+  reportRenameResult(renameSource, renameTarget, result, input.json === true);
 }
 
 // ---------------------------------------------------------------------------
@@ -2016,7 +2011,7 @@ export async function handleFinalizeStage(
     return;
   }
   const result = await runFinalizeStage(
-    { writeClassField, writeSoftFields, store: executor.store },
+    { cwd: executor.cwd, writeClassField, writeSoftFields, store: executor.store },
     { name: slug, firePoint: firePointArg, workClass: input.class },
   );
   if (result.status === "rejected") {

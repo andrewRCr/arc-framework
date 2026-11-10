@@ -27,6 +27,7 @@ function buildCtx(): Harness {
   const softWrites: { metaPath: string; updates: Record<string, string> }[] = [];
   return {
     ctx: {
+      cwd: "/project",
       writeCurrentWorkflowField: async (metaPath, stage) => {
         calls.push({ metaPath, stage });
       },

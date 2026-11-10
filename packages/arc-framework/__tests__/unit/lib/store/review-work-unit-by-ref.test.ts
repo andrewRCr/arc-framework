@@ -47,11 +47,11 @@ it.each([
 ] as const)("refuses a linked work unit when %s as a typed selection, and resolves it after repair",
   async (_case, broken, condition, remedy) => {
     const { store, repair } = await linked(broken);
-    const refused = readReviewWorkUnitByRef({ store, projectId }, "feat/example");
+    const refused = readReviewWorkUnitByRef({ cwd: "/project", store, projectId }, "feat/example");
     await expect(refused).rejects.toBeInstanceOf(ReviewOwnerSelectionError);
     await expect(refused).rejects.toMatchObject({ code: "corrupt-state", condition: expect.stringMatching(condition),
       remedy: { text: remedy } });
     repair();
-    expect(await readReviewWorkUnitByRef({ store, projectId }, "feat/example"))
+    expect(await readReviewWorkUnitByRef({ cwd: "/project", store, projectId }, "feat/example"))
       .toMatchObject({ name: "example", branch: "feat/example" });
   });

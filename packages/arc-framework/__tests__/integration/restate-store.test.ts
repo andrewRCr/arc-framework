@@ -31,14 +31,14 @@ async function fixture() {
 }
 it("takes meta anchors and record changes while keeping code commits a Git walk", async () => {
   const h = await fixture();
-  expect(await deriveRestateCandidates({ exec, sessionNotes: null, store: h.store, workUnit: h.meta.reference, identity: "alice" }))
+  expect(await deriveRestateCandidates({ cwd: "/project", exec, sessionNotes: null, store: h.store, workUnit: h.meta.reference, identity: "alice" }))
     .toEqual({ commitsSinceHandoff: [{ hash: "abc123", subject: "Code after handoff" }],
       tasksClosedSinceHandoff: ["1.1"], noteFileChangesSinceHandoff: [".arc/active/notes-subject.md"] });
 });
 it("keeps state candidates when the code anchor is unreachable", async () => {
   const h = await fixture();
   const broken: GitExec = () => Promise.reject(new Error("history rewritten"));
-  expect(await deriveRestateCandidates({ exec: broken, sessionNotes: null, store: h.store, workUnit: h.meta.reference, identity: "alice" }))
+  expect(await deriveRestateCandidates({ cwd: "/project", exec: broken, sessionNotes: null, store: h.store, workUnit: h.meta.reference, identity: "alice" }))
     .toEqual({ commitsSinceHandoff: [], tasksClosedSinceHandoff: ["1.1"],
       noteFileChangesSinceHandoff: [".arc/active/notes-subject.md"], baselineSignal: "baseline-unknown" });
 });
@@ -50,7 +50,7 @@ it("uses the Owner when the anchor was written, despite later ownership changes"
     if (input.references === undefined) throw new Error("foreign anchor exposed personal history");
     return h.store.changes(input);
   };
-  expect((await deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "bob" }))
+  expect((await deriveRestateCandidates({ cwd: "/project", exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "bob" }))
     .tasksClosedSinceHandoff).toEqual(["1.1"]);
 });
 it("retains the selected state's candidates when a newer handoff enters history", async () => {
@@ -62,10 +62,10 @@ it("retains the selected state's candidates when a newer handoff enters history"
       writeMetaStateAtHandoff(h.meta.content, nextAnchor), "new-baseline"));
     return h.store.history(input);
   };
-  expect(await deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice" }))
+  expect(await deriveRestateCandidates({ cwd: "/project", exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice" }))
     .toEqual({ commitsSinceHandoff: [{ hash: "abc123", subject: "Code after handoff" }],
       tasksClosedSinceHandoff: ["1.1"], noteFileChangesSinceHandoff: [".arc/active/notes-subject.md"] });
-  const fresh = await deriveRestateCandidates({ exec, sessionNotes: null, store: h.store, workUnit: h.meta.reference, identity: "alice" });
+  const fresh = await deriveRestateCandidates({ cwd: "/project", exec, sessionNotes: null, store: h.store, workUnit: h.meta.reference, identity: "alice" });
   expect(fresh.tasksClosedSinceHandoff).toEqual([]);
   expect(fresh.noteFileChangesSinceHandoff).toEqual([]);
 });
@@ -79,16 +79,16 @@ it("names unavailable selected meta history and succeeds after its restoration",
       ? { status: "ok", result: result.result.filter((entry) => entry.version !== h.meta.version) }
       : result;
   };
-  await expect(deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice" }))
+  await expect(deriveRestateCandidates({ cwd: "/project", exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice" }))
     .rejects.toThrow(`The selected meta version ${h.meta.version} is unavailable in history. Restore the meta history, then retry handoff.`);
   repaired = true;
-  expect((await deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice" }))
+  expect((await deriveRestateCandidates({ cwd: "/project", exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice" }))
     .tasksClosedSinceHandoff).toEqual(["1.1"]);
 });
 it("has no state baseline before the first handoff", async () => {
   const h = createLifecycleHarness();
   const meta = await h.seedMeta("new-unit");
-  expect(await deriveRestateCandidates({ exec, sessionNotes: "**Commit at Handoff:** `legacy`", store: h.store, workUnit: meta.reference, identity: "alice" }))
+  expect(await deriveRestateCandidates({ cwd: "/project", exec, sessionNotes: "**Commit at Handoff:** `legacy`", store: h.store, workUnit: meta.reference, identity: "alice" }))
     .toEqual({ commitsSinceHandoff: [], tasksClosedSinceHandoff: [], noteFileChangesSinceHandoff: [], baselineSignal: "baseline-unknown" });
 });
 const missingHistory: StoreResult<never> = { status: "refused" as const, refusal: { code: "state-unresolvable" as const, class: "recoverable" as const,
@@ -102,7 +102,7 @@ it("pulls only named missing history and retries the exact saved-state query", a
     fetched = input?.history?.length === 1 && input.history[0] === "refs/arc/history/work/00000000-0000-4000-8000-000000000001";
     return { status: "ok", result: { states: [], pulls: [] } };
   };
-  expect((await deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice" }))
+  expect((await deriveRestateCandidates({ cwd: "/project", exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice" }))
     .tasksClosedSinceHandoff).toEqual(["1.1"]);
 });
 it("retains the history condition and the failed pull's repair", async () => {
@@ -111,7 +111,7 @@ it("retains the history condition and the failed pull's repair", async () => {
   store.changes = () => Promise.resolve(missingHistory);
   const sync = createStoreSyncPort({ pull: () => Promise.resolve({ status: "unreachable",
     condition: "Origin is offline.", remedy: { text: "Reconnect to origin and retry." } }) });
-  await expect(deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice", sync }))
+  await expect(deriveRestateCandidates({ cwd: "/project", exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice", sync }))
     .rejects.toThrow("The saved project history is missing. Fetch the project history ref and retry. Origin is offline. Reconnect to origin and retry.");
 });
 it("stops after one pull when the requested history remains unavailable", async () => {
@@ -123,7 +123,7 @@ it("stops after one pull when the requested history remains unavailable", async 
     if (++attempts > 1) throw new Error("Repeated pull");
     return Promise.resolve({ status: "pulled" });
   } });
-  await expect(deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice", sync }))
+  await expect(deriveRestateCandidates({ cwd: "/project", exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice", sync }))
     .rejects.toThrow("The saved project history is missing. Fetch the project history ref and retry.");
 });
 it("retries a transient missing-history refusal through the default selected-store port", async () => {
@@ -134,6 +134,6 @@ it("retries a transient missing-history refusal through the default selected-sto
     if (!refused) { refused = true; return Promise.resolve(missingHistory); }
     return h.store.changes(input);
   };
-  expect((await deriveRestateCandidates({ exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice" }))
+  expect((await deriveRestateCandidates({ cwd: "/project", exec, sessionNotes: null, store, workUnit: h.meta.reference, identity: "alice" }))
     .tasksClosedSinceHandoff).toEqual(["1.1"]);
 });

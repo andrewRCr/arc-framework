@@ -38,7 +38,7 @@ async function fixture() {
 }
 
 async function readSummary(h: Awaited<ReturnType<typeof fixture>>, workUnit = "example") {
-  return (await readStoredLifecycleSummary({ store: h.store, workUnit, archiveCadence: "manual", storageVersion: "whole-state-v1" })).summary;
+  return (await readStoredLifecycleSummary({ cwd: "/project", store: h.store, workUnit, archiveCadence: "manual", storageVersion: "whole-state-v1" })).summary;
 }
 
 it("uses stored position and artifact facts while retaining the whole lifecycle snapshot version", async () => {

@@ -8,15 +8,19 @@ import type { StoreRecord } from "./read.js";
 import { workUnitMetaPath, workUnitArtifactName } from "./lifecycle-write.js";
 import { companionStoredName } from "./companion-name.js";
 /** Project a companion beside its selected meta without granting filesystem write authority. */
-export function lifecycleRecordPath(primary: StoreRecord, record: StoreRecord): string | null {
-  const meta = workUnitMetaPath(primary), slug = primary.reference.owner.name;
+export async function lifecycleRecordPath(checkoutRoot: string, primary: StoreRecord, record: StoreRecord): Promise<string | null> {
+  const name = lifecycleRecordName(primary.reference.owner.name, record);
+  return name === null ? null : posix.join(posix.dirname(await workUnitMetaPath(checkoutRoot, primary)), name);
+}
+
+/** Resolve a record's stored filename independently of its checkout and lifecycle placement. */
+export function lifecycleRecordName(slug: string, record: StoreRecord): string | null {
   const kind = record.reference.kind;
-  if (kind === "work-item/meta") return meta;
-  if (kind === "work-item/draft" || kind === "work-item/spec") return posix.join(posix.dirname(meta),
-    workUnitArtifactName(slug, kind === "work-item/draft" ? "draft" : "spec"));
-  if (kind === "work-item/task-list") return posix.join(posix.dirname(meta), `tasks-${slug}.md`);
-  if (kind === "work-item/notes") return posix.join(posix.dirname(meta), `notes-${slug}.md`);
-  if (kind === "work-item/companion" && typeof record.reference.key === "string") return posix.join(posix.dirname(meta), companionStoredName(slug, record.reference.key));
+  if (kind === "work-item/meta") return workUnitArtifactName(slug, "meta");
+  if (kind === "work-item/draft" || kind === "work-item/spec") return workUnitArtifactName(slug, kind === "work-item/draft" ? "draft" : "spec");
+  if (kind === "work-item/task-list") return `tasks-${slug}.md`;
+  if (kind === "work-item/notes") return `notes-${slug}.md`;
+  if (kind === "work-item/companion" && typeof record.reference.key === "string") return companionStoredName(slug, record.reference.key);
   return null;
 }
 

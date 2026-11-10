@@ -9,7 +9,7 @@ import { writeLineageRecord } from "../../../src/lib/store/kinds/lineage/writer.
 import { createReferenceFixture } from "../../helpers/store/reference-fixture.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
 import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
-import { testProvenance } from "../../helpers/store/suite-tools.js";
+import { testProvenance, fixtureRenameProvenance } from "../../helpers/store/suite-tools.js";
 import { serializeTransientIdentityRecord, TransientIdentityRecordV3Schema } from "../../../src/lib/errand/identity-record.js";
 import { LookupInputSchema } from "../../../src/lib/store/lookup.js";
 import { readLifecycleView } from "../../../src/lib/store/lifecycle-view.js";
@@ -19,9 +19,10 @@ import { resolveStoreProjectDependencies } from "../../../src/lib/status/store-p
 import { importRetiredAlias } from "../../helpers/store/terminal-alias-harness.js";
 import { composeProjectReadinessViewResult } from "../../../src/lib/status/project-view.js";
 import { runStoreRename } from "../../../src/lib/work-unit/verbs/rename-store.js";
+import { observeRecords } from "../../../src/lib/store/record-observations.js";
 
 async function project(store: Store) {
-  const view = lifecycleSuccess(await readLifecycleView(store));
+  const view = lifecycleSuccess(await readLifecycleView("/project", store));
   const selected = selectStandingLifecycleEntries(view.entries,
     view.listing.status === "complete" ? view.listing.diagnostics : []);
   const records = await readStoreProjectRecords(store, selected.entries);
@@ -46,7 +47,7 @@ async function lineageRenameChain(terminal: string, secondDependent = false) {
     { action: "put", reference: recordReferences["lineage/transition"](origin.reference.owner), expected: null,
       content: writeLineageRecord({ schemaVersion: 2, origin: { name: SlugSchema.parse("former") }, kind: "rename",
         successors: [{ name: SlugSchema.parse("middle") }], incoming: [] }) },
-  ], { verb: "rename", lifecycleAction: "rename" }));
+  ], fixtureRenameProvenance));
   await h.seed(recordReferences["lineage/transition"](OwnerIdentitySchema.parse({ type: "work-item", name: "middle" })),
     writeLineageRecord({ schemaVersion: 2, origin: { name: SlugSchema.parse("middle") }, kind: "rename",
       successors: [{ name: SlugSchema.parse(terminal) }], incoming: [] }));
@@ -61,9 +62,9 @@ async function retiredOriginFixture(disposition: "replace" | "drop" | "unmapped"
     { kind: "backlog", commitment: "planned" });
   if (formerAlias) {
     const reference = RecordReferenceSchema.parse({ ...origin.reference, owner: { ...origin.reference.owner, name: "origin" } });
-    lifecycleSuccess(await h.store.write({ action: "put", reference, expected: origin.version,
-      content: origin.content.replaceAll("former-origin", "origin"), placement: { kind: "active" },
-      provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    lifecycleSuccess(await batchLifecycleWrites(h.store, [{ action: "put", reference, expected: origin.version,
+      content: origin.content.replaceAll("former-origin", "origin"), placement: { kind: "active" } }],
+      fixtureRenameProvenance, observeRecords([dependent])));
     origin = lifecycleSuccess(await h.store.read({ reference }));
   }
   const owner = dependent.reference.owner;
@@ -87,12 +88,12 @@ it("classifies a former slug against its renamed standing work unit", async () =
   await h.seedMeta("root");
   const former = await h.seedMeta("former", { state: "Planning", currentWorkflow: "draft-design", dependsOn: ["root"] },
     { kind: "backlog", commitment: "planned" });
-  await h.seedMeta("dependent", { state: "Planning", currentWorkflow: "draft-design", dependsOn: ["former"] },
+  const dependent = await h.seedMeta("dependent", { state: "Planning", currentWorkflow: "draft-design", dependsOn: ["former"] },
     { kind: "backlog", commitment: "planned" });
   const current = RecordReferenceSchema.parse({ ...former.reference, owner: { ...former.reference.owner, name: "current" } });
-  lifecycleSuccess(await h.store.write({ action: "put", reference: current, expected: former.version,
-    content: former.content.replaceAll("former", "current"), placement: { kind: "backlog", commitment: "planned" },
-    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+  lifecycleSuccess(await batchLifecycleWrites(h.store, [{ action: "put", reference: current, expected: former.version,
+    content: former.content.replaceAll("former", "current"), placement: { kind: "backlog", commitment: "planned" } }],
+    fixtureRenameProvenance, observeRecords([dependent])));
 
   const result = await project(h.store);
   expect(result.facts.find(fact => fact.slug === "dependent")).toMatchObject({ readiness: "blocked",
@@ -138,7 +139,7 @@ it("satisfies a completed generation's former slug independently of its live nam
   const current = RecordReferenceSchema.parse({ ...former.reference, owner: { ...former.reference.owner, name: "current" } });
   lifecycleSuccess(await h.store.write({ action: "put", reference: current, expected: former.version,
     content: former.content.replaceAll("former", "current"), placement: { kind: "active" },
-    provenance: { verb: "rename", lifecycleAction: "rename" } }));
+    provenance: fixtureRenameProvenance }));
   const renamed = lifecycleSuccess(await h.store.read({ reference: current }));
   lifecycleSuccess(await h.store.write({ action: "put", reference: current, expected: renamed.version,
     content: renamed.content, placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") },
@@ -275,7 +276,7 @@ it("retains a refused dependent identity lookup's repair route and recovers afte
     exec: async () => { throw new Error("No Git needed"); }, locusPorts: {
       findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }),
       writeAnchoredMarker: async () => ({ kind: "unadmitted" }),
-    } }, { sourceSlug: "dependent", targetSlug: "current-dependent" })).toMatchObject({ status: "renamed" });
+    } }, { operand: "dependent", targetSlug: "current-dependent" })).toMatchObject({ status: "renamed" });
   const store = Object.create(h.store) as Store;
   let repaired = false;
   store.lookup = async input => !repaired && input.kind === "slug" && input.slug === "dependent"

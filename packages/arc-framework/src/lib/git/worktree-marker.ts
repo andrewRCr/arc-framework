@@ -37,6 +37,7 @@ import type {
 import type { GitExec } from "./exec.js";
 import { ensureGitExcludePattern, type GitExcludeFs } from "./exclude.js";
 import { withAdvisoryLock } from "../advisory-lock.js";
+import { notifyCheckoutChange } from "./checkout-change.js";
 
 /** Logical target a worktree was created for or terminally husked from. */
 export type WorktreeSubject =
@@ -544,6 +545,7 @@ function transientSubjectsEqual(left: TransientWorktreeSubject, right: Transient
  */
 export async function writeWorktreeMarker(cwd: string, marker: WorktreeMarker): Promise<void> {
   await atomicWriteJson(resolveWorktreeMarkerPath(cwd), marker);
+  notifyCheckoutChange({ kind: "marker", checkoutRoot: cwd });
 }
 
 /** Inputs for {@link writeWorktreeOwnershipMarker}. */
@@ -671,8 +673,23 @@ export async function createWorktreeMarkerGeneration(
   const path = resolveWorktreeMarkerPath(cwd);
   const bytes = serializeWorktreeMarker(marker);
   await mkdir(dirname(path), { recursive: true });
+  return createWorktreeMarkerBytes(cwd, bytes);
+}
+
+/** Exclusively create captured valid bytes in an existing marker directory without recreating a removed checkout. */
+export async function createWorktreeMarkerBytesGeneration(
+  cwd: string,
+  bytes: Buffer,
+): Promise<{ kind: "created"; bytes: Buffer } | { kind: "exists" }> {
+  requireValidWorktreeMarkerBytes(bytes, "create");
+  return createWorktreeMarkerBytes(cwd, bytes);
+}
+
+async function createWorktreeMarkerBytes(cwd: string, bytes: Buffer): Promise<{ kind: "created"; bytes: Buffer } | { kind: "exists" }> {
+  const path = resolveWorktreeMarkerPath(cwd);
   try {
     await writeFile(path, bytes, { flag: "wx", mode: 0o600 });
+    notifyCheckoutChange({ kind: "marker", checkoutRoot: cwd });
     return { kind: "created", bytes };
   } catch (error) {
     if (isNodeError(error) && error.code === "EEXIST") return { kind: "exists" };
@@ -695,14 +712,18 @@ export async function restoreWorktreeMarkerGeneration(
   expectedBytes: Buffer,
   restoreBytes: Buffer,
 ): Promise<{ kind: "replaced"; bytes: Buffer } | { kind: "generation-mismatch" }> {
+  requireValidWorktreeMarkerBytes(restoreBytes, "restore");
+  return replaceWorktreeMarkerBytesGeneration(cwd, expectedBytes, restoreBytes);
+}
+
+function requireValidWorktreeMarkerBytes(bytes: Buffer, operation: "create" | "restore"): void {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(restoreBytes.toString("utf8"));
+    parsed = JSON.parse(bytes.toString("utf8"));
   } catch {
-    throw new Error("Cannot restore malformed worktree marker bytes");
+    throw new Error(`Cannot ${operation} malformed worktree marker bytes`);
   }
-  if (!isWorktreeMarker(parsed)) throw new Error("Cannot restore invalid worktree marker bytes");
-  return replaceWorktreeMarkerBytesGeneration(cwd, expectedBytes, restoreBytes);
+  if (!isWorktreeMarker(parsed)) throw new Error(`Cannot ${operation} invalid worktree marker bytes`);
 }
 
 async function replaceWorktreeMarkerBytesGeneration(
@@ -731,6 +752,7 @@ async function replaceWorktreeMarkerBytesGeneration(
     });
     if (!replaced) return { kind: "generation-mismatch" };
     published = true;
+    notifyCheckoutChange({ kind: "marker", checkoutRoot: cwd });
     return { kind: "replaced", bytes: replacementBytes };
   } finally {
     if (!published) await unlink(temporaryPath).catch(() => undefined);
@@ -757,7 +779,15 @@ export async function removeWorktreeMarkerGeneration(
     if (isNodeError(error) && error.code === "ENOENT") return { kind: "generation-mismatch" };
     throw error;
   }
+  notifyCheckoutChange({ kind: "marker", checkoutRoot: cwd });
   return { kind: "removed" };
+}
+
+/** Clear marker occupancy unconditionally through the caller's filesystem boundary. */
+export async function removeWorktreeMarker(cwd: string, removeFile: (path: string) => Promise<void> = unlink): Promise<void> {
+  try { await removeFile(resolveWorktreeMarkerPath(cwd)); }
+  catch (error) { if (!isNodeError(error) || error.code !== "ENOENT") throw error; }
+  notifyCheckoutChange({ kind: "marker", checkoutRoot: cwd });
 }
 
 /** Remove one exact ready primary-transient marker without granting spawned-cleanup authority. */

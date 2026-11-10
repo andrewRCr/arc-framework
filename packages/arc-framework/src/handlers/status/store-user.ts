@@ -24,7 +24,7 @@ export async function handleStoreUserStatus(context: SessionStatusContext & { st
     return;
   }
   const pullWarnings = opts.fetch === true && !opts.local ? await pullStoreStatus({ sync: context.storeSync }) : [];
-  const ready = await readStoreUserReady({ store: context.store, identity: context.identity,
+  const ready = await readStoreUserReady({ cwd: context.cwd, store: context.store, identity: context.identity,
     reviewAfterDays: positive(resolved.settings["pause.review_after_days"], 14) });
   if (ready.status === "refused") { renderStatusViewRefusal(ready.refusal, opts, pullWarnings.map(warning => warning.rendered)); return; }
   const identity = context.identity;

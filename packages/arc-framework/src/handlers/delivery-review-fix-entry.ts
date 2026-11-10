@@ -34,7 +34,7 @@ async function resolveLocus(cwd: string, exec: GitExec, invocation: ReviewInvoca
     && !(await resolveCompletedCandidateOwners(cwd, invocation.store)).some(({ name }) => name === owner.workUnit)) return null;
   const branch = await readCheckoutBranch(cwd, exec);
   const completed = await readCompletedDeliveryLocus(invocation.store, cwd, owner.workUnit, { owner: invocation.workItem
-    ?? await resolveOwnedCandidateGeneration(invocation.store, owner, invocation.projectId), branch, projectId: invocation.projectId });
+    ?? await resolveOwnedCandidateGeneration(cwd, invocation.store, owner, invocation.projectId), branch, projectId: invocation.projectId });
   if (completed === null) return null;
   if (invocation.workItem === undefined && completed.workItem !== undefined) invocation.workItem = completed.workItem;
   return { ...completed, branch, baseBranch: settings["branch.base"] };
@@ -64,7 +64,7 @@ export async function bindDeliveryWorkItem(cwd: string, exec: GitExec, invocatio
   if (!invocation.store.capabilities.stateOffBranch || invocation.workItem !== undefined) return;
   const owner = checkoutOwner ?? await resolveBindingOwner(cwd, exec, invocation);
   const workItem = owner.status === "owned" && owner.workUnit === workUnitId
-    ? await resolveOwnedCandidateGeneration(invocation.store, owner, invocation.projectId)
+    ? await resolveOwnedCandidateGeneration(cwd, invocation.store, owner, invocation.projectId)
     : await readMarkedDeliveryWorkItem(invocation.store, cwd, workUnitId)
       ?? (await readCompletedDeliveryLocus(invocation.store, cwd, workUnitId,
         { branch: await readCheckoutBranch(cwd, exec), projectId: invocation.projectId }))?.workItem

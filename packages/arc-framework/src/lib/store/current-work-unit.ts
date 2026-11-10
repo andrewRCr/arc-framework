@@ -2,7 +2,7 @@
 import { ParsedMetaRecordSchema, type ParsedMetaRecord } from "../active/meta-schema.js";
 import type { Store } from "./contract.js";
 import { recordReferences, OwnerIdentitySchema, type RecordReference } from "./identity.js";
-import { identifyWorkUnitArtifactPath, resolveArcPath } from "../layout/index.js";
+import { identifyWorkUnitArtifactPath } from "../layout/index.js";
 import { parseMetaFile } from "../active/meta-reader.js";
 import { readClaimedCurrentWorkUnit, type ClaimedCurrentWorkUnit } from "./current-work-unit-marker.js";
 import { createStore } from "./create.js";
@@ -11,6 +11,7 @@ import type { StoreRecord } from "./read.js";
 import type { ListingDiagnostic } from "./read.js";
 import type { UnboundMarkerClassification } from "../locus/unbound-marker.js";
 import type { StoreRefusal } from "./refusal.js";
+import { workItemArtifactPath } from "./lifecycle-storage.js";
 import { StoreRefusalError } from "./refusal-error.js";
 import type { NativeTypedRefusal } from "./native-refusal.js";
 
@@ -42,17 +43,17 @@ export async function resolveCurrentWorkUnit(input: { cwd: string; store?: Store
   let refused: NativeTypedRefusal | undefined;
   if (listing.status === "ok" && listing.result.status === "complete") {
     for (const value of listing.result.records) {
-      const candidate = readableCandidate(value, warnings);
+      const candidate = await readableCandidate(input.cwd, value, warnings);
       if (candidate !== undefined) candidates.push(candidate);
     }
     for (const diagnostic of listing.result.diagnostics) {
-      const candidate = await diagnosticCandidate(store, diagnostic, warnings);
+      const candidate = await diagnosticCandidate(input.cwd, store, diagnostic, warnings);
       if (candidate !== undefined) candidates.push(candidate);
     }
   } else if (listing.status === "refused") {
     if (listing.refusal.code === "unsupported" && listing.refusal.class === "recoverable" && listing.refusal.case === "held-here") {
       marker = await readClaimedCurrentWorkUnit({ cwd: input.cwd, store }, warnings);
-      const candidate = marker.kind === "present" ? readableCandidate(marker.record, warnings) : undefined;
+      const candidate = marker.kind === "present" ? await readableCandidate(input.cwd, marker.record, warnings) : undefined;
       if (candidate !== undefined) candidates.push(candidate);
     } else refused = refusedListing(store, listing.refusal, warnings);
   }
@@ -67,9 +68,9 @@ function refusedListing(store: Store, refusal: StoreRefusal, warnings: string[])
   return store.capabilities.stateOffBranch ? new StoreRefusalError(refusal, true) : undefined;
 }
 
-function readableCandidate(value: StoreRecord, warnings: string[], diagnostic?: ListingDiagnostic): CurrentWorkUnitCandidate | undefined {
+async function readableCandidate(checkoutRoot: string, value: StoreRecord, warnings: string[], diagnostic?: ListingDiagnostic): Promise<CurrentWorkUnitCandidate | undefined> {
   try { parseMetaFile(value.content); }
-  catch (error) { warnings.push(`Malformed meta in ${candidatePath(value.reference)}: ${error instanceof Error ? error.message : String(error)}`); return undefined; }
+  catch (error) { warnings.push(`Malformed meta in ${await candidatePath(checkoutRoot, value.reference)}: ${error instanceof Error ? error.message : String(error)}`); return undefined; }
   const parsed = ParsedMetaRecordSchema.safeParse(value.fields);
   return { reference: value.reference, ...(parsed.success ? { record: parsed.data } : {}), ...(diagnostic === undefined ? {} : { diagnostic }) };
 }
@@ -85,11 +86,10 @@ function resolution(candidates: CurrentWorkUnitCandidate[], warnings: string[], 
   return { status: "ambiguous", candidates, warnings };
 }
 
-function candidatePath(reference: RecordReference): string {
-  return resolveArcPath({ kind: "work-unit-artifact", artifact: "meta", slug: reference.owner.name,
-    placement: { kind: "active", scope: { kind: "project" } } });
+function candidatePath(checkoutRoot: string, reference: RecordReference): Promise<string> {
+  return workItemArtifactPath(checkoutRoot, reference.owner.name, "meta", { kind: "active" }, null);
 }
-async function diagnosticCandidate(store: Store, diagnostic: ListingDiagnostic, warnings: string[]): Promise<CurrentWorkUnitCandidate | undefined> {
+async function diagnosticCandidate(checkoutRoot: string, store: Store, diagnostic: ListingDiagnostic, warnings: string[]): Promise<CurrentWorkUnitCandidate | undefined> {
   const address = identifyWorkUnitArtifactPath(diagnostic.key);
   if (address === null || address.artifact !== "meta" || address.placement.kind !== "active") {
     warnings.push(diagnostic.condition); return undefined;
@@ -99,6 +99,6 @@ async function diagnosticCandidate(store: Store, diagnostic: ListingDiagnostic, 
   try {
     const read = await store.read({ reference });
     if (read.status === "refused") { warnings.push(`Unable to read ${diagnostic.key}: ${read.refusal.condition}`); return undefined; }
-    return readableCandidate(read.result, warnings, diagnostic);
+    return await readableCandidate(checkoutRoot, read.result, warnings, diagnostic);
   } catch (error) { warnings.push(`Unable to read ${diagnostic.key}: ${error instanceof Error ? error.message : String(error)}`); return undefined; }
 }

@@ -68,7 +68,7 @@ describe("what a persisted write-back took in", () => {
     const { entry } = await recordWriteBack({ ...source, entry: { ...source.entry, reference } });
 
     expect(entry.persisted?.takenIn.kind).toBe("copy");
-    expect(await selectPersistedBase({ location, entry, stamp: source.stamp, content: takenIn, memo: noHistory }))
+    expect(await selectPersistedBase({ location, entry, stamp: source.stamp }))
       .toEqual({ status: "ok", result: { kind: "copy", content: takenIn } });
   });
 
@@ -90,7 +90,7 @@ describe("what a persisted write-back took in", () => {
     expect(restoreEntryIds(content, reference, grammar)).toBe(reference);
   });
 
-  it("compares a stampless save with the landed version even after a later refresh changes the entry base", async () => {
+  it("leaves a stampless save unselected even after a later refresh changes the entry base", async () => {
     const fixture = createReferenceFixture();
     const reference = fixture.reference("cohort/document");
     const put = async (content: string, expected: RecordVersion | null): Promise<RecordVersion> => {
@@ -112,8 +112,8 @@ describe("what a persisted write-back took in", () => {
       outcome: { kind: "landed", version: landed }, readBack: { version: later, content: laterContent },
     }));
     const refreshed = { ...entry, base: { blob: gitBlobId(laterContent, "sha1"), version: later } };
-    expect(await selectPersistedBase({ location, entry: refreshed, stamp: null, content: `${landedContent}five\n`, memo }))
-      .toEqual({ status: "ok", result: { kind: "stored", version: landed } });
+    expect(await selectPersistedBase({ location, entry: refreshed, stamp: null }))
+      .toEqual({ status: "ok", result: null });
     expect(entry.persisted?.takenIn).toMatchObject({ kind: "copy", version: landed });
   });
   it("matches a complete multiline field header rather than its shared first line", () => {
@@ -203,7 +203,6 @@ describe("what a persisted write-back took in", () => {
     // The read-back replaces the file, so the index's base moves on while a stale buffer keeps the old stamp.
     const select = (entry: RecordEntry, carried: string) => selectPersistedBase({
       location, entry: { ...entry, base: { blob: gitBlobId(takenIn, "sha1"), version: v("v2") } }, stamp: carried,
-      content: `${takenIn}saved again\n`, memo: noHistory,
     });
     expect(await select(landedAs.entry, stamp)).toEqual({ status: "ok", result: { kind: "stored", version: v("v2") } });
     expect(await select(keptAs.entry, stamp)).toEqual({ status: "ok", result: { kind: "copy", content: takenIn } });
@@ -220,7 +219,7 @@ describe("what a persisted write-back took in", () => {
     const recorded = await recordWriteBack(recording({
       entry, stamp: entry.base.blob, takenIn, readBack: { version: v("v2"), content: takenIn },
     }));
-    expect(await selectPersistedBase({ location, entry: recorded.entry, stamp: entry.base.blob, content: file, memo: noHistory }))
+    expect(await selectPersistedBase({ location, entry: recorded.entry, stamp: entry.base.blob }))
       .toEqual({ status: "ok", result: { kind: "stored", version: v("v2") } });
     expect(takenIn.replace(baseEntry, refusedEntry)).toBe(file);
   });
@@ -265,28 +264,5 @@ describe("what a persisted write-back took in", () => {
     expect(after.status === "ok" ? after.result.map((each) => each.version) : []).toContain(written);
   });
 
-  it("selects for a file other than Markdown the closer of a kept copy and the version the read-back laid", async () => {
-    const fixture = createReferenceFixture();
-    const document = fixture.reference("cohort/document");
-    const put = async (content: string, expected: RecordVersion | null): Promise<RecordVersion> => {
-      const result = await fixture.store.write({
-        action: "put", reference: document, content, expected, provenance: { verb: "save", lifecycleAction: "save" },
-      });
-      if (result.status !== "ok" || result.result.version === undefined) throw new Error("the fixture write was refused");
-      return result.result.version;
-    };
-    const takenIn = "alpha\nbeta, edited\ngamma\n";
-    const merged = "alpha\nbeta, edited\ngamma\ndelta from another writer\nepsilon\n";
-    const landed = await put(merged, await put("alpha\nbeta\ngamma\n", null));
-    const memo = createHistoryMemo(fixture.store);
-    const entry = { ...entryAt("alpha\nbeta\ngamma\n", v("v1")), reference: document };
-    const recorded = await recordWriteBack(recording({
-      entry, stamp: entry.base.blob, takenIn, grammar: undefined, memo,
-      outcome: { kind: "landed", version: landed }, readBack: { version: landed, content: merged },
-    }));
-    const readBackLaid = { ...recorded.entry, base: { blob: gitBlobId(merged, "sha1"), version: landed } };
-    const select = (content: string) => selectPersistedBase({ location, entry: readBackLaid, stamp: null, content, memo });
-    expect(await select(`${takenIn}a stale buffer's line\n`)).toEqual({ status: "ok", result: { kind: "copy", content: takenIn } });
-    expect(await select(`${merged}a fresh line\n`)).toEqual({ status: "ok", result: { kind: "stored", version: landed } });
-  });
+
 });

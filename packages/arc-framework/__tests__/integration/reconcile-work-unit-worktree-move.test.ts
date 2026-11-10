@@ -1,4 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { writeWorktreeMarker } from "../../src/lib/git/worktree-marker.js";
+import { createDefaultRefStorePorts } from "../../src/lib/store/default-ports.js";
+import { createRefStore } from "../../src/lib/store/create.js";
+import { workItemArtifactPath } from "../../src/lib/store/lifecycle-storage.js";
+import { readCheckoutLayoutContext } from "../../src/lib/store/checkout-layout.js";
+import { beginProjectionCommand } from "../../src/lib/store/projection/process-state.js";
 
 import {
   cleanupTempDir,
@@ -37,6 +43,7 @@ describe("reconcileWorkUnitWorktree move with real Git", () => {
       }
     }
     await cleanupTempDir(repo);
+    beginProjectionCommand();
   });
 
   it("moves the registered worktree to its derived sibling path", async () => {
@@ -49,6 +56,13 @@ describe("reconcileWorkUnitWorktree move with real Git", () => {
     });
     expect(plan).toEqual({ status: "move", from: oldPath, to: newPath });
     if (plan.status !== "move") throw new Error("expected a worktree move plan");
+
+    await writeWorktreeMarker(oldPath, { spawnedByArc: true, wuName: "new-name",
+      createdFor: { kind: "work-unit", name: "new-name", uid: "00000000-0000-4000-8000-000000000001" },
+      spawningIdentity: "andrew", createdAt: "2026-11-05T00:00:00Z" });
+    createRefStore(createDefaultRefStorePorts({ checkoutRoot: oldPath, backingRepository: async () => null }));
+    expect(await workItemArtifactPath(oldPath, "new-name", "meta", { kind: "active" }, null)).toBe(".arc/active/current/meta-new-name.md");
+    expect((await readCheckoutLayoutContext(newPath)).claim).toBeNull();
 
     const ctx: ReconcileWorkUnitWorktreeContext = {
       exec,
@@ -82,6 +96,8 @@ describe("reconcileWorkUnitWorktree move with real Git", () => {
     const { stdout } = await execFileAsync("git", ["worktree", "list", "--porcelain"], { cwd: repo });
     expect(stdout).toContain(`worktree ${newPath}`);
     expect(stdout).not.toContain(`worktree ${oldPath}\n`);
+    expect(await workItemArtifactPath(newPath, "new-name", "meta", { kind: "active" }, null)).toBe(".arc/active/current/meta-new-name.md");
+    expect(await workItemArtifactPath(oldPath, "new-name", "meta", { kind: "active" }, null)).toBe(".arc/active/meta-new-name.md");
   });
 
   it("preserves an old-slug occurrence in the repository prefix", async () => {

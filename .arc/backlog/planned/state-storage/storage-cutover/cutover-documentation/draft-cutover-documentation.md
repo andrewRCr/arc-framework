@@ -89,4 +89,59 @@ item cited here that this draft does not hold is in another member's draft under
 
 - _Approach:_ rewrite the convention onto the store's history of the archived meta.
 
+### `[ ]` **Drop H4 from this unit: the errata convention moved into the flip's workflow rewrite**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-06).
+
+- _Shapes:_ `draft-cutover-documentation.md` § Scope's errata bullet, its named assumption on
+  `spec-projection-write-back.md` § 8.4, and its inbound entry H4; `cohort-storage-cutover.md`'s `cutover-documentation`
+  _Exposes:_ line; and `cohort-state-storage.md`'s register row on `archive-work-unit`'s errata convention.
+
+- _Observation:_ `archive-work-unit.md` § Post-`Shipped` errata convention ("git history is the lock") is workflow
+  text, and the Owner's 2026-11-03 rule puts the whole workflow rewrite at the flip. On 2026-11-05 the Owner moved H4
+  into `cutover-flip`'s rewrite, where `draft-cutover-flip.md` § Direction now holds it.
+
+- _Approach:_ at this unit's next planning pass, reject its H4 entry as moved to `cutover-flip`, and drop the errata
+  bullet and the § 8.4 assumption. Remove "the errata convention" from the cohort record's `cutover-documentation`
+  _Exposes:_ line, and amend the register row's fate forward, since it names the documentation pass as the mover.
+
+- _Captured during:_ `cutover-flip` draft-design, 2026-11-05 (Owner-approved; `cutover-documentation` has no session).
+
+### `[ ]` **Rewrite the strategy sentences the flip's lifecycle verbs make stale**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-06).
+
+- _Shapes:_ its strategy rewrites.
+
+- _Observation:_ the flip rewrites the workflows and the always-loaded text for two seam verbs and leaves the strategy
+  copies to this unit, since strategies follow the flip (`cutover-flip`'s inbound #14 and #16):
+    - `strategy-work-organization.md` ends a WU-owned locus at teardown alone ("until exact teardown removes the marker
+      and restores the configured base"); from the flip `arc locus release` also ends it;
+    - `strategy-team-coordination.md` § Person-to-Person Task Handoff reassigns a work unit by hand-editing `Owner`; from
+      the flip `Owner` is verb-owned and the reassignment runs through `arc handover`.
+
+- _Approach:_ reword both onto the verbs, matching the flip's rewritten Locus definition in `AGENT-BRIEF.ARC.md` and
+  its `session-handoff.md`.
+
+- _Captured during:_ `cutover-flip` draft-design, the Owner's planning pass, 2026-11-06 (Owner-approved; the target has
+  no session).
+
+### `[ ]` **Drop the relocatability rule from this unit's scope: its rewrite moves to `cutover-flip`**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-11-06).
+
+- _Shapes:_ § Scope, the register's documentation rows ("the relocatability rule for movable artifacts").
+
+- _Observation:_ the storage-coupling register (`cohort-state-storage.md`, the archival row) gives the relocatability
+  rule's rewrite to the subcohort's documentation pass, and this unit's § Scope lists it. `cutover-flip` also rewrites
+  it, in `DEV-RULES.ARC.md` § `.arc/` artifact references, onto the movable set `spec-projected-markdown-checks.md`
+  § 1.4 states, since it is always-loaded text the flip makes false (Owner, 2026-11-06, for that class). Planning
+  review moved it there (`draft-cutover-flip.md` § The workflow rewrite and § Dispositions), so it is owned twice
+  until this unit drops it.
+
+- _Approach:_ remove the relocatability rule from § Scope, as #3 and H4 left this unit's draft.
+
+- _Captured during:_ `cutover-flip` draft-design, planning review's source-grounding, 2026-11-06 (Owner-approved; the
+  target has no session).
+
 ---

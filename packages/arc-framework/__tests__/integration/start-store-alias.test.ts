@@ -89,7 +89,7 @@ async function fixture(reused?: "backlog" | "active") {
   const archived = reused === undefined ? undefined : await h.seedMeta("source", { state: "Shipped", currentWorkflow: null },
     { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") });
   const meta = await h.seedMeta("source", { state: "Planning", owner: "previous", currentWorkflow: "draft-design" }, reused === "active" ? { kind: "active" } : { kind: "backlog", commitment: "planned" });
-  if (reused === undefined) expect(await runStoreRename({ store: h.store, cwd: root, exec, baseBranch: "main" }, { sourceSlug: "source", targetSlug: "target" }))
+  if (reused === undefined) expect(await runStoreRename({ store: h.store, cwd: root, exec, baseBranch: "main" }, { operand: "source", targetSlug: "target" }))
     .toMatchObject({ status: "renamed" });
   const io = { ...createUserIOContext(), exec };
   const executor = buildExecutorContext({ cwd: root, io, store: h.store, identity: "starter", teamMode: false, internalTemplateDir: "/templates" });
@@ -111,7 +111,7 @@ it("dispatches a former name to its canonical stub while refusing explicit creat
   expect(alias.reference).toEqual(canonical.reference);
   expect(alias.reference.owner).toEqual({ ...h.meta.reference.owner, name: "target" });
   expect(lifecycleSuccess(await h.store.read({ reference: alias.reference }))).toMatchObject({ placement: { kind: "active" }, fields: { owner: "starter" } });
-  expect(lifecycleSuccess(await readLifecycleView(h.store)).entries).toHaveLength(1);
+  expect(lifecycleSuccess(await readLifecycleView(h.root, h.store)).entries).toHaveLength(1);
   expect(await h.exec("git", ["symbolic-ref", "--quiet", "HEAD"], { cwd: h.path }).catch(() => null)).toBeNull();
 }, START_TIMEOUT_MS);
 
@@ -127,7 +127,7 @@ it("directs a spawning seeded start to in-place admission from the intended chec
   expect(errors.join("\n")).toContain("arc start --here --from 'draft-fresh.md'");
   expect(errors.join("\n")).toContain("intended checkout");
   expect(await stat(h.path).catch(() => null)).toBeNull();
-  expect(lifecycleSuccess(await readLifecycleView(h.store)).entries).toHaveLength(1);
+  expect(lifecycleSuccess(await readLifecycleView(h.root, h.store)).entries).toHaveLength(1);
   process.exitCode = 0;
   await handleStoreStart(StartCommandInputSchema.parse({ ...input, here: true }), ctx);
   expect(process.exitCode).toBe(0);

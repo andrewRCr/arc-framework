@@ -22,7 +22,7 @@ it("reports exact metadata conflicts without writes and reads the same owner aft
   const disputed = lifecycleSuccess(await h.store.read({ reference: primary.reference }));
   expect(disputed.conflicts.length).toBeGreaterThan(0);
   const version = lifecycleSuccess(await h.store.version());
-  const refused = await readStoredDeliveryEntryInput(h.store, "example");
+  const refused = await readStoredDeliveryEntryInput("/project", h.store, "example");
   expect(refused).toMatchObject({ status: "refused", refusal: { condition: expect.stringContaining("unresolved conflicts"),
     remedy: { text: expect.stringContaining("resolve") } } });
   for (const conflict of disputed.conflicts) {
@@ -31,6 +31,6 @@ it("reports exact metadata conflicts without writes and reads the same owner aft
   expect(lifecycleSuccess(await h.store.version())).toBe(version);
   lifecycleSuccess(await h.store.write({ ...recordPut(disputed), resolves: disputed.conflicts,
     provenance: { verb: "resolve", lifecycleAction: "resolve" } }));
-  expect(await readStoredDeliveryEntryInput(h.store, "example")).toMatchObject({ status: "ok", result: {
+  expect(await readStoredDeliveryEntryInput("/project", h.store, "example")).toMatchObject({ status: "ok", result: {
     primary: { reference: disputed.reference }, taskListPath: ".arc/active/tasks-example.md" } });
 });

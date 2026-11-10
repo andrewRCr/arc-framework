@@ -15,6 +15,7 @@ import type { IdentityTransactionOutcome } from "./identity-transaction.js";
 /** Shared invocation ports; companions join the primary's atomic batch. */
 export interface ErrandStoreOptions {
   store: Store;
+  selectedRecord?: StoreRecord;
   identity: string;
   sync?: StoreSyncPort;
   /** Where the pull's notices are written; standard error by default. */
@@ -73,11 +74,14 @@ async function readBasis(options: ErrandStoreOptions, slug: string, claimId?: st
   const pulled = consumePull(await (options.sync ?? bindStoreSyncPort(options.store)).pull());
   writePullNotices(pulled.notices, options.writeNotice);
   if (pulled.kind === "stop") return { kind: "refused", reason: pulled.reason };
-  const found = await options.store.lookup(claimId === undefined ? { kind: "slug", slug: SlugSchema.parse(slug) }
-    : { kind: "claim", claim: { kind: "errand", slug: SlugSchema.parse(slug), claimId } });
+  const found = options.selectedRecord === undefined
+    ? await options.store.lookup(claimId === undefined ? { kind: "slug", slug: SlugSchema.parse(slug) }
+      : { kind: "claim", claim: { kind: "errand", slug: SlugSchema.parse(slug), claimId } })
+    : { status: "ok" as const, result: { reference: options.selectedRecord.reference } };
   if (found.status === "refused") return found.refusal.code === "not-found" ? { kind: "ready", saved: null, record: null }
     : { kind: "refused", reason: formatRefusal(found.refusal) };
   const read = await options.store.read({ reference: found.result.reference });
+  if (read.status === "refused" && read.refusal.code === "not-found" && options.selectedRecord !== undefined) return { kind: "ready", saved: null, record: null };
   if (read.status === "refused") return { kind: "refused", reason: formatRefusal(read.refusal) };
   return decodeBasis(read.result, slug, options.identity, completed);
 }

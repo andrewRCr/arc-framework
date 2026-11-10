@@ -107,11 +107,13 @@ export async function runStatus(options: RunStatusOptions): Promise<StatusResult
   const userTask = userSlot(identity, (id) => probes.user(id));
   const configTask = safeProbe("config", () => probes.config());
   const activeTask = safeProbe("active", () => probes.active());
+  const projectionTask = safeProbe("projection", () => probes.projection());
 
-  const [user,  config, active] = await Promise.all([
+  const [user, config, active, projection] = await Promise.all([
     userTask,
     configTask,
     activeTask,
+    projectionTask,
   ]);
 
   return {
@@ -120,6 +122,7 @@ export async function runStatus(options: RunStatusOptions): Promise<StatusResult
     user: toProbe(user),
     config: toProbe(config),
     active: toProbe(active),
+    projection: toProbe(projection),
   };
 }
 

@@ -27,7 +27,7 @@ export async function evaluateStoredWorkUnitReadiness(request: WorkUnitRequest, 
   const record = selected.result, fields = readLifecycleMetaFields(record);
   if (fields.status === "refused") return [fact("malformed-artifact", `work-item/meta:${request.vehicle.slug}`,
     `${fields.refusal.condition} ${fields.refusal.remedy.text}`)];
-  const path = workUnitMetaPath(record);
+  const path = await workUnitMetaPath(request.treeRoot, record);
   if (record.conflicts.length > 0) {
     return [fact("malformed-artifact", path, `The stored work-unit metadata has unresolved conflicts.${describeRecordConflicts(record.conflicts)}`)];
   }
@@ -62,7 +62,7 @@ async function storedLinkFacts(request: WorkUnitRequest, record: StoreRecord, st
   const changeRequest = record.links?.changeRequest;
   if (request.vehicle.archiveCadence !== "manual" && changeRequest !== undefined
     && (changeRequest.repository !== project.id || changeRequest.number !== request.target.pullRequest)) {
-    facts.push(fact("pr-url-mismatch", workUnitMetaPath(record), "The stored change-request link does not name the guarded pull request."));
+    facts.push(fact("pr-url-mismatch", await workUnitMetaPath(request.treeRoot, record), "The stored change-request link does not name the guarded pull request."));
   }
   return facts;
 }

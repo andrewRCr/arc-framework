@@ -1,6 +1,6 @@
 /** Abandon and failed-open rollback share the same observed-version return plan. */
 import type { Mutation } from "../store/write.js";
-import { RecordVersionSchema, sameReference } from "../store/identity.js";
+import { RecordVersionSchema, sameReference, sameOwner } from "../store/identity.js";
 import { resolveEntryList, resolveWorkItemList, failure, type ResolvedEntryList } from "./lists.js";
 import { rowsInList } from "./listing.js";
 import { latestRoutingReceipt, listCoordinate, sameRoutingList } from "./receipts.js";
@@ -49,7 +49,7 @@ async function prepareReturnEntry(entry: InboxRow, source: ResolvedEntryList, de
   const holdingScope = origin !== null && origin !== undefined && ["personal", "project"].includes(origin.list) ? origin : listCoordinate(source);
   const holder = await openErrandHolding(entry.id, holdingScope, context);
   if (holder.status === "refused") return holder;
-  if (holder.result.held !== null && holder.result.held.slug !== source.primary?.reference.owner.name) return { status: "ok", result: { kind: "held", errand: holder.result.held.slug } };
+  if (holder.result.held !== null && (source.primary === null || !sameOwner(holder.result.held.reference.owner, source.primary.reference.owner))) return { status: "ok", result: { kind: "held", errand: holder.result.held.slug } };
   const previous = latest.result?.source;
   const original = previous?.list === "project" || (previous?.list === "personal" && previous.identity === context.identity);
   const selector = original ? previous.list : "personal";

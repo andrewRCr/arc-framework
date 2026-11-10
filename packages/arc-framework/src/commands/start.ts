@@ -604,8 +604,8 @@ async function coldStartOccupancyRefusal(worktreePath: string): Promise<string |
   const active = await resolveCurrentWorkUnit({ cwd: worktreePath });
   if (active.status === "none") return active.warnings.length === 0 ? null : active.warnings.join("; ");
   const existing = active.status === "resolved" ? active.candidate.reference.owner.name
-    : active.candidates.map(candidate => workItemArtifactPath(candidate.reference.owner.name, "meta",
-      { kind: "active" }, candidate.record?.cohort ?? null)).join(", ");
+    : (await Promise.all(active.candidates.map(candidate => workItemArtifactPath(worktreePath, candidate.reference.owner.name, "meta",
+      { kind: "active" }, candidate.record?.cohort ?? null)))).join(", ");
   const occupancy = active.status === "resolved" ? "an active work unit" : "multiple active work units";
   return `worktree already has ${occupancy} (${existing}); `
     + "resolve the existing work-unit occupancy before retrying; "

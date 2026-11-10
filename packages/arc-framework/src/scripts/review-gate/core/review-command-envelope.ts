@@ -418,6 +418,12 @@ const FrontlineCompletedPayloadSchema = z.strictObject({
   ...FrontlineTerminalPayloadShape,
   executableIdentity: ExecutableIdentitySchema.optional(),
 });
+/** A findings run carries its recorded provider findings, so the response step needs no separate read. */
+const FrontlineFindingsPayloadSchema = z.strictObject({
+  ...FrontlineTerminalPayloadShape,
+  executableIdentity: ExecutableIdentitySchema.optional(),
+  findings: NormalizedReviewFindingsSchema.refine((findings) => findings.length > 0),
+});
 const FrontlineReasonPayload = <Reason extends z.ZodType>(reason: Reason) => z.strictObject({
   ...FrontlineTerminalPayloadShape,
   executableIdentity: ExecutableIdentitySchema.optional(),
@@ -425,7 +431,7 @@ const FrontlineReasonPayload = <Reason extends z.ZodType>(reason: Reason) => z.s
 });
 export const FrontlineRunEnvelopeSchema = z.union([
   envelopeVariant("review-frontline-run", "clean", "none", FrontlineCompletedPayloadSchema),
-  envelopeVariant("review-frontline-run", "findings", "respond", FrontlineCompletedPayloadSchema),
+  envelopeVariant("review-frontline-run", "findings", "respond", FrontlineFindingsPayloadSchema),
   envelopeVariant(
     "review-frontline-run",
     "unavailable",

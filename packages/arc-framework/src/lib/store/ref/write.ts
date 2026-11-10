@@ -65,7 +65,7 @@ export async function batchRefRecords(context: RefBackendContext, input: BatchIn
   const prepared = prepareBatchPuts(context, parsed);
   if (prepared.status === "refused") return prepared;
   try {
-    const result = await executeRefBatch(context, { ...parsed, writes: prepared.result }, randomUUID());
+    const result = await executeRefBatch(context, { ...parsed, writes: prepared.result }, randomUUID(), parsed.projectionAdmission ? parsed : undefined);
     return result.status === "refused" ? result : { status: "ok", result: bindResultNameHints(parsed, result.result) };
   } catch (error) {
     return refBatchFailure(error);
@@ -113,7 +113,7 @@ function prepareBatchPuts(context: Pick<RefBackendContext, "registry">, input: B
   return { status: "ok", result };
 }
 
-async function executeRefBatch(context: RefBackendContext, input: BatchInput, batchId: string): Promise<StoreResult<BatchResult>> {
+async function executeRefBatch(context: RefBackendContext, input: BatchInput, batchId: string, projectionInput?: BatchInput): Promise<StoreResult<BatchResult>> {
   const identity = await refWriteIdentityRefusal(context, input.writes);
   if (identity) return { status: "refused", refusal: identity };
   const source = context.repository?.source ?? context;
@@ -122,7 +122,7 @@ async function executeRefBatch(context: RefBackendContext, input: BatchInput, ba
     let captured: ReadonlyMap<string, string> | undefined;
     const bound = await writeRefRepository(source, tips => { captured = tips; });
     let result: StoreResult<BatchResult> | "layout-changed" | null;
-    try { result = await attemptRefBatch({ ...bound, writeEvidence: { objects: new Map(), trees: new Map() } }, input, batchId, captured, history); }
+    try { result = await attemptRefBatch({ ...bound, writeEvidence: { objects: new Map(), trees: new Map() } }, input, batchId, captured, history, projectionInput); }
     catch (error) { if (await storeDirectoryVanished(bound, error)) { history.resolution = "uncompared"; await context.operationScope?.refresh(); continue; } throw error; }
     if (result !== null && result !== "layout-changed") return result;
     if (result === "layout-changed") history.resolution = "uncompared";
@@ -132,7 +132,7 @@ async function executeRefBatch(context: RefBackendContext, input: BatchInput, ba
 
 /** Resolve and commit one batch against the layout its attempt bound; null or a changed layout starts it again. */
 async function attemptRefBatch(context: RefBackendContext, input: BatchInput, batchId: string,
-  captured: ReadonlyMap<string, string> | undefined, history: RefHistoryRetryState): Promise<StoreResult<BatchResult> | "layout-changed" | null> {
+  captured: ReadonlyMap<string, string> | undefined, history: RefHistoryRetryState, projectionInput?: BatchInput): Promise<StoreResult<BatchResult> | "layout-changed" | null> {
   const resolved = await resolveRefWrites(context, input.writes, captured);
   if (resolved.status === "refused") return resolved;
   // Handles that differ before resolution, a name and a UID or two primary roles of one new owner, can name one record.
@@ -149,12 +149,13 @@ async function attemptRefBatch(context: RefBackendContext, input: BatchInput, ba
   const locks = [...refWriteTargets(context, resolved.result).map(({ home }) => home.ref), ...anchor.result, ...(resolved.result.retained?.length ? ["refs/arc/project/registry", ...resolved.result.retained.map(({ home }) => home.ref.replace("refs/arc/history/", "refs/arc/"))] : []), ...archiveLockRefs(resolved.result), ...archivedLockRefs(resolved.result), ...completedMoveLockRefs(resolved.result), ...retirementLockRefs(refWriteTargets(context, resolved.result))];
   return withRefLocks(context, locks, () =>
     commitLockedRefBatch(context, { resolved: resolved.result, provenance: input.provenance, batchId,
-      observations: input.observations ?? [], locks: new Set(locks), history }));
+      observations: input.observations ?? [], locks: new Set(locks), history, projectionInput }));
 }
 
 interface LockedRefBatch {
   resolved: ResolvedBatch; provenance: BatchInput["provenance"]; batchId: string;
   observations: readonly RecordObservation[]; locks: ReadonlySet<string>; history: RefHistoryRetryState;
+  projectionInput?: BatchInput;
 }
 
 async function commitLockedRefBatch(context: RefBackendContext, batch: LockedRefBatch): Promise<StoreResult<BatchResult> | "layout-changed" | null> {
@@ -183,7 +184,7 @@ async function attemptLockedRefBatch(context: RefBackendContext, batch: LockedRe
   if (anchor.status === "refused") return anchor;
   if (anchor.result.some(ref => !locks.has(ref))) { history.resolution = "uncompared"; return null; }
   const result = await commitRefWrites(context, { ...resolved, tips }, provenance, batchId, observations,
-    destinations => observeRefHistoryRead(history, destinations, attempt));
+    destinations => observeRefHistoryRead(history, destinations, attempt), batch.projectionInput);
   if (result === "resolve") { history.resolution = "uncompared"; return null; }
   if (result === "layout-changed" || result.status !== "retry") return result;
   const refusal = recordRefHistoryRetry(history, result, attempt);

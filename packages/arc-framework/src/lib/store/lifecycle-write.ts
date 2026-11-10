@@ -1,15 +1,16 @@
 /** Version-bound record preparation and atomic persistence shared by lifecycle verbs. */
 import { posix } from "node:path";
 import { ParsedMetaRecordSchema, type ParsedMetaRecord } from "../active/meta-schema.js";
-import { resolveArcPath, type WorkUnitPlacement } from "../layout/index.js";
-import { ArchiveSequenceSchema, SlugSchema } from "../kernel/index.js";
+import { resolveArcPath } from "../layout/index.js";
+import { SlugSchema } from "../kernel/index.js";
 import type { Store } from "./contract.js";
 import { LinksSchema, CallerProvenanceSchema, type Links, type CallerProvenance } from "./links.js";
 import type { StoreRecord } from "./read.js";
 import { recordReferences, type OwnerIdentity } from "./identity.js";
 import type { StoreResult } from "./refusal.js";
 import { BatchInputSchema, MutationSchema, type Mutation, type BatchResult, type RecordObservation } from "./write.js";
-import { WritePlacementSchema, type WritePlacement, type ReadPlacement } from "./placement.js";
+import { WritePlacementSchema, WorkUnitReadPlacementSchema, type WritePlacement, type ReadPlacement } from "./placement.js";
+import { workItemArtifactPath, flatWorkItemArtifactPath } from "./lifecycle-storage.js";
 
 /** Select the lifecycle arm once at its invocation boundary.
  * @param store - Optional injected operational store.
@@ -111,27 +112,31 @@ export function mergeLifecycleLinks(prior: Links | undefined, patch: Links,
  * @param override - Optional requested placement for a move's destination report.
  * @returns Canonical projected metadata path.
  */
-export function workUnitMetaPath(record: StoreRecord, override?: ReadPlacement | WritePlacement): string {
+export async function workUnitMetaPath(checkoutRoot: string, record: StoreRecord, override?: ReadPlacement | WritePlacement): Promise<string> {
+  const { placement, cohort } = metaReportCoordinates(record, override);
+  return workItemArtifactPath(checkoutRoot, record.reference.owner.name, "meta", placement, cohort);
+}
+
+/** Validate and project in-repo lifecycle coordinates without reading a checkout. */
+export function flatWorkUnitMetaPath(record: StoreRecord, override?: ReadPlacement | WritePlacement): string {
+  const { placement, cohort } = metaReportCoordinates(record, override);
+  return flatWorkItemArtifactPath(record.reference.owner.name, "meta", placement, cohort);
+}
+function metaReportCoordinates(record: StoreRecord, override?: ReadPlacement | WritePlacement) {
   const selected = override ?? record.placement;
   if (selected === undefined) throw new Error("A work-unit meta has no placement");
-  let placement: WorkUnitPlacement;
-  if (selected.kind === "active") placement = { kind: "active", scope: { kind: "project" } };
-  else if (selected.kind === "backlog") {
-    const fields = ParsedMetaRecordSchema.parse(record.fields);
-    placement = { ...selected, cohort: (fields.cohort ?? "").split("/").filter(Boolean).map((part) => SlugSchema.parse(part)) };
-  } else {
-    if (!("sequence" in selected)) throw new Error("A completed meta's report path requires its assigned archive sequence");
-    placement = { kind: "completed", quarter: selected.quarter, sequence: ArchiveSequenceSchema.parse(selected.sequence) };
-  }
-  return resolveArcPath({ kind: "work-unit-artifact", placement, slug: record.reference.owner.name, artifact: "meta" });
+  if (selected.kind === "completed" && !("sequence" in selected)) throw new Error("A completed meta's report path requires its assigned archive sequence");
+  const placement = WorkUnitReadPlacementSchema.parse(selected);
+  const cohort = selected.kind === "backlog" ? ParsedMetaRecordSchema.parse(record.fields).cohort : null;
+  return { placement, cohort };
 }
 
 /** Project an own artifact basename without constructing a path in the verb.
  * @param slug - Current work-unit name.
- * @param artifact - Own draft or spec role.
+ * @param artifact - Own metadata or design role.
  * @returns Canonical own artifact filename.
  */
-export function workUnitArtifactName(slug: string, artifact: "draft" | "spec"): string {
+export function workUnitArtifactName(slug: string, artifact: "meta" | "draft" | "spec"): string {
   return posix.basename(resolveArcPath({ kind: "work-unit-artifact", artifact, slug: SlugSchema.parse(slug),
     placement: { kind: "active", scope: { kind: "project" } } }));
 }

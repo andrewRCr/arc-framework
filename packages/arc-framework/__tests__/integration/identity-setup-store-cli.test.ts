@@ -38,6 +38,13 @@ it.each(["add", "init", "join"])("registered %s creates only the missing record 
     expect(lifecycleSuccess(await h.store.read({ reference: inbox }))).toEqual(existing);
     expect(lifecycleSuccess(await h.store.read({ reference: memory })).content).toContain("Working Memory");
     expect(output).toContain("Identity 'alice' already has personal records");
+    if (verb !== "add") {
+      const setting = output.match(/"file_scan_inclusions": \[([\s\S]*?)\]/u)?.[1];
+      expect(setting).toBeDefined();
+      expect(JSON.parse(`[${setting?.replaceAll("│", "")}]`)).toEqual(
+        ["...", ".arc/active/**", ".arc/backlog/**", ".arc/completed/**", ".arc/user/*/**"]);
+      await expect(access(join(cwd, ".zed/settings.json"))).rejects.toMatchObject({ code: "ENOENT" });
+    }
     await expect(access(join(cwd, ".arc/user/alice/USER-INBOX.md"))).rejects.toMatchObject({ code: "ENOENT" });
     if (verb !== "add") expect((await exec("git", ["config", "--get", "arc.identity"])).stdout.trim()).toBe("alice");
     else expect((await exec("git", ["config", "--get", "arc.identity"])).stdout.trim()).toBe("configured-person");

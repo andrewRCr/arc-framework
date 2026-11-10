@@ -66,7 +66,7 @@ async function fixture() {
     readReadinessBinding, readStandardLaneOwnerVersion: forbidden, claimPublicationBoundary: forbidden,
     preparePublicationClaim: (claim: IntegrationBoundaryLocusV2) => prepareNativePublicationClaim({ store: h.store,
       cwd: checkout.cwd, owner: primary.reference.owner, boundary: claim, expectedVersion: snapshot.version, readReadinessBinding }) };
-  return { ...h, ...checkout, primary, params, ctx: { ...ctx, currentWuReconcile: buildStoreCurrentWuReconcile(h.store) } };
+  return { ...h, ...checkout, primary, params, ctx: { ...ctx, currentWuReconcile: buildStoreCurrentWuReconcile("/project", h.store) } };
 }
 
 it("publishes without a metadata Candidate bullet and commits the native claim in the lifecycle batch", async () => {

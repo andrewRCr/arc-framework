@@ -15,7 +15,7 @@ it("counts a tied work-unit name as a paired owner and reconciles without rewrit
   const store = createClashDouble(h.store, { slug: "clashed", holders: [first.reference, second.reference] });
   const owners = lifecycleSuccess(await readPairedReferenceOwners(store, [notes], new Set()));
   expect(owners.get("spec-clashed-prd.md")).toEqual([{ subject: "clashed", suffix: "-prd" }]);
-  expect(await createStoreReconcilePrepareContext(store, "example")).toMatchObject({ status: "ok",
+  expect(await createStoreReconcilePrepareContext("/project", store, "example")).toMatchObject({ status: "ok",
     result: { context: { additionalReferenceTransitions: [] } } });
   expect(lifecycleSuccess(await store.read({ reference: notes.reference }))).toEqual(notes);
 });
@@ -36,7 +36,7 @@ it("renames while a backlog record mentions another clashed name's paired spec",
   const store = createClashDouble(h.store, { slug: "clashed", holders: [first.reference, second.reference] });
   expect(await runStoreRename({ store, cwd: "/memory", baseBranch: "main", exec: async () => { throw Error("No Git needed"); },
     locusPorts: { findHoldingCheckout: async () => ({ kind: "none" as const }), checkMarkerExclusivity: async () => ({ kind: "clear" }),
-      writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } }, { sourceSlug: "source", targetSlug: "renamed" }))
+      writeAnchoredMarker: async () => ({ kind: "unadmitted" }) } }, { operand: "source", targetSlug: "renamed" }))
     .toMatchObject({ status: "renamed" });
   expect(lifecycleSuccess(await h.store.read({ reference: source.reference })).reference.owner.name).toBe("renamed");
   expect(lifecycleSuccess(await h.store.read({ reference: notes.reference })).content).toBe(notes.content);

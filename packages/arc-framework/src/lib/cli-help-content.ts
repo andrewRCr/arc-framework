@@ -15,11 +15,11 @@ export interface HelpPage {
 export const HELP_GROUPS: Readonly<Record<string, readonly (readonly [string, readonly string[]])[]>> = {
   "": [
     ["Inspect work and context:", ["status", "agenda", "view", "active", "locus", "inbox", "log", "recover"]],
-    ["Plan and organize work:", ["start", "stub", "promote", "demote", "rename", "decompose", "plan", "set-class", "set-stage", "finalize", "repoint-design"]],
+    ["Plan and organize work:", ["start", "stub", "promote", "demote", "rename", "cohort", "decompose", "plan", "set-class", "set-stage", "finalize", "repoint-design"]],
     ["Run and resume work:", ["activate", "deactivate", "park", "pause", "handover", "resume", "materialize", "reopen", "abandon", "task", "wu", "attest", "candidate"]],
     ["Review and land work:", ["review", "publish", "integrate", "merge", "base", "delivery", "release", "archive", "teardown"]],
-    ["Run errands and synchronize:", ["errand", "route", "housekeep", "handoff", "sync", "user"]],
-    ["Set up and maintain ARC:", ["init", "join", "update", "health", "diff", "check", "config", "schema"]],
+    ["Run errands and synchronize:", ["errand", "route", "housekeep", "handoff", "save", "sync", "user"]],
+    ["Set up and maintain ARC:", ["init", "join", "editor", "update", "health", "diff", "selection", "check", "config", "schema"]],
   ],
   review: [
     ["Choose review work:", ["pre-publication", "resolve", "changeset", "lane", "adversarial"]],

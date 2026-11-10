@@ -36,13 +36,19 @@ export async function readStoreIdentityEvidence(store: Store, identity: string):
 export async function markerIdentitySnapshot(evidence: StoreIdentityEvidence, marker: DormantMarkerGenerationEvidence, store?: Store): Promise<TransientIdentitySnapshot> {
   const kind = marker.kind === "present" ? marker.marker.createdFor.kind : null;
   const selected = kind === "errand" ? evidence.errands : evidence.claims;
-  if (selected.kind !== "complete" || !selected.missed || marker.kind !== "present") return acquisitionSnapshot(selected);
+  if (selected.kind !== "complete" || marker.kind !== "present") return acquisitionSnapshot(selected);
   const subject = marker.marker.createdFor;
   if (subject.kind === "work-unit" || subject.kind === "partial-errand") return acquisitionSnapshot(selected);
+  if (!selected.missed && matchesIdentityMarker(selected.decoded.get(subject.slug), subject)) return acquisitionSnapshot(selected);
   return corroborateMarkerIdentity(store, selected, subject);
 }
 
 type IdentityMarker = Extract<OccupancySubject, { kind: "errand" | "groom" | "housekeep" }>;
+function matchesIdentityMarker(record: TransientIdentityRecord | undefined, subject: IdentityMarker): boolean {
+  if (record === undefined || record.slug !== subject.slug || record.claimId !== subject.claimId) return false;
+  const kind = record.kind === "groom" ? "groom" : record.purpose === "errand" ? "errand" : "housekeep";
+  return kind === subject.kind;
+}
 async function corroborateMarkerIdentity(store: Store | undefined, selected: Extract<StoreIdentityAcquisition, { kind: "complete" }>, subject: IdentityMarker): Promise<TransientIdentitySnapshot> {
   if (store === undefined) return incompleteIdentity("Bind an exact Store claim reader, then retry.");
   try {

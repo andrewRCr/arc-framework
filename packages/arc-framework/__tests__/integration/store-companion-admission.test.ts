@@ -40,7 +40,7 @@ describe("companion naming admission", () => {
     const foreign = h.reference("work-item/companion", "part-example", "research");
     expect(success(await h.store.read({ reference: foreign })).content).toBe("foreign companion\n");
   });
-  it.each(["research-part", "research2", "sub/notes.md", "notes-extra"])("refuses the unserved key %s without mutating a batch and accepts a corrected retry", async (key) => {
+  it.each(["research-part", "research2", "sub/notes.md", "notes-extra", "./readme"])("refuses the unserved key %s without mutating a batch and accepts a corrected retry", async (key) => {
     const h = await fixture();
     const from = await h.commit("primaries");
     const primary = h.reference("work-item/meta");
@@ -58,4 +58,26 @@ describe("companion naming admission", () => {
     success(await h.store.write({ ...corrected, provenance }));
     expect(success(await h.store.read({ reference: corrected.reference })).content).toBe(put.content);
   });
+  it.each(["research-example.md", "meta-example.md"])("refuses the filename alias %s across record operations", async key => {
+    const h = await fixture();
+    const primary = h.reference("work-item/meta"), companion = h.reference("work-item/companion", "example", "research");
+    success(await h.store.write({ action: "put", reference: companion, expected: null, content: "kept research\n", provenance }));
+    const from = await h.commit("canonical records");
+    const beforePrimary = success(await h.store.read({ reference: primary }));
+    const beforeCompanion = success(await h.store.read({ reference: companion }));
+    const reference = h.reference("work-item/companion", "example", key);
+    const expected = key.startsWith("meta-") ? beforePrimary.version : beforeCompanion.version;
+    const refused = { status: "refused", refusal: { code: "unsupported", case: "unhomed-kind" } };
+    expect(await h.store.read({ reference })).toMatchObject(refused);
+    expect(await h.store.history({ reference })).toMatchObject(refused);
+    expect(await h.store.changes({ from, to: from, references: [reference] })).toMatchObject(refused);
+    expect(await h.store.write({ action: "put", reference, expected, content: "alias overwrite\n", provenance })).toMatchObject(refused);
+    expect(await h.store.write({ action: "remove", reference, expected, provenance })).toMatchObject(refused);
+    expect(success(await h.store.read({ reference: primary }))).toEqual(beforePrimary);
+    expect(success(await h.store.read({ reference: companion }))).toEqual(beforeCompanion);
+    success(await h.store.write({ action: "put", reference: companion, expected: beforeCompanion.version,
+      content: "supported retry\n", provenance }));
+    expect(success(await h.store.read({ reference: companion })).content).toBe("supported retry\n");
+  });
+
 });

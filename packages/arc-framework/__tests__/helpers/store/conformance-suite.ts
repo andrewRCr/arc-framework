@@ -1,4 +1,4 @@
-/** Single backend-neutral registration of all seventeen storage contract conformance items. */
+/** Single backend-neutral registration of all eighteen storage contract conformance items. */
 
 import { describe, it } from "vitest";
 import { FAMILY_IDS, KIND_REGISTRY, type KindId } from "../../../src/lib/store/index.js";
@@ -15,6 +15,7 @@ import { registerFormatAssertions, registerListingAssertions } from "./suite-lis
 import { registerLookupAssertions } from "./suite-lookup.js";
 import { registerCoverageAssertions, registerCrossSubstrateAssertions, registerRecoveryAssertions } from "./suite-recovery.js";
 import { registerWriteCheckAssertions } from "./suite-write-checks.js";
+import { registerAfterViewAssertions } from "./suite-after-view.js";
 import { registerSyncAssertions } from "./suite-sync.js";
 
 /** Every contract item has one registration body, so the item map cannot silently omit one. */
@@ -36,6 +37,7 @@ export const conformanceItems: Record<SuiteItem, { name: string; register(contex
   15: { name: "capability report", register: registerCapabilityAssertions },
   16: { name: "sync outcomes and reconciliation", register: registerSyncAssertions },
   17: { name: "registered write checks", register: registerWriteCheckAssertions },
+  18: { name: "pending projection views", register: registerAfterViewAssertions },
 };
 
 const SUITE_ITEMS = Object.keys(conformanceItems).map(Number) as SuiteItem[];

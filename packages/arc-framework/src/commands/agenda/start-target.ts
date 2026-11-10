@@ -1,4 +1,5 @@
 /** Local lifecycle admission and artifact pointers for explicit Start readiness. */
+import { clashRepair } from "../../lib/store/clash-repair.js";
 import { relative, resolve } from "node:path";
 import { resolveLifecycleSubject, type LifecycleSubjectSelection } from "../../lib/store/lifecycle-subject.js";
 import { resolveBacklogStub } from "../../lib/work-unit/backlog-stub.js";
@@ -56,8 +57,8 @@ async function resolveStoreTarget(cwd: string, store: Store, meta: StoreRecord):
   if (meta.placement?.kind !== "backlog") return { kind: "unresolved", reason: `Target '${slug}' has no locally available backlog stub.` };
   const evidence = await readAgendaStartRecords(store, meta);
   if (evidence.status === "refused") return { kind: "refused", refusal: evidence.refusal };
-  const taskPath = evidence.result.taskList === null ? null : lifecycleRecordPath(meta, evidence.result.taskList);
-  return { kind: "resolved", slug, metaPath: resolve(cwd, workUnitMetaPath(meta)),
+  const taskPath = evidence.result.taskList === null ? null : await lifecycleRecordPath(cwd, meta, evidence.result.taskList);
+  return { kind: "resolved", slug, metaPath: resolve(cwd, await workUnitMetaPath(cwd, meta)),
     taskListPath: taskPath === null ? null : resolve(cwd, taskPath), storeEvidence: evidence.result };
 }
 
@@ -69,7 +70,9 @@ function qualityFailure(selection: LifecycleSubjectSelection, slug: string): str
   const name = selection.query.slug;
   const diagnostic = listing.diagnostics.filter(item => item.key === `work-item/meta:${name}`);
   if (standing.failClosedNames.has(name)) return diagnostic.map(item => item.condition).join("\n") || `Lifecycle evidence for '${name}' is withheld.`;
-  if (standing.clashes.some(clash => clash.slug === slug || clash.slug === name)) return `Lifecycle holders for '${slug}' are ambiguous.`;
+  const clash = standing.clashes.find(item => item.slug === slug || item.slug === name);
+  if (clash !== undefined) return `Lifecycle holders for '${slug}' are ambiguous. ${clashRepair(clash.holders,
+    { liveness: "live", name: clash.kind === "current-name" ? "current" : "former" }).text}`;
   if (selection.record.status === "ok" && selection.query.state === "nonexistent") return `Target '${slug}' has no usable lifecycle projection.`;
   return null;
 }

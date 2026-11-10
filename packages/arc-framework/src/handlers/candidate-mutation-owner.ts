@@ -138,7 +138,7 @@ export async function resolveCandidateMutationGeneration(store: Store, workUnit:
   candidate: { cwd: string; candidateId: string }, bound?: OwnerIdentity,
   checkout?: OwnedCheckout): Promise<OwnerIdentity | undefined> {
   if (!store.capabilities.stateOffBranch) return undefined;
-  return scope === "owned" ? resolveOwnedGeneration(store, workUnit, bound, checkout)
+  return scope === "owned" ? resolveOwnedGeneration(candidate.cwd, store, workUnit, bound, checkout)
     : resolveCompletedGeneration(store, workUnit, candidate, bound);
 }
 
@@ -155,11 +155,11 @@ interface OwnedCheckout extends OwnedCandidateCheckout { projectId?: () => Promi
  * @param projectId - The project identity the branch lookup binds
  * @returns The checkout's own generation
  */
-export async function resolveOwnedCandidateGeneration(store: Store,
+export async function resolveOwnedCandidateGeneration(checkoutRoot: string, store: Store,
   owner: Extract<CandidateMutationOwner, { status: "owned" }>, projectId?: () => Promise<string>):
   Promise<OwnerIdentity | undefined> {
   if (!store.capabilities.stateOffBranch) return undefined;
-  return resolveOwnedGeneration(store, owner.workUnit, undefined, { ...ownedCheckout(owner), projectId });
+  return resolveOwnedGeneration(checkoutRoot, store, owner.workUnit, undefined, { ...ownedCheckout(owner), projectId });
 }
 
 /** The selectors an owned checkout carries, without its slug or status. */
@@ -171,7 +171,7 @@ export function ownedCheckout(owner: Extract<CandidateMutationOwner, { status: "
 // The entering checkout's own generation: a bound owner, the one its marker's UID names, the completed generation its
 // branch links, or else the slug's. A completed checkout whose slug now selects a live namesake refuses rather than
 // bind that namesake.
-async function resolveOwnedGeneration(store: Store, workUnit: string, bound?: OwnerIdentity,
+async function resolveOwnedGeneration(checkoutRoot: string, store: Store, workUnit: string, bound?: OwnerIdentity,
   checkout?: OwnedCheckout): Promise<OwnerIdentity> {
   if (bound !== undefined && bound.name === workUnit) return bound;
   if (checkout?.uid !== undefined) {
@@ -179,7 +179,7 @@ async function resolveOwnedGeneration(store: Store, workUnit: string, bound?: Ow
       OwnerIdentitySchema.parse({ type: "work-item", name: workUnit, uid: checkout.uid }))).reference.owner;
   }
   if (checkout?.branch !== undefined) {
-    const linked = await readReviewWorkUnitByRef({ store, projectId: checkout.projectId }, checkout.branch);
+    const linked = await readReviewWorkUnitByRef({ cwd: checkoutRoot, store, projectId: checkout.projectId }, checkout.branch);
     if (linked?.name === workUnit) return linked.record.reference.owner;
   }
   const record = await readOwnedRecord(store, workUnit);

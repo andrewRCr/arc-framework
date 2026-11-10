@@ -12,6 +12,7 @@ import { projectPendingAbandonLifecycle } from "../retirement-lifecycle-result.j
 import { runStoreTeardown } from "./teardown-store.js";
 import type { TeardownResult } from "./teardown.js";
 import type { AbandonContext, AbandonParams, AbandonResult } from "./abandon.js";
+import { reportEmptyCohorts } from "../../store/cohort-retirement.js";
 /** Remove the primary with exact terminal links; failure afterward preserves executable cleanup. */
 export async function runStoreAbandon(ctx: Pick<AbandonContext, "executor" | "removal" | "storeTeardown" | "baseBranch">, params: AbandonParams): Promise<AbandonResult> {
   const executor = ctx.executor, store = executor.store;
@@ -43,14 +44,18 @@ export async function runStoreAbandon(ctx: Pick<AbandonContext, "executor" | "re
     const lifecycle = projectPendingAbandonLifecycle({ slug: name, branch });
     lifecycle.cleanup = outcome.continuation === undefined ? { branch: { status: "completed" }, worktree: { status: "completed" }, userWorkspace: { status: "not-applicable" } }
       : { branch: { status: "pending" }, worktree: { status: "pending" }, userWorkspace: { status: "not-applicable" } };
-    return { status: "abandoned", outcome, lifecycle, notices: cleanup?.status === "torn-down" ? cleanup.notices : [] };
+    const retirement = await reportEmptyCohorts(store, primary);
+    return { status: "abandoned", outcome, lifecycle, notices: [
+      ...cleanup?.status === "torn-down" ? cleanup.notices : [],
+      ...retirement.cohorts.map(cohort => cohort.remedy.text), ...retirement.notices,
+    ] };
   } catch (error) { return { status: "rejected", reason: error instanceof Error ? error.message : String(error) }; }
 }
 
 async function abandonmentSubject(ctx: Pick<AbandonContext, "executor" | "removal" | "storeTeardown">, params: AbandonParams) {
   const store = ctx.executor.store;
   if (store === undefined) throw new Error("Store abandonment requires an operational store.");
-  const view = await readLifecycleView(store);
+  const view = await readLifecycleView(ctx.executor.cwd, store);
   if (view.status === "refused") return { status: "rejected" as const, reason: view.refusal.condition, refusal: view.refusal };
   requireCompleteInventory(store, view.result.listing);
   const read = await readWorkUnit(store, params.name);

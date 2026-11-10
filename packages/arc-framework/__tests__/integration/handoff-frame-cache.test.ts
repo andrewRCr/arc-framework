@@ -12,7 +12,7 @@ import { createSessionStatusContext } from "../../src/handlers/status/session-co
 import { createHandoffProbes } from "../../src/handlers/status/session.js";
 import { resolveAllSettings } from "../../src/lib/config/resolved-settings.js";
 
-it("keeps a current record's projected context after a later marker change", async () => {
+it("retains the selected handoff subject while paths follow marker changes", async () => {
   const cwd = await createTempRepo("arc-handoff-cache-"); onTestFinished(() => cleanupTempDir(cwd));
   await execFileAsync("git", ["commit", "--allow-empty", "-m", "base"], { cwd });
   await execFileAsync("git", ["config", "arc.identity", "andrew"], { cwd });
@@ -32,11 +32,11 @@ it("keeps a current record's projected context after a later marker change", asy
   const context = await createSessionStatusContext(cwd, exec, raw, raw, undefined, { store: h.store });
   const settings = resolveAllSettings({ cwd, exec, readFile: context.io.readFile });
   const probes = createHandoffProbes(context, settings);
-  expect(await probes.sessionNotesPath()).toBe(join(cwd, ".arc", "active", "meta-current.md"));
+  expect(await probes.sessionNotesPath()).toBe(join(cwd, ".arc", "active", "current", "meta-current.md"));
   const replaced = await replaceWorktreeMarkerGeneration(cwd, created.bytes, { ...marker, createdFor: boundWorkUnitSubject(advanced) });
   expect(replaced.kind).toBe("replaced");
   expect((await probes.derivedLocusState("andrew")).active?.subject.key).toBe("current");
-  expect(await probes.sessionNotesPath()).toBe(join(cwd, ".arc", "active", "meta-current.md"));
+  expect(await probes.sessionNotesPath()).toBe(join(cwd, ".arc", "active", "in-flight", "current", "meta-current.md"));
   expect(await probes.restateCandidates()).toMatchObject({ baselineSignal: "baseline-unknown" });
   const fresh = createHandoffProbes(context, settings);
   expect((await fresh.derivedLocusState("andrew")).active?.subject.key).toBe("advanced");

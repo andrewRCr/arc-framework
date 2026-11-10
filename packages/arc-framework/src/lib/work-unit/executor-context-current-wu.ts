@@ -53,7 +53,7 @@ export interface CurrentWuReconcileDeps {
  * @returns The bound current-WU reconcile ceremony.
  */
 export function buildCurrentWuReconcile(deps: CurrentWuReconcileDeps): CurrentWuReconcileCeremony {
-  if (deps.store !== undefined && usesOffBranchState(deps.store)) return buildStoreCurrentWuReconcile(deps.store);
+  if (deps.store !== undefined && usesOffBranchState(deps.store)) return buildStoreCurrentWuReconcile(deps.cwd, deps.store);
   const { cwd, io, exec, transitionExec, indexFs, at } = deps;
   return {
     prepare: async (op) =>

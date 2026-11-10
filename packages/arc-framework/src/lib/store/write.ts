@@ -2,8 +2,10 @@
 
 import { z } from "zod";
 import { RecordReferenceSchema, RecordVersionSchema, sameReference } from "./identity.js";
-import { CallerProvenanceSchema, LinksSchema } from "./links.js";
+import { CallerProvenanceSchema, HAND_EDIT_VERBS, LinksSchema } from "./links.js";
 import { WritePlacementSchema } from "./placement.js";
+import { ProjectionAdmissionSchema } from "./projection-admission.js";
+export { ProjectionAdmissionSchema, type ProjectionAdmission } from "./projection-admission.js";
 
 const reference = { reference: RecordReferenceSchema };
 const resolves = z.array(RecordReferenceSchema).refine(
@@ -63,6 +65,7 @@ export type RecordObservation = z.infer<typeof RecordObservationSchema>;
 /** One atomic batch under a single caller provenance. */
 export const BatchInputSchema = z.strictObject({ writes: z.array(MutationSchema).min(1), provenance: CallerProvenanceSchema,
   observations: z.array(RecordObservationSchema).optional(),
+  projectionAdmission: ProjectionAdmissionSchema.optional(),
 })
   .refine((value) => {
     return value.writes.every((write, index) => !value.writes.slice(0, index)
@@ -70,7 +73,16 @@ export const BatchInputSchema = z.strictObject({ writes: z.array(MutationSchema)
   }, "A batch names each record at most once")
   .refine((value) => (value.observations ?? []).every((observation, index, all) =>
     !all.slice(0, index).some((other) => sameReference(observation.reference, other.reference))),
-  "A batch observes each record at most once");
+  "A batch observes each record at most once")
+  .superRefine((value, context) => {
+    if (!value.projectionAdmission) return;
+    const only = value.writes[0];
+    if (value.writes.length !== 1 || only?.action !== "put"
+      || !HAND_EDIT_VERBS.some(verb => verb === value.provenance.verb) || value.provenance.lifecycleAction !== "edit"
+      || !sameReference(only.reference, value.projectionAdmission.prepared.reference)) {
+      context.addIssue({ code: "custom", message: "Projection admission requires its one bound hand-edit content put" });
+    }
+  });
 /** An all-or-nothing write request. */
 export type BatchInput = z.infer<typeof BatchInputSchema>;
 /** Applied mutation; removals return no record version. */

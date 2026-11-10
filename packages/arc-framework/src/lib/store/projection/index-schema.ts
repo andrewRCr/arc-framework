@@ -42,29 +42,34 @@ const MarkersSchema = z.strictObject({
   ])).min(1),
 });
 
-/** What the file's last persisted write-back read: its stamp, and the content it took in. */
+/** What the last persisted write-back read: its Markdown stamp or stampless take-in base blob, and content taken in. */
 const PersistedSchema = z.strictObject({
   stamp: BlobIdSchema,
+  recording: z.literal(true).optional(),
   takenIn: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("landed"), version: RecordVersionSchema }),
     z.strictObject({ kind: z.literal("copy"), name: z.string().min(1), blob: BlobIdSchema, version: RecordVersionSchema }),
   ]),
-});
+}).refine(value => value.recording !== true || value.takenIn.kind === "copy", "Unfinished recording requires an input copy");
 
 /** A replacement in progress of a file other than Markdown: the version it replaces and the copy its batch makes. */
 const InProgressSchema = z.strictObject({ replaces: StoredVersionSchema, copy: z.string().min(1).nullable() });
+
+/** The marker origins and notice references belonging to one rendered file's bytes. */
+export const FileRenderingSchema = z.strictObject({ markers: MarkersSchema.nullable(), notices: z.array(RecordReferenceSchema) });
 
 /** One aside copy a swap made of the file, while it stays in the aside folder. */
 const AsideCopyRecordSchema = z.strictObject({
   name: z.string().min(1),
   moving: BlobIdSchema,
+  rendering: FileRenderingSchema,
   linked: BlobIdSchema.nullable(),
   writeBackSent: z.boolean(),
   landed: BlobIdSchema.nullable(),
 });
 
-/** A file the projection laid from a record; `stat` is null where the file is recorded absent. */
-const RecordEntrySchema = z.strictObject({
+/** A file bound to a record, including adoption before its first rendering; null `stat` records absence. */
+export const RecordEntrySchema = z.strictObject({
   kind: z.literal("record"),
   reference: RecordReferenceSchema,
   stat: FileStatSchema.nullable(),
@@ -81,11 +86,24 @@ const RecordEntrySchema = z.strictObject({
   persisted: PersistedSchema.nullable(),
   inProgress: InProgressSchema.nullable(),
   copies: z.array(AsideCopyRecordSchema),
+  adoption: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("write-back"), stub: z.literal(true).optional() }),
+    z.strictObject({ kind: z.literal("read-back"), read: z.strictObject({ stat: FileStatSchema, blob: BlobIdSchema }),
+      retained: RefusedMarkSchema.optional() }),
+  ]).optional(),
 });
 
-/** A file adoption refused, which no record owns. */
+/** The exact accepted creation retained until its metadata basis can be read. */
+const MintedStubReceiptSchema = z.strictObject({ reference: RecordReferenceSchema.refine(reference =>
+  reference.kind === "work-item/meta" && reference.owner.type === "work-item" && reference.owner.uid !== undefined,
+"A minted stub receipt requires an exact metadata generation"), version: RecordVersionSchema });
+/** Exact stub authority, without inventing a content blob before its basis is readable. */
+export type MintedStubReceipt = z.infer<typeof MintedStubReceiptSchema>;
+
+/** A file not yet bound to a usable record basis, optionally retaining an accepted stub receipt. */
 const OwnerlessEntrySchema = z.strictObject({
   kind: z.literal("ownerless"),
+  minted: MintedStubReceiptSchema.optional(),
   stat: FileStatSchema.nullable(),
   refused: RefusedMarkSchema,
 });
@@ -146,6 +164,8 @@ export type FileStat = z.output<typeof FileStatSchema>;
 export type IgnoreFileRecord = z.output<typeof IgnoreFileRecordSchema>;
 /** A decoded entry for a file the projection laid from a record. */
 export type RecordEntry = z.output<typeof RecordEntrySchema>;
+/** The marker and notice mapping a displaced file retains independently of its replacement. */
+export type FileRendering = z.output<typeof FileRenderingSchema>;
 /** A decoded aside copy's record. */
 export type AsideCopyRecord = z.output<typeof AsideCopyRecordSchema>;
 /** A decoded refusal mark. */

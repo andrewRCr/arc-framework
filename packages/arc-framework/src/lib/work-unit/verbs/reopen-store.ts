@@ -25,18 +25,19 @@ export async function runStoreReopen(ctx: ExecuteTransitionContext & { store: St
   if (meta.state !== "Integrating") return { status: "rejected", reason: `Cannot reopen ${params.name}: its State is ${meta.state}.` };
   const pause = await checkAdvancingPause(ctx.store, params.name, primary);
   if (pause.status === "rejected") return pause;
-  const task = await storedTaskAuthority(ctx.store, primary, meta.taskList, params.nextTask);
+  const task = await storedTaskAuthority(ctx.cwd, ctx.store, primary, meta.taskList, params.nextTask);
   if (task.status === "rejected") return task;
   const review = await storedReviewWithdrawal(ctx.store, primary);
   if (review.status === "rejected") return review;
   const requested = task.requested;
+  const metaPath = await workUnitMetaPath(ctx.cwd, primary);
   const outcome = await executeTransition(ctx, { verb: "reopen", slug: params.name, inputs: {
     storeTransition: { primary, preparedRecords: [task.record, ...review.records],
       additionalWrites: [recordPut(task.record), ...review.writes] },
     prMerged: params.prMerged, prWithdrawMode: params.withdrawMode ?? "close",
     ...(requested === undefined ? {} : { currentWorkflowOverride: "process-task-loop" }),
   } });
-  return outcome.status === "ok" ? { status: "reopened", outcome, metaPath: workUnitMetaPath(primary) }
+  return outcome.status === "ok" ? { status: "reopened", outcome, metaPath }
     : { status: "rejected", reason: outcome.message,
       ...(outcome.status === "rejected" && outcome.refusal !== undefined ? { refusal: outcome.refusal } : {}),
       ...(outcome.status === "rejected" && outcome.remedy !== undefined ? { remedy: outcome.remedy } : {}) };
@@ -68,11 +69,11 @@ async function storedReviewWithdrawal(store: Store, primary: StoreRecord): Promi
   }
 }
 
-async function storedTaskAuthority(store: Store, primary: StoreRecord, binding: string | null, nextTask?: string): Promise<
+async function storedTaskAuthority(checkoutRoot: string, store: Store, primary: StoreRecord, binding: string | null, nextTask?: string): Promise<
   { status: "ready"; requested: string | undefined; record: StoreRecord } | Extract<ReopenResult, { status: "rejected" }>> {
   const task = await store.read({ reference: recordReferences["work-item/task-list"](primary.reference.owner) });
   if (task.status === "refused") return { status: "rejected", reason: task.refusal.condition, refusal: task.refusal };
-  const path = lifecycleRecordPath(primary, task.result);
+  const path = await lifecycleRecordPath(checkoutRoot, primary, task.result);
   if (path === null || binding !== posix.basename(path)) return { status: "rejected", reason: "The canonical task-list binding is unavailable." };
   const cursor = resolveTaskListCursor(task.result.content);
   if (cursor.status === "malformed") return { status: "rejected", reason: `Malformed task cursor at line ${cursor.error.line}: ${cursor.error.message}` };

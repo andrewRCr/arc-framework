@@ -1,4 +1,5 @@
 /** Removing a projected file: the swap without the link, an edit taken in first, its entry kept until the file is gone. */
+import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { readProjectionConfiguration } from "../../../../src/lib/store/projection/configuration.js";
 import { lstat, mkdir, open, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -274,7 +275,7 @@ describe("removing a file at a path the projection now lays another record at", 
     const retried = await guardReplacement({
       checkout: removal.seeded.checkout, path: removal.path, entry: held, staged: null,
       reference: await readReference(removal.seeded.checkout), format: "sha1", store: removal.fixture.store, writer: SWAP_WRITER,
-      takeIn: landingCopies(removal.fixture.store),
+      takeIn: landingCopies(removal.fixture.store), renderer: createRecordRenderer({ store: removal.fixture.store }),
     });
     expect(retried.kind).toBe("replace");
     const stored = await removal.fixture.store.read({ reference: removal.reference });

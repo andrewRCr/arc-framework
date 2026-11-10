@@ -93,8 +93,8 @@ Each finding names the exact criterion it fails on its `**Fails:**` line; an out
 boundary instead of becoming a criterion gap.
 
 After each returned pass, apply the method's complete-disposition and bounded-continuation protocol. Retain the
-complete source-verified finding/account/action set, `Pass N of M`, stop reason, and any conditional next-pass
-decision alongside the criteria report as ordinary closing-task evidence. This advisory evidence creates no
+complete source-verified finding/account/action set, the pass number and its cap, stop reason, and any conditional
+next-pass decision alongside the criteria report as ordinary closing-task evidence. This advisory evidence creates no
 lane-progress record.
 
 ---

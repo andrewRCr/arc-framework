@@ -13,7 +13,7 @@ import { readDerivedLocusFrame } from "../../../src/lib/locus/derived-reader.js"
 import { DerivedCheckoutRowSchema } from "../../../src/lib/locus/derived-schema.js";
 import type { SubjectMetaIO } from "../../../src/lib/locus/subject-meta.js";
 import type { WorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { acquireDerivedLocusEvidence, type DerivedLocusEvidenceIO } from "../../../src/lib/locus/derived-evidence.js";
 import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
 import { makeMetaFixture } from "../../helpers/meta-fixture.js";
@@ -22,6 +22,9 @@ import { seed, success, testProvenance } from "../../helpers/store/suite-tools.j
 import { deriveStoreInFlight } from "../../../src/lib/git/in-flight-store.js";
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import { batchLifecycleWrites } from "../../../src/lib/store/lifecycle-write.js";
+import { beginProjectionCommand, projectionProcessState } from "../../../src/lib/store/projection/process-state.js";
+
+beforeEach(() => { projectionProcessState().composedCapabilities.clear(); beginProjectionCommand(); });
 
 async function fixture(bound = true, markerName?: string) {
   const fixture = createReferenceFixture({}, { "cohort/document": { parser: parseCohortDocument },
@@ -108,7 +111,7 @@ it.each(["live", "completed", "abandoned"] as const)("derives a %s UID holder de
   expect(result.roster[0]).toMatchObject({ kind: state === "live" ? "work-unit" : "retired",
     subject: { kind: "work-unit", key: h.reference.owner.name, uid: h.uid }, diagnostics: [] });
   if (state === "live") expect(result.active).toMatchObject({ subject: { key: h.reference.owner.name, uid: h.uid },
-    context: { metaPath: `.arc/active/meta-${h.reference.owner.name}.md` } });
+    context: { metaPath: `.arc/active/in-flight/${h.reference.owner.name}/meta-${h.reference.owner.name}.md` } });
   else expect(result.active).toBeNull();
 });
 
@@ -352,7 +355,7 @@ it("reads the task cursor from the store at its projected artifact path", async 
   const primary = success(await h.fixture.store.read({ reference: h.reference }));
   success(await h.fixture.store.write({ action: "put", reference: recordReferences["work-item/task-list"](primary.reference.owner),
     expected: null, content: "## **Phase 1:** Work\n\n### `[ ]` **1.1 Do the work**\n", provenance: testProvenance }));
-  expect((await frame(h.io)).active?.context).toMatchObject({ taskListPath: `.arc/active/tasks-${name}.md`,
+  expect((await frame(h.io)).active?.context).toMatchObject({ taskListPath: `.arc/active/in-flight/${name}/tasks-${name}.md`,
     taskCursor: { status: "found", cursor: { leaf: { id: "1.1" } } }, sessionType: "execution" });
 });
 
@@ -370,7 +373,7 @@ it("withholds a declared missing task list and resumes execution after restoring
   success(await h.fixture.store.write({ action: "put", reference: recordReferences["work-item/task-list"](primary.reference.owner),
     expected: null, content: "## **Phase 1:** Work\n\n### `[ ]` **1.1 Do the work**\n", provenance: testProvenance }));
   expect((await frame(h.io)).active?.context).toMatchObject({ sessionType: "execution", workflow: "process-task-loop",
-    taskListPath: `.arc/active/tasks-${name}.md`, taskCursor: { status: "found", cursor: { leaf: { id: "1.1" } } } });
+    taskListPath: `.arc/active/in-flight/${name}/tasks-${name}.md`, taskCursor: { status: "found", cursor: { leaf: { id: "1.1" } } } });
 });
 
 it.each([false, true])("offers unnamed release without rerun for a bound missing record, spawned=%s", async spawnedByArc => {
@@ -399,7 +402,7 @@ it("loads the meta once and never a workspace session-notes seed", async () => {
   const h = await fixture();
   const context = (await frame(h.io)).active?.context;
   expect(context?.loadSet.entries.filter(entry => entry.path.includes("meta-"))).toEqual([
-    { path: `.arc/active/meta-${h.reference.owner.name}.md`, readMode: { kind: "full" } },
+    { path: `.arc/active/in-flight/${h.reference.owner.name}/meta-${h.reference.owner.name}.md`, readMode: { kind: "full" } },
   ]);
   expect(context?.loadSet.entries.some(entry => entry.path.includes("SESSION-NOTES"))).toBe(false);
 });
@@ -411,8 +414,8 @@ it.each([null, "unrelated-tasks.md"])("uses the task-list record despite the met
   success(await h.fixture.store.write({ action: "put", reference: recordReferences["work-item/task-list"](primary.reference.owner),
     expected: null, content: "## **Phase 1:** Work\n\n### `[ ]` **1.1 Do the work**\n", provenance: testProvenance }));
   const context = (await frame(h.io)).active?.context;
-  expect(context?.taskListPath).toBe(`.arc/active/tasks-${h.reference.owner.name}.md`);
-  expect(context?.loadSet.entries).toContainEqual({ path: `.arc/active/tasks-${h.reference.owner.name}.md`, readMode: { kind: "partial-strategic" } });
+  expect(context?.taskListPath).toBe(`.arc/active/in-flight/${h.reference.owner.name}/tasks-${h.reference.owner.name}.md`);
+  expect(context?.loadSet.entries).toContainEqual({ path: `.arc/active/in-flight/${h.reference.owner.name}/tasks-${h.reference.owner.name}.md`, readMode: { kind: "partial-strategic" } });
 });
 
 it("keeps project Errand discovery separate from absent identity claims", async () => {

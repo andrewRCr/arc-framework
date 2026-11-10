@@ -67,6 +67,17 @@ it("emits an owner-bearing outcome key and replays that result from a fresh chec
   expect(await publisher.list({ root: "review-gate", namespace: "outcomes" })).toEqual([]);
 });
 
+it("returns a findings run's findings as provider text and replays them unchanged", async () => {
+  const { h, request, dependencies, first } = await nativeRun();
+  const findings = h.fixture.outcomeRecord.outcome.findings;
+  expect(findings.length).toBeGreaterThan(0);
+  expect(first).toMatchObject({ state: "findings", nextAction: "respond", payload: { findings } });
+  expect(first.diagnostics).toEqual([expect.objectContaining({ code: "frontline-findings-provider-text" })]);
+  const replay = await runFrontlineReviewCommand(request, { ...dependencies,
+    execute: async () => { throw new Error("Ended replay must not execute the provider"); } });
+  expect(replay).toEqual(first);
+});
+
 it("refuses a changed admitted policy and replays after restoring the produced ready resolution", async () => {
   const { request, dependencies, first } = await nativeRun();
   const original = request.resolution.payload.admission;

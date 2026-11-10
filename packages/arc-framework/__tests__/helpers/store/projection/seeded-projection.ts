@@ -1,4 +1,5 @@
 /** A real projection seeded from a store: stamped files at the paths a test gives, and the index that matches them. */
+import { createRecordRenderer } from "../../../../src/lib/store/projection/record-render.js";
 import { link, lstat, mkdir, readFile, realpath, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createTempRepoCore } from "../../temp-repo.js";
@@ -37,16 +38,18 @@ const noGit: GitExec = (_cmd, args) => Promise.reject(new Error(`no Git process 
  * @returns The seeded worktree.
  */
 export async function seedProjection(input: {
-  store: Store; files: readonly SeededFile[]; identity?: Slug; format?: ObjectFormat;
+  store: Store; files: readonly SeededFile[]; identity?: Slug; format?: ObjectFormat; checkout?: string;
+  renderer?: (checkout: string) => ReturnType<typeof createRecordRenderer>;
 }): Promise<SeededProjection> {
   const format = input.format ?? "sha1";
-  const checkout = await createTempRepoCore({ prefix: "arc-projection-seeded-", objectFormat: format });
+  const checkout = input.checkout ?? await createTempRepoCore({ prefix: "arc-projection-seeded-", objectFormat: format });
   const location = await locateProjection(checkout, { fs, exec: noGit });
   if (await ensureProjectionStateFolder(location) !== "ready") throw new Error("The seeded repository has no Git directory");
   const entries: Record<string, RecordEntry> = {};
   const staged: { path: string; location: string }[] = [];
+  const renderer = input.renderer?.(checkout) ?? createRecordRenderer({ store: input.store });
   for (const file of input.files) {
-    const prepared = await stageFile(input.store, checkout, file, format);
+    const prepared = await stageFile(input.store, checkout, file, format, renderer);
     entries[file.path] = prepared.entry;
     staged.push({ path: file.path, location: prepared.location });
   }
@@ -71,16 +74,20 @@ export async function seedProjection(input: {
   return { checkout, location, index };
 }
 
-async function stageFile(store: Store, checkout: string, file: SeededFile, format: ObjectFormat): Promise<{ entry: RecordEntry; location: string }> {
+async function stageFile(store: Store, checkout: string, file: SeededFile, format: ObjectFormat,
+  renderer: ReturnType<typeof createRecordRenderer>): Promise<{ entry: RecordEntry; location: string }> {
   const read = await store.read({ reference: file.reference });
   if (read.status !== "ok") throw new Error(`The store refused to read ${file.path}: ${read.refusal.code}`);
   const record = read.result;
   const blob = gitBlobId(record.content, format);
-  const staged = await stageRecordFile({ checkout, path: file.path, record, replacing: blob, format,
+  const stagedResult = await stageRecordFile({ checkout, path: file.path, record, replacing: blob, format, renderer,
     writer: { pid: process.pid, processInstance: "seed-projection", processScope: "seed-projection" } });
+  if (stagedResult.status !== "ok") throw new Error("seed rendering refused");
+  const staged = stagedResult.result;
   return { location: staged.location, entry: {
     kind: "record", reference: record.reference, stat: await readStat(join(checkout, staged.location)), written: staged.written,
-    base: { blob, version: record.version }, markers: null, notices: [], unshown: [], protected: false, changed: false,
+    base: { blob, version: record.version }, markers: staged.rendering?.markers ?? null, notices: staged.rendering?.notices ?? [],
+    unshown: staged.rendering?.unshown ?? [], protected: staged.rendering?.protected ?? false, changed: false,
     pending: false, withheld: false, refused: null, persisted: null, inProgress: null, copies: [],
   } };
 }

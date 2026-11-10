@@ -70,6 +70,7 @@ const VALIDATION_DOMAIN_ORDER = [
   "sync.auto_pull",
   "archive.cadence",
   "storage.track_design_docs",
+  "layout.active",
 ] as const satisfies readonly ArcConfigKey[];
 
 const OPTIONAL_INTEGER_KEYS = [

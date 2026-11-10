@@ -1,8 +1,14 @@
 import { StateVersionSchema, type StateVersion } from "../../../src/lib/store/identity.js";
 import type { Store } from "../../../src/lib/store/contract.js";
 import { join } from "node:path";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { writeWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
+import { createRefStore } from "../../../src/lib/store/create.js";
+import { createDefaultRefStorePorts } from "../../../src/lib/store/default-ports.js";
+import { beginProjectionCommand } from "../../../src/lib/store/projection/process-state.js";
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, onTestFinished } from "vitest";
 
 import {
   emitCompactionSeed,
@@ -238,6 +244,7 @@ function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["e
 }
 
 async function emit(overrides: {
+  cwd?: string;
   uncommittedFiles?: string[];
   snapshotBranch?: string;
   envelope?: Partial<Parameters<typeof emitCompactionSeed>[0]["envelope"]>;
@@ -246,7 +253,7 @@ async function emit(overrides: {
   stateVersion?: StateVersion | null;
 } = {}) {
   return emitCompactionSeed({
-    cwd: "/repo",
+    cwd: overrides.cwd ?? "/repo",
     store: overrides.store ?? { version: async () => ({ status: "ok", result: StateVersionSchema.parse("state-distinct-from-code") }) },
     ...(overrides.stateVersion === undefined ? {} : { stateVersion: overrides.stateVersion }),
     envelope: envelope(overrides.envelope),
@@ -331,6 +338,39 @@ describe("parseUncommittedFiles", () => {
 });
 
 describe("emitCompactionSeed", () => {
+  it.each([true, false])("inherits only a healthy parent's exact nested meta and identity (healthy=%s)", async healthy => {
+    const metaPath = ".arc/active/current/meta-parent-wu.md";
+    const loadSet: LoadSetManifest = { ...LOAD_SET, entries: [
+      { path: metaPath, readMode: { kind: "full" } },
+      ...LOAD_SET.entries.map(entry => entry.readMode.kind === "partial-strategic"
+        ? { ...entry, path: ".arc/active/current/tasks-parent-wu.md" } : entry),
+    ] };
+    const cwd = await mkdtemp(join(tmpdir(), "arc-inherited-seed-"));
+    onTestFinished(async () => { await rm(cwd, { recursive: true, force: true }); beginProjectionCommand(); });
+    await writeWorktreeMarker(cwd, { spawnedByArc: false, spawningIdentity: "andrew", createdAt: "2026-11-05T00:00:00Z",
+      createdFor: { kind: "errand", slug: "compaction-recovery", claimId: "c".repeat(32) }, provisioning: "ready" });
+    await writeFile(join(cwd, ".arc", "system", "arc-config.yml"), "branch.protection: invalid\n");
+    createRefStore(createDefaultRefStorePorts({ checkoutRoot: cwd, backingRepository: async () => null }));
+    const frame = derivedFrame("/repo-parent"), parentFrame = derivedWorkUnitFrame({ loadSet });
+    if (frame.entering.kind !== "selected") throw new Error("Expected selected Errand");
+    const entering = { ...frame.entering.row, checkout: { ...frame.entering.row.checkout, path: cwd } };
+    if (parentFrame.entering.kind !== "selected" || parentFrame.entering.row.kind !== "work-unit"
+      || parentFrame.entering.row.context === null) throw new Error("Expected the fixture's resolved parent");
+    const row = parentFrame.entering.row, context = row.context;
+    if (context === null) throw new Error("Expected parent context");
+    const parent = { ...row, checkout: { ...row.checkout, path: "/repo-parent" },
+      subject: { kind: "work-unit" as const, key: "parent-wu" },
+      context: { ...context, metaPath, taskListPath: ".arc/active/current/tasks-parent-wu.md" },
+      diagnostics: healthy ? row.diagnostics : [{ code: "topology-mismatch", message: "The parent topology no longer corroborates its subject" }],
+    };
+    const result = await emit({ cwd, envelope: { derivedLocusState: { ok: true, value: {
+      ...frame, entering: { kind: "selected", row: entering }, roster: [entering, parent],
+    } } } });
+    expect(result).toMatchObject({ status: "written", seed: { metaPath: healthy ? metaPath : null,
+      activeWorkUnit: healthy ? "parent-wu" : null, currentWorkflow: "run-errand" } });
+    if (result.status === "written" && healthy) expect(result.seed.loadSet.entries).toEqual(expect.arrayContaining(loadSet.entries));
+  });
+
   it.each([StateVersionSchema.parse("captured-before-task-update"), null])("retains a paired frame anchor %j when state advances before emission", async stateVersion => {
     const result = await emit({ stateVersion, store: { version: async () => ({ status: "ok", result: StateVersionSchema.parse("advanced-after-task-update") }) } });
     expect(result).toMatchObject({ status: "written", seed: { stateVersion, taskCursor: CURSOR.cursor,

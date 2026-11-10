@@ -14,7 +14,7 @@ it.each([false, true])("offers the live paused owner's actual holder action, liv
   const pause = MetaPauseSchema.parse({ pausedBy: "test-user", since: "2026-10-24T00:00:00Z", reason: "Wait for review." });
   lifecycleSuccess(await h.store.write({ ...recordPut(h.live, { content: writeMetaPause(h.live.content, pause) }),
     provenance: { verb: "pause", lifecycleAction: "pause" } }));
-  const result = await runPausedWork({ store: h.store, identity: "test-user", reviewAfterDays: 14,
+  const result = await runPausedWork({ cwd: "/project", store: h.store, identity: "test-user", reviewAfterDays: 14,
     now: new Date("2026-10-24T01:00:00Z"), findHoldingCheckout: h.ports.findHoldingCheckout });
   expect(result.items).toHaveLength(1);
   expect(result.items[0]?.actions[0]?.argv).toEqual(["arc", held ? "resume" : "materialize", "demo"]);

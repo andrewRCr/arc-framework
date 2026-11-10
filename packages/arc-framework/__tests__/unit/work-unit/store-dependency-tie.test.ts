@@ -21,7 +21,7 @@ it.each([false, true])("holds a work-unit/cohort tie before reading even existin
     : await h.seedMeta("target", { state: "Integrating", currentWorkflow: "integrate-work-unit" });
   const dependent = await h.seedMeta("dependent", { dependsOn: ["target"] });
   const cohort = await h.seedCohort("target", completed);
-  const prepared = await buildStoreCurrentWuReconcile(h.store).prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) });
+  const prepared = await buildStoreCurrentWuReconcile("/project", h.store).prepare({ slug: "dependent", metaPath: await workUnitMetaPath("/project", dependent) });
   expect(prepared).toMatchObject({ status: "pending", prepared: { plan: { dependency: {
     after: ["target"], live: [], discharged: [], drops: [], conflicts: [],
     held: [{ edge: "target", cause: "tie", candidates: expect.arrayContaining([target.reference, cohort.reference]),
@@ -46,7 +46,7 @@ it("holds an Integrating work unit tied with an Errand from a concurrent referen
   // Represent a concurrent name clash that a local namespace write refuses.
   raw.reference = { ...raw.reference, owner: { ...raw.reference.owner, name: SlugSchema.parse("target") } };
   const observed = success(await fixture.store.read({ reference: raw.reference }));
-  const prepared = await buildStoreCurrentWuReconcile(fixture.store).prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) });
+  const prepared = await buildStoreCurrentWuReconcile("/project", fixture.store).prepare({ slug: "dependent", metaPath: await workUnitMetaPath("/project", dependent) });
   expect(prepared).toMatchObject({ status: "pending", prepared: { plan: { dependency: { after: ["target"], discharged: [],
     held: [{ cause: "tie", candidates: expect.arrayContaining([target.reference, observed.reference]),
       repair: { argv: ["arc", "errand", "close", observed.reference.owner.type === "person" ? "" : observed.reference.owner.uid] } }],
@@ -63,7 +63,7 @@ it("holds a former-name tie under the edge's written name", async () => {
   const concurrentSecond = h.store.state.records.get(recordKey(second.reference));
   if (concurrentSecond === undefined) throw new Error("Expected the current second holder");
   concurrentSecond.formerSlugs.push("former");
-  expect(await buildStoreCurrentWuReconcile(h.store).prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) }))
+  expect(await buildStoreCurrentWuReconcile("/project", h.store).prepare({ slug: "dependent", metaPath: await workUnitMetaPath("/project", dependent) }))
     .toMatchObject({ status: "pending", prepared: { plan: { dependency: { after: ["former"], discharged: [],
       held: [{ edge: "former", name: "former", cause: "tie", tie: { liveness: "live", name: "former" },
         candidates: expect.arrayContaining([first.reference, second.reference]) }],
@@ -79,7 +79,7 @@ it.each([false, true])("holds the original edge when a lineage replacement's cur
     { dependent: { name: dependent.reference.owner.name }, disposition: { kind: "replace", replacementTargets: [replacement] } },
   ] });
   const store = createClashDouble(h.store, { slug: "target", holders: [target.reference, other.reference] });
-  expect(await buildStoreCurrentWuReconcile(store).prepare({ slug: "dependent", metaPath: workUnitMetaPath(dependent) }))
+  expect(await buildStoreCurrentWuReconcile("/project", store).prepare({ slug: "dependent", metaPath: await workUnitMetaPath("/project", dependent) }))
     .toMatchObject({ status: "pending", prepared: { edits: [], plan: { dependency: { after: ["origin"], live: [], discharged: [],
       held: [{ edge: "origin", name: "target", candidates: expect.arrayContaining([target.reference,
         { ...other.reference, owner: { ...other.reference.owner, name: "target" } }]) }],

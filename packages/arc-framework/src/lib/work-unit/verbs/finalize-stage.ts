@@ -58,6 +58,7 @@ const TERMINAL_NEXT_ACTION: Partial<Record<FinalizeFirePoint, string>> = {
 
 /** The executor capabilities the finalize-fact write needs. */
 export interface FinalizeStageContext {
+  cwd: string;
   store?: Store;
   /** Core-table `Class` write (read → rewrite cell → write). */
   writeClassField: NonNullable<ExecuteTransitionContext["writeClassField"]>;
@@ -140,7 +141,7 @@ export async function runFinalizeStage(
   }
 
   if (ctx.store !== undefined && usesOffBranchState(ctx.store)) {
-    return finalizeThroughStore(ctx.store, { name, firePoint, resolvedClass });
+    return finalizeThroughStore(ctx.cwd, ctx.store, { name, firePoint, resolvedClass });
   }
 
   const metaPath = resolveArcPath({
@@ -175,13 +176,13 @@ export async function runFinalizeStage(
   return { status: "ok", metaPath, firePoint, workClass: resolvedClass, taskList, nextAction };
 }
 
-async function finalizeThroughStore(store: Store, values: {
+async function finalizeThroughStore(checkoutRoot: string, store: Store, values: {
   name: string; firePoint: FinalizeFirePoint; resolvedClass: WorkClass | null;
 }): Promise<FinalizeStageResult> {
   const { name, firePoint, resolvedClass } = values;
     const read = await readWorkUnit(store, name);
     if (read.status === "refused") return { status: "rejected", reason: read.refusal.condition, refusal: read.refusal };
-    const metaPath = workUnitMetaPath(read.result);
+    const metaPath = await workUnitMetaPath(checkoutRoot, read.result);
     let content = read.result.content;
     if (resolvedClass !== null) content = writeMetaClass(content, resolvedClass);
     const taskList = firePoint === "generate-tasks" ? `tasks-${read.result.reference.owner.name}.md` : null;
