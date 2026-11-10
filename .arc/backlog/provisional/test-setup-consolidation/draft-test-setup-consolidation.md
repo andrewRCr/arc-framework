@@ -34,4 +34,4 @@ spend no consolidation there before that lands.
 
 ## Evidence
 
-Audit report and scripts: `~/dev/arc-evidence/test-typecheck-heap/test-audit/` (`REPORT.md`) on this machine.
+Audit report and scripts: `test-typecheck-heap`'s test audit (`test-audit/REPORT.md`), kept outside the repository.
