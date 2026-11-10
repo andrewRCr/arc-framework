@@ -23,7 +23,7 @@ Stage 2  storage-seam              every reader and writer through the contract;
                                    ref backend lands
          storage-projection/*      the working copy, in three members
          projected-markdown-checks Markdown checks over projected state; builds beside the projection
-Stage 3  storage-cutover/*         the flip, then deletion and documentation, in five members
+Stage 3  storage-cutover/*         the window tooling, the flip, then deletion and documentation, in six members
 ```
 
 Each member's `Depends On` edges are the source of truth. Three orderings are not edges:
