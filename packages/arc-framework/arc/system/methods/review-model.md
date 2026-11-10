@@ -167,8 +167,8 @@ repairs hold. Origins, tags, and change signals inform the reading and stay out 
 a decision:
 
 - **`baseline`** — no trend yet: the first look, or a first complete pass that found few while its fix checks have not
-  converged. Decide the fixes and their next round from that pass's own signal. A report shows no Trend at the first
-  look; once a fix check follows, it shows the counts with this reading.
+  converged. Decide the fixes and their next round from the latest look's own signal. A report shows no Trend at the
+  first look; once a fix check follows, it shows the counts with this reading.
 - **`converging`** — across complete passes, material counts fall, findings come from earlier folds, adjacent repair
   code, or siblings of a known defect class, and fixes are mostly local corrections; or a first complete pass found few,
   and its fix checks converged. This expects the next complete pass to find little, and supports stopping once one finds
@@ -176,14 +176,14 @@ a decision:
 - **`discovering`** — a complete pass finds new material defect classes in code or text earlier looks already read,
   rather than in folds, or a first complete pass finds many. A new instance of a cause § Shared causes has already named
   is not a new class. This supports another complete pass after fix checks, however they converge. It takes precedence
-  over `converging` wherever both readings fit.
+  over `baseline` and `converging` wherever both readings fit.
 - **`sustained non-convergence`** — most material findings originate in earlier new-design folds and need new design
   again, or one cause § Shared causes names has produced material findings in three looks. Stop for the Owner's
   decision: planning review offers the stage's re-entry or shaping route; code review asks whether the spec needs
   `amend-design`. Another round must not silently become design authoring, nor another per-site repair stand in for
   that decision. The three looks must share a named cause, not merely a count of findings, and the stop composes with
   any review stop the Owner has set: whichever is reached first applies. Once the Owner decides on a cause, count its
-  looks afresh from that decision. It takes precedence over `discovering`.
+  looks afresh from that decision. It takes precedence over `baseline` and `discovering`.
 
 A fix check reads its repairs, so a clean round shows those repairs hold, not that a rule repaired at one site holds at
 its others. Material findings that are siblings an earlier repair missed show the repair fixed a site rather than its
