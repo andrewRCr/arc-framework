@@ -5,7 +5,8 @@
 | `Planning` | `andrew`  | `plan/cutover-flip` | `Heavy`   | `P1`         |
 
 - **Cohort:** `state-storage/storage-cutover`
-- **Depends On:** `cohort-identity-verbs`, `projection-worktrees`, `projection-write-back`
+- **Depends On:** `cohort-identity-verbs`, `projection-worktrees`, `projection-write-back`, `projection-team-scale`,
+  `cutover-window-tooling`
 
 - **Origin:** [internal] — the `storage-cutover` cut (2026-11-03)
 - **Design:** `draft-cutover-flip.md`
