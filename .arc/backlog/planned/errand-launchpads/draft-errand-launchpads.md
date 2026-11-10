@@ -62,8 +62,8 @@
 - _Files:_ `src/lib/errand/close-runtime.ts`, `terminal-occupancy.ts`, and `open.ts` under `packages/arc-framework/`;
   unchanged since capture (re-checked 2026-10-21).
 
-- _Evidence:_ Identity-global `.internal/investigations/errand-close-next-launch-2026-10-19/` retains the successful
-  close, refused open, old and refreshed locus reports, and successful ordinary retry. Source anchors:
+- _Evidence:_ The `errand-close-next-launch-2026-10-19` investigation, kept outside the repository, retains the
+  successful close, refused open, old and refreshed locus reports, and successful ordinary retry. Source anchors:
   `close-runtime.ts:253`, `terminal-occupancy.ts:70`, and `open.ts:123,351-380`.
 
 - _Captured during:_ Sequential execute-bound Errand batch, entering declaration-registry projection; requested by

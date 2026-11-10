@@ -506,8 +506,8 @@
   provider outcomes; retain that boundary here.
 
 - _Evidence:_ <https://github.com/andrewRCr/arc-framework/pull/1124#issuecomment-6389066279> (request),
-  <https://github.com/andrewRCr/arc-framework/pull/1124#issuecomment-6389068470> (provider summary), and identity-global
-  `.internal/investigations/review-look-artifacts-2026-10-24/diagnosis-stalled-request/`.
+  <https://github.com/andrewRCr/arc-framework/pull/1124#issuecomment-6389068470> (provider summary), and the
+  `review-look-artifacts-2026-10-24` investigation's `diagnosis-stalled-request/`, kept outside the repository.
 
 - _Observed recovery:_ an Owner-authorized second `@codex review` at the same head was posted at 2026-10-24T21:47:28Z
   (<https://github.com/andrewRCr/arc-framework/pull/1124#issuecomment-6389939984>). A fresh clean receipt arrived 61
