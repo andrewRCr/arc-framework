@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "mint-cutover-window-tooling",
+  "claimId": "2badebd8730bdf7d5522d38ea13cb873",
+  "createdAt": "2026-11-10T21:46:25.504Z",
+  "updatedAt": "2026-11-10T21:46:25.504Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Mint cutover-window-tooling, split from cutover-flip at its create-spec entry, and record it in cohort-storage-cutover.md",
+  "branch": "chore/mint-cutover-window-tooling",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
