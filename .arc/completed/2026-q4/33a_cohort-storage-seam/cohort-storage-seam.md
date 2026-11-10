@@ -624,3 +624,24 @@ selection.
   starts).
 
 ---
+
+## Closeout
+
+- **Closed:** 2026-11-10
+- **Final member:** `cohort-identity-verbs`
+- **Member archives:** `12_seam-record-kinds`, `15_seam-lifecycle`, `18_seam-locus`, `19_seam-status-roadmap`,
+  `20_seam-decomposition`, `28_seam-delivery-review`, `33_cohort-identity-verbs`
+- **Outcome:** All seven members shipped: the shared record kinds; the lifecycle, locus, status and ROADMAP,
+  decomposition, and delivery and review paths through the storage contract, each with its store version behind the
+  storage capability; and the cohort identity commands. `lifecycle-slug-selection`, the other added cutover
+  prerequisite, shipped as well.
+- **Criteria:** § Closeout criteria's membership clause is met; its register clause is not. The 35 rows of
+  `cohort-state-storage.md`'s storage-coupling register that name `storage-seam` as owner stay `open`: each fate
+  describes an end state that the ref backend or the flip realizes, and no member recorded one as realized.
+  `cohort-identity-verbs`' own row closed with PR #1309.
+- **Follow-up:** the 35 rows passed to `storage-cutover` at this archive (Owner, 2026-11-10), still `open`, and close as
+  the flip's landing realizes them. Before `cutover-flip`'s spec approval, a planning Errand reconciles the register
+  against landed work and closes, with evidence, any row that already holds (`USER-INBOX § Errand`, "Reconcile the
+  storage-coupling register's open rows against landed work before the flip's spec approval").
+
+---
