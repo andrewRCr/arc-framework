@@ -60,10 +60,13 @@ figures are census estimates from read-only sweeps, re-measured at the flip's la
   build, and the sealing guard already on `main` (`refuseWriteIfStoreImported`, `lib/store/store-imported.ts`, with
   `handlers/pre-cutover-seal.ts`; PR #1287). Its callers are every importer of those two modules: among them the
   in-repo backend, the Errand identity and merge paths, the refusal codes (`lib/store/refusal.ts`,
-  `lib/errand/result-common.ts`), the seals in `arc sync` (`handlers/sync.ts`) and in `arc errand`'s handlers
-  (`handlers/errand.ts`), and the notes writers, which go with notes sync if `cutover-notes-removal` lands first. With
-  it go the architecture-test predicates that name `lib/store/in-repo/` (`storeViolations`,
-  `eslint/architecture-imports.ts`) and the CI lane that runs both backends.
+  `lib/errand/result-common.ts`), and the seals in `arc sync` (`handlers/sync.ts`) and in `arc errand`'s handlers
+  (`handlers/errand.ts`). The notes commands' seals are the exception (§ Ordering): `commands/user/save-load.ts`,
+  `push-fetch.ts`, and `compact.ts` call `refuseWriteIfStoreImported`, and `push-fetch.ts` also imports
+  `StoreImportedError` and `storeImportedHere`, so each call and what it imports from `store-imported.ts` stays until
+  `cutover-notes-removal` deletes those commands. With the in-repo implementation go the architecture-test predicates
+  that name `lib/store/in-repo/` (`storeViolations`, `eslint/architecture-imports.ts`) and the CI lane that runs both
+  backends.
 - **Every dormant capability arm:** about 217 sites in 113 files under `lib/` and 440 sites in 163 files under
   `handlers/`, `commands/`, and `scripts/`, with the modules only they reach (census estimates, upper bounds), and
   then the capability itself (`StoreCapabilitiesSchema`, `lib/store/read.ts`; `usesOffBranchState`,
@@ -179,6 +182,12 @@ other callers onto store reads. Among them:
 - **Either order with `cutover-decompose-removal`** (§ What the old decomposition machine still imports), except the
   v3 decomposition schema and plan, which leave with or after lifecycle's in-repo graduation
   (`spec-seam-decomposition.md`; § Its own derivation).
+- **Either order with `cutover-notes-removal`** for the sealing guard (`cutover-flip`'s session, 2026-11-10). The notes
+  commands stay registered after the flip until notes removal deletes them, and the guard is what refuses their writes
+  and publication once the store is imported, so taking it whole here would let `arc user save` and `arc user push`
+  write and publish notes again on a public origin. This unit removes the guard's in-repo arm and keeps the notes
+  commands' calls and what they import from `store-imported.ts`; whichever of the two removes the module's last
+  caller deletes it.
 
 ---
 
@@ -206,6 +215,8 @@ Placements made in `cutover-tracked-state-removal`'s planning that bind this uni
   in-repo implementation; and `seam-delivery-review`'s retired arms, with the `delivery-observe-attest` check.
 - **`cutover-flip`'s declines** (its create-spec, 2026-11-10): the interim `personal/session-context` kind, and
   `status-errand.ts`'s legacy identity-ref arm with its tests that seed both substrates.
+- **The sealing guard's boundary** (`cutover-flip`'s session, 2026-11-10): its notes-command arm stays for
+  `cutover-notes-removal` (§ Ordering).
 
 ---
 

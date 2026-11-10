@@ -53,6 +53,11 @@ edges:
   (`lib/status/project-view.ts`), and the `ProtectionMode` type (`lib/git/write-context.ts`). Their surviving callers
   move onto store reads at the flip or in tracked-state removal if still needed. `cutover-decompose-removal` deletes
   each with its last caller, so it and `cutover-in-repo-removal` can land in either order.
+- **The sealing guard's notes callers** (`refuseWriteIfStoreImported`, `lib/store/store-imported.ts`). The notes
+  commands stay registered after the flip until `cutover-notes-removal` deletes them, and the guard is what refuses
+  their writes and publication once the store is imported. `cutover-in-repo-removal` removes the guard's in-repo arm
+  and keeps the notes commands' calls and what they import from the module; whichever of the two removes its last
+  caller deletes the module, so they land in either order.
 - **The ROADMAP conflict remedy** (`arc hook-remedy-roadmap-conflict`), its hook block, and
   `arc base merge --regenerate-roadmap` leave together in tracked-state removal. No live caller reaches the hook's
   fallback after the flip, so this removal does not wait for other branches' hooks to refresh.
