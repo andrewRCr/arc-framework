@@ -57,7 +57,7 @@ export async function createEngineFixture(directories: string[], input: { path?:
     file: () => readFile(join(seeded.checkout, path), "utf8"),
     stored: async () => success(await fixture.store.read({ reference: record.reference })),
     disk: async (): Promise<ProjectionIndex> => {
-      const disk = await readProjectionIndex(seeded.location, true);
+      const disk = await readProjectionIndex(seeded.location, true, { groups: "all" });
       if (disk.kind !== "index") throw new Error("unusable test index");
       return disk.index;
     },

@@ -1,4 +1,5 @@
 /** Bind an unindexed file to an existing stored record before ordinary write-back recovers its base. */
+import { withProjectionEntry } from "./index-memory.js";
 import type { StoreRecord } from "../read.js";
 import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
@@ -14,5 +15,5 @@ export function attachExistingProjectionFile(root: ProjectionRootState, index: P
     markers: null, notices: [], unshown: record.conflicts, protected: false, changed: true, pending: true,
     withheld: false, refused: null, persisted: null, inProgress: null, copies: [], adoption: { kind: "write-back" } };
   return commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: { ...index, entries: { ...index.entries, [path]: entry } }, checkpoint: root.context.checkpoint });
+    index: withProjectionEntry(index, path, entry), checkpoint: root.context.checkpoint });
 }

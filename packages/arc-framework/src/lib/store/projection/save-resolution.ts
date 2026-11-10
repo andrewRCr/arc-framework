@@ -9,6 +9,7 @@ import { closedResolution, unmappedResolutionRefusal } from "./save-lookup.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { projectionLinkRemedy } from "./discovery-links.js";
 import { prepareWriteBack, type PreparedWriteBack } from "./write-back.js";
+import { loadProjectionGroups } from "./index-memory.js";
 
 /** An exact indexed subject and its requested resolving write. */
 export interface ProjectionResolutionTarget {
@@ -28,6 +29,7 @@ export interface ProjectionResolution {
 
 /** Find a token only through the index's UID-bearing mappings. */
 export async function selectProjectionResolution(store: Store, index: ProjectionIndex | null, token: string): Promise<ProjectionResolution> {
+  if (index !== null) loadProjectionGroups(index, "all");
   const holds: ProjectionResolutionTarget[] = [];
   for (const [path, entry] of Object.entries(index?.entries ?? {})) {
     if (entry.kind !== "record") continue;

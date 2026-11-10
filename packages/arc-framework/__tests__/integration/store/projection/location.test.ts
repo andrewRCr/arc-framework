@@ -11,8 +11,8 @@ import { createExecaGitExec } from "../../../../src/lib/git/process-executor.js"
 import type { GitExec } from "../../../../src/lib/git/exec.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { StateVersionSchema } from "../../../../src/lib/store/identity.js";
-import { PROJECTION_INDEX_FILE, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
-import { decodeProjectionIndex, type ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
+import { PROJECTION_INDEX_FILE, readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { type ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
 import {
   ensureProjectionStateFolder, locateProjection, PROJECTION_STATE_FOLDER,
 } from "../../../../src/lib/store/projection/location.js";
@@ -44,7 +44,7 @@ afterEach(async () => {
 
 function index(state: string): ProjectionIndex {
   return {
-    format: 1, state: StateVersionSchema.parse(state),
+    format: 2, state: StateVersionSchema.parse(state),
     projectedUnder: {
       view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("andrew"), claim: null, layoutActive: "nested",
     },
@@ -79,7 +79,8 @@ describe("the projection's state folder", () => {
     }
     for (const [checkout, state] of [[primary, "state-primary"], [linked, "state-linked"]] as const) {
       const written = await readFile(join(await gitDirOf(checkout), PROJECTION_STATE_FOLDER, PROJECTION_INDEX_FILE), "utf8");
-      expect(decodeProjectionIndex(JSON.parse(written)).data).toEqual(index(state));
+      expect(JSON.parse(written)).not.toHaveProperty("entries");
+      expect(await readProjectionIndex(await locateProjection(checkout, { fs, exec: noGit }), true, { groups: "all" })).toEqual({ kind: "index", index: index(state) });
     }
   });
 
@@ -112,7 +113,8 @@ describe("the projection's state folder", () => {
     await expect(writeProjectionIndex(location, index("state-after"))).rejects.toThrow("the write stopped partway");
     stopped.folder = undefined;
     const written = await readFile(join(location.stateDir, PROJECTION_INDEX_FILE), "utf8");
-    expect(decodeProjectionIndex(JSON.parse(written)).data).toEqual(index("state-before"));
+    expect(JSON.parse(written)).not.toHaveProperty("entries");
+    expect(await readProjectionIndex(location, true, { groups: "all" })).toEqual({ kind: "index", index: index("state-before") });
   });
 
   it("reads a removed Git directory as gone, and neither creating the folder nor writing recreates it", async () => {

@@ -45,128 +45,25 @@ that chunk.
   walking projected files. Existing indexes remain readable in unclaimed checkouts; only work-unit and ready transient
   claims gain a missing projection, with husks and machinery excluded.
 
-### `[ ]` **1.2 The index's header and partitions — § 3.1, § 16.2**
+### `[x]` **1.2 The index's header and partitions — § 3.1, § 16.2**
 
 - _Goal:_ A command reads and writes only the index partitions holding the entries it touches, so its index cost follows
   the roots it walks rather than the archive, and a write that stops anywhere leaves the last whole index or one the
   next start rebuilds, never a mix.
 
-- **Additional Context:** `notes-projection-worktrees.md` § Spike 4
+    - `[x]` **1.2.R Preserve racy installed stats across partition publications — A1**
 
-    - The index module (`lib/store/projection/index-file.ts`) writes `PROJECTION_INDEX_FILE` as a header holding
-      `format`, `state`, `projectedUnder`, `withheldCopies`, `tripwires`, `ignoreFiles`, `ignoreGuard`, and a map from
-      each root group to its partition's name and whether the partition holds an unsettled entry (spec § 3.1): an
-      `ownerless` entry, or a `record` with `copies`, a kept taken-in copy (`persisted.takenIn.kind` `copy`), an
-      `adoption`, `pending`, `withheld`, a `refused` mark, or a non-empty `unshown`, never `changed` or `inProgress`,
-      which no such pass reads, and writes each group's entries (`ProjectionIndexSchema.entries`,
-      `lib/store/projection/index-schema.ts`) to a file `index-<blob id>` beside it in `arc-projection/`, named by
-      `gitBlobId` (`lib/store/projection/blob-id.ts`) over the file's bytes with SHA-1 whatever the repository's object
-      format. A root group is `.arc/active`, `.arc/backlog`, an identity's personal root (`projectedRootPaths`,
-      `lib/layout/projected-roots.ts`), each folder directly under `.arc/completed`, and `.arc/completed` itself for a
-      file directly in it, and the header keys each group by that path, so each identity's personal root keeps a
-      partition of its own. `PROJECTION_INDEX_FORMAT` moves, so an earlier build's index reads `other-format` and takes
-      1.5's rebuild; no reader of the old form is kept.
-    - A write (`commitProjectionIndex`) writes a partition only where an entry in it differs in value from what was
-      read, since every clean change check builds a new entry object (`checkFileAtPath`, `withEntry`); it smudges each
-      such partition against the reference it replaces (`smudgeRacyEntries`), as it smudges the whole index today, sets
-      the partition's mark in the header from its entries, serializes it with `JSON.stringify`, each stat's bigints as
-      decimal strings, through no schema, writes each by temp-and-rename under its name (`atomicWriteFile`), reusing a
-      file already there by that name, then the header the same way, then the reference, and then deletes every
-      `index-*` file the header does not name, leaving one whose delete fails for the next write.
-    - A read (`readProjectionIndex`) parses the header with `JSON.parse` and checks that every partition it names is
-      present, and the index it returns loads a group's partition the first time its caller reaches an entry in that
-      group: parsed with `JSON.parse`, each stat's decimal strings converted to bigints by the module itself, and its
-      bytes checked against its name. No read runs the schema (`decodeProjectionIndex`), which splits into a header
-      schema and a partition schema (`ProjectionIndexSchema`) that stay the writer's contract, and tests check every
-      header and partition the writer writes against them. A caller names the groups it loads at once: the start its
-      walked roots and the groups the header marks (1.12.a), `arc save` every `completed/` group too, the rebuild a
-      state version that no longer resolves takes every group (1.6.b), and the removal check and the persist and release
-      steps every group (2.1, 2.2, 2.3); beyond those, a refresh, the sweep's take-over, and a fan-out's visit load the
-      groups holding the paths they touch.
-    - A pass over every entry loads, before it iterates, the groups its command walks and every group the header marks
-      unsettled: the sweep's `recordsToTake` and `takeOverUnrecorded` (`lib/store/projection/sweep.ts`), the start's
-      `adoptionRetries` (`engine-files.ts`), the end's kept-copy names (`finishProjectionRoot`, `engine-end.ts`), a
-      fan-out visit's end included, and status (`snapshot`, `status.ts`). `reconcileProjectionLinks`
-      (`discovery-links.ts`) loads the walked groups, since only the walk finds links; the selection
-      (`selectProjectedMarkdown`, `selection.ts`) every group outside `completed/`, which it never lists; `arc save`'s
-      `clearAcceptedMarks` (`save-changed.ts`) and `--resolve`'s `selectProjectionResolution` (`save-resolution.ts`)
-      every group; and the rebuild a state version that no longer resolves takes (1.6.b) every group, since it handles
-      each entry the state no longer holds as a removal. Every other reader reaches entries by path and loads the group
-      holding it — `dropRemovedEntries`, `swap.ts`; adoption's removal of one entry, `adoption.ts`; `readIndexedOwners`,
-      `container-ownership.ts`, the container's group; the overlap advisory, `lib/errand/overlap-targets.ts`; and a
-      send's local capture (`captureProjectionLocal`, `local-capture.ts`), which reads the published index itself at
-      each of a send's captures, and scans it for the candidate containers' indexed metadata, all in the path's own root
-      group, so it loads that group — and the `{ ...index.entries, [path]: entry }` updates across
-      `lib/store/projection/` move to the module's per-path update. The index in memory iterates only its loaded groups,
-      so a pass that has not loaded a group finds less, never more.
-    - A partition the header names that is missing answers `unreadable` (`UnusableIndexCause`), so the start rebuilds
-      the worktree (1.5) and the fan-out and the end skip it. One whose bytes do not match its name answers `unreadable`
-      where the start's read loads it, so the start rebuilds (1.5), and, naming that partition, where the removal check
-      or the persist or release step loads it, so their remedy names `arc save` (2.1). Found when a later read loads it,
-      it throws a typed mismatch naming the partition: in the command's own worktree — at its start, at its end on its
-      own root, or in `arc sync`'s materialization (1.9) — `runLeased` (`withProjectionLock`,
-      `lib/store/projection/lock.ts`) catches it inside the action it passes `withRenewableLease`
-      (`lib/renewable-lease.ts`), whose `finally` releases the lock before any catch around it runs, deletes that
-      partition file there, never the header, and returns a result its callers report and skip as they do `lost`, the
-      command running with the projection off (`recordProjectionLockSkip`, `lib/store/projection/engine.ts`); the header
-      then names a missing partition, so the next start rebuilds and the removal check answers `unobservable`. Only
-      those ask `runLeased` for that delete; a fan-out's visit, to the writer's own worktree too, and the end on another
-      worktree's root the fan-out registered report the worktree and skip it, as they skip any unusable index, deleting
-      nothing. A reader holding no projection lock — the fan-out's first read (1.7.b), the removal check (2.1), status
-      (`readProjectionStatus`, `status.ts`), the selection (`projectionSelectionResult`, `selection.ts`), and the
-      overlap advisory (`readOverlapIndex`, `lib/errand/overlap-index.ts`) — rereads the header on a missing or
-      mismatched partition and starts over once if the header changed, then answers as it answers an unusable index,
-      deleting nothing.
-    - Build `test-first` (one behavior at a time):
-        - a write of one changed entry writes its group's partition and the header, and no other partition file
-        - a start with nothing changed loads no `completed/` partition, with a quarter's partition of 60,000 entries as
-          with none, and a refresh laying a file into a quarter loads that quarter's
-        - a partition deleted by hand makes the index `unreadable`, and the next start rebuilds the worktree
-        - a walked partition altered by hand makes the start rebuild the worktree
-        - a partition altered by hand after its header was read throws the typed mismatch naming it when it is loaded
-        - a typed mismatch thrown inside `runLeased`'s action deletes that partition before the lock is released, leaves
-          the header, and returns the result its callers skip as they do `lost`, and deletes nothing for a caller that
-          does not ask for the delete
-        - an unwalked partition altered by hand, reached by a refresh, ends the command's projection with a report,
-          deletes that partition before the lock is released and leaves the header, and the removal check then answers
-          `unobservable` until the next start rebuilds, after which it answers as before
-        - a fan-out visit reaching an altered partition, in a sibling or the writer's own worktree, skips it and deletes
-          nothing there
-        - a walked partition altered by hand through a hook before the command's end: in a ready sibling's root the end
-          skips that root and deletes nothing, and in the command's own root it deletes that partition before the lock
-          is released, leaves the header, and reports it
-        - a start with nothing changed and no stat moved writes no partition, every clean change check notwithstanding
-        - an aside copy recorded in a `completed/` quarter marks that quarter: the sweep takes it in, status reports it,
-          and the end keeps a kept copy only that quarter's entry names; once it settles the mark clears, and the next
-          start loads no `completed/` partition
-        - a rebuild that marks every file it found changed, `completed/`'s among them, leaves the quarters unmarked, and
-          the next start loads no `completed/` partition
-        - each pass over every entry loads exactly its groups, a probe on the module counting the loads
-        - a write stopped after its partitions and before its header leaves the previous index readable, and the next
-          write deletes the partitions it left
-        - a superseded partition whose delete fails stays until the next write deletes it
-        - a lock-free read — status, the selection, and the overlap advisory each — whose header a write replaces
-          between its header and partition reads, through a hook there, reads the new index; one whose header still
-          names a missing or mismatched partition answers as that reader answers an unusable index, and the partition
-          stays
-        - an index in the previous format reads `other-format`
-        - an entry in a partition a write leaves unwritten reads clean against the newer reference, and a racy stat in a
-          partition it writes is smudged (`spec-projection-substrate.md` § 3.3)
-        - every header and partition the writer writes passes its schema, its bigints read back equal
+        - _Goal:_ Implement A1 so a same-tick save to a staged file remains detectable after an unrelated partition
+          advances the shared reference, without reading or rewriting the saved file's partition.
 
-### `[ ]` **1.2.R Preserve racy installed stats across partition publications — A1**
+        - _Outcome:_ Partition publication smudges staged stats as well as observed stats; swap and fixture callers
+          carry no exemption. Copy-mark-only writes preserve the current reference, and an unrelated partition's
+          publication leaves an installing file's same-tick save detectable without loading its group.
 
-- _Goal:_ Implement A1 so a same-tick save to a staged file remains detectable after an unrelated partition advances
-  the shared reference, without reading or rewriting the saved file's partition.
-
-    - Remove the staged-file exemption from partition publication and its callers; `smudgeRacyEntries` applies the
-      ordinary racy rule to every stat in a written partition. Copy-mark-only writes smudge against the existing
-      reference without advancing it.
-    - Keep the controlled-timestamp regression in `smudging.test.ts`: publish an installing file, save in its timestamp
-      tick, then advance the reference by changing only another group. Assert the untouched group stays unloaded and
-      unchanged, and the save is detected; preserve the later clean, value-equal no-rewrite case.
-    - Re-run the affected change-detection, copy-mark, command-skip, and partition-publication coverage. Task 1.14
-      closes the amendment at segment scope.
+- _Outcome:_ The format-2 header commits content-addressed root partitions with lazy path reads and independent
+  updates. Scans load their explicit groups, lock-free readers retry a moved header, and late mismatches invalidate
+  only the command's own partition under its lease. Interrupted publications retain the old header; later writes
+  collect obsolete partitions, including a previously held file.
 
 ### `[ ]` **1.3 Bind a projection root for any worktree, reading through one source — § 2.1, § 14**
 

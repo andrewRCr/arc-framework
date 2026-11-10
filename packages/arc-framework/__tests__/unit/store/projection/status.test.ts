@@ -135,7 +135,7 @@ it("reports an absent index without creating one and observes a restored project
 it.each(["unreadable", "other-format"] as const)("reports an %s index with a remedy and observes its repair", async cause => {
   const h = await createWriteBackFixture();
   fixtures.push(h);
-  const text = cause === "unreadable" ? "not JSON" : JSON.stringify({ format: 2 });
+  const text = cause === "unreadable" ? "not JSON" : JSON.stringify({ format: 1 });
   await writeFile(join(h.location.stateDir, PROJECTION_INDEX_FILE), text);
   expect(await readProjectionStatus({ store: h.store, checkout: h.checkout, location: h.location }))
     .toMatchObject({ kind: "unusable", cause, remedy: { text: expect.stringContaining("Restore a readable projection index") } });

@@ -40,7 +40,7 @@ it.each([false, true])("preserves a newer revert after refused read-back with pr
   expect(first.result.answer).toBe("pending");
   expect(first.result.entry.persisted).toMatchObject({ recording: true, takenIn: { kind: "copy" } });
   await writeProjectionIndex(h.location, first.index);
-  const disk = await readProjectionIndex(h.location, true);
+  const disk = await readProjectionIndex(h.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Pending index missing");
   const persisted = disk.index.entries[h.path];
   if (persisted?.kind !== "record") throw new Error("Pending mapping missing");

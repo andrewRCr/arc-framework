@@ -1,4 +1,5 @@
 /** Publish a returned file's rendering provenance before unlinking its aside alias. */
+import { withProjectionEntry } from "./index-memory.js";
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { commitProjectionIndex } from "./index-file.js";
@@ -36,7 +37,7 @@ export async function commitReturnedCopies(input: Parameters<typeof commitProjec
     const updated = exists
       ? await deleteAsideCopy({ checkout: input.checkout, path, entry, copy, checkpoint: input.checkpoint })
       : await finalizeAsideCopy({ checkout: input.checkout, path, entry, copy });
-    index = { ...index, entries: { ...index.entries, [path]: updated } };
+    index = withProjectionEntry(index, path, updated);
   }
   return index === published ? published : commitProjectionIndex({ ...input, index });
 }

@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
-import { PROJECTION_INDEX_FILE, readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
-import { encodeProjectionIndex, type ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
+import { PROJECTION_INDEX_FILE, readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { type ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
 import type { ProjectionLocation } from "../../../../src/lib/store/projection/location.js";
 
 const index: ProjectionIndex = {
-  format: 1, state: null,
+  format: 2, state: null,
   projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("andrew"), claim: null, layoutActive: "nested" },
   withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries: {},
 };
@@ -31,25 +31,25 @@ describe("reading a checkout's index", () => {
   it.each([
     ["missing", undefined],
     ["unreadable", "{\"format\":1,"],
-    ["unreadable", JSON.stringify({ format: 1 })],
-    ["other-format", encodeProjectionIndex(index).replace("\"format\":1", "\"format\":0")],
-    ["other-format", encodeProjectionIndex(index).replace("\"format\":1", "\"format\":2")],
+    ["unreadable", JSON.stringify({ format: 2 })],
+    ["other-format", JSON.stringify({ format: 0 })],
+    ["other-format", JSON.stringify({ format: 1 })],
   ] as const)("reads a checkout holding a projection as unusable, %s", async (cause, content) => {
     if (content !== undefined) await holdIndex(content);
-    expect(await readProjectionIndex(location, true)).toEqual({ kind: "unusable", cause });
+    expect(await readProjectionIndex(location, true, { groups: "all" })).toEqual({ kind: "unusable", cause });
   });
 
   it("reads a checkout holding no projection and no index as no projection", async () => {
-    expect(await readProjectionIndex(location, false)).toEqual({ kind: "no-projection" });
+    expect(await readProjectionIndex(location, false, { groups: "all" })).toEqual({ kind: "no-projection" });
   });
 
   it("reads the index a checkout holding no projection still holds", async () => {
-    await holdIndex(encodeProjectionIndex(index));
-    expect(await readProjectionIndex(location, false)).toEqual({ kind: "index", index });
+    await writeProjectionIndex(location, index);
+    expect(await readProjectionIndex(location, false, { groups: "all" })).toEqual({ kind: "index", index });
   });
 
   it("reads an index it cannot open as unusable, unreadable", async () => {
     await mkdir(join(location.stateDir, PROJECTION_INDEX_FILE));
-    expect(await readProjectionIndex(location, true)).toEqual({ kind: "unusable", cause: "unreadable" });
+    expect(await readProjectionIndex(location, true, { groups: "all" })).toEqual({ kind: "unusable", cause: "unreadable" });
   });
 });

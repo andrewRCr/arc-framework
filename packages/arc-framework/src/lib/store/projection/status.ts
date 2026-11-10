@@ -61,7 +61,7 @@ export async function readProjectionStatus(input: ProjectionStatusInput): Promis
 async function readRecordedProjectionStatus(input: ProjectionStatusInput): Promise<RecordedProjectionStatus> {
   const location = input.location ?? await locateProjection(input.checkout,
     input.ports?.() ?? createProjectionEnginePorts(input.checkout));
-  const read = await readProjectionIndex(location, false);
+  const read = await readProjectionIndex(location, false, { groups: "walked", retry: true });
   if (read.kind === "no-projection") return read;
   if (read.kind === "unusable") return { ...read, remedy: {
     text: "Restore a readable projection index, then retry; existing projected files have been left alone.",

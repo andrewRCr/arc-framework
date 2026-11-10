@@ -29,7 +29,7 @@ beforeEach(async () => {
 afterEach(async () => { await rm(checkout, { recursive: true, force: true }); });
 
 const EMPTY_INDEX: ProjectionIndex = {
-  format: 1, state: null,
+  format: 2, state: null,
   projectedUnder: { view: { mode: "mine", pins: [] }, identity: SlugSchema.parse("andrew"), claim: null, layoutActive: "nested" },
   withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null, entries: {},
 };

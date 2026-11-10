@@ -27,7 +27,7 @@ function commandPorts(checkout: string, instance: string) {
   return { ...native, writer: async () => ({ ...await native.writer(), processInstance: instance }) };
 }
 async function indexAt(location: ProjectionLocation) {
-  const read = await readProjectionIndex(location, true);
+  const read = await readProjectionIndex(location, true, { groups: "all" });
   if (read.kind !== "index") throw new Error("unusable fixture index");
   return read.index;
 }

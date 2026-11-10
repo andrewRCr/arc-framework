@@ -45,7 +45,7 @@ async function save(store: Store, checkout: string, configure?: (program: Comman
 }
 
 async function changed(location: Parameters<typeof readProjectionIndex>[0], path: string): Promise<boolean> {
-  const disk = await readProjectionIndex(location, true);
+  const disk = await readProjectionIndex(location, true, { groups: "all" });
   if (disk.kind !== "index" || disk.index.entries[path]?.kind !== "record") throw new Error("No marked file entry");
   return disk.index.entries[path].changed;
 }
@@ -59,7 +59,7 @@ async function interruptedUnstamped(advance = true) {
     expected: h.entry.base.version, provenance: { verb: "save", lifecycleAction: "edit" } }));
   await expect(refreshWriteBackFixture(h, h.index, { afterRecheck: async () => { throw new Error("Interrupted before installation"); } }))
     .rejects.toThrow("Interrupted before installation");
-  const disk = await readProjectionIndex(h.location, true);
+  const disk = await readProjectionIndex(h.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("The interrupted replacement lost its index");
   const entry = disk.index.entries[h.path];
   if (entry?.kind !== "record") throw new Error("The interrupted replacement lost its entry");
@@ -83,7 +83,7 @@ it.each(["landed", "refused", "unparseable", "pending"])("marks a genuinely obse
   expect(await startProjection({ store: f.store, checkout: f.root })).toMatchObject({ kind: "ready" });
   const stored = success(await f.store.read({ reference: primary.reference }));
   expect(stored.content).toBe(outcome === "landed" ? content : primary.content);
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("The observed edit lost its projection index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", changed: true });
   if (outcome === "pending") expect(disk.index.entries[path]).toMatchObject({ pending: true });
@@ -92,7 +92,7 @@ it.each(["landed", "refused", "unparseable", "pending"])("marks a genuinely obse
   await startProjection({ store: f.store, checkout: f.root });
   await endProjection({ store: f.store, checkout: f.root });
   expect(success(await f.store.read({ reference: primary.reference })).content).toContain("Repaired hand edit.");
-  const repaired = await readProjectionIndex(projected.location, true);
+  const repaired = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (repaired.kind !== "index") throw new Error("The repaired edit lost its projection index");
   expect(repaired.index.entries[path]).toMatchObject({ changed: true, refused: null });
 });
@@ -105,7 +105,7 @@ it("marks the holding checkout when a guard takes in its edit, leaving a sibling
   const index = await refreshWriteBackFixture(h, h.index);
   expect(success(await h.store.read({ reference: h.entry.reference })).content).toBe("An edit found by a sibling's guard.\n");
   expect(index.entries[h.path]).toMatchObject({ changed: true });
-  const untouched = await readProjectionIndex(sibling.location, true);
+  const untouched = await readProjectionIndex(sibling.location, true, { groups: "all" });
   if (untouched.kind !== "index") throw new Error("The sibling lost its index");
   expect(untouched.index.entries[h.path]).toMatchObject({ changed: false });
 });
@@ -202,7 +202,7 @@ it.each([false, true])("uses retained copy content when its writer has another s
   await startProjection({ store: f.store, checkout: f.root, ports: () => ({ ...ports,
     writer: async () => ({ ...await ports.writer(), processScope: "another-process-namespace" }),
   }) });
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("No retained-copy index");
   const entry = disk.index.entries[path];
   if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("No produced aside copy");
@@ -232,7 +232,7 @@ it("marks a late aside edit discovered by command-end settlement after save clea
   let copy = "", late = "", newer = "";
   expect(await save(f.store, f.root, program => { program.hook("postAction", async () => {
     expect(await changed(projected.location, path)).toBe(false);
-    const disk = await readProjectionIndex(projected.location, true);
+    const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
     if (disk.kind !== "index") throw new Error("No saved index");
     const entry = disk.index.entries[path];
     if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("No command-owned aside copy");
@@ -280,7 +280,7 @@ it("does not manufacture a changed mark when retrying an unchanged file left pen
   const original = await h.file();
   await expect(refreshWriteBackFixture(h, h.index, { afterRecheck: async () => { throw new Error("Interrupted before installation"); } }))
     .rejects.toThrow("Interrupted before installation");
-  const pending = await readProjectionIndex(h.location, true);
+  const pending = await readProjectionIndex(h.location, true, { groups: "all" });
   if (pending.kind !== "index") throw new Error("The interrupted swap lost its first index");
   expect(pending.index.entries[h.path]).toMatchObject({ pending: true, changed: false });
   expect(await h.file()).toBe(original);

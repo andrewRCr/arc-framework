@@ -1,4 +1,5 @@
 /** Bind proposed metadata to its actual stub receipt before interpreting companion names. */
+import { withProjectionEntry } from "./index-memory.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ProjectionRootState } from "./process-state.js";
@@ -39,9 +40,9 @@ export async function mintProjectionMetadata(root: ProjectionRootState, index: P
   const pending = refused("The stub was created; its exact metadata basis is not yet bound.",
     "Restore the minted record read and its creation history, then retry adoption.");
   index = await commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
-    index: { ...index, entries: { ...index.entries, [proposed.metaPath]: {
+    index: withProjectionEntry(index, proposed.metaPath, {
       kind: "ownerless", stat: observed.read.stat, refused: pending.mark, minted: receipt,
-    } } } });
+    }) });
   const bound = await bindMintedMetadata(root, index, proposed.metaPath, receipt, observed.read);
   return bound.kind === "refused" ? bound : { kind: "minted", index: bound.index,
     ownership: { kind: "owned", container: proposed.container, record: bound.record } };
@@ -74,7 +75,7 @@ async function bindMintedMetadata(root: ProjectionRootState, index: ProjectionIn
     persisted: null, inProgress: null, copies: [], adoption: { kind: "write-back", stub: true } };
   root.unsent.add(path);
   const bound = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    checkpoint: root.context.checkpoint, index: { ...index, entries: { ...index.entries, [path]: entry } } });
+    checkpoint: root.context.checkpoint, index: withProjectionEntry(index, path, entry) });
   return { kind: "bound", index: bound, record: basis.record };
 }
 

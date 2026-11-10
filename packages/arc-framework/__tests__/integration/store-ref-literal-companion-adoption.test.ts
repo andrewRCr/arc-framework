@@ -19,7 +19,7 @@ it.each(["default", "separate"] as const)("adopts both root filenames and reproj
   const pairs = [["./readme", "readme", "Literal root prose\n"], ["readme", "readme-alpha.md", "Named prose\n"]] as const;
   for (const [, filename, content] of pairs) await writeFile(join(f.root, folder, filename), content);
   await startProjection({ store: f.store, checkout: f.root });
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing adopted index");
   const reopened = f.reopen();
   const files = pairs.map(([key, filename]) => ({ reference: recordReferences["work-item/companion"](primary.reference.owner, key),
@@ -54,7 +54,7 @@ it.each(["default", "separate"] as const)("preserves the reserved flat filename 
   const reserved = recordReferences["work-item/companion"](primary.reference.owner, "./in-flight");
   expect(await f.store.read({ reference: reserved })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
   expect(await readFile(join(f.root, path), "utf8")).toBe(content);
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing projection index");
   expect(disk.index.entries[path]?.kind).not.toBe("record");
   const repaired = `${folder}/in-flight-alpha.md`;

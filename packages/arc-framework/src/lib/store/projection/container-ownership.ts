@@ -1,4 +1,5 @@
 /** Establish physical backlog ownership before interpreting an unindexed file's name. */
+import { loadProjectionPathGroup } from "./index-memory.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { gateRead } from "./read-gate.js";
@@ -113,6 +114,7 @@ function describeOwner(owner: OwnedContainer): string {
 }
 
 async function readIndexedOwners(input: BacklogOwnershipInput, container: WorkItemContainer): Promise<IndexedProbe> {
+  loadProjectionPathGroup(input.index.entries, resolveArcPath(container));
   const owners: StoredOwner[] = [];
   for (const [path, entry] of Object.entries(input.index.entries)) {
     const reference = entry.kind === "record" ? entry.reference : entry.minted?.reference;

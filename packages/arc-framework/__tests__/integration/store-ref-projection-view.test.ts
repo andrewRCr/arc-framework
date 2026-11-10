@@ -39,7 +39,7 @@ it("names a missing pin from the command's one configuration observation and acc
   expect(buildProjectionStatusSummary(status)).toContain('arc.inflightPin "missing"');
   expect(success(await f.store.version())).toBe(before);
   expect(await readFile(indexPath, "utf8")).toBe(bytes);
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing native projection index");
   expect(disk.index.projectedUnder.view).toEqual({ mode: "mine", pins: [] });
   await f.ports.exec("git", ["config", "--replace-all", "arc.inflightPin", other.reference.owner.name], { cwd: f.root });

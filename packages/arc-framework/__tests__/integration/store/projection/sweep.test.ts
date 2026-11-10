@@ -73,7 +73,7 @@ async function leftBy(
 }
 
 async function indexOnDisk(location: Parameters<typeof readProjectionIndex>[0]): Promise<ProjectionIndex> {
-  const read = await readProjectionIndex(location, true);
+  const read = await readProjectionIndex(location, true, { groups: "all" });
   if (read.kind !== "index") throw new Error(`expected an index on disk, found ${read.kind}`);
   return read.index;
 }

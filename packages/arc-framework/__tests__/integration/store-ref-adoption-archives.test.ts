@@ -34,7 +34,7 @@ it.each(["active", "completed"] as const)("adopts an older archive despite a new
   expect(success(await f.store.read({ reference }))).toMatchObject({ reference, content });
   expect(await f.store.read({ reference: recordReferences["work-item/companion"](newer.reference.owner, "correction.txt") }))
     .toMatchObject({ status: "refused", refusal: { code: "not-found" } });
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing archive index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference });
 });
@@ -51,7 +51,7 @@ it.each([{ completed: true }, { own: false }, {}])("adopts an unindexed Errand d
   const independent = recordReferences["personal/document"](OwnerIdentitySchema.parse({ type: "person", name: "andrew" }), "scratch/independent.txt");
   expect(success(await f.store.read({ reference: independent })).content).toBe("Independent input\n");
   expect(await readFile(join(f.root, path), "utf8")).toContain("A preserved correction.");
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing Errand index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference: description.reference, refused: null });
 });
@@ -67,7 +67,7 @@ it("keeps a misplaced completed Errand repair local and adopts the same bytes af
   await mkdir(join(f.root, ".arc/user/andrew/scratch"), { recursive: true });
   await writeFile(join(f.root, scratch), "Independent input\n");
   await startProjection({ store: f.store, checkout: f.root, mode: "save" });
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing refused index");
   expect(held.index.entries[wrong]).toMatchObject({ kind: "ownerless", refused: {
     reason: expect.stringContaining("No unique Errand"), remedy: { text: expect.stringContaining("retry") },
@@ -91,7 +91,7 @@ it("refuses ambiguous completed Errand generations while saving independent inpu
   await mkdir(join(f.root, ".arc/user/andrew/scratch"), { recursive: true });
   await writeFile(join(f.root, ".arc/user/andrew/scratch/independent.txt"), "Independent input\n");
   await startProjection({ store: f.store, checkout: f.root, mode: "save" });
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing ambiguous index");
   expect(held.index.entries[path]).toMatchObject({ kind: "ownerless", refused: {
     reason: expect.stringContaining("No unique Errand"), remedy: { text: expect.stringContaining("retry") },

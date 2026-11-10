@@ -32,7 +32,7 @@ it("retains an accepted creation and its latest unsent bytes, then completes rea
   await startProjection({ store, checkout: f.root });
   expect(success(await f.store.read({ reference })).content).toBe("edit 4\n");
   expect(parseStampedFile(await readFile(absolute, "utf8")).content).toBe("edit 5\n");
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing pending index");
   expect(held.index.entries[path]).toMatchObject({ kind: "record", reference, pending: true, adoption: { kind: "read-back" } });
   expect(projectionProcessState().roots.get(f.root)?.unsent.has(path)).toBe(true);
@@ -43,7 +43,7 @@ it("retains an accepted creation and its latest unsent bytes, then completes rea
   await startProjection({ store, checkout: f.root });
   expect(success(await f.store.read({ reference })).content).toBe("edit 5\n");
   expect(parseStampedFile(await readFile(absolute, "utf8")).content).toBe("edit 5\n");
-  const repaired = await readProjectionIndex(projected.location, true);
+  const repaired = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (repaired.kind !== "index") throw new Error("Missing repaired index");
   expect(repaired.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false });
   expect(repaired.index.entries[path]).not.toHaveProperty("adoption");
@@ -64,7 +64,7 @@ it("retains a newer save that wins an accepted creation's swap and reports it un
   await startProjection(input);
   expect(success(await f.store.read({ reference })).content).toBe(accepted);
   expect(parseStampedFile(await readFile(absolute, "utf8")).content).toBe(latest);
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing pending index");
   expect(held.index.entries[path]).toMatchObject({ kind: "record", reference, pending: true, adoption: { kind: "read-back" } });
   expect(projectionProcessState().roots.get(f.root)?.unsent.has(path)).toBe(true);
@@ -75,7 +75,7 @@ it("retains a newer save that wins an accepted creation's swap and reports it un
   recreate = false;
   await startProjection(input);
   expect(success(await f.store.read({ reference })).content).toBe(latest);
-  const settled = await readProjectionIndex(projected.location, true);
+  const settled = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (settled.kind !== "index") throw new Error("Missing settled index");
   expect(settled.index.entries[path]).toMatchObject({ pending: false });
   expect(settled.index.entries[path]).not.toHaveProperty("adoption");

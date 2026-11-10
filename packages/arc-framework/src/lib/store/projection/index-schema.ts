@@ -8,7 +8,7 @@ import { RecordReferenceSchema, RecordVersionSchema, StateVersionSchema } from "
 import { RemedySchema } from "../refusal.js";
 
 /** The index format this build reads and writes. */
-export const PROJECTION_INDEX_FORMAT = 1;
+export const PROJECTION_INDEX_FORMAT = 2;
 
 /** A Git blob id in the repository's object format, SHA-1 or SHA-256. */
 export const BlobIdSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u);
@@ -151,6 +151,13 @@ export const ProjectionIndexSchema = z.strictObject({
   ignoreGuard: IgnoreGuardBasisSchema.nullable(),
   entries: z.record(EntryPathSchema, IndexEntrySchema),
 });
+
+/** The persisted header's contract, without loading or validating entries at runtime. */
+export const ProjectionIndexHeaderSchema = ProjectionIndexSchema.omit({ entries: true }).extend({
+  groups: z.record(EntryPathSchema, z.strictObject({ name: z.string().regex(/^index-[a-f0-9]{40}$/u), unsettled: z.boolean() })),
+});
+/** A single root partition's persisted contract. */
+export const ProjectionIndexPartitionSchema = ProjectionIndexSchema.shape.entries;
 
 /** A decoded projection index. */
 export type ProjectionIndex = z.output<typeof ProjectionIndexSchema>;

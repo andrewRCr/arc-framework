@@ -35,11 +35,13 @@ again. A pass returns the union of both queries' source files — `info/exclude`
 so a caller can skip the guard while none changes. `predictableIgnoreFiles` names the predictable Git sources and npm
 policy, which every pass rests on whatever the queries answer.
 
-`index-schema.ts` is the strict schema of the index each projected worktree keeps about its copy. Per path it holds the
-record reference the file was read with, its stat, the blob id last written there, its base, its marks, and the aside
-copies made of it; beside the entries, the format version, the state version last projected, what the worktree was
-projected under, and what the ignore guard last passed on. Stat fields are bigints stored as decimal strings, and a
-field the schema does not know, or another format version, fails the parse rather than being dropped.
+`index-file.ts` publishes a header naming content-addressed root partitions, then advances the racy reference and
+collects obsolete partitions. The header holds state, settings, ignore evidence, and each group's unsettled mark;
+partitions hold entries, with archive entries grouped by quarter and personal entries by identity. `index-memory.ts`
+loads groups by path and keeps updates independent, while enumeration sees only loaded groups. Scans explicitly load
+their walked or unsettled groups, all groups, or all groups outside the archive. Plain JSON carries bigint stats as
+decimal strings; `index-schema.ts` supplies the header and partition contracts for validation outside the hot path.
+A missing or mismatched partition refuses the index; lock-free readers retry once when the header changed.
 
 `location.ts` finds where a checkout keeps its projection state: `arc-projection/` in its own Git directory, beside the
 index, the projection lock, and the kept copies. It reads the Git directory from the checkout's `.git` — a folder, or a
@@ -51,10 +53,11 @@ a missing one as a worktree that is gone.
 its type, size, modification time, and file identity, read by `lstat` as bigints, match its entry and the modification
 time is older than the reference stamp at the aside folder's top. Anything else is hashed against the blob id last
 written there, and a missing reference makes every entry racy. A symbolic link, or anything else not a file, reads as
-absent and is never followed or read. Each index write smudges every observed stat racy against the reference it
-replaces: the cached size is zeroed, so the next check hashes it. This includes a freshly hashed clean stat, a linked
-replacement's stat, and fresh ignore snapshots. Only a staged file awaiting installation after that write is exempt.
-A recorded size of zero for nonempty content always hashes, so a save that empties the file is still found.
+absent and is never followed or read. Each changed partition smudges every observed stat racy against the reference
+it replaces: the cached size is zeroed, so the next check hashes it. Fresh clean observations, staged files awaiting
+installation, and ignore snapshots follow that rule. Copy-mark-only writes smudge against the current reference
+without advancing it. An untouched partition stays valid against later references. A recorded size of zero for
+nonempty content always hashes, so a save that empties the file is still found.
 
 `ignore-snapshot.ts` records each readable source's own path type/stat and content hash, or its absence, and compares
 it by the same rule, smudging included. A symlink keeps its own stat and hashes its target on comparison: changing a

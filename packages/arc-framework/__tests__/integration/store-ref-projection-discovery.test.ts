@@ -42,7 +42,7 @@ it.each([".arc/user", ".arc"])("keeps indexed and new personal content behind li
   }) })).toMatchObject({ kind: "ready" });
   expect(success(await f.store.version())).toBe(before);
   expect(success(await f.store.read({ reference: record.reference })).content).toBe("accepted content\n");
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("The linked checkout lost its index");
   expect(disk.index.entries[added]).toBeUndefined();
   expect(disk.index.entries[path]).toMatchObject({ reference: record.reference, pending: false });
@@ -53,7 +53,7 @@ it.each([".arc/user", ".arc"])("keeps indexed and new personal content behind li
   await writeFile(join(f.root, added), "repaired new content\n");
   expect(await startProjection({ store: f.store, checkout: f.root })).toMatchObject({ kind: "ready" });
   expect(success(await f.store.read({ reference: record.reference })).content).toBe("repaired content\n");
-  const repaired = await readProjectionIndex(projected.location, true);
+  const repaired = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (repaired.kind !== "index") throw new Error("No repaired index");
   const adopted = repaired.index.entries[added];
   if (adopted?.kind !== "record") throw new Error("The restored personal file did not adopt");
@@ -78,7 +78,7 @@ it.each([false, true])("reports an indexed=%s link without taking in its target 
   expect(report).toContain("regular file");
   expect(success(await f.store.version())).toBe(before);
   expect(await readFile(target, "utf8")).toBe("outside target content\n");
-  const untouched = await readProjectionIndex(projected.location, true);
+  const untouched = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (untouched.kind !== "index") throw new Error("The native projection index disappeared");
   if (indexed) expect(untouched.index.entries[path]).toMatchObject({ kind: "record", pending: false, refused: null });
   else expect(untouched.index.entries[path]).toBeUndefined();
@@ -86,7 +86,7 @@ it.each([false, true])("reports an indexed=%s link without taking in its target 
   await unlink(join(f.root, path));
   await writeFile(join(f.root, path), repaired);
   expect(await startProjection({ store: f.store, checkout: f.root })).toMatchObject({ kind: "ready" });
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("No repaired native projection index");
   const entry = disk.index.entries[path];
   if (entry?.kind !== "record") throw new Error("The repaired file did not bind to its record");
@@ -105,7 +105,7 @@ it.each(["next-start", "same-command-end"])("retains a late aside save behind a 
   await startProjection({ store: f.store, checkout: f.root, ports: () => ({ ...ports,
     writer: async () => ({ ...await ports.writer(), processInstance: "previous-discovery-command" }),
   }) });
-  const saved = await readProjectionIndex(projected.location, true);
+  const saved = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (saved.kind !== "index") throw new Error("No saved native metadata index");
   const entry = saved.index.entries[path];
   if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("No retained native aside copy");
@@ -127,7 +127,7 @@ it.each(["next-start", "same-command-end"])("retains a late aside save behind a 
   expect(success(await f.store.version())).toBe(before);
   expect(await readFile(target, "utf8")).toBe(targetBytes);
   expect(await readFile(join(f.root, copy.name), "utf8")).toBe(refusedBytes);
-  const retained = await readProjectionIndex(projected.location, true);
+  const retained = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (retained.kind !== "index") throw new Error("The link boundary lost its index");
   expect(retained.index.entries[path]).toMatchObject({ reference: entry.reference, base: entry.base,
     persisted: entry.persisted, copies: entry.copies, markers: entry.markers, notices: entry.notices, unshown: entry.unshown });
@@ -146,7 +146,7 @@ it.each([false, true])("drops an ownerless retry behind a directory-link=%s with
   await mkdir(join(f.root, folder), { recursive: true });
   await writeFile(join(f.root, path), "authored companion\n");
   await startProjection({ store: f.store, checkout: f.root });
-  const refused = await readProjectionIndex(projected.location, true);
+  const refused = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (refused.kind !== "index") throw new Error("No native ownerless index");
   expect(refused.index.entries[path]).toMatchObject({ kind: "ownerless" });
   await seed(f, RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "subject" } }),
@@ -161,7 +161,7 @@ it.each([false, true])("drops an ownerless retry behind a directory-link=%s with
   const before = success(await f.store.version());
   expect(await startProjection({ store: f.store, checkout: f.root })).toMatchObject({ kind: "ready" });
   expect(success(await f.store.version())).toBe(before);
-  const skipped = await readProjectionIndex(projected.location, true);
+  const skipped = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (skipped.kind !== "index") throw new Error("The native index disappeared behind the link");
   expect(skipped.index.entries[path]).toBeUndefined();
   expect(projectionProcessState().roots.get(f.root)?.unsent.has(path)).toBe(false);
@@ -173,7 +173,7 @@ it.each([false, true])("drops an ownerless retry behind a directory-link=%s with
   await unlink(link);
   await rename(backup, link);
   expect(await startProjection({ store: f.store, checkout: f.root })).toMatchObject({ kind: "ready" });
-  const repaired = await readProjectionIndex(projected.location, true);
+  const repaired = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (repaired.kind !== "index") throw new Error("No repaired native index");
   const entry = repaired.index.entries[path];
   if (entry?.kind !== "record") throw new Error("The restored companion did not adopt");
@@ -195,7 +195,7 @@ it.each(["refused", "pending"])("clears a vanished physical %s edit while retain
     await utimes(join(f.root, path), future, future);
   }
   await startProjection({ store: f.store, checkout: f.root });
-  const refused = await readProjectionIndex(projected.location, true);
+  const refused = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (refused.kind !== "index") throw new Error("No native refused-edit index");
   const entry = refused.index.entries[path];
   if (entry?.kind !== "record") throw new Error("The refused edit lost its exact record");
@@ -207,7 +207,7 @@ it.each(["refused", "pending"])("clears a vanished physical %s edit while retain
   await symlink(target, join(f.root, path), "file");
   const before = success(await f.store.version());
   await startProjection({ store: f.store, checkout: f.root });
-  const excluded = await readProjectionIndex(projected.location, true);
+  const excluded = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (excluded.kind !== "index") throw new Error("The linked physical edit lost its index");
   expect(excluded.index.entries[path]).toMatchObject({ reference: entry.reference, base: entry.base, written: entry.written,
     pending: false, refused: null, stat: null, markers: entry.markers, unshown: entry.unshown });

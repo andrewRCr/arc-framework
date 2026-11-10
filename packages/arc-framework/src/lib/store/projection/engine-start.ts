@@ -36,7 +36,8 @@ export async function startUnderLease(input: ProjectionCommandInput, ports: Proj
   let root: ProjectionRootState | undefined;
   try {
     await session.step();
-    const disk = await readProjectionIndex(location, await checkoutHoldsProjection(input.checkout, location));
+    const disk = await readProjectionIndex(location, await checkoutHoldsProjection(input.checkout, location),
+      { groups: input.mode === "save" ? "all" : "walked" });
     if (disk.kind === "no-projection") {
       await bindResolution(input, null);
       return { kind: "no-projection" };

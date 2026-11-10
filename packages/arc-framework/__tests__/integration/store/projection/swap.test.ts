@@ -93,13 +93,15 @@ describe("the swap", () => {
     const { laid, file, swap, seeded } = await prepared();
     if (laid.stat === null) throw new Error("Expected the laid file's stat");
     const held = await readFile(file, "utf8");
+    const physical = await readStat(file);
+    if (physical === null) throw new Error("Expected the original file");
     const busy = Object.assign(new Error("EBUSY: resource busy or locked"), { code: "EBUSY" });
     const tick = new Date(Number(laid.stat.mtimeNs / 1_000_000n) + (age === "racy" ? -1000 : 1000));
     const result = await swap({ fs: { rename: async () => { throw busy; } }, retrySleep: async () => undefined,
       hooks: { afterRecheck: async () => { await utimes(join(seeded.checkout, PROJECTION_REFERENCE), tick, tick); } } });
     expect(await readFile(file, "utf8")).toBe(held);
     expect(result.index.entries[PATH]).toEqual({ ...laid, pending: true,
-      stat: { ...laid.stat, size: age === "racy" ? 0n : laid.stat.size } });
+      stat: { ...laid.stat, size: age === "racy" ? 0n : physical.size } });
     expect(result.copies).toEqual([]);
     const entry = result.index.entries[PATH];
     if (entry?.kind !== "record") throw new Error("The restored entry is missing");
@@ -310,7 +312,7 @@ describe("a swap whose link fails after the move for another reason", () => {
 
 /** The entry the index on disk holds for a path. */
 async function onDisk(location: Parameters<typeof readProjectionIndex>[0], path: string): Promise<RecordEntry> {
-  const read = await readProjectionIndex(location, true);
+  const read = await readProjectionIndex(location, true, { groups: "all" });
   if (read.kind !== "index") throw new Error(`expected an index on disk, found ${read.kind}`);
   const entry = read.index.entries[path];
   if (entry?.kind !== "record") throw new Error(`expected a record entry at ${path}`);

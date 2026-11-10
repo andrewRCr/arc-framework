@@ -30,7 +30,7 @@ describe("durable aside marker recovery", () => {
     }) };
     await startProjection(input);
     expect(await h.file()).toBe(h.text(content));
-    const disk = await readProjectionIndex(h.location, true);
+    const disk = await readProjectionIndex(h.location, true, { groups: "all" });
     if (disk.kind !== "index") throw new Error("index missing after sweep");
     expect(disk.index.entries[h.path]).toMatchObject({ markers: h.original.markers, notices: [], unshown: [],
       pending: true, refused: { reason: expect.stringContaining("resolution-in-progress") } });
@@ -56,7 +56,7 @@ describe("durable aside marker recovery", () => {
       lock: { scheduleEvery: () => () => undefined, readFile: async (path: string) => {
         if (armed && (await h.file().catch(() => "")).includes("resolution in progress")) {
           const alias = await access(copyPath).then(() => true, () => false);
-          const disk = await readProjectionIndex(h.location, true);
+          const disk = await readProjectionIndex(h.location, true, { groups: "all" });
           const entry = disk.kind === "index" ? disk.index.entries[h.path] : undefined;
           const published = entry?.kind === "record" && entry.markers !== null;
           const reached = stop === "linked" ? !published && alias : stop === "published" ? published && alias : !alias;
@@ -69,7 +69,7 @@ describe("durable aside marker recovery", () => {
       } },
     }) };
     await startProjection(input);
-    const disk = await readProjectionIndex(h.location, true);
+    const disk = await readProjectionIndex(h.location, true, { groups: "all" });
     const entry = disk.kind === "index" ? disk.index.entries[h.path] : undefined;
     if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("missing displaced marker file");
     const copy = entry.copies[0].name;

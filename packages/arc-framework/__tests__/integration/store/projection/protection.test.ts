@@ -76,7 +76,7 @@ async function fixture(extension = "md", paused = false) {
 }
 
 async function refresh(h: Awaited<ReturnType<typeof fixture>>) {
-  const disk = await readProjectionIndex(h.location, true);
+  const disk = await readProjectionIndex(h.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("The current projection index is missing");
   const entry = disk.index.entries[h.path];
   if (entry?.kind !== "record") throw new Error("The seeded entry is missing");

@@ -326,8 +326,8 @@ production composition set `projectionRemovalSlots` then, so every path ran the 
 ## A1 — installed stats and shared reference advances
 
 The inherited § 3.3 rule states: "Only a staged file's stat awaiting installation after that index write is exempt:
-a save to that file necessarily follows the new reference." `smudgeRacyEntries` implements that exemption through
-its `installing` set. A whole-index `commitProjectionIndex` smudged the entry again before every reference advance;
+a save to that file necessarily follows the new reference." The inherited `smudgeRacyEntries` implemented that exemption
+through its `installing` set. A whole-index `commitProjectionIndex` smudged the entry again before every reference advance;
 a partition left unchanged by value does not get that second write.
 
 The controlled-timestamp case in `smudging.test.ts` publishes an installing entry, saves different same-size bytes

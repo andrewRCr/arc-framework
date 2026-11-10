@@ -1,4 +1,6 @@
 /** Send the command's edited files, keeping ignored roots untouched while recording their landings. */
+import { withProjectionEntry } from "./index-memory.js";
+import { loadProjectionGroups } from "./index-memory.js";
 import { join } from "node:path";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { ProjectionRootState } from "./process-state.js";
@@ -38,6 +40,7 @@ export async function writeBackProjectionFiles(root: ProjectionRootState, initia
 }
 
 function adoptionRetries(root: ProjectionRootState, index: ProjectionIndex): string[] {
+  loadProjectionGroups(index, root.context.verb === "save" ? "all" : "walked");
   return Object.keys(index.entries).filter(path => {
     const entry = index.entries[path];
     const selected = root.context.verb === "save" || !path.startsWith(".arc/completed/");
@@ -130,7 +133,7 @@ function recordResolutionRefusal(request: TakeInRequest, result: TakeInResult): 
 }
 
 function withEntry(index: ProjectionIndex, path: string, entry: RecordEntry): ProjectionIndex {
-  return { ...index, entries: { ...index.entries, [path]: entry } };
+  return withProjectionEntry(index, path, entry);
 }
 function report(path: string, reason: string, remedy: string): void {
   projectionProcessState().diagnostics.push({ path, copy: null, mark: { reason, remedy: { text: remedy } } });

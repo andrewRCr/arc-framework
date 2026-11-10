@@ -394,7 +394,7 @@ describe("a save through a handle held across the move", () => {
 
 /** The entry the index on disk holds for a path. */
 async function onDisk(location: Parameters<typeof readProjectionIndex>[0], path: string): Promise<RecordEntry> {
-  const read = await readProjectionIndex(location, true);
+  const read = await readProjectionIndex(location, true, { groups: "all" });
   if (read.kind !== "index") throw new Error(`expected an index on disk, found ${read.kind}`);
   const entry = read.index.entries[path];
   if (entry?.kind !== "record") throw new Error(`expected a record entry at ${path}`);

@@ -61,6 +61,8 @@ export const ISOLATED_UNIT_MOCK_FILES = [
   "__tests__/unit/scripts/review-gate/runtime/confirm-delegation.test.ts",
   "__tests__/unit/scripts/review-gate/runtime/local-assurance-dispatch.test.ts",
   "__tests__/unit/scripts/review-gate/runtime/respond-composition.test.ts",
+  "__tests__/unit/store/projection/index-lock.test.ts",
+  "__tests__/unit/store/projection/index-recovery.test.ts",
   "__tests__/unit/sync-orchestrator.test.ts",
   "__tests__/unit/sync.test.ts",
   "__tests__/unit/template/ignore-files.test.ts",

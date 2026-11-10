@@ -1,4 +1,5 @@
 /** Retain an accepted creation's exact basis until guarded read-back installs its projected file. */
+import { withProjectionEntry } from "./index-memory.js";
 import type { WriteResult } from "../write.js";
 import type { ProjectionRootState } from "./process-state.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
@@ -22,7 +23,7 @@ export async function recordAdoptionAcceptance(root: ProjectionRootState, index:
   const pending = await recordPendingWriteBack({ ...root.context, entry, stamp: entry.base.blob,
     takenIn: content, version: accepted.version });
   const recorded = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: { ...index, entries: { ...index.entries, [path]: pending } }, checkpoint: root.context.checkpoint });
+    index: withProjectionEntry(index, path, pending), checkpoint: root.context.checkpoint });
   return resumeAdoptionReadBack(root, recorded, path, pending);
 }
 
@@ -67,19 +68,19 @@ async function completeAdoptionRecording(root: ProjectionRootState, index: Proje
     for (const mark of [retained, ...heldConflictMarks(updated.unshown, retained)]) root.context.report?.({ path, copy: null, mark });
   }
   return commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: { ...index, entries: { ...index.entries, [path]: updated } }, checkpoint: root.context.checkpoint });
+    index: withProjectionEntry(index, path, updated), checkpoint: root.context.checkpoint });
 }
 
 function completeReadBack(index: ProjectionIndex, path: string): ProjectionIndex {
   const entry = index.entries[path];
   if (entry?.kind !== "record" || entry.pending) return index;
-  return { ...index, entries: { ...index.entries, [path]: { ...entry, adoption: undefined } } };
+  return withProjectionEntry(index, path, { ...entry, adoption: undefined });
 }
 
 async function holdReadBack(root: ProjectionRootState, index: ProjectionIndex, path: string, entry: RecordEntry,
   mark: RefusedMark): Promise<ProjectionIndex> {
   root.context.report?.({ path, copy: null, mark });
   return commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: { ...index, entries: { ...index.entries, [path]: { ...entry, pending: true, refused: mark } } },
+    index: withProjectionEntry(index, path, { ...entry, pending: true, refused: mark }),
     checkpoint: root.context.checkpoint });
 }

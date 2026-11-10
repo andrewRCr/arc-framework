@@ -2,6 +2,7 @@
  * The swap: a batch of replacements, each moving the old file into the aside folder and linking its staged file onto
  * the path, between two index writes, so a save timed into a replacement lands in the aside copy rather than being lost.
  */
+import { withProjectionEntry } from "./index-memory.js";
 import { mkdir, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { nameAsideFile, type AsideWriterInput } from "./aside.js";
@@ -85,9 +86,8 @@ interface PlannedSwap {
  */
 export async function swapBatch(input: SwapBatchInput): Promise<SwapBatchResult> {
   const plans = await Promise.all(input.files.map(async (file) => plan(input, file)));
-  const installing = new Set(plans.filter((each) => each.staged !== null).map((each) => each.path));
   let index = await commitProjectionIndex({
-    location: input.location, checkout: input.checkout, installing, checkpoint: input.checkpoint,
+    location: input.location, checkout: input.checkout, checkpoint: input.checkpoint,
     index: plans.reduce((built, each) => withEntry(built, each.path, each.entry), input.index),
   });
   const copies: { path: string; copy: string }[] = [];
@@ -125,7 +125,8 @@ export async function dropRemovedEntries(index: ProjectionIndex, checkout: strin
     if (entry?.kind === "record" && entry.copies.length === 0 && await readStat(join(checkout, path)) === null) gone.add(path);
   }
   if (gone.size === 0) return index;
-  return { ...index, entries: Object.fromEntries(Object.entries(index.entries).filter(([path]) => !gone.has(path))) };
+  for (const path of gone) index = withProjectionEntry(index, path, undefined);
+  return index;
 }
 
 /** The entry the second write records: what a file the batch put in place no longer needs. */
@@ -272,7 +273,7 @@ function yielded(swap: PlannedSwap): RecordEntry {
 }
 
 function withEntry(index: ProjectionIndex, path: string, entry: RecordEntry): ProjectionIndex {
-  return { ...index, entries: { ...index.entries, [path]: entry } };
+  return withProjectionEntry(index, path, entry);
 }
 
 function remainingCopies(index: ProjectionIndex, copies: readonly ReturnedCopy[]): ReturnedCopy[] {

@@ -1,4 +1,6 @@
 /** Change detection by Git's racy rule: a stat match is clean only when older than the index's reference. */
+import { withProjectionEntry } from "./index-memory.js";
+import { replaceLoadedProjectionEntries } from "./index-memory.js";
 import type { BigIntStats } from "node:fs";
 import { lstat, mkdir, readFile as fsReadFile, stat as fsStat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -31,23 +33,22 @@ export async function writeReference(checkout: string, checkpoint?: () => Promis
 }
 
 /**
- * Smudge observed entry and ignore-file stats racy against the old reference, including observations just made. Only
- * stats for staged files installed after this write are exempt: their saves necessarily follow the new reference.
+ * Smudge every observed entry and ignore-file stat racy against the old reference, including staged files whose
+ * installation follows publication. Untouched partitions must remain safe after later reference advances.
  * @param index - The index about to be written.
  * @param reference - The reference it replaces, null where missing, which makes every one racy.
- * @param installing - Paths whose staged files will be installed after this index write.
  * @returns The index to write.
  */
 export function smudgeRacyEntries(
-  index: ProjectionIndex, reference: bigint | null, installing: ReadonlySet<string> = new Set(),
+  index: ProjectionIndex, reference: bigint | null,
 ): ProjectionIndex {
   const entries = Object.fromEntries(Object.entries(index.entries).map(([path, entry]) => (
-    [path, installing.has(path) ? entry : { ...entry, stat: smudged(entry.stat, reference) }]
+    [path, { ...entry, stat: smudged(entry.stat, reference) }]
   )));
   const ignoreFiles = index.ignoreFiles?.map((record) => (
     record.stat === null ? record : { ...record, stat: smudged(record.stat, reference) }
   )) ?? null;
-  return { ...index, entries, ignoreFiles };
+  return { ...replaceLoadedProjectionEntries(index, entries), ignoreFiles };
 }
 
 function smudged<T extends FileStat | null>(stat: T, reference: bigint | null): T {
@@ -65,7 +66,7 @@ function smudged<T extends FileStat | null>(stat: T, reference: bigint | null): 
 export function recordCleanStat(index: ProjectionIndex, path: string, stat: FileStat): ProjectionIndex {
   const entry = index.entries[path];
   if (entry?.kind !== "record") throw new Error(`No record entry at ${path}`);
-  return { ...index, entries: { ...index.entries, [path]: { ...entry, stat } } };
+  return withProjectionEntry(index, path, { ...entry, stat });
 }
 
 /** What a check compares a file against: its recorded stat, the blob id last written there, and the reference. */

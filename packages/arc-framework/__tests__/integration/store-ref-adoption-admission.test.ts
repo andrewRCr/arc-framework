@@ -29,7 +29,7 @@ it("adopts an empty settled Markdown companion and installs its stamp", async ()
   await startProjection({ store: f.store, checkout: f.root });
   const reference = recordReferences["work-item/companion"](primary.reference.owner, "empty.md");
   expect(await f.store.read({ reference })).toMatchObject({ status: "ok", result: { reference, content: "" } });
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing projection index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
   expect(parseStampedFile(await readFile(absolute, "utf8"))).toMatchObject({ content: "", stamp: expect.any(String) });
@@ -61,7 +61,7 @@ it.each(["companion", "inbound"])("retains an accepted %s's exact basis when rea
   await startProjection({ store: f.store, checkout: f.root });
   if (accepted === undefined || repair === undefined) throw new Error("The fixture did not reach the accepted-write boundary");
   expect(accepted.reference).toEqual(reference);
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing held index");
   expect(held.index.entries[path]).toMatchObject({ kind: "record", reference: accepted.reference, pending: true,
     base: { version: accepted.version }, refused: { reason: expect.stringContaining("read-back failed") } });
@@ -74,7 +74,7 @@ it.each(["companion", "inbound"])("retains an accepted %s's exact basis when rea
   expect(success(await f.store.version())).toBe(beforeRetry);
   expect(success(await f.store.read({ reference })).content).toBe(stored.content);
   expect(stored.content).toContain(prose);
-  const settled = await readProjectionIndex(projected.location, true);
+  const settled = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (settled.kind !== "index") throw new Error("Missing settled index");
   expect(settled.index.entries[path]).toMatchObject({ kind: "record", reference: accepted.reference, pending: false, refused: null });
   expect(settled.index.entries[path]).not.toHaveProperty("adoption");
@@ -96,7 +96,7 @@ it.each(["metadata", "review"])("preserves the backend's %s path refusal and ado
   await writeFile(join(f.root, path), content);
   const before = success(await f.store.version());
   await startProjection({ store: f.store, checkout: f.root });
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing refused index");
   expect(held.index.entries[path]).toMatchObject({ kind: "ownerless", refused: { remedy: denied.refusal.remedy } });
   expect(held.index.entries[path]?.refused?.reason).toContain(denied.refusal.condition);
@@ -108,7 +108,7 @@ it.each(["metadata", "review"])("preserves the backend's %s path refusal and ado
   await startProjection({ store: f.store, checkout: f.root });
   const repaired = recordReferences["work-item/companion"](owner, repairedKey);
   expect(success(await f.store.read({ reference: repaired })).content).toBe(content);
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing repaired index");
   expect(disk.index.entries[path]).toBeUndefined();
   expect(disk.index.entries[repairedPath]).toMatchObject({ kind: "record", reference: repaired, pending: false, refused: null });
@@ -126,7 +126,7 @@ it("adopts a new inbound list with stored entry identities and lays the same sto
   expect(record.content).toMatch(/- _Id:_ `[0-9a-f]{8}`/u);
   expect(record.content).toContain("Authored prose");
   expect(parseStampedFile(await readFile(join(f.root, path), "utf8")).content).toBe(record.content);
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing inbound adoption index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
 });
@@ -141,7 +141,7 @@ it("keeps another person's Planning inbound list unadopted and accepts the same 
   await startProjection({ store: f.store, checkout: f.root });
   expect(success(await f.store.version())).toBe(before);
   expect(await readFile(absolute, "utf8")).toBe(content);
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing refused index");
   expect(held.index.entries[path]).toMatchObject({ kind: "ownerless", refused: {
     reason: expect.stringContaining("bob"), remedy: { text: expect.stringContaining("bob") },
@@ -155,7 +155,7 @@ it("keeps another person's Planning inbound list unadopted and accepts the same 
   const record = success(await f.store.read({ reference }));
   expect(record.content).toContain("Preserved authored prose");
   expect(parseStampedFile(await readFile(absolute, "utf8")).content).toBe(record.content);
-  const repaired = await readProjectionIndex(projected.location, true);
+  const repaired = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (repaired.kind !== "index") throw new Error("Missing repaired index");
   expect(repaired.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
 });

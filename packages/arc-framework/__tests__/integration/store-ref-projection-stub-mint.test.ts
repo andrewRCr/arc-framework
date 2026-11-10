@@ -284,7 +284,7 @@ it.each([
   expect((await selection(f.store, f.root)).exitCode).toBe(0);
   expect((await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("beta") })).status).toBe("refused");
   expect(success(await f.store.version())).toBe(before);
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("No ownerless-file index");
   expect(held.index.entries[path]).toMatchObject({ kind: "ownerless", refused: { reason: expect.stringContaining(fault.reason) } });
   await writeFile(join(f.root, path), valid);
@@ -306,7 +306,7 @@ it("keeps another owner's proposed metadata unminted and adopts after the handov
   expect((await selection(f.store, f.root)).exitCode).toBe(0);
   expect(success(await f.store.version())).toBe(before);
   expect((await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("beta") })).status).toBe("refused");
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("No ownerless-file index");
   expect(held.index.entries[path]).toMatchObject({ kind: "ownerless", refused: { reason: expect.stringContaining("Owner bob"),
     remedy: { text: expect.stringContaining("arc handover beta --to bob") } } });
@@ -329,7 +329,7 @@ it("names the cohort in a missing-meta remedy and adopts the files once a valid 
   const before = success(await f.store.version());
   expect((await selection(f.store, f.root)).exitCode).toBe(0);
   expect(success(await f.store.version())).toBe(before);
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("No ownerless companion index");
   expect(held.index.entries[notePath]).toMatchObject({ kind: "ownerless", refused: {
     remedy: { text: expect.stringMatching(/arc stub beta .*--cohort team/u) },
@@ -338,7 +338,7 @@ it("names the cohort in a missing-meta remedy and adopts the files once a valid 
   await writeFile(join(f.root, metaPath), "This file has no metadata heading or core table.\n");
   expect((await selection(f.store, f.root)).exitCode).toBe(0);
   expect(success(await f.store.version())).toBe(before);
-  const malformed = await readProjectionIndex(projected.location, true);
+  const malformed = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (malformed.kind !== "index") throw new Error("No malformed-metadata index");
   expect(malformed.index.entries[metaPath]).toMatchObject({ kind: "ownerless", refused: {
     remedy: { text: expect.stringMatching(/arc stub beta .*--cohort team/u) },
@@ -366,7 +366,7 @@ it("does not mint a nested prospective owner in an established outer folder and 
   expect(success(await f.store.version())).toBe(before);
   expect((await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("beta") })).status).toBe("refused");
   expect((await f.store.read({ reference: recordReferences["work-item/companion"](primary.reference.owner, "beta/note.txt") })).status).toBe("refused");
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("No ambiguous-file index");
   expect(held.index.entries[notePath]).toMatchObject({ kind: "ownerless", refused: { reason: expect.stringContaining("Conflicting work-item containers") } });
   await rename(join(f.root, nested), join(f.root, ".arc/backlog/planned/beta"));
@@ -415,7 +415,7 @@ it("requires ordinary field repair if the mint commits before its receipt can be
   expect((await selection(store, f.root)).exitCode).toBe(0);
   expect(success(await f.store.read({ reference: accepted.reference })).content).not.toContain("Prose retained across pre-publication interruption.");
   expect(await readFile(join(f.root, path), "utf8")).toBe(authored);
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("No conservative existing-record adoption");
   expect(held.index.entries[path]).toMatchObject({ kind: "record", reference: accepted.reference,
     refused: { reason: expect.stringContaining("meta.verb-owned-field") } });
@@ -447,7 +447,7 @@ it("preserves the executor's refusal remedy and mints after its destination is r
   expect((await selection(store, f.root)).exitCode).toBe(0);
   expect(success(await f.store.version())).toBe(before);
   expect(await readFile(join(f.root, path), "utf8")).toBe(authored);
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("No executor-refused metadata index");
   expect(held.index.entries[path]).toMatchObject({ kind: "ownerless", refused: { remedy } });
   available = true;
@@ -501,7 +501,7 @@ it("keeps the minted metadata binding when an earlier triggering filename refuse
   expect(selected.exitCode, selected.output).toBe(0);
   const primary = success(await f.store.read({ reference: success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("zeta") })).reference }));
   expect(primary.content).toContain("Keep the canonical metadata's authored rationale.");
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("No index retaining the minted canonical meta");
   expect(disk.index.entries[metaPath]).toMatchObject({ kind: "record", reference: primary.reference, pending: false });
   expect(disk.index.entries[invalidPath]).toMatchObject({ kind: "ownerless", refused: { reason: expect.stringContaining("no adoptable record address") } });

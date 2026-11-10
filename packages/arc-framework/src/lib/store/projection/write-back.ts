@@ -1,4 +1,6 @@
 /** Prepare a projected edit without writing, then send it through the caller-owned take-in port. */
+import { readReference } from "./change-detection.js";
+import { withProjectionEntry } from "./index-memory.js";
 import { prepareIndexedProjectionSubmission, submitProjectionBatch } from "./submission.js";
 import type { ProjectionLocalCapture } from "./local-capture.js";
 import { markStoreRefusal } from "./refusal-mark.js";
@@ -461,9 +463,8 @@ async function markOtherCopies(context: WriteBackContext, request: TakeInRequest
   if (disk.kind !== "index") return request.entry;
   const entry = disk.index.entries[request.path];
   if (entry?.kind !== "record") return request.entry;
-  await writeProjectionIndex(context.location, { ...disk.index, entries: {
-    ...disk.index.entries, [request.path]: recordWriteBackSent(entry, request.copy),
-  } }, context.checkpoint);
+  await writeProjectionIndex(context.location, withProjectionEntry(disk.index, request.path, recordWriteBackSent(entry, request.copy)),
+    context.checkpoint, await readReference(request.checkout));
   return recordWriteBackSent(request.entry, request.copy);
 }
 

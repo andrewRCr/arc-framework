@@ -36,7 +36,7 @@ it("takes in an unindexed work-item file against its existing stamped record", a
   await writeFile(join(f.root, path), renderStampedFile({ content, stamp: gitBlobId(body, "sha1") }));
   await startProjection({ store: f.store, checkout: f.root });
   expect(success(await f.store.read({ reference })).content).toBe(content);
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing adopted-file index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
 });
@@ -58,7 +58,7 @@ it("takes in an unindexed current cohort copy against the associated cohort's ex
   const listed = success(await f.store.list({ family: "cohort", kind: "cohort/document" }));
   if (listed.status !== "complete") throw new Error("Expected complete native cohort inventory");
   expect(listed.records.map(record => record.reference)).toEqual([cohort.reference]);
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing adopted-copy index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference: cohort.reference, pending: false, refused: null });
 });
@@ -72,7 +72,7 @@ it("holds an unassociated cohort copy until its work unit's membership is repair
   await writeFile(join(f.root, path), bytes);
   const before = success(await f.store.version());
   await startProjection({ store: f.store, checkout: f.root });
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing unassociated-copy index");
   expect(held.index.entries[path]).toMatchObject({ kind: "ownerless", refused: {
     reason: expect.stringContaining("membership"), remedy: { text: expect.stringContaining("Cohort field") },
@@ -82,7 +82,7 @@ it("holds an unassociated cohort copy until its work unit's membership is repair
   success(await f.store.write(update(f, primary, writeMetaCohort(primary.content, name))));
   await startProjection({ store: f.store, checkout: f.root });
   expect(success(await f.store.read({ reference: cohort.reference })).content).toBe(content);
-  const settled = await readProjectionIndex(projected.location, true);
+  const settled = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (settled.kind !== "index") throw new Error("Missing repaired-copy index");
   expect(settled.index.entries[path]).toMatchObject({ kind: "record", reference: cohort.reference, pending: false, refused: null });
 });
@@ -116,7 +116,7 @@ it.each(["companion", "inbound"])("remembers an existing %s's accepted edit thro
   await startProjection({ store: f.store, checkout: f.root });
   await endProjection({ store: f.store, checkout: f.root });
   if (accepted === undefined || repair === undefined) throw new Error("The fixture did not reach the accepted-write boundary");
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing accepted-file index");
   expect(held.index.entries[path]).toMatchObject({ kind: "record", reference: accepted.reference, pending: true,
     base: { blob: gitBlobId(body, "sha1"), version: original.version },
@@ -138,7 +138,7 @@ it.each(["companion", "inbound"])("remembers an existing %s's accepted edit thro
   await startProjection({ store: f.store, checkout: f.root });
   await endProjection({ store: f.store, checkout: f.root });
   expect(success(await f.store.version())).toBe(beforeRetry);
-  const excluded = await readProjectionIndex(projected.location, true);
+  const excluded = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (excluded.kind !== "index") throw new Error("The linked destination lost its accepted-write index");
   expect(excluded.index.entries[path]).toMatchObject({ reference: pendingEntry.reference, base: pendingEntry.base,
     adoption: pendingEntry.adoption, persisted: pendingEntry.persisted, pending: true, refused: pendingEntry.refused });
@@ -167,7 +167,7 @@ it.each(["companion", "inbound"])("remembers an existing %s's accepted edit thro
   const stored = success(await f.store.read({ reference })).content;
   expect(stored.replace(/^- _Id:_.*\n/gmu, "")).toBe(content);
   const storedId = /^- _Id:_ `([0-9a-f]{8})`/mu.exec(stored)?.[1];
-  const settled = await readProjectionIndex(projected.location, true);
+  const settled = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (settled.kind !== "index") throw new Error("Missing repaired-file index");
   expect(settled.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
   expect(settled.index.entries[path]).not.toHaveProperty("adoption");
@@ -203,7 +203,7 @@ it("binds an unindexed archived cohort file to its archive coordinates while its
   await writeFile(join(f.root, misplaced), bytes);
   const before = success(await f.store.version());
   await startProjection({ store: f.store, checkout: f.root, mode: "save" });
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing misplaced-archive index");
   expect(held.index.entries[misplaced]).toMatchObject({ kind: "ownerless", refused: {
     reason: expect.stringContaining("No unique archived cohort"), remedy: { text: expect.stringContaining("quarter and closeout") },
@@ -216,7 +216,7 @@ it("binds an unindexed archived cohort file to its archive coordinates while its
   expect(success(await f.store.read({ reference: archived.reference })).content).toBe(content);
   expect(success(await f.store.read({ reference: archived.reference })).placement).toEqual(placement);
   expect(success(await f.store.read({ reference: live.reference })).content).toBe(liveBody);
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing archived cohort adoption index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference: archived.reference, pending: false, refused: null });
 });
@@ -227,7 +227,7 @@ it("holds a project inbox until its unique project identity is established, then
   await writeFile(join(f.root, path), content);
   const before = success(await f.store.version());
   await startProjection({ store: f.store, checkout: f.root });
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing refused project-inbox index");
   expect(held.index.entries[path]).toMatchObject({ kind: "ownerless", refused: {
     reason: expect.stringMatching(/project identity/iu), remedy: { text: expect.stringContaining("identity record") },
@@ -239,7 +239,7 @@ it("holds a project inbox until its unique project identity is established, then
   await startProjection({ store: f.store, checkout: f.root });
   const reference = recordReferences["project-inbox/inbox"](identity.reference.owner);
   expect(success(await f.store.read({ reference })).content).toBe(content);
-  const disk = await readProjectionIndex(projected.location, true);
+  const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing adopted project-inbox index");
   expect(disk.index.entries[path]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
 });

@@ -46,7 +46,7 @@ async function project(input: { store: Store; record: StoreRecord; path: string;
     return bytes;
   };
   const disk = async () => {
-    const read = await readProjectionIndex(projected.location, true);
+    const read = await readProjectionIndex(projected.location, true, { groups: "all" });
     if (read.kind !== "index") throw new Error("The projection index is unreadable");
     return read.index;
   };
@@ -206,7 +206,7 @@ it.each(["command-start", "take-in"] as const)("preserves a standing hold token 
     expect(await readFile(join(h.checkout, copy.name), "utf8")).toBe(h.incoming);
   } else expect(projectionProcessState().resolution).toMatchObject({ accepted: false,
     refusal: { reason: expect.stringContaining("andrew") } });
-  const disk = await readProjectionIndex(h.location, true);
+  const disk = await readProjectionIndex(h.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("The command lost the index");
   expect(disk.index.entries[h.path]).toMatchObject({ refused: mark });
   expect(await h.file()).toBe(bytes);

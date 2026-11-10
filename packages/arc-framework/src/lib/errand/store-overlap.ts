@@ -27,7 +27,7 @@ export async function runStoreErrandOverlap(options: StoreErrandOverlapOptions):
   const self = await callerIdentity(options.store, frame);
   const entries = inFlight.entries.filter((entry) => !entryIsCaller(entry, self));
   const active = await resolveCheckoutLayoutContext(options.cwd);
-  const index = options.readIndex === undefined ? await readOverlapIndex(options.cwd) : await options.readIndex();
+  const index = options.readIndex === undefined ? await readOverlapIndex(options.cwd, options.targetPaths) : await options.readIndex();
   const classified = await resolveOverlapTargets(options, active, index);
   const code = classified.code, notes = classified.notes, state: ForeignArtifactOverlap[] = [];
   for (const item of classified.state) {

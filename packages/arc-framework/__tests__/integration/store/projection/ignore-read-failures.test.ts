@@ -101,7 +101,7 @@ it("keeps pending copies and index bytes intact through unreadable-policy refusa
   const h = await fixture(prepared.seeded.checkout);
   class Stop extends Error {}
   await expect(prepared.swap({ hooks: { afterMove: async () => { throw new Stop(); } } })).rejects.toBeInstanceOf(Stop);
-  const read = await readProjectionIndex(prepared.seeded.location, true);
+  const read = await readProjectionIndex(prepared.seeded.location, true, { groups: "all" });
   if (read.kind !== "index") throw new Error("expected the stopped index");
   const entry = read.index.entries[prepared.path];
   if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("expected a pending copy");

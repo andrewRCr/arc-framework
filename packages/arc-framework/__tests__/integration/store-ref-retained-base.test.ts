@@ -38,7 +38,7 @@ it("holds a missing retained Markdown base, continues another edit, and resumes 
   await save("opening\nfirst edit\nclosing\n");
   await startProjection({ store: f.store, checkout: f.root });
   await endProjection({ store: f.store, checkout: f.root });
-  const landed = await readProjectionIndex(projected.location, true);
+  const landed = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (landed.kind !== "index") throw new Error("Missing merged landing");
   const entry = landed.index.entries[path];
   if (entry?.kind !== "record" || entry.persisted?.takenIn.kind !== "copy") throw new Error("Merged input was not retained");
@@ -52,7 +52,7 @@ it("holds a missing retained Markdown base, continues another edit, and resumes 
   expect(success(await f.store.read({ reference: healthy.reference })).content).toBe("healthy edit\n");
   expect(success(await f.store.read({ reference: original.reference })).content).toBe("opening\nfirst edit\nclosing\nremote addition\n");
   expect(await readFile(join(f.root, path), "utf8")).toBe(bytes);
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing held index");
   expect(held.index.entries[path]).toMatchObject({ pending: true, persisted: entry.persisted });
   expect(projectionProcessState().diagnostics).toEqual(expect.arrayContaining([
@@ -95,7 +95,7 @@ it("holds an accepted adoption's missing input without resending and completes r
   await startProjection({ store: f.store, checkout: f.root });
   await endProjection({ store: f.store, checkout: f.root });
   if (repair === undefined) throw new Error("Accepted adoption was not interrupted");
-  const interrupted = await readProjectionIndex(projected.location, true);
+  const interrupted = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (interrupted.kind !== "index") throw new Error("Missing accepted index");
   const entry = interrupted.index.entries[path];
   if (entry?.kind !== "record" || entry.adoption?.kind !== "read-back" || !entry.persisted?.recording
@@ -110,7 +110,7 @@ it("holds an accepted adoption's missing input without resending and completes r
   expect(success(await f.store.read({ reference: healthy.reference })).content).toBe("Independent edit\n");
   expect(success(await f.store.read({ reference })).version).toBe(accepted.version);
   expect(await readFile(join(f.root, path), "utf8")).toBe(bytes);
-  const held = await readProjectionIndex(projected.location, true);
+  const held = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing held recording");
   expect(held.index.entries[path]).toMatchObject({ base: entry.base, persisted: entry.persisted, adoption: entry.adoption,
     pending: true, refused: { reason: expect.stringContaining("retained") } });
@@ -119,7 +119,7 @@ it("holds an accepted adoption's missing input without resending and completes r
   const beforeRetry = success(await f.store.version());
   await startProjection({ store: f.store, checkout: f.root });
   expect(success(await f.store.version())).toBe(beforeRetry);
-  const settled = await readProjectionIndex(projected.location, true);
+  const settled = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (settled.kind !== "index") throw new Error("Missing completed recording");
   expect(settled.index.entries[path]).toMatchObject({ pending: false, refused: null });
   expect(settled.index.entries[path]).not.toHaveProperty("adoption");

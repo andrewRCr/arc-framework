@@ -8,6 +8,7 @@ import { runSecondCheck } from "./second-check.js";
 import { removeTakenInCopies, TAKEN_IN_FOLDER } from "./taken-in.js";
 import { reportProjectionCopy } from "./report.js";
 import { readProjectionLinkBoundary } from "./discovery-links.js";
+import { loadProjectionGroups } from "./index-memory.js";
 
 /** Settle only this command's copies and collect unreferenced kept content under the same lease. */
 export async function finishProjectionRoot(root: ProjectionRootState): Promise<void> {
@@ -20,6 +21,7 @@ export async function finishProjectionRoot(root: ProjectionRootState): Promise<v
       await session.step();
       const fresh = await readProjectionIndex(root.location, true);
       if (fresh.kind !== "index") return;
+      loadProjectionGroups(fresh.index, "walked");
       const blockedByLink = await readProjectionLinkBoundary(root.checkout,
         [...root.copies.map(copy => copy.path), ...root.removals], root.ports.walkFs);
       const checked = await runSecondCheck({ location: root.location, checkout: root.checkout, index: fresh.index,
@@ -29,6 +31,7 @@ export async function finishProjectionRoot(root: ProjectionRootState): Promise<v
       for (const copy of checked.settled) reportProjectionCopy(copy.path, copy.copy, copy.settlement);
       const settled = await readProjectionIndex(root.location, true);
       if (settled.kind !== "index") return;
+      loadProjectionGroups(settled.index, "walked");
       const named = new Set(Object.values(settled.index.entries).flatMap(entry => (
         entry.kind === "record" && entry.persisted?.takenIn.kind === "copy" ? [entry.persisted.takenIn.name] : []
       )));
@@ -38,9 +41,10 @@ export async function finishProjectionRoot(root: ProjectionRootState): Promise<v
       root.checkpoint = null;
       state.lockHeld = false;
     }
-  }, { maxWaitMs: root.ports.maxWaitMs ?? SIBLING_LOCK_WAIT_MS }, root.ports.lock);
+  }, { maxWaitMs: root.ports.maxWaitMs ?? SIBLING_LOCK_WAIT_MS,
+    invalidatePartition: state.command?.checkout === root.checkout }, root.ports.lock);
   if (ended.status !== "done") state.diagnostics.push({ path: root.checkout, copy: null, mark: {
-    reason: `Projection end skipped: ${ended.status}${ended.status === "lost" ? `: ${ended.report}` : ""}`,
+    reason: `Projection end skipped: ${ended.status}${ended.status === "lost" || ended.status === "mismatch" ? `: ${ended.report}` : ""}`,
     remedy: { text: "Run the next command to sweep and settle the copies left behind." },
   } });
 }

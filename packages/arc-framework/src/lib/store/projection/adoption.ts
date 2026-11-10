@@ -1,4 +1,5 @@
 /** Adopt a discovered file through established ownership and the ordinary hand-edit checks. */
+import { withProjectionEntry } from "./index-memory.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { identifyArcFileAddress } from "../../layout/index.js";
@@ -109,17 +110,16 @@ async function reconcileAbsentAdoption(root: ProjectionRootState, index: Project
     root.context.report?.({ path, copy: null, mark });
     if (entry.stat === null && entry.refused.reason === mark.reason) return index;
     return commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
-      index: { ...index, entries: { ...index.entries, [path]: { ...entry, stat: null, refused: mark } } } });
+      index: withProjectionEntry(index, path, { ...entry, stat: null, refused: mark }) });
   }
-  const entries = Object.fromEntries(Object.entries(index.entries).filter(([key]) => key !== path));
   return commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
-    index: { ...index, entries } });
+    index: withProjectionEntry(index, path, undefined) });
 }
 
 async function refuse(root: ProjectionRootState, index: ProjectionIndex, path: string, stat: FileStat | null, mark: RefusedMark): Promise<ProjectionIndex> {
   root.context.report?.({ path, copy: null, mark });
   const previous = index.entries[path];
   return commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
-    index: { ...index, entries: { ...index.entries, [path]: { ...(previous?.kind === "ownerless" ? previous : {}),
-      kind: "ownerless", stat, refused: mark } } } });
+    index: withProjectionEntry(index, path, { ...(previous?.kind === "ownerless" ? previous : {}),
+      kind: "ownerless", stat, refused: mark }) });
 }

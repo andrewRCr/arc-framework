@@ -70,7 +70,7 @@ async function initializeProjection(input: ProjectionCommandInput): Promise<Proj
     location = await locateProjection(input.checkout, ports);
   }
   const result = await withProjectionLock(location, session => startUnderLease(effective, ports, location, session, unsent),
-    ports.maxWaitMs === undefined ? {} : { maxWaitMs: ports.maxWaitMs }, ports.lock);
+    { invalidatePartition: true, ...(ports.maxWaitMs === undefined ? {} : { maxWaitMs: ports.maxWaitMs }) }, ports.lock);
   if (result.status !== "done") return recordProjectionLockSkip(input.checkout, result, unsent);
   if (result.value.kind === "refused") state.diagnostics.push({ path: input.checkout, copy: null, mark: result.value.mark });
   if (result.value.kind === "skipped") {
@@ -104,7 +104,8 @@ export async function endProjection(input: ProjectionCommandInput): Promise<void
 /** Retain a lock failure and its retry remedy for command reporting and remaining projection work. */
 export function recordProjectionLockSkip(checkout: string, result: Exclude<ProjectionLockResult<never>, { status: "done" }>, pending: ReadonlySet<string>): Extract<ProjectionStart, { kind: "skipped" }> {
   const reason = result.status === "held" ? `Projection lock held by ${JSON.stringify(result.holder)}.`
-    : result.status === "lost" ? `Projection lease lost: ${result.report}` : "The worktree's Git directory is missing.";
+    : result.status === "lost" ? `Projection lease lost: ${result.report}`
+    : result.status === "mismatch" ? result.report : "The worktree's Git directory is missing.";
   const skip: ProjectionSkip = { reason: result.status, mark: { reason, remedy: {
     text: "The command will run with projection disabled. Retry after the lock or Git directory is available; unsent edits remain in their files.",
   } } };

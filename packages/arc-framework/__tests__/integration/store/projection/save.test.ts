@@ -293,7 +293,7 @@ it.each(["history", "primary-read"] as const)("keeps a late archived aside edit 
   await startProjection({ store: h.store, checkout: h.checkout, mode: "save", ports: () => ({ ...ports,
     writer: async () => ({ ...await ports.writer(), processInstance: "exited-archive-writer" }) }) });
   expect((await h.stored()).content).toBe(first);
-  const disk = await readProjectionIndex(h.location, true);
+  const disk = await readProjectionIndex(h.location, true, { groups: "all" });
   const entry = disk.kind === "index" ? disk.index.entries[h.path] : undefined;
   if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("The save retained no displaced editor copy");
   const copy = entry.copies[0].name;
@@ -360,7 +360,7 @@ it("keeps an interrupted archived stampless edit offline and names save before a
   expect(await startProjection({ store, checkout: h.checkout })).toMatchObject({ kind: "ready" });
   const root = projectionProcessState().roots.get(h.checkout);
   if (root === undefined) throw new Error("The command did not bind its projection root");
-  const disk = await readProjectionIndex(h.location, true);
+  const disk = await readProjectionIndex(h.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("The interrupted index is unavailable");
   expect(disk.index.entries[h.path]).toMatchObject({ inProgress: { replaces: original.base } });
   await withProjectionLock(h.location, async session => {
@@ -373,7 +373,7 @@ it("keeps an interrupted archived stampless edit offline and names save before a
   expect((await h.stored()).content).toBe(next);
   expect(await h.file()).toBe(content);
   expect(pulls).toBe(0);
-  expect(await readProjectionIndex(h.location, true)).toMatchObject({ kind: "index", index: { entries: { [h.path]: { pending: true } } } });
+  expect(await readProjectionIndex(h.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: { entries: { [h.path]: { pending: true } } } });
   expect(diagnostic).toContain(h.path);
   expect(diagnostic).toContain("arc save");
   expect((await save({ store, checkout: h.checkout })).errors).toBe("");
@@ -400,7 +400,7 @@ it.each(["meta", "tasks"] as const)("protects another person's archived %s and l
   expect((await save(h)).errors).toBe("");
   expect((await h.stored()).content).toBe(content);
   expect((await h.stored()).placement).toEqual(h.placement);
-  const disk = await readProjectionIndex(h.location, true);
+  const disk = await readProjectionIndex(h.location, true, { groups: "all" });
   expect(disk).toMatchObject({ kind: "index", index: { entries: { [h.path]: { protected: false, refused: null } } } });
   expect((await lstat(join(h.checkout, h.path))).mode & 0o222).not.toBe(0);
 });
@@ -691,13 +691,13 @@ it("preserves incompatible cohort choices while another edit lands, then resolve
   for (const choice of choices) expect(await readFile(join(h.checkout, choice.path), "utf8")).toBe(choice.bytes);
   expect(success(await h.store.read({ reference: h.current.reference }))).toMatchObject({ content: h.current.content, conflicts: [h.conflict] });
   expect(success(await h.store.read({ reference: h.extra.reference })).content).toBe(independent);
-  const held = await readProjectionIndex(h.location, true);
+  const held = await readProjectionIndex(h.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing held index");
   for (const path of h.paths) expect(held.index.entries[path]).toMatchObject({ changed: true });
   expect(selectProjectedMarkdown(held.index.entries, { changed: true })).toEqual(expect.arrayContaining(h.paths));
   for (const [i, path] of h.paths.entries()) if (i === 0) await writeFile(join(h.checkout, path), original[i]!);
   expect((await save(h, ["--resolve", formatConflictToken(h.conflict)])).result.status).toBe("refused");
-  const observedAgain = await readProjectionIndex(h.location, true);
+  const observedAgain = await readProjectionIndex(h.location, true, { groups: "all" });
   if (observedAgain.kind !== "index") throw new Error("Missing held index");
   for (const path of h.paths) expect(observedAgain.index.entries[path]).toMatchObject({ changed: true });
   const content = `${h.current.content}\nAgreed correction.\n`;
@@ -722,7 +722,7 @@ it("does not bypass a withheld cohort alias and resolves after that alias is rel
     remedy: { text: expect.stringContaining("delete") } } });
   expect(await Promise.all(h.paths.map(path => readFile(join(h.checkout, path), "utf8")))).toEqual(before);
   expect(success(await h.store.read({ reference: h.current.reference })).conflicts).toEqual([h.conflict]);
-  const held = await readProjectionIndex(h.location, true);
+  const held = await readProjectionIndex(h.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing held index");
   for (const alias of h.paths) expect(held.index.entries[alias]).toMatchObject({ pending: true,
     changed: alias === editedPath, refused: { reason: expect.stringContaining("withheld") } });
@@ -1021,7 +1021,7 @@ it("accepts a requested resolution already fulfilled by the start's aside sweep"
   const ports = createProjectionEnginePorts(h.checkout);
   await startProjection({ store: h.store, checkout: h.checkout, ports: () => ({ ...ports,
     writer: async () => ({ ...await ports.writer(), processInstance: "exited-resolution-writer" }) }) });
-  const disk = await import("../../../../src/lib/store/projection/index-file.js").then(module => module.readProjectionIndex(h.location, true));
+  const disk = await import("../../../../src/lib/store/projection/index-file.js").then(module => module.readProjectionIndex(h.location, true, { groups: "all" }));
   if (disk.kind !== "index") throw new Error("Missing projection index");
   const entry = disk.index.entries[h.path];
   if (entry?.kind !== "record" || entry.copies[0] === undefined) throw new Error("No displaced marked copy");
@@ -1045,7 +1045,7 @@ it("keeps a stopped archived swap outside a linked parent and recovers after dir
   await expect(startProjection({ store: h.store, checkout: h.checkout, mode: "save", ports: () => ({
     ...ports("interrupted-archive-command"), hooks: { afterMove: async () => { throw new Error("stopped archive swap"); } },
   }) })).rejects.toThrow("stopped archive swap");
-  const stopped = await readProjectionIndex(h.location, true);
+  const stopped = await readProjectionIndex(h.location, true, { groups: "all" });
   if (stopped.kind !== "index") throw new Error("Stopped index missing");
   const entry = stopped.index.entries[h.path];
   if (entry?.kind !== "record" || entry.copies.length === 0) throw new Error("Stopped copy missing");
@@ -1064,7 +1064,7 @@ it("keeps a stopped archived swap outside a linked parent and recovers after dir
   expect(await startProjection({ store: h.store, checkout: h.checkout, ports: () => ports("repaired-archive-command") }))
     .toMatchObject({ kind: "ready" });
   expect(await h.file()).toBe("archived hand edit\n");
-  expect((await readProjectionIndex(h.location, true))).toMatchObject({ kind: "index", index: {
+  expect((await readProjectionIndex(h.location, true, { groups: "all" }))).toMatchObject({ kind: "index", index: {
     entries: { [h.path]: { copies: [] } },
   } });
 });
@@ -1080,13 +1080,13 @@ it("leaves failed archived admission for explicit save after the condition is re
   const store = overrideEngineStore(h.f.store, { batch: input => blocked && input.writes[0]?.reference.kind === "work-item/companion"
     ? Promise.resolve({ status: "refused", refusal }) : h.f.store.batch(input) });
   expect((await save({ store, checkout: h.f.root })).errors).toContain(refusal.condition);
-  expect(await readProjectionIndex(h.projected.location, true)).toMatchObject({ kind: "index", index: {
+  expect(await readProjectionIndex(h.projected.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: {
     entries: { [path]: { kind: "ownerless" } },
   } });
   blocked = false;
   expect(await startProjection({ store, checkout: h.f.root })).toMatchObject({ kind: "ready", discovered: [] });
   expect(await h.f.store.read({ reference })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
-  expect(await readProjectionIndex(h.projected.location, true)).toMatchObject({ kind: "index", index: {
+  expect(await readProjectionIndex(h.projected.location, true, { groups: "all" })).toMatchObject({ kind: "index", index: {
     entries: { [path]: { kind: "ownerless" } },
   } });
   expect((await save({ store, checkout: h.f.root })).errors).toBe("");

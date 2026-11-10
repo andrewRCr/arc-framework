@@ -2,6 +2,8 @@
  * The sweep: every command, under the projection lock and before write-back reads a file, takes over the aside copies and
  * staged files a writer that has exited left, so a stop mid-swap loses no save.
  */
+import { withProjectionEntry } from "./index-memory.js";
+import { loadProjectionGroups } from "./index-memory.js";
 import { readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { isAdvisoryHolderAbandoned, type AdvisoryHolderObserver } from "../../advisory-lock.js";
@@ -81,6 +83,7 @@ export interface SweepResult {
  * @returns What the sweep did.
  */
 export async function sweepAsideFolder(input: SweepInput): Promise<SweepResult> {
+  if (input.index !== null) loadProjectionGroups(input.index, "walked");
   const reference = await readReference(input.checkout);
   const guarded = guardedProjectionRoots(input.guard.identity).map(({ path }) => path);
   const ignores = await checkIgnores({
@@ -165,7 +168,7 @@ async function takeOverRecorded(
     const record = current?.kind === "record" ? current.copies.find((record) => record.name === copy) : undefined;
     if (current?.kind !== "record" || record === undefined) continue;
     const outcome = await sweepCopy(input, path, current, record);
-    index = { ...index, entries: { ...index.entries, [path]: outcome.entry } };
+    index = withProjectionEntry(index, path, outcome.entry);
     swept.push({ path, copy: record.name, outcome });
   }
   return { index, swept, left };

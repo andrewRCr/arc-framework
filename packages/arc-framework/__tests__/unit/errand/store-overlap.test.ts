@@ -20,7 +20,7 @@ import { PROJECTION_STATE_FOLDER } from "../../../src/lib/store/projection/locat
 
 function indexedRecord(path: string, record: StoreRecord) {
   const blob = gitBlobId(record.content, "sha1");
-  return ProjectionIndexSchema.parse({ format: 1, state: null, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null,
+  return ProjectionIndexSchema.parse({ format: 2, state: null, withheldCopies: [], tripwires: {}, ignoreFiles: null, ignoreGuard: null,
     projectedUnder: { view: { mode: "mine", pins: [] }, identity: "alice", claim: null, layoutActive: "nested" },
     entries: { [path]: { kind: "record", reference: record.reference, stat: null,
       written: gitBlobId(renderStampedFile({ content: record.content, stamp: blob }), "sha1"),

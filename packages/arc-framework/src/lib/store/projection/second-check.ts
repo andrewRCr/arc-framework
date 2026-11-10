@@ -3,6 +3,7 @@
  * is checked once more before it is deleted, since a save that opened the file just before its move can write after
  * the first check. A copy still empty is left for the next command's sweep.
  */
+import { withProjectionEntry } from "./index-memory.js";
 import type { AsideWriterInput } from "./aside.js";
 import { settleAsideCopy, type CopySettlement } from "./aside-copies.js";
 import type { SwapMoves } from "./aside-moves.js";
@@ -58,7 +59,7 @@ export async function runSecondCheck(input: SecondCheckInput): Promise<SecondChe
       checkout, path, entry, copy: record, format, takeIn, writer, keepEmpty: true,
       fs: input.fs, retrySleep: input.retrySleep, gate: input.gate, checkpoint: input.checkpoint,
     }) : { kind: "not-a-file", path, copy, entry, remedy: projectionLinkRemedy(link) };
-    index = { ...index, entries: { ...index.entries, [path]: settlement.entry } };
+    index = withProjectionEntry(index, path, settlement.entry);
     settled.push({ path, copy, settlement });
   }
   // A removal completes once its file and the last aside copy of its path are gone.

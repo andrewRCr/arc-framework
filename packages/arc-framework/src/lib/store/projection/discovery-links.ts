@@ -6,6 +6,7 @@ import { commitProjectionIndex } from "./index-file.js";
 import type { Stats } from "node:fs";
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
+import { loadProjectionGroups, replaceLoadedProjectionEntries } from "./index-memory.js";
 
 type IndexEntry = ProjectionIndex["entries"][string];
 interface ProjectionLinkFs { readonly lstat: (path: string) => Promise<Pick<Stats, "isSymbolicLink">> }
@@ -51,6 +52,7 @@ export function projectionLinkRemedy(link: string): Remedy {
 /** Remove obsolete ownerless blockers and physical-file refusals, retaining exact records and recovery obligations. */
 export async function reconcileProjectionLinks(root: Pick<ProjectionRootState, "checkout" | "location" | "context" | "blockedByLink" | "unsent">,
   index: ProjectionIndex): Promise<ProjectionIndex> {
+  loadProjectionGroups(index, "walked");
   const entries = new Map(Object.entries(index.entries));
   let changed = false;
   for (const [path, entry] of Object.entries(index.entries)) {
@@ -62,7 +64,7 @@ export async function reconcileProjectionLinks(root: Pick<ProjectionRootState, "
     changed ||= next !== entry;
   }
   return changed ? commitProjectionIndex({ checkout: root.checkout, location: root.location,
-    checkpoint: root.context.checkpoint, index: { ...index, entries: Object.fromEntries(entries) } }) : index;
+    checkpoint: root.context.checkpoint, index: replaceLoadedProjectionEntries(index, Object.fromEntries(entries)) }) : index;
 }
 
 function withoutPhysicalEdit(entry: IndexEntry): IndexEntry | null {

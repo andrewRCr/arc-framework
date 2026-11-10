@@ -150,7 +150,7 @@ describe("stampless base agreement", () => {
       files: [{ path: fixture.path, replace: guarded }], readBack: false, takeIn,
       hooks: { afterMove: () => Promise.reject(new Error("stopped after move")) },
     })).rejects.toThrow("stopped after move");
-    const disk = await readProjectionIndex(fixture.location, true);
+    const disk = await readProjectionIndex(fixture.location, true, { groups: "all" });
     if (disk.kind !== "index") throw new Error("index unavailable");
     const entry = disk.index.entries[fixture.path];
     if (entry?.kind !== "record") throw new Error("entry unavailable");
@@ -219,7 +219,7 @@ describe("stampless base agreement", () => {
       content: current, provenance: { verb: "edit", lifecycleAction: "edit" } });
     if (other.status !== "ok") throw new Error("other writer refused");
     const refreshed = await refreshWriteBackFixture(source, index, { afterFirstCheck: async () => {
-      const disk = await readProjectionIndex(source.location, true);
+      const disk = await readProjectionIndex(source.location, true, { groups: "all" });
       if (disk.kind !== "index") throw new Error("index unavailable");
       const projected = disk.index.entries[source.path];
       const copy = projected?.kind === "record" ? projected.copies.at(-1) : undefined;

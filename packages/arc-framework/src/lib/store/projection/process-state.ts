@@ -17,7 +17,7 @@ import type { ProjectionResolution } from "./save-resolution.js";
 import type { ProjectionLinkBoundary } from "./discovery-links.js";
 
 /** A start that disables this command's projection while preserving the command's ordinary execution. */
-export interface ProjectionSkip { readonly reason: "no-identity" | "held" | "lost" | "gone" | "switch"; readonly mark: RefusedMark }
+export interface ProjectionSkip { readonly reason: "no-identity" | "held" | "lost" | "gone" | "switch" | "mismatch"; readonly mark: RefusedMark }
 
 /** Bound edit policy; an absent policy grants the edit. */
 export type ProjectionRights = (request: TakeInRequest) => Promise<RefusedMark | null>;

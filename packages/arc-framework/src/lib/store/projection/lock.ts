@@ -12,6 +12,7 @@ import {
   ADVISORY_LEASE_DURATION_MS, withRenewableLease, type RenewableLeaseDependencies,
 } from "../../renewable-lease.js";
 import { ensureProjectionStateFolder, type ProjectionLocation } from "./location.js";
+import { ProjectionPartitionMismatch } from "./index-memory.js";
 
 /** The lockfile's name in the state folder. */
 export const PROJECTION_LOCK_FILE = "lock";
@@ -29,7 +30,11 @@ export type ProjectionLockResult<T> =
   | { readonly status: "done"; readonly value: T }
   | { readonly status: "held"; readonly holder: AdvisoryLockHolder | "unreadable" | null }
   | { readonly status: "gone" }
-  | { readonly status: "lost"; readonly report: string };
+  | { readonly status: "lost"; readonly report: string }
+  | { readonly status: "mismatch"; readonly partition: string; readonly report: string };
+
+/** Wait bound and authority to invalidate a corrupt partition in the command's own checkout. */
+export interface ProjectionLockOptions { readonly maxWaitMs?: number; readonly invalidatePartition?: boolean }
 
 // Creates a lockfile only inside a state folder that exists, so no create recreates a removed worktree's Git directory.
 const createInExistingFolder = createAtomicFileCreator({
@@ -62,7 +67,7 @@ export type ProjectionLockDependencies = LeaseProcessDependencies & {
  */
 export async function withProjectionLock<T>(
   location: ProjectionLocation, operation: (session: ProjectionLockSession) => Promise<T>,
-  options: { readonly maxWaitMs?: number } = {}, overrides: Partial<ProjectionLockDependencies> = {},
+  options: ProjectionLockOptions = {}, overrides: Partial<ProjectionLockDependencies> = {},
 ): Promise<ProjectionLockResult<T>> {
   const deps: ProjectionLockDependencies = { ...NATIVE_LEASE_PROCESS, ...overrides };
   if (await ensureProjectionStateFolder(location) === "gone") return { status: "gone" };
@@ -72,7 +77,7 @@ export async function withProjectionLock<T>(
   const startedAt = deps.now();
   const acquired = await acquire(join(location.stateDir, PROJECTION_LOCK_FILE), lockFiles, options, deps);
   if ("status" in acquired) return acquired;
-  return runLeased(acquired, startedAt, operation, lockFiles, deps);
+  return runLeased(acquired, startedAt, operation, lockFiles, deps, location, options);
 }
 
 type LockFiles = Pick<AdvisoryLockOptions, "exclusiveCreate" | "readFile">;
@@ -105,6 +110,7 @@ class ProjectionLockLostError extends Error {}
 async function runLeased<T>(
   handle: AdvisoryLockHandle, startedAt: number, operation: (session: ProjectionLockSession) => Promise<T>,
   lockFiles: LockFiles, deps: ProjectionLockDependencies,
+  location: ProjectionLocation, options: ProjectionLockOptions,
 ): Promise<ProjectionLockResult<T>> {
   // Written by the lease's callbacks, so read through an object rather than a narrowed local.
   const state: { lost: boolean } = { lost: false };
@@ -118,8 +124,8 @@ async function runLeased<T>(
     writeLine: (line) => { lines.push(line); },
   };
   try {
-    const value = await withRenewableLease(handle, startedAt, async (ownership) => await operation({
-      step: async (): Promise<void> => {
+    const value = await withRenewableLease(handle, startedAt, async (ownership): Promise<ProjectionLockResult<T>> => {
+      const step = async (): Promise<void> => {
         if (state.lost) throw new ProjectionLockLostError("The projection lock was lost");
         try {
           await ownership.confirmOwnership();
@@ -129,12 +135,21 @@ async function runLeased<T>(
           lines.push(detail);
           throw new ProjectionLockLostError(detail);
         }
-      },
-    }), lease,
+      };
+      try { return { status: "done", value: await operation({ step }) }; }
+      catch (error) {
+        if (!(error instanceof ProjectionPartitionMismatch)) throw error;
+        if (options.invalidatePartition && error.location.stateDir === location.stateDir) {
+          await step();
+          await unlink(join(location.stateDir, error.partition)).catch(rethrowUnlessGone);
+        }
+        return { status: "mismatch", partition: error.partition, report: error.message };
+      }
+    }, lease,
       { lock: "Projection lock", controller: "this worktree's projection operation" });
     if (state.lost) return { status: "lost", report: lines.join("\n") };
     for (const line of lines) deps.writeLine(line);
-    return { status: "done", value };
+    return value;
   } catch (error) {
     if (state.lost) return { status: "lost", report: lines.join("\n") };
     for (const line of lines) deps.writeLine(line);
