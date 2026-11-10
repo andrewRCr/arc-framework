@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "cohort-prefixed-shipped-slug",
+  "claimId": "1cb92decf9c1c52f084f52881ec3b588",
+  "createdAt": "2026-11-10T16:05:14.608Z",
+  "updatedAt": "2026-11-10T16:05:14.608Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Count a shipped work unit whose slug starts with cohort- as shipped",
+  "branch": "chore/cohort-prefixed-shipped-slug",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
