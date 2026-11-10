@@ -1500,11 +1500,12 @@ draft, routed by the 2026-11-06 housekeep (PR #1290), since that member has no s
   grammar's state-only commit kinds (`lib/commit-check/artifact-resolver.ts`; `spec-storage-contract.md` L1930 and its
   register key 65), where this draft rewrites only the `commit-format` method's wording; and the interim
   `personal/session-context` kind (`KIND_MECHANISMS`, `interim: true`; `spec-storage-ref-backend.md` L662,
-  `spec-seam-status-roadmap.md` L690), which this draft lists only as a parser exception. That unit now names the
-  footer's state-only kinds (`artifact-resolver.ts`, `policy.ts`) as its own, since this draft rewrites only the
-  `commit-format` wording, and places `personal/session-context` in its collapse share unless this unit removes the kind
-  with the workspace (by message, 2026-11-10, Owner-approved); whichever of the two this spec takes leaves that unit's
-  draft, so tell it by message.
+  `spec-seam-status-roadmap.md` L690), which this draft lists only as a parser exception. The footer's state-only kinds
+  go to neither cutover unit: `ghost-mode` owns the footer policy, `commit.context_footer`, and the commit hook, and
+  keeps footers as they are until the store's task capture exists (`cohort-state-storage.md`'s closed footer-grammar
+  row; `draft-ghost-mode.md` § The footer policy; corrected by message, 2026-11-10). `cutover-tracked-state-removal`
+  places `personal/session-context` in its collapse share unless this unit removes the kind with the workspace (by
+  message, 2026-11-10, Owner-approved); if this spec takes it, it leaves that unit's draft, so tell it by message.
 
 - _Approach:_ verify each against its source line, then fold, hand to the member it belongs to, or dismiss.
 
