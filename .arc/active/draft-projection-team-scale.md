@@ -12,10 +12,11 @@
 
 ## Drafting status
 
-- **Readiness:** maturing. The scope is known, and what stays open is D's detail design (§ Open below).
+- **Readiness:** formalization-ready (2026-11-10). The readiness check's first run returned not-ready on two design
+  gaps source grounding found; both settled the same day (§ What `arc sync` takes over), and its rerun returned ready.
 - **Entry read (2026-11-10, re-read after the split):** `Class` stays `Heavy`. A real design must be authored — D's
   transition invariants, the archive pickup at `arc save`, the opened set's read, and forward amendments to two
-  specifications — composed from existing pieces (protection, write-back's admission, adoption, and the index's
+  specifications and ADR-035 — composed from existing pieces (protection, write-back's admission, adoption, and the index's
   partitions), so nothing must be invented. Design already authored here (§ Settled at drafting) floors it there. The
   stage runs at `high` depth: D changes which archive edits `arc save` picks up, where a miss is silent loss.
 - **Boundary:** split on 2026-11-10 (Owner). Anchoring the design at this repository's measured throughput and at teams
@@ -28,12 +29,14 @@
   `arc save`, and its amendments land together or not at all.
 - **Resolved:** D's command, rights, and sequence (§ Settled at drafting), sent to `cutover-flip`'s session on
   2026-11-10; the opened set's read, § 15.1's walk, and a refresh's pickup of an archived edit (§ D's amendments), D's
-  part of the scale criterion, and ADR-035's disposition (§ D and ADR-035), settled the same day.
-- **Open:**
-    1. Whether this design adds a prepared store write of its own (§ Transition invariants).
-    2. The amendments' text: § 8.4 and § 15.1 of `spec-projection-write-back.md`, and § 3.1 and § 16.3 of
-       `spec-projection-worktrees.md`, from what § D's amendments settles.
-- **Next:** the prepared-write check, then the amendments' text, then readiness.
+  part of the scale criterion, and ADR-035's disposition (§ D and ADR-035), settled the same day; and no prepared
+  store write of D's own, with its local step pairs ordered (§ Transition invariants), and what `arc sync` takes over
+  from `arc save`'s archive walk (§ What `arc sync` takes over).
+- **Carried to the specification:** the forward amendments' text — § 8.4 and § 15.1 of
+  `spec-projection-write-back.md`, § 2.4, § 3.1, and § 16.3 of `spec-projection-worktrees.md`, and the remedy sentence
+  in § 3.1 and § 16.2 there — written from § D's amendments, each printed remedy's text a build task, and each
+  transition invariant's perturbation test.
+- **Next:** planning review, then capture and `create-spec`.
 
 ## Scope
 
@@ -42,6 +45,9 @@
   `spec-projection-write-back.md` § 8.4 come with it: in-place archive corrections, and their pickup at `arc save`.
 - **The opened set's read and § 15.1's walk,** as forward amendments to `spec-projection-worktrees.md` § 3.1 and
   § 16.3 and `spec-projection-write-back.md` § 15.1.
+- **What `arc sync` takes over from `arc save`'s archive walk:** the remedy for a mismatched archive partition, and a
+  report of archived files changed without `arc edit`, as forward amendments to `spec-projection-worktrees.md` § 2.4,
+  § 3.1, and § 16.2.
 - **D's part of the growth-relative scale criterion:** `arc save` with a large archive.
 - **ADR-035's amendment for D:** item 6's read-only archive (§ D and ADR-035).
 - **The errata convention's command,** coordinated with `cutover-flip` (guard 3).
@@ -89,7 +95,24 @@ operation continuing. The cases known now:
   re-derives its decision in a write check over `before`, or observes everything that decision read. Its perturbation
   test injects a store change between preparation and the batch for each kind of read the preparation makes. `arc edit`
   writes no store record, and an opened file lands through write-back's own prepared admission
-  (`spec-projection-write-back.md` § 7.2), so whether this design adds a prepared write of its own is open.
+  (`spec-projection-write-back.md` § 7.2).
+
+Checked on 2026-11-10: D adds no prepared store write. `arc edit` reads edit rights to refuse early, then writes only
+the worktree's index and the file's write bit; the rights that bind are re-read at landing, where write-back's
+admission observes the claim it depends on (`frozenCheckoutRights`, `lib/store/projection/rights.ts`;
+`spec-projection-write-back.md` § 7.2). A new path adopts through § 9's existing route, and the re-lock at `arc save`
+is local. D's own step pairs are local, each under the worktree's projection lock, ordered so a stop between them
+leaves a state the next command repairs:
+
+- **`arc edit`:** the opened mark first, then the write bit. A stop between leaves an opened file still read-only,
+  which `arc save` finds unchanged, lays read-only, and unmarks; the reverse order would leave a writable, unmarked
+  file, a forced edit once changed.
+- **`arc save`:** the landing, then the read-only lay, then the mark cleared. A stop after the landing leaves the file
+  writable and still marked, which the next `arc save` finds unchanged and re-locks; clearing the mark earlier would
+  leave a writable, unmarked file.
+
+Each pair takes a perturbation test that stops it between its steps, asserts the state above, and runs `arc save` to
+completion.
 
 ## Held design text — D
 
@@ -163,6 +186,15 @@ Settled with the Owner on 2026-11-10. Where these differ from the held text abov
 unsettled, so its partition carries the header's mark and every command's start reads it (§ The opened set's read). A
 new path opened takes a record entry carrying an adoption, so, as with an opened file's edit, the first command after
 the file appears adopts it, and `arc save` lays it read-only.
+
+### Details the readiness pass closed
+
+Each is the one answer the settled items leave (2026-11-10), recorded so two builders do not diverge:
+
+- **`arc edit` outside the archive refuses.** A path outside an archived work unit's folder, or in a checkout that
+  holds no projection (`spec-projection-worktrees.md` § 2.5), refuses, naming why: an in-flight file is edited in place,
+  and a protected one names where it can be edited, as its notice does (`spec-projection-write-back.md` § 8.2).
+  `arc edit` on a file already opened succeeds and changes nothing.
 
 ### The scale anchor
 
@@ -243,6 +275,39 @@ Settled with the Owner on 2026-11-10.
   edit a refresh meets, and lays the file read-only again. Rights apply as anywhere, so an edit its maker may not make
   is refused there. This keeps the third pickup shipped § 8.4 names, "when a refresh touches the file".
 
+### What `arc sync` takes over
+
+Settled with the Owner on 2026-11-10, after source grounding found that two things rested on `arc save` reading the
+whole archive:
+
+- **The remedy for an archive partition that does not hash to its name is `arc sync`.** `spec-projection-worktrees.md`
+  § 3.1, and its § 16.2 amendment of `spec-projection-substrate.md`, have the removal check and the persist and release
+  steps name `arc save`, "whose start reads every partition and so rebuilds the index", since an ordinary start reads
+  only the partitions it walks and those the header marks, so never notices an unmarked archive partition gone, the
+  defect that section's 2026-11-07 fix check found. Under D, `arc save` reads as any start does. The amendment has
+  `arc sync`'s full materialization (§ 2.4 there) read every partition — § 3.1 already names it among the readers that
+  find a mismatch when they reach one — and makes a mismatch it finds leave the index unusable there and then, so it
+  materializes in full as for any index a command cannot use (§ 2.5 there), rather than deleting the partition and
+  leaving the rebuild to a start that would not read it. The remedy each refusal prints names
+  `arc sync` run from that checkout.
+- **`arc sync` reports an archived file changed without `arc edit`.** Claude Code's Edit and Write, Vim's and Neovim's
+  `:w!`, and Emacs's forced save write through the read-only mode (`spec-projection-write-back.md` § 8.2, § Spike 3),
+  so of § 8.2's three layers only the notice line reaches them before removal. Until D, the `arc save` the flip's
+  workflows run at each increment and at handoff took such an edit in. Under D, `arc sync`'s full materialization
+  compares each archived file it visits against its entry and names each one changed while not opened, with the remedy
+  `arc edit` then `arc save`. It takes nothing in, so settled item 4 stands: such an edit lands when a refresh touches
+  the file or after `arc edit` and `arc save`, and the removal refuses over it.
+- **Chosen over** accepting the gap, which leaves an edit in a checkout that is never removed unpersisted with no
+  signal, and over taking the edit in at `arc sync`, which would leave the removal refusing what sync and a refresh
+  land. The report costs sync one read of the archive's partitions beside its visit to every projected path: about
+  0.4–0.7 s at 60,000 archived files on Windows against the 5 s materialization tripwire, about 15 ms at this
+  repository's size, and about 1 s more at 60,000 files should the materialization not already stat every path.
+- **The residual:** with the sync setting `manual`, handoff runs no `arc sync`, so the report waits for a sync someone
+  runs.
+- **An opened file's edit persists at removal.** The persist and release steps persist an opened file's edit as shipped
+  § 8.4 has them persist any archived correction, and the removal takes the file; only a file changed while not opened
+  is refused there.
+
 ## The growth-relative scale criterion
 
 Two wordings, both verbatim. The design brief's, approved with A–E but not yet put to the Owner as a criterion:
@@ -293,6 +358,27 @@ reader-independence rule asks:
 > file with `arc edit <path>`, which makes it writable in that worktree under the same edit rights, and persists at
 > `arc save`, which lays it read-only again. The decision stands: the store is authoritative, and the working copy sits
 > at the familiar paths, opened in a person's own editor.
+
+## ADR dispositions
+
+- **D — the read-only archive and `arc edit`** (§ Settled at drafting, items 1–5, and the details above): covered by
+  ADR-035, which this unit amends (§ D and ADR-035). The command's contract is the amendment's subject; the name's
+  alternatives and rationale stay in the specification.
+- **ADR-035 item 6:** an amendment to ADR-035, delivered with D.
+- **The opened set's read through the per-partition mark** (§ D's amendments): `none` — a tactical choice inside the
+  projection index, whose format its specification defines; the alternative weighed is recorded there.
+- **§ 15.1's walk:** `none` — it follows from the mark, obvious from the code.
+- **A refresh's pickup of an archived edit:** covered by ADR-035 item 7, Accepted on the base branch: no write is lost
+  silently, and a refresh never overwrites an unsynced edit.
+- **D's part of the scale criterion:** `none` — a success criterion, meeting none of the five criteria.
+- **No prepared store write, and the local steps' order** (§ Transition invariants): `none` — tactical.
+- **`arc sync` as the partition remedy, and its report of unopened archive edits** (§ What `arc sync` takes over):
+  `none` — tactical choices inside the projection's commands, which their specifications define; the alternatives
+  weighed are recorded there. An opened file's edit persisting at removal is covered by ADR-035 item 7: no write is
+  lost silently.
+- **The corrections to the held text:** `none` — they record the existing lifecycle and decide nothing.
+- **The scale anchor:** `none` here. ADR-035 item 7's envelope is realigned through the capture for
+  `arc-coordination-service`, not by this unit.
 
 ## Seams this builds on
 
