@@ -1112,6 +1112,13 @@ specification's hand-off to the cutover adds to the map, or where the map leaves
 - **The errata convention** (H4; Owner, 2026-11-05). `archive-work-unit.md` § Post-`Shipped` errata convention says
   "git history is the lock", which misleads once a shipped meta is a stored record: a correction becomes a write to the
   completed item, and its history is the store's history of the archived meta (`spec-projection-write-back.md` § 8.4).
+  The convention is written around `arc edit <path>` (Owner, 2026-11-10, in `projection-team-scale`'s draft, relayed by
+  `draft-design.PTS`), which supersedes `arc unlock` and keeps § 8.4's rights: from the flip archived files lay
+  read-only, protected with reason `archive` and a notice naming `arc edit`; `arc edit` makes one file writable in that
+  worktree, changing no content, and refuses wherever the edit itself would be refused, naming the owner; `arc save`
+  lands the edit and lays the file read-only again. The errata flow is `arc edit` on the archived meta, the edit to its
+  Release Notes Entry, then `arc save`. A substantial change is a new, origin-linked work unit, since no verb reopens
+  archived work (`spec-seam-lifecycle.md` § 8.7).
 - **The planning-lane prose.** `run-errand.md`, `drain-inbox.md`, `setup-merge-gate.md`, `draft-design.md`'s "Ship
   instead of pause", and `initial-setup/01_verify-and-configure.md`'s planning auto-merge lane steps arm auto-merge on
   `arc review planning-lane`, or claim the routing exemption through `arc review planning-grooming resolve`, as does the
