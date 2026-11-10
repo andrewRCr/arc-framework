@@ -90,7 +90,7 @@
   editor-document provisioning, a separate concern from placement. Left for this target: no placement change, and CI
   shard walls that spread 150-170 s within one run.
 
-- _Result evidence:_ identity-global `.internal/investigations/wallclock-vm-vs-local-2026-10-20/` (`findings.md`,
+- _Result evidence:_ the `wallclock-vm-vs-local-2026-10-20` investigation, kept outside the repository (`findings.md`,
   `summary.txt`, per-file JSON, the CI duration input of run 39526154546).
 
 - _Captured during:_ the `candidate-applicability-merge-base` Errand, 2026-10-20, after two concurrent remote runs took
@@ -329,12 +329,12 @@
 
 - _Interim mitigation (2026-10-26):_ The approved arc-offload safeguard is installed locally at
   a70242d06ead384607b6e8534ea8bde243023792. Machine-local command_routes restrict whole-project lint:ts and
-  typecheck:test to primary-mini plus WSL when the active mode permits local execution. Both passed on frozen
-  current sources under WSL's unchanged 3072 MiB heap cap (80.66 and 46.42 seconds). Air and M2 retain other checks.
-  All runner limits and the global speed mode remain unchanged; all 121 arc-offload tests passed. General command
-  resource modeling remains unresolved. Evidence and the live-adapter coordination message are in
-  .arc/user/andrew/.internal/arc-offload-command-routes-20261026/. The external adapter must preserve these routes
-  before runtime/cache qualification as well as execution; its accepted spec already requires preserving host policy.
+  typecheck:test to primary-mini plus WSL when the active mode permits local execution. Both passed on frozen current
+  sources under WSL's unchanged 3072 MiB heap cap (80.66 and 46.42 seconds). Air and M2 retain other checks. All runner
+  limits and the global speed mode remain unchanged; all 121 arc-offload tests passed. General command resource modeling
+  remains unresolved. Evidence and the live-adapter coordination message are in `arc-offload-command-routes-20261026`,
+  kept outside the repository. The external adapter must preserve these routes before runtime/cache qualification as
+  well as execution; its accepted spec already requires preserving host policy.
 
 - _Additional evidence (2026-10-27):_ The storage repair's final full gate at `07e738664` placed `test:unit` on M2
   with a 2048 MiB heap and two workers. Run `e8e0623c2b384d6a9cc45ffe29035bbc` recorded two interrupted attempts
@@ -461,9 +461,9 @@
   machine's local runs have been weighed against its memory since arc-offload `7874f17` and record their own
   peaks since `c525d40`; neither changes ARC's own admission for a project without that runner.
 
-- _Evidence:_ identity-global `.internal/investigations/suite-timeouts-vm-memory-2026-10-20/` (findings, VM journal
-  and sar extracts, runner snapshots and SSH configuration) and `seam-decomposition-suite-timeouts-2026-10-20/` (the
-  failed gate, focused passes, serial retry, and source coordinates).
+- _Evidence:_ the `suite-timeouts-vm-memory-2026-10-20` investigation (findings, VM journal and sar extracts, runner
+  snapshots and SSH configuration) and `seam-decomposition-suite-timeouts-2026-10-20` (the failed gate, focused passes,
+  serial retry, and source coordinates), both kept outside the repository.
 
 - _Captured during:_ seam-decomposition pass-5 convergence, 2026-10-20; reduced to its remaining scope after the
   runner investigation.
