@@ -3,14 +3,20 @@
   "slug": "relocated-evidence-citations",
   "claimId": "1959599e8fa83094995387dff5b8e0b7",
   "createdAt": "2026-11-10T21:52:06.783Z",
-  "updatedAt": "2026-11-10T21:52:06.783Z",
+  "updatedAt": "2026-11-10T21:59:31.106Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Rewrite backlog drafts' citations of evidence moved out of the identity root to the kept-outside-the-repository form, and drop a machine path",
   "branch": "chore/relocated-evidence-citations",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/relocated-evidence-citations",
+    "headSha": "b2221130aee8842db99ac762fd24ac397677f107"
+  }
 }
