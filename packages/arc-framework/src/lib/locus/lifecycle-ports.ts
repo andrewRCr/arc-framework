@@ -1,4 +1,5 @@
 /** Lifecycle checkout claim operations bound to one operational context. */
+import { markerMatchesWorkUnitOwner } from "./holder-match.js";
 import { resolve } from "node:path";
 import { workUnitCheckoutClaim } from "../store/work-unit-claim.js";
 import { ParsedMetaRecordSchema } from "../active/meta-schema.js";
@@ -74,8 +75,7 @@ export function createLocusPorts(input: { cwd: string; exec: GitExec; store: Sto
   };
 }
 function matchingHolders(inventory: readonly MarkerHolder[], request: HolderLookupRequest, operational: boolean): MarkerHolder[] {
-  return inventory.filter(holder => (request.kind === "owner" ? holder.uid === request.uid
-    || operational && holder.uid === undefined && [request.names.current, ...request.names.former].includes(holder.name)
+  return inventory.filter(holder => (request.kind === "owner" ? markerMatchesWorkUnitOwner(holder, request, operational)
     : holder.uid === undefined && holder.name === request.slug)
     && (request.checkoutPath === undefined || resolve(holder.path) !== resolve(request.checkoutPath)));
 }

@@ -87,31 +87,10 @@ that chunk.
 
 - **Additional Context:** `notes-projection-worktrees.md` § Spike 3
 
-    - `[ ]` **1.4.a Rights read only the file's own work unit's claim**
+    - `[x]` **1.4.a Rights read only the file's own work unit's claim**
 
-        - `checkoutRights` (`lib/store/projection/rights.ts`) reads the destination's marker before any claim: a marker
-          whose ownership names another work unit than the file's owner — by UID where the marker carries one, otherwise
-          by neither the owner's current nor a former name, matched by a helper this task extracts from the holder
-          search's match (`matchingHolders`, `lib/locus/lifecycle-ports.ts`) — answers `protected` with no claim read.
-          Only a marker naming the file's own work unit reads that unit's claim (`readClaimedCurrentWorkUnit`,
-          `lib/store/current-work-unit-marker.ts`), a `lookup` whose `read` is the unit's meta.
-        - The same rule holds in the function's second branch, which the shared admission planner takes with the send's
-          captured local evidence (`frozenCheckoutRights`, `lib/store/projection/rights.ts`, over
-          `readFrozenProjectionClaim`, `lib/store/projection/claim-evidence.ts`): a captured marker naming another work
-          unit answers `protected` with no `lookup` or `read`, so a send's admission reads, and observes, only the
-          file's own unit's claim. That branch never answers `checkout-not-writable`.
-        - A checkout whose own claim cannot be read, or whose unbound marker names another work unit, therefore protects
-          another work unit's meta or task list rather than refusing `checkout-not-writable`; its own work unit's still
-          refuse as before. The take-in reads rights through the same function, so an edit to another work unit's meta
-          there is refused as protected, as today.
-        - Build `test-first` (one behavior at a time):
-            - a task list rendered in a checkout holding another work unit is protected, that unit's claim unread
-            - a marker naming the owner by a former name, with no UID, reads the owner's claim
-            - a marker carrying another work unit's UID is protected though its name is the owner's
-            - a checkout whose claim cannot be read protects another work unit's task list, and refuses
-              `checkout-not-writable` for its own
-            - through the captured branch, a task list in a checkout whose marker names another work unit is protected
-              with no claim `lookup`, and one naming the file's own unit reads that unit's claim
+        - Live and captured rights reject unrelated marker owners before claim lookup, sharing lifecycle's UID-first
+          current/former-name predicate. Own broken and unbound claims retain their refusals and recovery routes.
 
     - `[ ]` **1.4.b A refresh's protection over its own evidence**
 
