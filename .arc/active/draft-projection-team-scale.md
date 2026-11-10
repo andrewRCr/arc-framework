@@ -27,16 +27,13 @@
   `arc decompose`'s extraction, which has not been rehearsed. What stays is one work unit: D's command, its pickup at
   `arc save`, and its amendments land together or not at all.
 - **Resolved:** D's command, rights, and sequence (§ Settled at drafting), sent to `cutover-flip`'s session on
-  2026-11-10.
+  2026-11-10; the opened set's read, § 15.1's walk, and a refresh's pickup of an archived edit (§ D's amendments), D's
+  part of the scale criterion, and ADR-035's disposition (§ D and ADR-035), settled the same day.
 - **Open:**
-    1. The opened set's read: a header field as a forward amendment to `spec-projection-worktrees.md` § 3.1 (§ D's
-       amendments).
-    2. § 15.1's walk: what a command's start checks once the opened archive entries join it (§ D's amendments).
-    3. Whether this design adds a prepared store write of its own (§ Transition invariants).
-    4. D's part of the scale criterion (§ The growth-relative scale criterion).
-    5. Whether D refines ADR-035 item 6 (§ D and ADR-035).
-    6. The § 8.4 amendment's text, once 1 and 2 settle.
-- **Next:** the opened set's read and § 15.1's walk, which shape the rest; then the criterion and the ADR question.
+    1. Whether this design adds a prepared store write of its own (§ Transition invariants).
+    2. The amendments' text: § 8.4 and § 15.1 of `spec-projection-write-back.md`, and § 3.1 and § 16.3 of
+       `spec-projection-worktrees.md`, from what § D's amendments settles.
+- **Next:** the prepared-write check, then the amendments' text, then readiness.
 
 ## Scope
 
@@ -44,8 +41,9 @@
   removal check's changes), and `arc save` no longer scanning the archive. D's amendments to
   `spec-projection-write-back.md` § 8.4 come with it: in-place archive corrections, and their pickup at `arc save`.
 - **The opened set's read and § 15.1's walk,** as forward amendments to `spec-projection-worktrees.md` § 3.1 and
-  `spec-projection-write-back.md` § 15.1.
+  § 16.3 and `spec-projection-write-back.md` § 15.1.
 - **D's part of the growth-relative scale criterion:** `arc save` with a large archive.
+- **ADR-035's amendment for D:** item 6's read-only archive (§ D and ADR-035).
 - **The errata convention's command,** coordinated with `cutover-flip` (guard 3).
 
 Not here: C, an archive recency window, the backlog's walk and a fanned pull at team scale, the criterion's part for
@@ -60,9 +58,9 @@ Plan this work unit during `projection-worktrees`' build (about 2026-11-11 to 11
 before `cutover-flip`'s final full rehearsal (Stage 2) and the cutover window. `cutover-flip` depends on it, so the
 rehearsal and the window wait for it to land.
 
-`projection-narrowed-views` follows the window and adds its own field to the index header (the effective view per root,
-`projectedUnder`), on top of this unit's opened set. If its recency window keeps opened files laid, it reads the opened
-set and takes an edge on this unit.
+`projection-narrowed-views` follows the window and adds the effective view per root to the index header
+(`projectedUnder`); this unit changes an index entry and leaves the header's format as it is (§ D's amendments). If its
+recency window keeps opened files laid, it reads the opened entries and takes an edge on this unit.
 
 Four guards, agreed with the Owner, keep the split from fragmenting the design or forcing rework:
 
@@ -82,7 +80,10 @@ operation continuing. The cases known now:
 
 - **D:** `arc edit`, the edit, and the re-lock at `arc save`, across a concurrent change to the same archived record;
   the archive pickup now that `arc save` walks only opened entries; a forced edit, then `arc edit` over the changed
-  file, then `arc save`; and a new path opened, then adopted at `arc save`.
+  file, then `arc save`; a new path opened, then adopted at `arc save`; and the index lost between `arc edit` and
+  `arc save`, so the next start rebuilds it: an opened file holding an edit is left as it is and marked withheld,
+  named in every report and refused over by the removal check and the persist and release steps, and an unedited one
+  is laid read-only again (`spec-projection-worktrees.md` § 2.5), so no opened edit is skipped silently.
 - **Prepared store writes:** a write this design prepares from store reads and submits as one batch states its fence
   by the pattern approved for prepared writes on 2026-11-07 (`cohort-identity-verbs`' design amendment A7): it
   re-derives its decision in a write check over `before`, or observes everything that decision read. Its perturbation
@@ -158,6 +159,11 @@ Settled with the Owner on 2026-11-10. Where these differ from the held text abov
    stays read-only. `arc edit` refuses wherever the edit itself would be refused, naming the owner. The command is a
    speed bump and narrows `arc save`'s walk; it moves no authority.
 
+**Amended 2026-11-10 (Owner), items 2 and 3.** The open entries are not a list the header keeps: an opened entry is
+unsettled, so its partition carries the header's mark and every command's start reads it (§ The opened set's read). A
+new path opened takes a record entry carrying an adoption, so, as with an opened file's edit, the first command after
+the file appears adopts it, and `arc save` lays it read-only.
+
 ### The scale anchor
 
 Settled with the Owner on 2026-11-10, and carried in full, with the model's findings at each team size, by
@@ -186,9 +192,10 @@ the opened entries and costs about what a command does, at any age.
 
 No specification text was drafted for these before the split. The substance is settled with the Owner's A–E approval.
 
-- **The current text:** § 8.4 "Archived work" (lines 1041–1066 at `6b82b6f671`) lets the archived work unit's owner
-  edit its `completed/` files in place from any checkout, a correction persisting "at `arc save`, at the persist or
-  release step, or when a refresh touches the file", and moves the errata convention onto the store's history (§ 18).
+- **The current text:** § 8.4 "Archived work" (lines 1254–1281 of the shipped specification at `56f812030b`) lets the
+  archived work unit's owner edit its `completed/` files in place from any checkout, a correction persisting "at
+  `arc save`, at the persist or release step, or when a refresh touches the file", and moves the errata convention onto
+  the store's history (§ 18).
 - **What D changes there** (as settled on 2026-11-10, § Settled at drafting):
     - archived files are laid read-only (protected, reason `archive`, the notice naming `arc edit`);
     - an in-place correction first opens one file, or a new path in an archived work unit's folder, with
@@ -197,22 +204,44 @@ No specification text was drafted for these before the split. The substance is s
     - `arc save` walks only opened archive entries rather than all of `completed/`;
     - the removal check and the persist and release steps still walk the whole archive, so a file forced writable and
       edited without the command is never lost: the removal refuses, naming `arc edit` and `arc save`;
+    - a refresh that touches such a file takes its edit in and lays it read-only again (§ The opened set's read);
     - a substantial change is a new work unit linked to its origin, not an in-place edit.
-- **How the amendment lands:** `projection-write-back` is in execution, so this work unit's specification carries the
+- **How the amendment lands:** `projection-write-back` has shipped, so this work unit's specification carries the
   § 8.4 change as a forward amendment, as `projection-worktrees` amends `spec-projection-substrate.md` (its § 16.2).
 - **The flip's errata convention (H4)** edits projected archive files per § 8.4, so D's amendment and its `arc save`
   pickup reach H4 wherever it lands; `cutover-flip` writes H4 for `arc edit` from the start (guard 3).
 
 ### The opened set's read, and § 15.1's walk
 
-- **The opened set's read:** `arc save` reading only opened archive entries, and an ordinary command taking their
-  edits in, need the opened set readable without loading every `completed/` quarter's partition. A header field beside
-  `withheldCopies` fits A's seams without reshaping them, and § 3.1's per-partition mark is that shape already; as
-  drafted there, `arc save` reads every partition, which D narrows. The field changes the header's format, so it lands
-  as this unit's forward amendment to `spec-projection-worktrees.md` § 3.1, and an index of the earlier format takes
-  the rebuild § 3.1 gives an index a command cannot use.
-- **§ 15.1's walk:** write-back checks every projected root but `completed/`; D adds the opened archive entries to
-  what every command's start checks.
+Settled with the Owner on 2026-11-10.
+
+- **An opened entry is unsettled.** `arc edit` marks the file's entry opened, and § 3.1 counts that mark among the
+  states that make an entry unsettled, so the write that sets it marks the entry's partition in the header. Every
+  start reads the partitions the header marks (§ 16.3's start read), so it finds the opened entries without reading
+  any other `completed/` quarter. A new path opened before its file exists takes a record entry carrying an adoption,
+  with a null `stat` for its absence (`RecordEntrySchema`, `lib/store/projection/index-schema.ts`), which § 3.1
+  already counts as unsettled. The header's format is unchanged; the entry gains the mark, and whether that takes a
+  format version is the specification's call, since reads skip the schema and another build's fan-out reads the
+  index. This lands as forward amendments to `spec-projection-worktrees.md` § 3.1 — the unsettled states, and
+  `arc save` no longer reading every partition — and § 16.3, whose start read has `arc save` walk `completed/`.
+- **Chosen over a header field listing opened paths.** That changes the header's format, and costs less than the mark
+  only by copying each opened file's stat and blob id into the header beside its entry, a second copy of state the
+  index must keep in step.
+- **What the mark costs.** Change detection reads the entry, so while a file stays open every command in its worktree
+  reads that file's quarter partition, until `arc save`. This repository holds about 3.7 files per archived work unit,
+  so at 23 work units a month per person a quarter holds about 255 entries per person; at the lean codec's
+  3.8 µs an entry on Linux and about 8–12 µs on Windows (model v2), that is about 2–3 ms a command on Windows for one
+  person, about 3–5 ms at fifty people with a thirtieth in view, and about 15–30 ms at ten people with every view
+  `all`, where the backlog's walk already needs `projection-narrowed-views`. `arc status` lists the opened files, so
+  one left open shows.
+- **§ 15.1's walk.** Write-back checks every projected root but `completed/`, and in `completed/` the opened entries
+  the marked partitions hold. `arc save` walks no archive folder: `startUnderLease`'s `mode === "save"` filter
+  (`lib/store/projection/engine-start.ts`), which walks `.arc/completed` for `arc save` alone, goes. A new file made
+  in an archived folder without `arc edit` is found only by the removal check and the persist and release steps
+  (settled item 3).
+- **A refresh that touches an archived file edited without `arc edit`** takes the edit in, as write-back takes any
+  edit a refresh meets, and lays the file read-only again. Rights apply as anywhere, so an edit its maker may not make
+  is refused there. This keeps the third pickup shipped § 8.4 names, "when a refresh touches the file".
 
 ## The growth-relative scale criterion
 
@@ -236,23 +265,42 @@ clause was B's; and the team clause is `projection-narrowed-views`', which resta
 Windows median with its Git calls' host time replaced by 42 ms a call, calls run at once counting as one; this
 criterion's Windows N could read the same way.
 
+D's part, settled with the Owner on 2026-11-10:
+
+> **`arc save` costs what is opened, not what is archived.** In a synthetic store with about 60,000 archived files and
+> none opened, a no-change `arc save` stays within N ms of its value with an empty archive.
+
+N is the brief's: a few ms on Linux and about 10 ms on Windows, each Windows median with its Git calls' host time
+replaced by 42 ms a call, as `projection-worktrees`' Success Criterion 4 reads. A file left open is outside it by
+design: its cost, one quarter partition read a command until `arc save`, is the residual § The opened set's read names.
+
 ## D and ADR-035
 
 ADR-035 item 6 names `.arc/completed/` among the familiar paths whose projection "is what people and agents browse and
-edit". D lays that root read-only and opens a file for edit through a command. The item 6 amendment proposed in
-`draft-projection-narrowed-views.md` (2026-11-10, route (a), not yet answered) carries D in one sentence: "Archived
-files lay read-only: a correction opens one file with `arc edit <path>` and persists at `arc save`." That amendment
-waits on the envelope's realignment and follows the cutover window, while D lands before the flip. Open: whether D's
-sentence lands with D as its own dated amendment, waits for C's, or needs none, because it sits within the writer rules
-the ADR's 2026-09-29 amendment left to the contract design. Load `strategy-adr-methodology.md` before deciding it.
+edit". D lays that root read-only and opens a file for edit through a command.
+
+**Disposition: amendment, delivered with D** (Owner, 2026-11-10). A Tier 2 dated amendment under ADR-035 § Amending
+This Document, since the decision stands: the store stays authoritative, and the archive stays editable at its familiar
+path, through a command. Chosen over waiting for the item 6 amendment `draft-projection-narrowed-views.md` proposes,
+which carries D in one sentence but follows the cutover window, leaving the read-only archive unexplained in the ADR
+from the flip until then; and over none, since D changes what any person does with their own archived files, not only
+who may edit them, which the writer rules of the ADR's 2026-09-29 amendment cover. That unit's proposed amendment drops
+its archive sentence (routed in `USER-INBOX § Work Unit`). The specification lists the amendment among what the
+delivering change delivers, and the change writes it. Proposed text, naming no work unit as the ADR methodology's
+reader-independence rule asks:
+
+> **Amendment (date):** Item 6's projection lays `.arc/completed/` read-only. A correction to archived work opens one
+> file with `arc edit <path>`, which makes it writable in that worktree under the same edit rights, and persists at
+> `arc save`, which lays it read-only again. The decision stands: the store is authoritative, and the working copy sits
+> at the familiar paths, opened in a person's own editor.
 
 ## Seams this builds on
 
 A's partitions are designed as fixed seams in `spec-projection-worktrees.md`, as revised on that work unit's planning
 branch (2026-11-07). Its section numbers are expected to hold; its wording may still move in that unit's review loop,
-so re-read the committed text before relying on it here. Checked on 2026-11-10 against its work branch at
-`8db69d5bbb`, with that unit in execution at its Task 1.2, the index's header and partitions: § 3.1, § 15.3, § 15.5,
-and § 16.2 read as summarized below, and the seams statement as quoted.
+so re-read the committed text before relying on it here. Re-checked on 2026-11-10 against its work branch at
+`f2812900fb`, with that unit in execution at its Task 1.5: § 3.1, § 15.3, § 15.5, § 16.2, and § 16.3's start read as
+summarized below, and the seams statement as quoted.
 
 - **§ 3.1 "The index's parts":** the header and partitions. One root group per root and per `completed/` quarter, loose
   `completed/` files their own group; SHA-1 blob-id names; the header as the commit point; reads load only the
@@ -266,11 +314,17 @@ and § 16.2 read as summarized below, and the seams statement as quoted.
   fan-out's visit, and the end in another worktree the fan-out visited, delete nothing.
 - **§ 3.1 "The partitions' seams":** the fixed-seams statement, quoted below.
 - **§ 15.3 "The index read, and what is left on Windows":** a command reads its walked roots' partitions, and an
-  archive quarter's only where it lays, removes or sweeps a file there, so the archive's size costs a command nothing.
+  archive quarter's only where it lays, removes, or sweeps a file there or the quarter holds an unsettled entry, so a
+  settled archive's size costs a command nothing.
 - **§ 15.5, the fan-out paragraph:** a worktree a fan-out visits reads and writes its header and the partitions holding
   each path it lays or removes.
 - **§ 16.2 "The index is a header and partitions":** the forward amendment to `spec-projection-substrate.md` § 3.1 and
   § 3.3.
+- **§ 16.3 "The start reads the index's header and its walked partitions":** the start reads the header, its walked
+  roots' partitions, those the header marks as holding an unsettled entry, and any other partition holding a path its
+  sweep or refresh touches; `arc save`'s walk of `completed/` reads that root's partitions. That walk is
+  `startUnderLease`'s `mode === "save"` filter (`lib/store/projection/engine-start.ts`), which walks `.arc/completed`'s
+  folders only for `arc save`.
 
 § 3.1, as drafted:
 
