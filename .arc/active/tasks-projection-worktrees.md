@@ -1119,9 +1119,12 @@ No production composition sets the slots today, so every caller runs `passingPro
       `lib/store/projection/taken-in.ts`); an accepted adoption awaiting its read-back (`recordAdoptionAcceptance`,
       `lib/store/projection/adoption-read-back.ts`, its entry's `adoption.kind` `read-back`); and a landed write whose
       accepted version's history is unavailable for recording its entry IDs (`recordWriteBack`'s `acceptedIdReference`,
-      `taken-in.ts`). The remedy is the one write-back's refusal of it names (`unfinishedRecordingRefusal`,
-      `lib/store/projection/recording-state.ts`), `arc save` run there, whose walk finishes each, since every one is
-      left pending: the send finishes a recording before it prepares (`completeWriteBackRecording`,
+      `taken-in.ts`). The remedy names `arc save` run there, whose walk finishes each: for a recording the one
+      write-back's refusal of it names (`unfinishedRecordingRefusal`, `lib/store/projection/recording-state.ts`), and
+      for an uninstalled read-back whose recording is finished, which no shipped refusal names, one this task writes,
+      or, where the root's ignore guard refused it, so that the resume stops before installing (`root.writable`, over
+      `writableUnder`, `lib/store/projection/sweep.ts`), the guard's own remedy. Every one is left pending: the send
+      finishes a recording before it prepares (`completeWriteBackRecording`,
       `lib/store/projection/write-back-recording.ts`), and the walk resumes an adoption's read-back
       (`resumeAdoptionReadBack`, reached from `checkFileAtPath`, `lib/store/projection/engine-files.ts`). That refusal
       is made locally, not by a store read, so the check classifies the state by the entry's mark before the read path
@@ -1129,10 +1132,12 @@ No production composition sets the slots today, so every caller runs `passingPro
       either way (`checkFileAtPath`), never through the store-refusal rule above, which would read it `unobservable`.
       The persist step would finish it (2.2), but finishing writes — a completion can keep a copy (`keepCopy`), and a
       resumed read-back installs the file — and the check writes nothing, so it holds the removal until a command run
-      there has finished it. Two cases fall outside that walk, which reaches only the configured identity's personal
-      roots (the start's walk, `engine-start.ts`) and skips a write-back's absent file (`checkFileAtPath`): such an
-      entry in another identity's personal root answers as an edit there does, naming that identity's remedy (below),
-      and a write-back's recording whose file is gone holds nothing, its write having landed and no walk re-sending it.
+      there has finished it. Two cases that walk cannot finish fall outside the hold. A write-back's recording whose
+      file is gone holds nothing, wherever it is, its write having landed and the walk skipping an absent file
+      (`checkFileAtPath`). Any other such entry in another identity's personal root answers as an edit there does,
+      naming that identity's remedy (below): the walk visits its files only for the configured identity (the start's
+      walk, `engine-start.ts`), and resumes an adoption there only to have its read refused, since the store answers
+      another person's record as absent (`otherIdentityRefusal`, `lib/store/ref/read.ts`).
     - `would-refuse` also for a refusal the send's preparation returns after the read path is ready (below), each with
       its remedy, unless the planner marks it as a store read's own refusal (`planProjectionWrite`'s `nativeRefusal`,
       `lib/store/projection/admission-planner.ts`), which answers `unobservable`, as below: `prepareStable` returns that
@@ -1226,7 +1231,7 @@ No production composition sets the slots today, so every caller runs `passingPro
         - a store read refusing `state-unresolvable` answers `unobservable` with its remedy, never `would-refuse`
         - after a changed identity, an edit in the previous identity's personal root answers `would-refuse` naming that
           identity's remedy, and `passes` once a command run there under that identity sends it; a file there the index
-          does not hold answers the same, and an unchanged one passes
+          does not hold answers the same, and an unchanged one holding neither mark of the hold passes
         - a checkout with no projection answers `passes`, with no identity configured too
         - a claimed checkout whose index was deleted answers `unobservable`, never `passes`
         - an unclaimed checkout that still holds an index is checked as any other, never passed
@@ -1254,16 +1259,17 @@ No production composition sets the slots today, so every caller runs `passingPro
       holding a refused edit, withheld, not yet settled, or pending for any other cause — a `lock-held` refusal, a
       `version-conflict` one its recovery did not clear (`sendWriteBack`, `lib/store/projection/write-back.ts`), one
       carrying `cause: "projection-admission"`, which takes no recovery, a retained base it cannot read, for any format,
-      or an accepted-input recording the step could not finish among them — the file keeping its content. A recording
-      reaches the step unfinished only where it arrived after the check, which holds one left before it (2.1); the step
-      finishes it under the target's lock as the command's walk does (`writeBackProjectionFiles`,
-      `lib/store/projection/engine-files.ts`): an accepted adoption awaiting its read-back by resuming it
-      (`resumeAdoptionReadBack`), which refuses where the record's read refuses, and any other by the send, which
-      finishes a recording before it prepares (`completeWriteBackRecording`,
+      or an accepted-input recording the step could not finish among them — the file keeping its content. An unfinished
+      recording or an uninstalled read-back meets the step only where it arrived after the check, which holds one left
+      before it in the target identity's roots (2.1), or where it is a write-back's recording whose file is gone, which
+      the walk never visits and the step leaves as it is; the step finishes one it meets under the target's lock as the
+      command's walk does (`writeBackProjectionFiles`, `lib/store/projection/engine-files.ts`): an accepted adoption
+      awaiting its read-back by resuming it (`resumeAdoptionReadBack`), which refuses where the record's read refuses,
+      and any other by the send, which finishes a recording before it prepares (`completeWriteBackRecording`,
       `lib/store/projection/write-back-recording.ts`), refusing where its retained copy, the record's read-back, or the
-      accepted version's history cannot be read; each refusal names the repair it reports. A file
-      write-back leaves pending refuses with the remedy write-back reports for it, or a retry where it reports none. A
-      symbolic link, at a path the index lists or not, is never adopted and refuses nothing.
+      accepted version's history cannot be read; each refusal names the repair it reports. A file write-back leaves
+      pending refuses with the remedy write-back reports for it, or a retry where it reports none. A symbolic link, at a
+      path the index lists or not, is never adopted and refuses nothing.
     - It then takes over every aside copy, per path in the order their swaps were made (`RecordEntry.copies`), its
       writer live or not, once it has settled (`settleAsideCopy`, `lib/store/projection/aside-copies.ts`) — an edit
       taken in only while its path has not moved on — deleting it through `deleteAsideCopy`

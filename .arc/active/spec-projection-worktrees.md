@@ -737,9 +737,11 @@ answers:
   installed, which can outlast its recording, each of which the persist step would finish: finishing either writes,
   which the check never does, so the check holds the removal on the entry's marks, read for every entry whether or not
   its file changed, its refusal made locally rather than by a store read, with the remedy naming `arc save` run there,
-  whose walk finishes it; such an entry in another identity's personal root, which that walk does not reach, answers
-  as an edit there does, naming that identity's remedy — each of which the check reports as `persist-would-refuse`. A
-  write-back's recording whose file is gone holds nothing, since its write has landed and no walk re-sends it;
+  whose walk finishes it, or, where the root's ignore guard refused it, the guard's own remedy; such an entry in
+  another identity's personal root, which that walk cannot finish under the configured identity, since the store
+  answers another person's record as absent, answers as an edit there does, naming that identity's remedy — each of
+  which the check reports as `persist-would-refuse`. A write-back's recording whose file is gone holds nothing,
+  wherever it is, since its write has landed and no walk re-sends it;
 - `unobservable` with its detail, when a read it needs fails — the store, the index, a projected file, or the target's
   configuration or marker — which the check reports as it reports its Git part's failed read, so a failed read never
   reads as `persist-would-refuse`. Branch-gone recovery keeps a `persist-would-refuse` checkout as a switch target, a
@@ -794,17 +796,19 @@ checkout:
 2. It writes back every edit there under `write-back` (`spec-projection-write-back.md` § 7.4), every projected root
    included and every other identity's personal root present, read as the check reads it, each file as its own
    one-mutation admission batch (`spec-projection-write-back.md` § 7.2), waiting through the settle rule's tries for a
-   file not yet settled (`spec-projection-substrate.md` § 4). An accepted-input recording reaching the step unfinished,
-   which only one arriving after the check can, since the check holds one left before it, is finished as the command's
-   walk finishes it: an accepted adoption awaiting its read-back by resuming that read-back, any other by the send,
-   which finishes a recording before it prepares (`spec-projection-write-back.md` § 7.1). If any file then stays
-   unadopted, held by a conflict, failing to parse, holding a refused edit, withheld at an index rebuild (§ 2.5), not
-   yet settled, or pending for any other cause — a `lock-held` refusal, a `version-conflict` its recovery did not clear,
-   or one carrying `cause: "projection-admission"`, which takes no recovery (`spec-projection-write-back.md` § 7.8), a
-   retained base write-back cannot read, for any format, or a recording the step could not finish among them — the step
-   refuses with that file's remedy, and the file keeps its content; a file write-back leaves pending refuses with the
-   remedy write-back reports for it, or a retry where it reports none. A symbolic link is never adopted and refuses
-   nothing (`spec-projection-write-back.md` § 9).
+   file not yet settled (`spec-projection-substrate.md` § 4). An unfinished recording or an uninstalled read-back
+   meets the step only where it arrived after the check, which holds one left before it in the target identity's
+   roots, or where it is a write-back's recording whose file is gone, which the walk never visits and the step leaves
+   as it is; the step finishes one it meets as the command's walk does: an accepted adoption awaiting its read-back by
+   resuming that read-back, any other by the send, which finishes a recording before it prepares
+   (`spec-projection-write-back.md` § 7.1). If any file then stays unadopted, held by a conflict, failing to parse,
+   holding a refused edit, withheld at an index rebuild (§ 2.5), not yet settled, or pending for any other cause — a
+   `lock-held` refusal, a `version-conflict` its recovery did not clear, or one carrying
+   `cause: "projection-admission"`, which takes no recovery (`spec-projection-write-back.md` § 7.8), a retained base
+   write-back cannot read, for any format, or a recording the step could not finish among them — the step refuses with
+   that file's remedy, and the file keeps its content; a file write-back leaves pending refuses with the remedy
+   write-back reports for it, or a retry where it reports none. A symbolic link is never adopted and refuses nothing
+   (`spec-projection-write-back.md` § 9).
 3. It takes over every aside copy there, in the order their swaps were made (`spec-projection-substrate.md` § 3.1), its
    writer live or not, as `spec-projection-substrate.md` § 5.2 states: once a copy has settled
    (`spec-projection-substrate.md` § 4), it takes in an edit the copy holds while its path has not moved on, and deletes
@@ -1369,8 +1373,8 @@ first.
       the removal check runs without its submission as a provisional feasibility check, and the accepted-input recording
       a send finishes before it prepares, with an accepted adoption's read-back, which only the walk's resumed read-back
       finishes (`resumeAdoptionReadBack`, `lib/store/projection/adoption-read-back.ts`), both of which the removal check
-      holds and the persist and release steps finish under the target's lock where one arrives after it (its § 7.1,
-      § 7.2, § 7.8, § 9);
+      holds and, in the target identity's roots, the persist and release steps finish under the target's lock where
+      one arrives after it (its § 7.1, § 7.2, § 7.8, § 9);
     - edit rights and protected files (its § 8), whose claim reads and renders this member amends (§ 16.3 here), and
       adoption, which decides part of its verdict inline as it writes and mints and the rest in the shared planner, so
       this member extracts the inline part and, where adoption itself plans, runs the planner without its submission for
