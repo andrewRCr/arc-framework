@@ -640,8 +640,10 @@ selection.
   describes an end state that the ref backend or the flip realizes, and no member recorded one as realized.
   `cohort-identity-verbs`' own row closed with PR #1309.
 - **Follow-up:** the 35 rows passed to `storage-cutover` at this archive (Owner, 2026-11-10), still `open`, and close as
-  the flip's landing realizes them. Before `cutover-flip`'s spec approval, a planning Errand reconciles the register
-  against landed work and closes, with evidence, any row that already holds (`USER-INBOX § Errand`, "Reconcile the
-  storage-coupling register's open rows against landed work before the flip's spec approval").
+  the cutover's members realize them: the flip closes each row whose whole fate holds at its landing, and the code
+  deletion and documentation shares go to its deletion and documentation members. Before `cutover-flip`'s spec
+  approval, a planning Errand reconciles the register against landed work and closes, with evidence, any row that
+  already holds (`USER-INBOX § Errand`, "Reconcile the storage-coupling register's open rows against landed work
+  before the flip's spec approval").
 
 ---
