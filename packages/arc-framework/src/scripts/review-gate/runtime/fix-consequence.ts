@@ -8,8 +8,12 @@ function nextPassCoverage(
 ): Extract<ProvisionalFixConsequence, { kind: "next-pass" }>["coverage"] {
   if (input.result.kind !== "frontline" && input.chainAdequate && input.delegatedAgentSelectable) {
     if (input.materialFix) return "incremental-when-proven";
-    // A minor-only fix converges the look, so the configured source's complete pass comes first, beside a fix check.
-    if (errand && input.result.requirement.retrigger === "incremental") return "complete-or-incremental";
+    // A minor-only fix converges the look, so the configured source's complete pass comes first, beside a fix check:
+    // under `full-final`, only where the approved fixes change behavior, as the performed fixes then must too.
+    const { retrigger } = input.result.requirement;
+    if (errand && (retrigger === "incremental" || input.proposal.dispositionSet.proposedVerification === "full")) {
+      return "complete-or-incremental";
+    }
   }
   return errand || convergedFixCheck ? "complete" : null;
 }

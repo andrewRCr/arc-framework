@@ -101,11 +101,15 @@ caller's disposition approvals and ceiling rules. Every fix-check round runs onl
 permission waits for complete response performance, including the offered fix check's resolution, and is consumed only
 by its named complete-pass admission. A fix check neither spends nor inherits it.
 
-Recommend a fix check, and another round, whenever the last look's approved fixes include a material one. Decline only
-on the fixes' own merits: minor-only repairs, or an accepted re-entry or pending rewrite that will supersede them.
-A following pass, approved or under the cap, is never a reason to decline. Where the subject requires a successor after
-any fix, run the look that its policy names. Converge the rounds before launching the successor pass. Converged rounds
-end fix checking; § Successor passes decides whether a complete pass follows, and a complete pass never replaces them.
+Recommend a fix check, and another round, whenever the last look's approved fixes include a material one. Decline it
+only on the fixes' own merits, such as an accepted re-entry or pending rewrite that will supersede them; a following
+pass, approved or under the cap, is never a reason to decline. Minor-only fixes converge the look and end fix checking,
+unless they were approved at the `full` verification scope, which marks behavioral, authority, contract, materially
+interacting, or uncertain changes. A finding's grade need not match its repair's risk, so such a look offers a fix check
+of its repairs. Recommend that check where no complete pass will follow, because the ceiling is reached or the Owner has
+set a stop; otherwise weigh it beside the coming complete pass. Where the subject requires a successor after any fix,
+run the look that its policy names. Converge the rounds before launching the successor pass. § Successor passes decides
+whether a complete pass follows, and a complete pass never replaces a fix check that material fixes require.
 
 ### Successor passes
 

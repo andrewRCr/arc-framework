@@ -336,10 +336,14 @@ export async function confirmErrandFixResponseApplicability(
   }
 }
 
-function localCoverageInteractionText(
-  incrementalOffered: boolean, facts: NextPassFacts, retrigger: StandardReviewObligationProjection["retrigger"],
-): string {
-  const bounds = incrementalOffered
+function localCoverageInteractionText(incrementalOffered: boolean, convergence: ReviewNextPassContext["convergence"],
+  facts: NextPassFacts, retrigger: StandardReviewObligationProjection["retrigger"]): string {
+  const convergedOffer = incrementalOffered && retrigger === "full-final" && convergence === "converged";
+  const bounds = convergedOffer
+    ? "A local fix check is offered for the converged look's minor fixes, which were approved at the `full` "
+      + "verification scope. A local complete pass is also offered, subject to its ceiling; weigh the fix check "
+      + "beside it. "
+    : incrementalOffered
     ? "A local fix check is offered first to verify the approved fixes. "
       + "A local complete pass is also offered, subject to its ceiling, but does not replace the fix check. "
     : "Only a local complete pass is admitted because the fix-check chain is not proven. "
@@ -350,6 +354,20 @@ function localCoverageInteractionText(
     + "Give an advisory recommendation for the admitted next step. "
     + "Decide on any successor complete pass only after fix checks converge. "
     + "What do you recommend, why, and what would change your recommendation?";
+}
+
+/** A converged `full-final` look leaves only the complete pass, unless a fix check of behavior-changing fixes is offered. */
+function convergedCompleteOnly(input: Pick<Parameters<typeof resolveLocalReviewCoverageSelection>[0],
+  "standardReview" | "nextPassContext" | "coverageAdmission"> & { readonly policy: { readonly state: string } },
+): LocalReviewCoverageSelectionResolution | null {
+  const { nextPassContext } = input;
+  if (input.standardReview.retrigger !== "full-final" || nextPassContext.convergence !== "converged"
+    || nextPassContext.responseDue || nextPassContext.incremental !== null) return null;
+  if (input.coverageAdmission?.requestedCoverage === "incremental") {
+    throw new Error("Local review coverage selection does not match a current offered choice.");
+  }
+  return { state: "ready", coverageSelected: input.policy.state === "coverage-required",
+    coverageAdmission: input.coverageAdmission ?? { requestedCoverage: "complete" } };
 }
 
 function withoutCorrectionSelection(coverageAdmission: LocalReviewCoverageAdmission | undefined): LocalReviewCoverageSelectionResolution {
@@ -393,14 +411,8 @@ export function resolveLocalReviewCoverageSelection(input: {
     return admitDeltaCoverage(nextPassContext.incremental.scope, input.coverageAdmission,
       input.policy.state === "coverage-required");
   }
-  if (input.standardReview.retrigger === "full-final" && nextPassContext.convergence === "converged"
-    && !nextPassContext.responseDue) {
-    if (input.coverageAdmission?.requestedCoverage === "incremental") {
-      throw new Error("Local review coverage selection does not match a current offered choice.");
-    }
-    return { state: "ready", coverageSelected: input.policy.state === "coverage-required",
-      coverageAdmission: input.coverageAdmission ?? { requestedCoverage: "complete" } };
-  }
+  const completeOnly = convergedCompleteOnly(input);
+  if (completeOnly !== null) return completeOnly;
   const terminal = input.policy.payload.attemptedSources.at(-1);
   const predecessorOperationId = input.policy.state === "coverage-required"
     && terminal !== undefined && "reviewOperationId" in terminal
@@ -418,7 +430,8 @@ export function resolveLocalReviewCoverageSelection(input: {
   const action = LocalReviewCoverageSelectionActionSchema.parse({
     schemaVersion: 1, kind: "local-review-coverage-selection", sourceId: input.sourceId,
     target: input.target, pass: input.policy.payload.pass, completedPasses, consumedPass: true, choices,
-    interactionText: localCoverageInteractionText(correctionScope !== null, input.facts, input.standardReview.retrigger),
+    interactionText: localCoverageInteractionText(correctionScope !== null, nextPassContext.convergence, input.facts,
+      input.standardReview.retrigger),
   });
   if (input.coverageAdmission === undefined) return { state: "coverage-required", action };
   if (!choices.some(choice => canonicalize(choice) === canonicalize(input.coverageAdmission))) {

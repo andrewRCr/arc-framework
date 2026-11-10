@@ -35,8 +35,8 @@ import { StandardReviewObligationProjectionSchema } from "./standard-review-proj
 import { HostedRequestEnvelopeSchema } from "../hosted/request.js";
 import { REVIEW_SOURCE_CAPABILITIES, selectReviewSources, sourceDiagnostic } from "./review-source-eligibility.js";
 export { sourceDiagnostic } from "./review-source-eligibility.js";
-import { ReviewNextPassContextSchema, incrementalNextPass, nextLookCoverage, validateReviewNextPassContext }
-  from "./review-next-pass-schema.js";
+import { ReviewNextPassContextSchema, incrementalNextPass, nextLookCoverage, validateReviewNextPassContext,
+  withCeilingFixCheck } from "./review-next-pass-schema.js";
 import { errandFirstPassHostedRequest } from "./review-errand-hosted-request.js";
 
 import {
@@ -878,7 +878,7 @@ export function resolveReviewPolicy(input: unknown): ReviewResolveEnvelope {
     }
   }
   if (request.terminus !== undefined) return ownerAcceptedEnvelope(request, scope);
-  const selection = selectReviewSources(request);
+  const selection = selectReviewSources(withCeilingFixCheck(request, ceilingPassCount(request) >= request.maxPasses));
   if (selection.refusal !== null) return sourceSelectionRefusal(request, scope, selection.refusal);
   if (ceilingPassCount(request) >= request.maxPasses
     && !incrementalNextPass(request) && !ceilingOverrideApplied) {
