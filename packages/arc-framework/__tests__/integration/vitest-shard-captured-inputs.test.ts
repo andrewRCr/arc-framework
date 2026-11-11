@@ -7,7 +7,7 @@ import { captureNativeShardFixture, runCapturedNativeShards } from "../helpers/n
 import { qualifyNativeShardMembership } from "../helpers/native-shard-qualification.js";
 import { removeGitBackedDir } from "../helpers/temp-repo.js";
 import { createExecaGitExec } from "../../src/lib/git/process-executor.js";
-import { CALL_LIMIT } from "../helpers/call-limit.js";
+import { NESTED_CALL_LIMIT } from "../helpers/call-limit.js";
 
 it("keeps native membership and assignments fixed after source, branch and duration edits following capture", async () => {
   const fixture = await makeNativeShardFixture();
@@ -32,4 +32,4 @@ it("keeps native membership and assignments fixed after source, branch and durat
       ]);
     } finally { await captured.dispose(); }
   } finally { await removeGitBackedDir(fixture.root); }
-}, 4 * CALL_LIMIT);
+}, 4 * NESTED_CALL_LIMIT);

@@ -3,6 +3,7 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { makeVitestControllerFixture, runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 
 it.each([
   ["dynamic skip", 'it("dynamic", (context) => context.skip());', []],
@@ -16,7 +17,7 @@ it.each([
     expect(result.stdout + result.stderr).toContain("No test cases completed");
     expect(await readFile(fixture.events, "utf8")).toContain("closed");
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+}, nestedRunLimit(30_000));
 
 it.each([
   ["mixed passing", 'describe("outer", () => { it.skip("skipped", () => {}); describe("inner", () => it("passes", () => {})); });', 0, ""],
@@ -35,4 +36,4 @@ it.each([
     expect(result.stdout + result.stderr).toContain(diagnostic);
     expect(result.stdout + result.stderr).not.toContain("No test cases completed");
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 30_000);
+}, nestedRunLimit(30_000));
