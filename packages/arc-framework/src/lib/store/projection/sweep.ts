@@ -12,6 +12,7 @@ import { hasPathMovedOn, readPathHolding, restoreCopyRendering, settleAsideCopy,
 import { retriedMoves, type SwapMoves } from "./aside-moves.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
 import { checkIgnores, type IgnoreCheck } from "./ignore-check.js";
+import { recordProjectionIgnoreCheck } from "./ignore-record.js";
 import { guardedProjectionRoots, type ProjectionIgnoreGuardInput } from "./ignore-guard.js";
 import type { ConfiguredIgnoreRules } from "./configuration.js";
 import { readReference, readStat } from "./change-detection.js";
@@ -31,6 +32,8 @@ export interface SweepInput extends SwapMoves {
   readonly checkout: string;
   /** The index, null where the checkout holds none a command can use. */
   readonly index: ProjectionIndex | null;
+  /** Recovery metadata from a valid header whose partitions cannot be used. */
+  readonly withheldCopies?: readonly string[];
   readonly format: ObjectFormat;
   readonly takeIn: TakeInPort;
   /** The sweeping process: it judges each writer's liveness and names any copy it makes in turn. */
@@ -109,22 +112,12 @@ export async function sweepAsideFolder(input: SweepInput): Promise<SweepResult> 
   const index = await commitReturnedCopies({
     location: input.location, checkout: input.checkout, checkpoint: input.checkpoint,
     returned: recorded.swept.filter(each => each.outcome.kind === "returned" || each.outcome.kind === "linked-back")
-      .map(({ path, copy }) => ({ path, copy })), index: {
-      ...recorded.index, ignoreFiles: ignoreFilesAfter(ignores, recorded.index),
-      ignoreGuard: ignores.kind === "passed" ? ignores.basis
-        : ignores.kind === "refused" ? null : recorded.index.ignoreGuard,
-    },
+      .map(({ path, copy }) => ({ path, copy })), index: recordProjectionIgnoreCheck(recorded.index, ignores),
   });
   const copies = recorded.swept.flatMap(({ path, outcome }) => (
     outcome.kind === "returned" && outcome.replacement !== null ? [{ path, copy: outcome.replacement }] : []
   ));
   return { ignores, index, swept: recorded.swept, left: [...recorded.left, ...unrecorded], withheld: [], copies };
-}
-
-/** What the index records of the ignore files: a pass's records, none after a refusal, else what it held. */
-function ignoreFilesAfter(ignores: IgnoreCheck, index: ProjectionIndex): ProjectionIndex["ignoreFiles"] {
-  if (ignores.kind === "passed") return [...ignores.records];
-  return ignores.kind === "refused" ? null : index.ignoreFiles;
 }
 
 /** How the sweep judges each copy: whether its writer has exited, and whether its path's root may be written. */
@@ -236,6 +229,11 @@ async function sweepWithoutIndex(
   for (const location of found) {
     const named = parseAsideFile(location);
     if (named?.role !== "aside") continue;
+    if (input.withheldCopies?.includes(location)) {
+      withheld.push(location);
+      left.push(await retainedCopy(input.checkout, named.path, location, "withheld"));
+      continue;
+    }
     const refusal = destinationRefusal(named.path, location, judges);
     if (refusal !== null) {
       left.push(refusal);

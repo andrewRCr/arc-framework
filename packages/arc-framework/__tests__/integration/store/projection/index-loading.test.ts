@@ -1,4 +1,5 @@
 /** Command entry leaves settled archive partitions cold and contains corruption discovered at command end. */
+import { parseProjectionJson } from "../../../../src/lib/store/projection/index-memory.js";
 import { access, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
@@ -42,5 +43,5 @@ it("invalidates a late mismatch in the command's own root while retaining the he
   ]));
   await expect(access(join(h.location.stateDir, name))).rejects.toMatchObject({ code: "ENOENT" });
   expect(await readFile(headerPath, "utf8")).toBe(headerBytes);
-  expect(await readProjectionIndex(h.location, true)).toEqual({ kind: "unusable", cause: "unreadable" });
+  expect(await readProjectionIndex(h.location, true)).toEqual({ kind: "unusable", cause: "unreadable", header: parseProjectionJson(headerBytes) });
 });

@@ -1,6 +1,6 @@
 /** Marker-owned transient checkout provisioning and exact rollback. */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, afterEach } from "vitest";
 
 import {
   provisionTransientLocus,
@@ -12,6 +12,9 @@ import type { WorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
 import type { LocusIdentityV1 } from "../../../src/lib/locus/schema/identity.js";
 import { openOrdinaryErrandWithDisposition, type OpenOrdinaryErrandOptions } from "../../../src/lib/errand/open.js";
 import type { OrdinaryErrandRecord } from "../../../src/lib/errand/identity-transitions.js";
+
+import { beginProjectionCommand, projectionProcessState } from "../../../src/lib/store/projection/process-state.js";
+afterEach(() => { beginProjectionCommand(); });
 
 const CLAIM_ID = "a".repeat(32);
 const BRANCH = "chore/demo";
@@ -165,6 +168,18 @@ function harness(overrides: Partial<ProvisionTransientLocusDependencies> = {}) {
 }
 
 describe("provisionTransientLocus", () => {
+  it.each(["spawn", "primary"] as const)("materializes a ready %s before completing provisioning", async allocation => {
+    const test = harness();
+    let observed: WorktreeMarker | null = null;
+    projectionProcessState().materializeSpawn = async path => {
+      const marker = await test.dependencies.readMarker(path);
+      if (marker.kind === "present") observed = marker.marker;
+    };
+    const result = await provisionTransientLocus(options(test.dependencies, { proposal: allocation === "spawn" ? spawnedProposal : primaryProposal }));
+    expect(result).toMatchObject({ kind: "provisioned" });
+    expect(observed).toMatchObject({ provisioning: "ready", createdFor: { kind: "errand", slug: "demo" } });
+  });
+
   it("keeps retained checkout evidence on an existing Errand claim through failure and repaired replay", async () => {
     let denied = true;
     let record: OrdinaryErrandRecord | null = null;

@@ -26,6 +26,7 @@
  * @module
  */
 
+import { materializeSpawnedProjection } from "../lib/store/projection/spawn-materialization.js";
 import type { StoreRefusal } from "../lib/store/refusal.js";
 import { runStoreColdStart } from "./start-cold-store.js";
 import { basename, join } from "node:path";
@@ -869,6 +870,7 @@ async function completeCreatedWorktree(ctx: SpawnWorktreeContext, spawn: {
     if (refusal !== null) return { ok: false, reason: refusal, worktreePath,
       spawnLock: await lockRetainedCreation(ctx, worktreePath, wuName, owner) };
   }
+  await materializeSpawnedProjection(worktreePath);
   const spawnLock = await lockSpawnedCheckout(ctx.io.exec, worktreePath);
   if (spawnLock.kind === "failed") return {
     ok: false, worktreePath, spawnLock,

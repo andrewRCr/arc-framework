@@ -14,10 +14,13 @@ import type { TakeInRequest, TakeInResult } from "./take-in-port.js";
 import { refuseProjectionEdit } from "./rights-binding.js";
 import { adoptProjectionFile } from "./adoption.js";
 import { resumeAdoptionReadBack } from "./adoption-read-back.js";
+import { releaseAbsentWithheldPaths } from "./withheld.js";
 
 /** Check indexed files found by the walk, always re-reading stats after the sweep's possible moves. */
 export async function writeBackProjectionFiles(root: ProjectionRootState, initial: ProjectionIndex, files: readonly string[]): Promise<ProjectionIndex> {
-  let index = initial;
+  let index = await releaseAbsentWithheldPaths(root, initial);
+  if (index !== initial) index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
+    index, checkpoint: root.context.checkpoint });
   const reference = await readReference(root.checkout);
   const pending: string[] = [];
   const target = projectionProcessState().resolution;

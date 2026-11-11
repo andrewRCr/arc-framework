@@ -76,7 +76,7 @@ function snapshot(index: ProjectionIndex): Extract<ProjectionStatus, { kind: "re
     const entry = index.entries[path];
     if (entry === undefined) continue;
     if (entry.kind === "ownerless") {
-      files.push({ path, ownerless: true, pending: false, withheld: false, refused: entry.refused, unshown: [] });
+      files.push({ path, ownerless: true, pending: false, withheld: entry.withheld === true, refused: entry.refused, unshown: [] });
       continue;
     }
     if (entry.pending || entry.withheld || entry.refused !== null || entry.unshown.length > 0) {

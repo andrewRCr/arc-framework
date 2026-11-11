@@ -31,6 +31,8 @@ export async function adoptProjectionFile(root: ProjectionRootState, index: Proj
     return reconcileAbsentAdoption(root, index, path);
   }
   if (gate.kind === "no-edit") return index;
+  const held = index.entries[path];
+  if (held?.withheld) return reportWithheld(root, index, path, held.refused);
   root.discovered.push(path);
   if (gate.kind === "pending") return refuse(root, index, path, null, { reason: `pending: ${gate.reason}`,
     remedy: { text: "Let the editor finish saving, then retry adoption." } });
@@ -122,4 +124,10 @@ async function refuse(root: ProjectionRootState, index: ProjectionIndex, path: s
   return commitProjectionIndex({ location: root.location, checkout: root.checkout, checkpoint: root.context.checkpoint,
     index: withProjectionEntry(index, path, { ...(previous?.kind === "ownerless" ? previous : {}),
       kind: "ownerless", stat, refused: mark }) });
+}
+
+
+function reportWithheld(root: ProjectionRootState, index: ProjectionIndex, path: string, mark: RefusedMark | null): ProjectionIndex {
+  if (mark !== null) root.context.report?.({ path, copy: null, mark });
+  return index;
 }

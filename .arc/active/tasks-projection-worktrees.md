@@ -96,97 +96,17 @@ that chunk.
           marker observations. Holder and markerless searches retain their validation; take-ins observe fresh evidence,
           including the current holder after a move. Unbound-marker classification uses the source inventory.
 
-### `[ ]` **1.5 Materialize a worktree in full, and rebuild one with no usable index — § 2.5, § 3.1**
+### `[x]` **1.5 Materialize a worktree in full, and rebuild one with no usable index — § 2.5, § 3.1**
 
 - _Goal:_ A worktree with no projection gets every record written under the replace guard and adoption rules, and one
   whose index it cannot use is rebuilt writing over no file that might hold an edit, withholding and reporting each.
 
-- _Note:_ The ignore guard refuses every root unless `.arc/user/.npmignore` is an accepted policy file
-  (`guardProjectionIgnores`), which the installer writes into the checkout it runs in (`prepareIgnoreFiles`,
-  `lib/template/ignore-files.ts`), so a linked worktree holds it only where the repository tracks it; every test
-  repository writes it.
-
-    - Commit this repository's `.arc/user/.npmignore` with the installer's content (`PERSONAL_NPM_IGNORE_CONTENT`,
-      `lib/personal-npm-ignore.ts`), which no branch tracks today, so every linked worktree spawned here from the flip
-      holds the policy; the file is inert before the flip. Before committing it, delete the untracked copy the installer
-      leaves from every checkout of this repository on this machine that holds one — each worktree `git worktree list`
-      names, and any other clone — since Git refuses to merge over it and teardown's relocation of the primary to base
-      ignores that refusal (`relocatePrimaryToBase`, `lib/work-unit/verbs/teardown.ts`).
-    - The guard's refusal of an absent or invalid npm policy names, beside replacing the file, committing it as the
-      installer writes it, so every worktree of the repository holds it (`guardProjectionIgnores`'s remedy,
-      `lib/store/projection/ignore-guard.ts`).
-    - At a spawn, into a worktree that has none, and at `arc sync` (1.9). At a command's start, a checkout 1.1 gives a
-      projection whose index reads `missing` or `unusable`, and one it gives none whose index reads `unusable`, which
-      2.1 and 2.2 check and persist as one it gives a projection, gets the materialization where `startUnderLease`
-      (`lib/store/projection/engine-start.ts`) now returns `no-projection` or refuses with "Restore a readable
-      projection index".
-    - A spawn materializes at the end of `provisionSpawnedWorktree`
-      (`lib/work-unit/mutators/reconcile-work-unit-worktree.ts`), once the marker exists — written there on the in-repo
-      path, and before it by `claimSpawnedWorktree` (`lib/work-unit/spawned-worktree-claim.ts`) from the flip — and once
-      `provisionTransientLocus` (`lib/locus/provisioning.ts`) marks a claim `ready`, in both before the worktree lock
-      (`lockSpawnedCheckout`, `lib/git/worktree-removal.ts`). It calls a process-level materialize port this task adds
-      to the engine's process state and the root hook binds beside `mint` (`registerProjectionHooks`,
-      `lib/store/projection/command-hooks.ts`), which binds 1.3's root for the new worktree under its lock, taken
-      through 1.7.a's lock wrapper, with that worktree's own configuration read there, so neither mutator composes a
-      store for it, and marks that root as a spawn's through a field of the root this task adds (`ProjectionRootState`),
-      which 1.7.b's fan-out reads. A new worktree whose own configuration yields no identity is not materialized, its
-      first command running as under the skip switch, and one whose own configuration yields another identity than the
-      command's is not materialized, its first command materializing it under its own (spec § 2.5). Before the flip the
-      port materializes nothing, as every entry point returns at once (`initializeProjection`,
-      `lib/store/projection/engine.ts`); from it, a failure is reported and the spawn completes, the worktree's first
-      command materializing it. A spawn in a process whose root hook never ran — a script, or a test that binds nothing
-      — finds the port unbound and materializes and reports nothing, the worktree's first command materializing it.
-    - It writes the clone's exclude entries (`projectionExcludePatterns`, `lib/store/projection/excludes.ts`, through
-      `ensureGitExcludePatterns`, `lib/git/exclude.ts`), then runs the guard through the ignore check (`checkIgnores`,
-      `lib/store/projection/ignore-check.ts`, with no recorded guard), which runs `guardProjectionIgnores`
-      (`lib/store/projection/ignore-guard.ts`) and returns the guard's basis and the ignore files' records, before
-      writing into any root, since on a fresh clone nothing ignores the shared roots until those entries exist, and
-      creates the checkout's scratch folder, `.arc/user/<identity>/scratch/work-unit/<slug>/`, for the work unit its
-      marker names. The index it writes records that check's result — the ignore files (`ignoreFilesAfter`) and the
-      guard's basis (`ProjectionIndexSchema.ignoreGuard`: a pass's basis, null after a refusal) — through one helper
-      this task extracts from the sweep (`sweepAsideFolder`, `lib/store/projection/sweep.ts`), which the start's sweep
-      and 1.7.b's fan-out record through too, so a fan-out later in the command does not skip the worktree as one with
-      no guard pass (1.7.b).
-    - With no usable index (`readProjectionIndex`'s `missing` and `unusable` causes,
-      `lib/store/projection/index-file.ts`): a file at a path the current projection lays a stored record at is
-      refreshed only where its blob id, stamp aside, equals its stamp's, or, stampless, the stored content's; every
-      other file under a projected root is left, written over by nothing, sent nowhere, and marked withheld in the new
-      index, as is each aside copy the sweep returned withheld (`SweepResult.withheld`, `sweepAsideFolder`,
-      `lib/store/projection/sweep.ts`; `ProjectionIndexSchema.withheldCopies`). Files write-back never adopts and
-      `MACHINE_LOCAL_PATHS` entries, both of which `isExcludedProjectionPath`
-      (`lib/store/projection/discovery-exclusions.ts`) answers, are left alone. Deleting a withheld file releases it:
-      pending where a record projects at its path, its entry gone otherwise. A rebuild with no usable index sets the
-      changed mark (`RecordEntry.changed`, `lib/store/projection/index-schema.ts`) on every file it found on disk, since
-      it cannot tell which of those the checkout changed, until the next `arc save`; a file it writes where none stood
-      is unmarked, so a fresh worktree's materialization marks nothing.
-    - A listing that is not whole writes files only for the records it returns; a record listed only as a diagnostic
-      (`ListingDiagnosticSchema`, `lib/store/read.ts`) projects no file and is reported.
-    - It writes every root group's partition, then the header (1.2). Its renders take their protection from 1.4.b, the
-      owner's meta answered from the records its listing returned and the holder search from one listing of the
-      worktrees, so protection adds no store `read` to it.
-    - Build `test-first` (one behavior at a time):
-        - Integration tier, over the reference backend and a real linked worktree
-        - a fresh worktree materializes every projected record at its layout path, stamped, and its scratch folder, and
-          marks no file changed
-        - a spawn's materialization records its guard's pass and the ignore files in the index it writes
-        - a spawn into a worktree with no npm policy reports a failed materialization naming the policy's remedy, which
-          names committing the installer's file
-        - a spawned worktree whose own configuration yields another identity than the command's is not materialized, and
-          its first command materializes it under that identity's personal root
-        - a claimed worktree with no index materializes at its first command
-        - a checkout 1.1 gives no projection that holds an unusable index is rebuilt at its start, as a claimed one is
-        - a materialization failing at a spawn is reported, and the worktree's first command materializes it
-        - a spawn before the flip, and one whose port is unbound, materialize nothing and report nothing
-        - with the index deleted, an unedited file is refreshed and an edited one is withheld and reported
-        - with the index deleted, `arc selection --changed` lists every editable projected Markdown file until
-          `arc save` — the selection leaves out protected files and files holding markers (`selectProjectedMarkdown`,
-          `lib/store/projection/selection.ts`)
-        - with the index deleted, an aside copy the sweep withheld is recorded withheld in the new index
-        - with the index deleted, a removal's aside copy the sweep linked back after a stop is withheld and reported
-        - a withheld file, deleted by the person, is marked pending where a record projects at its path
-        - a record listed only as a diagnostic projects no file and is reported
-        - materializing the files of several work units held in other checkouts reads no meta beyond its listing and
-          lists the worktrees once
+- _Outcome:_ Full inventories render canonical lifecycle and personal paths, cohort copies, and Errand descriptions
+  through shared protection evidence. First commands rebuild missing or unusable indexes, retaining edits and aside
+  copies as withheld until deletion; their changed marks remain until save. Spawn hooks materialize under the target's
+  configuration and lease, preserving copy bookkeeping across repeated bindings. Guard records survive and failures
+  report without failing the spawn. The tracked npm policy reaches future worktrees; the checkout and clone inventory
+  found no installer copies to remove.
 
 ### `[ ]` **1.6 Refresh from the store's changes — § 15.2**
 

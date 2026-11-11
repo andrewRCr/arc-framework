@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
-import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
+import { parseProjectionJson, withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
 import type { ProjectionIndex } from "../../../../src/lib/store/projection/index-schema.js";
 
 const fault = vi.hoisted(() => ({ header: "", stateDir: "", stopHeader: false, retain: "",
@@ -95,6 +95,6 @@ it("answers unreadable without deleting anything when the header still names its
   const before = await readFile(fault.header, "utf8");
   const name = (await readdir(fault.stateDir)).find(name => name.startsWith("index-"))!;
   await rm(join(fault.stateDir, name));
-  expect(await readProjectionIndex(location(), true, { groups: "all", retry: true })).toEqual({ kind: "unusable", cause: "unreadable" });
+  expect(await readProjectionIndex(location(), true, { groups: "all", retry: true })).toEqual({ kind: "unusable", cause: "unreadable", header: parseProjectionJson(before) });
   expect(await readFile(fault.header, "utf8")).toBe(before);
 });

@@ -21,6 +21,7 @@ import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness
 import { createDefaultLocusPorts } from "../../../../src/lib/work-unit/locus-ports.js";
 import { resolveWorktreeLocation } from "../../../../src/lib/git/worktree-location.js";
 import { readWorktreeMarker } from "../../../../src/lib/git/worktree-marker.js";
+import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import type { GitExec } from "../../../../src/lib/git/exec.js";
 
 /** One recorded event — a git invocation (`git ...`) or a locus hop (`chdir`). */
@@ -112,6 +113,7 @@ describe("nodeReconcileWorkUnitWorktreeFs.copyDirectory", () => {
     root = await mkdtemp(join(tmpdir(), "arc-copy-harness-dir-"));
   });
   afterEach(async () => {
+    beginProjectionCommand();
     await rm(root, { recursive: true, force: true });
   });
 
@@ -150,6 +152,18 @@ describe("reconcileWorkUnitWorktree — spawn", () => {
   });
   afterEach(async () => {
     await rm(root, { recursive: true, force: true });
+  });
+
+  it("materializes after writing the new worktree's ownership marker", async () => {
+    const { ctx } = buildCtx();
+    let observed = false;
+    projectionProcessState().materializeSpawn = async checkout => {
+      const marker = await readWorktreeMarker(checkout);
+      observed = marker.kind === "present" && marker.marker.createdFor?.kind === "work-unit";
+    };
+    await reconcileWorkUnitWorktree(ctx, { mutation: "spawn", branch: "plan/demo-wu", base: "main",
+      locationTemplate: join(root, "{repo}.{name}"), repo: "demo", wuName: "demo-wu", spawningIdentity: "andrew" });
+    expect(observed).toBe(true);
   });
 
   it("creates the branch + worktree at the templated path and writes the ownership marker", async () => {

@@ -48,6 +48,7 @@ export interface ProjectionRootState {
   readonly discovered: string[];
   changed: boolean;
   ready: boolean;
+  spawned?: boolean;
   writable: (path: string) => boolean;
   rights?: ProjectionRights;
   mint?: ProjectionStubMintPort;
@@ -64,6 +65,7 @@ export interface ProjectionProcessState {
   skip: ProjectionSkip | null;
   lockHeld: boolean;
   history: HistoryMemo | null;
+  materializeSpawn: ((checkout: string) => Promise<void>) | null;
   readonly roots: Map<string, ProjectionRootState>;
   readonly actors: Map<string, Promise<string>>;
   readonly capabilities: Map<string, boolean>;
@@ -78,7 +80,7 @@ export interface ProjectionProcessState {
 }
 
 function freshState(composedCapabilities = new Map<string, boolean>()): ProjectionProcessState {
-  return { command: null, start: null, resolution: null, skip: null, lockHeld: false, history: null, roots: new Map(), actors: new Map(),
+  return { command: null, start: null, resolution: null, skip: null, lockHeld: false, history: null, materializeSpawn: null, roots: new Map(), actors: new Map(),
     capabilities: new Map(composedCapabilities), composedCapabilities,
     engineCapabilityRoots: new Set(), layoutContexts: new Map(), configurations: new Map(), fanOutRounds: new Set(),
     notices: [], diagnostics: [], resolutions: [] };

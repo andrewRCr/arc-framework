@@ -1,5 +1,6 @@
 /** Recoverable marker-owned transient checkout provisioning. */
 
+import { materializeSpawnedProjection } from "../store/projection/spawn-materialization.js";
 import { isDeepStrictEqual } from "node:util";
 
 import type { LinkedWorktreeCreationReceipt } from "../git/linked-worktree.js";
@@ -128,6 +129,7 @@ async function completeSpawn(
   options: ProvisionTransientLocusOptions, spawn: Omit<SpawnState, "lock">,
 ): Promise<ProvisionTransientLocusResult> {
   const { checkoutPath, marker } = spawn;
+  await materializeSpawnedProjection(checkoutPath);
   const lock = await lockSpawn(options, checkoutPath);
   if (lock.kind === "failed") return {
     kind: "error",
@@ -169,6 +171,7 @@ async function provisionPrimary(
       ? { kind: "identity-only" }
       : { kind: "marker-residue", checkoutPath, markerBytes: marker.marker.bytes });
   }
+  await materializeSpawnedProjection(checkoutPath);
   return provisioned(options, null, { checkout, marker: marker.marker });
 }
 

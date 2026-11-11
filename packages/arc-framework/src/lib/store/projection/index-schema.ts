@@ -103,6 +103,7 @@ export type MintedStubReceipt = z.infer<typeof MintedStubReceiptSchema>;
 /** A file not yet bound to a usable record basis, optionally retaining an accepted stub receipt. */
 const OwnerlessEntrySchema = z.strictObject({
   kind: z.literal("ownerless"),
+  withheld: z.literal(true).optional(),
   minted: MintedStubReceiptSchema.optional(),
   stat: FileStatSchema.nullable(),
   refused: RefusedMarkSchema,

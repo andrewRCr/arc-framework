@@ -39,6 +39,7 @@
  * @module
  */
 
+import { materializeSpawnedProjection } from "../../store/projection/spawn-materialization.js";
 import { IncompleteWorktreePreparationError } from "../incomplete-worktree-preparation.js";
 import { claimSpawnedWorktree, workUnitMarkerSubject, requireSpawnedWorktreeClaim, requireSpawnedCheckoutCoordinate, removeDisposableSpawn,
   type SpawnedCheckoutCoordinate } from "../spawned-worktree-claim.js";
@@ -383,6 +384,7 @@ export async function provisionSpawnedWorktree(
     spawningIdentity: op.spawningIdentity,
     now: op.now,
   });
+  await materializeSpawnedProjection(op.worktreePath);
   return setup.postCreateNotice ?? null;
 }
 

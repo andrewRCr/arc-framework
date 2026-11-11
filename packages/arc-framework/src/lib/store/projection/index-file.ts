@@ -93,7 +93,7 @@ export type UnusableIndexCause = "missing" | "unreadable" | "other-format";
 export type ProjectionIndexRead =
   | { readonly kind: "index"; readonly index: ProjectionIndex }
   | { readonly kind: "no-projection" }
-  | { readonly kind: "unusable"; readonly cause: UnusableIndexCause };
+  | { readonly kind: "unusable"; readonly cause: UnusableIndexCause; readonly header?: ProjectionIndexHeader };
 /** Explicit initial groups, with one whole-read retry for readers that hold no lease. */
 export interface ProjectionIndexReadOptions {
   readonly groups?: Parameters<typeof loadProjectionGroups>[1];
@@ -111,9 +111,9 @@ export async function readProjectionIndex(location: ProjectionLocation, holdsPro
     if (decoded.kind !== "header") return decoded;
     try { return await readPartitions(location, decoded.header, options); }
     catch (error) {
-      if (!(error instanceof ProjectionPartitionMismatch)) return { kind: "unusable", cause: "unreadable" };
+      if (!(error instanceof ProjectionPartitionMismatch)) return { kind: "unusable", cause: "unreadable", header: decoded.header };
       if (options.retry && attempt === 0 && await readFile(path, "utf8").catch(() => null) !== read.text) continue;
-      return { kind: "unusable", cause: "unreadable" };
+      return { kind: "unusable", cause: "unreadable", header: decoded.header };
     }
   }
   return { kind: "unusable", cause: "unreadable" };

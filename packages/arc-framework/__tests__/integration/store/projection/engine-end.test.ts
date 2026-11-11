@@ -48,8 +48,9 @@ describe("projection command end", () => {
     expect(await h.file()).toBe("hand edit\n");
   });
 
-  it("preserves all files and retained content when an index is unusable, then retries after repair", async () => {
+  it("preserves files and retained content when the index becomes unusable at command end, then retries after repair", async () => {
     const h = await createEngineFixture(directories);
+    expect(await startProjection({ store: h.store, checkout: h.checkout })).toMatchObject({ kind: "ready" });
     const original = await readFile(join(h.location.stateDir, "index"), "utf8");
     const folder = join(h.location.stateDir, TAKEN_IN_FOLDER);
     await mkdir(folder);
@@ -57,7 +58,6 @@ describe("projection command end", () => {
     await h.edit("hand edit\n");
     const saved = await h.file();
     await writeFile(join(h.location.stateDir, "index"), "unreadable");
-    expect(await startProjection({ store: h.store, checkout: h.checkout })).toMatchObject({ kind: "refused" });
     await endProjection({ store: h.store, checkout: h.checkout });
     expect(await h.file()).toBe(saved);
     expect(await readFile(join(folder, "orphan"), "utf8")).toBe("retained input");

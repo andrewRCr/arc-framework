@@ -19,6 +19,7 @@ import { observeProjectionConfiguration } from "./command-configuration.js";
 import { reconcileProjectionLinks } from "./discovery-links.js";
 import { bindProjectionRoot } from "./engine-binding.js";
 import { resolveProjectionActor } from "./engine-actor.js";
+import { materializeProjectionRoot } from "./materialization.js";
 import { checkoutHoldsProjection } from "./ownership.js";
 
 /** Start independent reads together, drain them all, then sweep and take in files under the lease. */
@@ -53,13 +54,17 @@ export async function startUnderLease(input: ProjectionCommandInput, ports: Proj
     reportProjectionLinks([...sharedWalk.links, ...personalWalk.links]);
     await session.step();
     if (saved.status === "refused") return { kind: "refused", mark: { reason: saved.refusal.condition, remedy: saved.refusal.remedy } };
-    if (disk.kind === "unusable") return { kind: "refused", mark: { reason: `Projection index is ${disk.cause}.`,
-      remedy: { text: "Restore a readable projection index, then retry; existing projected files have been preserved." } } };
-    await bindResolution(input, disk.index);
+    await bindResolution(input, disk.kind === "index" ? disk.index : null);
     state.history ??= createHistoryMemo(input.store);
     root = await bindProjectionRoot({ ...input, ports, location, configuration: config, session, unsent, register: true,
       history: state.history, actor: await resolveProjectionActor(ports, location, config.identity.identity),
       links: [...sharedWalk.links, ...personalWalk.links] });
+    if (disk.kind === "unusable") {
+      const rebuilt = await materializeProjectionRoot({ root, source: input.store, configuration: config, version: saved.result,
+        index: null, recovered: disk.header });
+      return rebuilt.kind === "refused" ? { kind: "refused", mark: rebuilt.mark }
+        : { kind: "ready", version: saved.result, discovered: root.discovered };
+    }
     const index = await reconcileProjectionLinks(root, disk.index);
     const swept = await sweepAsideFolder({ location, checkout: input.checkout, index, format: config.objectFormat,
       blockedByLink: root.blockedByLink,

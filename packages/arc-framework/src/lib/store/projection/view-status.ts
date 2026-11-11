@@ -44,13 +44,13 @@ async function selectStatusView(input: ProjectionViewStatusInput, identity: Slug
   try { layout = await readCheckoutLayoutContext(input.checkout); }
   catch (error) {
     if (!(error instanceof ArcError)) throw error;
-    return { kind: "unavailable", diagnostics: [{ reason: error.message,
+    return { kind: "unavailable", references: [], diagnostics: [{ reason: error.message,
       remedy: { text: "Repair the checkout's ownership marker or project configuration, then retry status." } }] };
   }
   let own: OwnerIdentity | null = null;
   if (layout.claim !== null) {
     const claim = await readAdoptionClaim({ checkout: input.checkout, store: input.store, claim: layout.claim, context: {} });
-    if (claim.kind === "refused") return { kind: "unavailable", diagnostics: [claim.mark] };
+    if (claim.kind === "refused") return { kind: "unavailable", references: [], diagnostics: [claim.mark] };
     own = claim.record.reference.owner;
   }
   return selectProjectionView({ store: input.store, identity, view, own });

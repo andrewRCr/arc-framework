@@ -119,9 +119,9 @@ it("throws a named mismatch on late access and reads a missing partition as unre
   await writeFile(join(location.stateDir, name), JSON.stringify({ ".arc/active/current/a.md": { ...held, stat: null } }));
   expect(() => source.entries[".arc/active/current/a.md"]).toThrow(ProjectionPartitionMismatch);
   expect(() => loadProjectionGroups(source, [".arc/active"])).toThrow(name);
-  expect(await readProjectionIndex(location, true, { groups: [".arc/active"] })).toEqual({ kind: "unusable", cause: "unreadable" });
+  expect(await readProjectionIndex(location, true, { groups: [".arc/active"] })).toEqual({ kind: "unusable", cause: "unreadable", header: await header() });
   await rm(join(location.stateDir, name));
-  expect(await readProjectionIndex(location, true)).toEqual({ kind: "unusable", cause: "unreadable" });
+  expect(await readProjectionIndex(location, true)).toEqual({ kind: "unusable", cause: "unreadable", header: await header() });
 });
 
 it("treats inherited property names as absent paths without reading a fabricated partition", async () => {

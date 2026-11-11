@@ -104,6 +104,7 @@ it.each(["unreadable", "missed", "diagnostic"] as const)("keeps %s inventory evi
       reason: expect.stringMatching(/inventory/iu), remedy: { text: expect.stringMatching(/retry/iu) },
     })] });
     expect(held).not.toHaveProperty("missingPins");
+    expect(held).toMatchObject({ references: condition === "unreadable" ? [] : [other.reference] });
   } finally { fault.mockRestore(); }
   expect(await selectProjectionView(input)).toEqual({ kind: "selected", references: [other.reference], missingPins: input.view.pins });
 });
