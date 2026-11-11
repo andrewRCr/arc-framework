@@ -7,8 +7,8 @@
 
 **Purpose:** Cut this repository over to the ref store and finish the program: rehearse, quiesce, import, flip, and
 retire Git notes in one window, then delete what the flip made dead and rewrite the documentation to the new model. One
-draft designed the cutover whole; the members deliver it in six work units: the window's pre-flip machinery first, then
-the flip, and four follow-ons in parallel after it.
+draft designed the cutover whole; the members deliver it in seven work units: the window's pre-flip machinery first,
+then the flip, four follow-ons in parallel after it, and the internal collapse after tracked-state removal.
 
 ---
 
@@ -20,8 +20,9 @@ cutover-window-tooling                 the quiesce check, its record, the abort'
 └── cutover-flip                       Stage 2, the window, the flip change, the workflow rewrite, and notes
     │                                  retirement
     ├── cutover-tracked-state-removal  what reads as live after the flip: refusing and inert verbs, the lifecycle
-    │                                  hook checks, the CI planning classifier, and the merge-gate recipe; until
-    │                                  its cut at the flip's landing, also the collapse share
+    │   │                              hook checks, the CI planning classifier, and the merge-gate recipe
+    │   └── cutover-in-repo-removal    the in-repo store, dormant capability and seam arms, branch-tree readers,
+    │                                  lifecycle classification, and the write-context guard
     ├── cutover-notes-removal          notes-specific sync and its configuration keys
     ├── cutover-decompose-removal      the old decomposition machine
     └── cutover-documentation          the strategy rewrites and the ADR supersessions and amendments
@@ -31,55 +32,64 @@ Each member's `Depends On` edges are the source of truth: `cutover-window-toolin
 `cutover-flip` on `cohort-identity-verbs`, `projection-worktrees`, `projection-write-back`, `projection-team-scale`, and
 `cutover-window-tooling`, and each follow-on on `cutover-flip`. These orderings are not edges:
 
-- **Gate B placement** (Owner, 2026-11-03; the window tooling, 2026-11-10):
+- **Gate B placement** (Owner, 2026-11-03; the window tooling and the internal collapse, 2026-11-10):
     - `cutover-window-tooling`, `cutover-flip`, `cutover-tracked-state-removal`, `cutover-notes-removal`, and
-      `cutover-documentation` are Musts; `cutover-decompose-removal` is a Should.
-    - The follow-ons are planned to implementation-ready before `cutover-flip` lands. They land between the flip and the
-      start of the product-renames sweep, which waits on them through `naming-conventions`' edges.
-    - If `cutover-decompose-removal` has not landed by the sweep's start, it waits until after the deadline, and its
-      `naming-conventions` edge is dropped then, at the Owner's call.
+      `cutover-documentation` are Musts; `cutover-decompose-removal` and `cutover-in-repo-removal` are Shoulds.
+    - The Musts among the follow-ons are planned to implementation-ready before `cutover-flip` lands, and so is
+      `cutover-decompose-removal`; `cutover-in-repo-removal`'s planning waits behind the Musts' and may use a lull
+      before the flip lands. They land between the flip and the start of the product-renames sweep, which waits on
+      them through `naming-conventions`' edges.
+    - If a Should has not landed by the sweep's start, it waits until after the deadline, and its `naming-conventions`
+      edge is dropped then, at the Owner's call.
 - **Tracked-state removal builds first only while store-read moves remain.** Most start, teardown, delivery, and
   pre-publication consumers already select store reads behind the capability. Base drift's completed-meta resolver
   and delivery's rename source are offered to the flip. If it takes both, tracked-state removal need only land before
-  the internal collapse; no general first-among-follow-ons order remains.
-- **What the old decomposition machine still imports.** The collapse share, held in tracked-state removal until
-  its cut, leaves in place every module the old machine imports: the transition-record cluster
-  (`git-transition-record-enumeration.ts`, `terminal-transition-record-writer.ts`, `transition-record-store.ts`),
-  `transition-overlay.ts`, `artifactMatcher` and `pruneEmptyBacklogSource` (`mutators/relocate-artifacts.ts`),
-  `resolveProjectReadinessViewInput` (`lib/status/project-view.ts`), and the `ProtectionMode` type
-  (`lib/git/write-context.ts`). Their surviving callers move onto store reads at the flip or in tracked-state
-  removal if still needed. `cutover-decompose-removal` deletes each with its last caller, so it and the collapse can
-  land in either order.
+  `cutover-in-repo-removal`; no general first-among-follow-ons order remains.
+- **What the old decomposition machine still imports.** `cutover-in-repo-removal` leaves in place every module the
+  old machine imports: the transition-record cluster (`git-transition-record-enumeration.ts`,
+  `terminal-transition-record-writer.ts`, `transition-record-store.ts`), `transition-overlay.ts`, `artifactMatcher`
+  and `pruneEmptyBacklogSource` (`mutators/relocate-artifacts.ts`), `resolveProjectReadinessViewInput`
+  (`lib/status/project-view.ts`), and the `ProtectionMode` type (`lib/git/write-context.ts`). Their surviving callers
+  move onto store reads at the flip or in tracked-state removal if still needed. `cutover-decompose-removal` deletes
+  each with its last caller, so it and `cutover-in-repo-removal` can land in either order.
+- **The sealing guard's notes callers** (`refuseWriteIfStoreImported`, `lib/store/store-imported.ts`). The notes
+  commands stay registered after the flip until `cutover-notes-removal` deletes them, and the guard is what refuses
+  their writes and publication once the store is imported. `cutover-in-repo-removal` removes the guard's in-repo arm
+  and keeps the notes commands' calls and what they import from the module; whichever of the two removes its last
+  caller deletes the module, so they land in either order.
 - **The ROADMAP conflict remedy** (`arc hook-remedy-roadmap-conflict`), its hook block, and
   `arc base merge --regenerate-roadmap` leave together in tracked-state removal. No live caller reaches the hook's
   fallback after the flip, so this removal does not wait for other branches' hooks to refresh.
 - **Inbound item numbers.** Each member's inbound items keep the number they had in `storage-cutover`'s buffer, shown
   in their headings, so a number cited in one member's draft finds its item in another's.
-- **Inbound items that span two members.** Each lives in one member's draft; the other member takes the share named
+- **Inbound items that span members.** Each lives in one member's draft; the other members take the shares named
   here:
     - #1, "Delete the code `cli-substrate-complete-migration` carves out": `cutover-tracked-state-removal` holds it;
-      `cutover-notes-removal` takes its notes-specific sync and survivor list.
+      `cutover-notes-removal` takes its notes-specific sync and survivor list, and `cutover-in-repo-removal` its
+      branch-tree readers and lifecycle classification.
     - #10, "Delete the import's transform, the suites that target retired substrates, and the sync-state ref":
       `cutover-tracked-state-removal` holds it; `cutover-notes-removal` takes the sync-state ref and the suites that
-      target notes.
+      target notes, and `cutover-in-repo-removal` the suites that target the in-repo implementation.
     - #25, "Take `seam-decomposition`'s deletion set, rehearsal cut, and workflow end state":
       `cutover-decompose-removal` holds it; `cutover-flip` takes the representative rehearsal cut and the workflow end
       state.
     - #26, "Take `seam-status-roadmap`'s two-step ROADMAP removal and its in-repo arms": `cutover-flip` holds it;
-      `cutover-tracked-state-removal` takes the in-repo arms, `DERIVED_VIEWS`, and the conflict remedy.
+      `cutover-tracked-state-removal` takes the conflict remedy, and `cutover-in-repo-removal` the in-repo arms and
+      `DERIVED_VIEWS`.
 
-### Why six before the flip
+### Why seven
 
 The flip is separate from the deletion it makes due (Owner, 2026-11-03), and from the window's pre-flip machinery
 (Owner, 2026-11-10). The flip crossed the size marks at its create-spec entry, and of its parts only that machinery can
 sit inert on `main` before the window while the window keeps one merge; the window runs the quiesce check on `main`'s
-pre-flip build, so the check must be there first. The rest of the flip stays one work unit. The six named members hold
-that boundary through the flip's landing. Tracked-state removal keeps what a user, CI, help, or the shipped recipe still
-exposes. Its draft holds a marked internal-collapse share until that share is cut at the flip's landing; the collapse
-member is added then, not before. That share contains the in-repo store, dormant capability and seam arms, branch-tree
-readers, lifecycle classification, and the write-context guard. Notes sync and the old decomposition machine each remain
-one self-contained deletion member. Their roughly 10,000-line deletion sets stay whole (Owner, 2026-11-03), since
-another branch and review would not shrink the subsystem a reviewer must check.
+pre-flip build, so the check must be there first. The rest of the flip stays one work unit. Tracked-state removal keeps
+what a user, CI, help, or the shipped recipe still exposes, and `cutover-in-repo-removal`, split from it by hand at its
+create-spec entry (Owner, 2026-11-10), takes the internal collapse: the in-repo store, dormant capability and seam arms,
+branch-tree readers, lifecycle classification, and the write-context guard. The split was first set for the flip's
+landing, to keep a cut from running the decomposition procedure before the flip; a hand mint runs none of it. Notes sync
+and the old decomposition machine each remain one self-contained deletion member. Their roughly 10,000-line deletion
+sets stay whole (Owner, 2026-11-03), since another branch and review would not shrink the subsystem a reviewer must
+check.
 
 ### Register shares — 2026-11-10
 
@@ -92,8 +102,8 @@ The flip column states required post-flip behavior, not behavior already built o
 while unused legacy implementation remains; that residue's removal is recorded under its explicit removal row. An
 explicit deletion or contract-removal clause is not satisfied by dormancy. In the later column, **tracked-state
 removal** names `cutover-tracked-state-removal`, **notes removal** names `cutover-notes-removal`, **decomposition
-removal** names `cutover-decompose-removal`, and **documentation** names `cutover-documentation`. **Collapse** is the
-marked share still held in tracked-state removal's draft until its cut at the flip's landing; it is not yet a member.
+removal** names `cutover-decompose-removal`, **documentation** names `cutover-documentation`, and **collapse** names
+`cutover-in-repo-removal`.
 
 | Mechanism                                                                    | Flip share                                                                                                                                                                                           | Later share or unresolved obligation                                                                                                                                                                            |
 | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -226,12 +236,19 @@ _Consumes:_ every other `state-storage` member, landed, the last of them `cohort
 
 _Exposes:_ the surfaces still exposed to users, CI, help, or the shipped recipe after the flip, removed: refusing and
 inert verbs and options, lifecycle hook checks, the CI planning classifier, and the merge-gate recipe as a whole;
-the import transform and the window's leftovers, removed. Until the internal collapse is cut at the flip's landing,
-its draft also holds that share: the in-repo store, dormant capability and seam arms, branch-tree readers, lifecycle
-classification, and the write-context guard. `archive.cadence` and both supported arms stay; only in-repo-only readers
-leave in the collapse. `hooks.contributor_protected_paths` and `hooks.task_numbering` retire with their checks.
+the import transform and the window's leftovers, removed. `archive.cadence` and both supported arms stay; only
+in-repo-only readers leave, in `cutover-in-repo-removal`. `hooks.contributor_protected_paths` and `hooks.task_numbering`
+retire with their checks.
 
 _Consumes:_ `cutover-flip`.
+
+### `cutover-in-repo-removal`
+
+_Exposes:_ the internal collapse removed: the in-repo store implementation, the dormant capability and seam arms with
+the capability itself, the branch-tree readers, lifecycle classification and exclusion, the write-context guard, and
+`archive.cadence`'s in-repo-only readers, leaving in place what the old decomposition machine still imports.
+
+_Consumes:_ `cutover-flip` and `cutover-tracked-state-removal`.
 
 ### `cutover-notes-removal`
 
@@ -243,7 +260,7 @@ _Consumes:_ `cutover-flip`.
 ### `cutover-decompose-removal`
 
 _Exposes:_ the old decomposition machine removed, with its callers in teardown and in-flight derivation and the modules
-`cutover-tracked-state-removal` leaves for it.
+`cutover-in-repo-removal` leaves for it.
 
 _Consumes:_ `cutover-flip`.
 
