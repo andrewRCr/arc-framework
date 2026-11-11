@@ -1,5 +1,5 @@
 /** Store-driven refresh over actual reference state and projected files. */
-import { readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
+import { readFile, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { withProjectionEntry } from "../../../../src/lib/store/projection/index-memory.js";
@@ -21,12 +21,29 @@ import { StoreRefusalSchema } from "../../../../src/lib/store/refusal.js";
 
 const observation = vi.hoisted(() => ({ file: "", index: "", reference: "", events: [] as string[],
   firstHeader: null as (() => Promise<void>) | null }));
+vi.mock("node:fs", async original => {
+  const actual = await original<typeof import("node:fs")>();
+  return { ...actual,
+    lstatSync: (...args: Parameters<typeof actual.lstatSync>) => {
+      const result = actual.lstatSync(...args);
+      if (args[0] === observation.file) observation.events.push("file-stat");
+      return result;
+    },
+    readFileSync: (...args: Parameters<typeof actual.readFileSync>) => {
+      const result = actual.readFileSync(...args);
+      if (observation.index !== "" && typeof args[0] === "string" && args[0].startsWith(`${observation.index}-`)) observation.events.push("partition-read");
+      return result;
+    },
+  };
+});
 vi.mock("node:fs/promises", async original => {
   const actual = await original<typeof import("node:fs/promises")>();
   return { ...actual,
-    readFile: (...args: Parameters<typeof actual.readFile>) => {
+    readFile: async (...args: Parameters<typeof actual.readFile>) => {
       if (args[0] === observation.file) observation.events.push("file-read");
-      return actual.readFile(...args);
+      const result = await actual.readFile(...args);
+      if (args[0] === observation.index) observation.events.push("header-read");
+      return result;
     },
     lstat: (...args: Parameters<typeof actual.lstat>) => {
       if (args[0] === observation.file) observation.events.push("file-stat");
@@ -102,6 +119,69 @@ it("publishes the index and reference once after a no-change start finishes its 
   expect(observation.events.filter(event => event === "index" || event === "reference")).toEqual(["index", "reference"]);
   expect(observation.events.lastIndexOf("file-stat")).toBeLessThan(observation.events.indexOf("index"));
   expect(observation.events).toContain("file-stat");
+});
+
+it("reads its header, walked partition, and file stats while the issued store read remains held", async () => {
+  const h = await fixture();
+  observation.file = join(h.f.root, h.path);
+  observation.index = join(h.projected.location.stateDir, "index");
+  observation.events = [];
+  let release = (): void => undefined;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const store = overrideEngineStore(h.f.store, { version: async () => {
+    observation.events.push("state-started");
+    await held;
+    return h.f.store.version();
+  } });
+  const start = startProjection({ store, checkout: h.f.root });
+  try {
+    await vi.waitFor(() => expect(observation.events).toEqual(expect.arrayContaining(["state-started", "header-read", "partition-read", "file-stat"])));
+    expect(observation.events.indexOf("state-started")).toBeLessThan(observation.events.indexOf("header-read"));
+    expect(observation.events).not.toContain("index");
+  } finally { release(); await start; }
+  expect(await start).toMatchObject({ kind: "ready" });
+});
+
+it.each(["withheld", "link"])("discards early stats after a %s recovery publishes a new reference", async recovery => {
+  const h = await fixture(), file = join(h.f.root, h.path), meta = join(h.f.root, h.metaPath);
+  const old = new Date(Date.now() - 5_000);
+  await utimes(file, old, old);
+  const input = { store: h.f.store, checkout: h.f.root };
+  await startProjection(input); await endProjection(input);
+  if (recovery === "withheld") {
+    const disk = await readProjectionIndex(h.projected.location, true, { groups: "all" });
+    const entry = disk.kind === "index" ? disk.index.entries[h.metaPath] : undefined;
+    if (disk.kind !== "index" || entry?.kind !== "record") throw new Error("Missing current metadata");
+    await withProjectionLock(h.projected.location, session => commitProjectionIndex({ location: h.projected.location, checkout: h.f.root,
+      index: withProjectionEntry(disk.index, h.metaPath, { ...entry, withheld: true }), checkpoint: session.step }));
+  }
+  await rm(meta);
+  const target = join(h.f.root, "external-meta.md");
+  if (recovery === "link") { await writeFile(target, "External metadata stays untouched.\n"); await symlink(target, meta, "file"); }
+  const bytes = await readFile(file, "utf8");
+  observation.file = file;
+  observation.index = join(h.projected.location.stateDir, "index");
+  observation.events = [];
+  let edited = false;
+  observation.firstHeader = async () => {
+    await writeFile(file, bytes.replace("Stored note.", "Late edit after observation."));
+    edited = true;
+    observation.events.push("late-edit");
+  };
+  const store = overrideEngineStore(h.f.store, { list: request => {
+    if (edited) observation.events.push("record-list");
+    return h.f.store.list(request);
+  } });
+  expect(await startProjection({ ...input, store })).toMatchObject({ kind: "ready" });
+  expect(edited).toBe(true);
+  const afterEdit = observation.events.slice(observation.events.indexOf("late-edit") + 1);
+  expect(afterEdit.indexOf("file-stat")).toBeGreaterThanOrEqual(0);
+  if (recovery === "withheld") {
+    expect(afterEdit.indexOf("record-list")).toBeGreaterThanOrEqual(0);
+    expect(afterEdit.indexOf("file-stat")).toBeLessThan(afterEdit.indexOf("record-list"));
+  }
+  expect(success(await h.f.store.read({ reference: h.notes.reference })).content).toContain("Late edit after observation.");
+  if (recovery === "link") expect(await readFile(target, "utf8")).toBe("External metadata stays untouched.\n");
 });
 
 it("publishes a clean smudged file's observed stat once and avoids hashing it on the next no-change start", async () => {

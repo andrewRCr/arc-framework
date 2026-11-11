@@ -383,3 +383,26 @@ mover, `rebuild`'s caller, the start and end, and materialization carry the corr
 withholding and shared reconciliation; selection gains the withholding check. The index partition seams, ignore
 authority, performance bounds, and historical substrate specification remain unchanged; Task 1.14 closes the segment
 against the added criterion.
+
+## Implementation timing feedback
+
+Native Linux feedback from arc-offload run `21136803c78941a8877723d2bb235c2b`, eleven samples per path. The prepared
+repository holds 800 projected files: 280 backlog files, two per folder, 40 active files, and 480 archive files totaling
+about 17 MB. The expanded comparison holds 60,000 archived files and the same hot files and owner refs. Its settled
+archive bytes and index basis are produced from native records with the production renderer and index codec; a small
+fixture compares them with full native materialization.
+
+| Path                                                  | Median (ms) | Bound (ms) |
+| ----------------------------------------------------- | ----------- | ---------- |
+| No-change start                                       | 20.59       | 10         |
+| No-change start with expanded archive                 | 21.18       | 10         |
+| Index read, walk, and stats alone                     | 3.52        | —          |
+| Two Git calls together, alone                         | 5.03        | —          |
+| One Git call alone                                    | 2.98        | —          |
+| One-file backlog fan-out into twenty linked worktrees | 267.54      | 100        |
+| Ten-file fan-out into twenty linked worktrees         | 700.34      | 100        |
+| Full materialization                                  | 1055.25     | 1000       |
+
+These are prequalification measurements, above the stated bounds, not a closed performance result. The required
+hosted Linux, Windows, and macOS measurements are not recorded yet. The external timer includes complete operations;
+fan-out begins at the store's captured notification after its backend write and includes every propagation round.

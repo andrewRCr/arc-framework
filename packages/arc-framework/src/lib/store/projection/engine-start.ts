@@ -3,50 +3,43 @@ import { isDeepStrictEqual } from "node:util";
 import { createHistoryMemo } from "./base-recovery.js";
 import { readProjectionConfiguration } from "./configuration.js";
 import { guardedProjectionRoots } from "./ignore-guard.js";
-import { commitProjectionIndex, readProjectionIndex } from "./index-file.js";
-import { sweepAsideFolder, writableUnder } from "./sweep.js";
-import { walkProjectionRoots } from "./engine-walk.js";
+import { commitProjectionIndex } from "./index-file.js";
+import { sweepAsideFolder, writableUnder, type SweepResult } from "./sweep.js";
+import { launchProjectionStart, projectionStartEligible, type ProjectionWalkObservation } from "./start-observations.js";
 import { writeBackProjectionFiles } from "./engine-files.js";
 import { projectionProcessState, type ProjectionRootState } from "./process-state.js";
-import { PROJECTED_LIFECYCLE_ROOTS, projectedRootPaths } from "../../layout/index.js";
 import type { ProjectionCommandInput, ProjectionStart } from "./engine.js";
 import type { ProjectionEnginePorts } from "./engine-ports.js";
 import type { ProjectionLocation } from "./location.js";
 import type { ProjectionLockSession } from "./lock.js";
 import { reportProjectionCopy, reportProjectionLinks } from "./report.js";
 import { selectProjectionResolution, recheckProjectionResolution } from "./save-resolution.js";
-import { observeProjectionConfiguration } from "./command-configuration.js";
 import { reconcileProjectionLinks } from "./discovery-links.js";
 import { bindProjectionRoot } from "./engine-binding.js";
 import { resolveProjectionActor } from "./engine-actor.js";
 import { materializeProjectionRoot } from "./materialization.js";
-import { checkoutHoldsProjection } from "./ownership.js";
 import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 import type { ProjectionRefreshRequest } from "./refresh.js";
-import type { ProjectionIndex } from "./index-schema.js";
+import type { FileStat, ProjectionIndex } from "./index-schema.js";
+import { recordProjectionSweep } from "./end-work.js";
+import { projectionTimingNow, recordProjectionTiming, reportProjectionTripwires } from "./timings.js";
 
 /** The writable command input retains its original rendering source beside any history-retry wrapper. */
 export interface ProjectionStartInput extends ProjectionCommandInput { readonly source: import("./record-source.js").ProjectionSource }
 
 /** Start independent reads together, drain them all, then sweep and take in files under the lease. */
 export async function startUnderLease(input: ProjectionStartInput, ports: ProjectionEnginePorts,
-  location: ProjectionLocation, session: ProjectionLockSession, unsent: Set<string>): Promise<ProjectionStart> {
+  location: ProjectionLocation, session: ProjectionLockSession, unsent: Set<string>, startedAt: number): Promise<ProjectionStart> {
   const state = projectionProcessState();
   let root: ProjectionRootState | undefined;
   try {
     await session.step();
-    const disk = await readProjectionIndex(location, await checkoutHoldsProjection(input.checkout, location),
-      { groups: input.mode === "save" ? "all" : "walked" });
-    if (disk.kind === "no-projection") {
+    if (!await projectionStartEligible(input.checkout, location)) {
       await bindResolution(input, null);
       return { kind: "no-projection" };
     }
-    const configuration = observeProjectionConfiguration(input.checkout, () => readProjectionConfiguration(ports.exec, input.checkout));
-    const version = input.store.version();
-    const shared = walkProjectionRoots(input.checkout, PROJECTED_LIFECYCLE_ROOTS.filter(path => input.mode === "save" || path !== ".arc/completed"), ports.walkFs);
-    const personal = configuration.then(config => config.identity.status === "no-identity" ? { files: [], links: [] }
-      : walkProjectionRoots(input.checkout, projectedRootPaths(config.identity.identity).filter(path => path.startsWith(".arc/user/")), ports.walkFs));
-    const read = await Promise.allSettled([configuration, version, shared, personal] as const);
+    const pending = launchProjectionStart(input, ports, location);
+    const read = await Promise.allSettled([pending.configuration, pending.version, pending.shared, pending.personal, pending.index] as const);
     const config = fulfilled(read[0]);
     const pendingFiles = read[2].status === "fulfilled" ? read[2].value.files : [];
     if (config.identity.status === "no-identity") {
@@ -55,6 +48,8 @@ export async function startUnderLease(input: ProjectionStartInput, ports: Projec
       return { kind: "skipped", skip, pending: pendingFiles };
     }
     const saved = fulfilled(read[1]);
+    const disk = fulfilled(read[4]);
+    if (disk.kind === "no-projection") return { kind: "no-projection" };
     const sharedWalk = fulfilled(read[2]), personalWalk = fulfilled(read[3]);
     const files = [...sharedWalk.files, ...personalWalk.files].sort();
     reportProjectionLinks([...sharedWalk.links, ...personalWalk.links]);
@@ -67,17 +62,19 @@ export async function startUnderLease(input: ProjectionStartInput, ports: Projec
       links: [...sharedWalk.links, ...personalWalk.links] });
     if (disk.kind === "unusable") {
       const rebuilt = await materializeProjectionRoot({ root, source: input.source, configuration: config, version: saved.result,
-        index: null, recovered: disk.header });
+        index: null, recovered: disk.header, startTiming: startedAt });
       return rebuilt.kind === "refused" ? { kind: "refused", mark: rebuilt.mark }
         : { kind: "ready", version: saved.result, discovered: root.discovered };
     }
     let index = await reconcileProjectionLinks(root, disk.index);
+    const beforeSweep = index;
     const swept = await sweepAsideFolder({ location, checkout: input.checkout, index, format: config.objectFormat,
       blockedByLink: root.blockedByLink,
       takeIn: root.takeIn, writer: root.context.writer, checkpoint: root.context.checkpoint,
       ignoreRules: config.ignoreRules, readIgnoreRules: async () => (await readProjectionConfiguration(ports.exec, input.checkout)).ignoreRules,
       guard: { root: input.checkout, identity: root.identity, exec: ports.execInput, fs: ports.fs } });
     root.writable = writableUnder(swept.ignores, guardedProjectionRoots(root.identity).map(root => root.path));
+    recordProjectionSweep(root, swept);
     root.copies.push(...swept.copies);
     if (swept.ignores.kind === "refused") state.diagnostics.push({ path: input.checkout, copy: null,
       mark: { reason: `Projection ignore guard refused: ${swept.ignores.reason}`, remedy: { text: swept.ignores.remedy } } });
@@ -88,16 +85,26 @@ export async function startUnderLease(input: ProjectionStartInput, ports: Projec
     if (swept.index !== null) {
       index = await reconcileProjectionHandoffs(root, swept.index);
       await recheckProjectionResolution(root, index, state.resolution);
-      index = await writeBackProjectionFiles(root, index, [...new Set([...files, ...recovered])].sort());
+      const observations = reusableStartStats({ original: disk.index, beforeSweep, index, swept, walks: [sharedWalk, personalWalk] });
+      index = await writeBackProjectionFiles(root, index, [...new Set([...files, ...recovered])].sort(), observations);
     }
     index = await resolveNewlyProjectedSubject(root, await updateProjection(root, { source: input.source, version: saved.result, index }));
-    await commitProjectionIndex({ location, checkout: input.checkout, index, checkpoint: root.context.checkpoint });
+    index = await commitProjectionIndex({ location, checkout: input.checkout,
+      index: recordProjectionTiming(index, "start", projectionTimingNow(ports) - startedAt), checkpoint: root.context.checkpoint });
     await session.step();
+    reportProjectionTripwires(root, index);
     root.ready = true;
     return { kind: "ready", version: saved.result, discovered: root.discovered };
   } finally {
     if (root !== undefined) root.checkpoint = null;
   }
+}
+
+function reusableStartStats(input: { original: ProjectionIndex; beforeSweep: ProjectionIndex; index: ProjectionIndex;
+  swept: SweepResult; walks: readonly ProjectionWalkObservation[] }): ReadonlyMap<string, FileStat | null> | undefined {
+  if (input.original !== input.beforeSweep || input.index !== input.swept.index
+    || input.swept.swept.length > 0 || input.swept.left.length > 0) return undefined;
+  return new Map(input.walks.flatMap(walk => [...walk.stats]));
 }
 
 async function updateProjection(root: ProjectionRootState, input: ProjectionRefreshRequest): Promise<{ index: ProjectionIndex; viewReprojectionAttempted: boolean }> {

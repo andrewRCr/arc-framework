@@ -4,7 +4,8 @@
  */
 import { withProjectionEntry } from "./index-memory.js";
 import { loadProjectionGroups } from "./index-memory.js";
-import { readdir, readFile, rm } from "node:fs/promises";
+import { readdirSync } from "node:fs";
+import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { isAdvisoryHolderAbandoned, type AdvisoryHolderObserver } from "../../advisory-lock.js";
 import { ASIDE_FILES_ROOT, parseAsideFile, processScopeDigest, type AsideFile, type AsideWriterInput } from "./aside.js";
@@ -344,13 +345,14 @@ async function listAsideFolder(checkout: string): Promise<string[]> {
   const found: string[] = [];
   try {
     for (let directory = pending.pop(); directory !== undefined; directory = pending.pop()) {
-      for (const entry of await readdir(join(checkout, directory), { withFileTypes: true })) {
+      for (const entry of readdirSync(join(checkout, directory), { withFileTypes: true })) {
         const location = `${directory}/${entry.name}`;
         const named = parseAsideFile(location);
         // A directory at a copy's exact location is opaque: none of its contents are projection-owned copies.
         if (named?.role === "aside" || (named !== undefined && !entry.isDirectory())) found.push(location);
         if (named === undefined && entry.isDirectory()) pending.push(location);
       }
+      await new Promise<void>(resolve => setImmediate(resolve));
     }
     return found;
   } catch (error) {

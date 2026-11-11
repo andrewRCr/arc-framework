@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NATIVE_LEASE_PROCESS } from "../../../../src/lib/lease-process.js";
 import { acquireAdvisoryLock, releaseAdvisoryLockConfirmed, type AdvisoryLockHandle } from "../../../../src/lib/advisory-lock.js";
-import { ADVISORY_LEASE_DURATION_MS } from "../../../../src/lib/renewable-lease.js";
+import { ADVISORY_LEASE_DURATION_MS, ADVISORY_LEASE_RENEW_INTERVAL_MS } from "../../../../src/lib/renewable-lease.js";
 import type { ProjectionLocation } from "../../../../src/lib/store/projection/location.js";
 import {
   PROJECTION_LOCK_FILE, SIBLING_LOCK_WAIT_MS, withProjectionLock,
@@ -48,6 +48,27 @@ async function hold(): Promise<{ release: () => void; done: Promise<unknown> }> 
 }
 
 describe("the projection lock", () => {
+  it("avoids lockfile reads until a step reaches its renewal window, then renews on disk", async () => {
+    let now = Date.now(), observing = false, reads = 0;
+    const lockPath = join(location.stateDir, PROJECTION_LOCK_FILE);
+    expect(await withProjectionLock(location, async session => {
+      const initial = JSON.parse(await readFile(lockPath, "utf8")) as { leaseUntil: number };
+      observing = true;
+      await session.step();
+      now = initial.leaseUntil - ADVISORY_LEASE_RENEW_INTERVAL_MS - 1;
+      await session.step();
+      expect(reads).toBe(0);
+      now++;
+      await session.step();
+      observing = false;
+      expect(reads).toBeGreaterThan(0);
+      expect(JSON.parse(await readFile(lockPath, "utf8"))).toMatchObject({ leaseUntil: now + ADVISORY_LEASE_DURATION_MS });
+      return "renewed";
+    }, {}, { now: () => now, scheduleEvery: () => () => undefined,
+      readFile: async path => { if (observing) reads++; return readFile(path, "utf8"); } }))
+      .toEqual({ status: "done", value: "renewed" });
+  });
+
   it("stops the old owner after cross-scope takeover before any heartbeat is delivered, and permits retry", async () => {
     let now = 0;
     let replacement: AdvisoryLockHandle | undefined;
@@ -71,9 +92,11 @@ describe("the projection lock", () => {
 
   it("reports failed step confirmation without mutating and permits a repaired retry", async () => {
     let armed = false;
+    let now = Date.now();
     let mutated = false;
     const result = await withProjectionLock(location, async (session) => {
       armed = true;
+      now += ADVISORY_LEASE_DURATION_MS - ADVISORY_LEASE_RENEW_INTERVAL_MS;
       try {
         await session.step();
         mutated = true;
@@ -81,6 +104,7 @@ describe("the projection lock", () => {
         armed = false;
       }
     }, {}, {
+      now: () => now,
       scheduleEvery: () => () => undefined,
       readFile: async (path) => {
         if (armed) throw Object.assign(new Error("temporary read failure"), { code: "EACCES" });

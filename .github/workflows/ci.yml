@@ -916,6 +916,7 @@ jobs:
         name: portability-results-${{ runner.os }}
         path: |
           packages/arc-framework/.test-cost-runs/store-timing.json
+          packages/arc-framework/.test-cost-runs/projection-timing.json
           packages/arc-framework/node_modules/.vite/vitest/**/results.json
         include-hidden-files: true
         if-no-files-found: error
@@ -1008,7 +1009,9 @@ jobs:
         ARC_STORE_BURSTS: '1'
     - name: Measure native operation timing only
       if: ${{ github.event_name == 'workflow_dispatch' && inputs.portability_timing_only }}
-      run: npm run test:file -- packages/arc-framework/__tests__/integration/store-ref-timing.test.ts --maxWorkers=1
+      run: >-
+        npm run test:file -- packages/arc-framework/__tests__/integration/store-ref-timing.test.ts
+        packages/arc-framework/__tests__/integration/store-ref-projection-timing.test.ts --maxWorkers=1
       env:
         ARC_E2E_SKIP_BUILD: '1'
         ARC_STORE_BURSTS: '1'
@@ -1020,6 +1023,7 @@ jobs:
         name: portability-results-${{ runner.os }}-${{ matrix.shard }}
         path: |
           packages/arc-framework/.test-cost-runs/store-timing.json
+          packages/arc-framework/.test-cost-runs/projection-timing.json
           packages/arc-framework/.test-cost-runs/store-write-profile*
           packages/arc-framework/.test-cost-runs/store-process-baseline.json
           packages/arc-framework/.test-cost-runs/cancellation-stdin/**

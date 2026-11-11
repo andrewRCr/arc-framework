@@ -32,6 +32,7 @@ it("starts without loading a settled quarter holding sixty thousand entries", as
 
 it("invalidates a late mismatch in the command's own root while retaining the header and reporting its partition", async () => {
   const h = await createEngineFixture(directories);
+  await h.edit("An actual send requires end settlement.\n");
   expect(await startProjection({ store: h.store, checkout: h.checkout })).toMatchObject({ kind: "ready" });
   const headerPath = join(h.location.stateDir, "index"), headerBytes = await readFile(headerPath, "utf8");
   const header = JSON.parse(headerBytes) as { groups: Record<string, { name: string }> };

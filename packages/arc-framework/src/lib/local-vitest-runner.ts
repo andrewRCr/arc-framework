@@ -303,6 +303,7 @@ const PORTABILITY_SUITES = [
   "store-ref-separate-conformance-reads-",
   "store-ref-separate-conformance-sync-",
   "store-ref-timing.test.ts",
+  "store-ref-projection-timing.test.ts",
   "store-ref-timing-isolation.test.ts",
   "checks/runner/",
   "lib/checks/result.test.ts",

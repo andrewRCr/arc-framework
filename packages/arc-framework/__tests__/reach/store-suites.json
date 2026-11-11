@@ -13,7 +13,8 @@
     {
       "suites": [
         "packages/arc-framework/__tests__/integration/store-ref-bursts.test.ts",
-        "packages/arc-framework/__tests__/integration/store-ref-timing.test.ts"
+        "packages/arc-framework/__tests__/integration/store-ref-timing.test.ts",
+        "packages/arc-framework/__tests__/integration/store-ref-projection-timing.test.ts"
       ],
       "variable": "ARC_STORE_BURSTS",
       "value": "1"
@@ -87,6 +88,7 @@
       ]
     },
     { "module": "packages/arc-framework/__tests__/integration/store-ref-timing.test.ts", "finds": [] },
+    { "module": "packages/arc-framework/__tests__/integration/store-ref-projection-timing.test.ts", "finds": [] },
     {
       "module": "packages/arc-framework/__tests__/integration/store-ref-timing-isolation.test.ts",
       "finds": [{ "closureOf": ["packages/arc-framework/vitest.config.ts"] }]

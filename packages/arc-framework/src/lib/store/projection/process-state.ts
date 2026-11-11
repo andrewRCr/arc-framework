@@ -51,6 +51,9 @@ export interface ProjectionRootState {
   readonly unsent: Set<string>;
   readonly discovered: string[];
   changed: boolean;
+  sent?: boolean;
+  sweepEmpty?: boolean;
+  fanOutTimes?: number[];
   ready: boolean;
   spawned?: boolean;
   writable: (path: string) => boolean;

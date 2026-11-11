@@ -8,6 +8,8 @@ import { createDefaultStorePorts } from "../default-store-ports.js";
 import type { AsideWriterInput } from "./aside.js";
 import type { ProjectionLockDependencies } from "./lock.js";
 import type { ProjectionWalkFs } from "./engine-walk.js";
+import type { ProjectionLinkFs } from "./discovery-links.js";
+import type { ProjectionStatOptions } from "./stat-observations.js";
 import type { SwapHooks } from "./swap.js";
 import type { KindDefinition } from "../registry.js";
 import type { KindId } from "../catalog.js";
@@ -18,6 +20,9 @@ export interface ProjectionEnginePorts {
   readonly execInput: GitExecInput;
   readonly fs: GitDirectoryFileAccess;
   readonly walkFs?: ProjectionWalkFs;
+  readonly linkFs?: ProjectionLinkFs;
+  readonly stats?: ProjectionStatOptions;
+  readonly now?: () => number;
   readonly actor: (identity: Slug, commonGitDir: string) => Promise<string>;
   readonly writer: () => Promise<AsideWriterInput>;
   readonly lock?: Partial<ProjectionLockDependencies>;

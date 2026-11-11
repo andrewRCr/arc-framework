@@ -14,6 +14,7 @@ import { bindProjectionFanOut, disposeProjectionFanOut } from "./fan-out-binding
 import { runProjectionFanOut } from "./fan-out.js";
 import { startUnderLease, type ProjectionStartInput } from "./engine-start.js";
 import { finishProjectionRoot } from "./engine-end.js";
+import { projectionTimingNow } from "./timings.js";
 
 /** The command's store and checkout; disabled backends consult no other dependency. */
 export interface ProjectionCommandInput {
@@ -62,6 +63,7 @@ async function initializeProjection(input: ProjectionCommandInput): Promise<Proj
   if (!input.store.capabilities.stateOffBranch) return { kind: "disabled" };
   const effective = historyRetryInput(input);
   const ports = input.ports?.() ?? createProjectionEnginePorts(input.checkout);
+  const startedAt = projectionTimingNow(ports);
   const unsent = new Set<string>();
   let location = input.location;
   if (location === undefined) {
@@ -75,7 +77,7 @@ async function initializeProjection(input: ProjectionCommandInput): Promise<Proj
   await bindProjectionFanOut({ checkout: input.checkout, location, ports,
     run: ownWrites => runProjectionFanOut({ ...input, ports: () => ports, location }, ownWrites) });
   const result = await withProjectionFanOutLock(location, async session => {
-    const started = await startUnderLease(effective, ports, location, session, unsent);
+    const started = await startUnderLease(effective, ports, location, session, unsent, startedAt);
     const root = state.roots.get(input.checkout);
     if (root?.ready && root.changed) state.fanOutRounds.add(input.checkout);
     return started;

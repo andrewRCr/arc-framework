@@ -117,7 +117,7 @@ async function runLeased<T>(
   const lines: string[] = [];
   const lease: RenewableLeaseDependencies = {
     ...deps,
-    renewLock: async (held, duration) => await renewAdvisoryLock(held, duration, lockFiles),
+    renewLock: async (held, duration) => await renewAdvisoryLock(held, duration, { ...lockFiles, now: deps.now }),
     // A worktree whose Git directory went during the release leaves nothing to release; the result stands.
     releaseLock: async (held) => { await releaseAdvisoryLockConfirmed(held, lockFiles).catch(rethrowUnlessGone); },
     terminateProcess: () => { state.lost = true; },
@@ -128,7 +128,7 @@ async function runLeased<T>(
       const step = async (): Promise<void> => {
         if (state.lost) throw new ProjectionLockLostError("The projection lock was lost");
         try {
-          await ownership.confirmOwnership();
+          await ownership.confirmOwnershipIfDue();
         } catch (error) {
           state.lost = true;
           const detail = error instanceof Error ? error.message : String(error);

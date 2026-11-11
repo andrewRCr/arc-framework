@@ -1,6 +1,7 @@
 /** Schedule advisory fan-out at command boundaries while projection leases protect writes. */
 import { sameReference, type RecordReference } from "../identity.js";
 import { projectionProcessState, type ProjectionSkip } from "./process-state.js";
+import { projectionTimingNow } from "./timings.js";
 
 /** Record a landed operation or sync attempt for the command's fan-out. */
 export async function requestProjectionFanOut(checkout: string, references: readonly RecordReference[] = []): Promise<void> {
@@ -22,7 +23,10 @@ export async function flushProjectionFanOut(): Promise<void> {
     return;
   }
   if (state.lockHeld || state.fanOutHolds > 0 || state.fanOutRunning) return;
+  if (state.fanOutRounds.size === 0) { state.fanOutOwnWrites = []; return; }
   const checkout = state.command?.checkout ?? [...state.fanOutRounds][0] ?? ".";
+  const writer = state.roots.get(checkout);
+  const startedAt = writer === undefined ? undefined : projectionTimingNow(writer.ports);
   state.fanOutRunning = true;
   let round = 0;
   try {
@@ -36,7 +40,14 @@ export async function flushProjectionFanOut(): Promise<void> {
   } finally {
     state.fanOutRunning = false;
     state.fanOutOwnWrites = [];
+    finishFanOutTiming(checkout, startedAt);
   }
+}
+
+function finishFanOutTiming(checkout: string, startedAt: number | undefined): void {
+  const root = projectionProcessState().roots.get(checkout);
+  if (root === undefined || startedAt === undefined) return;
+  (root.fanOutTimes ??= []).push(Math.max(0, projectionTimingNow(root.ports) - startedAt));
 }
 
 /** Retain an advisory diagnostic while the landed store operation keeps its original result. */

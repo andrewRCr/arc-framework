@@ -9,7 +9,8 @@ import { join } from "node:path";
 import { loadProjectionGroups, replaceLoadedProjectionEntries } from "./index-memory.js";
 
 type IndexEntry = ProjectionIndex["entries"][string];
-interface ProjectionLinkFs { readonly lstat: (path: string) => Promise<Pick<Stats, "isSymbolicLink">> }
+/** Asynchronous ancestor observations, independent of synchronous folder enumeration. */
+export interface ProjectionLinkFs { readonly lstat: (path: string) => Promise<Pick<Stats, "isSymbolicLink">> }
 
 /** The observed symbolic link that blocks a projected path, or no blocking link. */
 export type ProjectionLinkBoundary = (path: string) => string | null;

@@ -1,5 +1,7 @@
 /** Durable marker provenance survives stopped commands and sweep recovery. */
 import { access, readFile, rm, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
+import { ADVISORY_LEASE_RENEW_INTERVAL_MS } from "../../../../src/lib/renewable-lease.js";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createMarkerFixture } from "../../../helpers/store/projection/marker-fixture.js";
@@ -53,7 +55,17 @@ describe("durable aside marker recovery", () => {
     const native = createProjectionEnginePorts(h.checkout);
     const input = { store: h.store, checkout: h.checkout, ports: () => ({ ...native,
       writer: async () => ({ ...await native.writer(), processInstance: `command-${++command}` }),
-      lock: { scheduleEvery: () => () => undefined, readFile: async (path: string) => {
+      lock: { scheduleEvery: () => () => undefined,
+        now: () => {
+          if (!armed) return Date.now();
+          try {
+            const held = JSON.parse(readFileSync(join(h.location.stateDir, "lock"), "utf8")) as { leaseUntil: number };
+            return held.leaseUntil - ADVISORY_LEASE_RENEW_INTERVAL_MS;
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") return Date.now();
+            throw error;
+          }
+        }, readFile: async (path: string) => {
         if (armed && (await h.file().catch(() => "")).includes("resolution in progress")) {
           const alias = await access(copyPath).then(() => true, () => false);
           const disk = await readProjectionIndex(h.location, true, { groups: "all" });

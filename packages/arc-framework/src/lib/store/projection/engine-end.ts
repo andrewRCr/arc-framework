@@ -11,10 +11,12 @@ import { reportProjectionCopy } from "./report.js";
 import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { loadProjectionGroups } from "./index-memory.js";
 import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
+import { hasProjectionEndWork } from "./end-work.js";
+import { recordProjectionTiming, reportProjectionTripwires } from "./timings.js";
 
 /** Settle only this command's copies and collect unreferenced kept content under the same lease. */
 export async function finishProjectionRoot(root: ProjectionRootState): Promise<void> {
-  if (!root.ready) return;
+  if (!root.ready || !hasProjectionEndWork(root)) return;
   const state = projectionProcessState();
   const ended = await withProjectionFanOutLock(root.location, async session => {
     root.checkpoint = session.step;
@@ -23,9 +25,12 @@ export async function finishProjectionRoot(root: ProjectionRootState): Promise<v
       const fresh = await readProjectionIndex(root.location, true);
       if (fresh.kind !== "index") return;
       loadProjectionGroups(fresh.index, "walked");
+      const timings = [...root.fanOutTimes ?? []];
+      const index = timings.reduce((recorded, elapsed) => recordProjectionTiming(recorded, "fan-out", elapsed), fresh.index);
       const blockedByLink = await readProjectionLinkBoundary(root.checkout,
-        [...root.copies.map(copy => copy.path), ...root.removals], root.ports.walkFs);
-      const checked = await runSecondCheck({ location: root.location, checkout: root.checkout, index: fresh.index,
+        [...root.copies.map(copy => copy.path), ...root.removals], root.ports.linkFs);
+      const checked = await runSecondCheck({ location: root.location, checkout: root.checkout, index,
+        onPublished: published => { root.fanOutTimes?.splice(0, timings.length); reportProjectionTripwires(root, published); },
         blockedByLink,
         copies: root.copies, removals: root.removals, format: root.context.format, takeIn: root.takeIn,
         writer: root.context.writer, checkpoint: root.context.checkpoint });

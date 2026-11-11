@@ -306,22 +306,12 @@ that chunk.
               and no partition where no stat moved, after its change checks and refresh, the start's measurement
               covering both
 
-    - `[ ]` **1.12.b The tripwires**
+    - `[x]` **1.12.b The tripwires**
 
-        - The index keeps the last nine measurements per key (`ProjectionIndexSchema.tripwires`, at most nine numbers a
-          key) for three keys this task names — the command start, each fan-out (store reads included), and each full
-          materialization — with an append that drops the oldest, written by the index write each command makes
-          (`commitProjectionIndex`): the command start's by the start's last write (1.6.a), and a full
-          materialization's by its own. A fan-out's time goes into the writer's own worktree's index at its end, under
-          the lock the end takes again (`finishProjectionRoot`, which records no timing today); a writer with no
-          projection records none. Each shows as a notice in the command's report (`createProjectionReporter`,
-          `lib/store/projection/report.ts`) and in `arc status` (`readProjectionStatus`,
-          `lib/store/projection/status.ts`, which reads no tripwire today) when its median crosses 20 ms / 120 ms, 100
-          ms / 600 ms, or 1 s / 5 s on Linux and macOS / Windows.
-        - Build `test-first` (one behavior at a time):
-            - one slow measurement shows nothing, and a median past the bound shows its tripwire
-            - a tenth measurement drops the oldest
-            - measurements are kept per worktree in its index, a fan-out's in the writer's at its end
+        - The index retains nine start, fan-out, and full-materialization samples, with matching median notices in
+          command reports and status. Fan-outs cover every round and append at the writer's leased end publication;
+          failed publication retains pending samples, while later cleanup failure cannot duplicate them on retry.
+          Deleted-file restoration preserves full-materialization history, and unprojected writers record no sample.
 
 ### `[ ]` **1.13 Hold saves through bursts across processes — § 1.5**
 

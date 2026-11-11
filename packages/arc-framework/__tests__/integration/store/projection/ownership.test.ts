@@ -27,7 +27,8 @@ it("does not inspect or change projection files in an unclaimed linked checkout"
   const ports = createProjectionEnginePorts(checkout);
   const location = await locateProjection(checkout, ports);
   expect(await startProjection({ store: h.store, checkout, ports: () => ({ ...ports,
-    walkFs: { lstat: async () => { throw new Error("projection walk must stay off"); }, readdir: async () => { throw new Error("projection walk must stay off"); } },
+    walkFs: { readdir: () => { throw new Error("projection walk must stay off"); } },
+    linkFs: { lstat: async () => { throw new Error("projection link observation must stay off"); } },
   }) })).toEqual({ kind: "no-projection" });
   expect(await readFile(file, "utf8")).toBe("unclaimed hand edit\n");
   expect(await readdir(location.stateDir)).not.toContain("index");

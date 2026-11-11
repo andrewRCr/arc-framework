@@ -9,6 +9,7 @@ import { readProjectionIndex, type UnusableIndexCause } from "./index-file.js";
 import { parseAsideFile } from "./aside.js";
 import { formatConflictToken } from "../../status/conflict-token.js";
 import { renderRemedyArgument } from "../../../scripts/integration/spine-refusal.js";
+import { projectionTripwires, formatProjectionTripwire, type ProjectionTripwire } from "./timings.js";
 
 /** A projected file with outstanding state, omitting filesystem stats from the JSON view. */
 export interface ProjectionFileStatus {
@@ -37,7 +38,8 @@ export interface ProjectionViewStatus {
 type RecordedProjectionStatus =
   | { readonly kind: "no-projection" }
   | { readonly kind: "unusable"; readonly cause: UnusableIndexCause; readonly remedy: Remedy }
-  | { readonly kind: "ready"; readonly files: readonly ProjectionFileStatus[]; readonly copies: readonly ProjectionCopyStatus[] };
+  | { readonly kind: "ready"; readonly files: readonly ProjectionFileStatus[]; readonly copies: readonly ProjectionCopyStatus[];
+    readonly tripwires?: readonly ProjectionTripwire[] };
 
 /** Read-only projection information carried by composite status. */
 export type ProjectionStatus = { readonly kind: "disabled" } | (RecordedProjectionStatus & { readonly view?: ProjectionViewStatus });
@@ -88,7 +90,9 @@ function snapshot(index: ProjectionIndex): Extract<ProjectionStatus, { kind: "re
   for (const copy of index.withheldCopies) copies.set(copy, {
     path: copies.get(copy)?.path ?? parseAsideFile(copy)?.path ?? null, copy, withheld: true,
   });
-  return { kind: "ready", files, copies: [...copies.values()].sort((left, right) => left.copy.localeCompare(right.copy)) };
+  const tripwires = projectionTripwires(index.tripwires);
+  return { kind: "ready", files, copies: [...copies.values()].sort((left, right) => left.copy.localeCompare(right.copy)),
+    ...(tripwires.length === 0 ? {} : { tripwires }) };
 }
 
 /** Render the recorded conditions, original copy paths, and available repair guidance. */
@@ -103,6 +107,7 @@ function renderRecordedStatus(status: RecordedProjectionStatus): string[] {
   if (status.kind === "no-projection") return ["No projection is recorded in this checkout."];
   if (status.kind === "unusable") return [`Projection index is ${status.cause}.`, renderRemedy(status.remedy)];
   const lines = status.files.flatMap(renderFile);
+  lines.push(...(status.tripwires ?? []).map(formatProjectionTripwire));
   for (const copy of status.copies) lines.push(`aside copy ${copy.copy}${copy.withheld ? " (withheld)" : ""}`,
     copy.path === null ? "  Original path unavailable." : `  From ${copy.path}`);
   return lines;

@@ -52,6 +52,7 @@ const kinds = createKindRegistry(PRODUCTION_REGISTRATIONS);
 export interface WriteBackContext {
   readonly checkpoint?: () => Promise<void>;
   readonly onWrite?: () => void;
+  readonly onSend?: () => void;
   readonly store: Store;
   readonly location: ProjectionLocation;
   readonly format: ObjectFormat;

@@ -15,6 +15,7 @@ export interface RenewableLeaseDependencies {
 /** Capability valid only within an owning action's renewable lifetime. */
 export interface RenewableLease {
   readonly confirmOwnership: () => Promise<void>;
+  readonly confirmOwnershipIfDue: () => Promise<void>;
 }
 
 /** Human diagnostics identifying the owned operation without supplying authority. */
@@ -107,17 +108,21 @@ function createMonitor(
     void operation.then(clear, clear);
     return operation;
   };
+  const confirmOwnership = async (): Promise<void> => {
+    const result = active && !releasing && !lost ? await renew() : "ownership-lost";
+    if (!active || releasing || lost || result !== "renewed") {
+      throw new Error(`${labels.lock} ownership cannot be confirmed; rerun the operation after ownership repair.`);
+    }
+  };
   return {
     tick: () => {
       if (!active) return;
       if (!releasing && cannotRetry()) terminate(expiredMessage);
       else void renew(true);
     },
-    confirmOwnership: async () => {
-      const result = active && !releasing && !lost ? await renew() : "ownership-lost";
-      if (!active || releasing || lost || result !== "renewed") {
-        throw new Error(`${labels.lock} ownership cannot be confirmed; rerun the operation after ownership repair.`);
-      }
+    confirmOwnership,
+    confirmOwnershipIfDue: async () => {
+      if (!active || releasing || lost || cannotRetry()) await confirmOwnership();
     },
     beginRelease: () => { releasing = true; },
     stop: () => { active = false; },

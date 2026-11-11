@@ -127,6 +127,7 @@ describe("projection command hooks", () => {
 
   it.each([false, true])("settles before development refresh even when the action sets an exit code (%s)", async setsExit => {
     const h = await createEngineFixture(directories);
+    await h.edit("An actual send requires end settlement.\n");
     const orphan = join(h.location.stateDir, TAKEN_IN_FOLDER, "unreferenced-copy");
     const events: string[] = [];
     const program = new Command("arc").exitOverride();

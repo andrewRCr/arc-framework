@@ -25,8 +25,10 @@ export async function sameProjectionFile(left: string, right: string): Promise<b
 /** Publish restored mappings, clean up proved returned aliases, then publish the removed copy records. */
 export async function commitReturnedCopies(input: Parameters<typeof commitProjectionIndex>[0] & {
   readonly returned: readonly ReturnedCopy[];
+  readonly onPublished?: (index: ProjectionIndex) => void;
 }): Promise<ProjectionIndex> {
   const published = await commitProjectionIndex(input);
+  input.onPublished?.(published);
   let index = published;
   for (const { path, copy } of input.returned) {
     const entry = index.entries[path];

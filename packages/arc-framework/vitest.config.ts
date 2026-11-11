@@ -64,7 +64,7 @@ const emptySuiteRuntimeOptions = { passWithNoTests: true } as const;
 // per-file isolation, and `unit` runs everything else. The split keeps the
 // mock-heavy files quarantined so the main tier can relax isolation for its
 // import-cost win without their hoisted mocks leaking across file boundaries.
-const timingTest = "__tests__/integration/store-ref-timing.test.ts";
+const timingTests = ["__tests__/integration/store-ref-timing.test.ts", "__tests__/integration/store-ref-projection-timing.test.ts"];
 const burstTest = "__tests__/integration/store-ref-bursts.test.ts";
 const integrationTest = {
   root: packageRoot,
@@ -109,14 +109,14 @@ export default defineConfig({
           ...integrationTest,
           name: "integration",
           include: ["__tests__/integration/**/*.test.ts"],
-          exclude: [...configDefaults.exclude, timingTest, burstTest],
+          exclude: [...configDefaults.exclude, ...timingTests, burstTest],
         },
       },
       {
         test: {
           ...integrationTest,
           name: "integration-timing",
-          include: [timingTest],
+          include: timingTests,
           // Finish the parallel group before collecting uncontended operation medians.
           sequence: { groupOrder: 1 },
           maxWorkers: 1,

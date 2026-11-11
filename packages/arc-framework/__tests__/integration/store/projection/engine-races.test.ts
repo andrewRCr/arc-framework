@@ -1,5 +1,8 @@
 /** Interrupted swaps and late editor saves driven through command start and end. */
-import { access, readFile, rm, writeFile } from "node:fs/promises";
+import { access, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { writeFileSync } from "node:fs";
+import { readStatSync } from "../../../../src/lib/store/projection/change-detection.js";
+import { success } from "../../../helpers/store/suite-tools.js";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
@@ -33,6 +36,39 @@ async function indexAt(location: ProjectionLocation) {
 }
 
 describe("editor races across command boundaries", () => {
+  it.each(["swept", "left"])("discards early stats after the sweep has a %s copy", async outcome => {
+    const extraPath = ".arc/user/andrew/scratch/other.md";
+    const h = await createEngineFixture(directories, { kind: "work-item/notes", path: ".arc/active/current/notes-work-item-one.md", extraPaths: [extraPath] });
+    const extra = h.extra[0];
+    if (extra === undefined) throw new Error("Missing personal companion");
+    const extraFull = join(h.checkout, extraPath), old = new Date(Date.now() - 2_000);
+    await utimes(extraFull, old, old);
+    const input = { store: h.store, checkout: h.checkout };
+    expect(await startProjection(input)).toMatchObject({ kind: "ready" }); await endProjection(input);
+    await h.edit("A hand edit for interrupted recovery.\n");
+    await expect(startProjection({ ...input, ports: () => ({ ...commandPorts(h.checkout, "interrupted-writer"),
+      hooks: { afterMove: async path => { if (path === h.path) throw new Stop(); } } }) })).rejects.toBeInstanceOf(Stop);
+    await expect(access(join(h.checkout, h.path))).rejects.toMatchObject({ code: "ENOENT" });
+    if (outcome === "left") {
+      const excludes = join(h.location.commonDir, "info/exclude");
+      await writeFile(excludes, (await readFile(excludes, "utf8")).replace(".arc/active/\n", ""));
+    }
+    const bytes = await readFile(extraFull, "utf8");
+    let edited = false;
+    const ports = { ...commandPorts(h.checkout, "recovering-writer"), stats: { platform: "linux" as const,
+      readSync: (path: string) => {
+        const observed = readStatSync(path);
+        if (path === extraFull && !edited) { edited = true; writeFileSync(path, bytes.replace("extra base", "edit after observation")); }
+        return observed;
+      },
+    } };
+    expect(await startProjection({ ...input, ports: () => ports })).toMatchObject({ kind: "ready" });
+    expect(edited).toBe(true);
+    expect(success(await h.store.read({ reference: extra.record.reference })).content).toBe("edit after observation\n");
+    if (outcome === "swept") expect(await h.file()).toContain("A hand edit for interrupted recovery.");
+    else expect(projectionProcessState().diagnostics.some(each => each.path === h.path && each.copy !== null)).toBe(true);
+  });
+
   it("reads a copy the sweep linked back even though the initial walk saw no file", async () => {
     const h = await createEngineFixture(directories);
     await h.edit("hand edit\n");

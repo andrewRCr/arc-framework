@@ -57,7 +57,8 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
     registry: ports.registry,
     captureLocal: createProjectionLocalCapture(input),
     protection: createProjectionProtection({ store: input.store, checkout: input.checkout, identity: config.identity.identity, exec: ports.exec, verb: input.mode ?? "write-back" }),
-    verb: input.mode ?? "write-back", checkpoint, hooks: ports.hooks, takeIn: request => root.takeIn(request), onWrite: () => { root.changed = true; },
+    verb: input.mode ?? "write-back", checkpoint, hooks: ports.hooks, takeIn: request => root.takeIn(request),
+    onWrite: () => { root.changed = true; }, onSend: () => { root.sent = true; },
     report: diagnostic => {
       state.diagnostics.push(diagnostic);
       const intent = state.command?.checkout === input.checkout ? state.resolution : null;
@@ -75,6 +76,8 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
     claim: layout.claim, claimUid: uid, layoutActive: layout.layoutActive, view: interpretProjectionView(config.view).view,
     blockedByLink: createProjectionLinkBoundary(input.links ?? []),
     mint: input.mint, checkpoint: session.step, copies: [], removals: [], unsent, discovered: [], changed: false,
+    sent: state.roots.get(input.checkout)?.sent ?? false, sweepEmpty: state.roots.get(input.checkout)?.sweepEmpty,
+    fanOutTimes: state.roots.get(input.checkout)?.fanOutTimes,
     ready: false, writable: () => false, rights: bindProjectionRights(input.store, config.identity.identity, ports.exec, input.mode ?? "write-back"), takeIn: async request => {
       const held = refuseOwnershipHandoff(request.entry);
       if (held !== null) {

@@ -1,5 +1,6 @@
 /** Native discovery reports links without adopting their targets or withholding an indexed record. */
-import { lstat, mkdir, readFile, readdir, rename, symlink, unlink, utimes, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, rename, symlink, unlink, utimes, writeFile } from "node:fs/promises";
+import { readdirSync } from "node:fs";
 import { join, sep } from "node:path";
 import { expect, it } from "vitest";
 import { createAdoptionFixture } from "../helpers/store/projection/adoption-fixture.js";
@@ -32,12 +33,12 @@ it.each([".arc/user", ".arc"])("keeps indexed and new personal content behind li
   const before = success(await f.store.version());
   const ports = createProjectionEnginePorts(f.root);
   expect(await startProjection({ store: f.store, checkout: f.root, ports: () => ({ ...ports,
-    walkFs: { lstat: async name => {
+    linkFs: { lstat: async name => {
       if (name.startsWith(`${join(f.root, container)}${sep}`)) throw new Error("Linked descendants must stay unobserved");
       return lstat(name);
-    }, readdir: async name => {
+    } }, walkFs: { readdir: name => {
       if (name === join(f.root, container) || name.startsWith(`${join(f.root, container)}${sep}`)) throw new Error("Link target must not be enumerated");
-      return readdir(name);
+      return readdirSync(name, { withFileTypes: true });
     } },
   }) })).toMatchObject({ kind: "ready" });
   expect(success(await f.store.version())).toBe(before);

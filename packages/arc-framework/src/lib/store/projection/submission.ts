@@ -73,6 +73,7 @@ async function prepareStable(context: WriteBackContext, checkout: string, path: 
 
 /** Submit a sealed single-write batch and preserve the existing single-result continuation. */
 export async function submitProjectionBatch(context: WriteBackContext, input: BatchInput): Promise<StoreResult<WriteResult>> {
+  context.onSend?.();
   const result = await context.store.batch(input);
   if (result.status === "refused") return result;
   const only = result.result.writes[0];

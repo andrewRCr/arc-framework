@@ -32,6 +32,8 @@ export interface SecondCheckInput extends SwapMoves {
   readonly writer: AsideWriterInput;
   /** The read gate every copy check runs on, the system's unless a test injects its own. */
   readonly gate?: ReadGateDependencies;
+  /** After the first successful publication, before returned-alias cleanup can fail. */
+  readonly onPublished?: (index: ProjectionIndex) => void;
 }
 
 /** What the second check left: the index it wrote, and what became of each copy. */
@@ -66,6 +68,7 @@ export async function runSecondCheck(input: SecondCheckInput): Promise<SecondChe
   index = await dropRemovedEntries(index, checkout,
     input.removals?.filter(path => (input.blockedByLink?.(path) ?? null) === null) ?? []);
   return { index: await commitReturnedCopies({ location: input.location, checkout, index, checkpoint: input.checkpoint,
+    onPublished: input.onPublished,
     returned: settled.filter(each => each.settlement.kind === "returned" || each.settlement.kind === "linked-back")
       .map(({ path, copy }) => ({ path, copy })),
   }), settled };

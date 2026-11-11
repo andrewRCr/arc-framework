@@ -1,5 +1,7 @@
 /** Materialize stored records under one target worktree's projection lease. */
 import { observeMaterialization } from "./materialization-observation.js";
+import { recordProjectionSweep } from "./end-work.js";
+import { projectionTimingNow, recordProjectionTiming, reportProjectionTripwires } from "./timings.js";
 import { prepareMaterializationSelection, refreshMaterializationLinks } from "./materialization-selection.js";
 import { projectionSettings } from "./settings.js";
 import { mkdir } from "node:fs/promises";
@@ -43,6 +45,7 @@ export interface ProjectionMaterializationInput {
   readonly version: StateVersion;
   readonly index: ProjectionIndex | null;
   readonly onlyDeleted?: boolean;
+  readonly startTiming?: number;
   readonly recovered?: Pick<ProjectionIndex, "withheldCopies">;
 }
 /** The resulting index, retaining any per-root refusal for callers that report a failed materialization. */
@@ -52,6 +55,7 @@ export type ProjectionMaterializationResult = { readonly kind: "materialized"; r
 /** Lay the complete visible inventory while preserving every file without a trustworthy basis. */
 export async function materializeProjectionRoot(input: ProjectionMaterializationInput): Promise<ProjectionMaterializationResult> {
   const { root } = input;
+  const startedAt = projectionTimingNow(root.ports);
   await root.context.checkpoint?.();
   const excluded = await ensureGitExcludePatterns(root.checkout, projectionExcludePatterns(), root.ports.exec, nodeWorktreeMarkerIgnoreFs);
   if (!excluded.ok) throw excluded.error;
@@ -62,7 +66,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   index = recordProjectionIgnoreCheck(swept.index ?? { ...index,
     withheldCopies: [...new Set([...(input.recovered?.withheldCopies ?? []), ...swept.withheld])] }, ignores);
   root.writable = writableUnder(ignores, guardedProjectionRoots(root.identity).map(each => each.path));
-  recordSweep(root, swept);
+  recordSweep(root, swept, !input.onlyDeleted);
   if (ignores.kind === "refused") return { kind: "refused", index, mark: { reason: `Projection ignore guard refused: ${ignores.reason}`,
     remedy: { text: ignores.remedy } } };
   index = await reconcileBeforeInventory(input, index);
@@ -73,7 +77,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   const renderer = createRecordRenderer({ store: inventory.source, memo: root.context.memo ?? createHistoryMemo(root.store), protection: createProjectionProtection({
     store: root.store, checkout: root.checkout, identity: root.identity, exec: root.ports.exec, evidence }) });
   const walked = await walkProjectionRoots(root.checkout, [...PROJECTED_LIFECYCLE_ROOTS,
-    ...projectedRootPaths(root.identity).filter(path => path.startsWith(".arc/user/"))], root.ports.walkFs);
+    ...projectedRootPaths(root.identity).filter(path => path.startsWith(".arc/user/"))], root.ports.walkFs, root.ports.linkFs);
   reportProjectionLinks(walked.links);
   const observed = createProjectionLinkBoundary(walked.links);
   const selection = await prepareMaterializationSelection({ root, index, files: desired.files, boundary: observed, onlyDeleted: input.onlyDeleted });
@@ -107,10 +111,19 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
     await mkdir(join(root.checkout, `.arc/user/${root.identity}/scratch/work-unit/${root.claim}`), { recursive: true });
   }
   index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: { ...index, state: !input.onlyDeleted && projectionArrivalsInstalled(index, arrivals) ? input.version : input.index?.state ?? null }, checkpoint: root.context.checkpoint });
+    index: materializationTimings(input, { ...index, state: !input.onlyDeleted && projectionArrivalsInstalled(index, arrivals) ? input.version : input.index?.state ?? null }, startedAt),
+    checkpoint: root.context.checkpoint });
+  reportProjectionTripwires(root, index);
   await refreshMaterializationLinks(root, selection.links);
   root.ready = true;
   return { kind: "materialized", index };
+}
+
+function materializationTimings(input: ProjectionMaterializationInput, index: ProjectionIndex, startedAt: number): ProjectionIndex {
+  if (input.onlyDeleted) return index;
+  const now = projectionTimingNow(input.root.ports);
+  const materialized = recordProjectionTiming(index, "materialization", now - startedAt);
+  return input.startTiming === undefined ? materialized : recordProjectionTiming(materialized, "start", now - input.startTiming);
 }
 
 
@@ -131,7 +144,8 @@ async function recordUnknownFiles(root: ProjectionRootState, initial: Projection
 }
 
 
-function recordSweep(root: ProjectionRootState, swept: SweepResult): void {
+function recordSweep(root: ProjectionRootState, swept: SweepResult, observed: boolean): void {
+  if (observed) recordProjectionSweep(root, swept);
   root.copies.push(...swept.copies);
   for (const copy of swept.left) root.context.report?.({ path: copy.path, copy: copy.copy,
     mark: { reason: copy.reason, remedy: copy.remedy ?? { text: "Keep the aside copy until its edit is recovered or explicitly removed." } } });

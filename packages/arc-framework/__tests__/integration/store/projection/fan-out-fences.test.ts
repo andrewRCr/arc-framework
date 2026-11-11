@@ -1,4 +1,5 @@
 /** Native lease and index observations fence each visit without changing the landed operation. */
+import { readFileSync } from "node:fs";
 import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
@@ -15,7 +16,7 @@ import { commitProjectionIndex, readProjectionIndex } from "../../../../src/lib/
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import type { StateVersion } from "../../../../src/lib/store/identity.js";
 import { acquireAdvisoryLock, releaseAdvisoryLockConfirmed, type AdvisoryLockHandle } from "../../../../src/lib/advisory-lock.js";
-import { ADVISORY_LEASE_DURATION_MS } from "../../../../src/lib/renewable-lease.js";
+import { ADVISORY_LEASE_DURATION_MS, ADVISORY_LEASE_RENEW_INTERVAL_MS } from "../../../../src/lib/renewable-lease.js";
 import { withFanOut } from "../../../../src/lib/store/projection/with-fan-out.js";
 import { createProjectionFanOutDependencies } from "../../../../src/lib/store/projection/fan-out-binding.js";
 import { parseStampedFile, renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
@@ -63,7 +64,11 @@ it("keeps a sibling another writer refreshed between the unlocked and leased ind
 it.each([false, true])("recovers a lost sibling lease while preserving a save during its retry=%s", async lateSave => {
   let target = "", relative = "", armed = false, mismatch = false;
   const h = await createFanOutFixture(directories, { workItem: true, ports: ports => ({ ...ports,
-    lock: { ...ports.lock, readFile: async path => {
+    lock: { ...ports.lock, now: () => {
+      if (!mismatch) return Date.now();
+      const held = JSON.parse(readFileSync(target, "utf8")) as { leaseUntil: number };
+      return held.leaseUntil - ADVISORY_LEASE_RENEW_INTERVAL_MS;
+    }, readFile: async path => {
       const bytes = await readFile(path, "utf8");
       if (!mismatch || path !== target) return bytes;
       mismatch = false;
@@ -147,4 +152,5 @@ it("recovers an unready root after a lost start lease and checks the recovered r
   await writeFile(join(h.checkout, copy.copy), renderStampedFile({ content: rendering.content.replace("first edit", "end edit"), stamp: rendering.stamp }));
   await endProjection(input);
   expect((await h.stored()).content).toBe(base.replace("opening", "late opening").replace("\nbase\n", "\nend edit\n").replace("closing", "verb closing"));
+  expect((await h.disk()).tripwires["fan-out"]).toHaveLength(2);
 });
