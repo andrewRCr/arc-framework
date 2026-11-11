@@ -262,8 +262,8 @@ export function prePublicationPendingReviewRefusal(
     remedy: spineRemedy(
       "An admitted review is not completed policy evidence.",
       frontlineReplay
-        ? "Replay the admitted resolve request to resume; to skip a never-started review, replace invocation with "
-          + "{ mode: 'skip' }. Then re-enter pre-publication"
+        ? `From work unit \`${workUnit}\`'s owning checkout, replay the admitted resolve request to resume; `
+          + "to skip a never-started review, replace invocation with { mode: 'skip' }. Then re-enter pre-publication"
         : "Continue that exact operation, then re-enter pre-publication",
       argv,
       frontlineReplay ? pending.request ?? undefined : undefined,

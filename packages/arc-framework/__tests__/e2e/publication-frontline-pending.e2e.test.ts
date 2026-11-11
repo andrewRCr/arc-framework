@@ -8,7 +8,7 @@ import { makeMetaFixture } from "../helpers/meta-fixture.js";
 
 const RECOVERY_TIMEOUT_MS = 120_000;
 
-it("replays its exact resolve input, preserves the admission, and can explicitly skip before execution", async ({ onTestFinished }) => {
+it("directs same-head work units to the owning checkout and preserves the original admission through replay and skip", async ({ onTestFinished }) => {
   const root = await createTempRepo("arc-frontline-pending-");
   onTestFinished(() => cleanupTempDir(root));
   const initialized = await runArc(["init", "--yes", "--name", "example"], root);
@@ -28,12 +28,19 @@ it("replays its exact resolve input, preserves the admission, and can explicitly
     lastCompleted: "verification", nextAction: "verification complete",
   }));
   await writeFile(join(root, ".arc", "active", "tasks-example.md"), "# Task List: Example\n\n- [x] Verification complete\n");
+  await writeFile(join(root, ".arc", "active", "meta-other.md"), makeMetaFixture("other", {
+    owner: "test-user", branch: "feat/other", workClass: "Light", taskList: "tasks-other.md",
+    lastCompleted: "verification", nextAction: "verification complete",
+  }));
+  await writeFile(join(root, ".arc", "active", "tasks-other.md"), "# Task List: Other\n\n- [x] Verification complete\n");
   await writeFile(join(root, "src", "example.ts"), "export const example = true;\n");
   await git(root, ["add", "-A"]);
   await git(root, ["commit", "-m", "implementation"]);
   const attested = await runArc(["attest", "example", "--json"], root);
   expect(attested.exitCode, JSON.stringify(attested)).toBe(0);
   await git(root, ["commit", "-m", "verification"]);
+  const sharedHead = (await git(root, ["rev-parse", "HEAD"])).trim();
+  await git(root, ["branch", "feat/other", sharedHead]);
 
   const remote = join(root, ".git", "fixture-origin.git"), bin = join(root, ".git", "fixture-bin");
   await git(root, ["init", "--bare", remote]);
@@ -66,10 +73,17 @@ it("replays its exact resolve input, preserves the admission, and can explicitly
   await writeFile(lanes, JSON.stringify({ ...judgments, frontline: { scopeMode: "whole-target", invocation: { mode: "skip" } } }));
   const refused = await prepublish();
   expect(refused.exitCode, JSON.stringify(refused)).toBe(1);
-  const refusal = JSON.parse(refused.stdout) as { error: { code: string }; remedy: { argv: string[]; stdin?: unknown } };
-  expect(refusal).toMatchObject({ error: { code: "review-in-progress" },
+  const refusal = JSON.parse(refused.stdout) as { error: { code: string }; remedy: { argv: string[]; stdin?: unknown; text: string } };
+  expect(refusal, JSON.stringify(refusal)).toMatchObject({ error: { code: "review-in-progress" },
     remedy: { argv: ["arc", "review", "frontline", "resolve", "-"], stdin: request } });
   const carried = FrontlineResolveRequestSchema.parse(refusal.remedy.stdin);
+  await git(root, ["switch", "feat/other"]);
+  expect((await git(root, ["rev-parse", "HEAD"])).trim()).toBe(sharedHead);
+  const wrongCheckout = await invoke(carried);
+  expect(wrongCheckout.exitCode, JSON.stringify(wrongCheckout)).toBe(1);
+  expect(refusal.remedy.text).toContain("From work unit `example`'s owning checkout");
+  await git(root, ["switch", "feat/example"]);
+  expect((await git(root, ["rev-parse", "HEAD"])).trim()).toBe(sharedHead);
   const resumed = await invoke(carried);
   expect(resumed.exitCode, JSON.stringify(resumed)).toBe(0);
   expect(JSON.parse(resumed.stdout)).toMatchObject({ state: "ready", payload: { admission } });
