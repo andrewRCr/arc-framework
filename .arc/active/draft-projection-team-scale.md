@@ -14,7 +14,8 @@
 
 - **Readiness:** maturing (2026-11-10). The readiness check's rerun returned ready after the two gaps source grounding
   found were settled (§ What `arc sync` takes over); planning review's first independent pass then returned not ready,
-  1 critical and 4 major, folded the same day (§ An archived entry's states). A fix check of the folds comes next.
+  1 critical and 4 major, folded the same day (§ An archived entry's states). The fix check of those folds found 1
+  major and 7 minor, folded the same day; its second round comes next.
 - **Entry read (2026-11-10, re-read after the split):** `Class` stays `Heavy`. A real design must be authored — D's
   transition invariants, the archive pickup at `arc save`, the opened set's read, and forward amendments to two
   specifications and ADR-035 — composed from existing pieces (protection, write-back's admission, adoption, and the index's
@@ -29,17 +30,18 @@
   `arc decompose`'s extraction, which has not been rehearsed. What stays is one work unit: D's command, its pickup at
   `arc save`, and its amendments land together or not at all.
 - **Resolved:** D's command, rights, and sequence (§ Settled at drafting), sent to `cutover-flip`'s session on
-  2026-11-10; the opened set's read, § 15.1's walk, and a refresh's pickup of an archived edit (§ D's amendments), D's
-  part of the scale criterion, and ADR-035's disposition (§ D and ADR-035), settled the same day; and no prepared
-  store write of D's own, with its local step pairs ordered (§ Transition invariants), and what `arc sync` takes over
-  from `arc save`'s archive walk (§ What `arc sync` takes over); and the contract for how each path treats an archived
-  entry (§ An archived entry's states), settled after planning review's first pass.
-- **Carried to the specification:** the forward amendments' text, written from § D's amendments — § 2.4, § 8.4, § 9,
-  § 11.7, and § 15.1 of `spec-projection-write-back.md`; § 2.4, § 3.1, § 12.2, § 12.3, § 16.3, and Success Criterion 2
-  of `spec-projection-worktrees.md`, with the remedy sentence in its § 3.1 and § 16.2 — each printed remedy's text a
-  build task, each transition invariant's perturbation test, and the criterion's Linux N, set from the model's
-  constants.
-- **Next:** the fix check of pass 1's folds, then pass 2, capture, and `create-spec`.
+  2026-11-10, with a correction after the fix check (guard 3); the opened set's read, § 15.1's walk, and a refresh's
+  pickup of an archived edit (§ D's amendments), D's part of the scale criterion, and ADR-035's disposition (§ D and
+  ADR-035), settled the same day; and no prepared store write of D's own, with its local step pairs ordered
+  (§ Transition invariants), and what `arc sync` takes over from `arc save`'s archive walk (§ What `arc sync` takes
+  over); and the contract for how each path treats an archived entry (§ An archived entry's states), settled after
+  planning review's first pass.
+- **Carried to the specification:** the forward amendments' text, written from § D's amendments — § 2.4, § 8.2, § 8.4,
+  § 9, § 11.7, and § 15.1 of `spec-projection-write-back.md`; § 2.4, § 3.1, § 12.2, § 12.3, § 16.3, and Success
+  Criterion 2 of `spec-projection-worktrees.md`, with the remedy sentence in its § 3.1 and § 16.2 — each printed
+  remedy's text a build task, each transition invariant's perturbation test, and the criterion's Linux N, set from the
+  model's constants.
+- **Next:** the fix check's second round, then pass 2, capture, and `create-spec`.
 
 ## Scope
 
@@ -53,7 +55,7 @@
   § 3.1, and § 16.2.
 - **How each path treats an archived entry** (§ An archived entry's states): the lay mode, `arc edit`'s reach, and
   what every command, `arc save`, a refresh, `arc sync`, and the removal, persist, and release steps do with each
-  state, as forward amendments to `spec-projection-write-back.md` § 2.4, § 9, and § 11.7 and
+  state, as forward amendments to `spec-projection-write-back.md` § 2.4, § 8.2, § 9, and § 11.7 and
   `spec-projection-worktrees.md` § 12.2, § 12.3, and Success Criterion 2.
 - **D's part of the growth-relative scale criterion:** `arc save` with a large archive.
 - **ADR-035's amendment for D:** item 6's read-only archive (§ D and ADR-035).
@@ -82,7 +84,8 @@ Four guards, agreed with the Owner, keep the split from fragmenting the design o
 2. The held D text moves over as written (§ Held design text), not re-derived.
 3. `cutover-flip`'s specification writes its errata convention (H4) for the command from the start. The command's
    name, rights, and sequence went to that session on 2026-11-10 (§ Settled at drafting); a later change to any of
-   them goes too.
+   them goes too. A correction followed the same day, after the fix check: the read-only lay is a lay mode, not an edit
+   right, and a new path opens only once its file exists (§ An archived entry's states).
 4. Stage 2 runs with this work unit landed.
 
 ## Transition invariants to state in planning
@@ -94,11 +97,12 @@ operation continuing. The cases known now:
 
 - **D:** `arc edit`, the edit, and the re-lock at `arc save`, across a concurrent change to the same archived record;
   the archive pickup now that `arc save` walks only opened entries; a forced edit, then `arc edit` over the changed
-  file, then `arc save`; a new file opened, then adopted by the next command; a landing that does not land, and a
-  save between the landing and the read-only lay (§ An archived entry's states); and the index lost between `arc edit` and
-  `arc save`, so the next start rebuilds it: an opened file holding an edit is left as it is and marked withheld,
-  named in every report and refused over by the removal check and the persist and release steps, and an unedited one
-  is laid read-only again (`spec-projection-worktrees.md` § 2.5), so no opened edit is skipped silently.
+  file, then `arc save`; a new file opened, then adopted by the next command, still opened and writable after the
+  adoption's read-back; a landing that does not land, and a save between the landing and the read-only lay (§ An
+  archived entry's states); and the index lost between `arc edit` and `arc save`, so the next start rebuilds it: an
+  opened file holding an edit is left as it is and marked withheld, named in every report and refused over by the
+  removal check and the persist and release steps, and an unedited one is laid read-only again
+  (`spec-projection-worktrees.md` § 2.5), so no opened edit is skipped silently.
 - **Prepared store writes:** a write this design prepares from store reads and submits as one batch states its fence
   by the pattern approved for prepared writes on 2026-11-07 (`cohort-identity-verbs`' design amendment A7): it
   re-derives its decision in a write check over `before`, or observes everything that decision read. Its perturbation
@@ -116,10 +120,14 @@ stop between them leaves a state the next command repairs:
 - **`arc edit`:** the opened mark first, then the write bit. A stop between leaves an opened file still read-only,
   which `arc save` finds unchanged, lays read-only, and unmarks; the reverse order would leave a writable, unmarked
   file, a forced edit once changed.
-- **`arc save`:** the landing, then the read-only lay once the file is re-checked unchanged since the landing read it,
-  then the mark cleared. A stop after the landing leaves the file writable and still marked, which the next `arc save`
-  finds unchanged and re-locks; clearing the mark earlier would leave a writable, unmarked file, and a lay without the
-  re-check would lock in a save made between the two, unseen while not opened.
+- **`arc save`:** the landing, then the read-only lay, then the mark cleared. The landing's read-back is the lay: it
+  stages the file read-only, and the replace guard (`guardReplacement`, `lib/store/projection/replace-guard.ts`)
+  re-checks the file against what the landing read before the swap, taking in a save made between the two; a file
+  found unchanged is re-checked against its entry, then laid read-only. A stop after the landing, before the lay,
+  leaves the file writable and still marked, which the next `arc save` finds unchanged and re-locks; a stop after the
+  lay leaves it read-only and still marked, which the next `arc save` unmarks. Clearing the mark before the lay would
+  leave a writable, unmarked file, and a lay without the guard's re-check would lock in a save made between the two,
+  unseen while not opened.
 
 Each pair takes a perturbation test that stops it between its steps, asserts the state above, and runs `arc save` to
 completion.
@@ -162,7 +170,8 @@ Item 2 of the two, as put; item 1 refined C and moved with it.
 
 ## Settled at drafting
 
-Settled with the Owner on 2026-11-10. Where these differ from the held text above, they govern.
+Settled with the Owner on 2026-11-10. Where these differ from the held text above, they govern. The dated amendments
+after item 5 govern items 2 and 3 where they differ, and § An archived entry's states governs all of them.
 
 ### D's command, rights, and sequence
 
@@ -245,11 +254,12 @@ No specification text was drafted for these before the split. The substance is s
   `arc save`, at the persist or release step, or when a refresh touches the file", and moves the errata convention onto
   the store's history (§ 18).
 - **What D changes there** (as settled on 2026-11-10, § Settled at drafting):
-    - archived files are laid read-only, by a lay mode rather than an edit right, the notice naming `arc edit`
-      (§ An archived entry's states);
-    - an in-place correction first opens one file, or a new path in an archived work unit's folder, with
-      `arc edit <path>`, which makes it writable in that worktree; ordinary commands take its edit in, and `arc save`
-      lands it and lays it read-only again;
+    - archived files are laid read-only, by a lay mode rather than an edit right, the notice naming `arc edit` where
+      the edit rights allow the edit; another person's archived work keeps § 8.2's notice naming its owner (§ An
+      archived entry's states);
+    - an in-place correction first opens one file with `arc edit <path>`, which makes it writable in that worktree, or
+      creates a new file in an archived work unit's folder and then opens it; ordinary commands take its edit in, or
+      adopt the new file, and `arc save` lands it and lays it read-only again;
     - `arc save` walks only opened archive entries rather than all of `completed/`;
     - the removal check and the persist and release steps still walk the whole archive, so a file forced writable and
       edited without the command is never lost: the removal refuses, naming `arc edit` and `arc save`;
@@ -265,13 +275,14 @@ No specification text was drafted for these before the split. The substance is s
 Settled with the Owner on 2026-11-10.
 
 - **An opened entry is unsettled.** `arc edit` marks the file's entry opened, and § 3.1 counts that mark among the
-  states that make an entry unsettled, so the write that sets it marks the entry's partition in the header. Every
-  start reads the partitions the header marks (§ 16.3's start read), so it finds the opened entries without reading
-  any other `completed/` quarter. A new file opened takes an ownerless entry carrying the mark (§ An archived entry's
-  states). The header's format is unchanged; the entry gains the mark, and the index's format version moves with it
-  (§ An archived entry's states). This lands as forward amendments to `spec-projection-worktrees.md` § 3.1 — the
-  unsettled states, and `arc save` no longer reading every partition — and § 16.3, whose start read has `arc save`
-  walk `completed/`.
+  states that make an entry unsettled, so the write that sets it marks the entry's partition in the header. Every start
+  reads the partitions the header marks (§ 16.3's start read), so it finds the opened entries without reading any other
+  `completed/` quarter. A new file opened takes an ownerless entry carrying the mark, and the record its adoption writes
+  keeps it (§ An archived entry's states). The header's format is unchanged; a record entry gains the mark, an ownerless
+  entry carries it in place of the refusal it otherwise requires, and the index's format version moves with them (§ An
+  archived entry's states). This lands as forward amendments to `spec-projection-worktrees.md` § 3.1 — the unsettled
+  states, and `arc save` no longer reading every partition — and § 16.3, whose start read has `arc save` walk
+  `completed/`.
 - **Chosen over a header field listing opened paths.** That changes the header's format, and costs less than the mark
   only by copying each opened file's stat and blob id into the header beside its entry, a second copy of state the
   index must keep in step.
@@ -331,11 +342,19 @@ whole archive:
 Settled with the Owner on 2026-11-10, after planning review's first pass found each path's treatment of an archived
 entry unstated. Each forward amendment states this contract; where the sections above differ, it governs.
 
-- **Read-only is a lay mode, not an edit right.** A file under `completed/` is laid read-only, its notice naming
-  `arc edit`, unless the target worktree's entry for it is opened, when it is laid writable. Every path that writes
-  such a file — a refresh, a fan-out's visit, a materialization, and the read-back after a landing — reads the target
-  worktree's own entry for the mode, never the round's shared protection evidence, which answers per record across
-  worktrees (`spec-projection-worktrees.md` § 15.5, § 16.3). Edit rights and their protection mark stay as shipped:
+- **Read-only is a lay mode, not an edit right.** A file's mode is decided in one place, `stageRecordFile`
+  (`lib/store/projection/staging.ts`), where the rendering's protection mark, read from the edit rights
+  (`protectRenderedContent`, `record-render.ts`), overrides the mode its caller passes. The lay mode sits beneath that
+  mark. A file the rights protect, such as another person's archived work, lays read-only with the notice naming its
+  owner, as `spec-projection-write-back.md` § 8.2 has it, since `arc edit` would refuse it. Any other file under
+  `completed/` is laid read-only, its notice naming `arc edit`, unless the target worktree's entry for it is opened,
+  when it is laid writable, save that `arc save`'s read-back of an opened file's landing lays it read-only (§ The
+  re-lock). Every staging of such a file follows the mode — a refresh, a fan-out's visit, a materialization, the
+  read-back after a landing, the clash drawing (`drawCheckoutClash`, `checkout-drawing.ts`), and the replace guard's
+  restage (`replace-guard.ts`) — reading the target worktree's own entry, never the round's shared protection evidence,
+  which answers per record across worktrees (`spec-projection-worktrees.md` § 15.5, § 16.3). A clash drawn into an
+  archived file that is not opened is laid read-only like any other, and its resolution opens the file with `arc edit`
+  first, so `arc edit` stays the one path that opens a file. Edit rights and their protection mark stay as shipped:
   `workUnitRights` (`lib/store/projection/rights.ts`) answers `editable` for an archived work unit's owner, so take-in
   never refuses an archived edit for being archived. Chosen over an `archive` reason among the edit rights, which would
   refuse every archived take-in, an opened file's and a refresh's pickup among them, and need an exception for each.
@@ -343,15 +362,22 @@ entry unstated. Each forward amendment states this contract; where the sections 
   and task list included, by its owner; an archived cohort document, by anyone; and an archived Errand's description, by
   its owner (`readProjectionEditRights` and `errandRights`, `rights.ts`; `spec-projection-write-back.md` § 8.1). A new
   path opens only inside an archived work unit's folder, where § 9 there adopts it, and only once its file exists. It
-  is new where the store holds no record at the path; its entry is an ownerless entry carrying the opened mark, which
-  the start's adoption retry hands to the shipped route (`adoptProjectionFile`, `adoption.ts`, which takes any entry
-  that is not a record entry, `checkFileAtPath`, `engine-files.ts`), since a record entry needs a stored base
-  (`RecordEntrySchema`, `index-schema.ts`). With no file at the path, `arc edit` refuses, naming creating it first. A
-  path the store holds a record at that this worktree does not lay is `projection-narrowed-views`' case.
+  is new where the store holds no record at the path; its entry is an ownerless entry carrying the opened mark in place
+  of the refusal an ownerless entry requires today (`OwnerlessEntrySchema`, `index-schema.ts`), which `arc status`
+  shows as opened rather than refused (`status.ts`). The start's adoption retry hands it to the shipped route
+  (`adoptProjectionFile`, `adoption.ts`, which takes any entry that is not a record entry, `checkFileAtPath`,
+  `engine-files.ts`), since a record entry needs a stored base (`RecordEntrySchema`, `index-schema.ts`). The record
+  entry the adoption writes keeps the opened mark: `recordAdoptionAcceptance` (`adoption-read-back.ts`) and
+  `attachExistingProjectionFile` (`adoption-existing.ts`) each build a fresh entry today, and carry the mark over, so
+  the adoption's read-back lays the new file writable and it stays opened until `arc save`. A refused adoption keeps
+  the mark already, since `refuse` (`adoption.ts`) carries the ownerless entry's fields over. With no file at the path,
+  `arc edit` refuses, naming creating it first. A path the store holds a record at that this worktree does not lay is
+  `projection-narrowed-views`' case.
 - **Every command's start** reads the partitions the header marks, so it finds opened and unsettled archive entries.
   It checks each opened entry and takes its edit in, and its adoption retry, which selects `completed/` only for
-  `arc save` today (`adoptionRetries`, `engine-files.ts`), selects opened entries there at every command. It leaves an
-  unsettled entry that is not opened to `arc save`, as today.
+  `arc save` today (`adoptionRetries`, `engine-files.ts`), selects opened entries there at every command. As today, it
+  finishes an accepted adoption awaiting its read-back wherever it lies, `completed/` included, and leaves every other
+  unsettled archive entry that is not opened to `arc save`.
 - **`arc save`** writes back, in `completed/`, the opened entries and the unsettled ones its marked partitions hold — a
   refusal a refresh left, an unfinished recording, an accepted adoption whose read-back has not installed — so each
   remedy that names it still finishes, `spec-projection-worktrees.md` § 12.2's held entries among them ("whose walk
@@ -361,15 +387,21 @@ entry unstated. Each forward amendment states this contract; where the sections 
   mark matters to it. Its recovery of swept aside copies under `completed/` (`engine-start.ts`) stays, since the sweep
   names those paths.
 - **The re-lock.** `arc save` lays an opened file read-only and clears its mark only where its edit landed or the file
-  is unchanged. On any other take-in answer — deferred, pending, clashed with markers placed, refused, unparseable, or
-  `state-unresolvable` after the history retry (`TakeInResult`, `take-in-port.ts`) — the file stays writable and
-  opened, its report naming the remedy. The lay re-checks the file against what the landing read, and where it changed
-  between the two, leaves it writable and opened for the next save.
+  is unchanged. Where the edit lands, the landing's read-back is the lay: it stages the file read-only, and the replace
+  guard (`guardReplacement`, `replace-guard.ts`) re-checks the file against what the landing read before the swap,
+  taking in a save made between the two, so none is locked in unseen. Where the file is unchanged, `arc save`
+  re-checks it against its entry and lays it read-only. Then the mark clears. On any other take-in answer — deferred,
+  pending, clashed with markers placed, refused (a store's `state-unresolvable` after the history retry among them),
+  or unparseable (`TakeInResult`, `take-in-port.ts`) — or where the guard leaves the file unreplaced, the file stays
+  writable and opened, its report naming the remedy.
 - **A refresh or fan-out** lays by the lay mode, and takes in the edit of a file changed while not opened, then lays it
   read-only (§ The opened set's read). **`arc sync`** does what § What `arc sync` takes over states.
-- **The removal check and the persist and release steps** persist an opened file's edit and adopt an opened new file;
-  they refuse over a file changed while not opened and over a new file with no entry, naming `arc edit` then
-  `arc save`; an unsettled entry keeps § 12.2's handling there. `spec-projection-worktrees.md` § 12.2's persist steps,
+- **The removal check and the persist and release steps** persist an opened file's edit and adopt an opened new file.
+  They refuse over a file changed while not opened, naming `arc edit` then `arc save`, and over a new file with no
+  entry: inside an archived work unit's folder naming the same, and elsewhere under `completed/` as § 12.2 answers a
+  file adoption would refuse, with adoption's own remedy (`resolveLocatedAdoption`, `adoption-target.ts`, and
+  `adoptProjectionFile`'s refusal of a new cohort document), since `arc edit` opens no new path there. An unsettled
+  entry keeps § 12.2's handling there. `spec-projection-worktrees.md` § 12.2's persist steps,
   which write back and adopt every `completed/` file, § 12.3's release step, and its Success Criterion 2 change with
   them.
 - **The format version moves** with the opened mark, so a build without D reads the index as another format version: a
