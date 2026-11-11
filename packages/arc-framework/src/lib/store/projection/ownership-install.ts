@@ -1,5 +1,6 @@
 /** Publish both record identities before linking a staged arrival into an absent reused path. */
-import { mkdir, rm } from "node:fs/promises";
+import { removeProjectionAsideFile } from "./aside-cleanup.js";
+import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { StoreRecord } from "../read.js";
 import type { ProjectionIndex, RecordEntry } from "./index-schema.js";
@@ -56,6 +57,6 @@ export async function installProjectionHandoff(input: OwnershipInstallation): Pr
   if (!linked) index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
     index: withProjectionEntry(index, path, { ...previous, pending: true }), checkpoint: root.context.checkpoint });
   await root.context.checkpoint?.();
-  await rm(join(root.checkout, staged.result.location), { force: true });
+  await removeProjectionAsideFile(root.checkout, staged.result.location, root.context.checkpoint);
   return index;
 }

@@ -110,7 +110,7 @@ function reusableStartStats(input: { original: ProjectionIndex; beforeSweep: Pro
 async function updateProjection(root: ProjectionRootState, input: ProjectionRefreshRequest): Promise<{ index: ProjectionIndex; viewReprojectionAttempted: boolean }> {
   const viewReprojectionAttempted = root.reproject !== undefined && !isDeepStrictEqual(input.index.projectedUnder.view, root.view);
   const index = await root.reproject?.(input) ?? input.index;
-  return { index: await root.refresh?.({ ...input, index }) ?? index, viewReprojectionAttempted };
+  return { index: await root.refresh?.({ ...input, index, publication: "caller" }) ?? index, viewReprojectionAttempted };
 }
 
 async function resolveNewlyProjectedSubject(root: ProjectionRootState,

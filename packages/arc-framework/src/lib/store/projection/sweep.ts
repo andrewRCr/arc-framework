@@ -2,10 +2,11 @@
  * The sweep: every command, under the projection lock and before write-back reads a file, takes over the aside copies and
  * staged files a writer that has exited left, so a stop mid-swap loses no save.
  */
+import { removeProjectionAsideFile, pruneAsideScaffold } from "./aside-cleanup.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { loadProjectionGroups } from "./index-memory.js";
 import { readdirSync } from "node:fs";
-import { readFile, rm } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isAdvisoryHolderAbandoned, type AdvisoryHolderObserver } from "../../advisory-lock.js";
 import { ASIDE_FILES_ROOT, parseAsideFile, processScopeDigest, type AsideFile, type AsideWriterInput } from "./aside.js";
@@ -98,7 +99,7 @@ export async function sweepAsideFolder(input: SweepInput): Promise<SweepResult> 
   const writable = writableUnder(ignores, guarded);
   // A refusal of the aside folder, as a failed call refuses every root, leaves the sweep nothing it may write.
   if (!writable(`${PROJECTION_ASIDE_ROOT}/`)) return { ignores, index: input.index, swept: [], left: [], withheld: [], copies: [] };
-  const found = await listAsideFolder(input.checkout);
+  const found = await listAsideFolder(input.checkout, input.checkpoint);
   const destinations = [
     ...Object.entries(input.index?.entries ?? {}).flatMap(([path, entry]) => entry.kind === "record" && entry.copies.length > 0 ? [path] : []),
     ...found.flatMap(copy => { const named = parseAsideFile(copy); return named?.role === "aside" ? [named.path] : []; }),
@@ -258,7 +259,7 @@ async function returnWithoutIndex(input: SweepInput, location: string, named: As
   const isFile = (await readStat(at.copy))?.type === "file";
   if (isFile && await readStat(at.path) === null && await retriedMoves(input).linkOnto(at.copy, at.path)) {
     await input.checkpoint?.();
-    await rm(at.copy, { force: true });
+    await removeProjectionAsideFile(input.checkout, at.copy, input.checkpoint);
     return true;
   }
   return deleteIfUnedited(input, location, named);
@@ -274,7 +275,7 @@ async function deleteIfUnedited(input: SweepInput, location: string, named: Asid
     || storedBlobId(await readFile(copy, "utf8"), { format: input.format, markdown: named.path.endsWith(".md") }) === named.base;
   if (unedited) {
     await input.checkpoint?.();
-    await rm(copy, { force: true });
+    await removeProjectionAsideFile(input.checkout, copy, input.checkpoint);
   }
   return unedited;
 }
@@ -286,7 +287,7 @@ async function deleteStagedFiles(
   for (const location of found) {
     if (parseAsideFile(location)?.role === "staged" && writerOf(location) === "exited") {
       await input.checkpoint?.();
-      await rm(join(input.checkout, location), { force: true });
+      await removeProjectionAsideFile(input.checkout, location, input.checkpoint);
     }
   }
 }
@@ -340,22 +341,29 @@ function judgeWriters(input: SweepInput): (name: string) => WriterState {
 }
 
 /** Every copy and staged file in the aside folder, a symbolic link read as itself, by repository-relative location. */
-async function listAsideFolder(checkout: string): Promise<string[]> {
-  const pending = [ASIDE_FILES_ROOT];
+async function listAsideFolder(checkout: string, checkpoint?: () => Promise<void>): Promise<string[]> {
+  const pending = [{ directory: ASIDE_FILES_ROOT, visited: false }];
   const found: string[] = [];
-  try {
-    for (let directory = pending.pop(); directory !== undefined; directory = pending.pop()) {
-      for (const entry of readdirSync(join(checkout, directory), { withFileTypes: true })) {
-        const location = `${directory}/${entry.name}`;
-        const named = parseAsideFile(location);
-        // A directory at a copy's exact location is opaque: none of its contents are projection-owned copies.
-        if (named?.role === "aside" || (named !== undefined && !entry.isDirectory())) found.push(location);
-        if (named === undefined && entry.isDirectory()) pending.push(location);
-      }
-      await new Promise<void>(resolve => setImmediate(resolve));
+  for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+    const { directory } = next;
+    if (next.visited) { await pruneAsideScaffold(checkout, directory, checkpoint); continue; }
+    const entries = asideDirectoryEntries(checkout, directory);
+    pending.push({ directory, visited: true });
+    for (const entry of entries) {
+      const location = `${directory}/${entry.name}`;
+      const named = parseAsideFile(location);
+      // A directory at a copy's exact location is opaque: none of its contents are projection-owned copies.
+      if (named?.role === "aside" || (named !== undefined && !entry.isDirectory())) found.push(location);
+      if (named === undefined && entry.isDirectory()) pending.push({ directory: location, visited: false });
     }
-    return found;
-  } catch (error) {
+    await new Promise<void>(resolve => setImmediate(resolve));
+  }
+  return found;
+}
+
+function asideDirectoryEntries(checkout: string, directory: string): import("node:fs").Dirent[] {
+  try { return readdirSync(join(checkout, directory), { withFileTypes: true }); }
+  catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw error;
   }

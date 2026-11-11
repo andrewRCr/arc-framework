@@ -143,6 +143,7 @@ describe("files other than Markdown", () => {
 
       await rm(join(checkout, path));
       await rename(join(checkout, `${path}.moved`), join(checkout, path));
+      await mkdir(dirname(join(checkout, named)), { recursive: true });
       await writeFile(join(checkout, named), "content\n");
       const cleared = await deleteAsideCopy({ checkout, path, entry: afterOther, copy: named });
       expect(cleared).toMatchObject({ copies: [], inProgress: null });

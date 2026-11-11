@@ -33,6 +33,8 @@ export interface ProjectionRefreshRequest {
   readonly version: StateVersion;
   readonly index: ProjectionIndex;
   readonly evidence?: ProjectionProtectionEvidence;
+  /** The enclosing leased operation publishes the returned index with its own final metadata. */
+  readonly publication?: "caller";
 }
 /** Destination bindings and the configuration already observed for this command. */
 export interface ProjectionRefreshInput extends ProjectionRefreshRequest {
@@ -84,14 +86,15 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
       replace: { ...prepared.file.replace, entry: { ...prepared.file.replace.entry, changed: true } } } : prepared.file);
   }
   if (files.length > 0) {
-    const swapped = await swapBatch({ location: root.location, checkout: root.checkout, index, files, readBack: false,
+    const swapped = await swapBatch({ location: root.location, checkout: root.checkout, index, files, readBack: false, settlementPublication: "caller",
       writer: root.context.writer, format: root.context.format, checkpoint: root.context.checkpoint, takeIn: root.takeIn, hooks: root.context.hooks });
     root.context.recordBatch?.(swapped);
     index = swapped.index;
   }
   const complete = !unresolved && projectionArrivalsInstalled(index, arrivals);
-  index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: { ...index, state: complete && options.advanceState !== false ? version : input.index.state }, checkpoint: root.context.checkpoint });
+  index = { ...index, state: complete && options.advanceState !== false ? version : input.index.state };
+  if (input.publication !== "caller") index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
+    index, checkpoint: root.context.checkpoint });
   root.ready = true;
   return { index, complete };
 }

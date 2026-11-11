@@ -2,7 +2,7 @@
  * A file other than Markdown carries no stamp, so its index entry alone holds its base, and while a replacement is in
  * progress, the version it replaces and the aside copy its batch makes of the file.
  */
-import { rm } from "node:fs/promises";
+import { removeProjectionAsideFile } from "./aside-cleanup.js";
 import { join } from "node:path";
 import type { StoreRefusal, StoreResult } from "../refusal.js";
 import { storedBlobId, type ObjectFormat } from "./blob-id.js";
@@ -94,7 +94,7 @@ export interface AsideCopyDeletion {
 export async function deleteAsideCopy(input: AsideCopyDeletion): Promise<RecordEntry> {
   // A copy that is a symbolic link is removed as itself, never followed.
   await input.checkpoint?.();
-  await rm(join(input.checkout, input.copy), { force: true });
+  await removeProjectionAsideFile(input.checkout, input.copy, input.checkpoint);
   return finalizeAsideCopy(input);
 }
 

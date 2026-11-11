@@ -2,7 +2,8 @@
  * The replace guard: before a file is replaced or removed, it is re-checked by the racy rule, and an edit found there is
  * taken in first, then, for a replacement, the record's current version restaged, for at most three passes.
  */
-import { readFile, rm } from "node:fs/promises";
+import { removeProjectionAsideFile } from "./aside-cleanup.js";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Store } from "../contract.js";
 import type { Remedy, StoreRefusal } from "../refusal.js";
@@ -138,6 +139,6 @@ async function restage(input: ReplaceGuardInput, entry: RecordEntry, staged: Sta
   });
   if (restaged.status === "refused") return { ...restaged, entry: { ...entry, unshown: unshownConflicts(entry, read.result.conflicts) } };
   await input.checkpoint?.();
-  await rm(join(input.checkout, staged.location), { force: true });
+  await removeProjectionAsideFile(input.checkout, staged.location, input.checkpoint, false);
   return restaged;
 }

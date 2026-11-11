@@ -103,7 +103,7 @@ async function refreshTarget(round: FanOutRound, target: FanOutTarget, session: 
     if (!root.ready) root.unsent.clear();
     loadProjectionGroups(index, "walked");
     if (needsReprojection) index = await root.reproject?.({ source: round.source, version: round.version, index, evidence: round.evidence }) ?? index;
-    index = await root.refresh?.({ source: round.source, version: round.version, index, evidence: round.evidence }) ?? index;
+    index = await root.refresh?.({ source: round.source, version: round.version, index, evidence: round.evidence, publication: "caller" }) ?? index;
     if (own) index = markOwnWrites(index, round.ownWrites);
     await commitProjectionIndex({ location: root.location, checkout: root.checkout, index, checkpoint: session.step });
     await session.step();
