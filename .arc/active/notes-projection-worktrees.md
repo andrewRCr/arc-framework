@@ -713,3 +713,33 @@ Compare against calibration run `2ba0b6ef905c408ea51b8e67686e7bbe`: standard Git
 expanded 3.39/5.94 ms, using the raw record's precision. A start above 20 ms with normal Git timings is a real failure
 and stops. This is the Owner's direction for judging the timing evidence, not an exemption for functional or
 quality-check failures.
+
+### Native cross-process save placement
+
+The burst suite gives twenty linked worktrees distinct engine processes over the ref backend in each layout. An
+editor in process N holds a handle into process N+1's root, wrapping at twenty, so a save reaches another process's
+replacement or removal. Every required swap hook pauses until all twenty arrivals and completed saves are acknowledged;
+the writer's fan-out instead rendezvous at each root's serial visit. Rebuilds create the absent path, and fan-out
+editors rename their saved file over the path. The added fan-out observer changes no lock or visit ordering.
+
+The oracle reads current store content, current projected files, and aside files named by the current index after all
+engine operations finish and editor handles close. It matches each complete saved entry. A file must remain pending,
+and an aside must remain pending or be reported by its exact copy name; unindexed debris and historical store content
+cannot count. Each saved entry is absent from the initial fixture, and every save requires its own acknowledgment.
+
+Fail-first run `c3c6160df2d94647a6f5b33a601c8d46` rejected both layouts when the fan-out observer was absent: the engine
+completed without reaching the required hook. Run `46d8b1209d334fae8ac73ef9c0d33cd2` rejected all twelve replacement,
+removal, and rebuild cases with missing-save assertions against snapshot `e3013cd2e494f43afb50a5e2519a2c30116275b2`,
+which temporarily discarded moved copies and overwrote files recreated before the rebuild link. Those changes were
+reverted. Oracle reconstruction `3485d5d7609743a481bd4874d032fbcf` rejected unconditional preservation; restored run
+`f7ae08b6f5fb4579a45f86e28bb15638` passed both negative cases, including an unindexed, validly named aside file.
+
+The initial simultaneous TypeScript startups exhausted M5's 5 GiB runner limit. Startup now waits for each process's
+readiness before spawning the next, and the child imports the store constructor directly; all twenty remain alive for
+the concurrent engine operations. The four corrected removal cases passed on M5 in run
+`1baffebdde7f44439d673903a2c16d92`, with twenty completed saves retained in every case.
+
+Restored full run `764794cda1ee4346be28f7472a4155bc` passed all sixteen native matrix cases and the isolation regression.
+The isolation case separately failed before registration in `a011e8740b8848cdac573d07bdacec09`, then passed in
+`3150d274ca4542ea98a4cccc9e6b4568`. These runs establish local task feedback; the task's dispatched portability and
+Linux evidence is recorded with its completion.

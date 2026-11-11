@@ -13,6 +13,7 @@
     {
       "suites": [
         "packages/arc-framework/__tests__/integration/store-ref-bursts.test.ts",
+        "packages/arc-framework/__tests__/integration/store-ref-projection-bursts.test.ts",
         "packages/arc-framework/__tests__/integration/store-ref-timing.test.ts",
         "packages/arc-framework/__tests__/integration/store-ref-projection-timing.test.ts"
       ],

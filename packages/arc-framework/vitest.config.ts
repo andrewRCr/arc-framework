@@ -65,7 +65,7 @@ const emptySuiteRuntimeOptions = { passWithNoTests: true } as const;
 // mock-heavy files quarantined so the main tier can relax isolation for its
 // import-cost win without their hoisted mocks leaking across file boundaries.
 const timingTests = ["__tests__/integration/store-ref-timing.test.ts", "__tests__/integration/store-ref-projection-timing.test.ts"];
-const burstTest = "__tests__/integration/store-ref-bursts.test.ts";
+const burstTests = ["__tests__/integration/store-ref-bursts.test.ts", "__tests__/integration/store-ref-projection-bursts.test.ts"];
 const integrationTest = {
   root: packageRoot,
   ...(integrationRunRoot === undefined ? {} : { env: { TMPDIR: integrationRunRoot } }),
@@ -109,7 +109,7 @@ export default defineConfig({
           ...integrationTest,
           name: "integration",
           include: ["__tests__/integration/**/*.test.ts"],
-          exclude: [...configDefaults.exclude, ...timingTests, burstTest],
+          exclude: [...configDefaults.exclude, ...timingTests, ...burstTests],
         },
       },
       {
@@ -126,7 +126,7 @@ export default defineConfig({
         test: {
           ...integrationTest,
           name: "integration-bursts",
-          include: [burstTest],
+          include: burstTests,
           // Keep unrelated selected tests outside the twenty-writer workload.
           sequence: { groupOrder: 2 },
           maxWorkers: 1,

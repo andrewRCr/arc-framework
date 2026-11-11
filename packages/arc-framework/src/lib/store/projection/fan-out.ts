@@ -68,6 +68,7 @@ export async function runProjectionFanOut(input: ProjectionCommandInput, ownWrit
 
 async function visitTarget(round: FanOutRound, checkout: string, location: ProjectionLocation): Promise<void> {
   try {
+    await round.ports.beforeFanOutTarget?.(checkout);
     const disk = await readProjectionIndex(location, false, { retry: true });
     if (disk.kind !== "index") return;
     const target: FanOutTarget = { checkout, location, index: disk.index };

@@ -28,6 +28,8 @@ export interface ProjectionEnginePorts {
   readonly lock?: Partial<ProjectionLockDependencies>;
   readonly maxWaitMs?: number;
   readonly hooks?: SwapHooks;
+  /** Observe each root immediately before a fan-out visits it, without changing visit ordering. */
+  readonly beforeFanOutTarget?: (checkout: string) => Promise<void>;
   readonly registry?: Readonly<Record<KindId, KindDefinition>>;
 }
 
