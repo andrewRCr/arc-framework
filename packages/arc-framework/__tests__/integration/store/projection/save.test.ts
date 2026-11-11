@@ -593,6 +593,33 @@ it("names an unprojected in-flight subject's exact owner and resolves once refre
   expect(await f.store.read({ reference: conflict })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
 });
 
+it("resolves a hidden subject once a changed view projects it at command entry", async () => {
+  const { f } = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" }); directories.push(f.root);
+  await f.ports.exec("git", ["config", "arc.inflightView", "cohort"], { cwd: f.root });
+  const other = await seed(f, RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "beta" } }),
+    makeMetaFixture("beta", { owner: "andrew", state: "Active", workClass: "Light", priority: "P1", currentWorkflow: "process-task-loop" }),
+    { kind: "active" });
+  const subject = await seed(f, recordReferences["work-item/companion"](other.reference.owner, "correction.txt"), "opening\nbase\nclosing\n");
+  for (const content of ["opening\ncurrent\nclosing\n", "opening\nincoming\nclosing\n"]) {
+    success(await f.store.write({ action: "put", reference: subject.reference, expected: subject.version, content,
+      provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  }
+  const current = success(await f.store.read({ reference: subject.reference })), conflict = current.conflicts[0];
+  if (conflict === undefined) throw new Error("Missing stored conflict");
+  const content = "Replacement prose outside the conflicted span\n";
+  success(await f.store.write({ action: "put", reference: subject.reference, expected: current.version, content,
+    provenance: { verb: "edit", lifecycleAction: "edit" } }));
+  const command = { checkout: f.root, store: f.store }, token = formatConflictToken(conflict);
+  expect((await save(command, ["--resolve", token])).result).toMatchObject({ status: "refused",
+    refusal: { condition: expect.stringContaining("no projected file") } });
+  expect(success(await f.store.read({ reference: subject.reference })).conflicts).toEqual([conflict]);
+  await f.ports.exec("git", ["config", "arc.inflightView", "all"], { cwd: f.root });
+  const resolved = await save(command, ["--resolve", token]);
+  expect(resolved.result.status, JSON.stringify(resolved.result)).toBe("ok");
+  expect(success(await f.store.read({ reference: subject.reference }))).toMatchObject({ content, conflicts: [] });
+  expect(success(await f.store.history({ reference: conflict })).filter(entry => entry.content === null)).toHaveLength(1);
+});
+
 it("names an indexed conflict that was already resolved", async () => {
   const h = await conflictedProjection(".arc/user/andrew/scratch/document.txt");
   const current = success(await h.store.read({ reference: h.reference }));
@@ -603,7 +630,7 @@ it("names an indexed conflict that was already resolved", async () => {
     remedy: { text: expect.stringContaining("arc status --conflicts") } } });
 });
 
-it("refuses an unmapped token shared by two owner generations and names both UIDs", async () => {
+it.each([false, true])("refuses an ambiguous token across owner generations after view change=%s", async changeView => {
   const h = await createEngineFixture(directories);
   const old = await seed(h, h.reference("work-item/meta"));
   success(await h.store.write({ ...update(h, old), placement: { kind: "completed", quarter: ArchiveQuarterSchema.parse("2026-q4") } }));
@@ -613,6 +640,7 @@ it("refuses an unmapped token shared by two owner generations and names both UID
     RecordReferenceSchema.parse({ kind: "work-item/conflict-record", owner, key: "shared/id" })));
   const first = conflicts[0];
   if (first === undefined) throw new Error("No conflict was seeded");
+  if (changeView) await h.exec("git", ["config", "arc.inflightView", "all"], { cwd: h.checkout });
   const saved = await save(h, ["--resolve", formatConflictToken(first.reference)]);
   expect(saved.result).toMatchObject({ status: "refused", refusal: { condition: expect.stringContaining("Ambiguous"),
     remedy: { text: expect.stringContaining("UID") } } });
@@ -695,7 +723,7 @@ it("preserves incompatible cohort choices while another edit lands, then resolve
   const held = await readProjectionIndex(h.location, true, { groups: "all" });
   if (held.kind !== "index") throw new Error("Missing held index");
   for (const path of h.paths) expect(held.index.entries[path]).toMatchObject({ changed: true });
-  expect(selectProjectedMarkdown(held.index.entries, { changed: true })).toEqual(expect.arrayContaining(h.paths));
+  expect(selectProjectedMarkdown(held.index.entries, SlugSchema.parse("andrew"), { changed: true })).toEqual(expect.arrayContaining(h.paths));
   for (const [i, path] of h.paths.entries()) if (i === 0) await writeFile(join(h.checkout, path), original[i]!);
   expect((await save(h, ["--resolve", formatConflictToken(h.conflict)])).result.status).toBe("refused");
   const observedAgain = await readProjectionIndex(h.location, true, { groups: "all" });
@@ -727,7 +755,7 @@ it("does not bypass a withheld cohort alias and resolves after that alias is rel
   if (held.kind !== "index") throw new Error("Missing held index");
   for (const alias of h.paths) expect(held.index.entries[alias]).toMatchObject({ pending: true,
     changed: alias === editedPath, refused: { reason: expect.stringContaining("withheld") } });
-  expect(selectProjectedMarkdown(held.index.entries, { changed: true })).toEqual([editedPath]);
+  expect(selectProjectedMarkdown(held.index.entries, SlugSchema.parse("andrew"), { changed: true })).toEqual([editedPath]);
   await writeProjectionIndex(h.location, { ...held.index, entries: { ...held.index.entries, [path]: { ...entry, withheld: false } } });
   await writeCohortChoice(h, path, content);
   expect((await save(h, ["--resolve", formatConflictToken(h.conflict)])).result.status).toBe("ok");
@@ -1016,7 +1044,7 @@ it.each(["", "not-a-token"])("reports an unknown token %j as whole JSON and acce
   expect(success(await h.store.read({ reference: h.reference })).conflicts).toEqual([]);
 });
 
-it("accepts a requested resolution already fulfilled by the start's aside sweep", async () => {
+it.each([false, true])("keeps a swept resolution accepted across view change=%s", async changeView => {
   const h = await conflictedProjection(".arc/user/andrew/scratch/document.md", false);
   await writeFile(join(h.checkout, h.path), await readFile(join(h.checkout, h.path), "utf8") + "\nIndependent note.\n");
   const ports = createProjectionEnginePorts(h.checkout);
@@ -1031,6 +1059,7 @@ it("accepts a requested resolution already fulfilled by the start's aside sweep"
   if (stamp === null) throw new Error("Copy lost its stamp");
   const current = success(await h.store.read({ reference: h.reference }));
   await writeFile(join(h.checkout, copy), renderStampedFile({ content: current.content, stamp }));
+  if (changeView) await ports.exec("git", ["config", "arc.inflightView", "all"], { cwd: h.checkout });
   const saved = await save(h, ["--resolve", formatConflictToken(h.conflict)]);
   expect(saved.result.status).toBe("ok");
   expect(success(await h.store.read({ reference: h.reference })).conflicts).toEqual([]);

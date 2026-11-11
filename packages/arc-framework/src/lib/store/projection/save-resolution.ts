@@ -1,11 +1,11 @@
-/** Bind an explicit resolution to indexed identities before the command sweeps displaced files. */
+/** Bind an explicit resolution to indexed identities during command entry and a changed view. */
 import { formatConflictToken } from "../../status/conflict-token.js";
 import { sameReference, type RecordReference } from "../identity.js";
 import type { Store } from "../contract.js";
 import { checkStoredResolution } from "./stored-resolution.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
 import type { TakeInResolution } from "./take-in-port.js";
-import { closedResolution, unmappedResolutionRefusal } from "./save-lookup.js";
+import { closedResolution, lookupUnmappedResolution } from "./save-lookup.js";
 import type { ProjectionRootState } from "./process-state.js";
 import { projectionLinkRemedy } from "./discovery-links.js";
 import { prepareWriteBack, type PreparedWriteBack } from "./write-back.js";
@@ -22,6 +22,7 @@ export interface ProjectionResolutionTarget {
 /** Command-local intent and the outcome at the accepted-write boundary. */
 export interface ProjectionResolution {
   readonly token: string;
+  readonly selection: "selected" | "unmapped" | "refused";
   readonly target: ProjectionResolutionTarget | null;
   accepted: boolean;
   refusal: RefusedMark | null;
@@ -47,7 +48,10 @@ export async function selectProjectionResolution(store: Store, index: Projection
       .find(reference => formatConflictToken(reference) === token);
     if (reference !== undefined) targets.push({ path, subject: entry.reference, resolution: { kind: "stored", reference } });
   }
-  return selectTarget(token, targets) ?? { token, target: null, accepted: false, refusal: await unmappedResolutionRefusal(store, token) };
+  const selected = selectTarget(token, targets);
+  if (selected !== null) return selected;
+  const lookup = await lookupUnmappedResolution(store, token);
+  return { token, selection: lookup.kind, target: null, accepted: false, refusal: lookup.refusal };
 }
 
 function selectTarget(token: string, targets: readonly ProjectionResolutionTarget[]): ProjectionResolution | null {
@@ -55,10 +59,10 @@ function selectTarget(token: string, targets: readonly ProjectionResolutionTarge
   if (target === undefined) return null;
   if (targets.every(each => equivalentTarget(each, target))) {
     const aliases = targets.map(each => each.path).sort();
-    return { token, target: aliases.length === 1 ? target : { ...target, path: aliases[0] ?? target.path, aliases },
+    return { token, selection: "selected", target: aliases.length === 1 ? target : { ...target, path: aliases[0] ?? target.path, aliases },
       accepted: false, refusal: null };
   }
-  return { token, target: null, accepted: false, refusal: {
+  return { token, selection: "refused", target: null, accepted: false, refusal: {
       reason: `Ambiguous conflict token ${token}: ${targets.map(each => `${each.path} (${JSON.stringify(each.subject)})`).join("; ")}.`,
       remedy: { text: "Use a checkout projecting only the intended owner UID, then retry the token there." },
     } };

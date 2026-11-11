@@ -165,84 +165,18 @@ that chunk.
   allowing refused creation stamps to recover editability after a same-slug bind. Live preparation shares the command's
   history while atomic admission still captures and validates the historical bytes consumed.
 
-### `[ ]` **1.8 Reproject on a changed view setting, identity, claim, or layout — § 10.4, § 10.3**
+### `[x]` **1.8 Reproject on a changed view setting, identity, claim, or layout — § 10.4, § 10.3**
 
 - _Goal:_ A command that reads a view setting, identity, checkout claim, or `layout.active` different from the one its
   index recorded reprojects what it governs — views added, files leaving a view by the removal path, the new identity's
   personal root laid on a changed identity, and `current/`, its scratch folder, and owning-checkout notices following
   the claim or layout.
 
-    - The comparison is against the index's `projectedUnder` (`ProjectionIndexSchema`), whose claim this task extends
-      from the slug alone (`ProjectedUnderSchema`) to the slug and the marker's UID, absent while the marker is unbound,
-      so a bind that keeps the slug — `arc materialize <slug> --here` after a creation's refused stamp among them —
-      reprojects, read against the root's fresh claim, `layoutActive`, and view (1.3). The claim's read
-      (`readFreshCheckoutLayoutContext`, `lib/store/checkout-layout.ts`), which decodes the marker
-      (`decodeWorktreeMarkerOwnership`) and returns the slug alone, gains a fresh form that returns the subject's `uid`
-      beside the `ActiveLayoutContext` it returns, absent while the marker is unbound, and caches that context as the
-      fresh read does (`readCheckoutLayoutContext` with `fresh: true`). `ActiveLayoutContext` keeps its shape, since its
-      readers take it whole: `activeContainer` (`lib/layout/file-identification.ts`) spreads it into a strict schema
-      (`OwnActiveLocationSchema`, `lib/layout/schema.ts`) that refuses another key. 1.3's binder calls that form at
-      every binding and at every re-read into a root the command holds, carrying the UID into the root beside `claim`
-      (`ProjectionRootState`), which stays the slug its readers take (`identifyArcFileAddress`). A release, a promotion,
-      or a materialize changes the marker without a store write, so this comparison is what catches it.
-    - The fan-out's visit to the writer's own worktree (1.7.b) runs the same comparison against the claim and layout it
-      re-reads into the command's root, and a difference is reprojected in place before that visit's refresh, so a verb
-      that changes its own checkout's claim and writes in one command lays its records under the new claim and marks
-      them changed. Its visit to a worktree a spawn materialized earlier in the command does the same where the claim or
-      `layoutActive` alone differs, as after a creation's stamp, marking nothing there (1.7.b).
-    - The reprojection writes the index through its swaps (`swapBatch`), so it takes the index its caller holds and
-      returns the one it wrote, as every write of the start and of a fan-out's visit does (1.7.b, 1.6.a): at the start,
-      the index held since the sweep, and at the visit, the one read under the lock with the ignore check's record in
-      it; the refresh after it takes what it returned.
-    - On a changed identity it lays the new identity's personal root and leaves the previous identity's as it is — its
-      files, and their entries in that identity's own partition (1.2) — neither removed nor refreshed while the identity
-      differs, since the take-in's rights and the writable roots answer for the current identity alone
-      (`readProjectionEditRights`, `lib/store/projection/rights.ts`; `writableUnder`, `lib/store/projection/sweep.ts`)
-      and the personal-root ignore pattern covers every identity (`projectedRootPatterns`,
-      `lib/layout/projected-roots.ts`); the start walks that root again once the identity returns.
-    - The selection (`selectProjectedMarkdown`, `lib/store/projection/selection.ts`), which takes no identity, takes the
-      root's through a parameter this task adds — `projectionSelectionResult` passing `ProjectionRootState.identity`
-      from the root it holds, and the selection's direct test calls passing one — and lists no file under a personal
-      root of another identity, since no edit there is sent while the identity differs; the removal check and the
-      persist and release steps read that root with the projected roots (2.1, 2.2), and the release of a linked checkout
-      removes its unchanged files with the rest (2.3).
-    - A file of the old claim's work item at a path the new one's also projects at — a path-keyed companion — is removed
-      by the removal path, its edit taken in against its own record, and the next refresh lays the new file there
-      (`swapBatch` with `SwapFile.relaid`, which keeps the old entry pending and absent).
-    - Reuse 1.6.R's durable handoff for a shared path, keeping both identities journaled until confirmed, instead of
-      installing the new claim's record over a leaving entry. Publish `reprojectionPending` before layout mutations and
-      treat it as a reprojection trigger even if the requested settings return to the retained tuple. While any desired
-      arrival is blocked or unconfirmed, keep the previous state anchor and whole `projectedUnder` tuple. Use the fresh
-      target's settings for rights and capture during every retry; clear the flag and acknowledge that tuple together
-      only after all its desired arrivals are confirmed. Confirming one handoff cannot acknowledge the whole layout.
-    - Build `test-first` (one behavior at a time):
-        - switching the view from `mine` to `all` adds the other in-flight work items
-        - switching back removes them, an edit there taken in first
-        - a changed claim re-lays `current/` to the newly named work item and creates its scratch folder
-        - a fan-out visit that reprojects the writer's own worktree and then refreshes it keeps the reprojection's
-          entries and its `projectedUnder`, and an ignore-file change made after the visit's ignore snapshot is found at
-          the next start
-        - a write in a command whose own checkout's claim changed from one work unit to another in that command
-          reprojects it at the fan-out: the old work unit's files leave `current/`, the new one's are laid there, the
-          files of the records the write landed marked changed, and the start's aside copies still reach the end's
-          second check
-        - a save placed by the `afterRecheck` hook (`SwapHooks`, `lib/store/projection/swap.ts`) at a path both claims'
-          work items project at is taken in against the leaving record, and the next command lays the arriving file
-          there
-        - a claim-only change with no store write leaves an arrival blocked by the old file or a retained copy; after
-          the blocker is resolved, another command retries and installs the arrival without an intervening store write
-        - A → B → A with no store writes, after partial reprojection or an interrupted command, restores A's desired
-          layout and removes B's extra files once the blockers are resolved, even though the tuple compares equal
-        - a changed identity lays the new identity's personal root and leaves the previous identity's files and entries
-          as they were, an edit there kept, and changing back walks them again
-        - after a changed identity, `arc selection` lists none of the previous identity's files, and lists them again
-          once the identity returns
-        - after the claim's read in a checkout whose marker is bound, the cached layout context holds only `claim` and
-          `layoutActive`, and an unindexed file in the checkout's own `active/current/` folder still identifies as
-          `work-unit-companion` (`identifyArcFileAddress`)
-        - setting `layout.active: flat` moves `current/`'s files to `active/`'s top level
-        - `arc save --resolve` on a conflict whose subject projects in no file here resolves once a changed view lays
-          its file
+- _Outcome:_ Reprojection and fan-out share the fresh-settings predicate, including marker UID and durable retry flags.
+  Personal selection follows the current identity while other personal files and entries remain untouched. A changed
+  view can bind an initially unmapped open conflict from its final index and resolve it once; existing selections,
+  accepted intents, and ambiguous tokens keep their authority boundaries. Native cases cover guarded view removals,
+  identity round trips, claim changes during fan-out, ignore-policy repair, and flat layout.
 
 ### `[ ]` **1.9 Rebuild deleted files at `arc sync` — § 2.4**
 

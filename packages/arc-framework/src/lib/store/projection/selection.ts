@@ -1,6 +1,7 @@
 /** Select editable projected Markdown from the command's completed start and index. */
 import type { Store } from "../contract.js";
 import type { RecordEntry } from "./index-schema.js";
+import type { Slug } from "../../kernel/index.js";
 import { isProjectedPath } from "../../layout/index.js";
 import { projectionProcessState } from "./process-state.js";
 import { readProjectionIndex } from "./index-file.js";
@@ -14,12 +15,12 @@ export type ProjectionSelectionResult =
   | { readonly status: "refused"; readonly refusal: ProjectionStartRefusal };
 
 /** Filter only the indexed facts that determine whether Markdown can be checked. */
-export function selectProjectedMarkdown(entries: Readonly<Record<string, SelectionEntry>>, options: { changed?: boolean } = {}): readonly string[] {
+export function selectProjectedMarkdown(entries: Readonly<Record<string, SelectionEntry>>, identity: Slug, options: { changed?: boolean } = {}): readonly string[] {
   return Object.entries(entries).filter(([path, entry]) => {
     if (entry.kind !== "record" || entry.withheld || entry.protected || entry.markers !== null || (options.changed && !entry.changed)) return false;
     if (!path.endsWith(".md") || !isProjectedPath(path) || path.startsWith(".arc/completed/")) return false;
     const parts = path.split("/");
-    return !(parts[1] === "user" && (parts[3] === ".internal" || parts[3] === "scratch"));
+    return !(parts[1] === "user" && (parts[2] !== identity || parts[3] === ".internal" || parts[3] === "scratch"));
   }).map(([path]) => path);
 }
 
@@ -41,6 +42,6 @@ export async function projectionSelectionResult(store: Store, checkout: string,
   if (disk.kind !== "index") return { status: "refused", refusal: { code: "projection-refused",
     condition: `Projection index is ${disk.kind === "unusable" ? disk.cause : "missing"}.`,
     remedy: { text: "Restore a readable projection index, then retry arc selection; existing projected files have been preserved." } } };
-  return { status: "ok", result: { paths: selectProjectedMarkdown(disk.index.entries, options)
+  return { status: "ok", result: { paths: selectProjectedMarkdown(disk.index.entries, root.identity, options)
     .filter(path => root.blockedByLink(path) === null) } };
 }

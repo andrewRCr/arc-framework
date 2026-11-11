@@ -1,4 +1,5 @@
 /** Initialization performed inside the command's own projection lease. */
+import { isDeepStrictEqual } from "node:util";
 import { createHistoryMemo } from "./base-recovery.js";
 import { readProjectionConfiguration } from "./configuration.js";
 import { guardedProjectionRoots } from "./ignore-guard.js";
@@ -89,7 +90,7 @@ export async function startUnderLease(input: ProjectionStartInput, ports: Projec
       await recheckProjectionResolution(root, index, state.resolution);
       index = await writeBackProjectionFiles(root, index, [...new Set([...files, ...recovered])].sort());
     }
-    index = await updateProjection(root, { source: input.source, version: saved.result, index });
+    index = await resolveNewlyProjectedSubject(root, await updateProjection(root, { source: input.source, version: saved.result, index }));
     await commitProjectionIndex({ location, checkout: input.checkout, index, checkpoint: root.context.checkpoint });
     await session.step();
     root.ready = true;
@@ -99,9 +100,21 @@ export async function startUnderLease(input: ProjectionStartInput, ports: Projec
   }
 }
 
-async function updateProjection(root: ProjectionRootState, input: ProjectionRefreshRequest): Promise<ProjectionIndex> {
+async function updateProjection(root: ProjectionRootState, input: ProjectionRefreshRequest): Promise<{ index: ProjectionIndex; viewReprojectionAttempted: boolean }> {
+  const viewReprojectionAttempted = root.reproject !== undefined && !isDeepStrictEqual(input.index.projectedUnder.view, root.view);
   const index = await root.reproject?.(input) ?? input.index;
-  return await root.refresh?.({ ...input, index }) ?? index;
+  return { index: await root.refresh?.({ ...input, index }) ?? index, viewReprojectionAttempted };
+}
+
+async function resolveNewlyProjectedSubject(root: ProjectionRootState,
+  updated: { index: ProjectionIndex; viewReprojectionAttempted: boolean }): Promise<ProjectionIndex> {
+  const state = projectionProcessState(), intent = state.resolution;
+  if (!updated.viewReprojectionAttempted || intent === null || intent.accepted || intent.target !== null || intent.selection !== "unmapped") return updated.index;
+  const selected = await selectProjectionResolution(root.store, updated.index, intent.token);
+  state.resolution = selected;
+  if (selected.target === null) return updated.index;
+  await recheckProjectionResolution(root, updated.index, selected);
+  return selected.refusal === null ? writeBackProjectionFiles(root, updated.index, [selected.target.path]) : updated.index;
 }
 
 async function bindResolution(input: ProjectionCommandInput, index: ProjectionIndex | null): Promise<void> {

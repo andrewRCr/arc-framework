@@ -1,6 +1,6 @@
 /** Refresh eligible worktree projections in bounded, command-owned rounds after landed store operations. */
 import { interpretProjectionView } from "./view-settings.js";
-import { projectionSettings as projectedUnder } from "./settings.js";
+import { needsProjectionReprojection, projectionSettings as projectedUnder } from "./settings.js";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { createProjectionProtectionEvidence, type ProjectionProtectionEvidence } from "./protection-evidence.js";
@@ -87,7 +87,7 @@ async function refreshTarget(round: FanOutRound, target: FanOutTarget, session: 
     let index = disk.index;
     const own = target.checkout === round.input.checkout;
     if (!eligibleTarget(round, root, index, own)) return;
-    const needsReprojection = index.reprojectionPending === true || !isDeepStrictEqual(index.projectedUnder, projectedUnder(root));
+    const needsReprojection = needsProjectionReprojection(root, index);
     if (index.state === round.version && !needsReprojection && (!own || round.ownWrites.length === 0)) return;
     if (index.state !== null && index.state !== round.version) {
       const changes = await round.source.changes({ from: index.state, to: round.version });
