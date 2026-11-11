@@ -54,7 +54,7 @@ import { withProjectionLock, PROJECTION_LOCK_FILE } from "../../../../src/lib/st
 import { overrideEngineStore } from "../../../helpers/store/projection/engine-fixture.js";
 import { acquireAdvisoryLock, releaseAdvisoryLockConfirmed, type AdvisoryLockHandle } from "../../../../src/lib/advisory-lock.js";
 import { ADVISORY_LEASE_DURATION_MS } from "../../../../src/lib/renewable-lease.js";
-import { startProjection } from "../../../../src/lib/store/projection/engine.js";
+import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { flatWorkItemArtifactPath } from "../../../../src/lib/store/lifecycle-storage.js";
 import { createLifecycleHarness } from "../../../helpers/store/lifecycle-harness.js";
@@ -557,8 +557,9 @@ it("names an unmapped conflict's owner without resolving it, then resolves from 
   expect(success(await h.store.read({ reference: h.reference })).conflicts).toEqual([]);
 });
 
-it("names an unprojected in-flight subject's exact owner and resolves only after its file and conflict mapping are seeded", async () => {
-  const { f, primary, folder } = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" });
+it("names an unprojected in-flight subject's exact owner and resolves once refresh supplies its mapping", async () => {
+  const { f, projected } = await createAdoptionFixture({ placement: { kind: "active" }, ownLayout: "nested" });
+  directories.push(f.root);
   const other = await seed(f, RecordReferenceSchema.parse({ kind: "work-item/meta", owner: { type: "work-item", name: "beta" } }),
     makeMetaFixture("beta", { owner: "andrew", state: "Active", workClass: "Light", priority: "P1", currentWorkflow: "process-task-loop" }),
     { kind: "active" });
@@ -583,10 +584,10 @@ it("names an unprojected in-flight subject's exact owner and resolves only after
   expect(success(await f.store.read({ reference: subject.reference })).conflicts).toEqual([conflict]);
   const path = resolveArcPath({ kind: "work-unit-companion", slug: SlugSchema.parse("beta"), key: "correction.txt",
     placement: { kind: "active", scope: { kind: "project", location: { kind: "another" } } } });
-  await unlink(join(f.root, folder, "meta-alpha.md"));
-  await seedProjection({ store: f.store, checkout: f.root, files: [
-    { reference: primary.reference, path: `${folder}/meta-alpha.md` }, { reference: subject.reference, path },
-  ] });
+  expect(await readFile(join(f.root, path), "utf8")).toContain(content);
+  expect(await readProjectionIndex(projected.location, true)).toMatchObject({ kind: "index", index: {
+    entries: { [path]: { reference: subject.reference, unshown: [conflict] } },
+  } });
   expect((await save({ store: f.store, checkout: f.root }, ["--resolve", token])).result.status).toBe("ok");
   expect(success(await f.store.read({ reference: subject.reference }))).toMatchObject({ content, conflicts: [] });
   expect(await f.store.read({ reference: conflict })).toMatchObject({ status: "refused", refusal: { code: "not-found" } });
@@ -1064,6 +1065,7 @@ it("keeps a stopped archived swap outside a linked parent and recovers after dir
   expect(await startProjection({ store: h.store, checkout: h.checkout, ports: () => ports("repaired-archive-command") }))
     .toMatchObject({ kind: "ready" });
   expect(await h.file()).toBe("archived hand edit\n");
+  await endProjection({ store: h.store, checkout: h.checkout });
   expect((await readProjectionIndex(h.location, true, { groups: "all" }))).toMatchObject({ kind: "index", index: {
     entries: { [h.path]: { copies: [] } },
   } });

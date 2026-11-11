@@ -25,6 +25,9 @@ import { recordProjectionIgnoreCheck } from "./ignore-record.js";
 import { readProjectionConfiguration } from "./configuration.js";
 import { sweepAsideFolder, writableUnder, type SweepResult } from "./sweep.js";
 import { createHistoryMemo } from "./base-recovery.js";
+import { findProjectionArrivals, projectionArrivalsInstalled, reconcileProjectionHandoffs } from "./ownership-handoff.js";
+import { removeObsoleteProjectionPaths } from "./refresh-removals.js";
+import { sameReference } from "../identity.js";
 import type { ProjectionRootState } from "./process-state.js";
 import type { ProjectionSource } from "./record-source.js";
 import type { ProjectionConfiguration } from "./configuration.js";
@@ -64,6 +67,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   recordSweep(root, swept);
   if (ignores.kind === "refused") return { kind: "refused", index, mark: { reason: `Projection ignore guard refused: ${ignores.reason}`,
     remedy: { text: ignores.remedy } } };
+  index = await reconcileProjectionHandoffs(root, index);
   const inventory = await readProjectionInventory(input.source, root.identity, input.version);
   for (const mark of inventory.diagnostics) root.context.report?.({ path: root.checkout, copy: null, mark });
   const desired = await desiredProjectionPaths(root, inventory);
@@ -78,6 +82,13 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   if (input.index === null) index = await recordUnknownFiles(root, index, [...walked.files, ...walked.links], desired.files);
   const files: SwapFile[] = [];
   const reference = await readReference(root.checkout);
+  const paths = new Map([...desired.files].map(([path, record]) => [path, record.reference]));
+  const arrivals = findProjectionArrivals(index, paths);
+  const collisions = new Set([...paths].filter(([path, reference]) => {
+    const previous = index.entries[path];
+    return previous?.kind === "record" && !sameReference(previous.reference, reference);
+  }).map(([path]) => path));
+  index = await removeObsoleteProjectionPaths({ root, index, plan: { paths, removals: collisions, unresolved: false }, renderer, reference });
   for (const [path, record] of desired.files) {
     if (!root.writable(path) || isExcludedProjectionPath(path)) continue;
     const prepared = await prepareMaterializationFile({ root, index, path, record, renderer, rebuilding: input.index === null,
@@ -96,7 +107,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
     await mkdir(join(root.checkout, `.arc/user/${root.identity}/scratch/work-unit/${root.claim}`), { recursive: true });
   }
   index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: { ...index, state: input.version }, checkpoint: root.context.checkpoint });
+    index: { ...index, state: projectionArrivalsInstalled(index, arrivals) ? input.version : input.index?.state ?? null }, checkpoint: root.context.checkpoint });
   root.ready = true;
   return { kind: "materialized", index };
 }

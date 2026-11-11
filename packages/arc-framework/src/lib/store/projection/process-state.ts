@@ -14,6 +14,7 @@ import type { TakeInPort, TakeInRequest } from "./take-in-port.js";
 import type { WriteBackDiagnostic, WriteBackResolution } from "./write-back.js";
 import type { ProjectionStart } from "./engine.js";
 import type { ProjectionResolution } from "./save-resolution.js";
+import type { ProjectionRefreshRequest } from "./refresh.js";
 import type { ProjectionLinkBoundary } from "./discovery-links.js";
 
 /** A start that disables this command's projection while preserving the command's ordinary execution. */
@@ -52,7 +53,8 @@ export interface ProjectionRootState {
   writable: (path: string) => boolean;
   rights?: ProjectionRights;
   mint?: ProjectionStubMintPort;
-  refresh?: () => Promise<void>;
+  refresh?: (input: ProjectionRefreshRequest) => Promise<ProjectionIndex>;
+  reproject?: (input: ProjectionRefreshRequest) => Promise<ProjectionIndex>;
   fanOut?: () => Promise<void>;
   materialize?: () => Promise<void>;
 }

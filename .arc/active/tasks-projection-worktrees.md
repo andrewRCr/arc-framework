@@ -110,166 +110,36 @@ that chunk.
   report without failing the spawn. The tracked npm policy reaches future worktrees; the checkout and clone inventory
   found no installer copies to remove.
 
-### `[ ]` **1.6 Refresh from the store's changes — § 15.2**
+### `[x]` **1.6 Refresh from the store's changes — § 15.2**
 
 - _Goal:_ Each command's start brings its worktree up from the state version its index last projected, rewriting only
   the records `changes` names and the files marked pending, moving every file a primary record's change relocates, and
   rebuilding when that state version no longer resolves.
 
-    - `[ ]` **1.6.R Retain ownership during path reuse — A2**
+    - `[x]` **1.6.R Retain ownership during path reuse — A2**
 
         - _Goal:_ Implement A2's durable ownership handoff so an arriving record remains retryable and a save timed into
           path reuse or its recovery is never sent to the other record.
-        - Add the optional arriving-entry journal to `RecordEntrySchema`, keeping the leaving entry authoritative,
-          pending, and withheld until a confirmed installation. The journal holds no nested handoff. Existing pending
-          and withheld marks keep its partition unsettled and make removal observe the hold.
-        - Add the optional `reprojectionPending` header flag. Publish it before reprojection changes the layout, rerun
-          while it is set regardless of tuple equality, and publish its clearance with the new `projectedUnder` tuple
-          only after all desired arrivals for the fresh target are confirmed. Per-path reconciliation never clears it.
-        - Refuse handoff entries in the bound take-in and in captured write-back preparation before any store write.
-          Extend `selectProjectedMarkdown`'s indexed input to exclude withheld entries; `readProjectionStatus` already
-          reports withholding through its recorded flags and refusal.
-        - Compose the mover's removal with this journal: wait for the leaving file and copies to disappear, retain the
-          old state anchor while an arrival is blocked, retain a changed projection target as an unacknowledged
-          `projectedUnder` mismatch until its desired arrivals complete, publish before exclusive linking, and keep the
-          journal through command end. A link that loses to a recreated file restores leaving authority by publication
-          before cleanup.
-        - Reconcile after the start's sweep before write-back and after the end's second check; confirm only settled,
-          stable bytes with the staged inode and rendered blob. Absence permits a retry; other bytes remain withheld
-          and reported with both identities. Use the same reconciler for materialization and reprojection, and for
-          persist and release before their refusal checks. Ignore refusal or an opaque link permits no write.
-        - Build `test-first` (one behavior at a time): the new-generation arrival at a renamed cohort's former path;
-          a retained old copy holding the arrival back; a recreated old save winning the exclusive link; interruption
-          before linking, after linking, and before final publication; unstamped saves never reaching the other record;
-          confirmed bytes resuming automatically; ambiguous bytes surviving and being reported; deletion followed by a
-          successful retry; claim-only retries without another store write, including A → B → A after partial progress
-          or interruption; and a refused root leaving the handoff untouched.
+        - Added the non-nested arriving-entry journal and shared installer/reconciler. Leaving authority survives
+          interrupted links, late saves, and staging cleanup; fresh take-in refuses journals and selection omits them.
+          Reprojection publishes its retry flag before moving files and acknowledges the whole target only after
+          desired arrivals are confirmed, including claim-only A → B → A retries.
 
-    - `[ ]` **1.6.a Reducing `changes`**
+    - `[x]` **1.6.a Reducing `changes`**
 
-        - The refresh fills a root's `refresh` slot, which the start calls inside its lease after write-back
-          (`startUnderLease`), and takes its target root (1.3), its source, the state version it brings the worktree to,
-          and the index its caller holds as parameters, returning the index it wrote, so the fan-out refreshes a sibling
-          through it unchanged. It asks `changes` for the records since the index's state version, and makes no call
-          where that is the version it brings the worktree to. The start passes the version its own `version()` call
-          read, and as the source the store the command was given: in `arc save` it holds that store beside the
-          history-retry wrap write-back sends through (`retryEndedItemHistory`, `lib/store/history-retry.ts`, applied by
-          `initializeProjection`) and passes the refresh the store, never the wrap, so a `changes` refusal naming a
-          history ref rebuilds rather than pulls (1.6.b). A fan-out round passes its own version and, as the source, a
-          read memo it builds over its store, which answers each distinct `version`, `changes`, `list`, and `read`
-          request once in the round, as `createHistoryMemo` (`lib/store/projection/base-recovery.ts`) does for `history`
-          (1.7.b): each changed record the round's refreshes stage, and each conflict they render (`readConflicts`,
-          `lib/store/projection/record-render.ts`), is read once, and the view selection a primary entry's re-lay makes
-          (`selectProjectionView`, `lib/store/projection/view-selection.ts`), the only one a refresh makes, reads
-          through the same source once in the round. Its renders take their protection from 1.4.b over that source and
-          the round's listing of the worktrees, and it loads the index partitions holding the paths it lays or removes
-          (1.2). A write landing during the round reaches the next round (1.7.a), so the memo's answers stay the
-          round's. The refresh hands the replace guard (`guardReplacement`) the store itself, never the memo, since its
-          restage after a take-in must read the version the take-in landed (`restage`,
-          `lib/store/projection/replace-guard.ts`). The start passes the index it holds from its sweep (below), so the
-          refresh's first write publishes the stats and the ignore record the start observed before the reference moves
-          past them (`spec-projection-substrate.md` § 3.3); the fan-out passes the index its visit holds (1.7.b). The
-          slot takes none today (`ProjectionRootState.refresh`, `lib/store/projection/process-state.ts`).
-        - The start keeps one index in memory from the sweep through write-back, any reprojection (1.8), and the refresh
-          to its last write, under its own lock. The sweep (`sweepAsideFolder`, `lib/store/projection/sweep.ts`) commits
-          on its own (`commitReturnedCopies`) only where it took over a copy; write-back's sends and adoption commit the
-          index the start holds, as they do; a reprojection (1.8) and the refresh each take the index the start holds
-          and return the one they wrote, which it holds after them; and the start's last write publishes what remains,
-          its measurement among it (1.12.b). So each write publishes every stat (`checkFileAtPath`) and ignore record
-          observed before it, against the reference that predates them, as `spec-projection-substrate.md` § 3.3 and
-          `spec-projection-write-back.md` § 16.4 require, and the start of a command with nothing changed writes once,
-          last. Today the sweep's commit is the start's only write in a command with nothing changed, made before
-          write-back reads any file; the index write-back returns is discarded and the refresh slot is passed no index
-          (`startUnderLease`), so a file a swap left smudged is hashed at every start until a command sends an edit.
-        - Refresh keeps each record's newest entry. An entry for a primary record — a meta, an Errand record, or a
-          cohort document — re-lays every record its owner holds (`list` by `owner`, `ListInputSchema`,
-          `lib/store/read.ts`), moving each file whose path changed by the removal swap and a write at the new path, an
-          edit at the old path taken in first (`swapBatch`, `lib/store/projection/swap.ts`, marking the removal
-          `SwapFile.relaid` only where another record now lays at the vacated path), its changed mark
-          (`RecordEntry.changed`) moving with it through a mover this task adds. A meta's entry adds or removes its
-          `current/` copy of each cohort document its `Cohort` names, the copy named by the field's text
-          (`lib/layout/projection.ts`), a former slug a renamed cohort keeps included. A read of that cohort by name
-          that refuses `not-found` — a member naming a removed cohort — lays no copy and removes any the meta's earlier
-          text left; one that refuses `ambiguous-match` — two cohorts clashing on the name — leaves the copy as it
-          stands. Either is reported and neither refuses the command, since a clash's repair, `arc rename` with the
-          cohort's UID, runs from a member's checkout. An archive, an abandon, or an owner leaving the view removes the
-          files.
-        - A conflict-record entry refreshes the file of the record it names, or, for a removed conflict, the file the
-          index maps it to — by its marker set, its notice line, or, for a conflict the file does not show, the file's
-          entry (`MarkersSchema`, `RecordEntry.notices` and `unshown`, `lib/store/projection/index-schema.ts`). A
-          conflicted file refreshes through the merge `prepareConflictedRefresh` prepares
-          (`lib/store/projection/conflicted-refresh.ts`), but for one holding a resolution in progress or a malformed
-          set, which the replace guard holds whole (`guardReplacement`, `lib/store/projection/replace-guard.ts`): the
-          refresh leaves it unreplaced and records in its entry the open conflicts of the version it read.
-        - Every file marked pending is refreshed too, and a pending file whose record has left this projection is
-          removed by the removal swap (`swapBatch` with no staged file, then `dropRemovedEntries`), so a removal a
-          take-in deferred is retried.
-        - The start's refresh writes only into roots the sweep's ignore check passed (`checkIgnores`,
-          `lib/store/projection/ignore-check.ts`, which `sweepAsideFolder` runs at every start and the root reads as
-          `writable`) and runs no guard of its own; the check reruns the guard only when the ignore basis it recorded no
-          longer matches. The fan-out runs `checkIgnores` for each worktree it writes into (1.7.b).
-        - Build `test-first` (one behavior at a time):
-            - a changed record rewrites only its file, and an unchanged one is not touched
-            - a sibling's root whose files a refresh replaced is marked `ready` and gets the command end's second check
-            - a rename re-lays every file the owner holds, an edit at the old path taken in first
-            - an archive removes the work item's files from `active/`
-            - a cohort document's change rewrites its folder's file and each `current/` copy
-            - `arc rename` of a cohort moves its document's file, its subcohorts' and members' backlog folders, and each
-              member's `current/` copy to the new name
-            - `arc cohort close` moves the cohort document's file under `completed/`, and `arc cohort remove` removes it
-            - a member whose `Cohort` names a removed cohort lays no copy and its command proceeds, reported; under a
-              clash on the cohort's name, the member's copy stays as it stands and its command proceeds, reported
-            - a resolved conflict's markers or notice line leave its file
-            - a withheld file the person deleted is written fresh from the store at the next command, and leaves
-              `arc status`
-            - a deferred removal whose edit lands at the next command's start is still removed by that command's refresh
-            - a pending file whose record left the projection is removed at the next refresh
-            - a file a stopped replacement left pending is rewritten at the next refresh, in `completed/` too
-            - an edit refused at removal stays at its path through each refresh until resolved, then is removed
-            - a removed file a sweep linked back is removed again at the next refresh
-            - `arc save --resolve` on a withheld subject refuses naming 1.5's remedy, and resolves once the file is
-              deleted and written fresh
-            - a file a refresh skipped, then reverted to its base, stays pending and is replaced at the next refresh
-            - a file holding a resolution in progress is left unreplaced by a refresh its record's change reaches, and
-              takes the change once the resolution is sent
-            - a file holding a malformed set is left unreplaced by a refresh, its entry recording the newer version's
-              open conflicts, which `arc status` shows, and a removed conflict recorded there refreshes that file
-            - the refresh's second index write leaves no pending mark on a file it put in place
-            - an `arc status` whose own start refreshed files lists none of them as pending
-            - a refused edit the person reverts to its base leaves `arc status` at the next command, which clears its
-              refused mark and runs the refresh it was owed
-            - a root whose ignore check refused is not written into, and is written once the ignore file is repaired
-            - the save-loss harness (`runSaveLoss`, `__tests__/helpers/store/projection/save-loss.ts`), given a refresh
-              among its operations (`SaveLoss.operation`), loses no save timed into a refresh in any save mode
-              (`SAVE_MODES`)
-            - a no-change start publishes the stats its change checks re-recorded, and a file a swap left smudged stops
-              being hashed at later no-change starts
-            - a sweep that took over a copy commits before write-back reads a file
-            - where the refresh writes, its first write publishes the stats the start's change checks re-recorded and
-              the ignore record, and a same-tick save after an observed stat reads changed at the next start
-            - a start with nothing changed, its sweep finding the aside folder empty, no edit sent, and nothing laid,
-              writes its index header and reference once, after its change checks and refresh
+        - Added a root-local refresh over the caller's held index, with owner and conflict reduction, guarded re-lays,
+          pending removals, moved changed marks, and live admission beside memoized rendering reads. The start retains
+          sweep and write-back observations through its first refresh publication and its final no-change write.
 
-    - `[ ]` **1.6.b A state version that no longer resolves**
+    - `[x]` **1.6.b A state version that no longer resolves**
 
-        - When `changes` refuses `state-unresolvable` — naming a history ref in `historyRefs`, or naming none for a
-          window short of the current state version past more than one end of an item (`spec-storage-ref-backend.md`
-          § 4.6) — the command rebuilds from current state, pulling nothing: every projected record refreshed by the
-          same rules, every index entry the state no longer holds, every group loaded for it (1.2), handled as a
-          removal, pending marks and the replace guard applied, and the index taking the current state version.
-          Write-back has already run, so no edit is lost.
-        - A file is removed only on a complete listing, with nothing missed and no diagnostic, that no longer holds its
-          record, or on a listing that answers `absent`, which the ref backend answers for a complete live listing that
-          finds nothing (`liveListingOutcome`, `lib/store/ref/read.ts`).
-        - Build `test-first` (one behavior at a time):
-            - a `changes` refusal of `state-unresolvable` rebuilds the worktree and loses no pending edit
-            - a refusal naming a history ref rebuilds the same way and pulls nothing, in `arc save` too, through the
-              wrapping test store (`createRefusingStore`, `__tests__/helpers/store/projection/refusing-store.ts`, whose
-              `calls` counts the `pull`s)
-            - the rebuild removes the files of a `completed/` quarter whose records all left the state, though no walk
-              or mark loads it
-            - a re-lay whose owner listing answers `absent` removes the owner's files
-            - a listing reporting `missed`, or answering `unreadable`, removes nothing
+        - Rebuilds every persisted partition from current inventory on an unavailable state window, without fetching
+          history. Complete or absent listings authorize removal; missed, diagnosed, and unreadable listings preserve
+          their files and retain the anchor for repair and retry.
+
+- _Outcome:_ Command entry now carries one held index from sweep through write-back, reprojection, refresh, and final
+  publication. Pending removals and ownership transfers retry without a new store write. Captured writes from renamed
+  owners retain their historical basis while atomic admission observes the current canonical owner name.
 
 ### `[ ]` **1.7 Fan out from the store `createStore` builds — § 2.2, § 1.2**
 

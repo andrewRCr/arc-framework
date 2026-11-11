@@ -6,7 +6,7 @@ import type { StoreRecord } from "../read.js";
 import { sameReference } from "../identity.js";
 import type { ProjectionRootState } from "./process-state.js";
 import type { ProjectionIndex, RecordEntry, RefusedMark } from "./index-schema.js";
-import type { RecordRenderer } from "./record-render.js";
+import type { RecordRenderer, RenderedRecord } from "./record-render.js";
 import { stageRenderedRecordFile } from "./staging.js";
 import { gateRead } from "./read-gate.js";
 import { readStat } from "./change-detection.js";
@@ -16,6 +16,7 @@ import { withProjectionEntry } from "./index-memory.js";
 import { guardReplacement } from "./replace-guard.js";
 import type { SwapFile } from "./swap.js";
 import { markStoreRefusal } from "./refusal-mark.js";
+import { installProjectionHandoff } from "./ownership-install.js";
 
 /** A caller's complete rendering and replacement context for one target path. */
 export interface MaterializationFileInput {
@@ -25,6 +26,8 @@ export interface MaterializationFileInput {
   readonly record: StoreRecord;
   readonly renderer: RecordRenderer;
   readonly rebuilding: boolean;
+  /** A standing conflicted view; guard restaging still uses the live renderer. */
+  readonly rendered?: RenderedRecord;
   readonly reference: bigint | null;
   readonly blocked: boolean;
 }
@@ -47,13 +50,12 @@ export async function prepareMaterializationFile(input: MaterializationFileInput
   if (prior?.withheld) return hold(input, prior);
   let entry = prior?.kind === "record" ? prior : projectionEntryForRecord(record, path, root.context.format);
   if (prior?.kind === "record" && !sameReference(prior.reference, record.reference)) {
-    const mark = { reason: "The path is still bound to another record.", remedy: { text: "Refresh its previous owner before laying this record." } };
-    root.context.report?.({ path, copy: null, mark });
-    return { index: withProjectionEntry(input.index, path, { ...prior, pending: true, refused: mark }) };
+    return { index: await installProjectionHandoff({ ...input, arriving: projectionEntryForRecord(record, path, root.context.format) }) };
   }
   if (input.rebuilding) entry = await rebuildBasis(input, entry);
   if (input.blocked) entry = { ...entry, withheld: true, pending: true };
-  const rendered = await renderer({ record, content: record.content, stamped: path.endsWith(".md") });
+  const rendered = input.rendered === undefined ? await renderer({ record, content: record.content, stamped: path.endsWith(".md") })
+    : { status: "ok" as const, result: input.rendered };
   if (rendered.status === "refused") {
     const mark = markStoreRefusal(rendered.refusal);
     root.context.report?.({ path, copy: null, mark });

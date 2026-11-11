@@ -53,6 +53,7 @@ async function publish(location: ProjectionLocation, index: ProjectionIndex, ref
     loaded.set(group, written); sources.set(group, { entries: written });
   }
   const header: ProjectionIndexHeader = { format: index.format, state: index.state, projectedUnder: index.projectedUnder,
+    ...(index.reprojectionPending === undefined ? {} : { reprojectionPending: index.reprojectionPending }),
     withheldCopies: index.withheldCopies, tripwires: index.tripwires, ignoreFiles: index.ignoreFiles, ignoreGuard: index.ignoreGuard, groups };
   header.ignoreFiles = smudgeRacyEntries({ ...index, entries: {} }, reference).ignoreFiles;
   await atomicWriteFile(join(location.stateDir, PROJECTION_INDEX_FILE), stringifyProjectionJson(header), { createParents: false, checkpoint });

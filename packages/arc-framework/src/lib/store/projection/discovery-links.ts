@@ -56,6 +56,7 @@ export async function reconcileProjectionLinks(root: Pick<ProjectionRootState, "
   const entries = new Map(Object.entries(index.entries));
   let changed = false;
   for (const [path, entry] of Object.entries(index.entries)) {
+    if (entry.kind === "record" && entry.handoff !== undefined) continue;
     if (root.blockedByLink(path) === null) continue;
     const next = withoutPhysicalEdit(entry);
     if (next === null) entries.delete(path);

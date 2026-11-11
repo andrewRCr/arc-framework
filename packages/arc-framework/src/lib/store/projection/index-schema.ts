@@ -69,7 +69,7 @@ const AsideCopyRecordSchema = z.strictObject({
 });
 
 /** A file bound to a record, including adoption before its first rendering; null `stat` records absence. */
-export const RecordEntrySchema = z.strictObject({
+const RecordBasisSchema = z.strictObject({
   kind: z.literal("record"),
   reference: RecordReferenceSchema,
   stat: FileStatSchema.nullable(),
@@ -92,6 +92,9 @@ export const RecordEntrySchema = z.strictObject({
       retained: RefusedMarkSchema.optional() }),
   ]).optional(),
 });
+
+/** A path retains its leaving basis and, during exclusive installation, one complete arriving basis. */
+export const RecordEntrySchema = RecordBasisSchema.extend({ handoff: RecordBasisSchema.optional() });
 
 /** The exact accepted creation retained until its metadata basis can be read. */
 const MintedStubReceiptSchema = z.strictObject({ reference: RecordReferenceSchema.refine(reference =>
@@ -146,6 +149,7 @@ export const ProjectionIndexSchema = z.strictObject({
   format: z.literal(PROJECTION_INDEX_FORMAT),
   state: StateVersionSchema.nullable(),
   projectedUnder: ProjectedUnderSchema,
+  reprojectionPending: z.literal(true).optional(),
   withheldCopies: z.array(z.string().min(1)),
   tripwires: z.record(z.string().min(1), z.array(z.number().nonnegative()).max(9)),
   ignoreFiles: z.array(IgnoreFileRecordSchema).nullable(),

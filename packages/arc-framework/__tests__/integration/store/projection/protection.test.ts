@@ -92,13 +92,15 @@ async function refresh(h: Awaited<ReturnType<typeof fixture>>) {
 async function saveInHolder(h: Awaited<ReturnType<typeof fixture>>, bytes: string) {
   h.store.environment.identity = "alice";
   await h.exec("git", ["config", "arc.identity", "alice"], { cwd: h.holder });
+  const path = h.path.replace(".arc/active/in-flight/subject/", ".arc/active/current/");
   await seedProjection({ store: h.store, identity: SlugSchema.parse("alice"), checkout: h.holder,
-    files: [{ reference: h.record.reference, path: h.path }] });
+    files: [{ reference: h.record.reference, path }] });
   await writeFile(join(h.holder, ".gitignore"), ".arc/user/*/\n");
   await mkdir(join(h.holder, ".arc/user"), { recursive: true });
   await writeFile(join(h.holder, ".arc/user/.npmignore"), "*\n");
-  await writeFile(join(h.holder, h.path), bytes);
+  await writeFile(join(h.holder, path), bytes);
   await startProjection({ store: h.store, checkout: h.holder });
+  return path;
 }
 
 it("installs a protected meta read-only with its native holding checkout named beside the stamp", async () => {
@@ -260,9 +262,9 @@ it("protects a stampless companion by owner identity and accepts the edit under 
   expect(projectionProcessState().diagnostics).toEqual(expect.arrayContaining([
     expect.objectContaining({ path: h.path, mark: expect.objectContaining({ reason: expect.stringContaining("alice") }) }),
   ]));
-  await saveInHolder(h, content);
+  const path = await saveInHolder(h, content);
   expect(success(await h.store.read({ reference: h.record.reference })).content).toBe(content);
-  expect(await readFile(join(h.holder, h.path), "utf8")).toBe(content);
+  expect(await readFile(join(h.holder, path), "utf8")).toBe(content);
 });
 
 it("restages writable bytes and clears protection after checkout ownership is repaired during the guard", async () => {

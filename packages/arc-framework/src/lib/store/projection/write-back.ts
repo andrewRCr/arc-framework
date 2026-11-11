@@ -1,5 +1,7 @@
 /** Prepare a projected edit without writing, then send it through the caller-owned take-in port. */
 import { readReference } from "./change-detection.js";
+import { refuseOwnershipHandoff } from "./ownership-hold.js";
+import { projectionAdmissionConflict } from "./preparation-view.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { prepareIndexedProjectionSubmission, submitProjectionBatch } from "./submission.js";
 import type { ProjectionLocalCapture } from "./local-capture.js";
@@ -91,6 +93,8 @@ export type PreparedWriteBack =
 
 /** Read and parse an edit without writing a file, publishing an index, or acquiring a lock. */
 export async function prepareWriteBack(context: WriteBackContext, request: TakeInRequest): Promise<PreparedWriteBack> {
+  const held = refuseOwnershipHandoff(request.entry);
+  if (held !== null) return { kind: "held", result: held, diagnostic: held.mark };
   request = observeProjectionEdit(request);
   const file = await captureWriteBackFile(context, request);
   return file.kind === "held" ? file : prepareCapturedWriteBack(context, request, file);
@@ -102,6 +106,8 @@ export interface CapturedWriteBackFile { readonly kind: "read"; readonly content
 /** Repeat store-dependent preparation from captured bytes without reading a checkout file. */
 export async function prepareCapturedWriteBack(context: WriteBackContext, request: TakeInRequest,
   supplied: CapturedWriteBackFile): Promise<PreparedWriteBack> {
+  const held = refuseOwnershipHandoff(request.entry);
+  if (held !== null) return { kind: "held", result: held, diagnostic: held.mark };
   request = observeProjectionEdit(request);
   if (request.resolution?.kind === "stored") {
     const checked = await checkStoredResolution(context.store, request.entry.reference, request.resolution.reference);
@@ -146,10 +152,12 @@ async function prepareReadyContent(context: WriteBackContext, request: TakeInReq
   if (invalid !== null) return invalid;
   const placement = await currentWritePlacement(context.store, request);
   if (placement.status === "refused") return refusedPreparation(request.entry, placement.refusal);
+  const reference = await currentContentReference(context.store, request.entry.reference);
+  if (reference.status === "refused") return refusedPreparation(request.entry, reference.refusal);
   const resolves = resolvingReferences(markers.resolves, request.resolution);
   return { kind: "ready", read: file.read, stamp, takenIn, selectedBase: base, captured, ...(random === undefined ? {} : { random }),
     ...(markers.retained === undefined ? {} : { retained: markers.retained }), write: {
-    action: "put", reference: request.entry.reference, content, expected: version,
+    action: "put", reference: reference.result, content, expected: version,
     ...(resolves.length === 0 ? {} : { resolves }),
     ...(placement.result === undefined ? {} : { placement: placement.result }),
     provenance: { verb: context.verb ?? HAND_EDIT_VERBS[0], lifecycleAction: "edit" },
@@ -311,6 +319,17 @@ async function currentWritePlacement(store: Store, request: TakeInRequest): Prom
     ? { kind: placement.kind, quarter: placement.quarter } : placement };
 }
 
+async function currentContentReference(store: Store, reference: RecordReference): Promise<StoreResult<RecordReference>> {
+  const current = await store.read({ reference });
+  if (current.status === "refused") return current.refusal.code === "not-found" ? { status: "ok", result: reference } : current;
+  if (!sameReference(reference, current.result.reference) || reference.kind !== current.result.reference.kind) {
+    return { status: "refused", refusal: projectionAdmissionConflict(reference,
+      "The indexed record changed identity or role; keep the edit and prepare it under its current projection.") };
+  }
+  // A retained filename may predate a rename. Content edits follow the UID without reclaiming its former name.
+  return { status: "ok", result: current.result.reference };
+}
+
 /** Bind write-back to a caller's store; locking and publication remain with that caller. */
 export function createWriteBackPort(context: WriteBackContext): TakeInPort {
   const bound = { ...context, memo: context.memo ?? createHistoryMemo(context.store), versionRecoveries: context.versionRecoveries ?? [] };
@@ -335,6 +354,11 @@ type RefusedSend = { kind: "store-refused"; refusal: StoreRefusal; entry: Record
 
 /** Prepare and send an edit, recovering a rejected base once without retrying an already-landed write. */
 export async function sendWriteBack(context: WriteBackContext, request: TakeInRequest): Promise<WriteBackSend> {
+  const held = refuseOwnershipHandoff(request.entry);
+  if (held !== null) {
+    context.report?.({ path: request.path, copy: request.copy, mark: held.mark });
+    return { kind: "held", result: held };
+  }
   request = observeProjectionEdit(request);
   const bound = { ...context, memo: context.memo ?? createHistoryMemo(context.store), versionRecoveries: context.versionRecoveries ?? [] };
   const completion = await completeWriteBackRecording(bound, request.entry);

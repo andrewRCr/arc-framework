@@ -9,7 +9,7 @@ import type { GitDirectoryFileAccess } from "../../../../src/lib/git/directories
 import { createExecaGitExec, createExecaGitExecInput } from "../../../../src/lib/git/process-executor.js";
 import { SlugSchema } from "../../../../src/lib/kernel/index.js";
 import { PROJECTION_REFERENCE, readStat } from "../../../../src/lib/store/projection/change-detection.js";
-import { readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
+import { commitProjectionIndex, readProjectionIndex, writeProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
 import type { ProjectionIndex, RecordEntry } from "../../../../src/lib/store/projection/index-schema.js";
 import { nameAsideFile } from "../../../../src/lib/store/projection/aside.js";
 import { recordWriteBackSent } from "../../../../src/lib/store/projection/aside-copies.js";
@@ -509,7 +509,10 @@ describe("the sweep's ignore guard", () => {
 
   it("makes no Git call once a pass is recorded and no ignore file has changed since", async () => {
     const left = await leftBy(null);
-    expect((await left.sweep(unreached, { writer: SWAP_WRITER })).ignores.kind).toBe("passed");
+    const first = await left.sweep(unreached, { writer: SWAP_WRITER });
+    expect(first.ignores.kind).toBe("passed");
+    if (first.index === null) throw new Error("Missing swept index");
+    await commitProjectionIndex({ location: left.location, checkout: left.checkout, index: first.index });
     const refusing = async (): Promise<string> => { throw new Error("Git was called"); };
     const guard = { root: left.checkout, identity, exec: refusing, fs: gitFs };
     expect((await left.sweep(unreached, { writer: SWAP_WRITER, guard })).ignores.kind).toBe("unchanged");

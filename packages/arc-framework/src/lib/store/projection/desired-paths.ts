@@ -28,7 +28,7 @@ export async function desiredProjectionPaths(root: ProjectionRootState, inventor
   if (selection.kind === "unavailable") for (const mark of selection.diagnostics) root.context.report?.({ path: root.checkout, copy: null, mark });
   const files = new Map<string, StoreRecord>();
   for (const record of inventory.records) {
-    const path = recordProjectionPath(root, record, primaries, own, selection);
+    const path = projectionRecordPath(root, record, primaries, own, selection);
     if (path !== null) files.set(path, record);
   }
   await addCurrentCohortCopies(root, inventory, own, files);
@@ -100,7 +100,8 @@ function errandPath(root: ProjectionRootState, record: StoreRecord, primary: Sto
 }
 
 
-function recordProjectionPath(root: ProjectionRootState, record: StoreRecord, primaries: readonly StoreRecord[],
+/** Resolve one positive record with an already selected set of active owners. */
+export function projectionRecordPath(root: ProjectionRootState, record: StoreRecord, primaries: readonly StoreRecord[],
   own: OwnerIdentity | null, selection: ProjectionViewSelection): string | null {
   const personal = personalProjectionPath(root, record);
   if (personal !== null) return personal;

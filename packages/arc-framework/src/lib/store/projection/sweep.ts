@@ -109,10 +109,11 @@ export async function sweepAsideFolder(input: SweepInput): Promise<SweepResult> 
   const recorded = await takeOverRecorded(input, input.index, judges);
   const unrecorded = await takeOverUnrecorded(input, recorded.index, found, judges);
   await deleteStagedFiles(input, found, judges.writerOf);
-  const index = await commitReturnedCopies({
+  const observedIndex = recordProjectionIgnoreCheck(recorded.index, ignores);
+  const index = recorded.swept.length === 0 ? observedIndex : await commitReturnedCopies({
     location: input.location, checkout: input.checkout, checkpoint: input.checkpoint,
     returned: recorded.swept.filter(each => each.outcome.kind === "returned" || each.outcome.kind === "linked-back")
-      .map(({ path, copy }) => ({ path, copy })), index: recordProjectionIgnoreCheck(recorded.index, ignores),
+      .map(({ path, copy }) => ({ path, copy })), index: observedIndex,
   });
   const copies = recorded.swept.flatMap(({ path, outcome }) => (
     outcome.kind === "returned" && outcome.replacement !== null ? [{ path, copy: outcome.replacement }] : []

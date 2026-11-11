@@ -93,7 +93,12 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
   if (changed.status === "absent") return { index, edited: false };
   const intent = projectionProcessState().resolution;
   const resolving = intent?.target?.path === path && !intent.accepted && intent.refusal === null;
-  if (changed.status !== "changed" && !entry.pending && !resolving) return { index: withEntry(index, path, { ...entry, stat: changed.stat }), edited: false };
+  if (changed.status !== "changed" && !resolving && entry.persisted?.recording !== true) {
+    root.unsent.delete(path);
+    // A pending refresh is not an authored edit. Standing ambiguity tokens keep their separate resolution authority.
+    return { index: withEntry(index, path, { ...entry, stat: changed.stat,
+      refused: entry.refused?.reason === "bases-disagree" ? entry.refused : null }), edited: false };
+  }
   return { index: changed.status === "changed" ? withEntry(index, path, { ...entry, changed: true }) : index, edited: true };
 }
 
@@ -111,22 +116,26 @@ async function sendFile(root: ProjectionRootState, index: ProjectionIndex, reque
     const written = await writeBackFile(root.context, index, request);
     updated = written.index;
     recordResolutionRefusal(request, written.result);
+    if (written.result.answer === "no-edit") root.unsent.delete(path);
     if (written.result.answer === "taken-in") {
       root.unsent.delete(path);
-      const landed = updated.entries[path];
-      if (landed?.kind === "record" && landed.adoption !== undefined && !landed.pending) {
-        updated = withEntry(updated, path, { ...landed, adoption: undefined });
-      }
+      updated = clearCompletedAdoption(updated, path);
     }
   } else {
     const sent = await sendWriteBack(root.context, request);
     const held = sent.kind === "landed" ? { ...sent.result.entry,
       unshown: unshownConflicts(sent.result.entry, sent.record.conflicts) } : sent.result.entry;
     updated = withEntry(index, path, { ...held, pending: true });
-    if (sent.kind === "landed") root.unsent.delete(path);
+    if (sent.kind === "landed" || sent.result.answer === "no-edit") root.unsent.delete(path);
   }
   return commitProjectionIndex({ location: root.location, checkout: root.checkout, index: updated,
     checkpoint: root.context.checkpoint });
+}
+
+function clearCompletedAdoption(index: ProjectionIndex, path: string): ProjectionIndex {
+  const entry = index.entries[path];
+  return entry?.kind === "record" && entry.adoption !== undefined && !entry.pending
+    ? withEntry(index, path, { ...entry, adoption: undefined }) : index;
 }
 
 function recordResolutionRefusal(request: TakeInRequest, result: TakeInResult): void {

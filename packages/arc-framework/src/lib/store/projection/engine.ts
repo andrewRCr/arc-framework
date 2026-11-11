@@ -9,7 +9,7 @@ import { createProjectionEnginePorts, type ProjectionEnginePorts } from "./engin
 import { locateProjection, type ProjectionLocation } from "./location.js";
 import { withProjectionLock, type ProjectionLockResult } from "./lock.js";
 import { beginProjectionCommand, projectionProcessState, recordEngineStoreCapability, type ProjectionSkip, type ProjectionCommandBinding } from "./process-state.js";
-import { startUnderLease } from "./engine-start.js";
+import { startUnderLease, type ProjectionStartInput } from "./engine-start.js";
 import { finishProjectionRoot } from "./engine-end.js";
 
 /** The command's store and checkout; disabled backends consult no other dependency. */
@@ -86,10 +86,10 @@ async function initializeProjection(input: ProjectionCommandInput): Promise<Proj
   return result.value;
 }
 
-function historyRetryInput(input: ProjectionCommandInput): ProjectionCommandInput {
-  return input.mode === "save" ? { ...input,
+function historyRetryInput(input: ProjectionCommandInput): ProjectionStartInput {
+  return input.mode === "save" ? { ...input, source: input.store,
     store: retryEndedItemHistory(input.store, line => { projectionProcessState().notices.push(line); }),
-  } : input;
+  } : { ...input, source: input.store };
 }
 
 /** Settle the copies accumulated by this command under freshly acquired locks. */

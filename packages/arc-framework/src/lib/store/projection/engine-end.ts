@@ -9,6 +9,7 @@ import { removeTakenInCopies, TAKEN_IN_FOLDER } from "./taken-in.js";
 import { reportProjectionCopy } from "./report.js";
 import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { loadProjectionGroups } from "./index-memory.js";
+import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 
 /** Settle only this command's copies and collect unreferenced kept content under the same lease. */
 export async function finishProjectionRoot(root: ProjectionRootState): Promise<void> {
@@ -29,6 +30,7 @@ export async function finishProjectionRoot(root: ProjectionRootState): Promise<v
         copies: root.copies, removals: root.removals, format: root.context.format, takeIn: root.takeIn,
         writer: root.context.writer, checkpoint: root.context.checkpoint });
       for (const copy of checked.settled) reportProjectionCopy(copy.path, copy.copy, copy.settlement);
+      await reconcileProjectionHandoffs(root, checked.index);
       const settled = await readProjectionIndex(root.location, true);
       if (settled.kind !== "index") return;
       loadProjectionGroups(settled.index, "walked");

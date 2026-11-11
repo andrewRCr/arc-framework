@@ -1,5 +1,8 @@
 /** Bind one checkout's projection operations independently of the command's entering checkout. */
 import { readCheckoutLayoutContext } from "../checkout-layout.js";
+import { refreshProjectionRoot } from "./refresh.js";
+import { reprojectProjectionRoot } from "./reprojection.js";
+import { refuseOwnershipHandoff } from "./ownership-hold.js";
 import { createProjectionLocalCapture } from "./engine-capture.js";
 import { createWriteBackPort } from "./write-back.js";
 import type { ReadBackContext } from "./read-back.js";
@@ -71,6 +74,11 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
     blockedByLink: createProjectionLinkBoundary(input.links ?? []),
     mint: input.mint, checkpoint: session.step, copies: [], removals: [], unsent, discovered: [], changed: false,
     ready: false, writable: () => false, rights: bindProjectionRights(input.store, config.identity.identity, ports.exec, input.mode ?? "write-back"), takeIn: async request => {
+      const held = refuseOwnershipHandoff(request.entry);
+      if (held !== null) {
+        context.report?.({ path: request.path, copy: request.copy, mark: held.mark });
+        return held;
+      }
       request = observeProjectionEdit(request);
       const denied = await root.rights?.(request);
       if (denied === undefined || denied === null) return send(request);
@@ -78,6 +86,8 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
       context.report?.({ path: request.path, copy: request.copy, mark: denied });
       return refuseProjectionEdit(request.entry, denied);
     } };
+  root.refresh = request => refreshProjectionRoot({ ...request, root, configuration: config });
+  root.reproject = request => reprojectProjectionRoot({ ...request, root, configuration: config });
   if (input.register) state.roots.set(input.checkout, root);
   return root;
 }

@@ -28,6 +28,13 @@ async function holdIndex(content: string): Promise<void> {
 }
 
 describe("reading a checkout's index", () => {
+  it("persists an unfinished layout until one header publication acknowledges completion", async () => {
+    await writeProjectionIndex(location, { ...index, reprojectionPending: true });
+    expect(await readProjectionIndex(location, true)).toMatchObject({ kind: "index", index: { reprojectionPending: true } });
+    await writeProjectionIndex(location, index);
+    expect(await readProjectionIndex(location, true)).toEqual({ kind: "index", index });
+  });
+
   it.each([
     ["missing", undefined],
     ["unreadable", "{\"format\":1,"],

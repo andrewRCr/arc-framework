@@ -7,7 +7,7 @@ import { readProjectionIndex } from "./index-file.js";
 import { projectionStartRefusal, type ProjectionStartRefusal } from "./start-refusal.js";
 
 /** The indexed facts that decide selection; no stored content is needed. */
-export type SelectionEntry = Pick<RecordEntry, "kind" | "protected" | "markers" | "changed"> | { readonly kind: "ownerless" };
+export type SelectionEntry = Pick<RecordEntry, "kind" | "protected" | "markers" | "changed" | "withheld"> | { readonly kind: "ownerless" };
 /** Selected repository-relative paths or a repairable start/index refusal. */
 export type ProjectionSelectionResult =
   | { readonly status: "ok"; readonly result: { readonly paths: readonly string[] } }
@@ -16,7 +16,7 @@ export type ProjectionSelectionResult =
 /** Filter only the indexed facts that determine whether Markdown can be checked. */
 export function selectProjectedMarkdown(entries: Readonly<Record<string, SelectionEntry>>, options: { changed?: boolean } = {}): readonly string[] {
   return Object.entries(entries).filter(([path, entry]) => {
-    if (entry.kind !== "record" || entry.protected || entry.markers !== null || (options.changed && !entry.changed)) return false;
+    if (entry.kind !== "record" || entry.withheld || entry.protected || entry.markers !== null || (options.changed && !entry.changed)) return false;
     if (!path.endsWith(".md") || !isProjectedPath(path) || path.startsWith(".arc/completed/")) return false;
     const parts = path.split("/");
     return !(parts[1] === "user" && (parts[3] === ".internal" || parts[3] === "scratch"));

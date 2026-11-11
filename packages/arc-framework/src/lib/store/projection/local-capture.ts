@@ -8,6 +8,7 @@ import type { StoreResult } from "../refusal.js";
 import { decodeWorktreeMarkerOwnership, readWorktreeMarker } from "../../git/worktree-marker.js";
 import { readProjectionIndex } from "./index-file.js";
 import { loadProjectionGroups, projectionIndexGroup } from "./index-memory.js";
+import { ownershipHandoffMark } from "./ownership-hold.js";
 import { readProjectionLinkBoundary, projectionLinkRemedy } from "./discovery-links.js";
 import { projectionCandidateContainers } from "./container-ownership.js";
 import { resolveArcPath } from "../../layout/index.js";
@@ -42,6 +43,11 @@ export async function captureProjectionLocal(input: ProjectionLocalCaptureInput)
   if (!settings) return refusedLocal("The projection settings and ownership basis are unavailable.");
   if (index !== null) loadProjectionGroups(index, [projectionIndexGroup(input.path)]);
   const entry = index?.entries[input.path];
+  if (entry?.kind === "record" && entry.handoff !== undefined) {
+    const mark = ownershipHandoffMark(entry);
+    return { status: "refused", refusal: { code: "record-malformed", class: "recoverable", rule: "projection.local",
+      condition: mark.reason, remedy: mark.remedy } };
+  }
   const binding = entry?.kind === "record" ? entry.reference : entry?.minted?.reference ?? null;
   const marker = await readWorktreeMarker(input.checkout);
   if (marker.kind === "malformed") return refusedLocal(marker.message);
