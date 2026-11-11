@@ -36,7 +36,7 @@ export function cohortHoldingRepairs(holdings: readonly CohortHolding[], slug: s
   for (const holding of holdings) {
     if (handled.has(holding.candidate)) continue;
     const segments = new Set(holdings.filter(item => item.candidate === holding.candidate).map(item => item.segment));
-    const edit = directEdit(holding, segments, slug, subjectParent);
+    const edit = formerParentLeafEdit(holding) ?? directEdit(holding, segments, slug, subjectParent);
     if (edit.status === "deferred") plan.deferred.push({ candidates: [holding.candidate], condition: edit.condition });
     else if (edit.status !== "known") return edit;
     else if (edit.value !== null) plan.edits.push(edit.value);
@@ -89,7 +89,7 @@ function hasParentRepair(repairs: readonly ParentRepair[], child: RecordReferenc
 
 function childParentPrerequisite(holding: CohortHolding, holdings: readonly CohortHolding[],
   candidates: readonly ResolvedCohortCandidate[], slug: string): ParentPrerequisite | null {
-  if (holding.candidate.field !== "cohort" || holding.segments.length !== 2) return null;
+  if (holding.candidate.field !== "cohort" || holding.segments.length !== 2 || formerParentLeafEdit(holding) !== null) return null;
   const leaf = holding.segments.at(-1), parent = holding.segments[0];
   if (leaf?.status !== "known" || parent?.status !== "known" || leaf.resolutionRecord.placement?.kind === "completed") return null;
   const child = leaf.reference, parsed = parseCohortDocument(leaf.resolutionRecord.content);
@@ -154,6 +154,21 @@ function parentTargetEligibility(segment: CohortHoldingSegment | undefined): Rul
   const parsed = parseCohortDocument(record.content);
   if (!parsed.success) return fail(parsed.error);
   return parsed.data.parent === null ? { status: "known", value: true } : fail("The parent is already nested; a changed Parent must name a top-level cohort.");
+}
+
+/** A sole former parent name cannot override an open leaf's own Parent. Keep the holding while withholding an
+ * unsupported edit; a top-level leaf can instead be named directly. Closed-leaf safeguards stay with their planner. */
+function formerParentLeafEdit(holding: CohortHolding): EditObservation<CohortHoldingEdit | null> | null {
+  const first = holding.segments[0], leaf = holding.segments.at(-1);
+  if (holding.candidate.field !== "cohort" || holding.segments.length !== 2 || holding.segment !== 0
+    || holding.resolution !== "sole" || first?.status !== "known" || first.name === first.currentSlug
+    || leaf?.status !== "known" || leaf.resolutionRecord.placement?.kind === "completed") return null;
+  const parent = holding.parent;
+  if (parent?.status === "known") return sameOwner(parent.reference.owner, first.reference.owner)
+    ? null : { status: "known", value: null };
+  if (parent === undefined) return fieldEdit(holding.candidate, holding.candidate.path, leaf.currentSlug);
+  return { status: "deferred", condition: `The path ${holding.candidate.path} has an unresolved leaf Parent '${parent.name}'. `
+    + "Have its owner resolve Parent or clear Cohort before choosing the intended current path." };
 }
 
 function directEdit(holding: ResolvedCohortCandidate, changed: ReadonlySet<number>, slug: string,

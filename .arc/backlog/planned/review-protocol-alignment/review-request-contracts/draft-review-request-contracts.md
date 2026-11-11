@@ -421,7 +421,7 @@
   `runtime/respond-command.ts`, `policy/pre-publication-request.ts` and `pre-publication-procedure.ts`.
 
 - _Additional evidence:_ `storage-ref-backend`'s chunked review scripted this composition every round, among 323
-  per-round scripts (about 40k lines; copy at `~/dev/arc-evidence/storage-ref-backend/`), alongside the findings
+  per-round scripts (about 40k lines; a copy is kept outside the repository), alongside the findings
   proposal and the respond calls, the verified-fix replay, the staged Candidate commit, and re-entry with the resume
   token after the push (routed from `USER-INBOX § Work Unit`, housekeep drain, 2026-10-30; its scope, evaluator and
   report stages went to `chunk-scope-binding` and `review-evaluator-isolation`).
@@ -506,8 +506,8 @@
   provider outcomes; retain that boundary here.
 
 - _Evidence:_ <https://github.com/andrewRCr/arc-framework/pull/1124#issuecomment-6389066279> (request),
-  <https://github.com/andrewRCr/arc-framework/pull/1124#issuecomment-6389068470> (provider summary), and identity-global
-  `.internal/investigations/review-look-artifacts-2026-10-24/diagnosis-stalled-request/`.
+  <https://github.com/andrewRCr/arc-framework/pull/1124#issuecomment-6389068470> (provider summary), and the
+  `review-look-artifacts-2026-10-24` investigation's `diagnosis-stalled-request/`, kept outside the repository.
 
 - _Observed recovery:_ an Owner-authorized second `@codex review` at the same head was posted at 2026-10-24T21:47:28Z
   (<https://github.com/andrewRCr/arc-framework/pull/1124#issuecomment-6389939984>). A fresh clean receipt arrived 61

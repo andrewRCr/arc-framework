@@ -957,10 +957,11 @@ commits.
   quotes; the auto-merge lane; `.gitignore`'s treatment of `.ignore`; that user-sync load never deletes local files;
   GitHub push and fetch of `refs/arc/*` on this repository's `origin`; user sync's recency resolution of same-entry
   edits.
-- **§ 11 comes from the spike and research records,** which stay outside the repository with their scripts; its
-  figures are transcribed from them, not re-run for this update. Checked directly for this update: the
-  `git show <head>:<path>` read in `candidate-response-confirmation.ts`, this repository's pack size and commit counts
-  by ref family, and that each external source added below resolves.
+- **§ 11 comes from the spike and research records;** its figures are transcribed from them, not re-run for this
+  update. The spikes' scripts and raw results were not kept, apart from the concurrency workload's scripts and
+  extracts and the editor spike's build scripts. Checked directly for this update: the `git show <head>:<path>` read in
+  `candidate-response-confirmation.ts`, this repository's pack size and commit counts by ref family, and that each
+  external source added below resolves.
 - **Measured once, on one setup:** the spikes ran on one Linux machine under WSL2, one Windows 11 machine, and one
   scratch repository per host. Distinct-ref contention on GitHub rests on a single run, and the Zed and VS Code checks
   ran over WSL remotes, not natively or over SSH.
