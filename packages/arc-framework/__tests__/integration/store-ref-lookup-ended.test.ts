@@ -7,6 +7,7 @@ import { createRefStore } from "../../src/lib/store/create.js";
 import { LineageRecordSchema } from "../../src/lib/store/kinds/lineage/index.js";
 import { SlugSchema } from "../../src/lib/kernel/index.js";
 import { RecordReferenceSchema } from "../../src/lib/store/index.js";
+import { createExecaRawGitExec } from "../../src/lib/git/process-executor.js";
 
 const quarter = ArchiveQuarterSchema.parse("2026-q4");
 
@@ -118,13 +119,14 @@ describe("lookup across live and completed generations", () => {
     const errand = await seed(f, f.reference("work-item/record", "errand"));
     const claim = await seed(f, f.reference("claims/groom"));
     let processes = 0;
-    const store = createRefStore({ ...f.ports, rawExec: async (...args) => { processes += 1; return f.ports.rawExec(...args); } });
+    const raw = createExecaRawGitExec(f.root, undefined, () => { processes += 1; });
+    const store = createRefStore({ ...f.ports, rawExec: raw });
     expect(success(await store.lookup({ kind: "slug", slug: record.reference.owner.name })).reference).toEqual(record.reference);
-    expect(processes).toBe(4);
+    expect(processes).toBe(2);
     expect(success(await store.lookup({ kind: "claim", claim: { kind: "errand", slug: errand.reference.owner.name, claimId: "1".repeat(32) } })).reference).toEqual(errand.reference);
-    expect(processes).toBe(5);
+    expect(processes).toBe(3);
     expect(success(await store.lookup({ kind: "claim", claim: { kind: "groom", slug: SlugSchema.parse(String(claim.reference.key)), claimId: "1".repeat(32) } })).reference).toEqual(claim.reference);
-    expect(processes).toBe(6);
+    expect(processes).toBe(4);
   });
 
 });

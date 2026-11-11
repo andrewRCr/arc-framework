@@ -215,6 +215,8 @@ that chunk.
           platform stats. Due-only lease steps, empty-aside pruning, and an empty end avoid redundant disk work. The
           native suite records interleaved standard/expanded starts and complete fan-outs and materialization on all
           three references; the effective numerical bounds and raw evidence are in A4.
+          Native read, listing, and lookup assertions count shared-reader process starts; the completed-lookup check
+          observes native starts instead of request exchanges.
 
     - `[x]` **1.12.b The tripwires**
 

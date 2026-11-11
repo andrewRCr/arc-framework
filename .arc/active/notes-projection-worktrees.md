@@ -757,3 +757,20 @@ run `8b6c9dc2e84d42c595924e578341e2b3` passed all six cases, each checked agains
 The initial interrupted attempt, `e395d1c372fe46bca2f59a9991edc84c`, retained no result and is not evidence of a pass.
 The complete corrected twenty-process suite passed all twenty-two cases in run
 `52fb7151e6fd435b9bfadf0443449634` on M4, covering both layouts and every required rendezvous.
+
+### Physical Git-start assertions after reader reuse
+
+Dispatched run `43116874002` exposed stale exact-process assertions in Store Suites 1 and 6 after recursive tree
+enumeration moved onto the operation's persistent reader. The native lookup trace starts `for-each-ref` and one
+`cat-file`, with root resolution, tree traversal, and ranking blobs exchanged through that same reader. An unchanged
+lookup adds only `for-each-ref`; a changed tip adds both again, giving cumulative counts 2/3/5. Direct UID reads stay at
+one start, listings take two, and a read followed by two listings takes 1/3/5. A cold listing's retained token also
+needs `mktree` and `update-ref`, giving 4/5/7 for listing, version, and repeated listing.
+
+The completed/Errand/claim lookup test previously counted `rawExec` invocations as processes. Its additional tree
+request is an exchange with an existing reader. It now counts the native executor's start callback and requires
+cumulative 2/3/4 starts while retaining each returned-record assertion. Reconstruction
+`46c193cf142a4c83876a9cb2ef9281f6` failed at five physical starts when each batch request was forced to bypass the
+reader. The live-lookup failures reproduced in `f91b814752ac47e4b73ffac9784144e8`; corrected full run
+`57513c59b9ba449d8c3e3638ea4d7d4b` passed all 64 cases across the four affected files. These corrections tighten the
+process bounds and repair the measured quantity; no production read behavior or acceptance budget changes.

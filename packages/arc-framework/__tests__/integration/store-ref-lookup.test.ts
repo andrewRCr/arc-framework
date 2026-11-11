@@ -94,18 +94,18 @@ describe("lookup over live state refs", () => {
     }));
   });
 
-  it.each(["files", "reftable"] as const)("uses three processes, then one for unchanged tips, and reloads changed tips (%s)", async (format) => {
+  it.each(["files", "reftable"] as const)("uses two processes, then one for unchanged tips, and reloads changed tips (%s)", async (format) => {
     const f = await createRefReadFixture(format);
     const first = await plantOwner(f.root, firstUid, "alpha");
     await plantOwner(f.root, secondUid, "beta", [], "cohort/document");
     const start = f.processes();
     expect(success(await createRefStore(f.ports).lookup({ kind: "slug", slug: SlugSchema.parse("alpha") }))).toEqual({ reference: first });
-    expect(f.processes() - start).toBe(3);
+    expect(f.processes() - start).toBe(2);
     expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("alpha") }))).toEqual({ reference: first });
-    expect(f.processes() - start).toBe(4);
+    expect(f.processes() - start).toBe(3);
     const renamed = await plantOwner(f.root, firstUid, "renamed", ["alpha"]);
     expect(success(await f.store.lookup({ kind: "slug", slug: SlugSchema.parse("alpha") }))).toEqual({ reference: renamed });
-    expect(f.processes() - start).toBe(7);
+    expect(f.processes() - start).toBe(5);
   });
 
   it("does not retain a failed metadata scan after its missing object is restored at the same tip", async () => {
