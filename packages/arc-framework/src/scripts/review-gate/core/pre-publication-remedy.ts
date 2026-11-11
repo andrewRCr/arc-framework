@@ -7,7 +7,8 @@ import type { CandidateApplicabilityDecisionSelection } from
 import { projectCandidateReRootContinuation } from "../../../lib/work-unit/candidate-effective-target.js";
 import { routingReasonDifference } from "../policy/routing-reason-facts.js";
 import type { StandardReviewObligationProjection } from "../policy/standard-review-projection-schema.js";
-import type { ReviewPrePublicationRefusalCode } from "./review-command-envelope.js";
+import { ReviewCommandErrorEnvelopeSchema, type ReviewPrePublicationRefusalCode } from "./review-command-envelope.js";
+import type { PrePublicationComposition } from "../policy/pre-publication-contract.js";
 
 /** The standard-review routing a refused review producer was admitted with, beside the one this call composed. */
 export interface PrePublicationRoutingMismatch {
@@ -235,4 +236,37 @@ export function prePublicationTargetRemedy(): SpineRemedy {
     "Name an existing work unit, then re-run",
     ["arc", "status", "--project", "--json"],
   );
+}
+
+/** Carry the exact pending operation's continuation without treating its admission as completed evidence. */
+export function prePublicationPendingReviewRefusal(
+  pending: NonNullable<Extract<PrePublicationComposition, { status: "refused" }>["pendingReview"]>,
+  workUnit: string,
+): ReturnType<typeof ReviewCommandErrorEnvelopeSchema.parse> {
+  const frontlineReplay = pending.kind === "frontline" && pending.request !== null;
+  const argv = pending.kind === "local"
+    ? ["arc", "review", "local", "resume", "-"]
+    : pending.kind === "hosted" && pending.request !== null
+      ? ["arc", "review", "hosted", "await", "-"]
+      : frontlineReplay ? ["arc", "review", "frontline", "resolve", "-"]
+        : ["arc", "review", "status", "--work-unit", workUnit];
+  const requestDetail = pending.request === null
+    ? "The admitted request has no acknowledged handle yet."
+    : `Exact stdin request: ${JSON.stringify(pending.request)}.`;
+  const message = `The ${pending.lane} review operation ${pending.operationId} from ${pending.sourceId} is still in progress. ${requestDetail}`;
+  return ReviewCommandErrorEnvelopeSchema.parse({
+    schemaVersion: 1,
+    mode: "review-pre-publication",
+    diagnostics: [{ code: "review-in-progress", message }],
+    error: { code: "review-in-progress", message },
+    remedy: spineRemedy(
+      "An admitted review is not completed policy evidence.",
+      frontlineReplay
+        ? "Replay the admitted resolve request to resume; to skip a never-started review, replace invocation with "
+          + "{ mode: 'skip' }. Then re-enter pre-publication"
+        : "Continue that exact operation, then re-enter pre-publication",
+      argv,
+      frontlineReplay ? pending.request ?? undefined : undefined,
+    ),
+  });
 }
