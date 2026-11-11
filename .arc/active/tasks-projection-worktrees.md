@@ -101,6 +101,8 @@ that chunk.
 - _Goal:_ A worktree with no projection gets every record written under the replace guard and adoption rules, and one
   whose index it cannot use is rebuilt writing over no file that might hold an edit, withholding and reporting each.
 
+- _Amended in:_ 1.6.R (A2)
+
 - _Outcome:_ Full inventories render canonical lifecycle and personal paths, cohort copies, and Errand descriptions
   through shared protection evidence. First commands rebuild missing or unusable indexes, retaining edits and aside
   copies as withheld until deletion; their changed marks remain until save. Spawn hooks materialize under the target's
@@ -113,6 +115,35 @@ that chunk.
 - _Goal:_ Each command's start brings its worktree up from the state version its index last projected, rewriting only
   the records `changes` names and the files marked pending, moving every file a primary record's change relocates, and
   rebuilding when that state version no longer resolves.
+
+    - `[ ]` **1.6.R Retain ownership during path reuse — A2**
+
+        - _Goal:_ Implement A2's durable ownership handoff so an arriving record remains retryable and a save timed into
+          path reuse or its recovery is never sent to the other record.
+        - Add the optional arriving-entry journal to `RecordEntrySchema`, keeping the leaving entry authoritative,
+          pending, and withheld until a confirmed installation. The journal holds no nested handoff. Existing pending
+          and withheld marks keep its partition unsettled and make removal observe the hold.
+        - Add the optional `reprojectionPending` header flag. Publish it before reprojection changes the layout, rerun
+          while it is set regardless of tuple equality, and publish its clearance with the new `projectedUnder` tuple
+          only after all desired arrivals for the fresh target are confirmed. Per-path reconciliation never clears it.
+        - Refuse handoff entries in the bound take-in and in captured write-back preparation before any store write.
+          Extend `selectProjectedMarkdown`'s indexed input to exclude withheld entries; `readProjectionStatus` already
+          reports withholding through its recorded flags and refusal.
+        - Compose the mover's removal with this journal: wait for the leaving file and copies to disappear, retain the
+          old state anchor while an arrival is blocked, retain a changed projection target as an unacknowledged
+          `projectedUnder` mismatch until its desired arrivals complete, publish before exclusive linking, and keep the
+          journal through command end. A link that loses to a recreated file restores leaving authority by publication
+          before cleanup.
+        - Reconcile after the start's sweep before write-back and after the end's second check; confirm only settled,
+          stable bytes with the staged inode and rendered blob. Absence permits a retry; other bytes remain withheld
+          and reported with both identities. Use the same reconciler for materialization and reprojection, and for
+          persist and release before their refusal checks. Ignore refusal or an opaque link permits no write.
+        - Build `test-first` (one behavior at a time): the new-generation arrival at a renamed cohort's former path;
+          a retained old copy holding the arrival back; a recreated old save winning the exclusive link; interruption
+          before linking, after linking, and before final publication; unstamped saves never reaching the other record;
+          confirmed bytes resuming automatically; ambiguous bytes surviving and being reported; deletion followed by a
+          successful retry; claim-only retries without another store write, including A → B → A after partial progress
+          or interruption; and a refused root leaving the handoff untouched.
 
     - `[ ]` **1.6.a Reducing `changes`**
 
@@ -334,6 +365,10 @@ that chunk.
           `lib/store/projection/sweep.ts`), and the refresh takes the index the visit then holds. Protection's searches
           take the fan-out's own listing of the worktrees for its first round and a fresh one for each later round
           (1.4.b).
+        - Before the already-current shortcut, a writer's own root or an eligible root a spawn materialized earlier in
+          the command runs 1.8 when its header carries `reprojectionPending` (1.6.R), even if the state version is
+          current and the tuple compares equal. Other siblings with the flag set are skipped before their guard;
+          existing view, identity, and ignore-basis refusals still apply to a spawn's root.
         - The binder reads the worktree's claim, its marker's UID (1.8), and `layout.active` fresh under its lock (1.3).
           A sibling is skipped where they, or the command's view setting and identity, differ from what its index
           records it was projected under (`ProjectionIndexSchema.projectedUnder`), or where its index records no guard
@@ -362,6 +397,7 @@ that chunk.
           rewrites a file, from a sibling's write or a pull, sets none, and a verb writing for another checkout, as
           graduation does into a spawned worktree, marks nothing there.
         - Build `test-first` (one behavior at a time):
+            - a current writer's root with pending reprojection retries it, while a flagged sibling is skipped
             - Integration tier, over the reference backend and real linked worktrees
             - an edit written back in one worktree reaches the other worktrees' copies
             - a write from a checkout with the projection off (1.1) reaches a sibling's projection
@@ -473,6 +509,12 @@ that chunk.
     - A file of the old claim's work item at a path the new one's also projects at — a path-keyed companion — is removed
       by the removal path, its edit taken in against its own record, and the next refresh lays the new file there
       (`swapBatch` with `SwapFile.relaid`, which keeps the old entry pending and absent).
+    - Reuse 1.6.R's durable handoff for a shared path, keeping both identities journaled until confirmed, instead of
+      installing the new claim's record over a leaving entry. Publish `reprojectionPending` before layout mutations and
+      treat it as a reprojection trigger even if the requested settings return to the retained tuple. While any desired
+      arrival is blocked or unconfirmed, keep the previous state anchor and whole `projectedUnder` tuple. Use the fresh
+      target's settings for rights and capture during every retry; clear the flag and acknowledge that tuple together
+      only after all its desired arrivals are confirmed. Confirming one handoff cannot acknowledge the whole layout.
     - Build `test-first` (one behavior at a time):
         - switching the view from `mine` to `all` adds the other in-flight work items
         - switching back removes them, an edit there taken in first
@@ -487,6 +529,10 @@ that chunk.
         - a save placed by the `afterRecheck` hook (`SwapHooks`, `lib/store/projection/swap.ts`) at a path both claims'
           work items project at is taken in against the leaving record, and the next command lays the arriving file
           there
+        - a claim-only change with no store write leaves an arrival blocked by the old file or a retained copy; after
+          the blocker is resolved, another command retries and installs the arrival without an intervening store write
+        - A → B → A with no store writes, after partial reprojection or an interrupted command, restores A's desired
+          layout and removes B's extra files once the blockers are resolved, even though the tuple compares equal
         - a changed identity lays the new identity's personal root and leaves the previous identity's files and entries
           as they were, an edit there kept, and changing back walks them again
         - after a changed identity, `arc selection` lists none of the previous identity's files, and lists them again
@@ -708,6 +754,8 @@ that chunk.
 
 - _Goal:_ The segment's exit criterion holds across real worktrees on a freshly merged base.
 
+    - Re-run 1.6.R's ownership-handoff recovery scenarios against criterion 10, including a reused path's arriving
+      generation, an interrupted unstamped save, and continuation after the withheld bytes are deleted.
     - Merge base into the branch (append-only); run `npm ci` first if the merge changed `package-lock.json`.
     - Over the reference backend in one scripted repository with linked worktrees, run the exit criterion's scenario —
       materialize, an edit's fan-out, a pull's fan-out, `arc sync` after a delete, a rebuild on `state-unresolvable` —
@@ -922,6 +970,8 @@ No production composition sets the slots today, so every caller runs `passingPro
   root included, takes over every settled aside copy, and refuses with the blocking file's remedy rather than let a
   removal drop an edit — releasing the lock before it returns.
 
+    - Reconcile 1.6.R's ownership handoffs under the target's lease and ignore authority before write-back; refuse
+      while a handoff or its ambiguous withheld bytes remain, and succeed after the ordinary deletion/retry remedy.
     - Under the target's projection lock, taken through 1.7.a's lock wrapper over `withProjectionLock`
       (`lib/store/projection/lock.ts`), waiting its default bound of 10 s and refusing on `held` naming the holder —
       which may be unreadable or absent — and a retry, and refusing with a retry on `lost` or `gone`, it binds the
@@ -1040,6 +1090,8 @@ No production composition sets the slots today, so every caller runs `passingPro
   an anchored checkout, and the end of an Errand on the primary — the `release` slot persists every edit as the persist
   step does and, on a linked checkout, removes its projection, refusing where an edit would go back as a refused edit.
 
+    - Reconcile 1.6.R's ownership handoffs under the target's lease and ignore authority before write-back; refuse
+      while a handoff or its ambiguous withheld bytes remain, and succeed after the ordinary deletion/retry remedy.
     - A checkout 1.1 gives no projection and that holds no index returns at once, before the identity is consulted, as
       2.2's does. Otherwise, under the target's projection lock, taken and refused as 2.2 takes it, over the same
       history-retry store, reading `history` through a memo of its own over it and dropping each record it lands from
@@ -1291,5 +1343,11 @@ No production composition sets the slots today, so every caller runs `passingPro
 - `[ ]` An installing file's same-tick save remains detectable after another partition advances the reference,
         without loading or rewriting the saved file's partition; a later clean, value-equal publication writes no
         partition (A1).
+
+- `[ ]` A new record arriving at a reused path remains retryable until installed. Saves during removal, linking, and
+        interrupted installation, including unstamped files, never reach the other record; proved installations resume
+        automatically, ambiguous bytes remain recoverable and reported, and deletion permits successful retry. A
+        blocked arrival after a claim-only change retries without an intervening store write, including A → B → A after
+        partial progress or interruption (A2).
 
 - `[ ]` Ready for integration

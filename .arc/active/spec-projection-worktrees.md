@@ -393,32 +393,35 @@ at its next command.
   markerless searches take as an input, so a file's protection reads nothing per worktree but the claim of a worktree
   whose marker names the file's own work unit (§ 15.5, § 16.3). Under each worktree's lock it reads the index again and
   skips the worktree when that state version changed since — another refresh reached it first, so it may already be
-  newer, and state versions carry no order to tell (`StateVersionSchema`, `lib/store/identity.ts`). It skips a worktree
-  already current the same way, and one whose state version no longer resolves, which that worktree's own next command
-  rebuilds (§ 15.2). Under the same lock it reads the worktree's claim and effective `layout.active` fresh; a worktree
-  the command already holds a root for — its own, a sibling an earlier round or fan-out visited, or a worktree a spawn
-  materialized earlier in the command — is not bound again, its claim and layout re-read into that root, whose aside
-  copies the command's end still checks, and the comparisons below use the command's values whatever read bound it. The
-  persist and release steps hold no root of their own, so the end never checks a checkout they retire and neither
-  replaces a root the command holds; a copy either leaves, on a refusal or from its last check, is settled by the
-  target's next sweep or the retry's takeover (§ 12.2, § 12.3). A checkout the command moves while it holds a root there
-  — `arc rename` moving a work unit's folder from another checkout, since it defers a move of the checkout it runs in
-  and prints the move to run from outside it — has that root dropped and reported, since its bound reads and ports name
-  the old path: the end checks nothing there, the copies the command left in it are settled by its next command's sweep
-  like any copy a command leaves, and a later round binds it afresh at its new path. It skips a sibling where they, or
-  the command's view setting and identity, differ from what its index records it was projected under
-  (`ProjectionIndexSchema.projectedUnder`), or where its index records no guard pass, or one under another ignore
-  configuration than the command's (`ProjectionIndexSchema.ignoreGuard`), deciding this before any guard runs there, so
-  no file is laid from a recorded claim and no guard runs on another worktree's basis; that worktree's own next command
-  reprojects it (§ 10.4). The writer's own worktree is never skipped for a difference: a verb run there may have changed
-  its claim, so it is reprojected in place before its refresh (§ 10.4), and the verb's changed marks land (§ 11.7). Nor
-  is a worktree a spawn materialized earlier in the command skipped for a difference in its claim or `layout.active`
-  alone, as the creation's stamp makes one by binding the UID (the creation batch above): it is reprojected in place
-  before its refresh as the writer's own is, under the claim re-read into its root, and marks nothing changed (§ 11.7);
-  a difference in its view setting, identity, or ignore configuration still skips it. A checkout this command's persist
-  step is removing, or whose projection its release step removes, is skipped; the primary, whose release keeps its
-  projection, is not (§ 12.3). A primary entry's re-lay lists its owner's records once per round of a fan-out, shared by
-  every worktree (§ 15.2).
+  newer, and state versions carry no order to tell (`StateVersionSchema`, `lib/store/identity.ts`). Before skipping an
+  already-current writer's worktree or one a spawn materialized earlier in this command, a set `reprojectionPending`
+  flag runs its reprojection comparison instead (A2). Other already-current worktrees are skipped, as is one whose state
+  version no longer resolves, which that worktree's own next command rebuilds (§ 15.2). Under the same lock it reads the
+  worktree's claim and effective `layout.active` fresh; a worktree the command already holds a root for — its own, a
+  sibling an earlier round or fan-out visited, or a worktree a spawn materialized earlier in the command — is not bound
+  again, its claim and layout re-read into that root, whose aside copies the command's end still checks, and the
+  comparisons below use the command's values whatever read bound it. The persist and release steps hold no root of their
+  own, so the end never checks a checkout they retire and neither replaces a root the command holds; a copy either
+  leaves, on a refusal or from its last check, is settled by the target's next sweep or the retry's takeover (§ 12.2, §
+  12.3). A checkout the command moves while it holds a root there — `arc rename` moving a work unit's folder from
+  another checkout, since it defers a move of the checkout it runs in and prints the move to run from outside it — has
+  that root dropped and reported, since its bound reads and ports name the old path: the end checks nothing there, the
+  copies the command left in it are settled by its next command's sweep like any copy a command leaves, and a later
+  round binds it afresh at its new path. It skips a sibling where they, or the command's view setting and identity,
+  differ from what its index records it was projected under (`ProjectionIndexSchema.projectedUnder`), or whose header
+  carries `reprojectionPending` (A2), leaving either to its own next command, or where its index records no guard pass,
+  or one under another ignore configuration than the command's (`ProjectionIndexSchema.ignoreGuard`), deciding this
+  before any guard runs there, so no file is laid from a recorded claim and no guard runs on another worktree's basis;
+  that worktree's own next command reprojects it (§ 10.4). The writer's own worktree is never skipped for a difference:
+  a verb run there may have changed its claim, so it is reprojected in place before its refresh (§ 10.4), and the verb's
+  changed marks land (§ 11.7). Nor is a worktree a spawn materialized earlier in the command skipped for a difference in
+  its claim or `layout.active` alone, as the creation's stamp makes one by binding the UID (the creation batch above):
+  it is reprojected in place before its refresh as the writer's own is, under the claim re-read into its root, and marks
+  nothing changed (§ 11.7); a difference in its view setting, identity, or ignore configuration still skips it. A
+  checkout this command's persist step is removing, or whose projection its release step removes, is skipped; the
+  primary, whose release keeps its projection, is not (§ 12.3). A primary entry's re-lay lists its owner's records once
+  per round of a fan-out, shared by every worktree (§ 15.2).
+
 - **Fan-out keeps copies fresh and carries no correctness:** whatever it misses — a write through another tool, a
   process that stopped — each worktree's next command start refreshes, and an edit made to a stale copy merges through
   the store (`spec-projection-write-back.md` § 7.1). So a fault fanning out into one worktree — a marker or
@@ -537,47 +540,52 @@ rebuilds an index it cannot use as in a checkout this section gives one (§ 3.1)
 
 **The index's parts.** The index is a header and partitions. The header, `index` in `arc-projection/`
 (`PROJECTION_INDEX_FILE`, `lib/store/projection/index-file.ts`), holds the format version, the state version,
-`projectedUnder`, the withheld aside copies, the ignore records, the tripwires, and a map from each root group to its
-partition's name — the SHA-1 blob id of the partition's bytes, whatever the repository's object format — and to whether
-that partition holds an unsettled entry; it holds no entry. An entry is unsettled when it is ownerless, or a record that
-names an aside copy or a kept taken-in copy, carries an adoption, a pending or withheld mark, or a refusal, or holds a
-conflict notice it has not shown: the states a pass over every entry looks for. A changed mark, which a rebuild sets on
-every file it finds (§ 11.7), and an in-progress mark leave a partition unmarked, since only readers that load the
-partitions they need anyway, or read by path, read them. A partition, a file `index-<blob id>` beside the header, holds
-the entries of one root group: `active/`, `backlog/`, an identity's personal root, or one folder under `completed/`, a
-quarter's, a file directly in `completed/` taking a group of its own. A write writes each partition it changed under its
-new blob id, then the header by temp-and-rename (`atomicWriteFile`, `lib/fs.ts`), then deletes every partition file the
-header does not name, so the header is the commit point, as Git's split index makes its shared index: a write that stops
-before its header leaves the last header naming the partitions it was written with, and one that stops after it, or
-whose delete the platform refuses while another process holds the file, leaves files the next write deletes. A reader
-reads the header, then only the partitions holding the entries it reads or writes. A pass over every entry — the sweep's
-for the aside copies entries record, the end's for the kept copies they name, the start's for adoptions to retry, and
-the status report — reads the partitions of the roots its command walks and every partition marked as holding an
-unsettled entry, so a settled archive costs it nothing; `arc save` and the rebuild a state version that no longer
-resolves takes (§ 15.2) read every partition, and the selection every one outside `completed/`, which it never lists. A
-write sets each written partition's mark from its entries, and a partition is written only where an entry in it differs
-in value from what was read. To a reader holding the worktree's projection lock, a partition that is missing, or whose
-bytes do not hash to its name, makes the index unusable, as an unreadable index is (below), so a start that finds either
-rebuilds; a mismatch found only when a command reaches the partition in its own worktree after its start's read — in the
-start's refresh, at its end, or in `arc sync`'s materialization (§ 2.4) — ends that command's use of that index, as a
-lost lease does, and deletes that partition, never the header, so the header goes on naming a missing partition: the
-next start rebuilds, the removal check answers `unobservable`, and the header's withheld aside copies stay recorded,
-while a fan-out's visit that finds one, to the writer's own worktree too, and the end in another worktree the fan-out
-visited skip that worktree and delete nothing, leaving it to that worktree's own next command; one holding no lock, as
-the fan-out's first read, the removal check, the status report, the selection, and the overlap advisory do (§ 2.2,
-§ 12.2), first reads the header again and starts over once when it changed, since a write it raced may have deleted what
-the old header named; a second miss takes the reader's own answer to an unusable index and deletes nothing, the fan-out
-skipping the worktree, the removal check answering `unobservable`, and the others answering as they answer an unreadable
-index. Every partition a write writes takes that write's reference for racy stats (`smudgeRacyEntries`,
-`lib/store/projection/change-detection.ts`); one it leaves keeps what its own write smudged, which stays correct against
-a later reference. Every racy stat in a written partition is smudged, including a staged file awaiting installation
-(A1): its next command hashes once rather than allowing a later reference advance to conceal a same-tick save. A
-copy-mark-only publication smudges its changed partition against the existing reference without advancing that
-reference. The codec is plain JSON: the schema (`ProjectionIndexSchema`, `lib/store/projection/index-schema.ts`), split
-into the header's and a partition's, stays the writer's contract and the tests' check, which hold every header and
-partition a write writes against it, and neither a read nor a write runs an entry through it, since the blob ids and the
-format version already refuse what a stopped write or another build left; the schema's decode and encode are about three
-quarters of the codec's cost on Linux (`notes-projection-worktrees.md` § Spike 4).
+`projectedUnder`, the optional `reprojectionPending` flag (A2, § 10.4), the withheld aside copies, the ignore records,
+the tripwires, and a map from each root group to its partition's name — the SHA-1 blob id of the partition's bytes,
+whatever the repository's object format — and to whether that partition holds an unsettled entry; it holds no entry. An
+entry is unsettled when it is ownerless, or a record that names an aside copy or a kept taken-in copy, carries an
+adoption, a pending or withheld mark, or a refusal, or holds a conflict notice it has not shown: the states a pass over
+every entry looks for. A changed mark, which a rebuild sets on every file it finds (§ 11.7), and an in-progress mark
+leave a partition unmarked, since only readers that load the partitions they need anyway, or read by path, read them. A
+partition, a file `index-<blob id>` beside the header, holds the entries of one root group: `active/`, `backlog/`, an
+identity's personal root, or one folder under `completed/`, a quarter's, a file directly in `completed/` taking a group
+of its own. A write writes each partition it changed under its new blob id, then the header by temp-and-rename
+(`atomicWriteFile`, `lib/fs.ts`), then deletes every partition file the header does not name, so the header is the
+commit point, as Git's split index makes its shared index: a write that stops before its header leaves the last header
+naming the partitions it was written with, and one that stops after it, or whose delete the platform refuses while
+another process holds the file, leaves files the next write deletes. A reader reads the header, then only the partitions
+holding the entries it reads or writes. A pass over every entry — the sweep's for the aside copies entries record, the
+end's for the kept copies they name, the start's for adoptions to retry, and the status report — reads the partitions of
+the roots its command walks and every partition marked as holding an unsettled entry, so a settled archive costs it
+nothing; `arc save` and the rebuild a state version that no longer resolves takes (§ 15.2) read every partition, and the
+selection every one outside `completed/`, which it never lists. A write sets each written partition's mark from its
+entries, and a partition is written only where an entry in it differs in value from what was read. To a reader holding
+the worktree's projection lock, a partition that is missing, or whose bytes do not hash to its name, makes the index
+unusable, as an unreadable index is (below), so a start that finds either rebuilds; a mismatch found only when a command
+reaches the partition in its own worktree after its start's read — in the start's refresh, at its end, or in `arc
+sync`'s materialization (§ 2.4) — ends that command's use of that index, as a lost lease does, and deletes that
+partition, never the header, so the header goes on naming a missing partition: the next start rebuilds, the removal
+check answers `unobservable`, and the header's withheld aside copies stay recorded, while a fan-out's visit that finds
+one, to the writer's own worktree too, and the end in another worktree the fan-out visited skip that worktree and delete
+nothing, leaving it to that worktree's own next command; one holding no lock, as the fan-out's first read, the removal
+check, the status report, the selection, and the overlap advisory do (§ 2.2, § 12.2), first reads the header again and
+starts over once when it changed, since a write it raced may have deleted what the old header named; a second miss takes
+the reader's own answer to an unusable index and deletes nothing, the fan-out skipping the worktree, the removal check
+answering `unobservable`, and the others answering as they answer an unreadable index. Every partition a write writes
+takes that write's reference for racy stats (`smudgeRacyEntries`, `lib/store/projection/change-detection.ts`); one it
+leaves keeps what its own write smudged, which stays correct against a later reference. Every racy stat in a written
+partition is smudged, including a staged file awaiting installation (A1): its next command hashes once rather than
+allowing a later reference advance to conceal a same-tick save. A copy-mark-only publication smudges its changed
+partition against the existing reference without advancing that reference. The codec is plain JSON: the schema
+(`ProjectionIndexSchema`, `lib/store/projection/index-schema.ts`), split into the header's and a partition's, stays the
+writer's contract and the tests' check, which hold every header and partition a write writes against it, and neither a
+read nor a write runs an entry through it, since the blob ids and the format version already refuse what a stopped write
+or another build left; the schema's decode and encode are about three quarters of the codec's cost on Linux
+(`notes-projection-worktrees.md` § Spike 4).
+
+An entry whose path changes record identity retains the leaving entry and a non-nested arriving entry in its optional
+`handoff` (A2, § 15.2). It stays pending and withheld until reconciliation confirms installation, so its partition is
+unsettled and readers never need to load unrelated partitions to find the transition.
 
 **The partitions' seams.** The root groups — one per root, `completed/` one per quarter — and the header as the commit
 point are the index's fixed seams. A change to which of `backlog/`'s or `completed/`'s records a worktree projects, or
@@ -628,6 +636,19 @@ rights and the writable roots answer for the current identity alone and the pers
 identity; the start walks it again once the identity returns. Until then the selection lists none of its files (§ 11.7),
 and the removal check and the persist and release steps read it with the projected roots, an edit there one the edit
 rights refuse, and the release of a linked checkout removes its unchanged files with the rest (§ 12.2, § 12.3).
+
+During reprojection, `projectedUnder` acknowledges installed desired arrivals, rather than merely requested settings (A2).
+Before a reprojection first changes the projected layout, publish `reprojectionPending: true` in the index header.
+The optional flag is clear when absent. A command reprojects when that flag is set or when its current settings differ
+from `projectedUnder`, using its fresh current settings even if they changed again after partial progress. Thus an
+A → B → A claim or settings cycle with no store write still retries the mixed layout instead of treating equality
+with the retained tuple as completion. The current root's fresh settings govern layout, edit rights, capture,
+selection, and authorized roots; neither the pending flag nor the retained tuple grants authority under the previous
+identity or claim. While any desired arrival is blocked or has an unconfirmed ownership handoff, keep the flag and
+previous whole tuple: view, identity, claim, and layout. The reprojection publishes the new tuple and clears the flag
+in the same header commit only once every desired arrival for the fresh target is installed and confirmed. Per-path
+handoff reconciliation alone never clears the flag: it proves that path, not the completed target layout. Pending
+removals still retain their leaving entries and ordinary retries.
 
 A notice here that names another checkout as the owner reads it from that checkout's marker, which this index does not
 record, so it can lag a release, promotion, or materialize there until that file's record next changes, a primary re-lay
@@ -973,6 +994,33 @@ index's reference (`spec-projection-substrate.md` § 3.3, § 11.2).
   reported and neither refuses the command, since a clash's repair, `arc rename` with the cohort's UID, runs from a
   member's checkout. An archive, an abandon, or an owner leaving the in-flight view is a re-lay with nothing left to
   project here, which removes the files.
+- **Reusing a path across record identities (A2).** A leaving record keeps the path's entry until its file and every
+  aside copy are gone. An arrival waits while either remains; the index's state version stays at its previous anchor
+  while any arrival is unfinished, so the next refresh rediscovers it even when no entry yet names the arriving record.
+  A reprojection also journals `reprojectionPending` before changing files and retains the previous `projectedUnder`
+  tuple until every desired arrival is confirmed (§ 10.4), so claim-only retries survive even a return to the previous
+  settings, with no store delta and before an arriving journal can be created.
+  Once the path is absent with no leaving copy, the entry keeps the leaving record's identity and basis and adds a
+  durable `handoff` containing the arriving record's complete entry, without a nested handoff: its exact reference,
+  base, rendered blob, protection and rendering state, changed mark, and staged file's identity. The entry is pending
+  and withheld while the handoff exists, so neither identity receives a write-back guessed from the path's bytes.
+  Every take-in entry point refuses an entry carrying a handoff before it prepares or submits a write; selection
+  excludes the withheld path. This journal is published before the exclusive link installs the arrival. The staged
+  name is not recovery authority: its recorded inode and rendered blob identify the installation, even if a later
+  sweep deletes the staged file. A link that observes a recreated path yields to it, clears the handoff through a
+  publication, and keeps the leaving entry for its next write-back. Until that publication succeeds, recovery takes the
+  conservative handoff rule below. The arrival remains journaled through the command's end. After the end's second
+  check, or at the next command's start after its sweep and before write-back, reconciliation reads the destination
+  through the settle gate and hashes its bytes between matching stats. Only a regular file with the staged inode and
+  exact rendered blob confirms the arrival; reconciliation then publishes its entry, clearing the handoff, withholding,
+  and pending marks. An absent path clears the handoff while keeping the leaving entry pending, so refresh can retry
+  the exclusive installation. Any other bytes or file identity remain withheld under both recorded identities, are
+  reported, and are sent to neither record. An unsettled read waits for the next reconciliation; it is never a
+  confirmation. To release ambiguous bytes, copy out anything wanted, delete the withheld file, and reapply the edit
+  after the arrival is projected. Reconciliation mutates only roots whose ignore check passed, never follows an opaque
+  link, and publishes the new authority before removing any staged residue. The same rules govern refresh, full
+  materialization, and reprojection. A persist or release step reconciles first and refuses while an ownership handoff
+  or ambiguous withheld file remains.
 - **A conflict-record entry** refreshes the file of the record it names, or, for a removed conflict, whose entry carries
   no content, the file the index maps it to — by its marker set, its notice line, or, for a conflict the file does not
   show, the file's entry (`spec-projection-substrate.md` § 3.1). Neither reduction needs a contract change.
@@ -1209,6 +1257,12 @@ One changes how § 3.2 finds a lost lease, and one the index's form (§ 3.1, § 
   partition advances the shared reference. Copy-mark-only writes apply that rule without advancing the reference.
   The format version moves, so an index an earlier build wrote reads as another format version, and its
   worktree gets § 2.5's full materialization here, as any such index does; no reader of the old form is kept.
+
+The reused-path rule in § 5.6's final paragraph is superseded (A2). `swapBatch` keeps a leaving entry pending when
+`SwapFile.relaid` is true, and `rebuild` yields when the exclusive link loses (`lib/store/projection/swap.ts`), but
+neither records both record identities. Rather than switch to the arrival with no leaving basis, § 15.2's durable
+handoff preserves both until installation is confirmed. The arriving entry's stat is evidence for that handoff's
+inode-and-blob check, never a shortcut around the check; the ordinary partition smudging rule stays unchanged.
 
 #### 16.3 Write-back (`spec-projection-write-back.md`)
 
@@ -1579,6 +1633,13 @@ _These considerations cover the design the three members build together; § 1.1 
    partition is neither loaded nor rewritten by that unrelated write. A later clean, value-equal publication writes
    no partition.
 
+10. **Path reuse preserves record ownership (A2).** A new record arriving at a vacated path remains retryable until
+    installed. Saves during removal, exclusive linking, and interrupted installation, in every save mode and for
+    unstamped files too, are never sent to the other record. Proven installations resume automatically; ambiguous bytes
+    remain recoverable and reported, and deleting the withheld file permits successful continuation. A blocked arrival
+    after a claim-only change retries successfully without an intervening store write, including a return to the
+    original claim after partial progress or interruption.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -1588,6 +1649,9 @@ this design open.
 
 - **A1** — 2026-11-10 — design: smudge installing entries. _Supersedes:_ § 16.2 ¶3.
   _Trigger:_ 1.2 must-stop. _Work:_ 1.2.R. _Revalidated:_ pending → 1.14.
+
+- **A2** — 2026-11-10 — design: retain ownership during path reuse. _Supersedes:_ § 15.2 ¶2.
+  _Trigger:_ 1.6.a must-stop. _Work:_ 1.6.R. _Revalidated:_ pending → 1.14.
 
 - **Amended 2026-11-06, at task generation (Owner-approved).** Grounding the task list against `projection-substrate`
   and `storage-ref-hardening` as shipped (#1247, #1271) and `projection-write-back` at its branch head corrected this

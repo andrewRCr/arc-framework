@@ -346,3 +346,40 @@ The propagation footprint is § 3.1 and § 16.2, the added criterion, Task 1.2.R
 `commitProjectionIndex`, `markOtherCopies`, and the staging callers (`swapBatch`, `seedProjection`). The existing
 performance bounds remain unchanged; Task 1.14 validates the full segment against them and closes A1. The historical
 substrate specification remains unchanged.
+
+## A2 — ownership while a path is reused
+
+The inherited removal rule states: "the next refresh lays the arrival there by the link alone, recording no replaced
+version (§ 3.7); until then the path is empty." `swapBatch` retains the leaving entry for a `relaid` removal, but a new
+entry supplied to `rebuild` becomes `yielded`'s authority if an editor recreates the path before the exclusive link.
+An interruption after the first publication leaves the same ownership question on disk. A stamp cannot decide every
+case, since companions may be unstamped, and an inode alone does not prove which bytes survived a concurrent save.
+
+The production-reference-store regression `refresh-path-reuse.test.ts` renames one cohort, then receives a new cohort
+UID at its former canonical path. Two command starts leave the previous generation's content there. A pending entry
+for the departure does not preserve the uninstalled arrival once the refresh advances its anchor.
+
+A store-version anchor alone supplies no retry for a changed claim with no store write. Retaining the previous
+`projectedUnder` tuple covers a retry toward the same target, but after partial progress A → B → A compares equal
+while the layout can remain mixed: `dropRemovedEntries` drops completed removals and successful swaps clear pending
+marks. A2 therefore writes one `reprojectionPending` bit before the layout changes, independently of tuple equality,
+and clears it with the final tuple only once all desired arrivals for the fresh target are confirmed. No target
+history or list of removed files is needed. Invalidating the state anchor instead would require a full inventory and
+settled archive load on each retry; the flag confines recovery to the reprojection's affected roots. Fresh settings
+still govern rights and capture (`createProjectionLocalCapture` supplies them explicitly), and confirming a single
+handoff does not acknowledge the whole layout.
+
+A2 retains the old anchor while any arrival is unfinished, and journals the arrival inside the leaving entry before
+exclusive installation. The entry stays withheld until the command's end, or recovery before write-back, proves the
+staged inode and rendered blob through a settled stable read. A lost link restores the leaving entry; interrupted or
+changed bytes stay recoverable under both identities rather than being guessed into either record. The existing
+copy-out/delete/reapply route releases ambiguity. The full obligation, including retry, lives in § 15.2 rather than
+this rationale.
+
+The footprint covers § 2.2's pending-root visit, § 3.1's header and entry state, § 10.4's acknowledgment, § 15.2, §
+16.2's forward amendment to the inherited removal rule, criterion 10, and Task 1.6.R. `RecordEntrySchema`, the refresh
+mover, `rebuild`'s caller, the start and end, and materialization carry the correction. Reprojection (Task 1.8),
+`selectProjectedMarkdown`, `readProjectionStatus`, and persist and release (Tasks 2.2 and 2.3) consume it through
+withholding and shared reconciliation; selection gains the withholding check. The index partition seams, ignore
+authority, performance bounds, and historical substrate specification remain unchanged; Task 1.14 closes the segment
+against the added criterion.
