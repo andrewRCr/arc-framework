@@ -10,6 +10,22 @@ export type ProjectionTimingKey = "start" | "fan-out" | "materialization";
 /** A complete recent window whose measured median exceeds its platform's bound. */
 export interface ProjectionTripwire { readonly key: ProjectionTimingKey; readonly medianMs: number; readonly boundMs: number }
 
+/** Complete-operation acceptance limits and the separate raw start notice threshold, in milliseconds. */
+export interface ProjectionPerformanceBounds {
+  readonly start: number;
+  readonly startTripwire: number;
+  readonly oneFileFanOut: number;
+  readonly tenFileFanOut: number;
+  readonly materialization: number;
+}
+
+/** Use each platform's calibrated limits; one fan-out notice uses the ten-file bound. */
+export function projectionPerformanceBounds(platform: NodeJS.Platform = process.platform): ProjectionPerformanceBounds {
+  if (platform === "win32") return { start: 145, startTripwire: 200, oneFileFanOut: 2800, tenFileFanOut: 6000, materialization: 8000 };
+  if (platform === "darwin") return { start: 45, startTripwire: 60, oneFileFanOut: 600, tenFileFanOut: 2800, materialization: 4000 };
+  return { start: 20, startTripwire: 25, oneFileFanOut: 300, tenFileFanOut: 750, materialization: 1500 };
+}
+
 const keys: readonly ProjectionTimingKey[] = ["start", "fan-out", "materialization"];
 const labels: Record<ProjectionTimingKey, string> = { start: "command start", "fan-out": "fan-out", materialization: "full materialization" };
 
@@ -23,8 +39,8 @@ export function recordProjectionTiming(index: ProjectionIndex, key: ProjectionTi
 
 /** Wait for a complete nine-sample median so an isolated stall cannot trigger a notice. */
 export function projectionTripwires(tripwires: ProjectionIndex["tripwires"], platform: NodeJS.Platform = process.platform): readonly ProjectionTripwire[] {
-  const bounds = platform === "win32" ? { start: 120, "fan-out": 600, materialization: 5_000 }
-    : { start: 20, "fan-out": 100, materialization: 1_000 };
+  const limits = projectionPerformanceBounds(platform);
+  const bounds = { start: limits.startTripwire, "fan-out": limits.tenFileFanOut, materialization: limits.materialization };
   return keys.flatMap(key => {
     const values = tripwires[key];
     if (!Array.isArray(values) || values.length !== 9 || !values.every(value => typeof value === "number" && Number.isFinite(value) && value >= 0)) return [];

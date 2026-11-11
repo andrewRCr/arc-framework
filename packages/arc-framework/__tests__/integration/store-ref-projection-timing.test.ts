@@ -24,6 +24,7 @@ import { createProjectionFanOutDependencies } from "../../src/lib/store/projecti
 import { withFanOut } from "../../src/lib/store/projection/with-fan-out.js";
 import { projectionProcessState } from "../../src/lib/store/projection/process-state.js";
 import { parseStampedFile } from "../../src/lib/store/projection/stamp.js";
+import { projectionPerformanceBounds } from "../../src/lib/store/projection/timings.js";
 
 const TIMING_TIMEOUT_MS = 900_000;
 const SAMPLES = 11;
@@ -180,12 +181,6 @@ async function fanOutMedians(fixture: Templates, observer: ProjectionTimingObser
   return { linkedWorktrees: destinations.length, oneFile: await measure(1), tenFiles: await measure(10) };
 }
 
-function windowsAdjusted(measured: ReturnType<typeof medianTiming>, baseline: Awaited<ReturnType<typeof pairedStartMedians>>["baseline"]) {
-  const hostGit = measured.medianGitSingles * baseline.gitSingle.medianMs + measured.medianGitPairs * baseline.gitPair.medianMs;
-  const nominalGit = Math.max(42 * measured.medianGitGroups, baseline.beneathGit.medianMs);
-  return Math.min(measured.medianMs, measured.medianMs - Math.max(0, hostGit - nominalGit));
-}
-
 describe.skipIf(process.env.ARC_STORE_BURSTS !== "1")("native projection timing", () => {
   it("reports eleven-sample starts, cold archive growth, fan-outs, and full materialization", async () => {
     const fixture = await createProjectionTimingTemplates(), directories: string[] = [];
@@ -199,18 +194,18 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1")("native projection timing"
       const { baseline, archive, pairs: archivePairs } = await pairedStartMedians(baselineRoot, archiveRoot, observer);
       const fanOut = await fanOutMedians(fixture, observer, directories);
       const materialization = await materializationMedians(fixture.baseline, fixture.owners, observer, directories);
-      const bounds = process.platform === "win32" ? { start: 60, startTripwire: 120, fanOut: 600, materialization: 5_000 }
-        : { start: 10, startTripwire: 20, fanOut: 100, materialization: 1_000 };
-      const adjusted = Object.fromEntries(Object.entries({ start: baseline.noChange, archiveStart: archive.noChange,
-        oneFile: fanOut.oneFile, tenFiles: fanOut.tenFiles, materialization }).map(([key, value]) => [key,
-        process.platform === "win32" ? windowsAdjusted(value, baseline) : value.medianMs]));
+      const bounds = projectionPerformanceBounds();
+      const rawMediansMs = Object.fromEntries(Object.entries({ start: baseline.noChange, archiveStart: archive.noChange,
+        oneFile: fanOut.oneFile, tenFiles: fanOut.tenFiles, materialization }).map(([key, value]) => [key, value.medianMs]));
+      const gitAdjustment = { status: "not-established", creditMs: 0,
+        reason: "Process counts and baselines do not establish exposed critical-path delay." };
       const result = { platform: process.platform, node: process.version, samples: SAMPLES, bounds,
-        baseline, archive, archivePairs, fanOut, materialization, adjustedMediansMs: adjusted };
+        baseline, archive, archivePairs, fanOut, materialization, rawMediansMs, gitAdjustment, qualifiedMediansMs: rawMediansMs };
       const directory = resolve(import.meta.dirname, "../../.test-cost-runs");
       await mkdir(directory, { recursive: true });
       await writeFile(join(directory, "projection-timing.json"), JSON.stringify(result, null, 2) + "\n");
       console.info(JSON.stringify(result));
-      for (const value of Object.values(adjusted)) { expect(Number.isFinite(value)).toBe(true); expect(value).toBeGreaterThanOrEqual(0); }
+      for (const value of Object.values(rawMediansMs)) { expect(Number.isFinite(value)).toBe(true); expect(value).toBeGreaterThanOrEqual(0); }
     } finally { await removeGitBackedDirs(directories.reverse()); await fixture.cleanup(); }
   }, TIMING_TIMEOUT_MS);
 });

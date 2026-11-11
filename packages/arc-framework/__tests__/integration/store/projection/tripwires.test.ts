@@ -20,6 +20,7 @@ import { createProjectionFanOutDependencies } from "../../../../src/lib/store/pr
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { locateProjection } from "../../../../src/lib/store/projection/location.js";
 import { restoreSyncProjection } from "../../../../src/lib/store/projection/sync-materialization.js";
+import { projectionTripwires } from "../../../../src/lib/store/projection/timings.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 
 const faults = vi.hoisted(() => ({ header: "", cleanup: "" }));
@@ -52,15 +53,32 @@ it("shows each crossed recent median in structured status and its human summary"
     index: { ...h.index, tripwires: { start: Array(9).fill(10_000), "fan-out": Array(9).fill(10_000), materialization: Array(9).fill(10_000) } },
     checkpoint: session.step }));
   const status = await readProjectionStatus({ store: h.store, checkout: h.checkout, location: h.location });
-  const windows = process.platform === "win32";
+  const bounds = process.platform === "win32" ? { start: 200, fanOut: 6000, materialization: 8000 }
+    : process.platform === "darwin" ? { start: 60, fanOut: 2800, materialization: 4000 }
+      : { start: 25, fanOut: 750, materialization: 1500 };
   expect(status).toMatchObject({ kind: "ready", tripwires: [
-    { key: "start", medianMs: 10_000, boundMs: windows ? 120 : 20 },
-    { key: "fan-out", medianMs: 10_000, boundMs: windows ? 600 : 100 },
-    { key: "materialization", medianMs: 10_000, boundMs: windows ? 5_000 : 1_000 },
+    { key: "start", medianMs: 10_000, boundMs: bounds.start },
+    { key: "fan-out", medianMs: 10_000, boundMs: bounds.fanOut },
+    { key: "materialization", medianMs: 10_000, boundMs: bounds.materialization },
   ] });
   const summary = buildProjectionStatusSummary(status);
   expect(summary).toContain("command start"); expect(summary).toContain("fan-out"); expect(summary).toContain("full materialization");
   expect(summary).toContain("10000.0 ms");
+});
+
+it.each([
+  ["linux", { start: 25, "fan-out": 750, materialization: 1500 }],
+  ["win32", { start: 200, "fan-out": 6000, materialization: 8000 }],
+  ["darwin", { start: 60, "fan-out": 2800, materialization: 4000 }],
+] satisfies [NodeJS.Platform, Record<"start" | "fan-out" | "materialization", number>][])("uses %s raw notice boundary without discounting or reporting equality", (platform, bounds) => {
+  const at = { start: Array(9).fill(bounds.start), "fan-out": Array(9).fill(bounds["fan-out"]), materialization: Array(9).fill(bounds.materialization) };
+  expect(projectionTripwires(at, platform)).toEqual([]);
+  const above = { start: Array(9).fill(bounds.start + 1), "fan-out": Array(9).fill(bounds["fan-out"] + 1), materialization: Array(9).fill(bounds.materialization + 1) };
+  expect(projectionTripwires(above, platform)).toEqual([
+    { key: "start", medianMs: bounds.start + 1, boundMs: bounds.start },
+    { key: "fan-out", medianMs: bounds["fan-out"] + 1, boundMs: bounds["fan-out"] },
+    { key: "materialization", medianMs: bounds.materialization + 1, boundMs: bounds.materialization },
+  ]);
 });
 
 it("records the start after both file observations and its changed-record refresh", async () => {
@@ -124,7 +142,7 @@ it.each([
   ["a single measurement", [10_000]],
   ["eight high measurements", Array(8).fill(10_000)],
   ["one isolated stall", [...Array(8).fill(0), 10_000]],
-  ["a median exactly at the bound", Array(9).fill(process.platform === "win32" ? 120 : 20)],
+  ["a median exactly at the bound", Array(9).fill(process.platform === "win32" ? 200 : process.platform === "darwin" ? 60 : 25)],
 ] satisfies [string, number[]][])("keeps %s quiet", async (_scenario, samples) => {
   const h = await createEngineFixture(directories);
   await withProjectionLock(h.location, session => commitProjectionIndex({ location: h.location, checkout: h.checkout,

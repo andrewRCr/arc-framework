@@ -693,3 +693,11 @@ reader lifetimes, publication ordering, and notice semantics. Source comparison 
 and all correction before 1.14, and its reporting rule supplies no unmeasured Git credit. Lease, save-preservation,
 ownership handoff, and sequential-locking obligations remain. The selected author-only review adds no independent pass
 record.
+
+Implementation follow-through centralizes the limits in `projectionPerformanceBounds`, consumed by `projectionTripwires`
+and the native timing report. Behavioral red run `6ed4e7abf153451a8f2c2e0e9c89ab36` rejected the old notice boundaries;
+green run `fe8ae10e7d8e47059404a88960d28a2b` passed all 19 timing/status/publication cases. Native report run
+`e94e514dba404f4a9bd60eda0efbaa6d` measured 14.73/15.50 ms starts, 211.03/574.17 ms fan-outs, and 1160.70 ms
+materialization on M5. Its limits are the calibrated Linux values, its Git credit is explicitly zero and not
+established, and every qualified median equals its raw median. These are incremental implementation checks, not segment
+or work-unit verification.

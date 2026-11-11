@@ -201,7 +201,7 @@ that chunk.
 - _Outcome:_ Native linked-worktree cases over the reference backend assert exact current files, both named cohort
   copies, exact `mine`, `cohort`, and `all` in-flight inventories with a pinned peer, and no other active-root entries.
 
-### `[ ]` **1.12 The no-change budget and the tripwires — § 15.3, § 15.4, § 15.5**
+### `[x]` **1.12 The no-change budget and the tripwires — § 15.3, § 15.4, § 15.5**
 
 - _Goal:_ A command with nothing changed spends at most 10 ms on Linux and macOS and 60 ms on Windows in the projection,
   its folder walk, index read, and stats running while its two Git calls do, and each tripwire shows only when the
@@ -209,104 +209,12 @@ that chunk.
 
 - _Amended in:_ 1.12.R (A4)
 
-- **Additional Context:** `notes-projection-worktrees.md` § Spike 2, § Tripwire timings
+    - `[x]` **1.12.a The start's cost**
 
-    - `[ ]` **1.12.a The start's cost**
-
-        - The start issues its two Git calls — the store's `version()` and the one configuration read
-          (`readProjectionConfiguration`) — before its folder walk (`startUnderLease`), which runs while they do, and
-          with 1.3's actor makes no other. This task brings it within the budget by the three rules below, with the
-          index 1.6.a has the start hold from its sweep (spec § 15.3), measures it, and builds no folder-time cache. A
-          fresh guard pass in the sweep's ignore check adds a configuration re-read, only when an ignore file may have
-          changed.
-        - A step of the projection lock (`withProjectionLock`'s `step`, `lib/store/projection/lock.ts`) confirms
-          ownership on disk only when due — once the lease's last confirmed deadline lies within one renewal interval
-          (`ADVISORY_LEASE_RENEW_INTERVAL_MS`), as the lease's own retry limit reads it, or once the heartbeat has found
-          the lease lost — and otherwise returns at once. The lease (`withRenewableLease`, `lib/renewable-lease.ts`)
-          gains that due check beside `confirmOwnership`, which build ownership keeps calling
-          (`withBuildArtifactOwnership`, `lib/build-ownership.ts`), so every one of its calls still confirms on disk.
-          Each step renews on disk today (`renewAdvisoryLock`, `lib/advisory-lock.ts`), and the start takes one before
-          each file's change check (`checkFileAtPath`, `lib/store/projection/engine-files.ts`), a fan-out and a
-          materialization several per file they replace (`swapBatch`, `lib/store/projection/swap.ts`)
-          (`notes-projection-worktrees.md` § Spike 2).
-        - The start's folder walk (`walkProjectionRoots`, `lib/store/projection/engine-walk.ts`) reads each folder with
-          its entries' types, synchronously, as the walk in `notes-projection-worktrees.md` § Spike 2 did on both
-          platforms, stats no entry, and yields to the event loop between folders: the store's `version()` reaches its
-          Git process through asynchronous steps (`lazyStore`, `lib/store/create.ts`; the backend's read coordinator,
-          `lib/store/ref/read-operation.ts`) that a walk run in one piece holds back until it ends, which on the Windows
-          runner added the walk, the index read, and the stats to the Git calls, 110 ms against 75 ms
-          (`notes-projection-worktrees.md` § Spike 5). The start issues both Git calls, then, while they run, reads the
-          index's header, its walked roots' partitions, and those the header marks (1.2), walks the shared roots, and
-          the personal roots once the configuration read returns the identity, and stats each file it walked —
-          synchronously on Linux, which Spike 2 found fastest there, and on macOS, which follows Linux untested, and
-          through a pool of 32 concurrent stats on Windows. Today the walk awaits an `lstat` per entry, the index is
-          read once both Git calls return, and the change checks (`checkChange`,
-          `lib/store/projection/change-detection.ts`) each await their own `lstat` (`readStat`), one file after another,
-          after the sweep (`writeBackProjectionFiles`). `checkChange` takes a stat already observed; the change checks
-          use the start's stat of each file it walked where the sweep found the aside folder empty (`sweepAsideFolder`'s
-          `swept` and `left`), and stat again after the sweep otherwise, since a copy it takes over changes its file, as
-          the re-read after the sweep does today. The walk's seam (`ProjectionWalkFs`) becomes synchronous, a test's
-          fault double still replacing it, and the start's test of that order
-          (`__tests__/integration/store/projection/engine.test.ts`) observes both calls issued before the walk begins
-          and, over a store that reaches its Git call through asynchronous steps, that call made before the walk's last
-          folder, and keeps its check that the personal roots' walk follows the identity. The link-boundary read the
-          walk itself makes of its roots before it walks (`walkProjectionRoots`, passing its seam to
-          `readProjectionLinkBoundary`), and the end's link re-observation, which takes the walk's seam today
-          (`finishProjectionRoot`), keep an asynchronous `lstat` port of their own (`readProjectionLinkBoundary`'s
-          `ProjectionLinkFs`, `lib/store/projection/discovery-links.ts`).
-        - The command's end (`finishProjectionRoot`, `lib/store/projection/engine-end.ts`) takes no lock in a root where
-          the command made no aside copy and removed no file (the root's `copies` and `removals`), sent nothing to the
-          store, and records no fan-out time (1.12.b), and whose start's sweep found the aside folder empty, which the
-          root records (`sweepAsideFolder`'s `swept` and `left`). A send counts whatever it met, since the taken-in copy
-          it keeps (`recordPendingWriteBack`, `lib/store/projection/taken-in.ts`) is one the end's collection may remove
-          (`removeTakenInCopies`); one an earlier command left waits for the next end that runs. Today the end takes the
-          lock and writes the index in every ready root, `runSecondCheck` (`lib/store/projection/second-check.ts`)
-          committing it whatever it settled.
-        - A timing suite, `__tests__/integration/store-ref-projection-timing.test.ts`, run only where `ARC_STORE_BURSTS`
-          is set, as `store-ref-timing.test.ts` is, times the no-change start over `createRefStore` in a prepared
-          repository (`__tests__/helpers/prepared-repository.ts`) at this repository's size — about 800 projected files,
-          `backlog/`'s folders holding about two files each as this repository's do — taking the median of eleven runs,
-          and reports beside it the time of the work beneath its Git calls, the start's index read, walk, and stats run
-          alone, the medians of its two Git calls run at once alone and of one Git call alone in the same repository,
-          and for each path it times the Git calls it made, counted through the exec ports it passes the store and the
-          engine, calls that ran at once counting as one, so each Windows median is read as Success Criterion 4 reads it
-          (spec § 15.3, § 15.4; `notes-projection-worktrees.md` § Spike 5). It reports its medians rather than asserting
-          the budget, since hosted runners' timing varies; a dispatched run of the portability pair and one of the Linux
-          `portability` job record them in `notes-projection-worktrees.md`, read against the budget at 1.14 and at
-          verification. It registers by its file name where `store-ref-timing.test.ts` does, so its medians are taken
-          with nothing else running: in Vitest's `integration-timing` project, which runs one worker after the parallel
-          group, and out of the plain integration project (`vitest.config.ts`, where `timingTest` names one file); in
-          `PORTABILITY_SUITES` (`lib/local-vitest-runner.ts`); in the `ARC_STORE_BURSTS` environment entry of
-          `__tests__/reach/store-suites.json`, and in that file's `locating` list with no finds, as that suite's entry
-          is, since it writes its medians under `.test-cost-runs` and prints them, as that suite does, a folder whose
-          path it builds from its own location (`lib/vitest-reach.ts`); and among the file names
-          `store-ref-timing-isolation.test.ts` checks for overlap.
-        - The same suite times the no-change start again with about 60,000 entries' files in `completed/` across its
-          quarters, reporting its median beside the first, which the start's partition reads keep within noise of it,
-          since a command reads no settled archive quarter's partition (1.2; spec § 15.3).
-        - The same suite times, over `createRefStore` with the same median, a one-file write's fan-out of a record that
-          is not a primary, one in `backlog/`, whose partition is the largest an ordinary write rewrites, and a ten-file
-          write's, into 20 linked worktrees, and a full materialization at this repository's size, reporting each
-          against its tripwire's bound (1.12.b), and the same runs record them.
-        - The two shipped tests that lose the lease through a step's lockfile read — the failed step confirmation in
-          `__tests__/unit/store/projection/lock.test.ts` and the marker-mapping recovery in
-          `__tests__/integration/store/projection/engine-copy-rendering.test.ts` — keep their cases by advancing the
-          lock's clock into the renewal window at the fault, so the step is due and reads the lockfile.
-        - Build `test-first` (one behavior at a time):
-            - a step far from its lease's deadline touches no lockfile, and one within a renewal interval of it renews
-              on disk
-            - once the heartbeat finds the lockfile naming another holder, the next step ends the operation
-            - build ownership still confirms on disk at every call
-            - the walk and the change checks find the same files, links, and changes through the synchronous and the
-              pooled stat, and a fault the walk's seam injects still surfaces
-            - with the store's Git call held open, the start reads the index's header, its walked partitions, and the
-              marked ones, walks, and stats every walked file before the call returns
-            - where the sweep took over a copy, the change check of its file uses a stat taken after the sweep
-            - the end takes no lock in a root with nothing to settle, and takes it where the command made a copy,
-              removed a file, sent a file, or records a fan-out time, or where the start's sweep found a copy
-            - a command with nothing changed takes one projection lock and writes its index header and reference once,
-              and no partition where no stat moved, after its change checks and refresh, the start's measurement
-              covering both
+        - The start overlaps its two Git calls with the yielding synchronous hot-root walk, shared index read, and
+          platform stats. Due-only lease steps, empty-aside pruning, and an empty end avoid redundant disk work. The
+          native suite records interleaved standard/expanded starts and complete fan-outs and materialization on all
+          three references; the effective numerical bounds and raw evidence are in A4.
 
     - `[x]` **1.12.b The tripwires**
 
@@ -317,40 +225,32 @@ that chunk.
           failed publication retains pending samples, while later cleanup failure cannot duplicate them on retry.
           Deleted-file restoration preserves full-materialization history, and unprojected writers record no sample.
 
-### `[ ]` **1.12.R Calibrate complete operations on each platform — A4**
+### `[x]` **1.12.R Calibrate complete operations on each platform — A4**
 
 - _Goal:_ Implement A4's platform-specific complete-operation bounds, preserve raw measurements and cold archives,
   and keep sequential sibling visits and durable recovery ordering.
 
-- **Additional Context:** `notes-projection-worktrees.md` § A4; specification § 15.3, § 15.4, and criterion 11.
+    - `[x]` **1.12.R.a Align declared and runtime bounds**
 
-    - `[ ]` **1.12.R.a Align declared and runtime bounds**
+        - `projectionPerformanceBounds` supplies each platform's separate start budget/tripwire, one-file and ten-file
+          fan-out limits, and materialization bound. Runtime notices use the ten-file fan-out figure and retain raw
+          nine-sample medians; native status, publication retry, and all three platform boundaries remain covered.
 
-        - Add `projectionPerformanceBounds` in `lib/store/projection/timings.ts` as the shared numeric source for the
-          external timing report and `projectionTripwires`: separate no-change budget and start tripwire, one-file and
-          ten-file fan-out acceptance limits, one fan-out tripwire, and materialization. Use the exact three-platform
-          tables in § 15.3 and § 15.4. Retain raw nine-sample notices and their command/status behavior.
-        - Build `test-first`: a raw median between the previous and amended bound produces no notice, one above the
-          amended bound does, equality remains quiet, and fewer than nine samples remain quiet, on each platform.
-          Extend `__tests__/integration/store/projection/tripwires.test.ts` at the existing time boundary; retain its
-          publication, retry, and status cases.
+    - `[x]` **1.12.R.b Report qualification without unsupported Git credit**
 
-    - `[ ]` **1.12.R.b Report qualification without unsupported Git credit**
+        - The native report shares the runtime declaration and retains every raw sample, paired archive comparison,
+          and Git/filesystem baseline. It reports exposed Git credit as not established, with zero credit and qualified
+          medians equal to raw medians; the process-count startup subtraction is removed.
 
-        - In `store-ref-projection-timing.test.ts`, report all raw operation medians, the separate acceptance limits,
-          the platform and Node version, same-run Git single/pair and beneath-Git medians, and whether any exposed
-          host-Git excess is established. Remove `windowsAdjusted`'s process-count startup subtraction: counts alone
-          establish no credit, so this suite reports zero credit and qualifies on raw time. Keep the interleaved
-          standard/expanded pairs, full-round external timers, real destination checks, and complete materialization.
-          The bounds come from `projectionPerformanceBounds`; this reporting suite continues to report timings rather
-          than asserting that a variable host meets the reference bounds.
+    - `[x]` **1.12.R.c Reconcile the measured evidence with the revised criterion**
 
-    - `[ ]` **1.12.R.c Reconcile the measured evidence with the revised criterion**
+        - The three same-build named references, slower repeats, and bounded archive probe remain in
+          `notes-projection-worktrees.md` § A4. Their raw calibration medians fit the declared platform limits, and the
+          unreadable settled-partition check remains. No criterion checkbox is attested by this calibration.
 
-        - Record the exact source head, named Linux/Windows/macOS references, all raw medians, and per-path comparison
-          with criterion 11. Preserve the paired cold-archive evidence and the invalid-partition check. At 1.14 use
-          criterion 11 in place of the superseded criterion 4 and the original numerical clause of 1.12's Goal; keep
-          its complete-operation boundary and archive-independence obligation. Do not reopen sibling scheduling.
+- _Outcome:_ Complete-operation acceptance and raw runtime notices now share one platform declaration, with separate
+  one-file/ten-file limits and no unsupported Git credit. The original Goal and criterion remain as the superseded
+  record; criterion 11 carries the effective performance obligation without changing sibling scheduling.
 
 ### `[ ]` **1.13 Hold saves through bursts across processes — § 1.5**
 
@@ -385,6 +285,9 @@ that chunk.
 
 - _Goal:_ The segment's exit criterion holds across real worktrees on a freshly merged base.
 
+    - Apply A4's criterion 11 and its platform tables in place of the superseded criterion 4 and Task 1.12's original
+      numerical Goal: check one-file and ten-file fan-out separately, retain the paired archive comparison, and keep
+      raw tripwire notices distinct from complete external-operation measurements.
     - Re-run 1.6.R's ownership-handoff recovery scenarios against criterion 10, including a reused path's arriving
       generation, an interrupted unstamped save, and continuation after the withheld bytes are deleted.
     - Merge base into the branch (append-only); run `npm ci` first if the merge changed `package-lock.json`.
