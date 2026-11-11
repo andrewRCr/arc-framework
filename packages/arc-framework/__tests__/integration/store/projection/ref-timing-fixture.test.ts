@@ -64,3 +64,31 @@ it("decodes, materializes, and writes the baseline and expanded native datasets"
     expect(archiveViews[0]).toEqual(archiveViews[1]);
   } finally { await removeGitBackedDirs(roots); await fixture.cleanup(); }
 }, NATIVE_FIXTURE_TIMEOUT_MS);
+
+it("counts one native Git process for two exchanges through the same persistent reader", async () => {
+  const { createRefTestRepository } = await import("../../../helpers/store/ref-plant.js");
+  const { ProjectionTimingObserver } = await import("../../../helpers/store/projection/timing-observer.js");
+  const { GitBatchReadScope } = await import("../../../../src/lib/git/batch-reader.js");
+  const repository = await createRefTestRepository("files", "sha1");
+  try {
+    const observer = new ProjectionTimingObserver(), client = observer.client(repository.root);
+    const head = new TextDecoder().decode((await client.ports.rawExec(["rev-parse", "HEAD"])).stdout).trim();
+    const reader = new GitBatchReadScope();
+    const measured = await observer.measure(async () => {
+      try {
+        const responses = [];
+        for (let i = 0; i < 2; i++) responses.push(await client.ports.rawExec(["cat-file", "--batch"], {
+          input: Buffer.from(`${head}\n`), objectAccess: "local-only", batchReader: reader,
+        }));
+        return responses;
+      } finally { await reader.close(); }
+    });
+    for (const response of measured.value) expect(new TextDecoder().decode(response.stdout)).toMatch(new RegExp(`^${head} commit `, "u"));
+    expect(measured.sample.gitCalls).toBe(1);
+    expect(measured.sample.gitRequests).toBe(2);
+    const separate = await observer.measure(async () => {
+      await client.ports.rawExec(["for-each-ref"]); await client.ports.rawExec(["for-each-ref"]);
+    });
+    expect(separate.sample.gitCalls).toBe(2);
+  } finally { await repository.cleanup(); }
+}, NATIVE_FIXTURE_TIMEOUT_MS);
