@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "errand-response-refusals",
+  "claimId": "5a9fbf3ef13494701783e645a837e609",
+  "createdAt": "2026-11-11T22:00:00.009Z",
+  "updatedAt": "2026-11-11T22:00:00.009Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Refuse Errand review responses outside the owning branch and explain response-before-fix ordering",
+  "branch": "chore/errand-response-refusals",
+  "origin": "inbox",
+  "originEntry": "Refuse an off-branch Errand review response, and name the order when the fix was committed first",
+  "originEntrySourceDigest": "sha256:0a133c411d58393cd304b4158e7355b53bb4b2dcc6053ed951cb9ac566630d66",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
