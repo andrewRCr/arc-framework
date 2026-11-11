@@ -1,17 +1,28 @@
 /** Durable retry cleanup for Errand close checkout locks. */
 
-import { describe, expect, it } from "vitest";
+import { mkdtemp, mkdir, rm, access } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { scriptGitExec } from "../../helpers/git-exec-fake.js";
 import {
+  acquireErrandCloseBranchDeletionHeadLocks,
   acquireErrandCloseHeadLock,
   recoverFinalizedErrandCloseHeadLock,
   type CloseHeadLockFileIO,
 } from "../../../src/lib/errand/close-head-lock.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 
-const CHECKOUT = "/repo";
-const LOCK_PATH = "/repo/.git/HEAD.lock";
+let CHECKOUT: string;
+let LOCK_PATH: string;
+
+beforeEach(async () => {
+  CHECKOUT = await mkdtemp(join(tmpdir(), "arc-close-head-lock-"));
+  LOCK_PATH = join(CHECKOUT, ".git", "HEAD.lock");
+});
+afterEach(async () => { await rm(CHECKOUT, { recursive: true, force: true }); });
 
 function errno(message: string, code: string): Error & { code: string } {
   return Object.assign(new Error(message), { code });
@@ -22,7 +33,7 @@ function fakeGit(): GitExec {
     { match: ["worktree", "list", "--porcelain", "-z"],
       responses: [{ stdout: `worktree ${CHECKOUT}\0HEAD ${"a".repeat(40)}\0branch refs/heads/main\0\0`, stderr: "" }] },
     { match: ["rev-parse", "--git-path", "HEAD"],
-      responses: [{ stdout: "/repo/.git/HEAD\n", stderr: "" }] },
+      responses: [{ stdout: `${join(CHECKOUT, ".git", "HEAD")}\n`, stderr: "" }] },
   ]).exec;
 }
 
@@ -146,7 +157,8 @@ describe("Errand close HEAD lock", () => {
     expect(runtime.files.has(LOCK_PATH)).toBe(true);
   });
   it("recovers only the selected claim's receipts when two Errands share a slug", async () => {
-    const runtime = fakeFileIO(), otherCheckout = "/other";
+    const runtime = fakeFileIO(), otherCheckout = join(CHECKOUT, "other");
+    await mkdir(otherCheckout);
     const exec = scriptGitExec([
       { match: ["worktree", "list", "--porcelain", "-z"], responses: [{ stdout:
         `worktree ${CHECKOUT}\0HEAD ${"a".repeat(40)}\0branch refs/heads/main\0\0worktree ${otherCheckout}\0HEAD ${"a".repeat(40)}\0branch refs/heads/chore/done\0\0`, stderr: "" }] },
@@ -161,6 +173,85 @@ describe("Errand close HEAD lock", () => {
       .toEqual({ kind: "recovered" });
     expect(runtime.files.has(LOCK_PATH)).toBe(false);
     expect(runtime.files.get(otherLock)).toBe(otherReceipt);
+  });
+
+  function topologyGit(options: {
+    missingBranch?: string;
+    onScan?: (scan: number, missingPath: string) => Promise<void>;
+    headFailure?: () => boolean;
+  } = {}): GitExec {
+    let scan = 0;
+    const missingPath = join(CHECKOUT, "missing");
+    return scriptGitExec([
+      { match: ["worktree", "list", "--porcelain", "-z"], responses: [async () => {
+        await options.onScan?.(++scan, missingPath);
+        return { stdout: `worktree ${CHECKOUT}\0HEAD ${"a".repeat(40)}\0branch refs/heads/main\0\0`
+          + `worktree ${missingPath}\0HEAD ${"a".repeat(40)}\0`
+          + (options.missingBranch === undefined ? "detached\0" : `branch refs/heads/${options.missingBranch}\0`)
+          + "prunable gitdir file points to non-existent location\0\0", stderr: "" };
+      }] },
+      { match: ["rev-parse", "--git-path", "HEAD"], responses: [async (call) => {
+        await access(call.options?.cwd ?? "");
+        if (options.headFailure?.()) throw new Error("cannot read HEAD");
+        return { stdout: `${call.options?.cwd}/.git/HEAD\n`, stderr: "" };
+      }] },
+    ]).exec;
+  }
+
+  it.each([undefined, "chore/done"])("locks live checkouts while ignoring a missing registration on %s", async (missingBranch) => {
+    const runtime = fakeFileIO();
+    const lease = await acquireErrandCloseBranchDeletionHeadLocks({
+      exec: topologyGit(missingBranch === undefined ? {} : { missingBranch }),
+      identity: { slug: "done", claimId: "c".repeat(32) }, branch: "chore/done", guard: null,
+      fileIO: runtime.fileIO,
+    });
+    expect(lease.kind).toBe("acquired");
+    if (lease.kind !== "acquired") throw new Error(JSON.stringify(lease));
+    expect([...runtime.files.keys()]).toEqual([LOCK_PATH]);
+    await lease.release();
+    expect(runtime.files.size).toBe(0);
+  });
+
+  it("recovers a live checkout's receipt while an unrelated registered folder is missing", async () => {
+    const runtime = fakeFileIO();
+    await acquire(runtime);
+    expect(await recoverFinalizedErrandCloseHeadLock({
+      exec: topologyGit(), slug: "done", fileIO: runtime.fileIO,
+    })).toEqual({ kind: "recovered" });
+    expect(runtime.files.size).toBe(0);
+  });
+
+  it("refuses a missing registration restored during locking, then permits a retry after removal", async () => {
+    const runtime = fakeFileIO();
+    const options = { identity: { slug: "done", claimId: "c".repeat(32) }, branch: "chore/done",
+      guard: null, fileIO: runtime.fileIO };
+    const refused = await acquireErrandCloseBranchDeletionHeadLocks({ ...options,
+      exec: topologyGit({ onScan: async (scan, missingPath) => { if (scan === 3) await mkdir(missingPath); } }),
+    });
+    expect(refused).toMatchObject({ kind: "refused", message: expect.stringContaining("topology changed") });
+    expect(runtime.files.size).toBe(0);
+    await rm(join(CHECKOUT, "missing"), { recursive: true });
+    const retried = await acquireErrandCloseBranchDeletionHeadLocks({ ...options, exec: topologyGit() });
+    expect(retried.kind).toBe("acquired");
+    if (retried.kind === "acquired") await retried.release();
+    expect(runtime.files.size).toBe(0);
+  });
+
+  it("names a live checkout's HEAD-path failure and repair before a successful retry", async () => {
+    const runtime = fakeFileIO();
+    let failed = true;
+    const options = { exec: topologyGit({ headFailure: () => failed }), checkoutPath: CHECKOUT,
+      identity: { slug: "done", claimId: "c".repeat(32) },
+      revalidate: async () => ({ kind: "valid" as const }), fileIO: runtime.fileIO };
+    const refusal = await acquireErrandCloseHeadLock(options);
+    expect(refusal).toMatchObject({ kind: "error", message: expect.stringContaining(CHECKOUT) });
+    expect(refusal).toMatchObject({ message: expect.stringContaining("retry") });
+    expect(runtime.files.size).toBe(0);
+    failed = false;
+    const retried = await acquireErrandCloseHeadLock(options);
+    expect(retried.kind).toBe("acquired");
+    if (retried.kind === "acquired") await retried.release();
+    expect(runtime.files.size).toBe(0);
   });
 
 });

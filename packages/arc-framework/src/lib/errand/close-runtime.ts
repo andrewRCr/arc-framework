@@ -385,7 +385,7 @@ export async function cleanupOrdinaryErrandRefs(
       if (!roster.ok) {
         return { kind: "refused" as const, message: `Local Errand branch occupancy cannot be proven: ${roster.message}` };
       }
-      const occupied = roster.worktrees.find((worktree) => worktree.branch === target.record.branch);
+      const occupied = roster.worktrees.find((worktree) => worktree.folderPresent && worktree.branch === target.record.branch);
       return occupied === undefined
         ? { kind: "authorized" as const }
         : { kind: "refused" as const, message: `Local Errand branch is checked out by registered worktree '${occupied.path}'.` };
@@ -425,7 +425,7 @@ function createPostSettlementCloseGuard(
   const revalidate: CloseAuthorityGuard["revalidate"] = async () => {
     const roster = await scanRegisteredWorktrees(exec);
     if (!roster.ok) return { kind: "error", message: roster.message };
-    const occupied = roster.worktrees.find((worktree) => worktree.branch === target.record.branch);
+    const occupied = roster.worktrees.find((worktree) => worktree.folderPresent && worktree.branch === target.record.branch);
     return occupied === undefined
       ? { kind: "valid" }
       : {

@@ -192,7 +192,7 @@ export async function reapZeroDeltaBranch(
     if (preparation !== undefined) return preparation;
     const roster = await scanRegisteredWorktrees(inPrimary);
     if (!roster.ok) return { kind: "preserved", reason: roster.message };
-    if (roster.worktrees.some((worktree) => worktree.branch === record.branch)) return { kind: "preserved", reason: "the branch is checked out in a registered worktree" };
+    if (roster.worktrees.some((worktree) => worktree.folderPresent && worktree.branch === record.branch)) return { kind: "preserved", reason: "the branch is checked out in a registered worktree" };
     const head = await resolveOptionalCommit(inPrimary, `refs/heads/${record.branch}`);
     if (head.kind === "error") return { kind: "preserved", reason: head.message };
     if (workItem !== null) {
