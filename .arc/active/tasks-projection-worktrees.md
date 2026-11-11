@@ -193,15 +193,13 @@ that chunk.
 - _Outcome:_ A real linked-worktree regression holds the existing `.arc/` exclusion under a broad include pattern:
   projected `active/current/` files and machine-local configuration stay out while `.env` is copied.
 
-### `[ ]` **1.11 The isolation invariant and its test — § 10.5**
+### `[x]` **1.11 The isolation invariant and its test — § 10.5**
 
 - _Goal:_ An integration test holds "`active/current/` holds only this checkout's work item": a worktree spawned for a
   work unit holds exactly that work unit's files and a copy of each cohort document it names in `active/current/`,
   exactly the selected views in `active/in-flight/`, and nothing else at `active/`'s top level.
-
-    - Over the reference backend: a linked worktree created from base and marked for a work unit as a spawn marks it,
-      then materialized (1.5); it asserts the layout the documentation states and adds no guard on today's flat layout.
-      `cutover-documentation` rewrites the strategy's acceptance test to match.
+- _Outcome:_ Native linked-worktree cases over the reference backend assert exact current files, both named cohort
+  copies, exact `mine`, `cohort`, and `all` in-flight inventories with a pinned peer, and no other active-root entries.
 
 ### `[ ]` **1.12 The no-change budget and the tripwires — § 15.3, § 15.4, § 15.5**
 

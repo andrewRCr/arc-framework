@@ -7,7 +7,7 @@ import { PRODUCTION_REGISTRATIONS } from "../../../../src/lib/store/kinds/regist
 import { Command } from "commander";
 import { registerProjectionHooks } from "../../../../src/lib/store/projection/command-hooks.js";
 import { materializeSpawnedProjection } from "../../../../src/lib/store/projection/spawn-materialization.js";
-import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
@@ -324,6 +324,49 @@ it("materializes cohort canonical documents and both copies named by its own met
     [".arc/active/current/cohort-parent.md", parent],
     [".arc/active/current/cohort-child.md", child],
   ] as const) expect(parseStampedFile(await readFile(join(target.checkout, path), "utf8")).content).toBe(record.content);
+});
+
+it.each(["mine", "cohort", "all"])("isolates a spawned worktree's current files and exact %s in-flight view", async mode => {
+  const target = await fixture();
+  success(await target.h.store.write(update(target.h, target.primary, makeMetaFixture("work-item-one", {
+    owner: "andrew", state: "Active", workClass: "Light", priority: "P1", currentWorkflow: "process-task-loop", cohort: "parent/child" }))));
+  const cohorts = await Promise.all([
+    seed(target.h, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "parent" })), cohortDoc("parent").content),
+    seed(target.h, recordReferences["cohort/document"](OwnerIdentitySchema.parse({ type: "cohort", name: "child" })), cohortDoc("child", "parent").content),
+  ]);
+  const ownFiles = [
+    ["work-item/task-list", "tasks-work-item-one.md"],
+    ["work-item/draft", "draft-work-item-one.md"],
+    ["work-item/spec", "spec-work-item-one.md"],
+    ["work-item/inbound", "inbound-work-item-one.md"],
+  ] as const;
+  await Promise.all(ownFiles.map(([kind]) => seed(target.h, recordReferences[kind](target.primary.reference.owner))));
+  for (const [name, owner, cohort] of [
+    ["owned-peer", "andrew", null], ["cohort-peer", "jane", "parent/child"],
+    ["pinned-peer", "jane", null], ["outside-peer", "jane", null],
+  ] as const) {
+    const identity = OwnerIdentitySchema.parse({ type: "work-item", name });
+    await seed(target.h, recordReferences["work-item/meta"](identity), makeMetaFixture(name, {
+      owner, state: "Active", workClass: "Light", priority: "P1", currentWorkflow: "process-task-loop", cohort }));
+    await seed(target.h, recordReferences["work-item/notes"](identity), `Notes for ${name}.\n`);
+  }
+  await target.h.exec("git", ["config", "arc.inflightView", mode], { cwd: target.checkout });
+  await target.h.exec("git", ["config", "--add", "arc.inflightPin", "pinned-peer"], { cwd: target.checkout });
+  const configuration = await readProjectionConfiguration(target.ports.exec, target.checkout);
+  expect(await materialize({ ...target, configuration })).toMatchObject({ status: "done", value: { kind: "materialized" } });
+
+  const active = join(target.checkout, ".arc/active"), current = join(active, "current"), inFlight = join(active, "in-flight");
+  expect((await readdir(active)).sort()).toEqual(["current", "in-flight"]);
+  expect((await readdir(current)).sort()).toEqual([
+    "meta-work-item-one.md", "notes-work-item-one.md", "cohort-parent.md", "cohort-child.md", ...ownFiles.map(([, name]) => name),
+  ].sort());
+  expect(parseStampedFile(await readFile(join(current, "notes-work-item-one.md"), "utf8")).content).toBe(target.h.record.content);
+  for (const record of cohorts) expect(parseStampedFile(await readFile(join(current, `cohort-${record.reference.owner.name}.md`), "utf8")).content)
+    .toBe(record.content);
+  const selected = mode === "all" ? ["owned-peer", "cohort-peer", "pinned-peer", "outside-peer"]
+    : [mode === "mine" ? "owned-peer" : "cohort-peer", "pinned-peer"];
+  expect((await readdir(inFlight)).sort()).toEqual(selected.sort());
+  for (const name of selected) expect((await readdir(join(inFlight, name))).sort()).toEqual([`meta-${name}.md`, `notes-${name}.md`]);
 });
 
 
