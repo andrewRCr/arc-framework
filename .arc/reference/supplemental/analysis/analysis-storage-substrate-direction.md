@@ -958,8 +958,8 @@ commits.
   GitHub push and fetch of `refs/arc/*` on this repository's `origin`; user sync's recency resolution of same-entry
   edits.
 - **§ 11 comes from the spike and research records;** its figures are transcribed from them, not re-run for this
-  update. The spikes' scripts and raw results were not kept, apart from the concurrency workload extracts and the
-  editor spike's build scripts. Checked directly for this update: the `git show <head>:<path>` read in
+  update. The spikes' scripts and raw results were not kept, apart from the concurrency workload's scripts and
+  extracts and the editor spike's build scripts. Checked directly for this update: the `git show <head>:<path>` read in
   `candidate-response-confirmation.ts`, this repository's pack size and commit counts by ref family, and that each
   external source added below resolves.
 - **Measured once, on one setup:** the spikes ran on one Linux machine under WSL2, one Windows 11 machine, and one

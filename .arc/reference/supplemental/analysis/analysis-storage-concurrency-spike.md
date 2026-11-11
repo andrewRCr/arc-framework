@@ -7,8 +7,8 @@ against the bar [the storage analysis][storage-analysis] set for concurrency (§
 
 **State:** Point-in-time record of runs on 2026-09-24 and 2026-09-25. The storage analysis § 11.3–§ 11.6 summarizes it
 and adds the later GitHub Enterprise Server run, and its § 11.7 tracks what stays open; the analysis and ADR-035
-govern wherever they differ. Scripts and raw results stayed outside this repository; only the workload extracts were
-kept, so the scripts and results named below no longer exist.
+govern wherever they differ. Scripts and raw results stayed outside this repository; only the workload model's scripts
+and extracts were kept, so the other scripts and results named below no longer exist.
 
 ## Workload model (from arc-framework history, 2026-09-24)
 
