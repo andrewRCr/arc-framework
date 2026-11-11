@@ -560,3 +560,136 @@ The cold-partition regression also passed both cases in run `0ca0fbd16ef046cea5e
 with deliberately invalid bytes in the settled 60,000-entry partition, leave those bytes untouched, and retain
 late-mismatch containment. The interleaved native measurement and this independent filesystem failure check provide the
 evidence for keeping settled archive entry growth out of the criterion rebase.
+
+## A4 — Full-round performance calibration
+
+The approved rebase replaces prototype-derived bounds with platform-specific full-round measurements. A3's
+concurrent-sibling proposal stays held. The earlier proposed 15 ms Linux start bound left almost no run-to-run margin;
+the one-third allowance over the 14.64 ms expanded median rounds upward to a 20 ms start budget, with a 25 ms tripwire.
+The Linux fan-out criterion is 300 ms for one file and 750 ms for ten, with one 750 ms runtime fan-out tripwire, and
+materialization 1500 ms. Windows and macOS receive same-build native calibrations of their own before capture, with
+roughly one-third allowance and raw times retained. Author checks only were selected; no independent amendment review
+was requested.
+
+### Superseded statements
+
+**Goal 5:**
+
+> 5. **A command's cost grows with what changed, never with how much state exists:** the projection's no-change overhead
+>    stays within 10 ms on Linux and 60 ms on Windows (§ 15).
+
+**§ 15.3 opening:**
+
+> The projection's no-change overhead stays within 10 ms on Linux and 60 ms on Windows. The Windows figure assumes a Git
+> call costs what § Spike 2 measured, about 42 ms, a cost the projection does not set: a host whose Git calls cost more
+> holds the projection to its own share, its median read less the amount by which those calls' host time exceeds 42 ms a
+> call or, where longer, the projection's own work beneath them (Success Criterion 4). macOS takes Linux's bounds, here
+> and at every tripwire (§ 15.4); the spikes measured Linux and Windows alone, so the portability lane's macOS runs are
+> what first test them there.
+
+**§ 15.4 bounds and reading:**
+
+> | Tripwire               | Linux and macOS | Windows | Set at                                      |
+> | ---------------------- | --------------- | ------- | ------------------------------------------- |
+> | Command-start overhead | 20 ms           | 120 ms  | twice the budget                            |
+> | One fan-out            | 100 ms          | 600 ms  | ten times the budget                        |
+> | Full materialization   | 1 s             | 5 s     | about four times today's archive on Windows |
+>
+> The fan-out tripwire times the whole fan-out, a write's or a pull's, store reads included: today's heaviest, ten files
+> into 20 worktrees, reaches its bound on Windows once those reads count, while a one-file write of a record that is not
+> a primary sits far below it. A primary entry's re-lay adds a `list` whose Windows budget alone equals the bound (§
+> 15.5), so a meta write's fan-out there can cross it with few files, and a cohort rename, one batch writing every
+> member's meta, adds a listing per member; the median, not one write, decides, and the responses stay the same. Past
+> it, the first response is writing files in parallel on Windows, then the one-copy reserve (Alternatives & Rationale);
+> past the materialization bound, parallel writes on Windows. Materialization runs at spawn and at `arc sync`, not per
+> command, so its bound is the looser one. On Windows each bound assumes a Git call costs about 42 ms, as § Spike 2
+> measured, and a one-file fan-out makes about seven, one after another (§ 15.5): the tripwire suite reports one Git
+> call's median and two calls' run at once on its host, each timed path's Git calls, and the time of the work beneath
+> them, the start's index read, walk, and stats run alone; Success Criterion 4 reads each Windows median less the amount
+> by which those calls' host time exceeds the longer of 42 ms a call and that work. A tripwire's notice shows the median
+> as measured.
+
+**Success Criterion 4:**
+
+> 4. **The budget holds.** The no-change overhead stays within 10 ms on Linux and macOS and 60 ms on Windows, and at
+>    this repository's size the tripwires hold: the command start, a full materialization, and a one-file fan-out of a
+>    record that is not a primary into 20 worktrees each measure within their bounds on every platform, and a ten-file
+>    fan-out into 20 worktrees within its bound on Linux and macOS, its Windows median recorded against the bound § 15.4
+>    expects it to reach. On Windows each of these is read past the host's Git cost: a median counts against its bound
+>    less the amount by which its Git calls' time on that host exceeds the longer of 42 ms a call, what § Spike 2
+>    measured, and the projection's own work run beneath them, and never above its measurement. The calls' time is taken
+>    from the tripwire suite's medians on that host — two calls run at once for calls that ran at once, which count as
+>    one call, and one call's for each other — and the work beneath them from the suite's time for that work run alone,
+>    so the projection is held to its own share (§ 15.3, § 15.4).
+
+### Named references and same-build measurements
+
+The calibration source is commit `1999ade81e42214e3755600cce27d8219ce87bae`. Linux run
+`2ba0b6ef905c408ea51b8e67686e7bbe` used snapshot `045690c7017686ff8752226ebae2daf10ac6130f`, whose package, scripts,
+package manifest, and lockfile trees match that commit exactly; its controller head was `6cc7816eba` before the paired
+benchmark commit. Git comparison confirms no difference over those build and timing inputs. The later Linux repeat runs
+directly at `1999ade81e`. Windows and macOS ran the same published commit in GitHub diagnostic run `43055778612`, whose
+timing-only input makes it measurement evidence rather than work-unit verification.
+
+| Reference                    | Environment                                                                               | Measurement record                 |
+| ---------------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------- |
+| Linux `m5-air-ac`            | Node v26.3.0                                                                              | `2ba0b6ef905c408ea51b8e67686e7bbe` |
+| GitHub `windows-2025-vs2026` | Windows Server 2025 Datacenter; image 20261103.298.1; Node v26.13.0; Git 2.56.0.windows.4 | job `130645276573`                 |
+| GitHub `macos-26-arm64`      | macOS 26.7.2; image 20261102.0473.1; Node v26.13.0; Git 2.56.0                            | job `130645276469`                 |
+
+| Full operation, raw median (ms) | Linux   | Windows | macOS   |
+| ------------------------------- | ------- | ------- | ------- |
+| Standard no-change start        | 14.57   | 107.40  | 31.79   |
+| Expanded-archive start          | 14.64   | 106.91  | 32.04   |
+| One-file fan-out                | 212.25  | 2045.27 | 439.18  |
+| Ten-file fan-out                | 580.00  | 4442.52 | 2062.64 |
+| Materialization                 | 1142.08 | 5934.73 | 2902.46 |
+| Standard beneath-Git work       | 3.52    | 18.12   | 15.30   |
+| Standard concurrent Git pair    | 6.06    | 88.22   | 19.24   |
+| Standard single Git call        | 3.41    | 71.96   | 17.56   |
+
+The paired expanded-minus-standard start medians were −0.27 ms on Linux, +1.49 ms on Windows, and −1.09 ms on macOS.
+Expanded beneath-Git medians were 3.55, 17.54, and 15.17 ms respectively. These do not show a repeatable archive-entry
+penalty at fixed owner and quarter counts. The invalid settled-partition test remains the separate proof that start and
+end do not decode those bytes. The source does still inspect the finite set of header descriptors, so these measurements
+do not claim independence from an unbounded number of archive quarters.
+
+### Repeat variation and the bounded start probe
+
+Same-head Linux repeat `ebb4b3dc59304f17a7087717deb482e5` on `m5-air-ac` measured 17.94/19.77 ms standard/expanded
+starts, 225.09/567.64 ms fan-outs, and 1092.99 ms materialization. Its standard/expanded beneath-Git medians were
+4.55/4.97 ms, Git pairs 7.99/6.52 ms, and singles 3.82/3.76 ms. Starts fell toward 13 ms late in the run; the slower
+expanded median is retained, not replaced by a favorable subset. The runner reported one job, no memory pressure or swap
+traffic; no particular cause is assigned to the cross-run variation. It fits the rounded 20 ms start bound but
+demonstrates that an engineering allowance is not a stability guarantee.
+
+A bounded diagnostic, `1d17c41df1064b828fdcc94bc52091ff`, kept fixture preparation and the eager full-index correctness
+assertion unchanged, then measured three consecutive blocks of eleven counterbalanced standard/expanded start pairs. It
+recorded heap and GC event times without forcing GC, and moved ancillary baseline measurements outside those blocks.
+Standard/expanded block medians were 13.76/13.45, 13.27/12.97, and 14.10/14.16 ms; paired effects were −0.30, +0.14, and
++0.19 ms. Observed GC overlaps, about 0.8–1.4 ms, affected both fixtures. All blocks and samples were retained. This is
+diagnostic evidence against a stable archive penalty, not proof of what caused the slower full-suite repeat or a
+substitute qualification run.
+
+The unpinned same-head Linux run `100013b6ea524bb7bf33cd681ce7e60b` ran on M4 and is additional feedback, not the named
+reference: starts 17.21/17.64 ms, fan-outs 238.95/649.27 ms, and materialization 1211.87 ms. No production archive
+change is justified by these comparisons. The native timing suite's legacy Windows adjusted values are not used for A4:
+they estimate startup credit from counts, while A4 requires demonstrated exposed delay and otherwise zero credit.
+
+### Bounds, propagation, and author checks
+
+The captured budgets are Linux start 20 ms, one-file fan-out 300 ms, ten-file fan-out 750 ms, and materialization 1500
+ms; Windows 145/2800/6000/8000 ms; macOS 45/600/2800/4000 ms. Start tripwires are 25/200/60 ms, and each platform's one
+fan-out tripwire takes its ten-file bound. These round the approved approximate one-third allowance over the calibration
+points; the Linux rounding follows 14.64 × 4/3 = 19.52 ms. Raw notices and all slower repeats remain visible, and no
+startup-count discount is used to manufacture a passing result.
+
+The author coherence and grounding pass covered § 15.3–15.5, Goal 5 and criterion 4's forward supersession, the new
+criterion 11, task 1.12.R and the affected task-criteria projection. `launchProjectionStart`, `readProjectionIndex`,
+`createProjectionReadMemo`, `createRefReadCoordinator`, `runProjectionFanOut`, `commitProjectionIndex`,
+`recordProjectionTiming`, and `projectionTripwires` ground the operation boundaries, cold-partition behavior, sharing,
+reader lifetimes, publication ordering, and notice semantics. Source comparison confirms the original Goal 5, criterion
+4, and task 1.12 Goal remain verbatim. The new task's code loci exist, ordering puts the capture before corrective work
+and all correction before 1.14, and its reporting rule supplies no unmeasured Git credit. Lease, save-preservation,
+ownership handoff, and sequential-locking obligations remain. The selected author-only review adds no independent pass
+record.

@@ -207,6 +207,8 @@ that chunk.
   its folder walk, index read, and stats running while its two Git calls do, and each tripwire shows only when the
   median of its recent measurements crosses its bound.
 
+- _Amended in:_ 1.12.R (A4)
+
 - **Additional Context:** `notes-projection-worktrees.md` § Spike 2, § Tripwire timings
 
     - `[ ]` **1.12.a The start's cost**
@@ -308,10 +310,47 @@ that chunk.
 
     - `[x]` **1.12.b The tripwires**
 
+        - _Amended in:_ 1.12.R (A4)
+
         - The index retains nine start, fan-out, and full-materialization samples, with matching median notices in
           command reports and status. Fan-outs cover every round and append at the writer's leased end publication;
           failed publication retains pending samples, while later cleanup failure cannot duplicate them on retry.
           Deleted-file restoration preserves full-materialization history, and unprojected writers record no sample.
+
+### `[ ]` **1.12.R Calibrate complete operations on each platform — A4**
+
+- _Goal:_ Implement A4's platform-specific complete-operation bounds, preserve raw measurements and cold archives,
+  and keep sequential sibling visits and durable recovery ordering.
+
+- **Additional Context:** `notes-projection-worktrees.md` § A4; specification § 15.3, § 15.4, and criterion 11.
+
+    - `[ ]` **1.12.R.a Align declared and runtime bounds**
+
+        - Add `projectionPerformanceBounds` in `lib/store/projection/timings.ts` as the shared numeric source for the
+          external timing report and `projectionTripwires`: separate no-change budget and start tripwire, one-file and
+          ten-file fan-out acceptance limits, one fan-out tripwire, and materialization. Use the exact three-platform
+          tables in § 15.3 and § 15.4. Retain raw nine-sample notices and their command/status behavior.
+        - Build `test-first`: a raw median between the previous and amended bound produces no notice, one above the
+          amended bound does, equality remains quiet, and fewer than nine samples remain quiet, on each platform.
+          Extend `__tests__/integration/store/projection/tripwires.test.ts` at the existing time boundary; retain its
+          publication, retry, and status cases.
+
+    - `[ ]` **1.12.R.b Report qualification without unsupported Git credit**
+
+        - In `store-ref-projection-timing.test.ts`, report all raw operation medians, the separate acceptance limits,
+          the platform and Node version, same-run Git single/pair and beneath-Git medians, and whether any exposed
+          host-Git excess is established. Remove `windowsAdjusted`'s process-count startup subtraction: counts alone
+          establish no credit, so this suite reports zero credit and qualifies on raw time. Keep the interleaved
+          standard/expanded pairs, full-round external timers, real destination checks, and complete materialization.
+          The bounds come from `projectionPerformanceBounds`; this reporting suite continues to report timings rather
+          than asserting that a variable host meets the reference bounds.
+
+    - `[ ]` **1.12.R.c Reconcile the measured evidence with the revised criterion**
+
+        - Record the exact source head, named Linux/Windows/macOS references, all raw medians, and per-path comparison
+          with criterion 11. Preserve the paired cold-archive evidence and the invalid-partition check. At 1.14 use
+          criterion 11 in place of the superseded criterion 4 and the original numerical clause of 1.12's Goal; keep
+          its complete-operation boundary and archive-independence obligation. Do not reopen sibling scheduling.
 
 ### `[ ]` **1.13 Hold saves through bursts across processes — § 1.5**
 
@@ -941,5 +980,13 @@ No production composition sets the slots today, so every caller runs `passingPro
         automatically, ambiguous bytes remain recoverable and reported, and deletion permits successful retry. A
         blocked arrival after a claim-only change retries without an intervening store write, including A → B → A after
         partial progress or interruption (A2).
+
+- `[ ]` Complete external medians over the reference backend fit the separate Linux, Windows, and macOS bounds in
+        specification § 15.3 and § 15.4: no-change start, one-file backlog-companion fan-out into twenty linked
+        worktrees, ten-file fan-out, and full materialization. Each platform has its own same-build named reference;
+        all raw samples and same-run Git and filesystem baselines remain, and only established exposed host-Git delay
+        receives credit. Interleaved standard/expanded starts show no systematic cost from settled archive entry
+        growth, whose partitions remain unread; runtime notices retain raw nine-sample medians. This supersedes the
+        earlier performance criterion (A4; specification criterion 11).
 
 - `[ ]` Ready for integration

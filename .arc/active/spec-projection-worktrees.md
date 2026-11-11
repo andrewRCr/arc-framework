@@ -153,6 +153,9 @@ Criteria test that part._
    projection's removal slots, behind D17's worktree lock (§ 12).
 5. **A command's cost grows with what changed, never with how much state exists:** the projection's no-change overhead
    stays within 10 ms on Linux and 60 ms on Windows (§ 15).
+
+   _Amended by A4:_ the numerical budgets are superseded by § 15.3 and criterion 11; archive independence remains.
+
 6. **Windows holds** — held files, same-size saves, file identity, and line endings — and the projection's tests run in
    the portability lane, which runs Windows and macOS, as the store's own run there from `storage-ref-backend` (§ 13).
 7. **Dark until the flip** but for three pieces that need no store: the worktree lock, ARC's managed block in the root
@@ -1045,33 +1048,52 @@ index's reference (`spec-projection-substrate.md` § 3.3, § 11.2).
 
 #### 15.3 The no-change budget
 
-The projection's no-change overhead stays within 10 ms on Linux and 60 ms on Windows. The Windows figure assumes a Git
-call costs what § Spike 2 measured, about 42 ms, a cost the projection does not set: a host whose Git calls cost more
-holds the projection to its own share, its median read less the amount by which those calls' host time exceeds 42 ms a
-call or, where longer, the projection's own work beneath them (Success Criterion 4). macOS takes Linux's bounds, here
-and at every tripwire (§ 15.4); the spikes measured Linux and Windows alone, so the portability lane's macOS runs are
-what first test them there.
+The no-change budget is calibrated from the complete native command start, including its final index and reference
+publication (A4). The Linux reference is `m5-air-ac`, calibrated by run `2ba0b6ef905c408ea51b8e67686e7bbe`, whose
+package and timing inputs match commit `1999ade81e42214e3755600cce27d8219ce87bae` exactly; Windows and macOS use GitHub
+diagnostic run `43055778612` at that same source head, with their image versions recorded in § A4 of
+`notes-projection-worktrees.md` and named below. Every calibration uses eleven samples over 800 projected files,
+including 320 hot files, and a paired comparison with 60,320 files at the same hot-file and owner counts. Both fixtures
+are warmed before collection, each standard/expanded pair alternates its first fixture, and the raw samples and paired
+differences remain available.
 
-- **Measured.** At this repository's size today — about 800 projected files and 17 MB in `completed/` — a warm stat walk
-  of all of them took 3.4 ms. At 1,000 files the stat walk, the index read, and the Git call took 5 ms on Linux and 49
-  ms on Windows, of which the Git call is 2 ms and 41 ms; at 100 files, 2.3 ms and 42 ms. The rest of the no-change path
-  — the folder walk, the projection lock, the sweep of an empty aside folder, and the index and reference write each
-  command makes to keep its tripwire measurements — adds 1.8 ms on Linux and 7.7 ms on Windows at 1,000 files in 125
-  folders, the walk the largest share at 1.0 ms and 5.1 ms (§ Spike 2). The checked set sits well under 1,000 files.
-- **The index read, and what is left on Windows.** § Spike 2's index was a prototype. Read and written whole through its
-  schema, the engine's index costs about 15 µs an entry on Linux and 32–50 µs on Windows, the most at about a thousand
-  entries, archive entries included — about 14 ms and 47 ms at this repository's size, past the Linux budget alone and,
-  with the Git call, the Windows one (`notes-projection-worktrees.md` § Spike 4). So a command reads the header and the
-  partitions of the roots it walks, as plain JSON, and an archive quarter's only where it lays, removes, or sweeps a
-  file there or the quarter holds an unsettled entry (§ 3.1): the size of a settled archive costs a command nothing, and
-  the backlog's costs its walk and its partition. What remains on Windows is the Git calls, the walk of `active/`,
-  `backlog/`, and the personal root, the partitions' read, and the stats running beside them (below). At this
-  repository's layout, about 300 checked files mostly two to a folder, the Windows runner measured such a start at 75
-  ms, against 110 ms with the walk run first and the rest after the Git calls: 4.5 ms past its two Git calls run alone,
-  which took 70.5 ms there against 41.7 ms in § Spike 2 (§ Spike 5). So on Windows the budget rests on what a Git
-  process costs on the host: about 46 ms where it costs what § Spike 2 measured, within the budget, and past it wherever
-  two Git calls alone take more than about 55 ms, as the runner's did at its below-normal priority. The tripwire suite
-  reports the host's Git cost beside its median, so a Windows median is read as above (§ 15.4).
+| Platform | Named reference              | Start budget | Start tripwire |
+| -------- | ---------------------------- | ------------ | -------------- |
+| Linux    | `m5-air-ac`                  | 20 ms        | 25 ms          |
+| Windows  | GitHub `windows-2025-vs2026` | 145 ms       | 200 ms         |
+| macOS    | GitHub `macos-26-arm64`      | 45 ms        | 60 ms          |
+
+Linux's start budget rounds the one-third allowance over 14.64 ms upward to 20 ms; its tripwire is 25 ms. Each
+platform's budget adds roughly one third to its reference's slower standard/expanded start median; the tripwire gives a
+further reporting margin. These are complete-operation budgets, not extrapolations from the prototype walk. The margins
+are engineering allowances, not percentile guarantees. The reference metadata, complete raw medians, Git single and
+concurrent-pair baselines, and beneath-Git filesystem measurements are recorded in `notes-projection-worktrees.md` § A4.
+macOS has its own calibration rather than inheriting Linux's.
+
+The reference run qualifies on raw time. On another host, the reading can credit only demonstrated excess Git delay on
+the operation's critical path relative to that platform's named reference, never projection work or time already hidden
+beneath overlapping work. Counts of physical process starts, persistent-reader requests, or aggregate Git durations
+alone establish no credit. Report raw time, reference and host Git baselines, any established exposed excess, and the
+resulting qualified time separately; where the exposed excess is not established, use zero credit and raw time. Raw
+tripwire notices remain unadjusted. This replaces the former startup-count discount on Windows and applies the same rule
+to Linux and macOS.
+
+- **Historical prototype measurements.** At this repository's size then — about 800 projected files and 17 MB in
+  `completed/` — a warm stat walk of all of them took 3.4 ms. At 1,000 files the stat walk, the index read, and the Git
+  call took 5 ms on Linux and 49 ms on Windows, of which the Git call is 2 ms and 41 ms; at 100 files, 2.3 ms and 42 ms.
+  The rest of the no-change path — the folder walk, the projection lock, the sweep of an empty aside folder, and the
+  index and reference write each command makes to keep its tripwire measurements — adds 1.8 ms on Linux and 7.7 ms on
+  Windows at 1,000 files in 125 folders, the walk the largest share at 1.0 ms and 5.1 ms (§ Spike 2). The checked set
+  sits well under 1,000 files.
+
+- **The index read and archive independence.** The prototype whole-index codec cost about 14 ms on Linux and 47 ms on
+  Windows at this repository's size (`notes-projection-worktrees.md` § Spike 4). `readProjectionIndex` instead reads the
+  header and the partitions of the roots the command walks, as plain JSON, and an archive quarter's only where the
+  operation lays, removes, or sweeps a file there or the quarter holds an unsettled entry (§ 3.1). The settled archive's
+  entry count therefore adds no quarter decode or file walk to an ordinary start; the backlog still costs its own walk
+  and partition. `launchProjectionStart` runs the index read, hot-root walk, and stats beside its Git work. The paired
+  800/60,320-file native comparison and the unreadable-cold-partition check test this behavior; the earlier prototype
+  timings do not define the full-operation budget (A4).
 - **Two Git calls, issued together.** The projection makes two Git calls — the store's `version()` read, and one
   `git config --get-regexp` reading the `arc.*` keys, `user.name`, and `extensions.objectformat`: identity, the
   in-flight view setting, and the object format — both issued before the folder walk, which runs while they do. Run at
@@ -1080,35 +1102,35 @@ what first test them there.
   common Git directory the start's location already holds (`ProjectionLocation.commonDir`,
   `lib/store/projection/location.ts`), once per command for the command's identity, which every worktree a fan-out
   visits shares, a removal slot's or spawn's target of another identity being refused or left to its own command
-  (§ 2.5). The projection's cost on Windows is one Git call's time, and on Linux it is noise beside the CLI's own start
-  (about 280 ms for `--version`). The guard adds no call while no ignore file may have changed
+  (§ 2.5). A4 measures the complete native start on each reference; neither overlap nor a single-call baseline alone
+  establishes its complete cost. The guard adds no call while no ignore file may have changed
   (`spec-projection-substrate.md` § 11.2).
-- **One lock, one write, cheap steps, and the fastest reads.** That cost holds only where the engine takes the path the
-  spike took. A step of the projection lock confirms ownership on disk only once the lease's last confirmed deadline
-  lies within one renewal interval, or once the heartbeat has found the lease lost, and otherwise returns at once
-  (§ 16.2), at the start, in a fan-out, and in a materialization alike. No other process breaks a live holder's lock
-  meanwhile, since a holder in the same process scope is broken only once its process is gone and one in another only
-  once its lease lapses (`isMainLockBreakable`, `lib/advisory-lock.ts`; `spec-projection-substrate.md` § 3.2), and a
-  process suspended past its deadline confirms on disk at its next step. A confirmation on disk renews the lease, about
-  1 ms on Linux, so one before each checked file costs about 300 ms at this repository's size (§ Spike 2). The start
-  issues both Git calls, then, while their processes run, reads the index's header and the partitions of the roots it
-  walks, walks its shared roots, and its personal roots once the configuration read returns the identity, and stats each
-  file it walked, so these cost nothing past the Git calls wherever they take less time (§ Spike 5). The walk reads each
-  folder with its entries' types synchronously, as the walk in § Spike 2 did on both platforms, and yields between
-  folders, since the store's read reaches its Git process through asynchronous steps that a walk run in one piece holds
-  back until it ends. The stats are synchronous on Linux, which § Spike 2 found fastest there, and on macOS, which
-  follows Linux untested, and a pool of 32 concurrent stats on Windows, never one awaited call after another. The change
-  checks compare them where the start's sweep found the aside folder empty, and stat again after the sweep otherwise,
-  since a copy it takes over changes its file. A stat taken while the Git calls run is published by the first index
-  write after it, smudged against the reference that write replaces, which predates the start's lock, since a sweep of
-  an empty aside folder writes nothing (`spec-projection-substrate.md` § 3.3). The start keeps one index in memory from
-  the sweep through write-back, any reprojection (§ 10.4), and the refresh, each of which takes it and returns the one
-  it wrote, to its last write, as a fan-out's visit does with the index it reads, so each write publishes every stat and
-  ignore record observed before it, against the reference that predates them (`spec-projection-substrate.md` § 3.3); the
-  sweep writes on its own only where it took over a copy, and the start's last write carries its measurement. The
-  command's end takes no lock in a root where the command made no aside copy, removed no file, sent nothing to the
-  store, and records no fan-out time, and whose start's sweep found the aside folder empty. A command with nothing
-  changed so takes one projection lock and writes its index and reference once, at its start's end.
+- **One lock, one write, cheap steps, and the fastest reads.** Calibration retains the following start path (A4). A step
+  of the projection lock confirms ownership on disk only once the lease's last confirmed deadline lies within one
+  renewal interval, or once the heartbeat has found the lease lost, and otherwise returns at once (§ 16.2), at the
+  start, in a fan-out, and in a materialization alike. No other process breaks a live holder's lock meanwhile, since a
+  holder in the same process scope is broken only once its process is gone and one in another only once its lease lapses
+  (`isMainLockBreakable`, `lib/advisory-lock.ts`; `spec-projection-substrate.md` § 3.2), and a process suspended past
+  its deadline confirms on disk at its next step. A confirmation on disk renews the lease, about 1 ms on Linux, so one
+  before each checked file costs about 300 ms at this repository's size (§ Spike 2). The start issues both Git calls,
+  then, while their processes run, reads the index's header and the partitions of the roots it walks, walks its shared
+  roots, and its personal roots once the configuration read returns the identity, and stats each file it walked, so
+  these cost nothing past the Git calls wherever they take less time (§ Spike 5). The walk reads each folder with its
+  entries' types synchronously, as the walk in § Spike 2 did on both platforms, and yields between folders, since the
+  store's read reaches its Git process through asynchronous steps that a walk run in one piece holds back until it ends.
+  The stats are synchronous on Linux, which § Spike 2 found fastest there, and on macOS, which follows Linux untested,
+  and a pool of 32 concurrent stats on Windows, never one awaited call after another. The change checks compare them
+  where the start's sweep found the aside folder empty, and stat again after the sweep otherwise, since a copy it takes
+  over changes its file. A stat taken while the Git calls run is published by the first index write after it, smudged
+  against the reference that write replaces, which predates the start's lock, since a sweep of an empty aside folder
+  writes nothing (`spec-projection-substrate.md` § 3.3). The start keeps one index in memory from the sweep through
+  write-back, any reprojection (§ 10.4), and the refresh, each of which takes it and returns the one it wrote, to its
+  last write, as a fan-out's visit does with the index it reads, so each write publishes every stat and ignore record
+  observed before it, against the reference that predates them (`spec-projection-substrate.md` § 3.3); the sweep writes
+  on its own only where it took over a copy, and the start's last write carries its measurement. The command's end takes
+  no lock in a root where the command made no aside copy, removed no file, sent nothing to the store, and records no
+  fan-out time, and whose start's sweep found the aside folder empty. A command with nothing changed so takes one
+  projection lock and writes its index and reference once, at its start's end.
 - **No folder-time cache** is built; the command-start tripwire would show the need.
 
 #### 15.4 Tripwires
@@ -1117,76 +1139,96 @@ Each tripwire is shown when the median of its recent measurements, kept in the w
 writer's own, recorded at its end under the lock the end takes again, and none where the writer holds no projection —
 crosses its bound, never on one measurement, since host stalls reached 1.4–1.6 s on Windows (§ Tripwire timings):
 
-| Tripwire               | Linux and macOS | Windows | Set at                                      |
-| ---------------------- | --------------- | ------- | ------------------------------------------- |
-| Command-start overhead | 20 ms           | 120 ms  | twice the budget                            |
-| One fan-out            | 100 ms          | 600 ms  | ten times the budget                        |
-| Full materialization   | 1 s             | 5 s     | about four times today's archive on Windows |
+| Raw recent-median tripwire | Linux   | Windows | macOS   |
+| -------------------------- | ------- | ------- | ------- |
+| Command-start overhead     | 25 ms   | 200 ms  | 60 ms   |
+| One complete fan-out       | 750 ms  | 6000 ms | 2800 ms |
+| Full materialization       | 1500 ms | 8000 ms | 4000 ms |
 
-The fan-out tripwire times the whole fan-out, a write's or a pull's, store reads included: today's heaviest, ten files
-into 20 worktrees, reaches its bound on Windows once those reads count, while a one-file write of a record that is not a
-primary sits far below it. A primary entry's re-lay adds a `list` whose Windows budget alone equals the bound (§ 15.5),
-so a meta write's fan-out there can cross it with few files, and a cohort rename, one batch writing every member's meta,
-adds a listing per member; the median, not one write, decides, and the responses stay the same. Past it, the first
-response is writing files in parallel on Windows, then the one-copy reserve (Alternatives & Rationale); past the
-materialization bound, parallel writes on Windows. Materialization runs at spawn and at `arc sync`, not per command, so
-its bound is the looser one. On Windows each bound assumes a Git call costs about 42 ms, as § Spike 2 measured, and a
-one-file fan-out makes about seven, one after another (§ 15.5): the tripwire suite reports one Git call's median and two
-calls' run at once on its host, each timed path's Git calls, and the time of the work beneath them, the start's index
-read, walk, and stats run alone; Success Criterion 4 reads each Windows median less the amount by which those calls'
-host time exceeds the longer of 42 ms a call and that work. A tripwire's notice shows the median as measured.
+The fan-out criterion separates a one-file backlog notes write from ten changed backlog notes files; the runtime
+fan-out tripwire remains one figure, the ten-file bound. Both reference measurements include the writer and twenty
+linked siblings, processed sequentially, and time every propagation round after the authoritative Store mutation:
+`runProjectionFanOut`'s version capture and source reads, protection, layout and ignore checks, recovery intent, file
+replacement, and final index publication. The Store mutation itself is outside this propagation timer. Primary-entry
+changes and cohort renames may require additional listings; their notices remain diagnostic rather than a promise that
+every kind of write fits the companion-write reference.
+
+Materialization times the complete `materializeSpawnedProjection` call over the 800-file reference dataset, including
+source inventory, protection, rendering, staging, replacement, and its publication. It runs at spawn and full rebuild,
+rather than on every command. All reference bounds are calibrated from the full native implementation with roughly
+one-third headroom, not from Spike 4's smaller file-only operation. A same-build measurement on one platform does not
+qualify another.
+
+| Complete external-operation acceptance     | Linux   | Windows | macOS   |
+| ------------------------------------------ | ------- | ------- | ------- |
+| One-file non-primary backlog notes fan-out | 300 ms  | 2800 ms | 600 ms  |
+| Ten-file non-primary backlog notes fan-out | 750 ms  | 6000 ms | 2800 ms |
+| Full materialization                       | 1500 ms | 8000 ms | 4000 ms |
+
+A reference's complete raw medians must fit these bounds. An ordinary start must also leave settled archive partitions
+cold and show no systematic cost from archive entry growth in the paired comparison. Host-Git attribution follows §
+15.3; an unavailable credit never turns a failing raw result into a pass. The external acceptance timer includes the
+last publication, while `recordProjectionTiming`'s persisted samples necessarily end before the publication that stores
+them. Keep both visible and do not compare the persisted sample as though it were the external full-round measurement.
+
+A tripwire notice reports the raw recent median and its platform's runtime bound. Crossing it calls for attribution
+rather than an automatic change to locking, recovery, or file scheduling. The concurrent-sibling proposal remains held;
+none of these budgets depends on adopting it (A4).
 
 #### 15.5 Fan-out and full materialization
 
-A write's fan-out and a full materialization cost more on Windows, where each file write costs about 1.5 ms. One write
-pushed into 20 worktrees took 3 ms for one file and 13 ms for ten on Linux, and 113 ms and 571 ms on Windows, the swap's
-end check included; Windows pays about 5 ms per worktree before its files, mostly the lock and index writes, over the
-spike's prototype index. The engine's whole-index codec would add a decode and two encodes of every entry, archive
-entries included, in each worktree — about 24 µs an entry on Linux and 49–77 µs on Windows, or 0.45 s and 0.9–1.5 s of a
-one-file fan-out into 20 worktrees at this repository's size (`notes-projection-worktrees.md` § Spike 4) — so a worktree
-a fan-out visits reads and writes its header and the partitions holding each path it lays or removes, its end reading
-too those the header marks as holding an unsettled entry (§ 3.1), and the refresh's second index write
-(`spec-projection-substrate.md` § 3.3) rewrites only those. The spike read the store once and did not time it. Each
-round of a fan-out adds one `version()` call, three Git calls on the ref backend where the manifest is new, which after
-a write or a pull it is (`spec-storage-ref-backend.md` § 4.2), and one `changes` call per distinct state version among
-the worktrees, normally one, at least one Git call there, each Git call about 2 ms on Linux and 41 ms on Windows (§
-Spike 2). Each record its refreshes lay is read once in the round, shared by every worktree, a `read` on the ref backend
-costing at least one Git call. It also lists the worktrees, one Git call (`scanRegisteredWorktrees`), and reads each
-one's index header, and, for each primary entry among the changes, re-lays through one `list` by owner shared by every
-worktree — four Git calls on the ref backend, six where it writes a new manifest, budgeted at 600 ms on Windows, where a
-`read` is budgeted at 300 ms (`spec-storage-ref-backend.md` § 11.6, § 11.7) — so a meta write's fan-out costs more than
-a companion's. A primary entry's re-lay also selects the in-flight view (`selectProjectionView`,
-`lib/store/projection/view-selection.ts`: a `version()` and two listings) once per round through the memo, and a refresh
-selects it nowhere else; a laid record's conflicts are read once each in the round (`readConflicts`,
-`lib/store/projection/record-render.ts`). Each file a refresh lays takes its protection from the round's evidence (§
-16.3): its owner's meta through the memo, read once per owner in the round where the changes did not already return it;
-its owner's claim, a `lookup` whose `read` is that same meta, only in a worktree whose marker names that owner, the
-owner's own checkout among them where it is the writer's; and the holder and markerless searches from the round's own
-listing of the worktrees, the markerless search's project identity through the memo. A one-file write of a record that
-is not a primary so adds at most its owner's meta `read` and the claim's `lookup` to its round however many worktrees it
-visits, where protection observed in each worktree's render cost about 108 Git calls into 22 worktrees
-(`notes-projection-worktrees.md` § Spike 3). Each worktree it visits is bound with the command's own configuration read
-and actor — the read § 2.5 names as the command's — or re-read into the root the command already holds for it (§ 2.2),
-adding no Git call per worktree where its refresh sends nothing; a take-in there captures that worktree's own state, two
-configuration reads per file sent in the usual case (§ 13). `git config` reads the same values in every worktree of a
-clone unless a worktree's own `config.worktree` or a conditional include (`includeIf`) differs, and a sibling whose
-recorded view setting, identity, or ignore configuration then differs, or whose index records no guard pass, is skipped
-before any guard runs there (§ 2.2), its next command reading its own and reprojecting (§ 10.4). A pull's merges fan out
-as a write does (§ 2.2): with the index in partitions, a day's merges cost about 0.4 s on Windows across this
-repository's five worktrees and, for a 50-person team, about 2.8 s across 20 worktrees, 0.4 s on Linux, past the fan-out
-tripwire on both (`notes-projection-worktrees.md` § Spike 4). Leaving the other worktrees to catch up at their next
-command would not remove that cost: a later write's fan-out brings each worktree up from its own state version, so the
-first write after a pull would lay the merges into every worktree not yet caught up. A command whose writes land outside
-a projection lock fans out once per write, each timed by the tripwire (§ 15.4), and a sibling whose lock stays held past
-200 ms is skipped (`spec-projection-substrate.md` § 3.2).
+Spike 4's file-only prototype took 3.3 ms for one file and 13.4 ms for ten into twenty Linux siblings, including its end
+check, with Store reads outside the timer, a simple exclusive-create lock, and one index publication. Those figures do
+not calibrate a full native round (A4). The native `runProjectionFanOut` shares source reads but also processes the
+writer's root, validates each destination, and commits recovery intent before replacement and final settlement
+afterward. `commitProjectionIndex` publishes only affected partitions under the header commit point; a normal reference
+round makes two publications per root, 42 in total, rather than the former four per root. Returned aliases retain any
+additional publication needed before unlink. The named reference measurements in § 15.4 include this complete work and
+the production plain-JSON partition codec. The round captures one `version()`, and one `changes` result per distinct
+prior state, normally one. In the native companion-write reference, physical process counts are 9/27 for one/ten changed
+owners: six control starts covering the ref captures, new manifest retention, worktree roster, and identity
+configuration, one changes reader, and two separately owned UID readers per owner for the primary and changed companion.
+`createProjectionReadMemo` shares those source operations across destinations, while `createRefReadCoordinator` closes
+each public operation's reader before returning; destination count adds no reader process in this workload. Longer
+ancestry windows, primary re-lays, take-ins, and additional distinct states may require more. Each record its refreshes
+lay is read once in the round, shared by every worktree, a `read` on the ref backend costing at least one Git call. It
+also lists the worktrees, one Git call (`scanRegisteredWorktrees`), and reads each one's index header, and, for each
+primary entry among the changes, re-lays through one `list` by owner shared by every worktree — four Git calls on the
+ref backend, six where it writes a new manifest, budgeted at 600 ms on Windows, where a `read` is budgeted at 300 ms
+(`spec-storage-ref-backend.md` § 11.6, § 11.7) — so a meta write's fan-out costs more than a companion's. A primary
+entry's re-lay also selects the in-flight view (`selectProjectionView`, `lib/store/projection/view-selection.ts`: a
+`version()` and two listings) once per round through the memo, and a refresh selects it nowhere else; a laid record's
+conflicts are read once each in the round (`readConflicts`, `lib/store/projection/record-render.ts`). Each file a
+refresh lays takes its protection from the round's evidence (§ 16.3): its owner's meta through the memo, read once per
+owner in the round where the changes did not already return it; its owner's claim, a `lookup` whose `read` is that same
+meta, only in a worktree whose marker names that owner, the owner's own checkout among them where it is the writer's;
+and the holder and markerless searches from the round's own listing of the worktrees, the markerless search's project
+identity through the memo. A one-file write of a record that is not a primary so adds at most its owner's meta `read`
+and the claim's `lookup` to its round however many worktrees it visits, where protection observed in each worktree's
+render cost about 108 Git calls into 22 worktrees (`notes-projection-worktrees.md` § Spike 3). Each worktree it visits
+is bound with the command's own configuration read and actor — the read § 2.5 names as the command's — or re-read into
+the root the command already holds for it (§ 2.2), adding no Git call per worktree where its refresh sends nothing; a
+take-in there captures that worktree's own state, two configuration reads per file sent in the usual case (§ 13). `git
+config` reads the same values in every worktree of a clone unless a worktree's own `config.worktree` or a conditional
+include (`includeIf`) differs, and a sibling whose recorded view setting, identity, or ignore configuration then
+differs, or whose index records no guard pass, is skipped before any guard runs there (§ 2.2), its next command reading
+its own and reprojecting (§ 10.4). A pull's merges fan out as a write does (§ 2.2): with the index in partitions, a
+day's merges cost about 0.4 s on Windows across this repository's five worktrees and, for a 50-person team, about 2.8 s
+across 20 worktrees, 0.4 s on Linux, past the fan-out old prototype-derived tripwire on both
+(`notes-projection-worktrees.md` § Spike 4); those model estimates do not qualify a full native round against A4's
+calibrated bounds. Leaving the other worktrees to catch up at their next command would not remove that cost: a later
+write's fan-out brings each worktree up from its own state version, so the first write after a pull would lay the merges
+into every worktree not yet caught up. A command whose writes land outside a projection lock fans out once per write,
+each timed by the tripwire (§ 15.4), and a sibling whose lock stays held past 200 ms is skipped
+(`spec-projection-substrate.md` § 3.2).
 
-A full materialization of this repository's 780 files took 115–130 ms on Linux and 1.1–1.3 s on Windows; on the ref
-backend it reads through `list`, which batches its blob reads (`spec-storage-ref-backend.md` § 11.6). Its renders take
-their protection the same way, the owner's meta from the records that listing returned and the holder search from one
-listing of the worktrees, so protection adds no `read` to it, where observed in each render it would add about 960 Git
-calls at this repository's size (`notes-projection-worktrees.md` § Spike 3, § Spike 4). Writing several files at once
-halved the Windows materialization to 0.62–0.79 s and slowed Linux; it is a tripwire's first response, not built now
-(§ Tripwire timings). `completed/` lands in every worktree, as the tracked copy does today.
+The file-work materialization spike over this repository's 780 files took 115–130 ms on Linux and 1.1–1.3 s on Windows;
+on the ref backend it reads through `list`, which batches its blob reads (`spec-storage-ref-backend.md` § 11.6). Its
+renders take their protection the same way, the owner's meta from the records that listing returned and the holder
+search from one listing of the worktrees, so protection adds no `read` to it, where observed in each render it would add
+about 960 Git calls at this repository's size (`notes-projection-worktrees.md` § Spike 3, § Spike 4). Writing several
+files at once halved the Windows materialization to 0.62–0.79 s and slowed Linux; it is a tripwire's first response, not
+built now (§ Tripwire timings). `completed/` lands in every worktree, as the tracked copy does today.
 
 | Axis                         | Cost grows with                     | Watch                                    | Response                                            |
 | ---------------------------- | ----------------------------------- | ---------------------------------------- | --------------------------------------------------- |
@@ -1573,8 +1615,8 @@ _These considerations cover the design the three members build together; § 1.1 
   refuse binary content, oversized records, `.env` files, and private keys (`spec-projection-write-back.md` § 7.5).
 - **Ignore integrity.** The guard keeps every projected path ignored, `.arc/user/*/` in `.gitignore` itself, so no
   packaging tool ships personal state (`spec-projection-substrate.md` § 11.2).
-- **Performance.** The no-change budget is 10 ms on Linux and 60 ms on Windows, the Windows figure read past the host's
-  Git cost (§ 15.3), with three tripwires measured in place (§ 15).
+- **Performance.** Full-round budgets and named references apply separately to Linux, Windows, and macOS (A4, § 15.3,
+  § 15.4); raw tripwires remain visible and host-Git credit requires demonstrated exposed delay. The archive stays cold.
 - **Testing.** Unit and integration tests over the reference backend with real repositories and worktrees, on Linux and
   in the portability lane, the rebuild and a pull's fan-out among them, and the refusals the reference backend cannot
   return, the history pull among them, through a test store wrapping it (§ 1.5); the isolation test (§ 10.5); the
@@ -1640,6 +1682,16 @@ _These considerations cover the design the three members build together; § 1.1 
     after a claim-only change retries successfully without an intervening store write, including a return to the
     original claim after partial progress or interruption.
 
+11. **Full-round performance holds on all three references (A4; supersedes criterion 4).** Over the ref backend with
+    real repositories and worktrees, the external median of eleven complete no-change starts, the one-file
+    non-primary backlog notes fan-out into twenty linked worktrees, the ten-file fan-out, and full materialization fit their
+    separate platform bounds in § 15.3 and § 15.4. Each platform names its own measured reference and exact source head,
+    retains all raw samples and same-run Git and filesystem baselines, and reports any host adjustment separately under
+    § 15.3's exposed-delay rule. The interleaved standard/expanded comparison shows no systematic start cost from
+    settled archive entry growth, and a deliberately unreadable settled archive partition remains unconsulted at start
+    and end. Runtime tripwires use the declared platform bounds and raw nine-sample medians. Sequential sibling visits
+    and the durable intent/final publication boundaries remain.
+
 ## Open Questions
 
 None blocks starting. The expected contracts in § 18 each state what holds until their change lands, and none leaves
@@ -1652,6 +1704,9 @@ this design open.
 
 - **A2** — 2026-11-10 — design: retain ownership during path reuse. _Supersedes:_ § 15.2 ¶2.
   _Trigger:_ 1.6.a must-stop. _Work:_ 1.6.R. _Revalidated:_ pending → 1.14.
+
+- **A4** — 2026-11-11 — design: rebase full-round bounds. _Supersedes:_ Goal 5; § 15.3–15.4; criterion 4.
+  _Trigger:_ 1.12.a door. _Work:_ 1.12.R. _Revalidated:_ pending → 1.14.
 
 - **Amended 2026-11-06, at task generation (Owner-approved).** Grounding the task list against `projection-substrate`
   and `storage-ref-hardening` as shipped (#1247, #1271) and `projection-write-back` at its branch head corrected this
