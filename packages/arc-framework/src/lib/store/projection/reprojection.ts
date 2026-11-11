@@ -1,4 +1,5 @@
 /** Reconcile current layout settings under a durable retry flag independent of source-version equality. */
+import { projectionSettings } from "./settings.js";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -18,7 +19,7 @@ import { projectionArrivalsInstalled, reconcileProjectionHandoffs } from "./owne
 /** Retry toward fresh settings, acknowledging them only after every desired arrival is confirmed. */
 export async function reprojectProjectionRoot(input: ProjectionRefreshInput): Promise<ProjectionIndex> {
   const { root } = input;
-  const target = { identity: root.identity, view: root.view, claim: root.claim, layoutActive: root.layoutActive };
+  const target = projectionSettings(root);
   if (input.index.reprojectionPending !== true && isDeepStrictEqual(input.index.projectedUnder, target)) return input.index;
   let index = input.index.reprojectionPending === true ? input.index : await commitProjectionIndex({
     location: root.location, checkout: root.checkout, index: { ...input.index, reprojectionPending: true }, checkpoint: root.context.checkpoint });

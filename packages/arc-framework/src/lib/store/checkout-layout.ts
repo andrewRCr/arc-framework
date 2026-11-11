@@ -19,29 +19,40 @@ export async function readCheckoutLayoutContext(checkoutRoot: string, options: {
   const contexts = projectionProcessState().layoutContexts;
   const existing = options.fresh ? undefined : contexts.get(checkoutRoot);
   if (existing !== undefined) return existing;
+  return (await readProjectionCheckoutContext(checkoutRoot)).layout;
+}
+
+/** Fresh projection coordinates retain the marker UID outside the shared layout value. */
+export interface ProjectionCheckoutContext { readonly layout: ActiveLayoutContext; readonly uid?: string }
+
+/** Re-read marker and layout together, caching only the shared layout shape for ordinary path readers. */
+export async function readProjectionCheckoutContext(checkoutRoot: string): Promise<ProjectionCheckoutContext> {
+  const contexts = projectionProcessState().layoutContexts;
   const pending = readFreshCheckoutLayoutContext(checkoutRoot);
-  contexts.set(checkoutRoot, pending);
-  try { return await pending; }
+  const layout = pending.then(result => result.layout);
+  contexts.set(checkoutRoot, layout);
+  try { return (await Promise.all([pending, layout]))[0]; }
   catch (error) {
-    if (contexts.get(checkoutRoot) === pending) contexts.delete(checkoutRoot);
+    if (contexts.get(checkoutRoot) === layout) contexts.delete(checkoutRoot);
     throw error;
   }
 }
 
-async function readFreshCheckoutLayoutContext(checkoutRoot: string): Promise<ActiveLayoutContext> {
+async function readFreshCheckoutLayoutContext(checkoutRoot: string): Promise<ProjectionCheckoutContext> {
   const [read, layoutActive] = await Promise.all([readWorktreeMarker(checkoutRoot).catch((error: unknown) => {
     throw new ArcError(`Cannot read the checkout marker at ${checkoutRoot}. Repair its readability, then retry.`,
       "store.layout-marker-unreadable", { cause: error });
   }), readActiveLayout(checkoutRoot)]);
   if (read.kind === "malformed") throw new ArcError(`${read.path}: ${read.message}. Repair or remove the marker, then retry.`, "store.layout-marker-invalid");
-  if (read.kind === "absent" || read.marker.husk !== undefined) return { claim: null, layoutActive };
+  if (read.kind === "absent" || read.marker.husk !== undefined) return { layout: { claim: null, layoutActive } };
   const ownership = decodeWorktreeMarkerOwnership(read.marker);
   if (ownership.kind !== "current") throw new ArcError(`The checkout marker at ${checkoutRoot} requires manual repair (${ownership.reason}). `
     + "Inspect and repair or release its claim, then retry.", "store.layout-marker-invalid");
   const subject = ownership.subject;
   const claim = subject.kind === "work-unit" ? subject.name
     : subject.kind === "errand" || subject.kind === "partial-errand" ? subject.slug : null;
-  return { claim: claim === null ? null : SlugSchema.parse(claim), layoutActive };
+  return { layout: { claim: claim === null ? null : SlugSchema.parse(claim), layoutActive },
+    ...(subject.kind === "work-unit" && subject.uid !== undefined ? { uid: subject.uid } : {}) };
 }
 
 async function readActiveLayout(checkoutRoot: string): Promise<ActiveLayoutContext["layoutActive"]> {

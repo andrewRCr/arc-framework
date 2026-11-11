@@ -1,4 +1,5 @@
 /** Send the command's edited files, keeping ignored roots untouched while recording their landings. */
+import { readUnchangedProjectionFile } from "./unchanged-file.js";
 import { withProjectionEntry } from "./index-memory.js";
 import { loadProjectionGroups } from "./index-memory.js";
 import { join } from "node:path";
@@ -98,6 +99,11 @@ async function checkFileAtPath(root: ProjectionRootState, index: ProjectionIndex
     // A pending refresh is not an authored edit. Standing ambiguity tokens keep their separate resolution authority.
     return { index: withEntry(index, path, { ...entry, stat: changed.stat,
       refused: entry.refused?.reason === "bases-disagree" ? entry.refused : null }), edited: false };
+  }
+  if (!resolving && changed.status === "changed"
+    && await readUnchangedProjectionFile(root.context, pendingFileRequest(root, path, entry)) !== null) {
+    root.unsent.delete(path);
+    return { index, edited: false };
   }
   return { index: changed.status === "changed" ? withEntry(index, path, { ...entry, changed: true }) : index, edited: true };
 }

@@ -129,6 +129,7 @@ const ProjectedUnderSchema = z.strictObject({
   view: z.strictObject({ mode: z.enum(["mine", "cohort", "all"]), pins: z.array(SlugSchema) }),
   identity: SlugSchema,
   claim: SlugSchema.nullable(),
+  claimUid: z.uuid().optional(),
   layoutActive: z.enum(["nested", "flat"]),
 });
 

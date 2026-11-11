@@ -141,199 +141,29 @@ that chunk.
   publication. Pending removals and ownership transfers retry without a new store write. Captured writes from renamed
   owners retain their historical basis while atomic admission observes the current canonical owner name.
 
-### `[ ]` **1.7 Fan out from the store `createStore` builds — § 2.2, § 1.2**
+### `[x]` **1.7 Fan out from the store `createStore` builds — § 2.2, § 1.2**
 
 - _Goal:_ Once a write or a pull's merges land, the writer brings every worktree on the machine that holds a projection
   up from that worktree's own state version, taking each one's projection lock in turn — and whatever fan-out misses,
   the next command's start refreshes.
 
-    - `[ ]` **1.7.a The wrapper**
+    - `[x]` **1.7.a The wrapper**
 
-        - `withFanOut(store, deps)`, exported from `lib/store/projection/`, wraps a store once: `write` and `batch` fan
-          out after a landed write, and `pull` and `push` after every call whatever the outcome, since a push runs pulls
-          and a refused or timed-out sync may still have merged. `createStore` (`lib/store/create.ts`) applies it to the
-          store `lazyStore` returns, beside the capability record already there (`recordComposedStoreCapability`,
-          `lib/store/projection/process-state.ts`); tests apply it to the reference backend and `createRefStore`.
-        - It is inert while `capabilities.stateOffBranch` is false. A write, pull, or push made under a projection lock
-          fans out once that lock is released, a history pull `retryEndedItemHistory` (`lib/store/history-retry.ts`)
-          makes under `arc save`'s start or a persist or release step among them, since that wrap passes `pull` to the
-          store this wraps. A command's start fans out once for all its write-backs through its root's `fanOut` slot,
-          which `initializeProjection` (`lib/store/projection/engine.ts`) calls after releasing the start's lock when
-          the start took an edit in (`ProjectionRootState.changed`) or a pull or push ran under its lock, which the
-          wrapper records in the process state. A write landing during a fan-out — a take-in in a sibling's refresh, a
-          stub minted by adoption — joins that fan-out's next round through the process state's `fanOutRounds` rather
-          than starting another. Under `--skip-projection` (`ProjectionSkip` with reason `switch`), and in a command
-          whose configuration yields no identity, which runs as under it (reason `no-identity`), nothing fans out.
-        - Every other projection lock this member takes — the persist and release steps (2.2, 2.3) and both
-          materializations (1.5, 1.9) — goes through one wrapper over `withProjectionLock`
-          (`lib/store/projection/lock.ts`) that sets the process state's `lockHeld` while it holds the lock and, once
-          the lock is released, runs the fan-out a write, pull, or push under it deferred, as `initializeProjection`
-          does for the start; one under a lock the fan-out itself holds joins its next round. The command's end
-          (`endProjection`, `finishProjectionRoot`) fans out nothing: an edit its second check takes in reaches the
-          other worktrees at their next command start or the next fan-out (spec § 2.2, § 17), and what the end deferred
-          is dropped. So no command fans out while holding a lock, and every deferred round but the end's runs.
-        - Both creation paths of `arc start --new` commit their scaffold batch (`scaffoldIntoWorktree`,
-          `lib/git/worktree-scaffold.ts`) before they stamp the checkout marker's UID (`stampCreatedWorkUnitMarker`,
-          `lib/work-unit/created-work-unit-marker.ts`): `completeCreatedWorktree` (`commands/start.ts`) and the cold
-          start (`commands/start-cold-store.ts`). Each holds that batch's fan-out through a hold of its own in the
-          process state, which the fan-out's deferral reads as it reads `lockHeld` and 1.7.b's provenance rule does not,
-          so the batch stays the verb's own write and marks its files changed, and runs it once the stamp has run, so
-          this process lays no copy of the new meta while the marker naming it is unbound, which `checkoutRights`
-          (`lib/store/projection/rights.ts`) would answer as `checkout-not-writable` and protection would lay read-only;
-          where the stamp refuses, the fan-out still runs, and the unbound marker it leaves is the repair state spec
-          § 16.3 names. A render another process makes in that window is reprojected in the claimed worktree once the
-          UID is bound (1.8), and lags elsewhere as spec § 17 item 7 says.
-        - The wrapper returns the store's result as the store gave it: a fault fanning out into one worktree is reported
-          for that worktree and skips it (1.7.b), and nothing a fan-out meets fails the write it follows.
-        - Build `test-first` (one behavior at a time):
-            - a landed write fans out, and a refused one does not
-            - a `pull` reported `failed` after merging still fans out
-            - a write made under the start's lock fans out once, after release
-            - a write made under the persist step's lock fans out once, after release, while the command holds no lock
-            - an edit `arc sync`'s materialization takes in under its lock fans out once, after the lock is released,
-              and the process state's `lockHeld` is set only while the lock is held
-            - a history pull `arc save`'s start makes for a refused read fans out once, after the start's lock is
-              released, though the retried read lands no write
-            - a history pull a persist step makes fans out once, after that step's lock is released
-            - a fault fanning out into one worktree is reported, and the write returns the store's result
-            - an edit the command's end takes in fans out nothing, and a sibling takes it at its next command
-            - `arc start <slug> --new` lays the new work unit's meta editable in the new worktree, and no other
-              worktree's copy carries a repair notice
-            - a creation whose stamp refuses still fans out, its meta laid protected with the unbound marker's repair
-              notice
-            - after a creation's refused stamp, `arc materialize <slug> --here` binds the marker, and the next command
-              there lays the meta editable
-            - a take-in during a sibling's refresh fans out in the same fan-out's next round
-            - over the in-repo implementation, a write fans out nothing and makes no Git call
+        - Added an invocation-bound, clone-scoped store facade, deferred rounds through a common projection-lock
+          wrapper, and scaffold holds through marker binding. Start and history-pull work flushes after release;
+          command end disposes notification authority and drops its deferred work. In-repo stores remain inert.
 
-    - `[ ]` **1.7.b One fan-out**
+    - `[x]` **1.7.b One fan-out**
 
-        - One `scanRegisteredWorktrees` call (`lib/git/worktree-roster.ts`) lists the machine's worktrees, detached ones
-          included. Each one's Git directory is read from its roster path's `.git` by `readGitDirectories`
-          (`lib/git/directories.ts`), which throws where `.git` is missing or invalid — never by `locateProjection`,
-          whose fallback runs `git rev-parse` and resolves inside a separate Git directory. A path holding no `.git`, as
-          Git lists a primary whose `.git` is a `gitdir:` file at its Git directory, or whose aside folder holds no
-          reference stamp (`readReference`, `lib/store/projection/change-detection.ts`), as Git lists such a primary at
-          that directory's parent where it is named `.git`, is skipped with no Git call, that checkout refreshing at its
-          own next command. Each holding a projection has its index header read for its state version, as 1.2's
-          lock-free reader reads it, then, in each round, one `version()` call, one `changes` call per distinct state
-          version, and one call for each distinct record read or listing the round's refreshes make, all through the
-          round's read memo (1.6.a), which every worktree's refresh in the round reads through. The writer's own
-          worktree is found from its own root, never from the roster, whose entry for its Git directory it skips.
-        - Each worktree is taken under `withProjectionLock` with `{ maxWaitMs: SIBLING_LOCK_WAIT_MS }`
-          (`lib/store/projection/lock.ts`), since the default waits 10 s; a lock held past 200 ms by another — the
-          writer's own worktree included — skips it, and a result of `lost` or `gone` skips it from its next step, the
-          fan-out going on. Under the lock its index is read again, and the worktree skipped when its state version
-          moved, when it is already current, when its state version no longer resolves, or when its index is unusable or
-          of another format version. A worktree that stays is bound through 1.3's binder, with the command's
-          configuration read and actor — one the command's roots already hold re-read into the root it holds (1.3) — is
-          checked against the skip rule below before anything else runs there, has `checkIgnores` run for it (1.6.a),
-          and is refreshed through 1.6. Its index, read under its lock, is the one every write of the visit takes and
-          returns, as at the start (1.6.a): the fan-out records `checkIgnores`' result into it as the sweep does at the
-          start, its ignore files (`ignoreFilesAfter`) and its guard's basis (`ignoreGuard`: a pass's basis, null after
-          a refusal), through the helper 1.5 extracts from the sweep (`sweepAsideFolder`,
-          `lib/store/projection/sweep.ts`), and the refresh takes the index the visit then holds. Protection's searches
-          take the fan-out's own listing of the worktrees for its first round and a fresh one for each later round
-          (1.4.b).
-        - Before the already-current shortcut, a writer's own root or an eligible root a spawn materialized earlier in
-          the command runs 1.8 when its header carries `reprojectionPending` (1.6.R), even if the state version is
-          current and the tuple compares equal. Other siblings with the flag set are skipped before their guard;
-          existing view, identity, and ignore-basis refusals still apply to a spawn's root.
-        - The binder reads the worktree's claim, its marker's UID (1.8), and `layout.active` fresh under its lock (1.3).
-          A sibling is skipped where they, or the command's view setting and identity, differ from what its index
-          records it was projected under (`ProjectionIndexSchema.projectedUnder`), or where its index records no guard
-          pass (`ProjectionIndexSchema.ignoreGuard` null), as a refused guard leaves it, or one under another ignore
-          configuration than the command's (`IgnoreGuardBasis`), so no file is laid from a recorded claim and no guard
-          runs on another worktree's basis; that worktree's own next command reprojects it (1.8). The writer's own
-          worktree is never skipped for a difference: a verb run there may have changed its claim, so it is reprojected
-          in place through 1.8 before its refresh, the refresh taking the index the reprojection returned, and the
-          verb's changed marks land. Nor is a worktree a spawn materialized earlier in the command, whose root 1.5 marks
-          as a spawn's, skipped for a difference in its claim or `layoutActive` alone, as the creation's stamp makes one
-          by binding the UID (1.7.a): it is reprojected in place through 1.8 before its refresh, as the writer's own is,
-          and marks nothing changed; a difference in its view setting, identity, or ignore configuration still skips it.
-          A worktree whose binding or refresh throws is reported and skipped, the fan-out going on. A primary entry's
-          re-lay lists its owner's records once per round, through the same memo, and each worktree's refresh reads
-          `history` through the command's memo (`ProjectionProcessState.history`, `process-state.ts`;
-          `createHistoryMemo`, `lib/store/projection/base-recovery.ts`): at most one call per record between the
-          command's write-backs to that record, since a write-back's read-back drops the record's memoized answer, so a
-          take-in landing during the fan-out costs the next worktree one more call.
-        - A verb's write marks its own checkout: the fan-out's refresh of the writer's own worktree sets the changed
-          mark (`RecordEntry.changed`) on each file of a record the writer's own write landed, and no sibling's, through
-          a setter this task adds. A landed write is the verb's own only where it lands with no projection lock held
-          (the process state's `lockHeld`, 1.7.a): a take-in, or a stub adoption mints, lands under the lock of the root
-          that sends it, so one landing during the fan-out joins its next round and marks nothing. The provenance verb
-          would not tell them apart, since a minted stub carries the `stub` verb (`runStub`, through
-          `mintProjectionStub`) rather than a take-in's (`HAND_EDIT_VERBS`, `lib/store/links.ts`). A refresh that only
-          rewrites a file, from a sibling's write or a pull, sets none, and a verb writing for another checkout, as
-          graduation does into a spawned worktree, marks nothing there.
-        - Build `test-first` (one behavior at a time):
-            - a current writer's root with pending reprojection retries it, while a flagged sibling is skipped
-            - Integration tier, over the reference backend and real linked worktrees
-            - an edit written back in one worktree reaches the other worktrees' copies
-            - a write from a checkout with the projection off (1.1) reaches a sibling's projection
-            - a pull's merges reach every worktree
-            - a fan-out visiting two siblings at different state versions leaves the same files and index entries in
-              each whichever it visits first, a take-in during the first visit's refresh included
-            - two worktrees refreshing one conflicted record, with no take-in during the fan-out, read its `history`
-              once, and a take-in landing between them adds one call
-            - a round over two worktrees at one state version, after a meta's write, calls the store's `version` once,
-              `changes` once, the owner's `list` once, and `read` no more than once per record, and selects the view
-              once (`createRefusingStore`'s `calls`)
-            - a one-file task-list write fanned into worktrees holding other work units reads the owner's meta at most
-              once, looks up no claim, and lists the worktrees once in its round, its Git processes counted as
-              `notes-projection-worktrees.md` § Spike 3 counts them
-            - a meta write from another checkout fanned into the owner's checkout looks up the owner's claim once
-            - a start whose lease is lost leaves its root unready, and a later fan-out's refresh there marks it `ready`,
-              so the end checks that refresh's copies
-            - a worktree another refresh brought up first is skipped
-            - a worktree whose lock is held past 200 ms is skipped and refreshes at its own next command
-            - a worktree whose lease is lost mid-refresh is skipped, the fan-out going on, and refreshes at its own next
-              command
-            - a worktree with an older index format is skipped and refreshes at its own next command
-            - a sibling whose marker changed since it was projected is skipped, nothing laid there, and reprojects at
-              its own next command
-            - a worktree a spawn materialized earlier in the command, whose marker's UID the command then bound, is
-              reprojected in place by the fan-out, its files laid under the bound claim and none marked changed, and one
-              whose own view setting differs from the command's is skipped
-            - a sibling the command already holds from an earlier fan-out, not a spawn's, whose marker changes before
-              the command's next fan-out is skipped there, nothing laid, while a spawn-marked root in the same fan-out
-              is reprojected in place
-            - a worktree whose marker cannot be read is reported and skipped, the fan-out going on
-            - a sibling whose index's guard last passed under another ignore configuration is skipped, no guard run
-              there
-            - a sibling whose index records no guard pass is skipped, no guard run there
-            - a fan-out visit whose ignore check refuses one root records no guard pass in the index its refresh writes,
-              and the next fan-out skips that sibling, no guard run there
-            - a worktree spawned earlier in the command under another identity, left unmaterialized, gets nothing from
-              the fan-out
-            - `arc start <slug> --new --here` in the primary lays the new work unit's files under its claim and marks
-              them changed, so `arc selection --changed` lists them
-            - a primary made by `git init --separate-git-dir`, which Git lists at its Git directory, is skipped, nothing
-              written under that directory, and refreshes at its own next command
-            - a primary whose separate Git directory is named `.git`, which Git lists at that directory's parent, is
-              skipped, nothing written in that parent
-            - a writer that is such a primary refreshes its own worktree
-            - a sibling whose ignore file changed since its check last passed has the guard run before the fan-out
-              writes into it
-            - a sibling with the `all` view takes another person's new work unit, and one with `mine` does not
-            - `arc save`'s writes reach the other worktrees' copies
-            - a verb's write marks its record's file changed in the writer's checkout and in no sibling's, and a pull's
-              merges mark nothing
-            - a take-in, and a stub an adoption mints, landing during the fan-out mark nothing in the writer's checkout
-            - a process whose root hook bound no ports fans out nothing, each sibling refreshing at its next command
-            - a write made under `--skip-projection` reaches no sibling until that sibling's next command
-            - a record landing for a sibling's hand-edited file between the round's `version()` read and that file's
-              take-in, through a store double that lands it there, is neither overwritten nor taken as the edit's base:
-              the edit merges with it, or is held pending or in conflict with the remedy write-back reports, and the
-              file afterwards holds what the take-in left, never the round's version of the record; a write to an
-              unrelated record landing at the same point holds nothing back, laid by the next round where the take-in
-              lands and by that worktree's next refresh where it is held
-            - `arc rename` run from one worktree, whose start fanned an edit into the holder's worktree, leaving an
-              aside copy there, then moves that worktree's folder: the root is dropped and reported, the command's end
-              reads and writes nothing at either path for it, a later fan-out in the same command binds the worktree at
-              its new path, and that worktree's next command's sweep takes the copy in
-            - `arc rename` run in the holder's own worktree moves nothing, its deferred move printed, and the command's
-              own root stays held, its end checking that worktree as before
+        - Native roster visits use direct Git-directory reads, bounded leases, leased header checks, fresh target
+          settings, and shared round reads, protection, and command history. Take-ins queue another round; verb writes
+          mark only their entering checkout. Skipped siblings recover at their next start, including interrupted
+          replacements whose unchanged bytes are classified before edit rights. Unready roots retry transient unsent
+          paths, retaining their recovered copies for command end; intentional reverts and late saves remain edits.
+
+- _Outcome:_ Marker UIDs now participate in projection provenance without changing `ActiveLayoutContext`'s shape,
+  allowing refused creation stamps to recover editability after a same-slug bind. Live preparation shares the command's
+  history while atomic admission still captures and validates the historical bytes consumed.
 
 ### `[ ]` **1.8 Reproject on a changed view setting, identity, claim, or layout — § 10.4, § 10.3**
 

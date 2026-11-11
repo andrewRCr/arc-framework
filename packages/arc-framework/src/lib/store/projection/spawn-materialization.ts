@@ -3,7 +3,7 @@ import type { ProjectionCommandInput } from "./engine.js";
 import { projectionProcessState } from "./process-state.js";
 import { createProjectionEnginePorts } from "./engine-ports.js";
 import { locateProjection } from "./location.js";
-import { withProjectionLock } from "./lock.js";
+import { withProjectionFanOutLock } from "./fan-out-lock.js";
 import { readProjectionConfiguration } from "./configuration.js";
 import { observeProjectionConfiguration } from "./command-configuration.js";
 import { bindProjectionRoot } from "./engine-binding.js";
@@ -29,7 +29,7 @@ export function bindSpawnMaterialization(input: ProjectionCommandInput): void {
 async function materializeSpawn(input: ProjectionCommandInput, checkout: string): Promise<void> {
   const ports = input.ports?.() ?? createProjectionEnginePorts(checkout);
   const location = await locateProjection(checkout, ports);
-  const result = await withProjectionLock(location, async session => {
+  const result = await withProjectionFanOutLock(location, async session => {
     const configuration = await readProjectionConfiguration(ports.exec, checkout);
     if (configuration.identity.status !== "identified") return;
     const command = await observeProjectionConfiguration(input.checkout, () => readProjectionConfiguration(ports.exec, input.checkout));

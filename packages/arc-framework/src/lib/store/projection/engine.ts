@@ -7,8 +7,11 @@ import type { StateVersion } from "../identity.js";
 import type { RefusedMark } from "./index-schema.js";
 import { createProjectionEnginePorts, type ProjectionEnginePorts } from "./engine-ports.js";
 import { locateProjection, type ProjectionLocation } from "./location.js";
-import { withProjectionLock, type ProjectionLockResult } from "./lock.js";
+import { type ProjectionLockResult } from "./lock.js";
 import { beginProjectionCommand, projectionProcessState, recordEngineStoreCapability, type ProjectionSkip, type ProjectionCommandBinding } from "./process-state.js";
+import { withProjectionFanOutLock } from "./fan-out-lock.js";
+import { bindProjectionFanOut, disposeProjectionFanOut } from "./fan-out-binding.js";
+import { runProjectionFanOut } from "./fan-out.js";
 import { startUnderLease, type ProjectionStartInput } from "./engine-start.js";
 import { finishProjectionRoot } from "./engine-end.js";
 
@@ -69,7 +72,14 @@ async function initializeProjection(input: ProjectionCommandInput): Promise<Proj
     }
     location = await locateProjection(input.checkout, ports);
   }
-  const result = await withProjectionLock(location, session => startUnderLease(effective, ports, location, session, unsent),
+  await bindProjectionFanOut({ checkout: input.checkout, location, ports,
+    run: ownWrites => runProjectionFanOut({ ...input, ports: () => ports, location }, ownWrites) });
+  const result = await withProjectionFanOutLock(location, async session => {
+    const started = await startUnderLease(effective, ports, location, session, unsent);
+    const root = state.roots.get(input.checkout);
+    if (root?.ready && root.changed) state.fanOutRounds.add(input.checkout);
+    return started;
+  },
     { invalidatePartition: true, ...(ports.maxWaitMs === undefined ? {} : { maxWaitMs: ports.maxWaitMs }) }, ports.lock);
   if (result.status !== "done") return recordProjectionLockSkip(input.checkout, result, unsent);
   if (result.value.kind === "refused") state.diagnostics.push({ path: input.checkout, copy: null, mark: result.value.mark });
@@ -77,11 +87,6 @@ async function initializeProjection(input: ProjectionCommandInput): Promise<Proj
     const mark = result.value.skip.mark;
     state.diagnostics.push({ path: input.checkout, copy: null, mark });
     for (const path of result.value.pending) state.diagnostics.push({ path, copy: null, mark });
-  }
-  const root = state.roots.get(input.checkout);
-  if (root?.ready && root.changed) {
-    state.fanOutRounds.add(input.checkout);
-    await root.fanOut?.();
   }
   return result.value;
 }
@@ -94,6 +99,7 @@ function historyRetryInput(input: ProjectionCommandInput): ProjectionStartInput 
 
 /** Settle the copies accumulated by this command under freshly acquired locks. */
 export async function endProjection(input: ProjectionCommandInput): Promise<void> {
+  disposeProjectionFanOut();
   const state = projectionProcessState();
   if (state.skip?.reason === "switch") return;
   recordEngineStoreCapability(input.checkout, input.store.capabilities.stateOffBranch);

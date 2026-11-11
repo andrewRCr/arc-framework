@@ -54,7 +54,7 @@ async function prepareStable(context: WriteBackContext, checkout: string, path: 
     }
     const request: ProjectionPreparationRequest = { version: 1, mutationIndex: 0, ...data,
       editingIdentity: local.result.identity, local: local.result.local };
-    const plan = await planProjectionWrite(context.store, request, context.registry ?? registry);
+    const plan = await planProjectionWrite(context.store, request, context.registry ?? registry, context.memo);
     if (plan.status === "refused") return plan;
     const observed = await capture();
     if (observed.status === "refused") return observed;

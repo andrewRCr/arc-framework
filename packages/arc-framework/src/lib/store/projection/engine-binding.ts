@@ -1,5 +1,7 @@
 /** Bind one checkout's projection operations independently of the command's entering checkout. */
-import { readCheckoutLayoutContext } from "../checkout-layout.js";
+import { readUnchangedProjectionFile } from "./unchanged-file.js";
+import { flushProjectionFanOut } from "./fan-out-scheduler.js";
+import { readProjectionCheckoutContext } from "../checkout-layout.js";
 import { refreshProjectionRoot } from "./refresh.js";
 import { reprojectProjectionRoot } from "./reprojection.js";
 import { refuseOwnershipHandoff } from "./ownership-hold.js";
@@ -44,7 +46,7 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
   const unsent = input.unsent ?? new Set<string>();
   if (config.identity.status !== "identified") throw new Error("A projection root needs an identity");
   const state = projectionProcessState();
-  const layout = await readCheckoutLayoutContext(input.checkout, { fresh: true });
+  const { layout, uid } = await readProjectionCheckoutContext(input.checkout);
   const writer = await ports.writer();
   await session.step();
   const checkpoint = async (): Promise<void> => {
@@ -70,7 +72,7 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
     recordBatch: batch => { root.copies.push(...batch.copies); root.removals.push(...batch.removals); } };
   const send = createWriteBackPort(context);
   const root: ProjectionRootState = { checkout: input.checkout, store: input.store, location, ports, context, identity: config.identity.identity,
-    claim: layout.claim, layoutActive: layout.layoutActive, view: interpretProjectionView(config.view).view,
+    claim: layout.claim, claimUid: uid, layoutActive: layout.layoutActive, view: interpretProjectionView(config.view).view,
     blockedByLink: createProjectionLinkBoundary(input.links ?? []),
     mint: input.mint, checkpoint: session.step, copies: [], removals: [], unsent, discovered: [], changed: false,
     ready: false, writable: () => false, rights: bindProjectionRights(input.store, config.identity.identity, ports.exec, input.mode ?? "write-back"), takeIn: async request => {
@@ -79,6 +81,11 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
         context.report?.({ path: request.path, copy: request.copy, mark: held.mark });
         return held;
       }
+      const unchanged = await readUnchangedProjectionFile(context, request);
+      if (unchanged !== null) {
+        root.unsent.delete(request.path);
+        return { answer: "no-edit", entry: request.entry, read: unchanged };
+      }
       request = observeProjectionEdit(request);
       const denied = await root.rights?.(request);
       if (denied === undefined || denied === null) return send(request);
@@ -86,6 +93,7 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
       context.report?.({ path: request.path, copy: request.copy, mark: denied });
       return refuseProjectionEdit(request.entry, denied);
     } };
+  root.fanOut = flushProjectionFanOut;
   root.refresh = request => refreshProjectionRoot({ ...request, root, configuration: config });
   root.reproject = request => reprojectProjectionRoot({ ...request, root, configuration: config });
   if (input.register) state.roots.set(input.checkout, root);
@@ -94,7 +102,8 @@ export async function bindProjectionRoot(input: ProjectionRootBindingInput): Pro
 
 /** Re-read a held root's path-local layout without replacing its copy bookkeeping. */
 export async function refreshProjectionRootLayout(root: ProjectionRootState): Promise<void> {
-  const layout = await readCheckoutLayoutContext(root.checkout, { fresh: true });
+  const { layout, uid } = await readProjectionCheckoutContext(root.checkout);
   root.claim = layout.claim;
+  root.claimUid = uid;
   root.layoutActive = layout.layoutActive;
 }

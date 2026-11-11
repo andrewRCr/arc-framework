@@ -2,7 +2,8 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { projectionProcessState, type ProjectionRootState } from "./process-state.js";
-import { withProjectionLock, SIBLING_LOCK_WAIT_MS } from "./lock.js";
+import { SIBLING_LOCK_WAIT_MS } from "./lock.js";
+import { withProjectionFanOutLock } from "./fan-out-lock.js";
 import { readProjectionIndex } from "./index-file.js";
 import { runSecondCheck } from "./second-check.js";
 import { removeTakenInCopies, TAKEN_IN_FOLDER } from "./taken-in.js";
@@ -15,8 +16,7 @@ import { reconcileProjectionHandoffs } from "./ownership-handoff.js";
 export async function finishProjectionRoot(root: ProjectionRootState): Promise<void> {
   if (!root.ready) return;
   const state = projectionProcessState();
-  const ended = await withProjectionLock(root.location, async session => {
-    state.lockHeld = true;
+  const ended = await withProjectionFanOutLock(root.location, async session => {
     root.checkpoint = session.step;
     try {
       await session.step();
@@ -41,9 +41,8 @@ export async function finishProjectionRoot(root: ProjectionRootState): Promise<v
       await removeTakenInCopies(root.location, files.filter(file => !named.has(file)), root.context.checkpoint);
     } finally {
       root.checkpoint = null;
-      state.lockHeld = false;
     }
-  }, { maxWaitMs: root.ports.maxWaitMs ?? SIBLING_LOCK_WAIT_MS,
+  }, { fanOut: "drop", maxWaitMs: root.ports.maxWaitMs ?? SIBLING_LOCK_WAIT_MS,
     invalidatePartition: state.command?.checkout === root.checkout }, root.ports.lock);
   if (ended.status !== "done") state.diagnostics.push({ path: root.checkout, copy: null, mark: {
     reason: `Projection end skipped: ${ended.status}${ended.status === "lost" || ended.status === "mismatch" ? `: ${ended.report}` : ""}`,

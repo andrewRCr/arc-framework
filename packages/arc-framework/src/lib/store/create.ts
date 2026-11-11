@@ -3,6 +3,8 @@
 import type { Store, ReadOnlyStore } from "./contract.js";
 import type { StoreConflictInput, StoreConflictResult, StoreMigrateInput, StoreMigrateResult, StoreRemoteInput, StoreRemoteResult } from "./commands.js";
 import type { StorePorts, RefStorePorts } from "./ports.js";
+import { withFanOut } from "./projection/with-fan-out.js";
+import { createProjectionFanOutDependencies } from "./projection/fan-out-binding.js";
 import { recordComposedStoreCapability } from "./projection/process-state.js";
 
 /** Construct a lazy store without reading configuration, files, or Git topology.
@@ -10,8 +12,9 @@ import { recordComposedStoreCapability } from "./projection/process-state.js";
  * @returns The operational state contract over the checkout's current substrates.
  */
 export function createStore(ports: StorePorts): Store {
-  return lazyStore(ports.checkoutRoot, false, () => import("./in-repo/backend.js")
+  const store = lazyStore(ports.checkoutRoot, false, () => import("./in-repo/backend.js")
     .then(({ createInRepoBackend }) => createInRepoBackend(ports)));
+  return withFanOut(store, createProjectionFanOutDependencies(ports.checkoutRoot));
 }
 
 /** Construct the dark ref backend without consulting any dependency. */

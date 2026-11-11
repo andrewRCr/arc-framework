@@ -1,4 +1,5 @@
 /** Cold-start preparation publishes its operational record only after local claims are ready. */
+import { withProjectionFanOutHold } from "../lib/store/projection/fan-out-scheduler.js";
 import type { Store } from "../lib/store/contract.js";
 import type { ColdStartOutcome, ColdStartParams, ColdStartPassthrough } from "./start.js";
 import type { SpawnWorktreeContext } from "../lib/git/worktree-scaffold.js";
@@ -15,6 +16,11 @@ import { stampCreatedWorkUnitMarker } from "../lib/work-unit/created-work-unit-m
 
 /** Anchor an existing checkout without changing its branch, HEAD, or tracked files. */
 export async function runStoreColdStart(ctx: SpawnWorktreeContext, params: ColdStartParams, wuName: string,
+  seed: { origin?: string; passthrough?: ColdStartPassthrough }): Promise<ColdStartOutcome> {
+  return withProjectionFanOutHold(() => prepareStoreColdStart(ctx, params, wuName, seed));
+}
+
+async function prepareStoreColdStart(ctx: SpawnWorktreeContext, params: ColdStartParams, wuName: string,
   seed: { origin?: string; passthrough?: ColdStartPassthrough }): Promise<ColdStartOutcome> {
   const store = ctx.store;
   if (store === undefined) throw new Error("Store cold start requires an operational store");

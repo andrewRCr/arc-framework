@@ -1,4 +1,5 @@
 /** Materialize stored records under one target worktree's projection lease. */
+import { projectionSettings } from "./settings.js";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { ensureGitExcludePatterns } from "../../git/exclude.js";
@@ -54,7 +55,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   const excluded = await ensureGitExcludePatterns(root.checkout, projectionExcludePatterns(), root.ports.exec, nodeWorktreeMarkerIgnoreFs);
   if (!excluded.ok) throw excluded.error;
   let index: ProjectionIndex = input.index ?? { format: 2, state: input.version, entries: {}, withheldCopies: [], tripwires: {},
-    ignoreFiles: null, ignoreGuard: null, projectedUnder: { identity: root.identity, claim: root.claim, layoutActive: root.layoutActive, view: root.view } };
+    ignoreFiles: null, ignoreGuard: null, projectedUnder: projectionSettings(root) };
   const swept = await sweepAsideFolder({ location: root.location, checkout: root.checkout, index: input.index,
     withheldCopies: input.recovered?.withheldCopies, format: root.context.format, takeIn: root.takeIn, writer: root.context.writer,
     checkpoint: root.context.checkpoint, blockedByLink: root.blockedByLink, ignoreRules: input.configuration.ignoreRules,

@@ -39,7 +39,8 @@ export interface TakeInRequest {
 
 /** What the take-in answered, with the entry as it left it. */
 export type TakeInResult = (
-  | { readonly answer: "no-edit" | "deferred" | "pending" | "clashed"; readonly entry: RecordEntry }
+  | { readonly answer: "no-edit"; readonly entry: RecordEntry; readonly read?: TakeInRead }
+  | { readonly answer: "deferred" | "pending" | "clashed"; readonly entry: RecordEntry }
   /**
    * The edit landed whole; `read` is the stat and blob id it read, which a later check of the file compares against.
    * For an aside copy, the entry records beside the copy the blob id it held, as `landed`.

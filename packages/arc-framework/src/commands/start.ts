@@ -74,6 +74,7 @@ import {
   scaffoldIntoWorktree,
   type SpawnWorktreeContext,
 } from "../lib/git/worktree-scaffold.js";
+import { withProjectionFanOutHold } from "../lib/store/projection/fan-out-scheduler.js";
 import { stampCreatedWorkUnitMarker } from "../lib/work-unit/created-work-unit-marker.js";
 import { readWorktreeMarker } from "../lib/git/worktree-marker.js";
 import type { OwnerIdentity } from "../lib/store/identity.js";
@@ -857,19 +858,23 @@ async function completeCreatedWorktree(ctx: SpawnWorktreeContext, spawn: {
   spawnCoordinate?: SpawnedCheckoutCoordinate;
 }, identity: string, postCreateNotice: string | undefined): Promise<CreateNewOutcome> {
   const { worktreePath, branch, wuName } = spawn;
-  let owner: OwnerIdentity | undefined;
-  try {
-    owner = await scaffoldIntoWorktree(ctx, { worktreePath, branch, wuName, spawningIdentity: identity, createdByArc: false,
-      ...(branch === null ? {} : { sessionNotesSeed: buildStartSessionNotesSeed({
-        wuName, branch, kind: "create-new", commit: START_CEREMONY_PENDING_COMMIT,
-      }) }),
-    });
-  } catch (error) { return rejectCreateNewScaffold(ctx, spawn, error); }
-  if (spawn.offBranch) {
-    const refusal = await stampCreatedWorkUnitMarker({ cwd: worktreePath, name: wuName, expected: spawn.markerGeneration, owner });
-    if (refusal !== null) return { ok: false, reason: refusal, worktreePath,
-      spawnLock: await lockRetainedCreation(ctx, worktreePath, wuName, owner) };
-  }
+  const prepared = await withProjectionFanOutHold(async (): Promise<CreateNewOutcome | null> => {
+    let owner: OwnerIdentity | undefined;
+    try {
+      owner = await scaffoldIntoWorktree(ctx, { worktreePath, branch, wuName, spawningIdentity: identity, createdByArc: false,
+        ...(branch === null ? {} : { sessionNotesSeed: buildStartSessionNotesSeed({
+          wuName, branch, kind: "create-new", commit: START_CEREMONY_PENDING_COMMIT,
+        }) }),
+      });
+    } catch (error) { return rejectCreateNewScaffold(ctx, spawn, error); }
+    if (spawn.offBranch) {
+      const refusal = await stampCreatedWorkUnitMarker({ cwd: worktreePath, name: wuName, expected: spawn.markerGeneration, owner });
+      if (refusal !== null) return { ok: false, reason: refusal, worktreePath,
+        spawnLock: await lockRetainedCreation(ctx, worktreePath, wuName, owner) };
+    }
+    return null;
+  });
+  if (prepared !== null) return prepared;
   await materializeSpawnedProjection(worktreePath);
   const spawnLock = await lockSpawnedCheckout(ctx.io.exec, worktreePath);
   if (spawnLock.kind === "failed") return {

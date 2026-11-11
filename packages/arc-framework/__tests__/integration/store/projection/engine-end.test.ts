@@ -12,6 +12,7 @@ import { PROJECTION_LOCK_FILE } from "../../../../src/lib/store/projection/lock.
 import { acquireAdvisoryLock, releaseAdvisoryLockConfirmed, type AdvisoryLockHandle } from "../../../../src/lib/advisory-lock.js";
 import { ADVISORY_LEASE_DURATION_MS } from "../../../../src/lib/renewable-lease.js";
 import { projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
+import { gitBlobId } from "../../../../src/lib/store/projection/blob-id.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { createStore } from "../../../../src/lib/store/create.js";
 import { createDefaultStorePorts } from "../../../../src/lib/store/default-store-ports.js";
@@ -42,7 +43,9 @@ describe("projection command end", () => {
     const h = await createEngineFixture(directories, { path: ".arc/user/andrew/scratch/document.txt" });
     await h.edit("hand edit\n");
     await startProjection({ store: h.store, checkout: h.checkout });
-    expect((await h.disk()).entries[h.path]).toMatchObject({ inProgress: { replaces: h.entry.base } });
+    const stored = await h.stored();
+    expect((await h.disk()).entries[h.path]).toMatchObject({ inProgress: { replaces: {
+      blob: gitBlobId(stored.content, "sha1"), version: stored.version } } });
     await endProjection({ store: h.store, checkout: h.checkout });
     expect((await h.disk()).entries[h.path]).toMatchObject({ inProgress: null, copies: [] });
     expect(await h.file()).toBe("hand edit\n");

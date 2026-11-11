@@ -91,7 +91,7 @@ async function recheck(input: ReplaceGuardInput): Promise<GuardResult> {
     const base = baseOf(input.path, bytes, entry);
     const result = await input.takeIn({ checkout: input.checkout, path: input.path, copy: null, entry, base, observedEdit: true });
     // No edit: the stat seen becomes the file's baseline, so a later save to it still reads as one.
-    if (result.answer === "no-edit") return replace({ ...result.entry, stat: verdict.stat });
+    if (result.answer === "no-edit") return unchangedReplacement(result, staged, verdict.stat, baseline.blob);
     if (result.answer !== "taken-in") return held(result, result.answer);
     if (pass === GUARD_PASSES) return { kind: "unreplaced", entry: { ...result.entry, pending: true }, cause: "unsettled" };
     ({ entry } = result);
@@ -105,6 +105,12 @@ async function recheck(input: ReplaceGuardInput): Promise<GuardResult> {
     }
     staged = restaged.result;
   }
+}
+
+function unchangedReplacement(result: Extract<TakeInResult, { answer: "no-edit" }>, staged: StagedFile | null,
+  stat: FileStat, moving: string): GuardResult {
+  return { kind: "replace", entry: { ...result.entry, stat: result.read?.stat ?? stat }, staged,
+    moving: result.read?.blob ?? moving };
 }
 
 /** An answer that leaves the file in place, its edit there: pending, and refused where the take-in refused it. */

@@ -3,6 +3,7 @@ import type { Slug } from "../../kernel/index.js";
 import type { ActiveLayoutContext } from "../../layout/index.js";
 import { onCheckoutChange } from "../../git/checkout-change.js";
 import type { Store } from "../contract.js";
+import type { RecordReference } from "../identity.js";
 import type { HistoryMemo } from "./base-recovery.js";
 import type { ProjectionStubMintPort } from "./stub-mint-port.js";
 import type { ProjectionLocation } from "./location.js";
@@ -16,6 +17,7 @@ import type { ProjectionStart } from "./engine.js";
 import type { ProjectionResolution } from "./save-resolution.js";
 import type { ProjectionRefreshRequest } from "./refresh.js";
 import type { ProjectionLinkBoundary } from "./discovery-links.js";
+import type { ProjectionFanOutBinding } from "./fan-out-binding.js";
 
 /** A start that disables this command's projection while preserving the command's ordinary execution. */
 export interface ProjectionSkip { readonly reason: "no-identity" | "held" | "lost" | "gone" | "switch" | "mismatch"; readonly mark: RefusedMark }
@@ -41,6 +43,7 @@ export interface ProjectionRootState {
   readonly view: ProjectionIndex["projectedUnder"]["view"];
   readonly blockedByLink: ProjectionLinkBoundary;
   claim: Slug | null;
+  claimUid?: string;
   layoutActive: "nested" | "flat";
   checkpoint: (() => Promise<void>) | null;
   readonly copies: { path: string; copy: string }[];
@@ -66,6 +69,12 @@ export interface ProjectionProcessState {
   resolution: ProjectionResolution | null;
   skip: ProjectionSkip | null;
   lockHeld: boolean;
+  fanOut?: (ownWrites: readonly RecordReference[], round: number) => Promise<void>;
+  fanOutBinding?: ProjectionFanOutBinding;
+  fanOutRunning: boolean;
+  fanOutHolds: number;
+  fanOutSuppressed: number;
+  fanOutOwnWrites: RecordReference[];
   history: HistoryMemo | null;
   materializeSpawn: ((checkout: string) => Promise<void>) | null;
   readonly roots: Map<string, ProjectionRootState>;
@@ -82,7 +91,9 @@ export interface ProjectionProcessState {
 }
 
 function freshState(composedCapabilities = new Map<string, boolean>()): ProjectionProcessState {
-  return { command: null, start: null, resolution: null, skip: null, lockHeld: false, history: null, materializeSpawn: null, roots: new Map(), actors: new Map(),
+  return { command: null, start: null, resolution: null, skip: null, lockHeld: false, fanOutRunning: false,
+    fanOutHolds: 0, fanOutSuppressed: 0, fanOutOwnWrites: [],
+    history: null, materializeSpawn: null, roots: new Map(), actors: new Map(),
     capabilities: new Map(composedCapabilities), composedCapabilities,
     engineCapabilityRoots: new Set(), layoutContexts: new Map(), configurations: new Map(), fanOutRounds: new Set(),
     notices: [], diagnostics: [], resolutions: [] };
@@ -114,6 +125,7 @@ function setEffectiveCapability(state: ProjectionProcessState, checkoutRoot: str
 
 /** Start a new command, dropping old ports, memoized history, skip verdicts, and copy bookkeeping. */
 export function beginProjectionCommand(): ProjectionProcessState {
+  processState[key]?.fanOutBinding?.close();
   return processState[key] = freshState(projectionProcessState().composedCapabilities);
 }
 

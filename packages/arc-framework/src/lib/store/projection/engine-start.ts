@@ -31,7 +31,6 @@ export interface ProjectionStartInput extends ProjectionCommandInput { readonly 
 export async function startUnderLease(input: ProjectionStartInput, ports: ProjectionEnginePorts,
   location: ProjectionLocation, session: ProjectionLockSession, unsent: Set<string>): Promise<ProjectionStart> {
   const state = projectionProcessState();
-  state.lockHeld = true;
   let root: ProjectionRootState | undefined;
   try {
     await session.step();
@@ -97,7 +96,6 @@ export async function startUnderLease(input: ProjectionStartInput, ports: Projec
     return { kind: "ready", version: saved.result, discovered: root.discovered };
   } finally {
     if (root !== undefined) root.checkpoint = null;
-    state.lockHeld = false;
   }
 }
 

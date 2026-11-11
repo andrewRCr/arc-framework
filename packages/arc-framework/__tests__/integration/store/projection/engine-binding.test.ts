@@ -12,6 +12,7 @@ import { bindReadOnlyProjectionRoot } from "../../../../src/lib/store/projection
 import { resolveProjectionActor } from "../../../../src/lib/store/projection/engine-actor.js";
 import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { notifyCheckoutChange } from "../../../../src/lib/git/checkout-change.js";
+import { identifyArcFileAddress } from "../../../../src/lib/layout/index.js";
 import { readCheckoutLayoutContext } from "../../../../src/lib/store/checkout-layout.js";
 import { renderStampedFile } from "../../../../src/lib/store/projection/stamp.js";
 import { success } from "../../../helpers/store/suite-tools.js";
@@ -166,4 +167,18 @@ it("keeps serialization failures provisional and prepares again after the edit i
   await writeFile(join(target.checkout, target.h.path), renderStampedFile({ content: "repaired bytes\n", stamp: entry.base.blob }));
   expect(await root.takeIn(request)).toMatchObject({ kind: "ready" });
   expect(success(await target.h.store.version())).toBe(version);
+});
+
+it("retains the bound marker UID beside a layout cache that still identifies unindexed companions", async () => {
+  const target = await sibling();
+  await writeFile(join(target.checkout, ".arc/system/arc-config.yml"), "layout.active: nested\n");
+  const bound = await bindTarget(target);
+  if (bound.status !== "done") throw new Error("Binding failed");
+  const owner = target.primary.reference.owner;
+  if (owner.type !== "work-item" || owner.uid === undefined) throw new Error("Missing bound work-item UID");
+  expect(bound.value).toMatchObject({ claim: owner.name, claimUid: owner.uid });
+  const layout = await readCheckoutLayoutContext(target.checkout);
+  expect(layout).toEqual({ claim: target.primary.reference.owner.name, layoutActive: "nested" });
+  expect(identifyArcFileAddress(".arc/active/current/assessment-work-item-target.md", { active: layout }))
+    .toMatchObject({ kind: "work-unit-companion" });
 });

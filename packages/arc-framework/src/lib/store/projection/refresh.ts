@@ -15,6 +15,7 @@ import { movedProjectionChanges, removeObsoleteProjectionPaths } from "./refresh
 import { planProjectionRefresh, type ProjectionRefreshPlan } from "./refresh-plan.js";
 import { createRecordRenderer, type RecordRenderer, type RenderedRecord } from "./record-render.js";
 import { createProjectionProtection } from "./protection.js";
+import type { ProjectionProtectionEvidence } from "./protection-evidence.js";
 import { createProjectionProtectionEvidence } from "./protection-evidence.js";
 import { prepareMaterializationFile, projectionEntryForRecord } from "./materialization-file.js";
 import { readReference } from "./change-detection.js";
@@ -31,6 +32,7 @@ export interface ProjectionRefreshRequest {
   readonly source: ProjectionSource;
   readonly version: StateVersion;
   readonly index: ProjectionIndex;
+  readonly evidence?: ProjectionProtectionEvidence;
 }
 /** Destination bindings and the configuration already observed for this command. */
 export interface ProjectionRefreshInput extends ProjectionRefreshRequest {
@@ -62,7 +64,7 @@ export async function applyProjectionRefresh(input: ProjectionRefreshInput, plan
 }> {
   const { root, source, version } = input;
   let index = input.index;
-  const evidence = createProjectionProtectionEvidence({ source, checkout: root.checkout, exec: root.ports.exec });
+  const evidence = input.evidence ?? createProjectionProtectionEvidence({ source, checkout: root.checkout, exec: root.ports.exec });
   const renderContext: ConflictedRefreshContext = { store: source, memo: root.context.memo ?? createHistoryMemo(root.store),
     format: root.context.format, actor: root.context.actor,
     protection: createProjectionProtection({ store: root.store, checkout: root.checkout, identity: root.identity, exec: root.ports.exec, evidence }) };
