@@ -178,38 +178,13 @@ that chunk.
   accepted intents, and ambiguous tokens keep their authority boundaries. Native cases cover guarded view removals,
   identity round trips, claim changes during fan-out, ignore-policy repair, and flat layout.
 
-### `[ ]` **1.9 Rebuild deleted files at `arc sync` — § 2.4**
+### `[x]` **1.9 Rebuild deleted files at `arc sync` — § 2.4**
 
 - _Goal:_ `arc sync` rebuilds every deleted projected file as a full materialization, from the flip.
-
-    - From the flip the top-level `arc sync` command (`handleSync`, `handlers/sync.ts`, registered in `cli.ts`) runs a
-      full materialization (1.5) of its worktree once its identity and ARC root resolve and before its network steps, so
-      an offline sync still rebuilds; with no identity, its existing refusal (`IDENTITY_MISSING`, `resolveUserIdentity`
-      in `handlers/shared.ts`, over `resolveIdentity`, `lib/git/identity.ts`) names `arc.identity` first, and nothing is
-      rebuilt; `--dry-run` skips it. Its handler takes the command's store, as `handleSave(options, store)` takes
-      `projectionCommandBinding().store` (`handlers/save.ts`, `cli.ts`); `handleSync(opts, output, context)` takes none
-      today. The step lives in `lib/store/projection/`, which `handleSync` calls once, since `handlers/sync.ts` already
-      sits past the size gate under its recorded suppressions (`packages/arc-framework/eslint-suppressions.json`).
-    - With a usable index the materialization rebuilds each absent file by the link alone (`swapBatch` on an absent
-      path, `lib/store/projection/swap.ts`), replaces by the swap each file the read gate reads as deleted (`gateRead`'s
-      `emptied` and `not-a-file`, `lib/store/projection/read-gate.ts`) — an empty Markdown file at least 50 ms old, or a
-      symbolic link at a path the index lists — and leaves every other present file to the refresh. A partition it
-      reaches by path that does not hash to its name is deleted under its lock, as at a command's start (1.2), so the
-      next start rebuilds the worktree, and the sync reports it. A rebuild that fails is reported and the sync goes on
-      to its network steps, and `--skip-projection` skips it. Its existing steps stay as they are, for `cutover-flip` to
-      rewire onto `pull` and `push`. Before the flip it runs as today.
-    - Build `test-first` (one behavior at a time):
-        - Integration tier, through `arc sync`'s handler over the reference backend
-        - a deleted projected file returns at `arc sync`, and an edited one keeps its edit
-        - with the fetch failing, a deleted projected file still returns
-        - a present, unchanged file is not rewritten, and `--dry-run` rebuilds nothing
-        - with no identity, `arc sync` refuses naming `arc.identity` and rebuilds nothing
-        - an emptied projected Markdown file at least 50 ms old, and a symbolic link at a projected path, are replaced
-          at `arc sync`
-        - a rebuild that fails is reported, and the sync still runs its network steps
-        - with a file in a `completed/` quarter deleted and that quarter's partition altered by hand, `arc sync` deletes
-          the partition and reports it, and the next command rebuilds the worktree, the file returning
-        - `arc sync --skip-projection` rebuilds nothing
+- _Outcome:_ The command's store drives a deleted-file materialization before network work, retaining present files
+  and the refresh anchor. Empty Markdown and indexed leaf links use guarded replacement; ancestor links remain
+  blocked. Partition failures invalidate under the lease and report a retry; restoration failures still allow sync.
+  Dry-run, skip, missing identity, recreated files, cold archive partitions, and deferred fan-out have native coverage.
 
 ### `[ ]` **1.10 Hold the `.worktreeinclude` copy off the projection's paths — § 11.6**
 

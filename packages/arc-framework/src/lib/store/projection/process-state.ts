@@ -41,7 +41,7 @@ export interface ProjectionRootState {
   readonly takeIn: TakeInPort;
   readonly identity: Slug;
   readonly view: ProjectionIndex["projectedUnder"]["view"];
-  readonly blockedByLink: ProjectionLinkBoundary;
+  blockedByLink: ProjectionLinkBoundary;
   claim: Slug | null;
   claimUid?: string;
   layoutActive: "nested" | "flat";

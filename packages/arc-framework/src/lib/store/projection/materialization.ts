@@ -1,4 +1,6 @@
 /** Materialize stored records under one target worktree's projection lease. */
+import { observeMaterialization } from "./materialization-observation.js";
+import { prepareMaterializationSelection, refreshMaterializationLinks } from "./materialization-selection.js";
 import { projectionSettings } from "./settings.js";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -10,7 +12,6 @@ import { createProjectionProtection } from "./protection.js";
 import { createProjectionProtectionEvidence } from "./protection-evidence.js";
 import { createRecordRenderer } from "./record-render.js";
 import { prepareMaterializationFile, withheldProjectionMark } from "./materialization-file.js";
-import { releaseAbsentWithheldPaths } from "./withheld.js";
 import { walkProjectionRoots } from "./engine-walk.js";
 import { createProjectionLinkBoundary } from "./discovery-links.js";
 import { reportProjectionLinks } from "./report.js";
@@ -23,8 +24,7 @@ import { projectionExcludePatterns } from "./excludes.js";
 import { guardedProjectionRoots } from "./ignore-guard.js";
 import { isExcludedProjectionPath } from "./discovery-exclusions.js";
 import { recordProjectionIgnoreCheck } from "./ignore-record.js";
-import { readProjectionConfiguration } from "./configuration.js";
-import { sweepAsideFolder, writableUnder, type SweepResult } from "./sweep.js";
+import { writableUnder, type SweepResult } from "./sweep.js";
 import { createHistoryMemo } from "./base-recovery.js";
 import { findProjectionArrivals, projectionArrivalsInstalled, reconcileProjectionHandoffs } from "./ownership-handoff.js";
 import { removeObsoleteProjectionPaths } from "./refresh-removals.js";
@@ -42,6 +42,7 @@ export interface ProjectionMaterializationInput {
   readonly configuration: ProjectionConfiguration;
   readonly version: StateVersion;
   readonly index: ProjectionIndex | null;
+  readonly onlyDeleted?: boolean;
   readonly recovered?: Pick<ProjectionIndex, "withheldCopies">;
 }
 /** The resulting index, retaining any per-root refusal for callers that report a failed materialization. */
@@ -56,11 +57,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   if (!excluded.ok) throw excluded.error;
   let index: ProjectionIndex = input.index ?? { format: 2, state: input.version, entries: {}, withheldCopies: [], tripwires: {},
     ignoreFiles: null, ignoreGuard: null, projectedUnder: projectionSettings(root) };
-  const swept = await sweepAsideFolder({ location: root.location, checkout: root.checkout, index: input.index,
-    withheldCopies: input.recovered?.withheldCopies, format: root.context.format, takeIn: root.takeIn, writer: root.context.writer,
-    checkpoint: root.context.checkpoint, blockedByLink: root.blockedByLink, ignoreRules: input.configuration.ignoreRules,
-    readIgnoreRules: async () => (await readProjectionConfiguration(root.ports.exec, root.checkout)).ignoreRules,
-    guard: { root: root.checkout, identity: root.identity, exec: root.ports.execInput, fs: root.ports.fs } });
+  const swept = await observeMaterialization(input);
   const ignores = swept.ignores;
   index = recordProjectionIgnoreCheck(swept.index ?? { ...index,
     withheldCopies: [...new Set([...(input.recovered?.withheldCopies ?? []), ...swept.withheld])] }, ignores);
@@ -68,7 +65,7 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
   recordSweep(root, swept);
   if (ignores.kind === "refused") return { kind: "refused", index, mark: { reason: `Projection ignore guard refused: ${ignores.reason}`,
     remedy: { text: ignores.remedy } } };
-  index = await reconcileProjectionHandoffs(root, index);
+  index = await reconcileBeforeInventory(input, index);
   const inventory = await readProjectionInventory(input.source, root.identity, input.version);
   for (const mark of inventory.diagnostics) root.context.report?.({ path: root.checkout, copy: null, mark });
   const desired = await desiredProjectionPaths(root, inventory);
@@ -79,21 +76,23 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
     ...projectedRootPaths(root.identity).filter(path => path.startsWith(".arc/user/"))], root.ports.walkFs);
   reportProjectionLinks(walked.links);
   const observed = createProjectionLinkBoundary(walked.links);
-  index = await releaseAbsentWithheldPaths(root, index);
+  const selection = await prepareMaterializationSelection({ root, index, files: desired.files, boundary: observed, onlyDeleted: input.onlyDeleted });
+  index = selection.index;
+  const selected = selection.files;
   if (input.index === null) index = await recordUnknownFiles(root, index, [...walked.files, ...walked.links], desired.files);
   const files: SwapFile[] = [];
   const reference = await readReference(root.checkout);
-  const paths = new Map([...desired.files].map(([path, record]) => [path, record.reference]));
+  const paths = new Map([...selected].map(([path, record]) => [path, record.reference]));
   const arrivals = findProjectionArrivals(index, paths);
   const collisions = new Set([...paths].filter(([path, reference]) => {
     const previous = index.entries[path];
     return previous?.kind === "record" && !sameReference(previous.reference, reference);
   }).map(([path]) => path));
   index = await removeObsoleteProjectionPaths({ root, index, plan: { paths, removals: collisions, unresolved: false }, renderer, reference });
-  for (const [path, record] of desired.files) {
+  for (const [path, record] of selected) {
     if (!root.writable(path) || isExcludedProjectionPath(path)) continue;
     const prepared = await prepareMaterializationFile({ root, index, path, record, renderer, rebuilding: input.index === null,
-      reference, blocked: (root.blockedByLink(path) ?? observed(path)) !== null });
+      reference, blocked: selection.boundary(path) !== null });
     index = prepared.index;
     if (prepared.file !== undefined) files.push(prepared.file);
   }
@@ -108,11 +107,16 @@ export async function materializeProjectionRoot(input: ProjectionMaterialization
     await mkdir(join(root.checkout, `.arc/user/${root.identity}/scratch/work-unit/${root.claim}`), { recursive: true });
   }
   index = await commitProjectionIndex({ location: root.location, checkout: root.checkout,
-    index: { ...index, state: projectionArrivalsInstalled(index, arrivals) ? input.version : input.index?.state ?? null }, checkpoint: root.context.checkpoint });
+    index: { ...index, state: !input.onlyDeleted && projectionArrivalsInstalled(index, arrivals) ? input.version : input.index?.state ?? null }, checkpoint: root.context.checkpoint });
+  await refreshMaterializationLinks(root, selection.links);
   root.ready = true;
   return { kind: "materialized", index };
 }
 
+
+async function reconcileBeforeInventory(input: ProjectionMaterializationInput, index: ProjectionIndex): Promise<ProjectionIndex> {
+  return input.onlyDeleted ? index : reconcileProjectionHandoffs(input.root, index);
+}
 
 async function recordUnknownFiles(root: ProjectionRootState, initial: ProjectionIndex, paths: readonly string[],
   desired: ReadonlyMap<string, unknown>): Promise<ProjectionIndex> {

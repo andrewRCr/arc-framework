@@ -7,9 +7,9 @@ import { readProjectionLinkBoundary } from "./discovery-links.js";
 import { readStat } from "./change-detection.js";
 
 /** Keep unknown files held; an absent bound record becomes pending for the next replacement. */
-export async function releaseAbsentWithheldPaths(root: Pick<ProjectionRootState, "checkout" | "writable">, initial: ProjectionIndex): Promise<ProjectionIndex> {
-  loadProjectionGroups(initial, "walked");
-  const paths = Object.keys(initial.entries).filter(path => initial.entries[path]?.withheld && root.writable(path));
+export async function releaseAbsentWithheldPaths(root: Pick<ProjectionRootState, "checkout" | "writable">, initial: ProjectionIndex, selection?: readonly string[]): Promise<ProjectionIndex> {
+  if (selection === undefined) loadProjectionGroups(initial, "walked");
+  const paths = (selection ?? Object.keys(initial.entries)).filter(path => initial.entries[path]?.withheld && root.writable(path));
   const boundary = await readProjectionLinkBoundary(root.checkout, paths);
   let index = initial;
   for (const path of paths) {

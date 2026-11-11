@@ -1905,7 +1905,7 @@ program
   .action(withInteractionContext(
     { yes: "authority", machineReadable: (opts) => opts.json === true },
     async (context, opts: SyncOptions) => {
-      await (await import("./handlers/sync.js")).handleSync(opts, undefined, context);
+      await (await import("./handlers/sync.js")).handleSync(opts, undefined, context, projectionCommandBinding().store);
     },
   ));
 

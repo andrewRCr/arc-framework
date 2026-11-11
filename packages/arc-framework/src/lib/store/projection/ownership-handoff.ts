@@ -33,9 +33,9 @@ export function projectionArrivalsInstalled(index: ProjectionIndex, arrivals: Re
 }
 
 /** Reconcile journaled arrivals before a command can send authored bytes. */
-export async function reconcileProjectionHandoffs(root: OwnershipRoot, initial: ProjectionIndex): Promise<ProjectionIndex> {
-  loadProjectionGroups(initial, "walked");
-  const paths = Object.keys(initial.entries).filter(path => {
+export async function reconcileProjectionHandoffs(root: OwnershipRoot, initial: ProjectionIndex, selection?: readonly string[]): Promise<ProjectionIndex> {
+  if (selection === undefined) loadProjectionGroups(initial, "walked");
+  const paths = (selection ?? Object.keys(initial.entries)).filter(path => {
     const entry = initial.entries[path];
     return entry?.kind === "record" && entry.handoff !== undefined;
   });

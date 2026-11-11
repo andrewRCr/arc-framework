@@ -21,6 +21,10 @@ import {
 } from "../../src/lib/io-context.js";
 import { resolveInteractionContext } from "../../src/lib/command-input/interaction-context.js";
 import { handleSync } from "../../src/handlers/sync.js";
+import { createStore } from "../../src/lib/store/create.js";
+import { createDefaultStorePorts } from "../../src/lib/store/default-store-ports.js";
+
+const inRepoStore = createStore(createDefaultStorePorts({ checkoutRoot: "/project" }));
 import { scriptGitExec } from "../helpers/git-exec-fake.js";
 import { makeCapturingSyncOutput } from "../helpers/sync-output.js";
 
@@ -76,7 +80,7 @@ describe("sync identity subprocess policy", () => {
       });
       const captured = makeCapturingSyncOutput();
 
-      await handleSync({}, captured.output, context);
+      await handleSync({}, captured.output, context, inRepoStore);
 
       expect(identity.calls.map((call) => call.args)).toEqual([
         ["config", "--null", "--get", "arc.identity"],
