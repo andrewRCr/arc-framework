@@ -13,7 +13,7 @@ describe("ref store point-query absence", () => {
       code: "state-unresolvable", class: "recoverable", reference, historyRefs: [],
       remedy: { text: expect.stringMatching(/Restore.*missing/u) },
     } });
-    expect(calls.filter(args => args[0] === "diff-tree")).toHaveLength("missingTree" in options ? 0 : 1);
+    expect(calls.filter(args => args[0] === "diff-tree")).toHaveLength(0);
   });
 
   it("refuses an absent metadata entry beside records with a forward repair", async () => {
@@ -31,7 +31,7 @@ describe("ref store point-query absence", () => {
     expect(await store.read({ reference })).toMatchObject({ status: "refused", refusal: {
       code: "not-found", class: "recoverable", reference,
     } });
-    expect(calls.filter(args => args[0] === "diff-tree")).toHaveLength(1);
+    expect(calls.filter(args => args[0] === "diff-tree")).toHaveLength(0);
   });
 
   it("retries when a ref-name metadata miss disagrees with the captured tip", async () => {
@@ -44,7 +44,7 @@ describe("ref store point-query absence", () => {
     expect(await store.read({ reference })).toMatchObject({ status: "refused", refusal: {
       code: "namespace-corrupt", class: "terminal", remedy: { text: expect.stringContaining("forward") },
     } });
-    expect(calls.filter(args => args[0] === "diff-tree")).toHaveLength(1);
+    expect(calls.filter(args => args[0] === "diff-tree")).toHaveLength(0);
   });
 
   it.each([
@@ -55,6 +55,6 @@ describe("ref store point-query absence", () => {
     expect(await store.read({ reference })).toMatchObject({ status: "refused", refusal: {
       code: "not-found", class: "recoverable", reference,
     } });
-    expect(calls.filter(args => args[0] === "diff-tree")).toHaveLength(1);
+    expect(calls.filter(args => args[0] === "diff-tree")).toHaveLength(0);
   });
 });

@@ -36,6 +36,22 @@ async function expectClosedReader(path: string) {
   expect(events.some(({ event, sid }) => event === "exit" && sid === readers[0]?.sid)).toBe(true);
 }
 
+it("compares an immediate unfiltered commit window through its object reader", async () => {
+  const f = await createRefReadFixture();
+  const reference = RecordReferenceSchema.parse({ owner: { type: "work-item", name: "alpha" }, kind: "work-item/meta" });
+  const written = success(await f.store.write({ action: "put", expected: null, reference, content: makeMetaFixture("alpha"),
+    placement: { kind: "active" }, provenance }));
+  const from = success(await f.store.version());
+  const content = makeMetaFixture("alpha") + "\nImmediate update.\n";
+  success(await f.store.write({ action: "put", expected: written.version!, reference: written.reference, content,
+    placement: { kind: "active" }, provenance }));
+  const to = success(await f.store.version()), path = join(f.root, "immediate-window-trace.json");
+  vi.stubEnv("GIT_TRACE2_EVENT", path);
+  expect(success(await f.store.changes({ from, to }))).toMatchObject([expect.objectContaining({ reference: written.reference, content })]);
+  await expectClosedReader(path);
+  expect((await trace(path)).filter(({ event, argv }) => event === "start" && argv?.includes("rev-list"))).toHaveLength(0);
+}, 30_000);
+
 describe.each(["default", "separate"] as const)("operation reader (%s)", (layout) => {
   it.each([false, true])("closes lookup and read-source readers (source=%s)", async (source) => {
     const f = await createRefReadFixture();
@@ -97,7 +113,10 @@ describe.each(["default", "separate"] as const)("operation reader (%s)", (layout
         if (operation === "version") {
           const events = await trace(path);
           expect(events.filter(({ event, argv }) => event === "start" && argv?.includes("cat-file"))).toHaveLength(0);
-        } else await expectClosedReader(path);
+        } else {
+          await expectClosedReader(path);
+          expect((await trace(path)).filter(({ event, argv }) => event === "start" && argv?.includes("diff-tree"))).toHaveLength(0);
+        }
       } finally { vi.unstubAllEnvs(); }
     }
   }, 30_000);

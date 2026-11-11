@@ -110,14 +110,15 @@ describe("commit serialization with layout moves", () => {
     const { commonDir } = await readGitDirectories(f.root, f.ports.fs), directory = join(commonDir, "arc", "store");
     let move = true;
     const store = createRefStore({ ...f.ports, rawExec: async (args, options) => {
-      if (move && args.includes("diff-tree")) {
+      const result = await f.ports.rawExec(args, options);
+      if (move && args.includes("cat-file")) {
         move = false;
         await f.exec("git", ["fetch", "--no-tags", directory, `${ref}:${ref}`]);
         const aside = `${directory}-moved`;
         await f.ports.fs.rename(directory, aside);
         await f.ports.fs.removeDirectory(aside);
       }
-      return f.ports.rawExec(args, options);
+      return result;
     } });
     const reference = RecordReferenceSchema.parse({ ...seeded.reference, kind: "work-item/companion", key: "extra" });
     success(await store.write({ action: "put", reference, expected: null, content: "after move", provenance }));
