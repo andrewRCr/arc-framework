@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "local-review-live-context-refusal",
+  "claimId": "1968bbc42d12a2518a13b1ea9dc4ee9e",
+  "createdAt": "2026-11-11T04:03:46.340Z",
+  "updatedAt": "2026-11-11T04:03:46.340Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Report local review context ambiguity and incomplete state as repairable typed refusals",
+  "branch": "chore/local-review-live-context-refusal",
+  "origin": "inbox",
+  "originEntry": "Turn local review live-context read failures into typed refusals with a remedy",
+  "originEntrySourceDigest": "sha256:a9eaa75c0548b420ddd3ef8e5de116c19c407f1ff8e6dc36ec1871e76c21de7f",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
