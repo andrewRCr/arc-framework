@@ -528,3 +528,35 @@ all 21 roots, including any return overhead. Deferring that collection cannot cl
 remains. A3's remaining candidate is bounded scheduling of independent destination visits, preserving both durable
 publications and per-root checks; these results neither authorize that locking change nor establish that it will reach
 100 ms. Start, expanded-archive behavior, and materialization remain separate open costs.
+
+### Paired settled-archive comparison
+
+Run `2ba0b6ef905c408ea51b8e67686e7bbe` on the named Linux reference runner `m5-air-ac` (Node v26.3.0) measured eleven
+standard/expanded pairs in one process, alternating which fixture ran first. Every pair also measured the beneath-Git
+path, concurrent configuration/version calls, and one Git call for both fixtures. Both were prepared and warmed before
+collection; the standard fixture has 800 files, the expanded fixture 60,320, with identical hot files, owner counts, and
+four archive quarters. `pairedStartMedians` retains each pair's order and differences alongside all raw samples.
+
+| Path                               | Standard (ms) | Expanded (ms) |
+| ---------------------------------- | ------------- | ------------- |
+| No-change start                    | 14.57         | 14.64         |
+| Beneath-Git index, walk, and stats | 3.52          | 3.55          |
+| Concurrent Git pair                | 6.06          | 5.94          |
+| Single Git call                    | 3.41          | 3.39          |
+
+The median paired start difference, expanded minus standard, was −0.27 ms; individual differences ranged from −1.63 to
++3.73 ms. The earlier unpaired 19.22 versus 12.94 ms difference does not reproduce under interleaving. This supports
+independence from settled archive entry count at four fixed quarters; it does not establish independence from an
+unbounded number of quarter descriptors. The existing invalid-archive-partition test separately checks that ordinary
+start and end do not decode settled archive bytes. No production correction is justified by this comparison.
+
+The same full-round run measured 212.25 ms one-file fan-out, 580.00 ms ten-file fan-out, and 1142.08 ms materialization.
+These raw medians calibrate the proposed criterion amendment; they do not close the current bounds. A 15 ms start budget
+would keep the existing 20 ms start tripwire; proposed 750 ms fan-out and 1500 ms materialization bounds would add an
+explicit engineering allowance of roughly one third over the native full-round medians. These values are proposals only.
+The existing criteria remain intact, and A3's concurrent-root locking change remains held.
+
+The cold-partition regression also passed both cases in run `0ca0fbd16ef046cea5e4de71e7ebef2b`: start and end succeed
+with deliberately invalid bytes in the settled 60,000-entry partition, leave those bytes untouched, and retain
+late-mismatch containment. The interleaved native measurement and this independent filesystem failure check provide the
+evidence for keeping settled archive entry growth out of the criterion rebase.

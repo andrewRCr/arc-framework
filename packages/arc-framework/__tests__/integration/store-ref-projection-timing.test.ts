@@ -44,42 +44,61 @@ async function indexAt(checkout: string, client: Client, all = false) {
   return disk.index;
 }
 
-async function samples<T>(observer: ProjectionTimingObserver, run: () => Promise<T>, verify: (value: T) => Promise<void> | void) {
-  const retained: TimingSample[] = [];
-  for (let i = 0; i < SAMPLES; i++) {
-    const measured = await observer.measure(run); retained.push(measured.sample);
-    await verify(measured.value);
-  }
-  return medianTiming(retained);
-}
-
-async function startMedians(checkout: string, observer: ProjectionTimingObserver, expected: number) {
+async function startCases(checkout: string, observer: ProjectionTimingObserver, expected: number) {
   const client = observer.client(checkout);
   await command(checkout, client); await command(checkout, client);
   expect(Object.keys((await indexAt(checkout, client, true)).entries)).toHaveLength(expected);
   const input = { checkout, store: client.store, ports: () => client.enginePorts };
-  const noChange = await samples(observer, () => startProjection(input), async value => {
-    expect(value.kind).toBe("ready"); await endProjection(input);
-    expect(projectionProcessState().diagnostics).toEqual([]);
-  });
   const configuration = await readProjectionConfiguration(client.enginePorts.exec, checkout);
   if (configuration.identity.status !== "identified") throw new Error("Missing native timing identity");
   const location = await locateProjection(checkout, client.enginePorts);
   const roots = projectedRootPaths(configuration.identity.identity).filter(path => path !== ".arc/completed");
-  const beneathGit = await samples(observer, async () => {
-    const [index, walked] = await Promise.all([readProjectionIndex(location, true, { groups: "walked" }), walkProjectionRoots(checkout, roots)]);
-    const stats = await readProjectionStats(checkout, walked.files);
-    return { index, walked, stats };
-  }, ({ index, walked, stats }) => { expect(index.kind).toBe("index"); expect(stats.size).toBe(walked.files.length); expect(stats.size).toBe(320); });
-  const gitPair = await samples(observer, () => Promise.all([client.store.version(), readProjectionConfiguration(client.enginePorts.exec, checkout)]),
-    ([version, config]) => { success(version); expect(config.identity.status).toBe("identified"); });
   const namespace = new TextDecoder().decode((await client.ports.rawExec(["for-each-ref", "--format=%(objectname) %(refname)", "refs/arc/"])).stdout);
-  const gitSingle = await samples(observer,
-    () => client.ports.rawExec(["for-each-ref", "--format=%(objectname) %(refname)", "refs/arc/"]),
-    value => { expect(new TextDecoder().decode(value.stdout)).toBe(namespace); });
-  for (const sample of noChange.samples) expect(sample.gitCalls).toBe(2);
-  for (const sample of beneathGit.samples) expect(sample.gitCalls).toBe(0);
-  return { files: expected, noChange, beneathGit, gitPair, gitSingle };
+  return {
+    files: expected,
+    noChange: async () => {
+      const measured = await observer.measure(() => startProjection(input));
+      expect(measured.value.kind).toBe("ready"); await endProjection(input);
+      expect(projectionProcessState().diagnostics).toEqual([]); expect(measured.sample.gitCalls).toBe(2);
+      return measured.sample;
+    },
+    beneathGit: async () => {
+      const measured = await observer.measure(async () => {
+        const [index, walked] = await Promise.all([readProjectionIndex(location, true, { groups: "walked" }), walkProjectionRoots(checkout, roots)]);
+        return { index, walked, stats: await readProjectionStats(checkout, walked.files) };
+      });
+      const { index, walked, stats } = measured.value;
+      expect(index.kind).toBe("index"); expect(stats.size).toBe(walked.files.length); expect(stats.size).toBe(320);
+      expect(measured.sample.gitCalls).toBe(0); return measured.sample;
+    },
+    gitPair: async () => {
+      const measured = await observer.measure(() => Promise.all([client.store.version(), readProjectionConfiguration(client.enginePorts.exec, checkout)]));
+      success(measured.value[0]); expect(measured.value[1].identity.status).toBe("identified"); return measured.sample;
+    },
+    gitSingle: async () => {
+      const measured = await observer.measure(() => client.ports.rawExec(["for-each-ref", "--format=%(objectname) %(refname)", "refs/arc/"]));
+      expect(new TextDecoder().decode(measured.value.stdout)).toBe(namespace); return measured.sample;
+    },
+  };
+}
+
+async function pairedStartMedians(baselineRoot: string, archiveRoot: string, observer: ProjectionTimingObserver) {
+  const baseline = await startCases(baselineRoot, observer, 800), archive = await startCases(archiveRoot, observer, 60_320);
+  const keys = ["noChange", "beneathGit", "gitPair", "gitSingle"] as const;
+  const baselineSamples = { noChange: [], beneathGit: [], gitPair: [], gitSingle: [] } as Record<typeof keys[number], TimingSample[]>;
+  const archiveSamples = { noChange: [], beneathGit: [], gitPair: [], gitSingle: [] } as Record<typeof keys[number], TimingSample[]>;
+  const pairs: { first: "baseline" | "archive"; differencesMs: Record<typeof keys[number], number> }[] = [];
+  for (let iteration = 0; iteration < SAMPLES; iteration++) {
+    const order = iteration % 2 === 0 ? [baseline, archive] : [archive, baseline];
+    for (const key of keys) for (const context of order) {
+      (context === baseline ? baselineSamples : archiveSamples)[key].push(await context[key]());
+    }
+    pairs.push({ first: order[0] === baseline ? "baseline" : "archive", differencesMs: Object.fromEntries(keys.map(key =>
+      [key, archiveSamples[key][iteration]!.wallMs - baselineSamples[key][iteration]!.wallMs])) as Record<typeof keys[number], number> });
+  }
+  const summarize = (files: number, retained: typeof baselineSamples) => ({ files, noChange: medianTiming(retained.noChange),
+    beneathGit: medianTiming(retained.beneathGit), gitPair: medianTiming(retained.gitPair), gitSingle: medianTiming(retained.gitSingle) });
+  return { baseline: summarize(baseline.files, baselineSamples), archive: summarize(archive.files, archiveSamples), pairs };
 }
 
 async function addLinked(checkout: string, client: Client, owner: Templates["owners"][number], parent: string, name: string) {
@@ -161,7 +180,7 @@ async function fanOutMedians(fixture: Templates, observer: ProjectionTimingObser
   return { linkedWorktrees: destinations.length, oneFile: await measure(1), tenFiles: await measure(10) };
 }
 
-function windowsAdjusted(measured: ReturnType<typeof medianTiming>, baseline: Awaited<ReturnType<typeof startMedians>>) {
+function windowsAdjusted(measured: ReturnType<typeof medianTiming>, baseline: Awaited<ReturnType<typeof pairedStartMedians>>["baseline"]) {
   const hostGit = measured.medianGitSingles * baseline.gitSingle.medianMs + measured.medianGitPairs * baseline.gitPair.medianMs;
   const nominalGit = Math.max(42 * measured.medianGitGroups, baseline.beneathGit.medianMs);
   return Math.min(measured.medianMs, measured.medianMs - Math.max(0, hostGit - nominalGit));
@@ -174,11 +193,10 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1")("native projection timing"
       const observer = new ProjectionTimingObserver();
       const baselineRoot = await copyProjectionTimingRepository(fixture.baseline); directories.push(baselineRoot);
       const archiveRoot = await copyProjectionTimingRepository(fixture.baseline); directories.push(archiveRoot);
-      const baseline = await startMedians(baselineRoot, observer, 800);
       const archiveClient = observer.client(archiveRoot);
       await command(archiveRoot, archiveClient);
       await expandSettledTimingArchive(archiveRoot, fixture.archive, archiveClient.store, archiveClient.enginePorts);
-      const archive = await startMedians(archiveRoot, observer, 60_320);
+      const { baseline, archive, pairs: archivePairs } = await pairedStartMedians(baselineRoot, archiveRoot, observer);
       const fanOut = await fanOutMedians(fixture, observer, directories);
       const materialization = await materializationMedians(fixture.baseline, fixture.owners, observer, directories);
       const bounds = process.platform === "win32" ? { start: 60, startTripwire: 120, fanOut: 600, materialization: 5_000 }
@@ -187,7 +205,7 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1")("native projection timing"
         oneFile: fanOut.oneFile, tenFiles: fanOut.tenFiles, materialization }).map(([key, value]) => [key,
         process.platform === "win32" ? windowsAdjusted(value, baseline) : value.medianMs]));
       const result = { platform: process.platform, node: process.version, samples: SAMPLES, bounds,
-        baseline, archive, fanOut, materialization, adjustedMediansMs: adjusted };
+        baseline, archive, archivePairs, fanOut, materialization, adjustedMediansMs: adjusted };
       const directory = resolve(import.meta.dirname, "../../.test-cost-runs");
       await mkdir(directory, { recursive: true });
       await writeFile(join(directory, "projection-timing.json"), JSON.stringify(result, null, 2) + "\n");
