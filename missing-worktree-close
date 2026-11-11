@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "missing-worktree-close",
+  "claimId": "aca39562c53838da3b333447877f0251",
+  "createdAt": "2026-11-11T01:34:07.999Z",
+  "updatedAt": "2026-11-11T01:34:07.999Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Keep Errand close working when a registered worktree folder is missing.",
+  "branch": "chore/missing-worktree-close",
+  "origin": "inbox",
+  "originEntry": "Keep `arc errand close` working when a worktree registration's folder is missing",
+  "originEntrySourceDigest": "sha256:77728018cc83ca99429e22bb259989e2d3d97d43cb46bccafd30af3b82737051",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
