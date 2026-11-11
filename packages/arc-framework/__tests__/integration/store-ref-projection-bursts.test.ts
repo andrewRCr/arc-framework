@@ -74,7 +74,7 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1").each(["default", "separate
       const arrival = await writer.hook(operation);
       expect(arrival).toMatchObject({ hook: "beforeTarget", path: BURST_PATH });
       const target = f.roots.findIndex(root => resolve(root) === resolve(arrival.root));
-      expect(target).toBeGreaterThanOrEqual(0);
+      expect(target, JSON.stringify({ arrival: arrival.root, roots: f.roots })).toBeGreaterThanOrEqual(0);
       expect(visited.has(arrival.root)).toBe(false); visited.add(arrival.root);
       const editor = f.writers[(target + f.writers.length - 1) % f.writers.length]!;
       await editor.send({ action: "save", content: f.saved(entries[target]!), mode: "rename" });
