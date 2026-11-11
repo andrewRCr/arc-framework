@@ -1,6 +1,7 @@
 /** Command-scoped entry points for writing back and settling projected files. */
 import type { ProjectionStubMintPort } from "./stub-mint-port.js";
 import { join } from "node:path";
+import { ArcError } from "../../kernel/index.js";
 import type { Store } from "../contract.js";
 import { retryEndedItemHistory } from "../history-retry.js";
 import type { StateVersion } from "../identity.js";
@@ -47,7 +48,16 @@ export async function startProjection(input: ProjectionCommandInput): Promise<Pr
     state.start = { kind: "skipped", skip: state.skip, pending: [] };
     return state.start;
   }
-  state.start = await initializeProjection(input);
+  try { state.start = await initializeProjection(input); }
+  catch (error) {
+    if (!(error instanceof ArcError) || !["store.layout-marker-unreadable", "store.layout-marker-invalid", "store.layout-config-invalid"].includes(error.code)) throw error;
+    disposeProjectionFanOut();
+    const mark: RefusedMark = { reason: error.message, remedy: {
+      text: "Repair the checkout metadata named above, then retry. Pending edits remain in their files.",
+    } };
+    state.diagnostics.push({ path: input.checkout, copy: null, mark });
+    state.start = { kind: "refused", mark };
+  }
   return state.start;
 }
 

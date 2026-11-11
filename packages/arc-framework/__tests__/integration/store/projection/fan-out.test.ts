@@ -4,7 +4,7 @@ import { locateProjection } from "../../../../src/lib/store/projection/location.
 import { withFanOut } from "../../../../src/lib/store/projection/with-fan-out.js";
 import { createProjectionFanOutDependencies } from "../../../../src/lib/store/projection/fan-out-binding.js";
 import { readProjectionIndex } from "../../../../src/lib/store/projection/index-file.js";
-import { writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { removeGitBackedDirs } from "../../../helpers/temp-repo.js";
@@ -15,10 +15,39 @@ import { createRefusingStore } from "../../../helpers/store/projection/refusing-
 import { startProjection, endProjection } from "../../../../src/lib/store/projection/engine.js";
 import { beginProjectionCommand, projectionProcessState } from "../../../../src/lib/store/projection/process-state.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
+import { resolveWorktreeMarkerPath } from "../../../../src/lib/git/worktree-marker.js";
 
 const directories: string[] = [];
 beforeEach(() => { beginProjectionCommand(); });
 afterEach(async () => { beginProjectionCommand(); await removeGitBackedDirs(directories.splice(0)); });
+
+it.each(["marker", "configuration"] as const)("contains corrupt entering %s, suspends fan-out, and resumes after repair", async fault => {
+  const { h, input, store, file } = await createFanOutFixture(directories);
+  await endProjection(input);
+  const marker = fault === "marker" ? resolveWorktreeMarkerPath(h.checkout) : join(h.checkout, ".arc/system/arc-config.yml");
+  const original = await readFile(marker).catch(error => {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  });
+  const own = await h.file(), sibling = await file();
+  await mkdir(join(marker, ".."), { recursive: true });
+  await writeFile(marker, fault === "marker" ? "{" : "layout.active: sideways\n");
+  expect(await startProjection(input)).toMatchObject({ kind: "refused", mark: { reason: expect.stringContaining(fault) } });
+  const current = await h.stored();
+  success(await store.write({ action: "put", reference: current.reference, expected: current.version,
+    content: "Written while the marker needs repair.\n", provenance: { verb: "save", lifecycleAction: "save" } }));
+  expect(await h.file()).toBe(own);
+  expect(await file()).toBe(sibling);
+  await endProjection(input);
+  if (original === null) await rm(marker);
+  else await writeFile(marker, original);
+  expect(await startProjection(input)).toMatchObject({ kind: "ready" });
+  expect(await h.file()).toContain("Written while the marker needs repair.");
+  const repaired = await h.stored();
+  success(await store.write({ action: "put", reference: repaired.reference, expected: repaired.version,
+    content: "Written after marker repair.\n", provenance: { verb: "save", lifecycleAction: "save" } }));
+  expect(await file()).toContain("Written after marker repair.");
+});
 
 
 it("fans a landed verb write into both checkouts and marks only the writer's record changed", async () => {
