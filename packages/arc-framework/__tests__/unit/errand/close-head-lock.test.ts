@@ -177,6 +177,7 @@ describe("Errand close HEAD lock", () => {
 
   function topologyGit(options: {
     missingBranch?: string;
+    locked?: string | null;
     onScan?: (scan: number, missingPath: string) => Promise<void>;
     headFailure?: () => boolean;
   } = {}): GitExec {
@@ -188,7 +189,8 @@ describe("Errand close HEAD lock", () => {
         return { stdout: `worktree ${CHECKOUT}\0HEAD ${"a".repeat(40)}\0branch refs/heads/main\0\0`
           + `worktree ${missingPath}\0HEAD ${"a".repeat(40)}\0`
           + (options.missingBranch === undefined ? "detached\0" : `branch refs/heads/${options.missingBranch}\0`)
-          + "prunable gitdir file points to non-existent location\0\0", stderr: "" };
+          + (options.locked === undefined ? "prunable gitdir file points to non-existent location\0"
+            : `locked${options.locked === null ? "" : ` ${options.locked}`}\0`) + "\0", stderr: "" };
       }] },
       { match: ["rev-parse", "--git-path", "HEAD"], responses: [async (call) => {
         await access(call.options?.cwd ?? "");
@@ -249,6 +251,24 @@ describe("Errand close HEAD lock", () => {
     expect(runtime.files.size).toBe(0);
     failed = false;
     const retried = await acquireErrandCloseHeadLock(options);
+    expect(retried.kind).toBe("acquired");
+    if (retried.kind === "acquired") await retried.release();
+    expect(runtime.files.size).toBe(0);
+  });
+
+  it.each([null, "portable storage"])("retains a missing worktree's branch under lock %s, then retries after unlock", async (locked) => {
+    const runtime = fakeFileIO();
+    const options = { identity: { slug: "done", claimId: "c".repeat(32) }, branch: "chore/done",
+      guard: null, fileIO: runtime.fileIO };
+    const refused = await acquireErrandCloseBranchDeletionHeadLocks({ ...options,
+      exec: topologyGit({ missingBranch: "chore/done", locked }),
+    });
+    expect(refused).toMatchObject({ kind: "refused", message: expect.stringContaining(join(CHECKOUT, "missing")) });
+    expect(refused).toMatchObject({ message: expect.stringContaining("unlock") });
+    expect(runtime.files.size).toBe(0);
+    const retried = await acquireErrandCloseBranchDeletionHeadLocks({ ...options,
+      exec: topologyGit({ missingBranch: "chore/done" }),
+    });
     expect(retried.kind).toBe("acquired");
     if (retried.kind === "acquired") await retried.release();
     expect(runtime.files.size).toBe(0);

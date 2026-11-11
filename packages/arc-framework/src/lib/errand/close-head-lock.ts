@@ -15,6 +15,8 @@ import type {
   CloseAuthorityResult,
 } from "./close-locus.js";
 
+import { describeErrandBranchOccupant, findErrandBranchOccupant } from "./branch-occupancy.js";
+
 const RECEIPT_KIND = "arc-errand-close-head-lock";
 const CLAIM_ID_PATTERN = /^[0-9a-f]{32}$/u;
 
@@ -237,15 +239,15 @@ async function readBranchDeletionAuthority(options: {
   if (!roster.ok) {
     return { kind: "error", message: `Local Errand branch occupancy cannot be proven: ${roster.message}` };
   }
-  // A missing folder holds no checkout. Retain only the folders we must lock;
-  // the final scan refuses if an absent registration becomes present meanwhile.
+  // Absent locked registrations hold their branch but need no HEAD lock.
+  // Comparing the physical path set still refuses a folder restored mid-lock.
   const worktrees = roster.worktrees.filter((worktree) => worktree.folderPresent);
-  const occupied = worktrees.find((worktree) => worktree.branch === options.branch);
+  const occupied = findErrandBranchOccupant(roster.worktrees, options.branch);
   return occupied === undefined
     ? { kind: "ready", worktrees }
     : {
         kind: "refused",
-        message: `Local Errand branch is checked out by registered worktree '${occupied.path}'.`,
+        message: describeErrandBranchOccupant(occupied),
       };
 }
 

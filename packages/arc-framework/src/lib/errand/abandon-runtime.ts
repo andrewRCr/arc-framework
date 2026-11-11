@@ -1,4 +1,5 @@
 /** Identity, lifecycle, and derived-occupancy composition for ordinary Errand abandonment. */
+import { describeErrandBranchOccupant, findErrandBranchOccupant } from "./branch-occupancy.js";
 import { readRuntimeErrand, transitionRuntimeErrand, type ErrandRuntimeStorageOptions } from "../store/errand-runtime-transactions.js";
 
 import type { ProjectionRemovalSlots } from "../git/worktree-removal.js";
@@ -192,7 +193,8 @@ export async function reapZeroDeltaBranch(
     if (preparation !== undefined) return preparation;
     const roster = await scanRegisteredWorktrees(inPrimary);
     if (!roster.ok) return { kind: "preserved", reason: roster.message };
-    if (roster.worktrees.some((worktree) => worktree.folderPresent && worktree.branch === record.branch)) return { kind: "preserved", reason: "the branch is checked out in a registered worktree" };
+    const occupied = findErrandBranchOccupant(roster.worktrees, record.branch);
+    if (occupied !== undefined) return { kind: "preserved", reason: describeErrandBranchOccupant(occupied) };
     const head = await resolveOptionalCommit(inPrimary, `refs/heads/${record.branch}`);
     if (head.kind === "error") return { kind: "preserved", reason: head.message };
     if (workItem !== null) {
