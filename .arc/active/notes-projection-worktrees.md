@@ -701,3 +701,15 @@ green run `fe8ae10e7d8e47059404a88960d28a2b` passed all 19 timing/status/publica
 materialization on M5. Its limits are the calibrated Linux values, its Git credit is explicitly zero and not
 established, and every qualified median equals its raw median. These are incremental implementation checks, not segment
 or work-unit verification.
+
+### Owner direction for 1.14 — 2026-11-11
+
+At 1.14, if the Linux reference's same-run Git timings are above the 2026-11-11 calibration, classify the timing run as
+disturbed and repeat it rather than count it as a performance failure. The 19.77 ms expanded-start repeat, whose Git
+timings also rose, is the example. Keep its raw measurements as diagnostic evidence; the repeat does not change the 20
+ms start budget.
+
+Compare against calibration run `2ba0b6ef905c408ea51b8e67686e7bbe`: standard Git single/pair medians 3.41/6.06 ms,
+expanded 3.39/5.94 ms, using the raw record's precision. A start above 20 ms with normal Git timings is a real failure
+and stops. This is the Owner's direction for judging the timing evidence, not an exemption for functional or
+quality-check failures.

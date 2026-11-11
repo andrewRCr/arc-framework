@@ -285,6 +285,8 @@ that chunk.
 
 - _Goal:_ The segment's exit criterion holds across real worktrees on a freshly merged base.
 
+- **Additional Context:** `notes-projection-worktrees.md` § Owner direction for 1.14.
+
     - Apply A4's criterion 11 and its platform tables in place of the superseded criterion 4 and Task 1.12's original
       numerical Goal: check one-file and ten-file fan-out separately, retain the paired archive comparison, and keep
       raw tripwire notices distinct from complete external-operation measurements.
