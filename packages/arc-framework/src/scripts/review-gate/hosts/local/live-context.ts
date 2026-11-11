@@ -3,6 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { ReviewOwnerSelectionError } from "../../../../lib/store/kinds/review/errors.js";
 import { sameOwner, type OwnerIdentity } from "../../../../lib/store/identity.js";
 import type { GitExec } from "../../../../lib/git/exec.js";
 import { readReviewWorkUnitByRef } from "../../../../lib/store/review-work-unit.js";
@@ -61,12 +62,16 @@ export async function readLocalReviewLiveContext(input: ReviewInvocationInput): 
   }
   const active = await readActiveMetaCandidates(input.cwd);
   const matching = active.candidates.filter((candidate) => candidate.branch === branch);
-  if (matching.length > 1) throw new Error("multiple active work units match the current branch");
+  if (matching.length > 1) throw new ReviewOwnerSelectionError("corrupt-state",
+    `multiple active work units match the current branch (${branch}).`,
+    { text: "Correct the competing work-unit Branch fields so exactly one work unit owns this branch, then retry." });
   if (matching.length === 1) {
     const candidate = matching[0];
     if (candidate === undefined) throw new Error("active work unit disappeared");
     const meta = toMetaRecord(parseMetaRecord(await readFile(join(input.cwd, candidate.path), "utf8")));
-    if (meta === null) throw new Error("active work-unit metadata is incomplete");
+    if (meta === null) throw new ReviewOwnerSelectionError("corrupt-state",
+      `active work-unit metadata is incomplete (${candidate.path}).`,
+      { text: "Complete the required fields in that meta file, then retry from its owning checkout." });
     const identity = candidate.filename.replace(/^meta-/u, "").replace(/\.md$/u, "");
     return {
       context: {
@@ -83,9 +88,15 @@ export async function readLocalReviewLiveContext(input: ReviewInvocationInput): 
   const transient = projectTransientInFlightRead(
     await readTransientInFlightIndexes({ exec, identity: activeIdentity }),
   );
-  if (!transient.complete) throw new Error(transient.degraded ?? "Transient identity is incomplete.");
+  if (!transient.complete) throw new ReviewOwnerSelectionError("corrupt-state",
+    transient.degraded ?? "Transient identity is incomplete.",
+    { text: `Repair the transient identity ref for ${activeIdentity ?? "the active identity"} `
+      + "and restore its complete valid identity records, then retry." });
   const claims = transient.indexes.records.filter((record) => record.branch === branch);
-  if (claims.length > 1) throw new Error("Multiple transient identities claim the local review branch.");
+  // Strict identity keys and branch derivation currently prevent competing valid records.
+  if (claims.length > 1) throw new ReviewOwnerSelectionError("corrupt-state",
+    "Multiple transient identities claim the local review branch.",
+    { text: "Resolve the competing transient claims so exactly one identity owns this branch, then retry." });
   const errand = claims[0];
   const activeErrand = errand !== undefined && (errand.state === "open" || errand.state === "awaiting-merge")
     ? errand
