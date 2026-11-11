@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "slug": "projection-fanout-attribution",
+  "claimId": "52c190dce8c48cc033f18cf7baf9b403",
+  "createdAt": "2026-11-11T14:43:20.138Z",
+  "updatedAt": "2026-11-11T14:43:20.138Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Record measured fan-out attribution for projection-narrowed-views",
+  "branch": "chore/projection-fanout-attribution",
+  "origin": "description",
+  "originEntry": null,
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
