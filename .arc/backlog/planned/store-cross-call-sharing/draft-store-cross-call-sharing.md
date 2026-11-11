@@ -88,7 +88,7 @@
   89,905 processes (16%) and `cat-file` 4,104 (5%), against roughly 15% of store file time. The store suites now run
   on six shards (`9c3616655`), so that is about 1–1.3 min per store job, where four shards made it 1.5–2 min.
   Evidence: `spec-store-operation-git-access.md` § Prototype evidence and § Alternatives & Rationale (operation
-  boundary); raw logs machine-local at `~/dev/scratch/store-op-git-access/runs/proto-origins/`.
+  boundary); raw logs (`proto-origins/`) kept outside the repository.
 
 ## Approach
 

@@ -421,7 +421,7 @@
   `runtime/respond-command.ts`, `policy/pre-publication-request.ts` and `pre-publication-procedure.ts`.
 
 - _Additional evidence:_ `storage-ref-backend`'s chunked review scripted this composition every round, among 323
-  per-round scripts (about 40k lines; copy at `~/dev/arc-evidence/storage-ref-backend/`), alongside the findings
+  per-round scripts (about 40k lines; a copy is kept outside the repository), alongside the findings
   proposal and the respond calls, the verified-fix replay, the staged Candidate commit, and re-entry with the resume
   token after the push (routed from `USER-INBOX § Work Unit`, housekeep drain, 2026-10-30; its scope, evaluator and
   report stages went to `chunk-scope-binding` and `review-evaluator-isolation`).

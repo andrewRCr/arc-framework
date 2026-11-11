@@ -26,7 +26,9 @@ the pass bar.
 
 ## Setup
 
-`~/dev/scratch/arc-storage-spike/editor/`, rebuilt exactly by `build.sh`. Each variant is its own repository with a
+Built by `build.sh` from this repository and a `plan-amendment` checkout as they stood on 2026-09-24. The script and
+each variant's settings are kept outside the repository; the variants are not, and that checkout is gone, so a rebuild
+reproduces the setup but not the exact content. Each variant is its own repository with a
 linked worktree beside it (`<variant>-wt`), each carrying its own copy of the projection — the per-worktree model
 [the hard-problems research][hard-problems] leans toward (§ 1, candidate 3). Tracked: `.arc/system/`,
 `.arc/reference/`, `src/`, `README.md`. Projected and gitignored: `.arc/active/` (from `plan-amendment`),

@@ -35,7 +35,7 @@ version in `lib/decompose/` survives with `handlers/decompose-store.ts` and the 
 - **#25's deletion set,** which this draft holds: every module the store version does not import, with
   `decompose-candidate.ts`'s callers in teardown (`verbs/teardown.ts`) and in-flight derivation
   (`in-flight-derivation.ts`). `cutover-flip` takes #25's representative rehearsal cut and workflow end state.
-- **What `cutover-tracked-state-removal` leaves for it:** each module the old machine still imports, deleted with
+- **What `cutover-in-repo-removal` leaves for it:** each module the old machine still imports, deleted with
   its last caller: the transition-record cluster, `transition-overlay.ts`, `artifactMatcher` and
   `pruneEmptyBacklogSource`, `resolveProjectReadinessViewInput`, and the `ProtectionMode` type where nothing else
   uses them (`cohort-storage-cutover.md` § Coordination).

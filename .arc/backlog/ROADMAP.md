@@ -111,30 +111,31 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                       | Priority | Owner  | Depends on                    | Cohort                     |
-| ------------------------------- | -------- | ------ | ----------------------------- | -------------------------- |
-| review-activity-contracts       | P1       | andrew | review-source-authority       | review-protocol-alignment  |
-| cutover-decompose-removal       | P1       | andrew | cutover-flip                  | storage-cutover            |
-| cutover-documentation           | P1       | andrew | cutover-flip                  | storage-cutover            |
-| cutover-notes-removal           | P1       | andrew | cutover-flip                  | storage-cutover            |
-| delivery-correction-convergence | P1       | andrew | cutover-flip                  | —                          |
-| delivery-observe-attest         | P1       | andrew | cutover-flip                  | —                          |
-| work-item-relations             | P1       | andrew | cutover-flip                  | —                          |
-| wu-lifecycle-state-model        | P1       | andrew | cutover-flip                  | —                          |
-| unit-scoped-review              | P2       | andrew | commit-increments             | approval-flow-refinement   |
-| projection-narrowed-views       | P2       | andrew | projection-worktrees          | storage-projection         |
-| errand-promotion-concurrency    | P2       | andrew | cutover-flip                  | —                          |
-| framework-core-from-package     | P2       | andrew | cutover-flip                  | —                          |
-| ghost-mode                      | P2       | andrew | cutover-flip                  | —                          |
-| goal-aware-direction            | P2       | andrew | cutover-flip                  | —                          |
-| history-policy                  | P2       | andrew | cutover-flip                  | —                          |
-| operational-state-docs          | P2       | andrew | cutover-flip                  | —                          |
-| documentation-surface-routing   | P3       | andrew | handoff-optimization          | agent-context-optimization |
-| instruction-optimization        | P3       | andrew | composable-workflows          | agent-context-optimization |
-| workflow-template-loads         | P3       | andrew | composable-workflows          | principle-anchored-core    |
-| docs-content-sweep              | P3       | andrew | docs-site-refresh             | release-readiness          |
-| comprehension-preservation      | P3       | andrew | execution-delegation-doctrine | —                          |
-| shared-inbox-model              | P3       | andrew | cutover-flip                  | —                          |
+| Work unit                       | Priority | Owner  | Depends on                                  | Cohort                     |
+| ------------------------------- | -------- | ------ | ------------------------------------------- | -------------------------- |
+| review-activity-contracts       | P1       | andrew | review-source-authority                     | review-protocol-alignment  |
+| cutover-decompose-removal       | P1       | andrew | cutover-flip                                | storage-cutover            |
+| cutover-documentation           | P1       | andrew | cutover-flip                                | storage-cutover            |
+| cutover-in-repo-removal         | P1       | andrew | cutover-flip, cutover-tracked-state-removal | storage-cutover            |
+| cutover-notes-removal           | P1       | andrew | cutover-flip                                | storage-cutover            |
+| delivery-correction-convergence | P1       | andrew | cutover-flip                                | —                          |
+| delivery-observe-attest         | P1       | andrew | cutover-flip                                | —                          |
+| work-item-relations             | P1       | andrew | cutover-flip                                | —                          |
+| wu-lifecycle-state-model        | P1       | andrew | cutover-flip                                | —                          |
+| unit-scoped-review              | P2       | andrew | commit-increments                           | approval-flow-refinement   |
+| projection-narrowed-views       | P2       | andrew | projection-worktrees                        | storage-projection         |
+| errand-promotion-concurrency    | P2       | andrew | cutover-flip                                | —                          |
+| framework-core-from-package     | P2       | andrew | cutover-flip                                | —                          |
+| ghost-mode                      | P2       | andrew | cutover-flip                                | —                          |
+| goal-aware-direction            | P2       | andrew | cutover-flip                                | —                          |
+| history-policy                  | P2       | andrew | cutover-flip                                | —                          |
+| operational-state-docs          | P2       | andrew | cutover-flip                                | —                          |
+| documentation-surface-routing   | P3       | andrew | handoff-optimization                        | agent-context-optimization |
+| instruction-optimization        | P3       | andrew | composable-workflows                        | agent-context-optimization |
+| workflow-template-loads         | P3       | andrew | composable-workflows                        | principle-anchored-core    |
+| docs-content-sweep              | P3       | andrew | docs-site-refresh                           | release-readiness          |
+| comprehension-preservation      | P3       | andrew | execution-delegation-doctrine               | —                          |
+| shared-inbox-model              | P3       | andrew | cutover-flip                                | —                          |
 
 ### Depth 2
 

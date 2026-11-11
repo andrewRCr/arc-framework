@@ -25,7 +25,7 @@
 - _Caution (project-manager.ARC, 2026-11-05):_ `unit/sync-orchestrator.test.ts`, the audit's flagship example, mocks
   `commands/user`, `handlers/push-recovery` and `lib/user-sync/branch-bounded-notes-export`, which
   `cutover-notes-removal` deletes. Spend no paydown there before that lands.
-- _Evidence:_ `~/dev/arc-evidence/test-typecheck-heap/test-audit/` on this machine.
+- _Evidence:_ `test-typecheck-heap`'s test audit (`test-audit/`), kept outside the repository.
 
 ---
 

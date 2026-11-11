@@ -40,7 +40,7 @@
   keeping only successful answers since an object can appear after a fetch, and decide for each repeated mutable
   read whether it is a deliberate freshness check. `seam-delivery-review` and the storage cutover rewrite many of
   these readers, so profile again after they land before designing; the per-call spawn log and CPU profile method
-  is in the Errand's scratch notes, `~/dev/scratch/review-fix-prof/`.
+  is in the Errand's notes (`review-fix-prof/`), kept outside the repository.
 
 - _Approach (hosted applicability):_ If the cost remains, consider reuse of
   immutable object reads within one observation, preserving fresh endpoint/ref reads, repository boundaries,

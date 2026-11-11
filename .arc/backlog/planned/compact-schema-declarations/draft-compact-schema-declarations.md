@@ -93,4 +93,4 @@ re-measure at the flip. Its pilot and the non-storage modules can go to a Codex 
 
 ## Evidence
 
-`~/dev/arc-evidence/test-typecheck-heap/results/SUMMARY.md` on this machine.
+`test-typecheck-heap`'s measurement summary, `results/SUMMARY.md`, kept outside the repository.

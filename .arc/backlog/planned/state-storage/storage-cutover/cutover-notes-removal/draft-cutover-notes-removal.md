@@ -187,8 +187,7 @@ None on unlanded members.
   `CrossWuEntry`, `EntryParse`), which the draft names only generally.
 
 - _Approach:_ at notes removal's planning, decide for each item which unit deletes it, or that it survives.
-  Tracked-state removal's collapse share, cut out at the flip's landing, takes whatever notes removal leaves that is an
-  in-repo arm.
+  `cutover-in-repo-removal` takes whatever notes removal leaves that is an in-repo arm.
 
 - _Captured during:_ `cutover-tracked-state-removal` draft-design, the same sweep, 2026-11-10 (Owner-approved; the
   target has no session).

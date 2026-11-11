@@ -17,9 +17,9 @@
   losing target, partition, or coverage progress.
 
 - _Observation:_ `storage-ref-backend`'s review accumulated 323 per-round scripts, about 40k lines, across 47 round
-  directories, each round's set rewritten with its scope IDs hard-coded; this machine keeps a copy, without its
-  repository clones, at `~/dev/arc-evidence/storage-ref-backend/`. Most of it translates between ARC's own outputs
-  and inputs and carries no judgment. The stages this entry covers:
+  directories, each round's set rewritten with its scope IDs hard-coded; a copy without its repository clones is
+  kept outside the repository. Most of it translates between ARC's own outputs and inputs and carries no judgment.
+  The stages this entry covers:
 
   2. Evaluators: rendering reviewer prompts, by importing the private `renderStandardReviewReviewerInstructions` from
      `src/scripts/review-gate/policy/`; recording launches and the concurrency queue; holding the seam and aggregate
