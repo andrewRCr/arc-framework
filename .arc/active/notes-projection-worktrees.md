@@ -435,3 +435,96 @@ Native phase tracing in run `e1d4cee7fec24af3a3f11c5565999f20` kept the same fix
 totaling 68.34 ms and 174.01 ms; publication totaled 73.48 ms and 76.41 ms. These nested durations do not sum to wall
 time. The timer excludes the authoritative Store mutation, and the round already shares source reads through
 `createProjectionReadMemo`; additional source caching is not justified by this trace.
+
+### Per-root cost reductions
+
+The 84 index publications came from four per root in `swapBatch`, `commitReturnedCopies`, `applyProjectionRefresh`,
+and `refreshTarget`: durable intent before moving a file, settlement, source-state advancement, and final writer
+metadata. Settlement, state, and writer marks now share the caller's final publication. Normal refreshes therefore
+make two durable publications per root, 42 for the reference workload. Returned aliases retain their extra ordering:
+their restored mapping publishes before unlink. A single total publication would change the recovery protocol;
+`takeOverUnrecorded` retains and reports an edited unrecorded copy rather than automatically taking it in. The
+interrupted-swap tests still require the intent and its copy ownership on disk before the move.
+
+The original reported Git starts were `7 + 6 × changed owners`: two ref captures, manifest creation and retention, the
+roster, a changes reader, and archive-endpoint tree enumeration; each owner added three tree enumerations and an
+ancestry query inside `captureChangeWindow`, plus two UID reads for its primary and changed record. Port construction
+had also hidden one identity-config process, so the physical totals were 14/68 rather than 13/67. `enumerateRefTrees`
+now reads trees through the operation's existing reader, and `immediateWindowRow` proves a direct-parent unfiltered
+interval from captured commits. Longer and filtered intervals retain Git's ancestry rules. The resulting totals are
+9/27: six control processes and one changes reader, plus two separately owned UID readers per changed owner. Those
+public operations still close their readers before returning, preserving maintenance and layout-move behavior.
+
+`removeProjectionAsideFile` prunes empty scaffold ancestors as spent files disappear; `listAsideFolder` prunes old
+empty scaffolding during its authorized walk. Subsequent empty starts observe an absent or empty aside root instead
+of traversing 1,450 empty folders. No index flag or folder-time cache substitutes for observing disk: recreated
+unrecorded copies are discovered, and recovery-name directories, nonempty foreign directories, and links survive.
+
+Eleven-sample Linux feedback from run `6380131504ca4d489055272f164d1f43`, on the same registered runner as
+`edb438ad5c9847728fcbd7d9dcd7baa3`; these separate runs include host variation:
+
+| Path                   | Before (ms) | After (ms) | Bound (ms) |
+| ---------------------- | ----------- | ---------- | ---------- |
+| No-change start        | 20.07       | 12.37      | 10         |
+| Expanded-archive start | —           | 13.40      | 10         |
+| One-file fan-out       | 272.84      | 242.21     | 100        |
+| Ten-file fan-out       | 710.32      | 598.63     | 100        |
+| Full materialization   | 1058.04     | 1112.57    | 1000       |
+
+The new single-Git, concurrent-pair, and beneath-Git medians were 2.62, 4.44, and 3.38 ms. WSL feedback in runs
+`4ce9e8ea3fa942bba430de28d9271f1a` and `e9bd7e2a79834ebda364ccd021f69231` had pairs of 10.93 and 12.60 ms,
+already above the raw 10 ms budget. A Linux host-cost adjustment should use a measured Linux reference, not the
+Windows 42 ms allowance, retain raw measurements, and protect the projection's own work beneath Git. This is a
+recommendation, not an amendment to the criterion. The reference runner still exceeds the start budget with its
+4.44 ms Git pair, so Git attribution does not close that gap. A3 remains held and all performance bounds remain open.
+
+`readChangeEnds` also treated every live-tip edit as a lifecycle move and enumerated unchanged archive endpoints.
+Its membership check now leaves those snapshots cold when both live endpoints exist; changed end records, changed
+origins, and live membership changes retain their archive evidence. The native missing-archive-tree regression
+returns the same live changes before and after repair, and 82 lifecycle cases retain creation, reopen, retirement,
+repeated-ending, and unavailable-history behavior.
+
+The final eleven-sample run, `334880664e4646cc95ceeca70a1c47cb`, measured 12.94 ms start, 19.22 ms expanded-archive
+start, 217.42 ms one-file fan-out, 567.38 ms ten-file fan-out, and 1122.57 ms materialization. Process counts remain
+9/27. Baseline Git single/pair/beneath medians were 2.76/4.56/3.55 ms; the expanded fixture measured 4.39/8.27/4.56 ms.
+The expanded-start difference remains unresolved; its own baselines also changed, so this run does not establish
+archive-growth independence. The runner reported one active job, no memory pressure or swap traffic, and low I/O
+pressure; no cause is assigned to the variation. No budget is closed by these measurements.
+
+The Spike 4 tripwire prototype timed the file work alone, with the Store read outside the timer. Its 20 siblings used a
+simple exclusive-create lock, an index publication, staged 4 KB files, replacement, and a separate end check: 3.3 ms for
+one file and 13.4 ms for ten. The native measurement includes the writer as a twenty-first root and the full propagation
+round: Store version and changes, configuration and roster, protection and layout validation, recovery intent, partition
+encoding and publication, and file replacement. The difference is therefore partly a measurement-boundary and protocol
+difference; it is not evidence that serial scheduling alone explains the gap.
+
+A diagnostic attribution run, `8d12426922ea4e3da5c2c9dbff1e095b`, kept roots sequential and compared one root with 21
+roots, at one and ten files, eleven samples each. Wrappers time real phases and filesystem calls, so these absolute
+times are diagnostic rather than qualification.
+
+| Instrumented path                       | One file (ms) | Ten files (ms) |
+| --------------------------------------- | ------------- | -------------- |
+| One-root round                          | 32.18         | 95.26          |
+| Twenty-one-root round                   | 209.82        | 573.65         |
+| First root's lock scope, 21-root round  | 24.61         | 102.51         |
+| Remaining twenty lock scopes, total     | 160.33        | 442.79         |
+| Store changes, once per round           | 10.63         | 26.30          |
+| Store record reads, shared across roots | 4.69          | 49.82          |
+| Index publications, 42 per round        | 54.64         | 55.68          |
+| Refresh scopes, total                   | 81.71         | 425.51         |
+| Swap scopes, total                      | 41.79         | 149.30         |
+
+The phase timings are nested and must not be added. Store record calls remain two for one changed owner and twenty for
+ten, independent of destination count, and physical Git starts remain 9/27. Destination work scales: the 21-root rounds
+make 510/2,625 `lstat` calls and 189/378 writes totaling 8.18/8.36 MB. Each root rewrites its roughly 192–195 KB backlog
+partition twice, for intent and settlement. Publication alone accounts for about 55 ms; it does not explain the full
+residual. No scaffold-pruning call occurs in either measured fan-out: staged-file removal defers ancestor pruning while
+the old aside copy remains. The additional twenty lock scopes are the measured scheduling opportunity; the trace does
+not prove every operation inside them necessary or predict a concurrency speedup.
+
+The intent publication's obsolete-partition collection is another serial consolidation candidate. In the same trace, the
+interval from its final directory read through publication return totals 3.47 ms for one file and 3.54 ms for ten across
+all 21 roots, including any return overhead. Deferring that collection cannot close either gap, so its existing behavior
+remains. A3's remaining candidate is bounded scheduling of independent destination visits, preserving both durable
+publications and per-root checks; these results neither authorize that locking change nor establish that it will reach
+100 ms. Start, expanded-archive behavior, and materialization remain separate open costs.
