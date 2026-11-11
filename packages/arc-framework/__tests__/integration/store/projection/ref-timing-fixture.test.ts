@@ -90,5 +90,9 @@ it("counts one native Git process for two exchanges through the same persistent 
       await client.ports.rawExec(["for-each-ref"]); await client.ports.rawExec(["for-each-ref"]);
     });
     expect(separate.sample.gitCalls).toBe(2);
+    await client.ports.exec("git", ["config", "arc.identity", "andrew"]);
+    await client.ports.identity();
+    const identity = await observer.measure(() => client.ports.identity());
+    expect(identity.sample.gitCalls).toBe(1);
   } finally { await repository.cleanup(); }
 }, NATIVE_FIXTURE_TIMEOUT_MS);

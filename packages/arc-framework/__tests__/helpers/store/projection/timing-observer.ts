@@ -1,6 +1,6 @@
 /** Observe native process starts and complete operations; a persistent reader exchange carries no new process debit. */
 import type { RawGitExec } from "../../../../src/lib/git/exec.js";
-import { createExecaRawGitExec, MAX_GIT_OUTPUT_BYTES } from "../../../../src/lib/git/process-executor.js";
+import { createExecaGitExec, createExecaGitExecInput, createExecaRawGitExec, MAX_GIT_OUTPUT_BYTES } from "../../../../src/lib/git/process-executor.js";
 import { createGitFloorGate, gateGitExecutors } from "../../../../src/lib/git/version-floor.js";
 import { performance } from "node:perf_hooks";
 import { createDefaultRefStorePorts, createRefStore } from "../../../../src/lib/store/index.js";
@@ -32,12 +32,12 @@ export class ProjectionTimingObserver {
   }
   client(checkout: string) {
     const gitFloor = createGitFloorGate();
-    const native = createDefaultRefStorePorts({ checkoutRoot: checkout, backingRepository: async () => null, gitFloor });
+    const exec = createExecaGitExec(), execInput = createExecaGitExecInput();
+    const native = createDefaultRefStorePorts({ checkoutRoot: checkout, backingRepository: async () => null, gitFloor,
+      exec: (command, args, options) => this.observe(args, () => exec(command, args, options)),
+      execInput: (args, input, options) => this.observe(args, () => execInput(args, input, options)) });
     const rawExec = gateGitExecutors(gitFloor, { exec: native.exec, execInput: native.execInput, rawExec: this.raw(checkout) }).rawExec;
-    const ports = { ...native,
-      exec: ((command, args, options) => this.observe(args, () => native.exec(command, args, options))) as typeof native.exec,
-      execInput: ((args, input, options) => this.observe(args, () => native.execInput(args, input, options))) as typeof native.execInput,
-      rawExec };
+    const ports = { ...native, rawExec };
     const engine = createProjectionEnginePorts(checkout);
     const enginePorts = { ...engine,
       exec: ((command, args, options) => this.observe(args, () => engine.exec(command, args, options))) as typeof engine.exec,
