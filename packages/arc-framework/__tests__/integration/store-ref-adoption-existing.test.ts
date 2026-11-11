@@ -17,8 +17,6 @@ import { gitBlobId } from "../../src/lib/store/projection/blob-id.js";
 import { renderStampedFile } from "../../src/lib/store/projection/stamp.js";
 import { readProjectionIndex } from "../../src/lib/store/projection/index-file.js";
 import { entry } from "../helpers/inbox-harness.js";
-import { capturedEntries } from "../helpers/store/ref-fixture-plant.js";
-import { plantRef } from "../helpers/store/ref-plant.js";
 import { expandStoredPath } from "../../src/lib/store/stored-path.js";
 import type { WriteResult } from "../../src/lib/store/write.js";
 import { createStagedFile, nameAsideFile } from "../../src/lib/store/projection/aside.js";
@@ -88,7 +86,7 @@ it("holds an unassociated cohort copy until its work unit's membership is repair
 });
 
 it.each(["companion", "inbound"])("remembers an existing %s's accepted edit through read-back failure and retries installation without resending", async kind => {
-  const { f, registry, primary, folder, projected } = await createAdoptionFixture();
+  const { f, primary, folder, projected } = await createAdoptionFixture();
   const reference = kind === "companion" ? recordReferences["work-item/companion"](primary.reference.owner, "research")
     : recordReferences["work-item/inbound"](primary.reference.owner);
   const body = kind === "companion" ? "Original prose\n" : "## Inbound\n\n";
@@ -98,19 +96,20 @@ it.each(["companion", "inbound"])("remembers an existing %s's accepted edit thro
     : `## Inbound\n\n${entry("12345678", "Concern", "Authored correction").replace(/^- _Id:_.*\n/mu, "")}\n`;
   const bytes = renderStampedFile({ content, stamp: gitBlobId(body, "sha1") });
   await writeFile(join(f.root, path), bytes);
-  const home = expandStoredPath(primary.reference, { registry });
   let accepted: WriteResult | undefined, repair: (() => Promise<void>) | undefined;
   const batch = f.store.batch.bind(f.store);
   vi.spyOn(f.store, "batch").mockImplementationOnce(async input => {
     const result = await batch(input);
-    if (result.status !== "ok") throw new Error("Expected the hand edit to persist before namespace damage");
+    if (result.status !== "ok") throw new Error("Expected the hand edit to persist before read-back failure");
     accepted = result.result.writes[0];
-    const entries = await capturedEntries(f, home.ref);
-    const parent = new TextDecoder().decode((await f.ports.rawExec([...f.gitDir ? [`--git-dir=${f.gitDir}`] : [], "rev-parse", home.ref],
+    const { registry } = f.ports;
+    const home = expandStoredPath(primary.reference, { registry });
+    const oid = new TextDecoder().decode((await f.ports.rawExec(["rev-parse", `${home.ref}:${home.metadataPath}`],
       { objectAccess: "local-only" })).stdout).trim();
-    const damaged = await plantRef(f.root, home.ref, entries.map(entry => entry.path === home.metadataPath
-      ? { path: entry.path, content: "broken metadata" } : entry), { parents: [parent], gitDir: f.gitDir });
-    repair = async () => { await plantRef(f.root, home.ref, entries, { parents: [damaged.tip], gitDir: f.gitDir }); };
+    const object = join(f.root, ".git/objects", oid.slice(0, 2), oid.slice(2));
+    const heldObject = join(f.root, "temporarily-unavailable-metadata-object");
+    await rename(object, heldObject);
+    repair = () => rename(heldObject, object);
     return result;
   });
   await startProjection({ store: f.store, checkout: f.root });

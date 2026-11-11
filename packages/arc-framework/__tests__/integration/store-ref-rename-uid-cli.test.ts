@@ -23,6 +23,9 @@ import type { Store } from "../../src/lib/store/contract.js";
 async function fixture() {
   const cli = await repairCliFixture(), production = createKindRegistry(PRODUCTION_REGISTRATIONS);
   const f = await createRefFixture(production);
+  for (const name of ["USER-INBOX.md", "WORKING-MEMORY.md"]) {
+    await rm(join(cli.cwd, ".arc/user/test-user", name), { force: true });
+  }
   const storeFactory = async () => {
     const { createRefStore } = await import("../../src/lib/store/create.js");
     const { createDefaultRefStorePorts } = await import("../../src/lib/store/default-ports.js");

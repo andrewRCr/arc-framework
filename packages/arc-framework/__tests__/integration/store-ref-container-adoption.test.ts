@@ -13,7 +13,7 @@ import { configureEngineCheckout } from "../helpers/store/projection/engine-fixt
 import { createKindRegistry, RecordReferenceSchema, OwnerIdentitySchema, recordReferences } from "../../src/lib/store/index.js";
 import { PRODUCTION_REGISTRATIONS } from "../../src/lib/store/kinds/registrations.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
-import { startProjection } from "../../src/lib/store/projection/engine.js";
+import { endProjection, startProjection } from "../../src/lib/store/projection/engine.js";
 import { beginProjectionCommand } from "../../src/lib/store/projection/process-state.js";
 import { readProjectionIndex } from "../../src/lib/store/projection/index-file.js";
 
@@ -174,10 +174,12 @@ it("keeps physical folder spelling separate from renamed record authority and re
   await startProjection({ store: f.store, checkout: f.root });
   const reference = recordReferences["work-item/companion"](beta.reference.owner, "scratch/extra-beta.md");
   expect(success(await f.store.read({ reference })).content).toBe(aliasContent);
+  await endProjection({ store: f.store, checkout: f.root });
   const repaired = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (repaired.kind !== "index") throw new Error("Missing renamed-owner continuation");
   expect(repaired.index.entries[alias]).toBeUndefined();
-  expect(repaired.index.entries[repairedPath]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
+  expect(repaired.index.entries[repairedPath]).toBeUndefined();
+  expect(repaired.index.entries[".arc/backlog/planned/beta/scratch/extra-beta.md"]).toMatchObject({ kind: "record", reference, pending: false, refused: null });
 });
 
 it("preserves a namespace lookup refusal and adopts the same file after forward metadata repair", async () => {

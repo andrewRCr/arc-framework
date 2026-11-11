@@ -6,7 +6,7 @@ import { createAdoptionFixture } from "../helpers/store/projection/adoption-fixt
 import { seed, success } from "../helpers/store/suite-tools.js";
 import { makeMetaFixture } from "../helpers/meta-fixture.js";
 import { RecordReferenceSchema } from "../../src/lib/store/identity.js";
-import { startProjection } from "../../src/lib/store/projection/engine.js";
+import { endProjection, startProjection } from "../../src/lib/store/projection/engine.js";
 import { beginProjectionCommand } from "../../src/lib/store/projection/process-state.js";
 import { buildProjectionStatusSummary, readProjectionStatus } from "../../src/lib/store/projection/status.js";
 import { readProjectionViewStatus } from "../../src/lib/store/projection/view-status.js";
@@ -25,7 +25,9 @@ it("names a missing pin from the command's one configuration observation and acc
     { kind: "active" });
   await f.ports.exec("git", ["config", "arc.inflightView", "all"], { cwd: f.root });
   await f.ports.exec("git", ["config", "arc.inflightPin", "missing"], { cwd: f.root });
-  const noInventory = vi.spyOn(f.store, "list").mockImplementation(() => Promise.reject(new Error("Ordinary entry must not enumerate the view")));
+  expect(await startProjection({ store: f.store, checkout: f.root })).toMatchObject({ kind: "ready" });
+  await endProjection({ store: f.store, checkout: f.root });
+  const noInventory = vi.spyOn(f.store, "list").mockImplementation(() => Promise.reject(new Error("Unchanged entry must not enumerate the view")));
   try { expect(await startProjection({ store: f.store, checkout: f.root })).toMatchObject({ kind: "ready" }); }
   finally { noInventory.mockRestore(); }
   const view = () => readProjectionViewStatus({ store: f.store, checkout: f.root,
@@ -41,7 +43,7 @@ it("names a missing pin from the command's one configuration observation and acc
   expect(await readFile(indexPath, "utf8")).toBe(bytes);
   const disk = await readProjectionIndex(projected.location, true, { groups: "all" });
   if (disk.kind !== "index") throw new Error("Missing native projection index");
-  expect(disk.index.projectedUnder.view).toEqual({ mode: "mine", pins: [] });
+  expect(disk.index.projectedUnder.view).toEqual({ mode: "all", pins: ["missing"] });
   await f.ports.exec("git", ["config", "--replace-all", "arc.inflightPin", other.reference.owner.name], { cwd: f.root });
   await startProjection({ store: f.store, checkout: f.root });
   expect(await readProjectionStatus({ store: f.store, checkout: f.root, location: projected.location, view }))
