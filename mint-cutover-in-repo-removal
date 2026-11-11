@@ -3,14 +3,20 @@
   "slug": "mint-cutover-in-repo-removal",
   "claimId": "534d31b39d090fa90cab0e08ee29aff9",
   "createdAt": "2026-11-10T23:03:07.084Z",
-  "updatedAt": "2026-11-10T23:03:07.084Z",
+  "updatedAt": "2026-11-11T00:45:50.733Z",
   "kind": "errand",
   "purpose": "errand",
   "intent": "Mint cutover-in-repo-removal as a planned storage-cutover member carrying the internal-collapse share cut from cutover-tracked-state-removal",
   "branch": "chore/mint-cutover-in-repo-removal",
   "origin": "description",
   "originEntry": null,
-  "state": "open",
+  "state": "awaiting-merge",
   "savedHead": null,
-  "changeRequest": null
+  "changeRequest": {
+    "repositoryRef": "andrewRCr/arc-framework",
+    "hostRef": "github.com",
+    "baseRef": "main",
+    "headRef": "chore/mint-cutover-in-repo-removal",
+    "headSha": "f97101d3afacbe05a4d61514ed1da6f14ec8f529"
+  }
 }
