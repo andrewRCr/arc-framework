@@ -103,6 +103,7 @@ function historyRetryInput(input: ProjectionCommandInput): ProjectionStartInput 
 export async function endProjection(input: ProjectionCommandInput): Promise<void> {
   disposeProjectionFanOut();
   const state = projectionProcessState();
+  state.materializeSpawn = null;
   if (state.skip?.reason === "switch") return;
   recordEngineStoreCapability(input.checkout, input.store.capabilities.stateOffBranch);
   if (!input.store.capabilities.stateOffBranch) return;

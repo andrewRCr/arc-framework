@@ -453,6 +453,17 @@ it.each(["unbound", "before-flip"] as const)("leaves a spawn dark when its mater
   expect(projectionProcessState().roots.size).toBe(0);
 });
 
+it("leaves a later spawn dark after its command's materialize port expires", async () => {
+  const target = await fixture();
+  const program = new Command("arc").exitOverride();
+  program.command("probe").action(() => undefined);
+  registerProjectionHooks(program, { input: () => ({ store: target.h.store, checkout: target.h.checkout }), writeError: () => undefined });
+  await program.parseAsync(["probe"], { from: "user" });
+  await materializeSpawnedProjection(target.checkout);
+  expect(await readProjectionIndex(target.location, true)).toMatchObject({ kind: "unusable", cause: "missing" });
+  expect(projectionProcessState().roots.has(target.checkout)).toBe(false);
+});
+
 
 it("advances an existing index's state after laying a full newer inventory", async () => {
   const target = await fixture();
