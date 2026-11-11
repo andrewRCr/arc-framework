@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { makeVitestRuntimeFixture } from "../helpers/vitest-runtime-fixture.js";
 import { runVitestControllerFixture } from "../helpers/vitest-controller-fixture.js";
+import { nestedRunLimit } from "../helpers/call-limit.js";
 import { withBuildArtifactOwnership } from "../../src/lib/build-ownership.js";
 import { buildOwnedArtifacts } from "../../src/lib/build-entry.js";
 
@@ -39,5 +40,5 @@ it.each(["undefined", "mismatched"])(
         expect(current.generation).toBe(generation);
       }
     } finally { await rm(fixture.root, { recursive: true, force: true }); }
-  }, 30_000,
+  }, nestedRunLimit(30_000),
 );

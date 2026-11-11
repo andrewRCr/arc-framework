@@ -4,6 +4,7 @@ import { access, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { makeFocusedVitestFixture } from "../helpers/focused-vitest-fixture.js";
+import { NESTED_CALL_LIMIT, nestedRunLimit } from "../helpers/call-limit.js";
 
 it("retains heavy setup and artifact ownership when a native mixed shard executes only unit cases", async () => {
   const fixture = await makeFocusedVitestFixture();
@@ -24,7 +25,7 @@ it("executes owned unit shard", () => {
       await writeFile(fixture.events, "");
       const result = await execa("npm", ["run", "-s", "test:full", "-w", "packages/arc-framework", "--",
         "__tests__/unit/shard-unit.test.mjs", "__tests__/integration/runtime.test.mjs", "--shard", shard],
-        { cwd: fixture.root, env: { CI: "1", ARC_E2E_SKIP_BUILD: "" }, reject: false, timeout: 30_000 });
+        { cwd: fixture.root, env: { CI: "1", ARC_E2E_SKIP_BUILD: "" }, reject: false, timeout: NESTED_CALL_LIMIT });
       expect(result, result.stderr).toMatchObject({ exitCode: 0 });
       if (result.stdout.includes("OWNED-UNIT-SHARD-RAN")) {
         sawUnitShard = true;
@@ -42,4 +43,4 @@ it("executes owned unit shard", () => {
     }
     expect(sawUnitShard).toBe(true);
   } finally { await rm(fixture.root, { recursive: true, force: true }); }
-}, 60_000);
+}, nestedRunLimit(60_000));
