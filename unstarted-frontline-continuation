@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "unstarted-frontline-continuation",
+  "claimId": "3a6b947cdbde75fd0bfffc1ba58c3cbe",
+  "createdAt": "2026-11-11T12:12:12.277Z",
+  "updatedAt": "2026-11-11T12:12:12.277Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Return the admitted frontline resolve request as a runnable singleton recovery continuation",
+  "branch": "chore/unstarted-frontline-continuation",
+  "origin": "inbox",
+  "originEntry": "Return a singleton continuation for an unstarted frontline admission",
+  "originEntrySourceDigest": "sha256:abf47387c2abdfac8d2b25038280cce23c88a6d348cb8cc99f4e8585abeede3b",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
