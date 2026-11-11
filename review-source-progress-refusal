@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "review-source-progress-refusal",
+  "claimId": "7c9b6e73db6927d4c382b4da63edcf90",
+  "createdAt": "2026-11-11T03:10:21.150Z",
+  "updatedAt": "2026-11-11T03:10:21.150Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Return repairable typed refusals for a forced review source that conflicts with configured sources or current-pass progress.",
+  "branch": "chore/review-source-progress-refusal",
+  "origin": "inbox",
+  "originEntry": "Return a typed refusal when a forced review source comes before recorded source progress",
+  "originEntrySourceDigest": "sha256:b294aefcf4e1d79fe5f963b37bbf02a88a17a716c440e1bc6e3d916926d027d6",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
