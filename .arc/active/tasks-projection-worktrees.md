@@ -186,17 +186,12 @@ that chunk.
   blocked. Partition failures invalidate under the lease and report a retry; restoration failures still allow sync.
   Dry-run, skip, missing identity, recreated files, cold archive partitions, and deferred fan-out have native coverage.
 
-### `[ ]` **1.10 Hold the `.worktreeinclude` copy off the projection's paths — § 11.6**
+### `[x]` **1.10 Hold the `.worktreeinclude` copy off the projection's paths — § 11.6**
 
 - _Goal:_ A new linked worktree takes none of the primary's projected files through `.worktreeinclude`, so the
   projection fills them itself.
-
-    - `copyWorktreeIncludes` (`lib/git/worktree-include.ts`), run at every spawn through `setupLinkedWorktree`
-      (`lib/git/linked-worktree-setup.ts`), already copies nothing under `.arc/` (its module-private `isArcPath`), which
-      keeps out every projected root and `.arc/system/.local/`; a regression test holds it.
-    - Build `test-first` (one behavior at a time):
-        - with a broad pattern, the primary's `active/current/` and `.arc/system/.local/` files are not copied, and an
-          `.env` file still is
+- _Outcome:_ A real linked-worktree regression holds the existing `.arc/` exclusion under a broad include pattern:
+  projected `active/current/` files and machine-local configuration stay out while `.env` is copied.
 
 ### `[ ]` **1.11 The isolation invariant and its test — § 10.5**
 
