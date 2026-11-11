@@ -403,6 +403,35 @@ fixture compares them with full native materialization.
 | Ten-file fan-out into twenty linked worktrees         | 700.34      | 100        |
 | Full materialization                                  | 1055.25     | 1000       |
 
-These are prequalification measurements, above the stated bounds, not a closed performance result. The required
-hosted Linux, Windows, and macOS measurements are not recorded yet. The external timer includes complete operations;
-fan-out begins at the store's captured notification after its backend write and includes every propagation round.
+These are prequalification measurements, above the stated bounds, not a closed performance result. The external timer
+includes complete operations; fan-out begins at the store's captured notification after its backend write and includes
+every propagation round.
+
+Hosted CI run `43017428975`, at `de0af2efb1d824130d0fc65e0c2381d6e12941a0`, produced eleven-sample medians on
+all three platforms. Each timing job passed; the overall run failed in seven integration/store shards. Its named-file
+portability input makes this diagnostic evidence, not work-unit verification.
+
+| Path                                                  | Linux (ms) | Windows (ms) | macOS (ms) |
+| ----------------------------------------------------- | ---------- | ------------ | ---------- |
+| No-change start                                       | 51.35      | 144.89       | 207.02     |
+| No-change start with expanded archive                 | 55.46      | 137.84       | 354.54     |
+| One-file backlog fan-out into twenty linked worktrees | 486.55     | 988.25       | 753.12     |
+| Ten-file fan-out into twenty linked worktrees         | 1644.98    | 3347.00      | 2465.13    |
+| Full materialization                                  | 1624.96    | 3971.95      | 3155.02    |
+| One Git process alone                                 | 13.25      | 54.85        | 24.74      |
+| Two Git processes together, alone                     | 22.30      | 63.77        | 36.34      |
+| Index read, walk, and stats alone                     | 6.91       | 18.36        | 20.48      |
+
+Raw times remain usable, but the original Windows adjustment is invalid: the observer counted persistent-reader
+requests as process starts, overstating its startup discount. Corrected counting distinguishes both; native feedback
+run `edb438ad5c9847728fcbd7d9dcd7baa3` counted 13 starts for 27 requests in one-file fan-out and 67 starts for 162
+requests in ten-file fan-out. Its Linux medians were 20.07 ms start, 272.84 ms one-file fan-out, 710.32 ms ten-file
+fan-out, and 1058.04 ms materialization. Hosted qualification with corrected counts remains open, as do the bounds.
+
+Native phase tracing in run `e1d4cee7fec24af3a3f11c5565999f20` kept the same fixture and eleven samples. The
+19.74 ms start spent 7.56 ms at its parallel-read barrier and 7.56 ms sweeping aside scaffolding; write-back took
+0.98 ms and index publication 0.56 ms. One-file fan-out took 263.27 ms and ten-file fan-out 703.24 ms. Each visited
+21 roots and published the index 84 times. Their target refreshes totaled 111.73 ms and 450.46 ms, including swaps
+totaling 68.34 ms and 174.01 ms; publication totaled 73.48 ms and 76.41 ms. These nested durations do not sum to wall
+time. The timer excludes the authoritative Store mutation, and the round already shares source reads through
+`createProjectionReadMemo`; additional source caching is not justified by this trace.
