@@ -80,8 +80,13 @@ export async function projectionSaveEvidence(input: { roots: readonly string[]; 
       throw error;
     }), recoverable: entry?.kind === "record" && entry.pending, locus: join(root, BURST_PATH) });
     if (entry?.kind !== "record") continue;
-    for (const copy of entry.copies) evidence.push({ content: await readFile(join(root, copy.name), "utf8"),
-      recoverable: entry.pending || report.includes(copy.name) && report.includes(BURST_PATH), locus: join(root, copy.name) });
+    for (const copy of entry.copies) {
+      const bytes = await readFile(join(root, copy.name));
+      const blob = gitBlobId(bytes, entry.base.blob.length === 64 ? "sha256" : "sha1");
+      evidence.push({ content: bytes.toString("utf8"),
+        recoverable: blob !== copy.moving && blob !== copy.landed
+          && (entry.pending || report.includes(copy.name) && report.includes(BURST_PATH)), locus: join(root, copy.name) });
+    }
   }
   return evidence;
 }

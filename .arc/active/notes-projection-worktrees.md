@@ -743,3 +743,17 @@ Restored full run `764794cda1ee4346be28f7472a4155bc` passed all sixteen native m
 The isolation case separately failed before registration in `a011e8740b8848cdac573d07bdacec09`, then passed in
 `3150d274ca4542ea98a4cccc9e6b4568`. These runs establish local task feedback; the task's dispatched portability and
 Linux evidence is recorded with its completion.
+
+#### Oracle hash boundary
+
+The completed-copy comparison in `observeAsideCopy` treats bytes matching `moving` or `landed` as no edit, which
+settlement deletes. A pending parent entry therefore cannot alone establish that a copy remains a recoverable save.
+The approved correction excludes both hashes before counting an indexed aside as evidence. It hashes raw bytes in the
+index's object format and retains complete-entry matching and the pending/report condition for edited copies.
+
+Regression run `8aac4ed1020e49efbb43671f1d3729c4` exposed all four false greens in the two layouts. Positive
+reconstruction `e8e7f0b1cfff475584488b0dbfd7c7d4` failed both edited-copy cases when every aside was rejected. Corrected
+run `8b6c9dc2e84d42c595924e578341e2b3` passed all six cases, each checked against the production read-only observer.
+The initial interrupted attempt, `e395d1c372fe46bca2f59a9991edc84c`, retained no result and is not evidence of a pass.
+The complete corrected twenty-process suite passed all twenty-two cases in run
+`52fb7151e6fd435b9bfadf0443449634` on M4, covering both layouts and every required rendezvous.

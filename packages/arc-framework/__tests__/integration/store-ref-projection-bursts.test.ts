@@ -11,6 +11,10 @@ import { gitBlobId } from "../../src/lib/store/projection/blob-id.js";
 import { refSyncFixture } from "../helpers/store/ref-sync.js";
 import { seedProjection } from "../helpers/store/projection/seeded-projection.js";
 import { configureEngineCheckout } from "../helpers/store/projection/engine-fixture.js";
+import { commitProjectionIndex } from "../../src/lib/store/projection/index-file.js";
+import { withProjectionEntry } from "../../src/lib/store/projection/index-memory.js";
+import { observeAsideCopy } from "../../src/lib/store/projection/aside-copies.js";
+import { renderStampedFile } from "../../src/lib/store/projection/stamp.js";
 
 type Fixture = Awaited<ReturnType<typeof projectionBurstFixture>>;
 
@@ -96,5 +100,31 @@ describe.skipIf(process.env.ARC_STORE_BURSTS !== "1").each(["default", "separate
     const evidence = await projectionSaveEvidence({ roots: [h.cloneA], reports: [], stored: BURST_ORIGINAL });
     expect(preservedProjectionSave(entry, evidence)).toBe(false);
     expect(preservedProjectionSave(burstEntry(101, "Missing entirely."), evidence)).toBe(false);
+  }, PROJECTION_BURST_TIMEOUT_MS);
+
+  it.each(["moving", "landed", "edited"] as const)("counts an indexed aside only while it holds an edit (%s)", async state => {
+    const h = await refSyncFixture(layout), saved = burstEntry(100, "The copy is the only possible witness.");
+    success(await h.a.store.write({ action: "put", reference: BURST_REFERENCE, expected: null,
+      content: BURST_ORIGINAL, provenance: BURST_PROVENANCE }));
+    await configureEngineCheckout(h.cloneA);
+    const projection = await seedProjection({ store: h.a.store, checkout: h.cloneA, files: [{ path: BURST_PATH, reference: BURST_REFERENCE }] });
+    const entry = projection.index.entries[BURST_PATH];
+    if (entry?.kind !== "record") throw new Error("The native fixture has no indexed record");
+    const original = await readFile(join(h.cloneA, BURST_PATH));
+    const bytes = renderStampedFile({ content: burstContent(saved), stamp: gitBlobId(BURST_ORIGINAL, "sha1") });
+    const name = nameAsideFile({ path: BURST_PATH, base: entry.base.blob,
+      writer: { pid: process.pid, processInstance: "indexed", processScope: "oracle-check" }, role: "aside" });
+    await mkdir(dirname(join(h.cloneA, name)), { recursive: true });
+    await writeFile(join(h.cloneA, name), bytes);
+    const copy = { name, moving: gitBlobId(state === "moving" ? bytes : original, "sha1"),
+      landed: state === "landed" ? gitBlobId(bytes, "sha1") : null, linked: gitBlobId(original, "sha1"),
+      writeBackSent: false, rendering: { markers: entry.markers, notices: entry.notices } };
+    const pending = { ...entry, pending: true, copies: [copy] };
+    await commitProjectionIndex({ checkout: h.cloneA, location: projection.location,
+      index: withProjectionEntry(projection.index, BURST_PATH, pending) });
+    expect(await observeAsideCopy({ checkout: h.cloneA, path: BURST_PATH, entry: pending, copy, format: "sha1" }))
+      .toMatchObject({ kind: state === "edited" ? "edited" : "no-edit" });
+    const evidence = await projectionSaveEvidence({ roots: [h.cloneA], reports: [], stored: BURST_ORIGINAL });
+    expect(preservedProjectionSave(saved, evidence)).toBe(state === "edited");
   }, PROJECTION_BURST_TIMEOUT_MS);
 });
