@@ -1,6 +1,7 @@
 /** A repository-local restore record and its reachability hold outside the store namespace. */
 import { z } from "zod";
-import type { GitExec, GitExecInput } from "../../lib/git/exec.js";
+import { listWindowRefs, type WindowGitReadIO } from "./git.js";
+import type { GitExecInput } from "../../lib/git/exec.js";
 import { WindowRefusal } from "./result.js";
 import { updateRefTransaction, type RefChange } from "../../lib/git/ref-transaction.js";
 import { refFetchArgs } from "../../lib/store/ref/fetch-target.js";
@@ -19,7 +20,7 @@ const recordSchema = z.strictObject({
 });
 
 /** Git boundaries pinned to the operation's explicit checkout. */
-export interface WindowHoldIO { repo: string; exec: GitExec; execInput: GitExecInput }
+export interface WindowHoldIO extends WindowGitReadIO { execInput: GitExecInput }
 /** The immutable input snapshot retained by the cutover hold. */
 export type WindowRecord = z.infer<typeof recordSchema>;
 
@@ -62,12 +63,7 @@ export async function writeWindowHold(io: WindowHoldIO, record: WindowRecord): P
 /** Read the complete record shared by subsequent window operations. */
 export async function readWindowHold(io: WindowHoldIO): Promise<{ tip: string; record: WindowRecord }> {
   const bound = boundIO(io);
-  const output = (await bound.exec("git", ["for-each-ref", "--format=%(refname) %(objectname)", "refs/arc-window/"],
-    { objectAccess: "local-only" })).stdout;
-  const held = new Map(output.trim().split("\n").filter(Boolean).map((line): [string, string] => {
-    const [ref, tip] = line.split(" ");
-    return [names.startsWith("refs/arc-window/").parse(ref), oid.parse(tip)];
-  }));
+  const held = await listWindowRefs(bound, ["refs/arc-window/"]);
   if (held.size === 0) throw new WindowRefusal([{ subject: "cutover hold", condition: "No cutover hold exists.",
     remedy: "Run check to record a restore point before continuing." }]);
   const complete = held.get("refs/arc-window/complete");

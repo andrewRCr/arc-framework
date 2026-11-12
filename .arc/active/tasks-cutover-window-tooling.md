@@ -103,25 +103,15 @@ restarted after each of its steps.
           completion marker last. `readWindowHold` checks the matching marker, distinguishes absent and incomplete
           holds, and preserves unreadable or mismatched evidence for repair.
 
-    - `[ ]` **2.1.b The passing baseline**
-        - One shared test fixture passes every condition built so far, so each condition's test plants one failure in it
-          and the whole check passes again once that failure's remedy is applied. It starts from `importFixture` with
-          `.arc-fixture/` and `.arc/user/` excluded and `remote.origin.arc-state` unset, `main` and a flip branch one
-          commit ahead of it pushed to the bare `origin` with upstreams set, a file under `.arc/user/<identity>/` for
-          the save to write, and a supplied listing holding the flip's pull request; it takes a supplied anchor and the
-          `PATH` C6 judges as those conditions land. Each condition task in Phases 3 and 4 extends it so it keeps
-          passing (see `notes-cutover-window-tooling.md` § Test fixtures).
+    - `[x]` **2.1.b The passing baseline**
+        - `windowFixture` shares the import source with a local mirror, clean personal/mirror exclusions, no state
+          designation, main and a one-commit flip pushed with upstreams, eligible personal state, and the supplied
+          flip-request listing. Its native Git facts and notes save are exercised before condition tests consume it.
 
-    - `[ ]` **2.1.c C9 — a store, designation, or earlier hold**
-        - Evaluated first, refusing with nothing written: any `remote.*.arc-state`, a `storage.backing_repository`
-          (`readBackingRepository`), or `origin` not the code remote (`readRefDesignation`); a store directory under
-          `<commonDir>/arc/`; a store ref (`isStateRef`) or a ref under the store's working namespaces in `refs/arc/tmp/`;
-          anything under `refs/arc-window/`.
-        - Build `test-first` (one behavior at a time):
-            - Each condition refuses naming its subject and remedy, and the check passes once the remedy is applied
-            - The other refs C9 lets pass, an Errand's temporary refs among them, do not refuse
-            - An incomplete hold refuses and passes once deleted; a complete hold refuses, its `restore` remedy proven in
-              Task 2.3
+    - `[x]` **2.1.c C9 — a store, designation, or earlier hold**
+        - The check's admission reports every prior designation, backing pointer, wrong code remote, store directory,
+          state or working ref, and earlier hold without changing existing state. Other ARC refs pass; incomplete
+          holds name removal, and completion markers name the conditional restore or Owner-settlement route.
 
     - `[ ]` **2.1.d The run order and its stop points**
         - The check takes the flip's branch and pull request, and, where the repository has no host, a supplied listing.
