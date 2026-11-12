@@ -275,7 +275,15 @@ manual fresh-session pass; never a primary-context self-pass presented as indepe
 
 **Verify every review finding against source with your own judgment** · `[invariant]`; reviewer or delegated output
 remains advisory. Present the complete proposed disposition set and obtain approval before applying any finding-driven
-fix · `[invariant]`. This constraint applies regardless of who reviewed the change or where the findings arrived.
+fix from a formal review pass — a review obligation's lanes, the author check, an adversarial or design pass, or hosted
+review · `[invariant]`. This constraint applies regardless of who reviewed the change or where the findings arrived.
+
+**Your own review of unfinished work** — one you run on an increment before it reaches its approval gate, such as an
+advisory pass you request from another model or a self-review mid-task — takes the in-scope path instead. Reproduce a
+behavioral finding with a test that fails without the fix. A confirmed finding whose fix meets § Quality gate failure's
+in-scope test is an in-scope fix: make it, note it on the task it serves, and name it in the completion report. Any
+other finding goes to the increment's approval gate with its proposed disposition, and declining or dismissing a
+finding from any review is never yours to decide · `[invariant]`.
 
 ### Task granularity
 
