@@ -1700,13 +1700,13 @@ this design open.
 ## Amendments
 
 - **A1** — 2026-11-10 — design: smudge installing entries. _Supersedes:_ § 16.2 ¶3.
-  _Trigger:_ 1.2 must-stop. _Work:_ 1.2.R. _Revalidated:_ pending → 1.14.
+  _Trigger:_ 1.2 must-stop. _Work:_ 1.2.R. _Revalidated:_ 1.14.
 
 - **A2** — 2026-11-10 — design: retain ownership during path reuse. _Supersedes:_ § 15.2 ¶2.
-  _Trigger:_ 1.6.a must-stop. _Work:_ 1.6.R. _Revalidated:_ pending → 1.14.
+  _Trigger:_ 1.6.a must-stop. _Work:_ 1.6.R. _Revalidated:_ 1.14.
 
 - **A4** — 2026-11-11 — design: rebase full-round bounds. _Supersedes:_ Goal 5; § 15.3–15.4; criterion 4.
-  _Trigger:_ 1.12.a door. _Work:_ 1.12.R. _Revalidated:_ pending → 1.14.
+  _Trigger:_ 1.12.a door. _Work:_ 1.12.R. _Revalidated:_ 1.14.
 
 - **Amended 2026-11-06, at task generation (Owner-approved).** Grounding the task list against `projection-substrate`
   and `storage-ref-hardening` as shipped (#1247, #1271) and `projection-write-back` at its branch head corrected this

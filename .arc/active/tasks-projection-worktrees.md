@@ -265,25 +265,16 @@ that chunk.
   `4c81df9ec8` passed Linux portability and the Windows/macOS named-file pair, covering both layouts, timing isolation,
   and the native alias regression. Detailed evidence is in `notes-projection-worktrees.md`.
 
-### `[ ]` **1.14 The working copy across worktrees** — validate exit criterion at segment scope
+### `[x]` **1.14 The working copy across worktrees** — validate exit criterion at segment scope
 
 - _Goal:_ The segment's exit criterion holds across real worktrees on a freshly merged base.
 
-- **Additional Context:** `notes-projection-worktrees.md` § Owner direction for 1.14.
-
-    - Apply A4's criterion 11 and its platform tables in place of the superseded criterion 4 and Task 1.12's original
-      numerical Goal: check one-file and ten-file fan-out separately, retain the paired archive comparison, and keep
-      raw tripwire notices distinct from complete external-operation measurements.
-    - Re-run 1.6.R's ownership-handoff recovery scenarios against criterion 10, including a reused path's arriving
-      generation, an interrupted unstamped save, and continuation after the withheld bytes are deleted.
-    - Merge base into the branch (append-only); run `npm ci` first if the merge changed `package-lock.json`.
-    - Over the reference backend in one scripted repository with linked worktrees, run the exit criterion's scenario —
-      materialize, an edit's fan-out, a pull's fan-out, `arc sync` after a delete, a rebuild on `state-unresolvable` —
-      confirm 1.12.a's recorded medians, each Windows median read past the host's Git cost as Success Criterion 4 reads
-      it — the no-change start within budget, a full materialization and a one-file fan-out of a record that is not a
-      primary within their tripwires' bounds on every platform, and a ten-file fan-out within its bound on Linux and
-      macOS, its Windows median read against the bound (§ 15.4) — confirm 1.13's recorded runs, and request
-      `arc check segment`.
+- _Outcome:_ The linked-worktree scenario covers materialization, edit and pull fan-out, sync restoration, and expired
+  anchors after base merge `63d619fc93`; ownership recovery and the native save bursts hold on Linux and the portability
+  pair. A1, A2, and A4 close here. Linux reference run `f148db31f906455ea075a3a6c09ff531` and hosted repeat
+  `43139555055` fit all complete-operation bounds with zero Git credit; the first macOS miss remains recorded.
+  Paired archive measurements and unreadable settled-partition cases show no archive-entry cost at fixed owner/quarter
+  counts. Exact heads, raw medians, negative controls, and the approved repeat are in `notes-projection-worktrees.md`.
 
 ## **Phase 2:** Worktrees — the removal slots and the release step
 

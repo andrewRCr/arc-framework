@@ -820,3 +820,56 @@ source reconstructions were reverted before the restored run. Run `9e50d4738a594
 scenario, full materialization/layout suite, path reuse, and refresh retries. Claim-only retries and the interrupted
 A → B → A layout cycle passed in `22f45ef2137242f7ab6554b7da2c2f6c`; interrupted unstamped installations and write-back
 handoff refusals passed in `f97f53e6e6f84ecc9ecbcc5452a23bb9`.
+
+#### Segment timing qualification
+
+The segment's common source head is `8618d5b9277c143038cb2ae4c0c102c98c94532b`. Linux reference run
+`f148db31f906455ea075a3a6c09ff531` used snapshot `1b65d7b3ff0b756ccab0b1e4fe825e4d8f5e307b`; its package,
+scripts, manifest, and lockfile inputs match that head exactly. GitHub diagnostic run `43136508996` used that head
+directly. Its nine selected files passed on both native platforms, including the complete linked-worktree scenario,
+reprojection, ownership handoff, and unreadable-cold-partition cases. This diagnostic run is not work-unit verification.
+Its Linux portability job `130913765752` also executed the complete scenario and all twenty-two projection burst
+cases, in both ref-store layouts; the isolated timing-lane check passed alongside them.
+
+| Complete operation, raw median (ms) | Linux `m5-air-ac` | Windows `windows-2025-vs2026` | macOS `macos-26-arm64` |
+| ----------------------------------- | ----------------- | ----------------------------- | ---------------------- |
+| Standard no-change start            | 13.05             | 113.30                        | 67.50                  |
+| Expanded-archive start              | 12.80             | 117.54                        | 83.67                  |
+| One-file fan-out                    | 208.21            | 1042.17                       | 409.44                 |
+| Ten-file fan-out                    | 560.53            | 3996.50                       | 1349.67                |
+| Full materialization                | 1070.35           | 5209.53                       | 1946.96                |
+
+Every metric retains eleven raw samples. Git credit is zero and not established; qualified times equal raw times.
+Linux's same-run single/pair Git medians were 2.968/5.058 ms standard and 2.906/5.052 ms expanded, below calibration
+at full precision, so the Owner's disturbance rule does not apply. Its paired archive effect was −0.043 ms. Windows'
+paired effect was +3.913 ms, with mixed signs; its beneath-Git medians were 28.466/28.499 ms. Linux's beneath-Git
+medians were 3.496/3.513 ms. These comparisons do not show an archive-entry-dependent filesystem cost at fixed owner
+and quarter counts.
+
+macOS missed the unchanged 45 ms start bound. Its single/pair Git medians were 34.013/30.232 ms standard and
+36.356/29.046 ms expanded, compared with calibration's standard 17.56/19.24 ms. Beneath-Git medians were
+24.444/28.492 ms, and the paired archive effect +2.120 ms with widely mixed signs. These observations establish no
+exposed-delay credit and identify no cause. The first result remains a miss, with all raw samples kept. The Owner
+approved one same-head timing-only repeat on 2026-11-11, retaining the 45 ms bound; run `43139555055` collects it.
+Both invocations already isolate the timing project through `vitest.config.ts`; no overlap with the functional files
+is claimed as the cause. Task 1.14 remained open for that repeat.
+
+Run `43139555055` completed both timing files at the same source head on the same named images and image versions as
+calibration. macOS job `130923278006` and Windows job `130923277985` fit every raw bound, with zero Git credit:
+
+| Complete operation, raw median (ms) | Windows | macOS   |
+| ----------------------------------- | ------- | ------- |
+| Standard no-change start            | 81.33   | 35.01   |
+| Expanded-archive start              | 80.13   | 37.53   |
+| One-file fan-out                    | 671.79  | 527.87  |
+| Ten-file fan-out                    | 2936.03 | 2060.86 |
+| Full materialization                | 3178.83 | 3307.82 |
+
+macOS' standard/expanded single Git medians were 16.993/17.403 ms, concurrent pairs 20.726/20.171 ms, and beneath-Git
+work 17.593/17.062 ms. Windows' singles were 57.183/56.778 ms, pairs 64.711/65.103 ms, and beneath-Git work
+12.132/12.104 ms. The paired start effects were +1.557 ms on macOS and −0.761 ms on Windows, both with mixed signs;
+paired beneath-Git effects were −0.585/−0.094 ms respectively. Together with the cold-partition test, these do not show
+a systematic archive-entry cost at fixed owner and quarter counts. Both raw runs, all samples, and baseline records
+are retained; artifact digests and all eleven metric medians were checked independently. The repeat qualifies through
+the Owner's explicit direction. It demonstrates intermittent performance variation, not a repaired cause of the first
+macOS miss, and changes no limit or locking decision.
