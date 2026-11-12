@@ -98,17 +98,10 @@ restarted after each of its steps.
 
 - _Note:_ See `notes-cutover-window-tooling.md` § Hold, record, and stop points.
 
-    - `[ ]` **2.1.a The hold's layout, the record document, and the writer**
-        - The namespaces of § 4.3 under `refs/arc-window/`; the record document of § 4.1, holding the flip's branch, pull
-          request, and head, in the tree of the `refs/arc-window/record` commit; `refs/arc-window/complete` pointing at
-          that commit, written last.
-        - One writer builds a hold from a record, and one reader serves every later operation, reporting a hold without
-          its marker as incomplete; later phases' tests build holds through the writer rather than through `check`.
-        - Build `test-first` (one behavior at a time):
-            - The record round-trips through its commit
-            - Held local, `origin`, and tracking refs keep their recorded tips reachable after the source refs are
-              deleted
-            - A hold without its completion marker reads as incomplete
+    - `[x]` **2.1.a The hold's layout, the record document, and the writer**
+        - `writeWindowHold` retains local, origin, and tracking tips and writes the orphan record commit with its
+          completion marker last. `readWindowHold` checks the matching marker, distinguishes absent and incomplete
+          holds, and preserves unreadable or mismatched evidence for repair.
 
     - `[ ]` **2.1.b The passing baseline**
         - One shared test fixture passes every condition built so far, so each condition's test plants one failure in it
