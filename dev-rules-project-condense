@@ -1,0 +1,17 @@
+{
+  "version": 3,
+  "slug": "dev-rules-project-condense",
+  "claimId": "de464e678ebaec24cb1e759498d0e0d9",
+  "createdAt": "2026-11-12T21:43:04.880Z",
+  "updatedAt": "2026-11-12T21:43:04.880Z",
+  "kind": "errand",
+  "purpose": "errand",
+  "intent": "Condense DEV-RULES.PROJECT's recent text and make its surface taxonomy follow what ships",
+  "branch": "chore/dev-rules-project-condense",
+  "origin": "inbox",
+  "originEntry": "Condense `DEV-RULES.PROJECT`'s recent text and make its surface taxonomy follow what ships",
+  "originEntrySourceDigest": "sha256:4b914fa7c28bc5bcdd0f7fd4d8725137fdc6d996e0fcc0c4d9ffd85deb680642",
+  "state": "open",
+  "savedHead": null,
+  "changeRequest": null
+}
