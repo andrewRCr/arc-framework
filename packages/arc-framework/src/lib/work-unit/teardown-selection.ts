@@ -132,7 +132,7 @@ export function teardownSelectionsEqual(left: TeardownSelection, right: Teardown
     && left.markerGeneration === right.markerGeneration;
 }
 
-function subjectsEqual(left: WorktreeMarkerSubject, right: WorktreeSubject): boolean {
+function subjectsEqual(left: WorktreeMarkerSubject | WorktreeSubject, right: WorktreeSubject): boolean {
   if (left.kind !== right.kind) return false;
   if (left.kind === "work-unit" && right.kind === "work-unit") return right.uid === undefined ? left.name === right.name : left.uid === right.uid;
   if (left.kind === "branch" && right.kind === "branch") return left.ref === right.ref;

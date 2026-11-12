@@ -61,8 +61,8 @@ export type PartialErrandWorktreeSubject = {
   claimId: null;
 };
 
-/** Logical target carried by current and legacy worktree evidence. */
-export type WorktreeMarkerSubject = WorktreeSubject | TransientWorktreeSubject | PartialErrandWorktreeSubject;
+/** Logical ownership target; transient checkouts require an exact claim. */
+export type WorktreeMarkerSubject = Exclude<WorktreeSubject, { kind: "errand" }> | TransientWorktreeSubject | PartialErrandWorktreeSubject;
 
 /** Terminal proof recorded after ARC detaches a worktree for safe later disposal. */
 export interface WorktreeHuskStamp {
@@ -74,12 +74,12 @@ export interface WorktreeHuskStamp {
   subject: WorktreeSubject;
   /** Exact branch projection occupied immediately before detach. */
   branch: string;
-  /** Persisted authorization; optional only for legacy read compatibility. */
-  authorization?: string;
+  /** Persisted authorization. */
+  authorization: string;
   /** Exact remote disposition; explicit `null` is a present current value. */
-  remoteRef?: RemoteRefProof;
-  /** Keyed retirement evidence; optional only for legacy read compatibility. */
-  evidence?: PersistedRetirementEvidence;
+  remoteRef: RemoteRefProof;
+  /** Keyed retirement evidence. */
+  evidence: PersistedRetirementEvidence;
 }
 
 /** Exact operational projection for a spawned rename whose directory move is deferred. */
@@ -94,7 +94,6 @@ export interface WorktreeRenameMovePending {
 
 /** Trust classification for a structurally valid husk stamp. */
 export type DecodedWorktreeHuskStamp =
-  | { kind: "legacy"; authorization: "merged-preserved" }
   | {
       kind: "current";
       authorization: HuskAuthorization;
@@ -103,25 +102,24 @@ export type DecodedWorktreeHuskStamp =
     }
   | {
       kind: "manual-only";
-      reason: "mixed-presence" | "unknown-authorization" | "unknown-evidence" | "evidence-mismatch" | "pre-store-husk";
+      reason: "unknown-authorization" | "unknown-evidence" | "evidence-mismatch" | "pre-store-husk";
     };
 
 /** Trust classification for a structurally valid ownership marker. */
 export type DecodedWorktreeMarkerOwnership =
   | {
       kind: "current";
-      subject: Exclude<WorktreeMarkerSubject, { kind: "errand"; claimId?: never }>;
+      subject: WorktreeMarkerSubject;
       provisioning: "pending" | "ready" | null;
     }
   | {
       kind: "manual-only";
-      reason: "legacy-transient" | "unknown-provisioning" | "malformed-ownership";
+      reason: "unknown-provisioning" | "malformed-ownership";
     };
 
 /** Diagnostic-only trust projection for transient ownership provenance. */
 export type TransientWorktreeProvenance =
   | { kind: "ready" | "pending"; subject: TransientWorktreeSubject }
-  | { kind: "legacy"; subject: Extract<WorktreeSubject, { kind: "errand" }> }
   | {
       kind: "claim-mismatch";
       subject: TransientWorktreeSubject;
@@ -165,7 +163,7 @@ export type WorktreeMarker = WorktreeMarkerBase &
         createdFor?: Extract<WorktreeSubject, { kind: "work-unit" }>;
         provisioning?: never;
       }
-    | { wuName?: never; createdFor: WorktreeSubject; provisioning?: never }
+    | { wuName?: never; createdFor: Exclude<WorktreeSubject, { kind: "errand" }>; provisioning?: never }
     | { wuName?: never; createdFor: TransientWorktreeSubject; provisioning: string }
     | {
         wuName?: never;
@@ -347,22 +345,15 @@ function isWorktreeHuskStamp(value: unknown): value is WorktreeHuskStamp {
   ) {
     return false;
   }
-  if (husk.authorization !== undefined && typeof husk.authorization !== "string") return false;
-  if (Object.prototype.hasOwnProperty.call(husk, "remoteRef") && !isRemoteRefProof(husk.remoteRef)) return false;
-  if (husk.evidence !== undefined && !isPersistedRetirementEvidence(husk.evidence)) return false;
+  if (typeof husk.authorization !== "string") return false;
+  if (!isRemoteRefProof(husk.remoteRef)) return false;
+  if (!isPersistedRetirementEvidence(husk.evidence)) return false;
   return husk.subject.kind !== "branch" || husk.subject.ref === husk.branch;
 }
 
 /** Decode authorization-bearing fields without granting authority to partial or future shapes. */
 export function decodeWorktreeHuskStamp(stamp: WorktreeHuskStamp, options: { stateOffBranch?: boolean } = {}): DecodedWorktreeHuskStamp {
   if (options.stateOffBranch && stamp.subject.kind === "work-unit") return { kind: "manual-only", reason: "pre-store-husk" };
-  const presence = [
-    stamp.authorization !== undefined,
-    Object.prototype.hasOwnProperty.call(stamp, "remoteRef"),
-    stamp.evidence !== undefined,
-  ];
-  if (presence.every((present) => !present)) return { kind: "legacy", authorization: "merged-preserved" };
-  if (!presence.every(Boolean)) return { kind: "manual-only", reason: "mixed-presence" };
   if (!isHuskAuthorization(stamp.authorization)) {
     return { kind: "manual-only", reason: "unknown-authorization" };
   }
@@ -457,7 +448,7 @@ function isWorktreeHuskSubject(value: unknown): value is WorktreeSubject {
 }
 
 function isWorktreeMarkerSubject(value: unknown): value is WorktreeMarkerSubject {
-  return isWorktreeSubject(value)
+  return (isWorktreeSubject(value) && value.kind !== "errand")
     || isTransientWorktreeSubject(value)
     || isPartialErrandWorktreeSubject(value);
 }
@@ -478,7 +469,7 @@ function isPartialErrandWorktreeSubject(value: unknown): value is PartialErrandW
     && subject.claimId === null;
 }
 
-/** Decode marker ownership without granting authority to legacy or future transient shapes. */
+/** Decode marker ownership without granting authority to unknown provisioning. */
 export function decodeWorktreeMarkerOwnership(marker: WorktreeMarker): DecodedWorktreeMarkerOwnership {
   let subject: WorktreeMarkerSubject;
   if (marker.createdFor !== undefined) {
@@ -494,7 +485,6 @@ export function decodeWorktreeMarkerOwnership(marker: WorktreeMarker): DecodedWo
     }
     return { kind: "current", subject, provisioning: marker.provisioning };
   }
-  if (subject.kind === "errand") return { kind: "manual-only", reason: "legacy-transient" };
   return { kind: "current", subject, provisioning: null };
 }
 
@@ -513,12 +503,6 @@ export function classifyTransientWorktreeProvenance(
   if (result.kind === "malformed") return { kind: "malformed", message: result.message };
   const decoded = decodeWorktreeMarkerOwnership(result.marker);
   if (decoded.kind === "manual-only") {
-    if (decoded.reason === "legacy-transient") {
-      const subject = result.marker.createdFor;
-      return subject?.kind === "errand" && !("claimId" in subject)
-        ? { kind: "legacy", subject }
-        : { kind: "malformed", message: "Legacy transient ownership is incomplete" };
-    }
     return decoded.reason === "unknown-provisioning"
       ? { kind: "unknown", reason: decoded.reason }
       : null;
@@ -556,7 +540,7 @@ export interface WriteWorktreeOwnershipMarkerOptions {
    */
   createdByArc: boolean;
   /** Logical target the worktree was created to host. */
-  createdFor: WorktreeSubject;
+  createdFor: Exclude<WorktreeSubject, { kind: "errand" }>;
   /** Identity that created the worktree. */
   spawningIdentity: string;
   /** Marker creation time in epoch millis; defaults to `Date.now()`. Injectable for tests. */

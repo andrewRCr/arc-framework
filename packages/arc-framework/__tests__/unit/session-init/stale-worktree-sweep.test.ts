@@ -1,3 +1,5 @@
+import { makeHuskStamp } from "../../helpers/worktree-husk-fixture.js";
+import { fixtureHuskProof } from "../../helpers/worktree-husk-fixture.js";
 import { beforeEach, describe, it, expect, vi } from "vitest";
 
 import {
@@ -169,15 +171,15 @@ function stampedMarker(
     kind: "present",
     marker: {
       spawnedByArc: true,
-      createdFor: subject,
+      ...(subject.kind === "errand" ? { createdFor: { ...subject, claimId: "a".repeat(32) }, provisioning: "ready" } : { createdFor: subject }),
       spawningIdentity: options.identity ?? "andrew",
       createdAt: "2026-05-01T00:00:00.000Z",
-      husk: {
+      husk: makeHuskStamp({
         sha: options.sha ?? "stamped",
         at: "2026-07-14T20:00:00.000Z",
         subject,
         branch,
-      },
+      }),
     },
   };
 }
@@ -479,6 +481,10 @@ describe("runStaleWorktreeSweep", () => {
   it("reports detached stamped husks through exact-HEAD cleanup decisions", async () => {
     const huskMarker = stampedMarker({ kind: "work-unit", name: "work-organization-reform" });
     const result = await runStaleWorktreeSweep({
+      baseEvidence: { remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: "b".repeat(40) } },
+        objectAvailability: { kind: "complete", commits: { ["b".repeat(40)]: true } }, history: { kind: "complete" } },
+      revalidateEvidence: async () => true,
       roster: { entries: [], warnings: [] },
       worktreeIdentity: { kind: "primary" },
       baseBranch: "main",
@@ -493,16 +499,16 @@ describe("runStaleWorktreeSweep", () => {
       }),
     });
 
-    expect(result.worktrees).toEqual([
+    expect(result.worktrees).toMatchObject([
       {
         kind: "husk",
         worktreePath: "/wt/husk",
         branch: null,
         subject: { kind: "work-unit", name: "work-organization-reform" },
         stampedBranch: "feat/work-organization-reform",
-        stamp: { kind: "legacy", authorization: "merged-preserved" },
+        stamp: fixtureHuskProof,
         completedWorkUnit: "work-organization-reform",
-        decision: { action: "blocked", reason: "evidence-unavailable" },
+        decision: { action: "removable" },
       },
       {
         kind: "husk",
@@ -510,7 +516,7 @@ describe("runStaleWorktreeSweep", () => {
         branch: null,
         subject: { kind: "work-unit", name: "work-organization-reform" },
         stampedBranch: "feat/work-organization-reform",
-        stamp: { kind: "legacy", authorization: "merged-preserved" },
+        stamp: fixtureHuskProof,
         completedWorkUnit: "work-organization-reform",
         decision: { action: "blocked", reason: "head-moved" },
       },
@@ -576,6 +582,10 @@ describe("runStaleWorktreeSweep", () => {
 
   it("blocks a dirty stamped husk", async () => {
     const result = await runStaleWorktreeSweep({
+      baseEvidence: { remoteSyncEnabled: true,
+        snapshot: { kind: "available", scope: "all-heads", tips: { main: "b".repeat(40) } },
+        objectAvailability: { kind: "complete", commits: { ["b".repeat(40)]: true } }, history: { kind: "complete" } },
+      revalidateEvidence: async () => true,
       roster: { entries: [], warnings: [] },
       worktreeIdentity: { kind: "primary" },
       baseBranch: "main",
@@ -617,7 +627,7 @@ describe("runStaleWorktreeSweep", () => {
         branch: null,
         subject: { kind: "branch", ref: "review/orphan" },
         stampedBranch: "review/orphan",
-        stamp: { kind: "legacy", authorization: "merged-preserved" },
+        stamp: fixtureHuskProof,
         completedWorkUnit: null,
         decision: { action: "blocked", reason: "evidence-unavailable" },
       },
@@ -627,7 +637,7 @@ describe("runStaleWorktreeSweep", () => {
         branch: null,
         subject: { kind: "errand", slug: "tidy-hooks" },
         stampedBranch: "chore/tidy-hooks",
-        stamp: { kind: "legacy", authorization: "merged-preserved" },
+        stamp: fixtureHuskProof,
         completedWorkUnit: null,
         decision: { action: "blocked", reason: "evidence-unavailable" },
       },
@@ -838,6 +848,7 @@ describe("runStaleWorktreeSweep", () => {
     expect(result.worktrees[0]?.worktreePath).toBe("/wt/readable");
     expect(result.warnings).toEqual([
       "Could not read detached worktree marker at /wt/unreadable: permission denied",
+      "Retirement evidence at /wt/readable could not be revalidated without exact base evidence.",
     ]);
   });
 
@@ -959,7 +970,7 @@ describe("husk session actions", () => {
     const result = await runStaleWorktreeSweep({
       roster: { entries: [], warnings: [] },
       worktreeIdentity: locus === "primary" ? { kind: "primary" } : { kind: "linked", path: "/wt/current" },
-      baseBranch: "main", exec: buildExec({ clean: true, merged: true }),
+      baseBranch: "main", exec: buildExec({ clean: true, merged: true }), revalidateEvidence: async () => true,
       readMarker: async () => stampedMarker(subject),
       scanWorktrees: async () => ({ ok: true, worktrees: [
         { folderPresent: true, path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
@@ -978,10 +989,10 @@ describe("husk session actions", () => {
   it("leaves an untrusted stamp for a manual decision", async () => {
     const marker = stampedMarker({ kind: "work-unit", name: "retired" });
     if (marker.kind !== "present" || marker.marker.husk === undefined) throw new Error("missing stamp");
-    marker.marker.husk.authorization = "discard-confirmed";
+    marker.marker.husk.authorization = "future-policy";
     const result = await runStaleWorktreeSweep({
       roster: { entries: [], warnings: [] }, worktreeIdentity: { kind: "primary" },
-      baseBranch: "main", exec: buildExec({ clean: true, merged: true }), readMarker: async () => marker,
+      baseBranch: "main", exec: buildExec({ clean: true, merged: true }), revalidateEvidence: async () => true, readMarker: async () => marker,
       scanWorktrees: async () => ({ ok: true, worktrees: [
         { folderPresent: true, path: "/wt/husk", head: "stamped", branch: null, detached: true, primary: false },
       ] }),
