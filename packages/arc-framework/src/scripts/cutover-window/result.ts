@@ -24,3 +24,12 @@ export function emitWindowResult(result: WindowResult, json: boolean, output: Wi
   } else output.stdout(report);
   return result.status === "passed" || result.status === "reported" ? 0 : 1;
 }
+
+/** An operational refusal carrying its observed subjects and recovery instructions. */
+export class WindowRefusal extends Error {
+  /** Keep every finding available to both the human report and JSON output. */
+  constructor(readonly findings: readonly WindowFinding[]) {
+    super(findings.map(finding => finding.condition).join("\n"));
+    this.name = "WindowRefusal";
+  }
+}

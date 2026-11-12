@@ -1,0 +1,40 @@
+/** A host merge absent from the clone is checked without advancing its tracking branch. */
+import { join } from "node:path";
+import { expect, it, onTestFinished } from "vitest";
+import { createTempRepo, cleanupTempDir, makeGitExec } from "../helpers/integration.js";
+import { createWindowHost } from "../../src/scripts/cutover-window/native-host.js";
+import { isWindowFlipMerged } from "../../src/scripts/cutover-window/merged-flip.js";
+
+it("fetches a missing merge commit into a disposable ref while preserving origin/main", async () => {
+  const publisher = await createTempRepo(); const target = await createTempRepo();
+  onTestFinished(async () => { await cleanupTempDir(publisher); await cleanupTempDir(target); });
+  const publishExec = makeGitExec(publisher); const exec = makeGitExec(target);
+  const publish = (...args: string[]) => publishExec("git", args);
+  const git = (...args: string[]) => exec("git", args);
+  const remote = join(publisher, "origin.git");
+  await publish("init", "--bare", remote);
+  await publish("remote", "add", "origin", remote);
+  await publish("commit", "--allow-empty", "-m", "base");
+  const base = (await publish("rev-parse", "HEAD")).stdout.trim();
+  await publish("branch", "-M", "main");
+  await publish("push", "origin", "main");
+  await git("remote", "add", "origin", remote);
+  await git("fetch", "origin", "main");
+  await git("checkout", "-B", "main", "refs/remotes/origin/main");
+  await publish("checkout", "-b", "feat/flip");
+  await publish("commit", "--allow-empty", "-m", "flip");
+  const flip = (await publish("rev-parse", "HEAD")).stdout.trim();
+  await publish("checkout", "main");
+  await publish("merge", "--no-ff", "feat/flip", "-m", "merge flip");
+  const merged = (await publish("rev-parse", "HEAD")).stdout.trim();
+  await publish("push", "origin", "main");
+  await expect(git("cat-file", "-e", `${merged}^{commit}`)).rejects.toThrow();
+  const io = { exec, repo: target, host: createWindowHost({ exec, repo: target }), hosted: false };
+  expect(await isWindowFlipMerged(io, flip)).toBe(true);
+  expect((await git("rev-parse", "refs/remotes/origin/main")).stdout.trim()).toBe(base);
+  expect((await git("rev-parse", "HEAD")).stdout.trim()).toBe(base);
+  expect((await git("for-each-ref", "--format=%(refname)", "refs/arc-window-scratch/")).stdout.trim()).toBe("");
+  await git("commit", "--allow-empty", "-m", "not on origin");
+  const unmerged = (await git("rev-parse", "HEAD")).stdout.trim();
+  expect(await isWindowFlipMerged(io, unmerged)).toBe(false);
+}, 20_000);

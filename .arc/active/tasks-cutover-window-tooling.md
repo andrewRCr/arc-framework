@@ -58,53 +58,27 @@ fact the family reads arrives through one port that takes a supplied fact only w
         - `cutover-window-packaging.test.ts` checks the actual bundle's raw inputs and output attribution, the package's
           published-file patterns, and every nested install-recipe path.
 
-### `[ ]` **1.4 Host facts and the merged-flip test — § 1.1**
+### `[x]` **1.4 Host facts and the merged-flip test — § 1.1**
 
 - _Goal:_ Every host fact the family reads arrives through one injectable port: a repository whose every effective
   remote URL and push URL is a local path has no host and takes supplied facts, any other refuses a supplied fact before
   any host read, and a host read that fails or may be incomplete refuses, save the discovery read's one answer of none;
   the merged-flip test answers merged only from a reachable recorded head on a host that merges by merge commit alone.
 
-- _Approach:_ the port runs `git ls-remote origin <patterns>` and the `gh` reads — open pull requests with head and base,
-  the flip's `autoMergeRequest`, and the merge settings from `gh api repos/<owner>/<repo>` — each with `--repo` derived
-  from `origin`, plus one discovery read without `--repo`, `gh repo view --json nameWithOwner` run in the target, which
-  copy safety asks. The discovery read answers a repository name, or none on `gh`'s error that no remote names a known
-  GitHub host; any other failure refuses. Tests replace the port at that boundary, so no test reads the host.
+    - `[x]` **1.4.a No-host detection and supplied facts**
+        - Effective fetch and push URLs decide whether supplied rehearsal facts are admissible, including Git URL
+          rewrites and additional push URLs. A missing listing names its remedy; supplied facts cannot replace a host
+          read. Operational refusals retain every finding through the entry's human and JSON reports.
 
-- _Note:_ See `notes-cutover-window-tooling.md` § Host port.
+    - `[x]` **1.4.b Host reads**
+        - `createWindowHost` binds GitHub reads to origin's effective host and repository, rejects truncated listings
+          and unknown merge settings, and accepts only discovery's no-known-host failure as none. Native ref reads
+          filter full branch and store prefixes and the import's direct identity pattern.
 
-    - `[ ]` **1.4.a No-host detection and supplied facts**
-        - Judge every remote's effective URLs (`git remote get-url --all`, and `--push --all`); a `file://` URL is a
-          local path.
-        - A supplied listing holds each open pull request's number, head branch, and base branch, and the flip's pull
-          request, named by the operation, with its auto-merge state.
-        - Build `test-first` (one behavior at a time):
-            - A repository whose every effective URL is a local path has no host and takes a supplied anchor and listing
-            - A supplied fact refuses before any host read where an effective URL names a host, an `insteadOf` rewrite
-              to a host and a second push URL among them
-            - A repository with no host and no supplied listing refuses, naming the missing listing
-
-    - `[ ]` **1.4.b Host reads**
-        - Build `test-first` (one behavior at a time):
-            - A failed host read refuses
-            - An `ls-remote` read keeps only lines whose ref begins with its own prefix, `refs/heads/` for branches and
-              `refs/arc/` for store refs, and an identity ref only by the import's identity pattern, so a branch whose
-              name contains `refs/arc/` is a branch, never a store or identity ref, and a nested
-              `refs/arc/user/<a>/<b>/errands` is no identity ref
-            - A pull-request listing that reaches its limit refuses as possibly truncated
-            - Merge settings missing `allow_squash_merge` or `allow_rebase_merge` refuse rather than read as `false`
-            - The discovery read answers a name on success and none on `gh`'s no-known-host error, and refuses on any
-              other failure, an authentication failure among them, tested on recorded `gh` outputs
-
-    - `[ ]` **1.4.c The merged-flip test**
-        - Fetch the host's `main` tip into a scratch ref, never `refs/remotes/origin/*`, and test ancestry with
-          `--no-replace-objects`, restating the strict rule.
-        - Build `test-first` (one behavior at a time):
-            - Merged when the recorded head is reachable from `main`'s tip on the host
-            - A tip whose commit is not local is fetched, and the test refuses when the tip still cannot be resolved
-            - Only exit status 1 from `git merge-base --is-ancestor` answers not merged; any other failure refuses
-            - With a host, merge settings allowing squash or rebase merging refuse before the ancestry test
-            - With no host, no merge settings are read
+    - `[x]` **1.4.c The merged-flip test**
+        - `isWindowFlipMerged` reads main from origin, fetches missing commits into leased disposable refs while
+          preserving origin tracking, and treats only completed ancestry exit 1 as not merged. Hosted repositories
+          require merge commits alone. Unexpected operation failures retain typed stop reports and a retry route.
 
 ## **Phase 2:** The restore point
 

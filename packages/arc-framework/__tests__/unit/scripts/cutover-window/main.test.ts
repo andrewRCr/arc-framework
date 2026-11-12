@@ -68,3 +68,23 @@ describe("window results", () => {
     }
   });
 });
+
+it.each([false, true])("reports unexpected operation failures as typed stops and succeeds after repair (json=%s)", async json => {
+  let broken = true;
+  const handlers = { check: async () => {
+    if (broken) throw new Error("Repository metadata is unreadable");
+    return { operation: "check", status: "passed" as const, findings: [] };
+  } };
+  const args = ["check", "--repo", resolve("target"), ...(json ? ["--json"] : [])];
+  const failed = capture();
+  expect(await runWindow(args, handlers, failed.output)).toBe(1);
+  expect((json ? failed.stderr : failed.stdout).join("")).toContain("check: stopped");
+  expect(failed.stderr.join("")).not.toContain("Usage:");
+  if (json) expect(JSON.parse(failed.stdout.join(""))).toMatchObject({ operation: "check", status: "stopped", findings: [
+    { subject: "check", condition: "Repository metadata is unreadable", remedy: expect.stringContaining("retry") },
+  ] });
+  broken = false;
+  const repaired = capture();
+  expect(await runWindow(args, handlers, repaired.output)).toBe(0);
+  expect((json ? repaired.stderr : repaired.stdout).join("")).toContain("check: passed");
+});
