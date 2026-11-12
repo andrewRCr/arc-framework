@@ -799,3 +799,24 @@ cumulative 2/3/4 starts while retaining each returned-record assertion. Reconstr
 reader. The live-lookup failures reproduced in `f91b814752ac47e4b73ffac9784144e8`; corrected full run
 `57513c59b9ba449d8c3e3638ea4d7d4b` passed all 64 cases across the four affected files. These corrections tighten the
 process bounds and repair the measured quantity; no production read behavior or acceptance budget changes.
+
+### Segment scenario and ownership recheck
+
+Base merge `63d619fc93` includes `main` at `ec3f511ba136d5536469879411dabecbf3531e45`. The timing-isolation overlap
+preserves the incoming nested-run timeout helper and the projection-burst registration; the generated ROADMAP was the
+only conflict, resolved through the existing regeneration command. The lockfile did not change.
+
+`full-round.test.ts` exercises one reference-backend namespace and one real linked repository: marked worktrees
+materialize their exact current/in-flight layouts, an owner saves notes, the reference remote publishes a change,
+the pull fans it out, registered `sync` restores a deleted file, and an expired refresh anchor rebuilds current content.
+The initial author run `756b9d43a0644ea18f0df9398f323ce2` incorrectly expected same-owner in-flight notes to be protected.
+`workUnitRights` and § 16.3 reserve checkout-specific protection for meta and task lists. Amendment entry step 1 kept
+the design and task outcomes intact; the verifier expectation was corrected to the existing rights contract.
+
+The scenario rejects independent omissions of bound materialization (`2de8f1c53c184e4a8b8d68b096950ccb`), sibling visits
+(`30efed38c548436d8cc35d0a2e5a63ab`), pull notification (`3ea8e5cac4704484a1b6587f12941be2`), sync restoration
+(`195f65a826f9480a905e31c07b6f625a`), and expired-anchor rebuild (`0d60ed4ca48d4ad9ab6802e9ceaefe60`). All temporary
+source reconstructions were reverted before the restored run. Run `9e50d4738a5945f697696e7f5e430148` passed the combined
+scenario, full materialization/layout suite, path reuse, and refresh retries. Claim-only retries and the interrupted
+A → B → A layout cycle passed in `22f45ef2137242f7ab6554b7da2c2f6c`; interrupted unstamped installations and write-back
+handoff refusals passed in `f97f53e6e6f84ecc9ecbcc5452a23bb9`.
