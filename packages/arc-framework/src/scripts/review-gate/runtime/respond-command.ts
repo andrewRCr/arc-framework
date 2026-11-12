@@ -1,4 +1,5 @@
 /** Source-authoritative orchestration for `arc review respond`. */
+import { requireResponseErrand, staleErrandResponseEnvelope } from "./respond-errand-context.js";
 import { requireNativeReviewDecisionReferences, withoutReviewDecisionReferences } from "../policy/review-grant-references.js";
 import { ReviewFixTagsSchema, ReviewReportInputSchema } from "../core/review-report-inputs.js";
 import {
@@ -506,6 +507,7 @@ export class UnchangedVerifiedFixTargetError extends RespondCommandError {
 }
 
 interface ResolvedResponseSource {
+  errand?: ErrandReviewBinding;
   result: ReviewResult;
   operationId: string;
   repositoryId: string;
@@ -726,13 +728,6 @@ async function resolveLocalSource(
   const result = await dependencies.resultReader.readResult(reference.operationId);
   if (result.kind !== "attested-local" || result.receiptRef !== reference.durableRef) {
     throw new RespondCommandError("corrupt-state", "local response source snapshot mismatch");
-  }
-  if (result.vehicle.kind === "errand") {
-    const activeErrand = await dependencies.resolveActiveErrand();
-    if (activeErrand === null || activeErrand.key !== result.vehicle.identity
-      || activeErrand.claimId !== result.vehicle.claimId) {
-      throw new RespondCommandError("invalid-input", "local review Errand claim does not match the active Errand");
-    }
   }
   if (result.originalOutcome !== "findings") {
     throw new RespondCommandError("invalid-input", "local response requires a findings receipt");
@@ -1727,6 +1722,8 @@ export async function respondToReviewCommand(
       : request.source.kind === "frontline"
         ? await resolveFrontlineSource(request.source, dependencies)
         : await resolveHostedSource(request.source, dependencies);
+    const errand = await requireResponseErrand(source.result, () => dependencies.resolveActiveErrand());
+    if (errand !== null) source.errand = errand;
   } catch (error) {
     if (error instanceof RespondCommandError || isNativeTypedRefusal(error)
       || (typeof error === "object" && error !== null && "code" in error
@@ -2178,7 +2175,9 @@ async function resolveResponsePosition(
       ? null
       : projectEffectiveCandidateCurrentness(lineage.effective);
     if (currentness === null || !("status" in currentness) || currentness.status !== "current") {
-      return { kind: "refused" as const, envelope: staleTargetEnvelope(source.operationId, confirmation.attemptedTarget, confirmation.currentTarget) };
+      return { kind: "refused" as const, envelope: source.errand === undefined
+        ? staleTargetEnvelope(source.operationId, confirmation.attemptedTarget, confirmation.currentTarget)
+        : staleErrandResponseEnvelope(source.operationId, confirmation.attemptedTarget, confirmation.currentTarget, source.errand) };
     }
     // Lifecycle ceremony may commit around an unchanged Candidate after its review target was minted.
     // The managed Candidate subject, not the stale whole-repository target, is authoritative for whether
