@@ -979,15 +979,18 @@ it.each([false, true])("preserves divergent ignored user files and removes after
   await mkdir(local, { recursive: true }); await mkdir(canonical, { recursive: true });
   await writeFile(join(local, "personal.md"), "unique local work\n"); await writeFile(join(canonical, "personal.md"), "different primary work\n");
   const params = { subject: { kind: "slug" as const, slug: "demo" }, base: "main", ...(husk ? { huskPath: path } : {}) };
-  expect(await runTeardown(h.ctx, params)).toMatchObject({ status: "rejected", reason: expect.stringContaining("personal.md") });
+  const refused = await runTeardown(h.ctx, params);
+  expect(refused).toMatchObject({ status: "rejected" });
+  if (husk) expect(refused).toMatchObject({ reason: expect.stringContaining("personal.md") });
+  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(path);
   expect(await readFile(join(local, "personal.md"), "utf8")).toBe("unique local work\n");
   expect(await readFile(join(canonical, "personal.md"), "utf8")).toBe("different primary work\n");
-  await rm(join(canonical, "personal.md"));
-  // Unowned flat prose must be recovered explicitly before a projected checkout retires.
-  if (!husk) await rename(join(local, "personal.md"), join(canonical, "personal.md"));
+  const recovery = await createTempRepo("arc-personal-recovery-"); roots.push(recovery);
+  await rename(join(local, "personal.md"), join(recovery, "personal.md"));
   const removed = await runTeardown(h.ctx, params);
   expect(removed, removed.status === "rejected" ? removed.reason : undefined).toMatchObject({ status: "torn-down", worktreeRemoved: path });
-  expect(await readFile(join(canonical, "personal.md"), "utf8")).toBe("unique local work\n");
+  expect(await readFile(join(recovery, "personal.md"), "utf8")).toBe("unique local work\n");
+  expect(await readFile(join(canonical, "personal.md"), "utf8")).toBe("different primary work\n");
 });
 
 it.each(["archive", "decompose"] as const)("keeps an unlanded %s husk after its refs disappear and removes it after landing", async (end) => {

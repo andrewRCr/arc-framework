@@ -370,76 +370,24 @@ No production composition sets the slots today, so every caller runs `passingPro
           corrected contexts. Store rename now forwards its required slots explicitly through both move directions.
           Separate Store/identity inspection is recorded in `notes-projection-worktrees.md`; A5 acceptance remains at 2.8.
 
-### `[ ]` **2.5 The user surfaces in every worktree — § 12.8**
+### `[x]` **2.5 The user surfaces in every worktree — § 12.8**
 
 - _Goal:_ Under the capability every worktree holds its own copy of the identity's personal records, `USER-INBOX` and
   `WORKING-MEMORY` among them, read through the store and never through the user-surfaces resolver.
 
-    - The projection reads none of them through the resolver (`createUserSurfaceResolver`, `resolveUserSurfaceResolver`,
-      `lib/user-surfaces.ts`); the in-repo implementation keeps it (`lib/store/in-repo/personal-paths.ts`), the seam's
-      members move their own callers off it, and `cutover-tracked-state-removal` removes it with the in-repo arms.
-    - The in-repo removal paths keep merging a linked worktree's identity-global user files up into the primary's
-      (`reconcileLinkedIdentityGlobalUserSurfaces`, `lib/user-surface-migration.ts`) until
-      `cutover-tracked-state-removal` removes them with the in-repo arms. Where the store keeps state off the branch
-      (`usesOffBranchState`, `lib/store/lifecycle-write.ts`), no removal merges them or reads whether it could, since
-      the persist step carries a linked worktree's edits to the store (2.2) and a merge would write into the primary's
-      projected file outside its lock and index. This task removes the merge from `runStoreTeardown`
-      (`lib/work-unit/verbs/teardown-store.ts`), which runs only there, and gates it in
-      `reconcileWorkUnitWorktreeUnlocked` (`reconcileUserSurfacesForRemoval`,
-      `lib/work-unit/mutators/reconcile-work-unit-worktree.ts`) and in the cheap-branch teardown, whose husking and husk
-      removal merge directly (`teardownBranchProjection` under `runBranchTeardown`, `lib/work-unit/verbs/teardown.ts`),
-      and gates the safety reading (`linkedIdentityGlobalUserSurfacesAreSafe`) in the stale-worktree sweep
-      (`inspectBranchedRemoval`, `lib/session-init/stale-worktree-sweep.ts`) and branch-gone recovery
-      (`buildWorktreeCandidate`, `lib/session-init/branch-gone-recovery.ts`), the removal check's projection part
-      answering for the projected copies there (2.1). Each site reads the capability from the store its composition
-      builds (`capabilities.stateOffBranch`, `createStore`, `lib/store/create.ts`); the compositions that build none
-      today gain one: `runBranchTeardown`'s `TeardownContext` (`handlers/lifecycle.ts`), which passes it on to its two
-      `reconcileWorkUnitWorktree` calls, and `RunBranchGoneRecoveryOptions` (`composeSessionInitStatus`,
-      `handlers/status.ts`).
-    - Build `test-first` (one behavior at a time):
-        - over the reference backend, a linked worktree's `USER-INBOX` is its own projected copy, and an edit there
-          reaches the primary's copy at fan-out
-        - no module under `lib/store/projection/` imports the resolver or `lib/user-surface-migration.ts`;
-          `isExcludedProjectionFile`'s import of the `IDENTITY_STATUS_FILENAME` constant from `lib/user-surfaces.ts`
-          stays
-        - over the store, a teardown and a reconcile's removal of a linked worktree whose `USER-INBOX` differs from the
-          primary's write nothing into the primary's copy, refuse nothing over it, and carry the edit to the store
-          through the persist step
-        - over the store, `arc teardown --branch chore/<slug>` run in a linked checkout whose `USER-INBOX` differs from
-          the primary's husks it and writes nothing into the primary's copy, and the husk's later removal from another
-          checkout writes nothing there either and carries the edit to the store through the persist step
-        - over the store, the stale-worktree sweep and branch-gone recovery read no user-surface safety; over the
-          in-repo implementation, they still read it and teardown still merges
-
-    - `[ ]` **2.5.R Protect residual personal files before unindexed removal — A6**
+    - `[x]` **2.5.R Protect residual personal files before unindexed removal — A6**
 
         - _Goal:_ Implement A6's destructive-removal refusal for non-machine-local personal files in an ARC-managed
           checkout without a projection/index, preserving explicit recovery and identity-free empty-husk retirement.
-        - Extend the existing check slot with optional remove/release disposition, defaulting direct callers to remove;
-          forward the native check's disposition through the factory. Add the shared residual observer at unindexed
-          check and persist boundaries, with explicit disposition in `withPersistedProjection` and its internal
-          `persistUnderLease` recheck so release skips it. Keep capability-off and missing-folder ordering, caller ownership
-          checks, and indexed behavior.
-        - Extract only the applicable machine-local predicate from discovery's exclusion logic; inspect all actual
-          personal directories without resolving identities or following observed links. Report local-path recovery
-          or read uncertainty; never inspect or modify a primary copy.
-        - Thread the command-bound slots from Errand open into native provisioning and its required `checkRollback`
-          dependency. Check destructive spawn compensation before it clears an owned pending marker and before physical
-          rollback where no owned marker is removed. On refusal/read failure retain pending recovery evidence and the
-          checkout, branch and claim, with actionable detail alongside the setup error; keep exact generation/receipt
-          authority and the existing borrowed-marker retention.
-        - Build `test-first` (one behavior at a time):
-            - the existing unindexed-husk regression retains its bytes/registration on refusal, then removes only after
-              explicit recovery; its primary copy stays unchanged, and indexed unowned prose still refuses
-            - a residual introduced after the check refuses persistence; unreadability refuses both observations
-            - release succeeds over the same residual without the scan; empty/machine-local-only targets succeed
-              without an identity or configuration read; capability-off and missing folders perform no residual scan
-            - unregistered derived/editor files remain protected, while observed file/directory links are not followed
-            - native post-create setup writes ignored personal bytes and fails: compensation retains bytes, checkout,
-              branch, pending marker and claim; explicit recovery and setup repair resume the same claim; an observation
-              failure also retains them, while empty/machine-local-only and capability-off failures still clean up
-        - Run native production removal and release contexts, retain the in-repo migration cases, and include A6's
-          criterion in 2.8's acceptance and amendment revalidation. Do not change 2.5's Goal or earlier completion text.
+        - Removal checks and persistence share the registry-based, link-opaque residual observer; release carries its
+          own disposition. Native compensation checks before clearing ownership and retains pending recovery evidence
+          and the claim, with actionable detail. Explicit recovery permits retirement or same-claim setup retry.
+
+- _Outcome:_ Projected inboxes stay checkout-local and fan out through the Store; off-branch teardown, reconciliation,
+  husking and cleanup readers bypass legacy personal-file merging and safety reads. Production contexts forward their
+  Store, and lint enforces the projection import boundary. Unindexed retirement now preserves personal bytes before
+  deletion, including failed setup compensation, while release and empty-husk fast paths remain identity-free.
+  `notes-projection-worktrees.md` records preservation, recovery and the bounded evidence limits; A6 revalidates at 2.8.
 
 ### `[ ]` **2.6 Machine-local paths under `.arc/system/.internal/` — § 12.9**
 

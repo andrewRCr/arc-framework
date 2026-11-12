@@ -1666,3 +1666,40 @@ state and its identity claim on residual data or read uncertainty. Existing `rol
 pending-marker/marker-residue evidence, and pending setup recovery can resume after explicit byte recovery and setup
 repair. Exact generation/receipt authority, borrowed-marker retention, empty cleanup and capability-off behavior stay.
 The Owner approved this correction, an independent fix check, and conditional complete pass 2 after the repair settles.
+
+## Task 2.5.R: unindexed personal-data preservation
+
+A6's captured contract (`7ddc86563d`) is implemented by `observeUnprojectedPersonalFiles`. It reads current marker
+ownership, then actual personal directories without resolving identities, following observed links, or inspecting a
+primary copy. `isMachineLocalProjectionPath` reuses only applicable registry rules; discovery retains its broader
+exclusions. Editor backups and derived status files therefore remain protected during destructive retirement.
+`checkProjectionRemoval` observes the unindexed target, and `persistProjectionRemoval` repeats that observation.
+`checkWorktreeRemoval`, the factory, shared persistence helper and its final check all carry remove/release intent.
+
+Transient provisioning receives the command-bound check through `checkRollback`. `rollbackSpawn` checks before
+clearing an owned pending marker or physically rolling back another admitted created checkout. Refusal, read
+uncertainty and thrown checks retain the checkout and pending evidence; `rollbackIdentity` retains the claim.
+Optional detail on existing in-memory evidence carries the local recovery remedy through `durableResidue` alongside
+the setup error. No new persisted recovery state or lock is added. Small private helpers separate marker removal,
+rollback safety and unindexed persistence so each decision remains inside the existing complexity limits.
+
+The divergent ignored-personal regression now preserves target bytes and registration, recovers explicitly outside
+the target, and retires without changing the primary's divergent bytes. A late-arriving personal file refuses
+persistence after feasibility passed. Release retains the same file, and filesystem fault cases distinguish read
+uncertainty from personal-data refusal and permit repair. Actual-directory, machine-local, derived/editor-file,
+missing-folder, unavailable-identity/configuration and symbolic-link cases cover the observer's boundaries.
+
+A native registered-CLI setup script writes ignored personal bytes and fails. The enabled composition retains bytes,
+checkout, branch, pending marker and claim, then resumes that same claim after explicit recovery and setup repair.
+The built CLI still selects the in-repo backend, so its separate process case covers capability-off cleanup and a
+successful fresh open after setup repair. The initial process-case expectation of enabled preservation was invalid
+for that backend and is not fail-first evidence. Removing the enabled native check binding reproduces the loss;
+restoring it passes the same-claim case. Narrow temporary controls also expose the observer's regular-file,
+uncertainty, allowed-root, link and fast-path policies, and all are restored.
+
+A nineteen-file regression run passed 491 cases. Source and all five test-type shards passed; after local complexity
+and promise-handling corrections, changed-file lint, source types and the affected seven-file, 187-case regression
+passed. Astra's bounded completion advice found no decisive loss or recovery gap in the supplied implementation;
+it is advice, not independent implementation verification. Same-claim retry is native for residual refusal;
+observation-error retention is covered by filesystem/slot observations and provisioning dependency cases, with no
+native same-claim retry after an injected observation error. A6's criterion and amendment revalidation remain at 2.8.

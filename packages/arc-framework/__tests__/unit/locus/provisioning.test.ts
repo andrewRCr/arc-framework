@@ -1,5 +1,6 @@
 /** Marker-owned transient checkout provisioning and exact rollback. */
 
+import { passingProjectionRemovalSlots } from "../../../src/lib/git/worktree-removal.js";
 import { describe, expect, it, afterEach } from "vitest";
 
 import {
@@ -153,6 +154,7 @@ function harness(overrides: Partial<ProvisionTransientLocusDependencies> = {}) {
       };
     },
     rollbackPrimary: async () => ({ kind: "rolled-back" }),
+    checkRollback: passingProjectionRemovalSlots.check,
     rollbackSpawned: async () => {
       events.push("rollback-worktree");
       worktreePresent = false;
@@ -352,6 +354,22 @@ describe("provisionTransientLocus", () => {
     expect(test.events).toContain("remove-marker");
     expect(test.events).toContain("rollback-worktree");
     expect(test.marker()).toEqual({ kind: "absent" });
+  });
+
+  it.each(["refused", "unobservable", "throw"])("retains a pending setup's checkout over a %s compensation check", async failure => {
+    const test = harness({
+      setupWorktree: async () => { throw new Error("Setup failed"); },
+      checkRollback: async () => {
+        if (failure === "throw") throw new Error("Personal observation failed");
+        return failure === "unobservable" ? { kind: "unobservable", detail: "Personal observation failed" }
+          : { kind: "would-refuse", remedy: { text: "Recover the retained personal file" } };
+      },
+    });
+    const result = await provisionTransientLocus(options(test.dependencies));
+    expect(result).toMatchObject({ kind: "error", evidence: { kind: "pending-marker",
+      detail: expect.stringMatching(/Personal observation failed|Recover the retained personal file/u) } });
+    expect(test.hasWorktree()).toBe(true);
+    expect(test.marker()).toMatchObject({ kind: "present", marker: { provisioning: "pending" } });
   });
 
   it("refuses and rolls back when a retained spawned branch changed head", async () => {

@@ -3,6 +3,8 @@ import { readRuntimeErrand, transitionRuntimeErrand, type ErrandRuntimeStorageOp
 
 import type { GitExecInput } from "../git/exec.js";
 import { syncLocalBase } from "../git/base-sync.js";
+import { createProjectionRemovalSlots } from "../store/projection/removal-slots.js";
+import { passingProjectionRemovalSlots } from "../git/worktree-removal.js";
 import { provisionTransientLocus } from "../locus/provisioning.js";
 import { createNodeProvisioningDependencies } from "../locus/provisioning-runtime.js";
 import { runDerivedLocusStateProbe } from "../../handlers/derived-locus-state-probe.js";
@@ -186,6 +188,8 @@ export async function openOrdinaryErrandAtRuntimeWithDisposition(
           ...request,
           dependencies: createNodeProvisioningDependencies({
             exec: options.exec,
+            projectionRemovalSlots: options.store === undefined ? passingProjectionRemovalSlots
+              : createProjectionRemovalSlots({ store: options.store, identity: options.identity }),
             base: options.base,
             branch: request.branch,
             ...(options.syncBase ? {

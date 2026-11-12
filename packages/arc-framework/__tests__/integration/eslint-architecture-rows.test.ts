@@ -247,3 +247,26 @@ describe("meta check boundary", () => {
     },
   );
 });
+
+describe("projection personal-surface boundary", () => {
+  it.each([
+    'import { createUserSurfaceResolver } from "../../user-surfaces.js";',
+    'import { resolveUserSurfaceResolver } from "../../user-surfaces.js";',
+    'import * as surfaces from "../../user-surfaces.js";',
+    'import surfaces from "../../user-surfaces.js";',
+    'void import("../../user-surfaces.js");',
+    'const surfaces = require("../../user-surfaces.js");',
+    'import { reconcileLinkedIdentityGlobalUserSurfaces } from "../../user-surface-migration.js";',
+    'void import("../../user-surface-migration.js");',
+    'export * from "../../user-surfaces.js";',
+  ])("rejects legacy access and permits the status filename constant: %s", async text => {
+    const filePath = resolve(packageRoot, "src/lib/store/projection/planted.ts");
+    const restricted = new Set(["no-restricted-imports", "no-restricted-syntax"]);
+    const [result] = await eslint.lintText(text, { filePath });
+    expect(result?.fatalErrorCount).toBe(0);
+    expect(result?.messages.some(({ ruleId }) => restricted.has(ruleId ?? ""))).toBe(true);
+    const [corrected] = await eslint.lintText('import { IDENTITY_STATUS_FILENAME as filename } from "../../user-surfaces.js"; void filename;', { filePath });
+    expect(corrected?.fatalErrorCount).toBe(0);
+    expect(corrected?.messages.filter(({ ruleId }) => restricted.has(ruleId ?? ""))).toEqual([]);
+  });
+});

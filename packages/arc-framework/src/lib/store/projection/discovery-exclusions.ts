@@ -18,7 +18,11 @@ export function isExcludedProjectionFile(path: string): boolean {
 
 /** Whether a managed path is excluded from projection discovery and content admission. */
 export function isExcludedProjectionPath(path: string): boolean {
-  if (isExcludedProjectionFile(path)) return true;
+  return isExcludedProjectionFile(path) || isMachineLocalProjectionPath(path);
+}
+
+/** Whether a checkout-relative path is covered by an applicable machine-local registry rule. */
+export function isMachineLocalProjectionPath(path: string): boolean {
   const segments = path.split("/");
   return MACHINE_LOCAL_PATHS.some(rule => {
     const prefix = rule.root === "user" ? [".arc", "user"] : rule.root === "checkout" ? [] : null;

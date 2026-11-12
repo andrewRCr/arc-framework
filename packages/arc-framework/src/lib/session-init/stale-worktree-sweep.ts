@@ -15,6 +15,7 @@
  * @module
  */
 
+import { usesOffBranchState } from "../store/lifecycle-write.js";
 import type { z } from "zod";
 import { StaleWorktreeSweepResultSchema, type TeardownCommand } from "./stale-worktree-sweep-schema.js";
 import { teardownOperand } from "../work-unit/store-retirement-evidence.js";
@@ -402,7 +403,7 @@ async function inspectBranchedRemoval(entry: WorktreeRosterEntry & { branch: str
     exactBaseOid === null
       ? Promise.resolve(false)
       : isLandedInBaseStrict(analysisExec, entry.branch, mergeBase),
-    linkedIdentityGlobalUserSurfacesAreSafe({
+    usesOffBranchState(options.store) ? true : linkedIdentityGlobalUserSurfacesAreSafe({
       primaryWorktreePath,
       worktreePath: entry.worktreePath,
       fs: userSurfaceFs,

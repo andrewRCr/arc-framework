@@ -20,7 +20,7 @@ export function createProjectionRemovalSlots(input: ProjectionRemovalSlotInput):
   const context: ProjectionPersistContext = { ...input, identity: identity.success ? identity.data : null,
     mint: input.mint ?? projectionProcessState().command?.mint };
   return {
-    check: checkout => checkProjectionRemoval(checkout, context),
+    check: (checkout, disposition) => checkProjectionRemoval(checkout, context, disposition),
     persist: checkout => persistProjectionRemoval(checkout, context),
     release: (checkout, primary) => releaseProjectionRemoval(checkout, primary, context),
   };

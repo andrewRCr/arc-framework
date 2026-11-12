@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { BaseSyncResult } from "../../../src/lib/git/base-sync.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { passingProjectionRemovalSlots } from "../../../src/lib/git/worktree-removal.js";
 import { createNodeProvisioningDependencies } from "../../../src/lib/locus/provisioning-runtime.js";
 import { PrimaryCheckoutResidueError } from "../../../src/lib/locus/provisioning-types.js";
 import { makeGitProcessError, scriptGitExec } from "../../helpers/git-exec-fake.js";
@@ -26,6 +27,7 @@ describe("node provisioning runtime", () => {
       exec,
       base: "main",
       branch: "chore/sample",
+      projectionRemovalSlots: passingProjectionRemovalSlots,
       postCreateScript: "",
       registeredHarnessDirs: "",
     });
@@ -49,6 +51,7 @@ describe("node provisioning runtime", () => {
       exec: async () => { throw new Error("unexpected Git invocation"); },
       base: "main",
       branch: "chore/sample",
+      projectionRemovalSlots: passingProjectionRemovalSlots,
       postCreateScript: "",
       registeredHarnessDirs: ".claude",
     });
@@ -190,6 +193,7 @@ describe("node provisioning runtime", () => {
       base: "main",
       branch: "chore/sample",
       ...(synchronizeBase === undefined ? {} : { synchronizeBase }),
+      projectionRemovalSlots: passingProjectionRemovalSlots,
       postCreateScript: "",
       registeredHarnessDirs: "",
     });

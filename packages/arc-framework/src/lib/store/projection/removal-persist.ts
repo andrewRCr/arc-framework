@@ -34,6 +34,7 @@ import type { ProjectionStubMintPort } from "./stub-mint-port.js";
 import type { Remedy } from "../refusal.js";
 import { readUnchangedProjectionFile } from "./unchanged-file.js";
 import { persistProjectionAsides, changedProjectionAsides } from "./removal-persist-asides.js";
+import { observeUnprojectedPersonalFiles } from "./removal-residual.js";
 import { gateRead } from "./read-gate.js";
 
 /** Scheduling seams for a save concurrent with the retirement operation. */
@@ -53,7 +54,7 @@ export type ProjectionPersistResult = Awaited<ReturnType<ProjectionRemovalSlots[
 
 /** Persist under the target's lease and return only after that lease releases. */
 export async function persistProjectionRemoval(checkout: string, context: ProjectionPersistContext): Promise<ProjectionPersistResult> {
-  return withPersistedProjection(checkout, context, root => {
+  return withPersistedProjection(checkout, context, "remove", root => {
     retireProjectionRoot(root);
     return Promise.resolve({ kind: "persisted" });
   });
@@ -67,13 +68,13 @@ export function retireProjectionRoot(root: ProjectionRootState): void {
 }
 
 /** Keep a successful continuation within the persistence lease and bound root lifetime. */
-export async function withPersistedProjection(checkout: string, context: ProjectionPersistContext,
+export async function withPersistedProjection(checkout: string, context: ProjectionPersistContext, disposition: "remove" | "release",
   complete: (root: ProjectionRootState, index: ProjectionIndex) => Promise<ProjectionPersistResult>): Promise<ProjectionPersistResult> {
   try {
     const ports = context.ports?.(checkout) ?? createProjectionEnginePorts(checkout);
     const location = await locateProjection(checkout, ports);
     const disk = await readProjectionIndex(location, await checkoutHoldsProjection(checkout, location), { groups: "all", retry: true });
-    if (disk.kind === "no-projection") return { kind: "persisted" };
+    if (disk.kind === "no-projection") return await persistUnprojected(checkout, context, disposition);
     if (disk.kind === "unusable") return refuse(`Run arc save from ${checkout} to rebuild its ${disk.cause} projection index, then retry removal.`);
     const configuration = await readProjectionConfiguration(ports.exec, checkout);
     if (configuration.identity.status === "no-identity") return { kind: "refused", remedy: configuration.identity.remedy };
@@ -83,7 +84,7 @@ export async function withPersistedProjection(checkout: string, context: Project
       const source = retryEndedItemHistory(context.store), history = createHistoryMemo(source);
       const store = invalidateRemovalHistory(source, history);
       return persistUnderLease({ checkout, store, ports, location, configuration, session, register: false, mode: "write-back",
-        history, actor: await resolveProjectionActor(ports, location, targetIdentity), mint: context.mint }, context, complete);
+        history, actor: await resolveProjectionActor(ports, location, targetIdentity), mint: context.mint }, context, disposition, complete);
     }, { ...(ports.maxWaitMs === undefined ? {} : { maxWaitMs: ports.maxWaitMs }) }, ports.lock);
     if (result.status === "done") return result.value;
     return refuse(`Projection lease ${result.status} at ${checkout}${result.status === "held" ? `; holder ${JSON.stringify(result.holder)}` : ""}. Retry removal after the lease is available.`);
@@ -92,7 +93,15 @@ export async function withPersistedProjection(checkout: string, context: Project
   }
 }
 
-async function persistUnderLease(input: ProjectionRootBindingInput, context: ProjectionPersistContext,
+async function persistUnprojected(checkout: string, context: ProjectionPersistContext,
+  disposition: "remove" | "release"): Promise<ProjectionPersistResult> {
+  const checked = disposition === "release" ? { kind: "passes" } as const
+    : await observeUnprojectedPersonalFiles(checkout, context.residualFs);
+  return checked.kind === "passes" ? { kind: "persisted" } : checked.kind === "would-refuse"
+    ? { kind: "refused", remedy: checked.remedy } : refuse(checked.detail);
+}
+
+async function persistUnderLease(input: ProjectionRootBindingInput, context: ProjectionPersistContext, disposition: "remove" | "release",
   complete: (root: ProjectionRootState, index: ProjectionIndex) => Promise<ProjectionPersistResult>): Promise<ProjectionPersistResult> {
   await input.session.step();
   const disk = await readProjectionIndex(input.location, true, { groups: "all" });
@@ -111,7 +120,7 @@ async function persistUnderLease(input: ProjectionRootBindingInput, context: Pro
       index = copies.index;
       if (copies.refusal !== undefined) return { kind: "refused", remedy: copies.refusal };
       await context.hooks?.beforeLastCheck?.(root.checkout, pass);
-      const checked = await checkProjectionRemoval(root.checkout, context);
+      const checked = await checkProjectionRemoval(root.checkout, context, disposition);
       if (checked.kind === "would-refuse") return { kind: "refused", remedy: checked.remedy };
       if (checked.kind === "unobservable") return refuse(checked.detail);
       if (await changedProjectionFiles(root, index) || await changedProjectionAsides(root, index)) continue;

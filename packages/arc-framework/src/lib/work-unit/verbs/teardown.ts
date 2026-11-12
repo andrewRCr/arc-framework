@@ -72,7 +72,8 @@ import {
   scanRegisteredWorktrees,
   type RegisteredWorktreeScanResult,
 } from "../../git/worktree-roster.js";
-import { reconcileLinkedIdentityGlobalUserSurfaces } from "../../user-surface-migration.js";
+import { reconcileLinkedIdentityGlobalUserSurfaces, type ReconcileLinkedIdentityGlobalUserSurfacesOptions,
+  type LinkedIdentityGlobalUserSurfaceResult } from "../../user-surface-migration.js";
 import { localPathsEqual } from "../../local-path-identity.js";
 import {
   readCompletedEvidenceFromRef,
@@ -628,12 +629,9 @@ async function teardownBranchProjection(
       if (primary === undefined) {
         return { status: "rejected", reason: "cannot resolve the primary worktree before husking" };
       }
-      const dryRun = await reconcileLinkedIdentityGlobalUserSurfaces({
-        worktreePath: registered.path,
-        primaryWorktreePath: primary,
-        fs,
-        dryRun: true,
-        signpost: true,
+      const dryRun = await reconcileBranchUserSurfaces(ctx.store, {
+        worktreePath: registered.path, primaryWorktreePath: primary, fs,
+        dryRun: true, signpost: true,
       });
       if (dryRun.status === "blocked") {
         return { status: "rejected", reason: dryRun.reason, huskRefusal: "user-surfaces" };
@@ -654,10 +652,8 @@ async function teardownBranchProjection(
       }
       const selectionRefusal = await revalidateSelection(registered.path);
       if (selectionRefusal !== null) return selectionRefusal;
-      const reconciliation = await reconcileLinkedIdentityGlobalUserSurfaces({
-        worktreePath: registered.path,
-        primaryWorktreePath: primary,
-        fs,
+      const reconciliation = await reconcileBranchUserSurfaces(ctx.store, {
+        worktreePath: registered.path, primaryWorktreePath: primary, fs,
         signpost: true,
       });
       if (reconciliation.status === "blocked") {
@@ -762,7 +758,7 @@ async function teardownBranchProjection(
         const expectedSelection = teardownSelections.get(registered.path);
         await reconcileWorkUnitWorktree(
           {
-            exec,
+            exec, store: ctx.store,
             chdir,
             fs,
             projectionRemovalSlots: ctx.projectionRemovalSlots,
@@ -1084,12 +1080,9 @@ async function teardownBranchProjection(
         return { status: "rejected", reason: "cannot resolve the primary worktree before husk removal" };
       }
       for (const dryRun of [true, false]) {
-        const reconciliation = await reconcileLinkedIdentityGlobalUserSurfaces({
-          worktreePath: physicalRemovalPath,
-          primaryWorktreePath: primaryPath,
-          fs,
-          dryRun,
-          signpost: true,
+        const reconciliation = await reconcileBranchUserSurfaces(ctx.store, {
+          worktreePath: physicalRemovalPath, primaryWorktreePath: primaryPath, fs,
+          dryRun, signpost: true,
         });
         if (reconciliation.status === "blocked") {
           return { status: "rejected", reason: reconciliation.reason, huskRefusal: "user-surfaces" };
@@ -1102,7 +1095,7 @@ async function teardownBranchProjection(
       try {
         await reconcileWorkUnitWorktree(
           {
-            exec,
+            exec, store: ctx.store,
             chdir,
             fs,
             projectionRemovalSlots: ctx.projectionRemovalSlots,
@@ -1388,4 +1381,10 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
     huskPath: params.huskPath,
     suggestion,
   });
+}
+
+async function reconcileBranchUserSurfaces(store: Store | undefined,
+  options: ReconcileLinkedIdentityGlobalUserSurfacesOptions): Promise<LinkedIdentityGlobalUserSurfaceResult> {
+  if (usesOffBranchState(store)) return { status: "ok", reconciled: [], signposted: [] };
+  return reconcileLinkedIdentityGlobalUserSurfaces(options);
 }

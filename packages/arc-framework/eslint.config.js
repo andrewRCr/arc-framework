@@ -36,6 +36,21 @@ const schemaOwners = ["lib/change-facts.schema.ts", "scripts/review-gate/core/ga
 const viewerFiles = ["lib/view-artifact.ts", "lib/view-renderer.ts", "lib/view/types.ts", "lib/view/format.ts", "lib/view/clock.ts"].map(src);
 const validationBan = restrictedReference("(?:^|/)validation\\.js$");
 const architectureBans = [
+  {
+    files: [subtree("lib/store/projection")],
+    patterns: [referencePattern("(?:^|/)user-surface-migration[.]js$")],
+    syntax: [
+      ...referenceSyntax('/(?:user-surfaces|user-surface-migration)[.]js$/'),
+      ...["ImportDefaultSpecifier", "ImportNamespaceSpecifier",
+        'ImportSpecifier:not([imported.name="IDENTITY_STATUS_FILENAME"]):not([imported.value="IDENTITY_STATUS_FILENAME"])']
+        .map((specifier) => ({ selector: `ImportDeclaration[source.value=/user-surfaces[.]js$/] > ${specifier}`,
+          message: "Keep projected personal files checkout-local" })),
+      ...["ExportAllDeclaration", "ExportNamedDeclaration"].map((declaration) => ({
+        selector: `${declaration}[source.value=/(?:user-surfaces|user-surface-migration)[.]js$/]`,
+        message: "Keep projected personal files checkout-local",
+      })),
+    ],
+  },
   { files: [`src/${TYPESCRIPT_SCOPE}`],
     ignores: [src("lib/terminal.ts"), src("lib/command-input/prompt-renderer.ts")], paths: ["@clack/prompts"],
     syntax: referenceSyntax('/^@clack\\/prompts$/'), predicates: ["clack"] },

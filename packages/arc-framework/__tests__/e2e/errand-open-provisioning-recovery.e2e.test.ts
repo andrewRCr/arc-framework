@@ -109,3 +109,56 @@ it.runIf(process.platform !== "win32")("recovers the same clean claim after its 
     await cleanupTempDir(remote);
   }
 }, RECOVERY_TIMEOUT_MS);
+
+it("cleans up capability-off failed setup and opens after setup repair", async () => {
+  const primary = await createTempRepo("arc-open-personal-recovery-");
+  const remote = `${primary}-remote.git`;
+  let spawned: string | null = null;
+  const git = async (args: string[], cwd = primary) => (await execFileAsync("git", args, { cwd })).stdout.trim();
+  try {
+    const init = await runArc(["init", "--yes", "--name", "test-project"], primary);
+    expect(init.exitCode, init.stdout + init.stderr).toBe(0);
+    const control = join(primary, ".arc/user/test-user/.internal");
+    await mkdir(control, { recursive: true });
+    const repaired = join(control, "setup-repaired");
+    await mkdir(join(primary, "scripts"), { recursive: true });
+    await writeFile(join(primary, "scripts", "personal-setup.cjs"), `
+const fs = require("node:fs");
+if (!fs.existsSync(process.argv[2])) {
+  fs.mkdirSync(".arc/user/test-user", { recursive: true });
+  fs.writeFileSync(".arc/user/test-user/personal.md", "Saved during failed setup.\\n");
+  process.exitCode = 1;
+}
+`);
+    const configPath = join(primary, ".arc/system/arc-config.yml");
+    let config = (await readFile(configPath, "utf8")).replace("branch.protection: partial", "branch.protection: full");
+    const setup = `worktree.post_create: node scripts/personal-setup.cjs ${JSON.stringify(repaired)}`;
+    config = /^worktree.post_create:/mu.test(config)
+      ? config.replace(/^worktree.post_create:.*$/mu, setup) : `${config}\n${setup}\n`;
+    await writeFile(configPath, config);
+    await git(["add", "-A"]);
+    const base = await git(["commit-tree", await git(["write-tree"]), "-m", "initialized fixture"]);
+    await git(["update-ref", "HEAD", base]);
+    await execFileAsync("git", ["init", "--bare", "--initial-branch=main", remote]);
+    await git(["remote", "add", "origin", remote]); await git(["push", "-u", "origin", "main"]);
+    const args = ["errand", "open", "personal-setup", "--type", "fix", "--isolate", "--json"];
+    const failed = await runArcAnchored(args, primary);
+    expect(failed.exitCode).not.toBe(0);
+    expect((await git(["worktree", "list", "--porcelain"]))).not.toContain("branch refs/heads/fix/personal-setup");
+    expect(await git(["for-each-ref", "--format=%(refname)", "refs/heads/fix/personal-setup"])).toBe("");
+    await expect(git(["cat-file", "-e", "refs/arc/user/test-user/errands:personal-setup"])).rejects.toThrow();
+    await writeFile(repaired, "setup repaired\n");
+    const retried = await runArcAnchored(args, primary);
+    expect(retried.exitCode, retried.stdout + retried.stderr).toBe(0);
+    const result = JSON.parse(retried.stdout) as { allocation: { checkoutPath: string } };
+    spawned = result.allocation.checkoutPath;
+    expect(JSON.parse(await readFile(join(spawned, ".arc/system/.internal/worktree-marker.json"), "utf8")))
+      .toMatchObject({ provisioning: "ready" });
+  } finally {
+    if (spawned !== null) {
+      await git(["worktree", "remove", "--force", spawned]).catch(() => undefined);
+      await cleanupTempDir(spawned);
+    }
+    await cleanupTempDir(primary); await cleanupTempDir(remote);
+  }
+}, RECOVERY_TIMEOUT_MS);

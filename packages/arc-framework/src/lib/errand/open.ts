@@ -523,8 +523,7 @@ async function rollbackIdentity(
 function durableResidue(evidence: ProvisioningEvidence | null): string | null {
   if (evidence === null) return "an unestablished local provisioning state";
   if (evidence.kind === "identity-only") return null;
-  if (evidence.kind === "pending-marker") return `a worktree marker at ${evidence.checkoutPath}`;
-  return `a worktree marker at ${evidence.checkoutPath}`;
+  return `a worktree marker at ${evidence.checkoutPath}${evidence.detail === undefined ? "" : `; ${evidence.detail}`}`;
 }
 
 function provisioningReason(reason: ProvisioningRefusalReason): LocusAllocationPlanningRefusalReason {

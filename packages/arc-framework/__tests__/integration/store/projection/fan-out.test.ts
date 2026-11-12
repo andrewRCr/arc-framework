@@ -139,3 +139,23 @@ it("fans out from an unclaimed writer whose own checkout has no projection", asy
   expect((await h.disk()).entries[h.path]).toMatchObject({ changed: false });
   expect(await readProjectionIndex(location, false)).toEqual({ kind: "no-projection" });
 });
+
+it("keeps a linked inbox copy separate and propagates its saved capture back to primary", async () => {
+  const content = "# User Inbox\n\n## Errand\n\n## Work Unit\n\n---\n";
+  const path = ".arc/user/andrew/USER-INBOX.md";
+  const { h, sibling, input, store, file } = await createFanOutFixture(directories, { kind: "personal/inbox", path, content });
+  await endProjection(input);
+  const own = await h.file(), entry = sibling.index.entries[path];
+  if (entry?.kind !== "record") throw new Error("Expected the linked inbox's indexed base");
+  const edited = content.replace("## Work Unit", "### **Linked capture**\n\nPreserve this saved capture.\n\n## Work Unit");
+  await writeFile(join(sibling.checkout, path), renderStampedFile({ content: edited, stamp: entry.base.blob }));
+  expect(await h.file()).toBe(own);
+  expect(await file()).toContain("Linked capture");
+  const linkedInput = { checkout: sibling.checkout, location: sibling.location, store,
+    ports: () => createProjectionEnginePorts(sibling.checkout) };
+  expect(await startProjection(linkedInput)).toMatchObject({ kind: "ready" });
+  await endProjection(linkedInput);
+  expect((await h.stored()).content).toContain("Linked capture");
+  expect(await h.file()).toContain("Linked capture");
+  expect(await h.file()).toContain("Preserve this saved capture.");
+});

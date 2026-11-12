@@ -718,7 +718,7 @@ export async function composeSessionInitStatus(
           })
         : { branches: [], pendingBranchCount: 0 };
       return runBranchGoneRecovery({
-        roster,
+        store, roster,
         derivedRoster,
         currentBranch,
         baseBranch,

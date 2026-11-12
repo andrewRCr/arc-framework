@@ -33,6 +33,8 @@ export type {
   TransientProvisioningReceipt,
 } from "./provisioning-types.js";
 
+interface RollbackMarker { readonly markerBytes: Buffer; readonly markerOwned: boolean; readonly checkoutPath: string }
+
 interface SpawnState {
   readonly checkoutPath: string;
   readonly rosterHead: string;
@@ -274,7 +276,7 @@ async function rollbackSpawnFailure(
   creation: LinkedWorktreeCreationReceipt | null,
   rosterHead: string | null,
   error: unknown,
-  markerRollback: { markerBytes: Buffer; markerOwned: boolean; checkoutPath: string } | null = null,
+  markerRollback: RollbackMarker | null = null,
 ): Promise<ProvisionTransientLocusResult> {
   return failure(error, await rollbackSpawn(options, creation, rosterHead, markerRollback));
 }
@@ -292,31 +294,48 @@ async function rollbackSpawn(
   options: ProvisionTransientLocusOptions,
   creation: LinkedWorktreeCreationReceipt | null,
   rosterHead: string | null,
-  markerRollback: { markerBytes: Buffer; markerOwned: boolean; checkoutPath: string } | null,
+  markerRollback: RollbackMarker | null,
 ): Promise<ProvisioningEvidence> {
-  if (markerRollback !== null) {
-    if (!markerRollback.markerOwned) {
-      return { kind: "pending-marker", checkoutPath: markerRollback.checkoutPath, markerBytes: markerRollback.markerBytes };
-    }
-    const removed = await safeCall(() =>
-      options.dependencies.removeMarker(markerRollback.checkoutPath, markerRollback.markerBytes));
-    if (removed.kind === "error" || removed.value.kind !== "removed") {
-      return { kind: "marker-residue", checkoutPath: markerRollback.checkoutPath, markerBytes: markerRollback.markerBytes };
-    }
+  if (markerRollback !== null && !markerRollback.markerOwned) {
+    return { kind: "pending-marker", checkoutPath: markerRollback.checkoutPath, markerBytes: markerRollback.markerBytes };
   }
-  if (creation !== null && rosterHead !== null && options.proposal.allocation.kind === "spawn") {
+  const rollback = creation !== null && rosterHead !== null && options.proposal.allocation.kind === "spawn"
+    ? { creation, rosterHead, primaryPath: options.proposal.allocation.primaryPath } : null;
+  if (rollback !== null) {
+    const retained = await checkRollbackSafety(options, rollback.creation.worktreePath, markerRollback);
+    if (retained !== null) return retained;
+  }
+  const markerResidue = await removeRollbackMarker(options, markerRollback);
+  if (markerResidue !== null) return markerResidue;
+  if (rollback !== null) {
     const rolledBack = await safeCall(() => options.dependencies.rollbackSpawned(
-      creation,
-      rosterHead,
-      options.proposal.allocation.kind === "spawn" ? options.proposal.allocation.primaryPath : "",
-    ));
+      rollback.creation, rollback.rosterHead, rollback.primaryPath));
     if (rolledBack.kind === "error" || rolledBack.value.kind !== "rolled-back") {
-      return { kind: "marker-residue", checkoutPath: creation.worktreePath, markerBytes: null };
+      return { kind: "marker-residue", checkoutPath: rollback.creation.worktreePath, markerBytes: null };
     }
   } else if (creation !== null) {
     return { kind: "marker-residue", checkoutPath: creation.worktreePath, markerBytes: null };
   }
   return { kind: "identity-only" };
+}
+
+async function checkRollbackSafety(options: ProvisionTransientLocusOptions, checkoutPath: string,
+  marker: RollbackMarker | null): Promise<ProvisioningEvidence | null> {
+  const checked = await safeCall(() => options.dependencies.checkRollback(checkoutPath, "remove"));
+  const detail = checked.kind === "error" ? `Cannot observe personal files: ${String(checked.error)}. Repair the read and retry.`
+    : checked.value.kind === "would-refuse" ? checked.value.remedy.text
+    : checked.value.kind === "unobservable" ? checked.value.detail : null;
+  if (detail === null) return null;
+  return marker === null ? { kind: "marker-residue", checkoutPath, markerBytes: null, detail }
+    : { kind: "pending-marker", checkoutPath: marker.checkoutPath, markerBytes: marker.markerBytes, detail };
+}
+
+async function removeRollbackMarker(options: ProvisionTransientLocusOptions,
+  marker: RollbackMarker | null): Promise<ProvisioningEvidence | null> {
+  if (marker === null) return null;
+  const removed = await safeCall(() => options.dependencies.removeMarker(marker.checkoutPath, marker.markerBytes));
+  return removed.kind === "error" || removed.value.kind !== "removed"
+    ? { kind: "marker-residue", checkoutPath: marker.checkoutPath, markerBytes: marker.markerBytes } : null;
 }
 
 function refused(reason: ProvisioningRefusalReason, evidence: ProvisioningEvidence): ProvisionTransientLocusResult {

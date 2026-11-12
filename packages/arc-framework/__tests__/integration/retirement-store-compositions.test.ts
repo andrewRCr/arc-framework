@@ -53,14 +53,14 @@ async function fixture(ended = true, primary = false) {
   return { ...h, checkout, held, authored };
 }
 
-async function invoke(h: Awaited<ReturnType<typeof fixture>>, argv: readonly string[]) {
+async function invoke(h: Awaited<ReturnType<typeof fixture>>, argv: readonly string[], invokingPath = h.root) {
   const cwd = process.cwd(), exit = process.exitCode;
   let output = "";
   const capture = (chunk: string | Uint8Array) => { output += String(chunk); return true; };
   const stdout = vi.spyOn(process.stdout, "write").mockImplementation(capture);
   const stderr = vi.spyOn(process.stderr, "write").mockImplementation(capture);
   try {
-    binding.store = h.store; process.chdir(h.root); process.exitCode = undefined;
+    binding.store = h.store; process.chdir(invokingPath); process.exitCode = undefined;
     await dispatchRegisteredCli(["--no-input", "--skip-projection", ...argv]);
     return { output, exitCode: process.exitCode ?? 0 };
   } finally { binding.store = null; stdout.mockRestore(); stderr.mockRestore(); process.chdir(cwd); process.exitCode = exit; }
@@ -162,4 +162,76 @@ it.each([false, true])("retains a Store decomposition's origin and refused edit,
     expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).toContain(h.checkout);
   } else expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.checkout);
   expect(lifecycleSuccess(await h.store.read({ reference: h.record.reference })).content).toBe("A current identity's saved edit.\n");
+}, 30_000);
+
+async function divergentInboxes(h: Awaited<ReturnType<typeof fixture>>) {
+  await rm(h.held);
+  const path = ".arc/user/test-user/USER-INBOX.md";
+  const base = "# User Inbox\n\n## Errand\n\n## Work Unit\n\n---\n";
+  const record = await h.seed(RecordReferenceSchema.parse({ kind: "personal/inbox", owner: { type: "person", name: "test-user" } }), base);
+  const primary = await seedProjection({ checkout: h.root, store: h.store, identity: SlugSchema.parse("test-user"),
+    files: [{ path, reference: record.reference }] });
+  await rm(join(h.checkout, h.path));
+  const linked = await seedProjection({ checkout: h.checkout, store: h.store, identity: SlugSchema.parse("test-user"),
+    files: [{ path, reference: record.reference }, { path: h.path, reference: h.record.reference }] });
+  const content = (title: string) => base.replace("## Work Unit", `### **${title}**\n\nKeep this capture in its own working copy.\n\n## Work Unit`);
+  const primaryEntry = primary.index.entries[path], linkedEntry = linked.index.entries[path];
+  if (primaryEntry?.kind !== "record" || linkedEntry?.kind !== "record") throw new Error("Expected two indexed inbox copies");
+  const primaryBytes = renderStampedFile({ content: content("Primary only"), stamp: primaryEntry.base.blob });
+  const linkedContent = content("Linked only");
+  await writeFile(join(h.root, path), primaryBytes);
+  await writeFile(join(h.checkout, path), renderStampedFile({ content: linkedContent, stamp: linkedEntry.base.blob }));
+  return { path, record, primaryBytes, linkedContent };
+}
+
+it("persists a teardown's linked inbox without merging it into the primary's working copy", async () => {
+  const h = await fixture(), inbox = await divergentInboxes(h);
+  const result = await invoke(h, ["teardown", "demo"]);
+  expect(result, result.output).toMatchObject({ exitCode: 0 });
+  expect(await readFile(join(h.root, inbox.path), "utf8")).toBe(inbox.primaryBytes);
+  const stored = lifecycleSuccess(await h.store.read({ reference: inbox.record.reference })).content;
+  expect(stored).toContain("### **Linked only**");
+  expect(stored).toContain("Keep this capture in its own working copy.");
+  expect(stored).not.toContain("Primary only");
+  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.checkout);
+}, 30_000);
+
+it("persists an executor removal's linked inbox without merging it into the primary's working copy", async () => {
+  const h = await fixture(), inbox = await divergentInboxes(h);
+  const subject = h.marker.createdFor;
+  if (subject === undefined) throw new Error("Expected an owned checkout");
+  expect(await h.executor.reconcileWorkUnitWorktree({ mutation: "teardown", worktreePath: h.checkout,
+    currentLocus: h.root, subject })).toMatchObject({ mutation: "teardown", worktreePath: h.checkout });
+  expect(await readFile(join(h.root, inbox.path), "utf8")).toBe(inbox.primaryBytes);
+  const stored = lifecycleSuccess(await h.store.read({ reference: inbox.record.reference })).content;
+  expect(stored).toContain("### **Linked only**");
+  expect(stored).toContain("Keep this capture in its own working copy.");
+  expect(stored).not.toContain("Primary only");
+  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.checkout);
+}, 30_000);
+
+it("husks and later removes a cheap branch without merging either linked inbox into the primary", async () => {
+  const h = await fixture(), inbox = await divergentInboxes(h);
+  const branch = "chore/cleanup";
+  await h.exec("git", ["push", "origin", "main"]);
+  await h.exec("git", ["switch", "-c", branch, "main"], { cwd: h.checkout });
+  await writeWorktreeMarker(h.checkout, { spawnedByArc: true, createdFor: { kind: "branch", ref: branch },
+    spawningIdentity: "test-user", createdAt: new Date(0).toISOString() });
+  const husked = await invoke(h, ["teardown", "--branch", branch], h.checkout);
+  expect(husked, husked.output).toMatchObject({ exitCode: 0 });
+  expect(await readWorktreeMarker(h.checkout)).toMatchObject({ kind: "present", marker: { husk: { branch } } });
+  expect((await h.exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: h.checkout })).stdout).toBe("HEAD");
+  expect(await readFile(join(h.root, inbox.path), "utf8")).toBe(inbox.primaryBytes);
+  const huskInbox = await readFile(join(h.checkout, inbox.path), "utf8");
+  expect(huskInbox).toContain("Linked only");
+  await writeFile(join(h.checkout, inbox.path), huskInbox.replace("## Work Unit",
+    "### **After husking**\n\nKeep this later saved capture too.\n\n## Work Unit"));
+  const removed = await invoke(h, ["teardown", "--branch", branch]);
+  expect(removed, removed.output).toMatchObject({ exitCode: 0 });
+  expect(await readFile(join(h.root, inbox.path), "utf8")).toBe(inbox.primaryBytes);
+  const stored = lifecycleSuccess(await h.store.read({ reference: inbox.record.reference })).content;
+  expect(stored).toContain("Linked only");
+  expect(stored).toContain("After husking");
+  expect(stored).not.toContain("Primary only");
+  expect((await h.exec("git", ["worktree", "list", "--porcelain"])).stdout).not.toContain(h.checkout);
 }, 30_000);

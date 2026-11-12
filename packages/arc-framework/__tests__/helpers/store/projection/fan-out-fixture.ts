@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { expect } from "vitest";
 import { configureEngineCheckout, createEngineFixture } from "./engine-fixture.js";
 import { seedProjection } from "./seeded-projection.js";
+import type { KindId } from "../../../../src/lib/store/catalog.js";
 import type { Store } from "../../../../src/lib/store/contract.js";
 import type { ProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
 import { createProjectionEnginePorts } from "../../../../src/lib/store/projection/engine-ports.js";
@@ -18,9 +19,9 @@ import { createProjectionProtection } from "../../../../src/lib/store/projection
 import { withFanOut } from "../../../../src/lib/store/projection/with-fan-out.js";
 import { createProjectionFanOutDependencies } from "../../../../src/lib/store/projection/fan-out-binding.js";
 
-export async function createFanOutFixture(directories: string[], options: { content?: string; workItem?: boolean; store?: (store: Store) => Store;
+export async function createFanOutFixture(directories: string[], options: { content?: string; workItem?: boolean; kind?: KindId; path?: string; store?: (store: Store) => Store;
   ports?: (ports: ProjectionEnginePorts) => ProjectionEnginePorts } = {}) {
-  const h = await createEngineFixture(directories, { content: options.content, ...(options.workItem ? { kind: "work-item/task-list",
+  const h = await createEngineFixture(directories, { content: options.content, kind: options.kind, path: options.path, ...(options.workItem ? { kind: "work-item/task-list",
     path: ".arc/active/current/tasks-work-item-one.md",
     registryOverrides: { "work-item/task-list": { parser: TASK_LIST_REGISTRATION.parser } } } : {}) });
   await h.exec("git", ["commit", "--allow-empty", "-m", "Seed code"], { cwd: h.checkout });

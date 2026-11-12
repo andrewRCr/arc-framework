@@ -26,7 +26,7 @@ import { checkUnrecordedProjectionCopies } from "./removal-asides.js";
 /** Persist the target and remove only a linked checkout's projection. */
 export async function releaseProjectionRemoval(checkout: string, _isPrimary: boolean,
   context: ProjectionPersistContext): Promise<Awaited<ReturnType<ProjectionRemovalSlots["release"]>>> {
-  const result = await withPersistedProjection(checkout, context, async (root, index) => {
+  const result = await withPersistedProjection(checkout, context, "release", async (root, index) => {
     if (root.location.primary) return { kind: "persisted" };
     return removeLinkedProjection(root, index);
   });

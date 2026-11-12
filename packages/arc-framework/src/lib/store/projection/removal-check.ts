@@ -2,6 +2,7 @@
 import type { Slug } from "../../kernel/index.js";
 import type { ProjectionRemovalSlots } from "../../git/worktree-removal.js";
 import type { Store } from "../contract.js";
+import { observeUnprojectedPersonalFiles, type ProjectionResidualFs } from "./removal-residual.js";
 import { createProjectionEnginePorts, type ProjectionEnginePorts } from "./engine-ports.js";
 import { locateProjection } from "./location.js";
 import { checkoutHoldsProjection } from "./ownership.js";
@@ -18,19 +19,21 @@ import { checkProjectionRemovalAsides } from "./removal-asides.js";
 /** The command's store authority and independently target-bound host operations. */
 export interface ProjectionRemovalContext {
   readonly store: Store;
+  readonly residualFs?: ProjectionResidualFs;
   readonly identity: Slug | null;
   readonly ports?: (checkout: string) => ProjectionEnginePorts;
 }
 
 /** Check projected retirement safety without acquiring a lease or changing local or stored state. */
-export async function checkProjectionRemoval(checkout: string, context: ProjectionRemovalContext): Promise<Awaited<ReturnType<ProjectionRemovalSlots["check"]>>> {
+export async function checkProjectionRemoval(checkout: string, context: ProjectionRemovalContext, disposition: "remove" | "release" = "remove"): Promise<Awaited<ReturnType<ProjectionRemovalSlots["check"]>>> {
   try {
     const ports = context.ports?.(checkout) ?? createProjectionEnginePorts(checkout);
     const location = await locateProjection(checkout, ports);
     const disk = await readProjectionIndex(location, await checkoutHoldsProjection(checkout, location), { groups: "all", retry: true });
     if (disk.kind === "unusable") return { kind: "unobservable", detail:
       `The projection index at ${checkout} is ${disk.cause}. Run arc save from that checkout to rebuild it, then retry removal or release there.` };
-    if (disk.kind === "no-projection") return { kind: "passes" };
+    if (disk.kind === "no-projection") return disposition === "release" ? { kind: "passes" }
+      : await observeUnprojectedPersonalFiles(checkout, context.residualFs);
     const configuration = await readProjectionConfiguration(ports.exec, checkout);
     if (configuration.identity.status === "no-identity") return { kind: "would-refuse", remedy: configuration.identity.remedy };
     const targetIdentity = configuration.identity.identity;

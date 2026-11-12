@@ -6,7 +6,7 @@ import type {
   LinkedWorktreeCreationResult,
 } from "../git/linked-worktree.js";
 import type { WorktreeMarker } from "../git/worktree-marker.js";
-import type { SpawnLock } from "../git/worktree-removal.js";
+import type { ProjectionRemovalSlots, SpawnLock } from "../git/worktree-removal.js";
 import type { RegisteredWorktreeScanResult } from "../git/worktree-roster.js";
 import type { LocusAllocationPlan } from "./allocator.js";
 import type { ProvisioningAuthority } from "./provisioning-authority.js";
@@ -68,6 +68,8 @@ export interface ProvisionTransientLocusDependencies {
   rollbackPrimary(checkoutPath: string, receipt: PrimaryCheckoutReceipt): Promise<
     { kind: "rolled-back" } | { kind: "generation-mismatch" }
   >;
+  /** Observe personal-data preservation before compensation clears ownership or removes a checkout. */
+  checkRollback: ProjectionRemovalSlots["check"];
   rollbackSpawned(
     receipt: LinkedWorktreeCreationReceipt,
     rosterHead: string,
@@ -89,8 +91,8 @@ export type ProvisioningRefusalReason =
 
 export type ProvisioningEvidence =
   | { readonly kind: "identity-only" }
-  | { readonly kind: "pending-marker"; readonly checkoutPath: string; readonly markerBytes: Buffer }
-  | { readonly kind: "marker-residue"; readonly checkoutPath: string; readonly markerBytes: Buffer | null };
+  | { readonly kind: "pending-marker"; readonly checkoutPath: string; readonly markerBytes: Buffer; readonly detail?: string }
+  | { readonly kind: "marker-residue"; readonly checkoutPath: string; readonly markerBytes: Buffer | null; readonly detail?: string };
 
 export interface TransientProvisioningReceipt {
   readonly disposition: "applied" | "idempotent";

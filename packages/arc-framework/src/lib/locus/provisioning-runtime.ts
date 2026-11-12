@@ -15,7 +15,7 @@ import {
   nodeEditorDocumentsFs, writeEditorDocumentsOrThrow, type EditorDocumentsWriter,
 } from "../schema-command/editor-documents.js";
 import { scanRegisteredWorktrees } from "../git/worktree-roster.js";
-import { lockSpawnedCheckout } from "../git/worktree-removal.js";
+import { lockSpawnedCheckout, type ProjectionRemovalSlots } from "../git/worktree-removal.js";
 import {
   createWorktreeMarkerGeneration,
   ensureWorktreeMarkerIgnored,
@@ -39,6 +39,7 @@ export interface NodeProvisioningRuntimeOptions {
   readonly branch: string | null;
   /** Synchronize the configured base immediately before a new branch is cut. */
   readonly synchronizeBase?: () => Promise<BaseSyncResult>;
+  readonly projectionRemovalSlots: ProjectionRemovalSlots;
   readonly postCreateScript: string;
   readonly registeredHarnessDirs: string;
 }
@@ -127,6 +128,7 @@ export function createNodeProvisioningDependencies(
         options.synchronizeBase,
       ),
     rollbackPrimary: (checkoutPath, receipt) => rollbackPrimary(options.exec, checkoutPath, receipt),
+    checkRollback: options.projectionRemovalSlots.check,
     rollbackSpawned: (receipt, rosterHead, primaryWorktreePath) =>
       rollbackSpawned(options.exec, receipt, rosterHead, primaryWorktreePath),
     lockSpawnedCheckout: (worktreePath) => lockSpawnedCheckout(options.exec, worktreePath),
