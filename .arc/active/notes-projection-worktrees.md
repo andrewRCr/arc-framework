@@ -775,6 +775,14 @@ Corrected native run `d430ed45dcf24269a593351a5e3564f3` passed the alias, write,
 cases; Windows run `afa33e0a2a31407dbb68739d2b232e1d` passed all three native ref cases. Full fan-out regression
 `614e8f1fee5e48dfa052f74b17cc418e` passed all 51 cases across fourteen files.
 
+#### Dispatched native qualification
+
+Run `43126888591` passed at `4c81df9ec8fa9652d20c6039c32a0bed73f3e3ff`. Its named-file pair ran the complete burst
+suite, timing-isolation regression, and native fan-out cases: Windows job `130881625326` and macOS job `130881625356`
+each completed all 26 cases, including all 22 burst cases across both layouts. Linux portability job `130882073727`
+also completed all 22 burst cases and timing isolation within its full selected tier. The named-file input scopes
+this evidence to task qualification. The final local burst/isolation run was `abfbe9d95f884b9a84617475b692f725`.
+
 ### Physical Git-start assertions after reader reuse
 
 Dispatched run `43116874002` exposed stale exact-process assertions in Store Suites 1 and 6 after recursive tree

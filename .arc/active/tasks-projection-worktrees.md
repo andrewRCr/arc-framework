@@ -254,34 +254,16 @@ that chunk.
   one-file/ten-file limits and no unsupported Git credit. The original Goal and criterion remain as the superseded
   record; criterion 11 carries the effective performance obligation without changing sibling scheduling.
 
-### `[ ]` **1.13 Hold saves through bursts across processes — § 1.5**
+### `[x]` **1.13 Hold saves through bursts across processes — § 1.5**
 
 - _Goal:_ Twenty worktrees of one clone, each a separate process over the ref backend, saving into refreshes, fan-outs,
   and file removals at once, lose no save and no write.
 
-    - A store suite, `__tests__/integration/store-ref-projection-bursts.test.ts`, run only where `ARC_STORE_BURSTS` is
-      `"1"` (`describe.skipIf`), as `store-ref-bursts.test.ts` is, with a per-test timeout at least that suite's
-      `BURST_TIMEOUT_MS`. It registers by its file name where those bursts do: in Vitest's `integration-bursts` project
-      and out of the plain integration project (`vitest.config.ts`, where `burstTest` names one file, so the new suite
-      takes entries of its own), in the portability tier's `PORTABILITY_SUITES` (`lib/local-vitest-runner.ts`), in the
-      `ARC_STORE_BURSTS` environment entry of `__tests__/reach/store-suites.json`, which lists its files by name, and
-      among the file names `store-ref-timing-isolation.test.ts` checks for overlap; the `store-ref-*.test.ts` glob of
-      that file's `suites` already selects it by reach. The Windows run covers both layouts, as the ref backend's bursts
-      now do.
-    - Each worktree runs the engine's start and end over `createRefStore` in a child process from a writer fixture of
-      its own, built the way the ref backend's bursts start theirs (`startRefWriter`,
-      `__tests__/helpers/store/ref-process.ts`, over `__tests__/fixtures/store/ref-process-writer.ts`) and as
-      `personal-lock-holder.ts` (`__tests__/helpers/store/`) runs one, in a repository from `prepared-repository.ts`.
-      The processes line up across process boundaries: a child reaching a step hook prints the hook's name on stdout and
-      waits for the parent's release line on stdin, as those helpers' `READY` and release do; the hooks are the four
-      `SwapHooks` (`afterRecheck`, `afterMove`, `afterFirstCheck`, `beforeRebuildLink`) and a step hook this task adds
-      to the fan-out (1.7.b) before each worktree it visits, so saves land inside another's replacement, fan-out, and
-      file removal. The suite requires every save to reach the store, stay in its file, pending or reported, or stay in
-      an aside copy — pending for the next sweep, or kept because its path moved on, reported with its path
-      (`hasPathMovedOn`, `lib/store/projection/aside-copies.ts`) — and fails a run whose processes never reached each
-      hook.
-    - Passes in one dispatched run of the portability pair and one of the Linux `portability` job, each recorded in this
-      task's completion note.
+- _Outcome:_ The native suite coordinates twenty distinct engine processes per ref-store layout, with rotated editors
+  saving at every swap hook and serial fan-out visit. Its oracle accepts current recoverable bytes and rejects settled
+  or unindexed copies; physical directory identity prevents duplicate writer visits. Dispatched run `43126888591` at
+  `4c81df9ec8` passed Linux portability and the Windows/macOS named-file pair, covering both layouts, timing isolation,
+  and the native alias regression. Detailed evidence is in `notes-projection-worktrees.md`.
 
 ### `[ ]` **1.14 The working copy across worktrees** — validate exit criterion at segment scope
 
