@@ -1355,3 +1355,49 @@ native adoption/write-back suites, projection suite, both retirement suites, and
 randomized save-loss cases account for 3,000 Linux saves across the three save modes, with no lost save. The final
 observation-helper refactor is covered by the 120-case focused run above and passing focused lint. Task 2.3's completion
 edit preserves its Goal; the final increment and commit gates close the atomic release change.
+
+## Task 2.4: removal compositions
+
+The caller inventory at `a6ea395780` matches the task-generation families in § Removal callers. No new production
+family lies outside tasks 2.4.b and 2.4.c, and no production composition yet supplies concrete projection slots. The
+following are construction sites, distinct from option types, default values, and transitive forwarding:
+
+- `handlers/lifecycle.ts`: `runPark` and `runAbandon` construct the removal-check options; `runBranchTeardown` and the
+  operand teardown path construct teardown contexts. The command's Store and identity are available. Operand teardown
+  now delegates through `handlers/teardown-operand.ts`; the authoritative context is still constructed in lifecycle.
+- `lib/work-unit/store-teardown-context.ts`: `createStoreTeardownContext` has the executor Store and command identity;
+  `handlers/abandon-store.ts` and `handlers/decompose-store.ts` use it beside their removal-check options. Their check
+  consumers already fall back to the teardown context's projection check when an explicit check is absent.
+- `lib/work-unit/executor-context.ts`: `buildExecutorContext` owns the reconcile context inherited by start graduation,
+  materialize, store materialize, park/resume, and lifecycle execution. Its resolved Store is available; its command
+  identity can be null, unlike the projection slots' current context type.
+- `commands/start.ts`: `runCreateNew` constructs a direct reconcile context with the Store and parameter identity.
+- `commands/rename.ts`: in-repo rename constructs apply and rollback reconcile contexts with Store/identity available
+  in the enclosing command. `commands/rename-store.ts` constructs store rename's checkout-move apply/rollback contexts;
+  `storeRenameAdapters` currently narrows its input to `cwd` and I/O, dropping the upstream Store and identity before
+  that move closure. The binding must retain those authorities through the adapter.
+- `handlers/status.ts`: `composeSessionInitStatus` constructs branch-gone recovery and stale-sweep options with the
+  enclosing Store, identity, and capability available. The sweep's residue and missing-folder paths already forward
+  the supplied slots or their check.
+- `handlers/errand.ts`: leave opens its Store inline; ordinary and partial close share an opened Store; ordinary and
+  partial abandon likewise share one. Each construction has the resolved command identity. Leave authorization and
+  terminal-occupancy options already carry supplied slots, including the partial paths.
+- `handlers/locus-release.ts`: the handler resolves its Store and command identity but currently forwards only optional
+  caller-supplied slots. Its CLI call supplies no handler context, so the handler must bind the production default.
+
+The six direct entry points retain the same consumer ledger as the baseline:
+
+- `checkWorktreeRemoval`: teardown, worktree reconciliation, branch-gone recovery, stale sweep, lifecycle-residue
+  sweep, store-retirement sweep, missing-worktree folders, and Errand leave authorization.
+- `removeWorktreeCheckout`: teardown, store teardown, worktree reconciliation, terminal occupancy's spawned-checkout
+  removal, and locus release.
+- `releaseWorktreeCheckout`: teardown, store teardown, and locus release.
+- `checkRetiringCheckout`: in-repo and store abandon, park/resume, and decomposition's retirement checkout check.
+- `clearMissingWorktreeRegistrations`: worktree reconciliation and store teardown.
+- `removePrimaryTransientOccupancy`: terminal occupancy's primary removal and promotion settlement. The terminal
+  path still clears the primary claim without a release slot; task 2.4.c adds that slot before the clear and branch
+  restore. Promotion's separate clear is the planned in-repo-only exception; off-branch promotion rewrites its claim.
+
+Teardown's internal reconcile contexts, the stale/residue and branch-gone forwarding, and the Errand leave/close/
+abandon/partial settlement plumbing already carry optional slots. Binding belongs at the constructors above, with
+terminal primary settlement adding its missing release call. The inventory itself changes no production behavior.

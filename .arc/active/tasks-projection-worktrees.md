@@ -343,13 +343,12 @@ No production composition sets the slots today, so every caller runs `passingPro
 
 - _Note:_ The callers on `main` as of task generation are listed in `notes-projection-worktrees.md` § Removal callers.
 
-    - `[ ]` **2.4.a The callers on the merged base**
+    - `[x]` **2.4.a The callers on the merged base**
 
-        - On the merged base, list every production construction of a context carrying `projectionRemovalSlots`, a
-          `removal` option, or a removal `check`, and every direct call of `checkWorktreeRemoval`,
-          `removeWorktreeCheckout`, `releaseWorktreeCheckout`, `checkRetiringCheckout`,
-          `clearMissingWorktreeRegistrations`, and `removePrimaryTransientOccupancy`, against the notes' list; record
-          what moved in this task's completion note. A caller absent from 2.4.b and 2.4.c is bound with them.
+        - Rechecked every composition and direct removal entry point against the baseline in
+          `notes-projection-worktrees.md`. The caller families match; operand teardown now delegates through
+          `handlers/teardown-operand.ts`. The notes pin the current inventory and identify nullable executor identity
+          and the store-rename adapter's dropped Store/identity authority for the bindings.
 
     - `[ ]` **2.4.b Lifecycle's contexts**
 
