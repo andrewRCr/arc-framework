@@ -117,28 +117,21 @@ restarted after each of its steps.
           marker checkpoints leave interrupted holds incomplete; explicit refusals discard unfinished holds.
         - _Retired in:_ Phase 4
 
-### `[ ]` **2.2 What the import consumed — § 3, § 6.1**
+### `[x]` **2.2 What the import consumed — § 3, § 6.1**
 
 - _Goal:_ One comparison decides whether what the import consumed of each Errand identity ref equals its held tip — by
   kept tip while the kept tips remain, by landed transient record once they are dropped, and by the ref's own value
   before a landing — writing nothing, so `restore` and `recompute` judge consumption the same way.
-
-- _Note:_ See `notes-cutover-window-tooling.md` § Consumed comparison.
 
     - `[x]` **2.2.a The records the held identity refs give**
         - `readWindowTransientRecords` reads exact identity refs at their held immutable tips and maps claims through
           the import's logical coordinates and canonical JSON. Absent, failed, or diagnostic-bearing snapshots remain
           named differences rather than empty identities; unrelated ARC refs are ignored.
 
-    - `[ ]` **2.2.b The three regimes**
-        - Read the landed records with plain Git reads of the claim trees and work-item refs; decide "landed" by a strict
-          read of the registry ref, where only exit status 1 means absent.
-        - Build `test-first` (one behavior at a time):
-            - With kept tips, each held ref's kept tip must equal its held tip, and no other ref may have one
-            - After a landing with the kept tips dropped, the landed claims must be exactly those the held tips give, and
-              any landed `work-item/record` or `work-item/description` is a difference
-            - With kept tips and no landing, nothing is consumed, and each ref's own value is left to the caller
-            - Each difference names the ref, its held tip, any kept tip, and each differing record in full
+    - `[x]` **2.2.b The three regimes**
+        - `compareWindowConsumption` distinguishes unlanded input, retained source tips, and landed records using strict
+          registry and plain Git reads. It compares the complete claim set and canonical content, reports full record
+          differences and unexpected Errands, and retains identity coordinates for the restore's decision record.
 
 ### `[ ]` **2.3 The restore — § 6**
 

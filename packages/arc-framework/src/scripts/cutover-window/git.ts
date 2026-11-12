@@ -1,5 +1,6 @@
 /** Complete local ref snapshots for the repository-only window operations. */
 import { z } from "zod";
+import { isCompletedGitFailure, isGitProcessError } from "../../lib/git/process-error.js";
 import type { GitExec } from "../../lib/git/exec.js";
 
 /** Read access pinned to the operation's explicit checkout. */
@@ -15,4 +16,16 @@ export async function listWindowRefs(io: WindowGitReadIO, prefixes: readonly [st
     const [ref, tip] = line.split(" ");
     return [name.refine(value => prefixes.some(prefix => value.startsWith(prefix))).parse(ref), oid.parse(tip)];
   }));
+}
+
+/** Resolve an exact local ref strictly: only a completed absence result answers null. */
+export async function readWindowRefTip(io: WindowGitReadIO, ref: string): Promise<string | null> {
+  try {
+    const { stdout } = await io.exec("git", ["--no-replace-objects", "rev-parse", "--verify", "--quiet", "--end-of-options", name.parse(ref)],
+      { cwd: io.repo, objectAccess: "local-only" });
+    return oid.parse(stdout.trim());
+  } catch (error) {
+    if (isGitProcessError(error) && isCompletedGitFailure(error) && error.exitCode === 1) return null;
+    throw error;
+  }
 }
